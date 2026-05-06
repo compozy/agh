@@ -227,6 +227,31 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
+			name: "Should allow memory controller policy origins mutation",
+			path: "memory.controller.policy.allow_origins",
+			kind: ConfigValueStringSlice,
+		},
+		{
+			name: "Should allow memory recall scoring mutation",
+			path: "memory.recall.weights.bm25_unicode",
+			kind: ConfigValueFloat,
+		},
+		{
+			name: "Should allow memory extractor queue mutation",
+			path: "memory.extractor.queue.coalesce_max",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow memory dream gate mutation",
+			path: "memory.dream.gates.min_score",
+			kind: ConfigValueFloat,
+		},
+		{
+			name: "Should allow memory provider timeout mutation",
+			path: "memory.provider.timeout",
+			kind: ConfigValueDuration,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -259,6 +284,21 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name:   "Should reject memory global dir trust root",
 			path:   "memory.global_dir",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject memory extractor inbox trust root",
+			path:   "memory.extractor.inbox_path",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject memory session ledger trust root",
+			path:   "memory.session.ledger_root",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject informational workspace TOML path",
+			path:   "memory.workspace.toml_path",
 			denial: ConfigPathTrustForbidden,
 		},
 		{

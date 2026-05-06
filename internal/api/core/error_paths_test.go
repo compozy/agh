@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
@@ -300,16 +302,16 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
 	workspace := t.TempDir()
-	globalDoc := []byte(memoryDocument(t, "Shared", memory.MemoryTypeUser, "global"))
-	workspaceDoc := []byte(memoryDocument(t, "Shared", memory.MemoryTypeProject, "workspace"))
-	if err := store.Write(memory.ScopeGlobal, "shared.md", globalDoc); err != nil {
+	globalDoc := []byte(memoryDocument(t, "Shared", memcontract.TypeUser, "global"))
+	workspaceDoc := []byte(memoryDocument(t, "Shared", memcontract.TypeProject, "workspace"))
+	if err := store.Write(memcontract.ScopeGlobal, "shared.md", globalDoc); err != nil {
 		t.Fatalf("Write(global) error = %v", err)
 	}
-	if err := store.ForWorkspace(workspace).Write(memory.ScopeWorkspace, "shared.md", workspaceDoc); err != nil {
+	if err := store.ForWorkspace(workspace).Write(memcontract.ScopeWorkspace, "shared.md", workspaceDoc); err != nil {
 		t.Fatalf("Write(workspace) error = %v", err)
 	}
 	if err := store.ForWorkspace(workspace).
-		Write(memory.ScopeWorkspace, "workspace-only.md", workspaceDoc); err != nil {
+		Write(memcontract.ScopeWorkspace, "workspace-only.md", workspaceDoc); err != nil {
 		t.Fatalf("Write(workspace-only) error = %v", err)
 	}
 
@@ -354,13 +356,9 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 		{method: http.MethodGet, path: "/memory"},
 		{method: http.MethodGet, path: "/memory/valid.md?scope=global"},
 		{
-			method: http.MethodPut,
-			path:   "/memory/valid.md",
-			body: []byte(
-				`{"scope":"global","content":"` + escapeJSON(
-					memoryDocument(t, "Valid", memory.MemoryTypeUser, "hello"),
-				) + `"}`,
-			),
+			method: http.MethodPost,
+			path:   "/memory",
+			body:   []byte(`{"scope":"global","type":"user","name":"Valid","content":"hello"}`),
 		},
 		{method: http.MethodDelete, path: "/memory/valid.md?scope=global"},
 	}
@@ -482,20 +480,20 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 	badWrite := performRequest(
 		t,
 		fixture.Engine,
-		http.MethodPut,
-		"/memory/bad.md",
-		[]byte(`{"scope":"global","content":"not frontmatter"}`),
+		http.MethodPost,
+		"/memory",
+		[]byte(`{"scope":"global","type":"user","name":"Bad"}`),
 	)
 	if badWrite.Code != http.StatusBadRequest {
 		t.Fatalf("bad write status = %d, want %d", badWrite.Code, http.StatusBadRequest)
 	}
 
-	badConsolidate := performRequest(t, fixture.Engine, http.MethodPost, "/memory/consolidate", []byte(`{`))
+	badConsolidate := performRequest(t, fixture.Engine, http.MethodPost, "/memory/dreams/trigger", []byte(`{`))
 	if badConsolidate.Code != http.StatusBadRequest {
 		t.Fatalf("bad consolidate status = %d, want %d", badConsolidate.Code, http.StatusBadRequest)
 	}
 
-	disabledConsolidate := performRequest(t, fixture.Engine, http.MethodPost, "/memory/consolidate", nil)
+	disabledConsolidate := performRequest(t, fixture.Engine, http.MethodPost, "/memory/dreams/trigger", nil)
 	if disabledConsolidate.Code != http.StatusOK {
 		t.Fatalf("disabled consolidate status = %d, want %d", disabledConsolidate.Code, http.StatusOK)
 	}

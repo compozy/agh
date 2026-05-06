@@ -29,6 +29,7 @@ const (
 
 type outputBundle struct {
 	jsonValue any
+	jsonl     func(*cobra.Command) error
 	human     func() (string, error)
 	toon      func() (string, error)
 }
@@ -45,6 +46,9 @@ func listBundle[T any](
 ) outputBundle {
 	return outputBundle{
 		jsonValue: jsonValue,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLines(cmd, items)
+		},
 		human: func() (string, error) {
 			if humanRow == nil {
 				return "", errors.New("cli: human list row renderer is required")
@@ -116,7 +120,10 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 	case OutputJSON:
 		return writeJSON(cmd, bundle.jsonValue)
 	case OutputJSONL:
-		return errors.New("cli: jsonl output is only supported by streaming commands")
+		if bundle.jsonl == nil {
+			return errors.New("cli: jsonl formatter is required")
+		}
+		return bundle.jsonl(cmd)
 	case OutputToon:
 		if bundle.toon == nil {
 			return errors.New("cli: toon formatter is required")

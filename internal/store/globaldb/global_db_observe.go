@@ -87,41 +87,14 @@ func (g *GlobalDB) ListEventSummaries(
 
 	combinedQuery := eventQuery
 	if strings.TrimSpace(query.SessionID) == "" {
-		memoryQuery := `SELECT 1 AS source_rank,
-			rowid AS source_rowid,
-			id,
-			'' AS session_id,
-			type,
-			agent_name,
-			'' AS content_json,
-			'' AS task_id, '' AS run_id, '' AS workflow_id, '' AS claim_token_hash, '' AS lease_until,
-			'' AS coordinator_session_id, '' AS scheduler_reason, '' AS hook_event, '' AS hook_name,
-			'' AS actor_kind, '' AS actor_id, '' AS release_reason, '' AS parent_session_id,
-			'' AS root_session_id, 0 AS spawn_depth, summary, timestamp FROM memory_operation_log`
-		memoryWhere, memoryArgs := store.BuildClauses(
-			store.StringClause("agent_name", query.AgentName),
-			store.StringClause("type", query.Type),
-			store.TimeClause("timestamp", ">=", query.Since),
-		)
-		memoryQuery = store.AppendWhere(memoryQuery, memoryWhere)
+		memoryQuery, memoryArgs := memoryEventSummaryQuery(query)
 		combinedQuery += ` UNION ALL ` + memoryQuery
 		args = append(args, memoryArgs...)
 	}
 
-	sqlQuery := `SELECT source_rowid, id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
-		claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
-		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
-		spawn_depth, summary, timestamp FROM (` + combinedQuery + `)`
+	sqlQuery := eventSummaryListQuery(combinedQuery, query.Limit)
 	if query.Limit > 0 {
-		sqlQuery = `SELECT source_rowid, id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
-			claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
-			hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
-			spawn_depth, summary, timestamp
-			FROM (` + combinedQuery + ` ORDER BY timestamp DESC, source_rank DESC, source_rowid DESC LIMIT ?) AS recent_summaries
-			ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
 		args = append(args, query.Limit)
-	} else {
-		sqlQuery += " ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC"
 	}
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -145,6 +118,42 @@ func (g *GlobalDB) ListEventSummaries(
 	}
 
 	return summaries, nil
+}
+
+func memoryEventSummaryQuery(query store.EventSummaryQuery) (string, []any) {
+	memoryQuery := `SELECT 1 AS source_rank,
+		rowid AS source_rowid,
+		'memevt-' || id AS id,
+		'' AS session_id,
+		op AS type,
+		COALESCE(agent_name, '') AS agent_name,
+		'' AS content_json,
+		'' AS task_id, '' AS run_id, '' AS workflow_id, '' AS claim_token_hash, '' AS lease_until,
+		'' AS coordinator_session_id, '' AS scheduler_reason, '' AS hook_event, '' AS hook_name,
+		'' AS actor_kind, '' AS actor_id, '' AS release_reason, '' AS parent_session_id,
+		'' AS root_session_id, 0 AS spawn_depth,
+		COALESCE(json_extract(metadata, '$.summary'), '') AS summary,
+		printf('%s.%09dZ', strftime('%Y-%m-%dT%H:%M:%S', ts_ms / 1000, 'unixepoch'),
+			(ts_ms % 1000) * 1000000) AS timestamp
+		FROM memory_events`
+	memoryWhere, memoryArgs := store.BuildClauses(
+		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("op", query.Type),
+		store.Int64Clause("ts_ms", ">=", timestampMillis(query.Since)),
+	)
+	return store.AppendWhere(memoryQuery, memoryWhere), memoryArgs
+}
+
+func eventSummaryListQuery(combinedQuery string, limit int) string {
+	baseSelect := `SELECT source_rowid, id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
+		claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
+		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
+		spawn_depth, summary, timestamp`
+	if limit <= 0 {
+		return baseSelect + ` FROM (` + combinedQuery + `) ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
+	}
+	return baseSelect + ` FROM (` + combinedQuery + ` ORDER BY timestamp DESC, source_rank DESC, source_rowid DESC
+		LIMIT ?) AS recent_summaries ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
 }
 
 func (g *GlobalDB) validateEventSummaryQuery(
@@ -397,6 +406,13 @@ func formatEventSummaryLeaseUntil(value *time.Time) string {
 		return ""
 	}
 	return store.FormatNullableTimestamp(*value)
+}
+
+func timestampMillis(value time.Time) int64 {
+	if value.IsZero() {
+		return 0
+	}
+	return value.UTC().UnixNano() / int64(time.Millisecond)
 }
 
 func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {

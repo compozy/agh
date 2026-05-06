@@ -43,6 +43,9 @@ type handlerConfig struct {
 	skillsRegistry  core.SkillsRegistry
 	memoryStore     *memory.Store
 	dreamTrigger    core.DreamTrigger
+	memoryExtractor core.MemoryExtractorService
+	memoryProviders core.MemoryProviderService
+	memoryLedger    core.MemorySessionLedgerService
 	staticFS        fs.FS
 	homePaths       aghconfig.HomePaths
 	config          aghconfig.Config
@@ -120,6 +123,9 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,
+			MemoryExtractor:              cfg.memoryExtractor,
+			MemoryProviders:              cfg.memoryProviders,
+			MemorySessionLedger:          cfg.memoryLedger,
 			HomePaths:                    cfg.homePaths,
 			Config:                       cfg.config,
 			Logger:                       cfg.logger,

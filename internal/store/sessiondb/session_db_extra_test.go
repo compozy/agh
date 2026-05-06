@@ -91,12 +91,14 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 
 	canceledCtx, cancel := context.WithCancel(testutil.Context(t))
 	cancel()
-	if err := sessionDB.executeWrite(sessionWriteRequest{ctx: canceledCtx, kind: sessionWriteEvent}); err == nil {
+	if result := sessionDB.executeWrite(
+		sessionWriteRequest{ctx: canceledCtx, kind: sessionWriteEvent},
+	); result.err == nil {
 		t.Fatal("executeWrite(canceled) error = nil, want non-nil")
 	}
-	if err := sessionDB.executeWrite(
+	if result := sessionDB.executeWrite(
 		sessionWriteRequest{ctx: testutil.Context(t), kind: sessionWriteKind(99)},
-	); err == nil {
+	); result.err == nil {
 		t.Fatal("executeWrite(unsupported kind) error = nil, want non-nil")
 	}
 
@@ -105,7 +107,7 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 	if err := blocked.enqueueWrite(canceledCtx, sessionWriteRequest{
 		ctx:    canceledCtx,
 		kind:   sessionWriteEvent,
-		result: make(chan error, 1),
+		result: make(chan sessionWriteResult, 1),
 	}); err == nil {
 		t.Fatal("enqueueWrite(canceled) error = nil, want non-nil")
 	}
@@ -149,7 +151,7 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 		ctx:    testutil.Context(t),
 		kind:   sessionWriteEvent,
 		event:  SessionEvent{ID: "event-1", TurnID: "turn-1", Type: "agent_message", AgentName: "coder"},
-		result: make(chan error, 1),
+		result: make(chan sessionWriteResult, 1),
 	}
 	draining := &SessionDB{
 		db:        sessionDB.db,
@@ -163,8 +165,8 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 	if err := draining.drainWrites(testutil.Context(t)); err != nil {
 		t.Fatalf("drainWrites() error = %v", err)
 	}
-	if err := <-drainReq.result; err != nil {
-		t.Fatalf("drainWrites() result = %v", err)
+	if result := <-drainReq.result; result.err != nil {
+		t.Fatalf("drainWrites() result = %v", result.err)
 	}
 }
 

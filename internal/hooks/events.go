@@ -53,12 +53,13 @@ func (f HookEventFamily) Validate() error {
 type HookEvent string
 
 const (
-	HookSessionPreCreate  HookEvent = "session.pre_create"
-	HookSessionPostCreate HookEvent = "session.post_create"
-	HookSessionPreResume  HookEvent = "session.pre_resume"
-	HookSessionPostResume HookEvent = "session.post_resume"
-	HookSessionPreStop    HookEvent = "session.pre_stop"
-	HookSessionPostStop   HookEvent = "session.post_stop"
+	HookSessionPreCreate        HookEvent = "session.pre_create"
+	HookSessionPostCreate       HookEvent = "session.post_create"
+	HookSessionPreResume        HookEvent = "session.pre_resume"
+	HookSessionPostResume       HookEvent = "session.post_resume"
+	HookSessionPreStop          HookEvent = "session.pre_stop"
+	HookSessionPostStop         HookEvent = "session.post_stop"
+	HookSessionMessagePersisted HookEvent = "session.message_persisted"
 
 	HookSandboxPrepare    HookEvent = "sandbox.prepare"
 	HookSandboxReady      HookEvent = "sandbox.ready"
@@ -151,6 +152,10 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 	HookSessionPostResume: {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPreStop:    {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPostStop:   {family: HookEventFamilySession, syncEligible: true},
+	HookSessionMessagePersisted: {
+		family:       HookEventFamilySession,
+		syncEligible: false,
+	},
 	HookSandboxPrepare: {
 		family:       HookEventFamilySandbox,
 		syncEligible: true,
@@ -361,6 +366,7 @@ var allHookEvents = []HookEvent{
 	HookSessionPostResume,
 	HookSessionPreStop,
 	HookSessionPostStop,
+	HookSessionMessagePersisted,
 	HookSandboxPrepare,
 	HookSandboxReady,
 	HookSandboxSyncBefore,

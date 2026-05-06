@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -92,6 +93,82 @@ func TestKernelPutRawUpdateDeleteAndNotFound(t *testing.T) {
 	if _, err := kernel.GetRaw(ctx, actor, testResourceKind, "tool-updatable"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("GetRaw(after delete) error = %v, want ErrNotFound", err)
 	}
+}
+
+func TestKernelWriteTransactionsRetryBusyLocks(t *testing.T) {
+	t.Run("Should retry PutRaw until the competing write lock is released", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, db := openLowBusyTestKernel(t)
+		ctx := testutil.Context(t)
+		holdResourceWriteLock(ctx, t, db)
+
+		record, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
+			Kind:            testResourceKind,
+			ID:              "busy-put",
+			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			ExpectedVersion: 0,
+			SpecJSON:        []byte(`{"name":"busy-put"}`),
+		})
+		if err != nil {
+			t.Fatalf("PutRaw() error = %v", err)
+		}
+		if got, want := record.ID, "busy-put"; got != want {
+			t.Fatalf("record.ID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should retry DeleteRaw until the competing write lock is released", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, db := openLowBusyTestKernel(t)
+		ctx := testutil.Context(t)
+		record, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
+			Kind:            testResourceKind,
+			ID:              "busy-delete",
+			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			ExpectedVersion: 0,
+			SpecJSON:        []byte(`{"name":"busy-delete"}`),
+		})
+		if err != nil {
+			t.Fatalf("PutRaw(seed) error = %v", err)
+		}
+		holdResourceWriteLock(ctx, t, db)
+
+		if err := kernel.DeleteRaw(ctx, testDaemonActor(), testResourceKind, record.ID, record.Version); err != nil {
+			t.Fatalf("DeleteRaw() error = %v", err)
+		}
+	})
+
+	t.Run("Should retry source snapshot writes until the competing write lock is released", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, db := openLowBusyTestKernel(t)
+		ctx := testutil.Context(t)
+		source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "busy-extension"}
+		if err := kernel.ActivateSourceSession(ctx, testDaemonActor(), source, "nonce-busy"); err != nil {
+			t.Fatalf("ActivateSourceSession() error = %v", err)
+		}
+		holdResourceWriteLock(ctx, t, db)
+
+		err := kernel.ApplySourceSnapshotRaw(
+			ctx,
+			testExtensionActor("session-busy", source.ID, "nonce-busy"),
+			SourceSnapshot{
+				SourceVersion: 1,
+				Records: []RawDraft{{
+					Kind:            testResourceKind,
+					ID:              "busy-snapshot",
+					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					ExpectedVersion: 0,
+					SpecJSON:        []byte(`{"name":"busy-snapshot"}`),
+				}},
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplySourceSnapshotRaw() error = %v", err)
+		}
+	})
 }
 
 func TestKernelPutRawStampsDaemonOwnerOverride(t *testing.T) {
@@ -1114,6 +1191,88 @@ func openTestKernel(t *testing.T, opts ...Option) (*Kernel, *sql.DB) {
 		t.Fatalf("NewKernel() error = %v", err)
 	}
 	return kernel, db
+}
+
+func openLowBusyTestKernel(t *testing.T, opts ...Option) (*Kernel, *sql.DB) {
+	t.Helper()
+
+	dbPath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	dsnURL := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(dbPath),
+	}
+	query := dsnURL.Query()
+	query.Add("_pragma", "busy_timeout(1)")
+	query.Add("_pragma", "foreign_keys(ON)")
+	query.Add("_pragma", "journal_mode(WAL)")
+	query.Add("_pragma", "synchronous(NORMAL)")
+	dsnURL.RawQuery = query.Encode()
+
+	db, err := sql.Open("sqlite", dsnURL.String())
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(8)
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Fatalf("db.Close() error = %v", closeErr)
+		}
+	})
+
+	ctx := testutil.Context(t)
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("db.PingContext() error = %v", err)
+	}
+	if err := store.EnsureSchema(ctx, db, SchemaStatements()); err != nil {
+		t.Fatalf("EnsureSchema() error = %v", err)
+	}
+
+	options := append([]Option{
+		WithNow(func() time.Time {
+			return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+		}),
+	}, opts...)
+	kernel, err := NewKernel(db, options...)
+	if err != nil {
+		t.Fatalf("NewKernel() error = %v", err)
+	}
+	return kernel, db
+}
+
+func holdResourceWriteLock(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	lockConn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("db.Conn() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := lockConn.Close(); closeErr != nil {
+			t.Fatalf("lockConn.Close() error = %v", closeErr)
+		}
+	})
+
+	if _, err := lockConn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		t.Fatalf("BEGIN IMMEDIATE lock error = %v", err)
+	}
+
+	releaseDone := make(chan error, 1)
+	timer := time.AfterFunc(10*time.Millisecond, func() {
+		_, commitErr := lockConn.ExecContext(ctx, "COMMIT")
+		releaseDone <- commitErr
+	})
+	t.Cleanup(func() {
+		if timer.Stop() {
+			if _, err := lockConn.ExecContext(ctx, "COMMIT"); err != nil {
+				t.Fatalf("manual lock release error = %v", err)
+			}
+			return
+		}
+		if err := <-releaseDone; err != nil {
+			t.Fatalf("timed lock release error = %v", err)
+		}
+	})
 }
 
 func testDaemonActor() MutationActor {

@@ -1,36 +1,54 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { consolidateMemory, deleteMemory } from "@/systems/knowledge/adapters/knowledge-api";
+import {
+  deleteMemory,
+  editMemory,
+  triggerMemoryDream,
+} from "@/systems/knowledge/adapters/knowledge-api";
 import { knowledgeKeys } from "@/systems/knowledge/lib/query-keys";
-import type { MemoryScope } from "@/systems/knowledge/types";
+import type { KnowledgeSelector, MemoryEditRequest } from "@/systems/knowledge/types";
 
 interface DeleteMemoryParams {
-  scope: Exclude<MemoryScope, undefined>;
+  selector: KnowledgeSelector;
   filename: string;
-  workspace?: string;
 }
 
 export function useDeleteMemory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ scope, filename, workspace }: DeleteMemoryParams) =>
-      deleteMemory(scope, filename, workspace),
+    mutationFn: ({ selector, filename }: DeleteMemoryParams) => deleteMemory(selector, filename),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
     },
   });
 }
 
-interface ConsolidateMemoryParams {
-  workspace?: string;
+export interface EditMemoryParams {
+  filename: string;
+  body: MemoryEditRequest;
 }
 
-export function useConsolidateMemory() {
+export function useEditMemory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ workspace }: ConsolidateMemoryParams) => consolidateMemory(workspace),
+    mutationFn: ({ filename, body }: EditMemoryParams) => editMemory(filename, body),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
+    },
+  });
+}
+
+interface TriggerMemoryDreamParams {
+  workspaceID?: string;
+}
+
+export function useTriggerMemoryDream() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ workspaceID }: TriggerMemoryDreamParams) => triggerMemoryDream(workspaceID),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
     },

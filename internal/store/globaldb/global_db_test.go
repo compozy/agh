@@ -70,20 +70,24 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"workspaces",
 		"sessions",
 		"event_summaries",
-		"memory_operation_log",
+		"memory_events",
 		"token_stats",
 		"permission_log",
 		"extensions",
 	)
-	assertTableColumns(t, globalDB.db, "memory_operation_log", []string{
+	assertTableColumns(t, globalDB.db, "memory_events", []string{
 		"id",
-		"type",
-		"agent_name",
-		"summary",
-		"timestamp",
+		"op",
 		"scope",
-		"workspace_root",
-		"filename",
+		"agent_name",
+		"agent_tier",
+		"workspace_id",
+		"session_id",
+		"actor_kind",
+		"decision_id",
+		"target_id",
+		"metadata",
+		"ts_ms",
 	})
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
@@ -237,6 +241,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	}
 	if firstRecords[20].Version != 21 || firstRecords[20].Name != "add_bridge_task_subscriptions" {
 		t.Fatalf("firstRecords[20] = %#v, want add_bridge_task_subscriptions v21", firstRecords[20])
+	}
+	if firstRecords[21].Version != 22 || firstRecords[21].Name != "memv2_memory_events" {
+		t.Fatalf("firstRecords[21] = %#v, want memv2_memory_events v22", firstRecords[21])
 	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
@@ -1131,8 +1138,8 @@ func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 	if got, want := len(workspaces), 1; got != want {
 		t.Fatalf("len(workspaces) = %d, want %d", got, want)
 	}
-	if !strings.HasPrefix(workspaces[0].ID, "ws-") {
-		t.Fatalf("workspaces[0].ID = %q, want ws- prefix", workspaces[0].ID)
+	if !aghworkspace.IsWorkspaceID(workspaces[0].ID) {
+		t.Fatalf("workspaces[0].ID = %q, want workspace_id ULID", workspaces[0].ID)
 	}
 	if workspaces[0].CreatedAt.IsZero() || workspaces[0].UpdatedAt.IsZero() {
 		t.Fatalf("workspace timestamps = %#v, want non-zero", workspaces[0])
@@ -1992,14 +1999,17 @@ func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
 	}
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
-		`INSERT INTO memory_operation_log (id, type, agent_name, summary, timestamp) VALUES (?, ?, ?, ?, ?)`,
-		"mem-1",
-		"memory.write",
+		`INSERT INTO memory_events (
+			op, scope, agent_name, actor_kind, metadata, ts_ms
+		) VALUES (?, ?, ?, ?, ?, ?)`,
+		"memory.write.committed",
+		"global",
 		"daemon",
-		`scope=global filename=prefs.md`,
-		formatTimestamp(time.Date(2026, 4, 3, 14, 1, 0, 0, time.UTC)),
+		"system",
+		`{"summary":"scope=global filename=prefs.md"}`,
+		time.Date(2026, 4, 3, 14, 1, 0, 0, time.UTC).UnixNano()/int64(time.Millisecond),
 	); err != nil {
-		t.Fatalf("insert memory operation log error = %v", err)
+		t.Fatalf("insert memory event error = %v", err)
 	}
 
 	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
@@ -2009,7 +2019,7 @@ func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
 	if got, want := len(summaries), 2; got != want {
 		t.Fatalf("len(summaries) = %d, want %d", got, want)
 	}
-	if got, want := summaries[1].Type, "memory.write"; got != want {
+	if got, want := summaries[1].Type, "memory.write.committed"; got != want {
 		t.Fatalf("summaries[1].Type = %q, want %q", got, want)
 	}
 	if got := summaries[1].SessionID; got != "" {
@@ -2044,7 +2054,7 @@ func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
 	if got, want := len(limited), 2; got != want {
 		t.Fatalf("len(limited) = %d, want %d", got, want)
 	}
-	if got, want := limited[0].Type, "memory.write"; got != want {
+	if got, want := limited[0].Type, "memory.write.committed"; got != want {
 		t.Fatalf("limited[0].Type = %q, want %q", got, want)
 	}
 	if got, want := limited[1].Type, "tool_call"; got != want {
@@ -2703,7 +2713,7 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 		"workspaces",
 		"sessions",
 		"event_summaries",
-		"memory_operation_log",
+		"memory_events",
 		"token_stats",
 		"permission_log",
 	)

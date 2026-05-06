@@ -60,8 +60,12 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("SaveBootstrapConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if cfg.Memory.Dream.Agent != DefaultAgentName {
-		t.Fatalf("SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
+	if cfg.Memory.Dream.Agent != DefaultMemoryDreamAgentName {
+		t.Fatalf(
+			"SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q",
+			cfg.Memory.Dream.Agent,
+			DefaultMemoryDreamAgentName,
+		)
 	}
 	if !cfg.Network.Enabled {
 		t.Fatal("SaveBootstrapConfig() Network.Enabled = false, want inherited enabled default")

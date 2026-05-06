@@ -93,11 +93,78 @@ var (
 		"session.supervision.inactivity_timeout":                  ConfigValueDuration,
 		"session.supervision.timeout_cancel_grace":                ConfigValueDuration,
 		"memory.enabled":                                          ConfigValueBool,
+		"memory.controller.mode":                                  ConfigValueString,
+		"memory.controller.max_latency":                           ConfigValueDuration,
+		"memory.controller.default_op_on_fail":                    ConfigValueString,
+		"memory.controller.llm.enabled":                           ConfigValueBool,
+		"memory.controller.llm.model":                             ConfigValueString,
+		"memory.controller.llm.top_k":                             ConfigValueInt,
+		"memory.controller.llm.prompt_version":                    ConfigValueString,
+		"memory.controller.llm.timeout":                           ConfigValueDuration,
+		"memory.controller.llm.max_tokens_out":                    ConfigValueInt,
+		"memory.controller.policy.max_content_chars":              ConfigValueInt,
+		"memory.controller.policy.max_writes_per_min":             ConfigValueInt,
+		"memory.controller.policy.allow_origins":                  ConfigValueStringSlice,
+		"memory.recall.top_k":                                     ConfigValueInt,
+		"memory.recall.raw_candidates":                            ConfigValueInt,
+		"memory.recall.fusion":                                    ConfigValueString,
+		"memory.recall.include_already_surfaced":                  ConfigValueBool,
+		"memory.recall.include_system":                            ConfigValueBool,
+		"memory.recall.weights.bm25_unicode":                      ConfigValueFloat,
+		"memory.recall.weights.bm25_trigram":                      ConfigValueFloat,
+		"memory.recall.weights.recency":                           ConfigValueFloat,
+		"memory.recall.weights.recall_signal":                     ConfigValueFloat,
+		"memory.recall.freshness.banner_after_days":               ConfigValueInt,
+		"memory.recall.signals.queue_capacity":                    ConfigValueInt,
+		"memory.recall.signals.worker_retry_max":                  ConfigValueInt,
+		"memory.recall.signals.metrics_enabled":                   ConfigValueBool,
+		"memory.decisions.prune_after_applied_days":               ConfigValueInt,
+		"memory.decisions.keep_audit_summary":                     ConfigValueBool,
+		"memory.decisions.max_post_content_bytes":                 ConfigValueInt64,
+		"memory.extractor.enabled":                                ConfigValueBool,
+		"memory.extractor.mode":                                   ConfigValueString,
+		"memory.extractor.throttle_turns":                         ConfigValueInt,
+		"memory.extractor.deadline":                               ConfigValueDuration,
+		"memory.extractor.sandbox_inbox_only":                     ConfigValueBool,
+		"memory.extractor.model":                                  ConfigValueString,
+		"memory.extractor.queue.capacity":                         ConfigValueInt,
+		"memory.extractor.queue.coalesce_max":                     ConfigValueInt,
 		"memory.dream.enabled":                                    ConfigValueBool,
 		"memory.dream.agent":                                      ConfigValueString,
 		"memory.dream.min_hours":                                  ConfigValueFloat,
 		"memory.dream.min_sessions":                               ConfigValueInt,
+		"memory.dream.debounce":                                   ConfigValueDuration,
+		"memory.dream.prompt_version":                             ConfigValueString,
 		"memory.dream.check_interval":                             ConfigValueDuration,
+		"memory.dream.gates.min_unpromoted":                       ConfigValueInt,
+		"memory.dream.gates.min_recall_count":                     ConfigValueInt,
+		"memory.dream.gates.min_score":                            ConfigValueFloat,
+		"memory.dream.scoring.recency_half_life_days":             ConfigValueInt,
+		"memory.dream.scoring.weights.frequency":                  ConfigValueFloat,
+		"memory.dream.scoring.weights.relevance":                  ConfigValueFloat,
+		"memory.dream.scoring.weights.recency":                    ConfigValueFloat,
+		"memory.dream.scoring.weights.freshness":                  ConfigValueFloat,
+		"memory.session.ledger_format":                            ConfigValueString,
+		"memory.session.events_purge_grace":                       ConfigValueDuration,
+		"memory.session.cold_archive_days":                        ConfigValueInt,
+		"memory.session.hard_delete_days":                         ConfigValueInt,
+		"memory.session.max_archive_bytes":                        ConfigValueInt64,
+		"memory.session.unbound_partition":                        ConfigValueString,
+		"memory.daily.max_bytes":                                  ConfigValueInt64,
+		"memory.daily.max_lines":                                  ConfigValueInt,
+		"memory.daily.rotate_format":                              ConfigValueString,
+		"memory.daily.dreaming_window":                            ConfigValueInt,
+		"memory.daily.cold_archive_days":                          ConfigValueInt,
+		"memory.daily.hard_delete_days":                           ConfigValueInt,
+		"memory.daily.max_archive_bytes":                          ConfigValueInt64,
+		"memory.daily.sweep_hour":                                 ConfigValueInt,
+		"memory.file.max_lines":                                   ConfigValueInt,
+		"memory.file.max_bytes":                                   ConfigValueInt64,
+		"memory.provider.name":                                    ConfigValueString,
+		"memory.provider.timeout":                                 ConfigValueDuration,
+		"memory.provider.failure_threshold":                       ConfigValueInt,
+		"memory.provider.cooldown":                                ConfigValueDuration,
+		"memory.workspace.auto_create":                            ConfigValueBool,
 		"skills.enabled":                                          ConfigValueBool,
 		"skills.disabled_skills":                                  ConfigValueStringSlice,
 		"skills.poll_interval":                                    ConfigValueDuration,
@@ -580,34 +647,70 @@ func configPathIsTrustRoot(path []string) bool {
 	case "hooks":
 		return true
 	case "providers":
-		if len(path) >= 3 {
-			switch path[2] {
-			case "command", "mcp_servers":
-				return true
-			}
-		}
+		return providerConfigPathIsTrustRoot(path)
 	case "memory":
-		return len(path) >= 2 && path[1] == "global_dir"
+		return memoryConfigPathIsTrustRoot(path)
 	case "network":
 		return len(path) >= 2 && path[1] == "port"
 	case "tools":
-		if len(path) >= 2 {
-			switch path[1] {
-			case "enabled", "hosted_mcp_enabled", "hosted_mcp", "policy":
-				return true
-			}
-		}
+		return toolsConfigPathIsTrustRoot(path)
 	case "skills":
-		if len(path) >= 2 {
-			switch path[1] {
-			case "allowed_marketplace_mcp", "allowed_marketplace_hooks", "marketplace":
-				return true
-			}
-		}
+		return skillsConfigPathIsTrustRoot(path)
 	case "extensions":
 		return true
 	}
 	return false
+}
+
+func providerConfigPathIsTrustRoot(path []string) bool {
+	if len(path) < 3 {
+		return false
+	}
+	return path[2] == "command" || path[2] == "mcp_servers"
+}
+
+func memoryConfigPathIsTrustRoot(path []string) bool {
+	if len(path) < 2 {
+		return false
+	}
+	switch path[1] {
+	case "global_dir":
+		return true
+	case "extractor":
+		return len(path) >= 3 && (path[2] == "inbox_path" || path[2] == "dlq_path")
+	case "session":
+		return len(path) >= 3 && path[2] == "ledger_root"
+	case "daily":
+		return len(path) >= 3 && path[2] == "archive_path"
+	case string(WriteScopeWorkspace):
+		return len(path) >= 3 && path[2] == "toml_path"
+	default:
+		return false
+	}
+}
+
+func toolsConfigPathIsTrustRoot(path []string) bool {
+	if len(path) < 2 {
+		return false
+	}
+	switch path[1] {
+	case "enabled", "hosted_mcp_enabled", "hosted_mcp", "policy":
+		return true
+	default:
+		return false
+	}
+}
+
+func skillsConfigPathIsTrustRoot(path []string) bool {
+	if len(path) < 2 {
+		return false
+	}
+	switch path[1] {
+	case "allowed_marketplace_mcp", "allowed_marketplace_hooks", "marketplace":
+		return true
+	default:
+		return false
+	}
 }
 
 func coerceConfigBool(value any) (bool, error) {

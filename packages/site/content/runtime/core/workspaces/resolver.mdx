@@ -3,17 +3,33 @@ title: Workspace Resolver
 description: How AGH registers workspace roots, resolves the active workspace, and discovers project-local runtime resources.
 ---
 
-A workspace is a registered project root. AGH stores the registration in the global database, but
-the filesystem remains the source of truth. Each session starts by resolving a workspace snapshot:
-the canonical root directory, optional additional roots, effective configuration, visible agents,
-and visible skill directories.
+A workspace is a registered project root with a stable identity. AGH stores the registration in
+the global database, but the filesystem remains the source of truth. Each session starts by
+resolving a workspace snapshot: the canonical root directory, optional additional roots, the
+durable `workspace_id`, effective configuration, visible agents, and visible skill directories.
 
-That is the portability model: copy the project directory with its `.agh/` directory, register the
-new path, and the same project agents, skills, memory files, and config overlay travel with it.
+The durable identity comes from `<workspace>/.agh/workspace.toml`:
+
+```toml
+workspace_id = "01HXJ9YR4Q..."
+created_at   = "2026-05-04T14:30:00Z"
+realpath_at_creation = "/Users/you/dev/checkout-api"
+```
+
+Memory v2 catalog rows, `memory_events`, `memory_decisions`, recall signals, dreaming runs, and
+forensic session ledgers all key on `workspace_id`. Path-keyed memory is gone. Moving the
+workspace directory (`mv`) does not orphan its memory because the ULID travels with the
+directory.
+
+That is the portability model: copy the project directory with its `.agh/` directory, register
+the new path, and the same project agents, skills, memory files, identity, and config overlay
+travel with it.
 
 <OperatorNote>
   `agh workspace add` registers a directory. It does not create or own the directory, and `agh
-  workspace remove` only removes the registration. Your project files stay on disk.
+  workspace remove` only removes the registration. Your project files stay on disk. AGH creates
+  `<workspace>/.agh/workspace.toml` on first daemon touch when `[memory.workspace] auto_create =
+  true`; commit it to git so collaborators share the same workspace identity.
 </OperatorNote>
 
 ## What Gets Stored
@@ -56,16 +72,19 @@ my-repo/
       release-rules.md
 ```
 
-| Path                                      | Used by                    | Behavior                                                                                 |
-| ----------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------- |
-| `<workspace>/.agh/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                    |
-| `<workspace>/.agh/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                  |
-| `<workspace>/.agh/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                    |
-| `<workspace>/.agh/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                 |
-| `<workspace>/.agh/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                           |
-| `<workspace>/.agh/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                     |
-| `<workspace>/.agh/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.               |
-| `<workspace>/.env`                        | Config loader              | Optional. Loaded before `AGH_HOME` is resolved when config is loaded for this workspace. |
+| Path                                      | Used by                    | Behavior                                                                                  |
+| ----------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------- |
+| `<workspace>/.agh/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                     |
+| `<workspace>/.agh/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                   |
+| `<workspace>/.agh/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                     |
+| `<workspace>/.agh/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                  |
+| `<workspace>/.agh/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                            |
+| `<workspace>/.agh/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                      |
+| `<workspace>/.agh/workspace.toml`         | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.            |
+| `<workspace>/.agh/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                |
+| `<workspace>/.agh/agents/<name>/memory/`  | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                   |
+| `<workspace>/.agh/agh.db`                 | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals. |
+| `<workspace>/.env`                        | Config loader              | Optional. Loaded before `AGH_HOME` is resolved when config is loaded for this workspace.  |
 
 The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions.
 Workspace memory uses the resolved root, but memory files are managed by the memory runtime instead
@@ -233,4 +252,4 @@ Cache entries expire after 10 minutes of inactivity. The resolver also exposes a
 - [Multi-Root Workspaces](/runtime/core/workspaces/multi-root) shows how `--add-dir` changes discovery.
 - [Agent Definitions](/runtime/core/agents/definitions) documents the current `AGENT.md` parser.
 - [Skills Overview](/runtime/core/skills) explains skill precedence after workspace resolution.
-- [Global vs Workspace Memory](/runtime/core/memory/scopes) explains workspace memory files.
+- [Memory Scopes](/runtime/core/memory/scopes) explains how `workspace_id` keys workspace and agent-workspace memory.

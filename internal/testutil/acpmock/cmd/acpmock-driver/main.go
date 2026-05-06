@@ -198,8 +198,8 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		return acpsdk.PromptResponse{}, err
 	}
 
-	prompt, occurrence := a.recordPrompt(sessionID, extractPromptText(params.Prompt))
-	turn, err := a.agent.SelectTurn(prompt, occurrence, promptMeta)
+	prompt := extractPromptText(params.Prompt)
+	turn, occurrence, err := a.selectTurn(sessionID, prompt, promptMeta)
 	if err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
@@ -242,7 +242,11 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	return acpsdk.PromptResponse{StopReason: stopReason(turn.StopReason)}, nil
 }
 
-func (a *mockAgent) recordPrompt(sessionID string, prompt string) (string, int) {
+func (a *mockAgent) selectTurn(
+	sessionID string,
+	prompt string,
+	promptMeta acp.PromptMeta,
+) (acpmock.TurnFixture, int, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -251,8 +255,13 @@ func (a *mockAgent) recordPrompt(sessionID string, prompt string) (string, int) 
 		session = &sessionState{}
 		a.sessions[sessionID] = session
 	}
-	session.PromptCount++
-	return prompt, session.PromptCount
+	occurrence := session.PromptCount + 1
+	turn, err := a.agent.SelectTurn(prompt, occurrence, promptMeta)
+	if err != nil {
+		return acpmock.TurnFixture{}, occurrence, err
+	}
+	session.PromptCount = occurrence
+	return turn, occurrence, nil
 }
 
 func (a *mockAgent) executeStep(

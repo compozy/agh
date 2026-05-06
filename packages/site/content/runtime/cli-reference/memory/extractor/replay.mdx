@@ -1,27 +1,22 @@
 ---
-title: "agh memory consolidate"
-description: "Trigger manual memory consolidation"
+title: "agh memory extractor replay"
+description: "Replay Memory v2 extractor work"
 ---
 
-## agh memory consolidate
+## agh memory extractor replay
 
-Trigger manual memory consolidation
-
-```
-agh memory consolidate [flags]
-```
-
-### Examples
+Replay Memory v2 extractor work
 
 ```
-  # Ask the daemon to consolidate memory for the current workspace
-  agh memory consolidate
+agh memory extractor replay --session <id> [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for consolidate
+      --from-dlq         Replay from dead-letter queue records
+  -h, --help             help for replay
+      --session string   Session whose extractor work should be replayed
 ```
 
 ### Options inherited from parent commands
@@ -43,5 +38,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory consolidate -o json
+agh memory extractor replay --session <id> -o json
 ```

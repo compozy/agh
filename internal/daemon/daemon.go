@@ -148,43 +148,46 @@ type Server interface {
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
-	Config            aghconfig.Config
-	HomePaths         aghconfig.HomePaths
-	Logger            *slog.Logger
-	Sessions          SessionManager
-	Tasks             taskpkg.Manager
-	Network           core.NetworkService
-	ToolRegistry      toolspkg.Registry
-	Toolsets          core.ToolsetRegistry
-	ToolApprovals     toolspkg.ApprovalTokenIssuer
-	HostedMCP         *mcppkg.HostedService
-	Observer          Observer
-	Automation        core.AutomationManager
-	Bridges           core.BridgeService
-	Registry          Registry
-	MemoryStore       *memory.Store
-	WorkspaceResolver workspacepkg.RuntimeResolver
-	WorkspaceService  core.WorkspaceService
-	AgentCatalog      core.AgentCatalog
-	AgentContext      *situation.Service
-	SoulAuthoring     core.SoulAuthoringService
-	SoulRefresher     core.SoulRefresher
-	HeartbeatAuthor   core.HeartbeatAuthoringService
-	HeartbeatStatus   core.HeartbeatStatusService
-	HeartbeatWake     core.HeartbeatWakeService
-	SessionHealth     core.SessionHealthReader
-	WakeEvents        core.HeartbeatWakeEventReader
-	CoordinatorConfig CoordinatorConfigResolver
-	SkillsRegistry    core.SkillsRegistry
-	DreamTrigger      DreamTrigger
-	Settings          core.SettingsService
-	SettingsRestart   core.SettingsRestartController
-	SettingsUpdate    core.SettingsUpdateController
-	Vault             core.VaultService
-	Extensions        udsapi.ExtensionService
-	Bundles           core.BundleService
-	Resources         core.ResourceService
-	StartedAt         time.Time
+	Config              aghconfig.Config
+	HomePaths           aghconfig.HomePaths
+	Logger              *slog.Logger
+	Sessions            SessionManager
+	Tasks               taskpkg.Manager
+	Network             core.NetworkService
+	ToolRegistry        toolspkg.Registry
+	Toolsets            core.ToolsetRegistry
+	ToolApprovals       toolspkg.ApprovalTokenIssuer
+	HostedMCP           *mcppkg.HostedService
+	Observer            Observer
+	Automation          core.AutomationManager
+	Bridges             core.BridgeService
+	Registry            Registry
+	MemoryStore         *memory.Store
+	MemoryExtractor     core.MemoryExtractorService
+	MemoryProviders     core.MemoryProviderService
+	MemorySessionLedger core.MemorySessionLedgerService
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	WorkspaceService    core.WorkspaceService
+	AgentCatalog        core.AgentCatalog
+	AgentContext        *situation.Service
+	SoulAuthoring       core.SoulAuthoringService
+	SoulRefresher       core.SoulRefresher
+	HeartbeatAuthor     core.HeartbeatAuthoringService
+	HeartbeatStatus     core.HeartbeatStatusService
+	HeartbeatWake       core.HeartbeatWakeService
+	SessionHealth       core.SessionHealthReader
+	WakeEvents          core.HeartbeatWakeEventReader
+	CoordinatorConfig   CoordinatorConfigResolver
+	SkillsRegistry      core.SkillsRegistry
+	DreamTrigger        DreamTrigger
+	Settings            core.SettingsService
+	SettingsRestart     core.SettingsRestartController
+	SettingsUpdate      core.SettingsUpdateController
+	Vault               core.VaultService
+	Extensions          udsapi.ExtensionService
+	Bundles             core.BundleService
+	Resources           core.ResourceService
+	StartedAt           time.Time
 }
 
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
@@ -224,6 +227,10 @@ type networkBindableSessionManager interface {
 
 type shutdownStopper interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
+}
+
+type memoryProviderShutdowner interface {
+	Shutdown(context.Context) error
 }
 
 type finalizationWaiter interface {
@@ -280,35 +287,36 @@ func bridgeObserveSource(service core.BridgeService) observe.BridgeSource {
 }
 
 type extensionManagerDeps struct {
-	Registry          *extensionpkg.Registry
-	Extensions        aghconfig.ExtensionsConfig
-	Sessions          SessionManager
-	Automation        func() extensionpkg.HostAPIAutomationManager
-	Tasks             taskpkg.Manager
-	Network           core.NetworkService
-	NetworkStore      store.NetworkConversationStore
-	MemoryStore       *memory.Store
-	Observer          Observer
-	SkillsRegistry    *skills.Registry
-	WorkspaceResolver workspacepkg.RuntimeResolver
-	Logger            *slog.Logger
-	BridgeRegistry    bridgepkg.Registry
-	BridgeDedupStore  bridgeDedupStore
-	BridgeBroker      *bridgepkg.Broker
-	BridgeRuntime     extensionpkg.BridgeRuntimeResolver
-	ResourceStore     resources.RawStore
-	SourceSessions    resources.SourceSessionManager
-	ResourceCodecs    *resources.CodecRegistry
-	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	SoulAuthoring     core.SoulAuthoringService
-	SoulRefresher     core.SoulRefresher
-	HeartbeatAuthor   core.HeartbeatAuthoringService
-	HeartbeatStatus   core.HeartbeatStatusService
-	HeartbeatWake     core.HeartbeatWakeService
-	SessionHealth     core.SessionHealthReader
-	WakeEvents        core.HeartbeatWakeEventReader
-	ProcessRegistry   *toolruntime.Registry
-	SecretResolver    extensionpkg.SecretRefResolver
+	Registry               *extensionpkg.Registry
+	Extensions             aghconfig.ExtensionsConfig
+	Sessions               SessionManager
+	Automation             func() extensionpkg.HostAPIAutomationManager
+	Tasks                  taskpkg.Manager
+	Network                core.NetworkService
+	NetworkStore           store.NetworkConversationStore
+	MemoryStore            *memory.Store
+	MemoryProviderRegistry *extensionpkg.MemoryProviderRegistry
+	Observer               Observer
+	SkillsRegistry         *skills.Registry
+	WorkspaceResolver      workspacepkg.RuntimeResolver
+	Logger                 *slog.Logger
+	BridgeRegistry         bridgepkg.Registry
+	BridgeDedupStore       bridgeDedupStore
+	BridgeBroker           *bridgepkg.Broker
+	BridgeRuntime          extensionpkg.BridgeRuntimeResolver
+	ResourceStore          resources.RawStore
+	SourceSessions         resources.SourceSessionManager
+	ResourceCodecs         *resources.CodecRegistry
+	ResourceTrigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	SoulAuthoring          core.SoulAuthoringService
+	SoulRefresher          core.SoulRefresher
+	HeartbeatAuthor        core.HeartbeatAuthoringService
+	HeartbeatStatus        core.HeartbeatStatusService
+	HeartbeatWake          core.HeartbeatWakeService
+	SessionHealth          core.SessionHealthReader
+	WakeEvents             core.HeartbeatWakeEventReader
+	ProcessRegistry        *toolruntime.Registry
+	SecretResolver         extensionpkg.SecretRefResolver
 }
 
 type automationRuntime interface {
@@ -346,6 +354,7 @@ type SessionManagerDeps struct {
 	StartupPromptOverlay session.StartupPromptOverlay
 	PromptInputAugmenter session.PromptInputAugmenter
 	MemoryStore          *memory.Store
+	LedgerMaterializer   session.LedgerMaterializer
 	AgentResolver        session.AgentResolver
 	SkillRegistry        session.SkillRegistry
 	MCPResolver          session.MCPResolver
@@ -404,6 +413,9 @@ type Daemon struct {
 	harnessResolver              *HarnessContextResolver
 	registry                     Registry
 	memoryStore                  *memory.Store
+	memoryProviderRegistry       *extensionpkg.MemoryProviderRegistry
+	memoryExtractor              *daemonMemoryExtractor
+	localMemoryProvider          memoryProviderShutdowner
 	situationContext             *situation.Service
 	sessions                     SessionManager
 	tasks                        *taskRuntime
@@ -433,26 +445,29 @@ type Daemon struct {
 }
 
 type shutdownTargets struct {
-	scheduler         *schedulerRuntime
-	spawnReaper       *spawnReaper
-	tasks             *taskRuntime
-	sessions          SessionManager
-	network           networkRuntime
-	hooks             hookRuntime
-	extensions        extensionRuntime
-	automation        automationRuntime
-	resourceReconcile resources.ReconcileDriver
-	bridges           *bridgeRuntime
-	httpServer        Server
-	udsServer         Server
-	registry          Registry
-	lock              *Lock
-	closeLogger       func() error
-	infoPath          string
-	dreamRuntime      *consolidation.Runtime
-	skillsCancel      context.CancelFunc
-	skillsDone        chan struct{}
-	retention         observerRetentionStopper
+	scheduler           *schedulerRuntime
+	spawnReaper         *spawnReaper
+	tasks               *taskRuntime
+	sessions            SessionManager
+	network             networkRuntime
+	hooks               hookRuntime
+	extensions          extensionRuntime
+	automation          automationRuntime
+	resourceReconcile   resources.ReconcileDriver
+	bridges             *bridgeRuntime
+	httpServer          Server
+	udsServer           Server
+	registry            Registry
+	lock                *Lock
+	closeLogger         func() error
+	infoPath            string
+	dreamRuntime        *consolidation.Runtime
+	memoryExtractor     *daemonMemoryExtractor
+	memoryStore         *memory.Store
+	localMemoryProvider memoryProviderShutdowner
+	skillsCancel        context.CancelFunc
+	skillsDone          chan struct{}
+	retention           observerRetentionStopper
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -623,6 +638,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
 			session.WithSoulSnapshotStore(deps.SoulStore),
 			session.WithSoulRunActivityChecker(deps.SoulRunChecker),
+			session.WithLedgerMaterializer(deps.LedgerMaterializer),
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),
@@ -640,8 +656,7 @@ func (d *Daemon) applyObserverFactoryDefault() {
 		if !ok {
 			return nil, errors.New("daemon: session manager does not implement observe session source")
 		}
-		return observe.New(
-			ctx,
+		opts := []observe.Option{
 			observe.WithRegistry(deps.Registry),
 			observe.WithHomePaths(deps.HomePaths),
 			observe.WithSessionSource(source),
@@ -654,7 +669,11 @@ func (d *Daemon) applyObserverFactoryDefault() {
 				agentProbeTargetSource(&deps.Config, deps.AgentCatalog, deps.Logger),
 				deps.Config.Observability.AgentProbeTimeoutOrDefault(),
 			),
-		)
+		}
+		if deps.MemoryStore != nil {
+			opts = append(opts, observe.WithMemoryEventSource(deps.MemoryStore))
+		}
+		return observe.New(ctx, opts...)
 	}
 }
 
@@ -706,6 +725,7 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPIHeartbeatWake(deps.HeartbeatWake),
 		extensionpkg.WithHostAPISessionHealth(deps.SessionHealth),
 		extensionpkg.WithHostAPIHeartbeatWakeEvents(deps.WakeEvents),
+		extensionpkg.WithHostAPIMemoryProviderRegistry(deps.MemoryProviderRegistry),
 	}
 	if deps.BridgeRegistry != nil {
 		opts = append(opts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))
@@ -1038,6 +1058,9 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 		httpapi.WithMemoryStore(deps.MemoryStore),
 		httpapi.WithDreamTrigger(deps.DreamTrigger),
+		httpapi.WithMemoryExtractorService(deps.MemoryExtractor),
+		httpapi.WithMemoryProviderService(deps.MemoryProviders),
+		httpapi.WithMemorySessionLedgerService(deps.MemorySessionLedger),
 		httpapi.WithExtensionService(deps.Extensions),
 	}
 }
@@ -1078,6 +1101,9 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 		udsapi.WithMemoryStore(deps.MemoryStore),
 		udsapi.WithDreamTrigger(deps.DreamTrigger),
+		udsapi.WithMemoryExtractorService(deps.MemoryExtractor),
+		udsapi.WithMemoryProviderService(deps.MemoryProviders),
+		udsapi.WithMemorySessionLedgerService(deps.MemorySessionLedger),
 		udsapi.WithExtensionService(deps.Extensions),
 		udsapi.WithHostedMCP(deps.HostedMCP),
 	}
@@ -1169,6 +1195,19 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if d.dreamRuntime != nil {
 		d.dreamRuntime.Start(runCtx)
 	}
+	if d.memoryExtractor != nil {
+		if err := d.memoryExtractor.Start(runCtx); err != nil {
+			cancelRun()
+			<-signalDone
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+			defer cancel()
+			shutdownErr := d.Shutdown(shutdownCtx)
+			return errors.Join(
+				fmt.Errorf("daemon: start memory extractor: %w", err),
+				shutdownErr,
+			)
+		}
+	}
 	if err := d.startObserverRetention(runCtx); err != nil {
 		cancelRun()
 		<-signalDone
@@ -1208,25 +1247,28 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 	defer d.mu.Unlock()
 
 	targets := shutdownTargets{
-		scheduler:         d.scheduler,
-		spawnReaper:       d.spawnReaper,
-		tasks:             d.tasks,
-		sessions:          d.sessions,
-		network:           d.network,
-		hooks:             d.hooks,
-		extensions:        d.extensions,
-		automation:        d.automation,
-		resourceReconcile: d.resourceReconcile,
-		bridges:           d.bridges,
-		httpServer:        d.httpServer,
-		udsServer:         d.udsServer,
-		registry:          d.registry,
-		lock:              d.lock,
-		closeLogger:       d.closeLogger,
-		infoPath:          d.homePaths.DaemonInfo,
-		dreamRuntime:      d.dreamRuntime,
-		skillsCancel:      d.skillsCancel,
-		skillsDone:        d.skillsDone,
+		scheduler:           d.scheduler,
+		spawnReaper:         d.spawnReaper,
+		tasks:               d.tasks,
+		sessions:            d.sessions,
+		network:             d.network,
+		hooks:               d.hooks,
+		extensions:          d.extensions,
+		automation:          d.automation,
+		resourceReconcile:   d.resourceReconcile,
+		bridges:             d.bridges,
+		httpServer:          d.httpServer,
+		udsServer:           d.udsServer,
+		registry:            d.registry,
+		lock:                d.lock,
+		closeLogger:         d.closeLogger,
+		infoPath:            d.homePaths.DaemonInfo,
+		dreamRuntime:        d.dreamRuntime,
+		memoryExtractor:     d.memoryExtractor,
+		memoryStore:         d.memoryStore,
+		localMemoryProvider: d.localMemoryProvider,
+		skillsCancel:        d.skillsCancel,
+		skillsDone:          d.skillsDone,
 	}
 	if stopper, ok := d.observer.(observerRetentionStopper); ok {
 		targets.retention = stopper
@@ -1251,6 +1293,9 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.registry = nil
 	d.harnessResolver = nil
 	d.memoryStore = nil
+	d.memoryProviderRegistry = nil
+	d.memoryExtractor = nil
+	d.localMemoryProvider = nil
 	d.skillsRegistry = nil
 	d.lock = nil
 	d.booting = false
@@ -1279,6 +1324,16 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	if targets.dreamRuntime != nil {
 		targets.dreamRuntime.Shutdown()
 	}
+	if targets.memoryExtractor != nil {
+		appendWrappedError(errs, "daemon: shutdown memory extractor", targets.memoryExtractor.Close(ctx))
+	}
+	if targets.memoryStore != nil {
+		appendWrappedError(
+			errs,
+			"daemon: shutdown recall signal recorders",
+			targets.memoryStore.CloseRecallSignalRecorders(ctx),
+		)
+	}
 	stopSkillsWatcher(targets.skillsCancel, targets.skillsDone)
 	if targets.resourceReconcile != nil {
 		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))
@@ -1306,6 +1361,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	}
 	if targets.tasks != nil {
 		targets.tasks.shutdown()
+	}
+	if targets.localMemoryProvider != nil {
+		appendWrappedError(errs, "daemon: shutdown local memory provider", targets.localMemoryProvider.Shutdown(ctx))
 	}
 }
 

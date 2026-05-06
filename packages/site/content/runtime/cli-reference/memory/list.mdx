@@ -1,11 +1,11 @@
 ---
 title: "agh memory list"
-description: "List persistent memories"
+description: "List Memory v2 entries"
 ---
 
 ## agh memory list
 
-List persistent memories
+List Memory v2 entries
 
 ```
 agh memory list [flags]
@@ -14,18 +14,24 @@ agh memory list [flags]
 ### Examples
 
 ```
-  # List global and workspace memories visible from the current directory
+  # List global and current-workspace memories
   agh memory list
 
-  # List only workspace-scoped memories
-  agh memory list --scope workspace
+  # List agent-workspace memories
+  agh memory list --scope agent --agent reviewer --agent-tier workspace
 ```
 
 ### Options
 
 ```
-  -h, --help           help for list
-      --scope string   Memory scope: global or workspace
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+  -h, --help                help for list
+      --include-shadowed    Include shadowed entries
+      --include-system      Include _system memory entries
+      --scope string        Memory scope: global, workspace, or agent
+      --type string         Memory type: user, feedback, project, or reference
+      --workspace string    Workspace ID or path for workspace-bound memory
 ```
 
 ### Options inherited from parent commands

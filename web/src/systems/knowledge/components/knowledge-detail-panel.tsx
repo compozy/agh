@@ -1,36 +1,103 @@
-import { AlertCircle, BookOpen, Loader2, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, BookOpen, Loader2, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button, CodeBlock, Empty, Pill, Section } from "@agh/ui";
 
 import {
   formatKnowledgeDateTime,
   formatKnowledgeRelativeTime,
+  knowledgeAgentTierLabel,
   knowledgeScopeLabel,
   memoryScopeTone,
   memoryTypeTone,
-  resolveKnowledgeScope,
 } from "@/systems/knowledge/lib/knowledge-formatters";
-import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
+import type {
+  KnowledgeMemoryItem,
+  KnowledgeScope,
+  MemoryDecision,
+} from "@/systems/knowledge/types";
 
+import { KnowledgeDecisionsSection } from "./knowledge-decisions-section";
 import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
+import { KnowledgeEditDialog } from "./knowledge-edit-dialog";
 import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
 interface KnowledgeDetailPanelProps {
   memory: KnowledgeMemoryItem | undefined;
   content: string | undefined;
-  scope?: string;
+  scope?: KnowledgeScope;
   isLoading: boolean;
   error: Error | null;
   onDelete: (memory: KnowledgeMemoryItem) => Promise<void>;
   isDeletePending: boolean;
   deleteError?: string | null;
+  onEdit?: (
+    memory: KnowledgeMemoryItem,
+    input: { content: string; description?: string }
+  ) => Promise<void>;
+  isEditPending?: boolean;
+  editError?: string | null;
+  decisions?: MemoryDecision[];
+  isDecisionsLoading?: boolean;
+  decisionsError?: Error | null;
 }
 
 interface MetadataRow {
   key: string;
   value: string;
   tone?: "mono" | "plain";
+}
+
+function buildMetadataRows(memory: KnowledgeMemoryItem): MetadataRow[] {
+  const rows: MetadataRow[] = [
+    { key: "Type", value: memory.type, tone: "mono" },
+    { key: "Scope", value: memory.scope, tone: "mono" },
+  ];
+  if (memory.scope === "agent" && memory.agent_tier) {
+    rows.push({
+      key: "Agent tier",
+      value: knowledgeAgentTierLabel(memory.agent_tier),
+      tone: "mono",
+    });
+  }
+  if (memory.agent_name) {
+    rows.push({ key: "Agent", value: memory.agent_name, tone: "mono" });
+  }
+  if (memory.workspace_id) {
+    rows.push({ key: "Workspace", value: memory.workspace_id, tone: "mono" });
+  }
+  rows.push({
+    key: "Modified",
+    value: formatKnowledgeDateTime(memory.mod_time),
+    tone: "plain",
+  });
+  rows.push({
+    key: "Recalls",
+    value: String(memory.recall_count),
+    tone: "mono",
+  });
+  if (memory.last_recalled_at) {
+    rows.push({
+      key: "Last recalled",
+      value: formatKnowledgeDateTime(memory.last_recalled_at),
+      tone: "plain",
+    });
+  }
+  if (memory.staleness_banner) {
+    rows.push({ key: "Staleness", value: memory.staleness_banner, tone: "plain" });
+  }
+  if (memory.superseded_by) {
+    rows.push({ key: "Superseded by", value: memory.superseded_by, tone: "mono" });
+  }
+  rows.push({
+    key: "Injection",
+    value: memory.injection ? "true" : "false",
+    tone: "mono",
+  });
+  if (memory.system_managed) {
+    rows.push({ key: "System managed", value: "true", tone: "mono" });
+  }
+  return rows;
 }
 
 function KnowledgeDetailPanel({
@@ -42,8 +109,20 @@ function KnowledgeDetailPanel({
   onDelete,
   isDeletePending,
   deleteError,
+  onEdit,
+  isEditPending = false,
+  editError,
+  decisions,
+  isDecisionsLoading = false,
+  decisionsError = null,
 }: KnowledgeDetailPanelProps) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    setConfirmDeleteOpen(false);
+    setEditOpen(false);
+  }, [memory?.filename, memory?.scope]);
 
   if (isLoading) {
     return (
@@ -91,26 +170,28 @@ function KnowledgeDetailPanel({
     );
   }
 
-  const resolvedScope = scope ?? resolveKnowledgeScope(memory);
-  const scopeForTone = resolvedScope === "workspace" ? "workspace" : "global";
-  const scopeTone = pillToneFromKnowledgeTone(memoryScopeTone(scopeForTone));
+  const resolvedScope: KnowledgeScope = scope ?? memory.scope;
+  const scopeTone = pillToneFromKnowledgeTone(memoryScopeTone(resolvedScope));
   const typeTone = pillToneFromKnowledgeTone(memoryTypeTone(memory.type));
 
-  const metadataRows: MetadataRow[] = [
-    { key: "Type", value: memory.type, tone: "mono" },
-    { key: "Scope", value: resolvedScope, tone: "mono" },
-    ...(memory.agent_name
-      ? [{ key: "Agent", value: memory.agent_name, tone: "mono" as const }]
-      : []),
-    { key: "Modified", value: formatKnowledgeDateTime(memory.mod_time), tone: "plain" as const },
-  ];
+  const metadataRows = buildMetadataRows(memory);
 
   const handleConfirmDelete = async () => {
     try {
       await onDelete(memory);
-      setConfirmOpen(false);
+      setConfirmDeleteOpen(false);
     } catch {
       // Error state is surfaced through `deleteError` and the dialog stays open.
+    }
+  };
+
+  const handleConfirmEdit = async (input: { content: string; description?: string }) => {
+    if (!onEdit) return;
+    try {
+      await onEdit(memory, input);
+      setEditOpen(false);
+    } catch {
+      // Error state is surfaced through `editError` and the dialog stays open.
     }
   };
 
@@ -142,16 +223,28 @@ function KnowledgeDetailPanel({
               {memory.type}
             </Pill>
             <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
-              {knowledgeScopeLabel(scopeForTone)}
+              {knowledgeScopeLabel(resolvedScope)}
             </Pill>
+            {memory.scope === "agent" && memory.agent_tier ? (
+              <Pill mono data-testid="detail-agent-tier-badge" tone="warning">
+                {knowledgeAgentTierLabel(memory.agent_tier)}
+              </Pill>
+            ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Pill.Dot tone="success" />
-          <span className="text-[13px] text-[color:var(--color-text-secondary)]">Active</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Pill.Dot tone={memory.staleness_banner ? "warning" : "success"} />
+          <span className="text-[13px] text-[color:var(--color-text-secondary)]">
+            {memory.staleness_banner ?? "Active"}
+          </span>
           <span className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
             Updated {formatKnowledgeRelativeTime(memory.mod_time)}
           </span>
+          {memory.superseded_by ? (
+            <Pill mono data-testid="detail-superseded-badge" tone="warning">
+              Superseded
+            </Pill>
+          ) : null}
         </div>
       </header>
 
@@ -197,13 +290,32 @@ function KnowledgeDetailPanel({
             ))}
           </dl>
         </Section>
+
+        <KnowledgeDecisionsSection
+          decisions={decisions}
+          error={decisionsError}
+          isLoading={isDecisionsLoading}
+        />
       </div>
 
       <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-[color:var(--color-divider)] px-6 py-4">
+        {onEdit ? (
+          <Button
+            data-testid="edit-memory-btn"
+            disabled={isEditPending || content === undefined}
+            onClick={() => setEditOpen(true)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Pencil className="size-3.5" />
+            Edit
+          </Button>
+        ) : null}
         <Button
           data-testid="delete-memory-btn"
           disabled={isDeletePending}
-          onClick={() => setConfirmOpen(true)}
+          onClick={() => setConfirmDeleteOpen(true)}
           size="sm"
           type="button"
           variant="outline"
@@ -219,6 +331,14 @@ function KnowledgeDetailPanel({
             {deleteError}
           </span>
         ) : null}
+        {editError ? (
+          <span
+            className="text-xs text-[color:var(--color-danger)]"
+            data-testid="knowledge-edit-error"
+          >
+            {editError}
+          </span>
+        ) : null}
       </footer>
 
       <KnowledgeDeleteDialog
@@ -226,10 +346,24 @@ function KnowledgeDetailPanel({
         filename={memory.filename}
         isPending={isDeletePending}
         onConfirm={handleConfirmDelete}
-        onOpenChange={setConfirmOpen}
-        open={confirmOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        open={confirmDeleteOpen}
         scope={resolvedScope}
       />
+
+      {onEdit ? (
+        <KnowledgeEditDialog
+          error={editError}
+          filename={memory.filename}
+          initialContent={content ?? ""}
+          initialDescription={memory.description ?? ""}
+          isPending={isEditPending}
+          onConfirm={handleConfirmEdit}
+          onOpenChange={setEditOpen}
+          open={editOpen}
+          scope={resolvedScope}
+        />
+      ) : null}
     </div>
   );
 }

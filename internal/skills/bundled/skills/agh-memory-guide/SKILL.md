@@ -1,6 +1,6 @@
 ---
 name: agh-memory-guide
-description: Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.
+description: Manage AGH persistent memory entries, scopes, and dream checks from the CLI.
 version: "1.0.0"
 ---
 
@@ -19,7 +19,7 @@ AGH memory is organized by scope:
 
 When in doubt, keep information in the narrowest scope that still makes it reusable.
 
-## List and read memory files
+## List and show memory entries
 
 List all visible memory files:
 
@@ -39,10 +39,10 @@ List only workspace memory:
 agh memory list --scope workspace
 ```
 
-Read a specific memory file:
+Show a specific memory entry:
 
 ```bash
-agh memory read architecture.md --scope workspace
+agh memory show architecture.md --scope workspace
 ```
 
 If the same filename exists in multiple scopes, pass `--scope` so you know exactly which record you are reading.
@@ -52,7 +52,8 @@ If the same filename exists in multiple scopes, pass `--scope` so you know exact
 Create or update a workspace memory file:
 
 ```bash
-agh memory write architecture.md \
+agh memory write \
+  --name "Architecture decisions" \
   --scope workspace \
   --type project \
   --description "Architecture decisions for the current repository" \
@@ -62,7 +63,8 @@ agh memory write architecture.md \
 Create a global user preference memory:
 
 ```bash
-agh memory write coding-preferences.md \
+agh memory write \
+  --name "Coding preferences" \
   --scope global \
   --type user \
   --description "Reusable coding preferences" \
@@ -71,7 +73,7 @@ agh memory write coding-preferences.md \
 
 Use memory for durable facts, not session transcripts. If the note is just temporary working state, keep it in the task or chat context instead.
 
-## Delete and consolidate
+## Delete and trigger dreams
 
 Delete an outdated memory file:
 
@@ -79,13 +81,13 @@ Delete an outdated memory file:
 agh memory delete architecture.md --scope workspace
 ```
 
-Trigger manual consolidation for the current workspace:
+Trigger a gated dream check for the current workspace:
 
 ```bash
-agh memory consolidate
+agh memory dream trigger
 ```
 
-Manual consolidation is useful after a large batch of edits or when you want AGH to re-summarize the current workspace memory state before the next session.
+Dream checks are useful after a large batch of edits or when you want AGH to review whether the current workspace has enough signal for promotion before the next session.
 
 ## Practical rules
 

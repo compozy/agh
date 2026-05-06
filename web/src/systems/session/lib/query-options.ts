@@ -4,8 +4,10 @@ import {
   fetchSession,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionLedger,
   fetchSessionTranscript,
   fetchSessions,
+  SessionLedgerUnavailableError,
 } from "../adapters/session-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import { sessionKeys } from "./query-keys";
@@ -56,5 +58,25 @@ export function sessionTranscriptOptions(id: string) {
     queryFn: ({ signal }) => fetchSessionTranscript(id, signal),
     staleTime: 10_000,
     enabled: !!id,
+  });
+}
+
+export interface SessionLedgerQueryOptions {
+  enabled?: boolean;
+}
+
+export function sessionLedgerOptions(id: string, options?: SessionLedgerQueryOptions) {
+  const enabled = (options?.enabled ?? true) && !!id;
+  return queryOptions({
+    queryKey: sessionKeys.ledger(id),
+    queryFn: ({ signal }) => fetchSessionLedger(id, signal),
+    staleTime: 10_000,
+    enabled,
+    retry: (failureCount, error) => {
+      if (error instanceof SessionLedgerUnavailableError) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 }

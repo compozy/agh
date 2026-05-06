@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
@@ -23,6 +24,7 @@ import (
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -43,6 +45,7 @@ type daemonNativeToolsDeps struct {
 	NetworkStore      core.NetworkStore
 	Tasks             taskpkg.Manager
 	MemoryStore       *memorypkg.Store
+	MemoryToolWrites  memoryToolWriteRecorder
 	Bridges           core.BridgeService
 	HomePaths         aghconfig.HomePaths
 	Observer          core.Observer
@@ -66,6 +69,10 @@ type daemonNativeToolsDeps struct {
 
 type daemonNativeTools struct {
 	deps *daemonNativeToolsDeps
+}
+
+type memoryToolWriteRecorder interface {
+	RecordToolWrite(sessionID string, turnSeq int64)
 }
 
 type nativeToolBinding struct {
@@ -189,6 +196,7 @@ func (d *Daemon) nativeToolsDeps(
 		NetworkStore:      state.registry,
 		Tasks:             state.deps.Tasks,
 		MemoryStore:       state.memoryStore,
+		MemoryToolWrites:  state.memoryExtractor,
 		Bridges:           state.deps.Bridges,
 		HomePaths:         d.homePaths,
 		Observer:          state.observer,
@@ -640,16 +648,20 @@ func (n *daemonNativeTools) memoryToolBindings(
 			call:         n.memoryList,
 			availability: availability,
 		},
-		toolspkg.ToolIDMemoryRead: {
-			call:         n.memoryRead,
+		toolspkg.ToolIDMemoryShow: {
+			call:         n.memoryShow,
 			availability: availability,
 		},
 		toolspkg.ToolIDMemorySearch: {
 			call:         n.memorySearch,
 			availability: availability,
 		},
-		toolspkg.ToolIDMemoryHistory: {
-			call:         n.memoryHistory,
+		toolspkg.ToolIDMemoryPropose: {
+			call:         n.memoryPropose,
+			availability: availability,
+		},
+		toolspkg.ToolIDMemoryNote: {
+			call:         n.memoryNote,
 			availability: availability,
 		},
 	}
@@ -1732,7 +1744,12 @@ func (n *daemonNativeTools) memoryList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload, err := n.memoryHeaderPayloads(ctx, scope, input.Scope, input.Workspace)
+	payload, err := n.memoryHeaderPayloads(ctx, scope, memoryToolSelector{
+		Scope:     input.Scope,
+		Workspace: input.Workspace,
+		AgentName: input.AgentName,
+		AgentTier: input.AgentTier,
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}
@@ -1740,16 +1757,21 @@ func (n *daemonNativeTools) memoryList(
 	return structuredResult(map[string]any{"memories": payload}, fmt.Sprintf("%d memories", len(payload)))
 }
 
-func (n *daemonNativeTools) memoryRead(
+func (n *daemonNativeTools) memoryShow(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input memoryReadInput
+	var input memoryShowInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	location, err := n.resolveMemoryLocation(ctx, scope, req.ToolID, input.Filename, input.Scope, input.Workspace)
+	location, err := n.resolveMemoryLocation(ctx, scope, req.ToolID, input.Filename, memoryToolSelector{
+		Scope:     input.Scope,
+		Workspace: input.Workspace,
+		AgentName: input.AgentName,
+		AgentTier: input.AgentTier,
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}
@@ -1776,58 +1798,168 @@ func (n *daemonNativeTools) memorySearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query, err := requiredNativeString(req.ToolID, "query", firstNonEmpty(input.Query, input.Q))
+	queryText, err := requiredNativeString(req.ToolID, "query", firstNonEmpty(input.Query, input.Q))
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	memoryScope, workspace, err := n.memoryScopeAndWorkspace(ctx, scope, input.Scope, input.Workspace)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-	}
-	results, err := n.deps.MemoryStore.Search(ctx, query, memorypkg.SearchOptions{
-		Scope:     memoryScope,
-		Workspace: workspace,
-		Limit:     input.Limit,
+	location, err := n.memoryRecallStore(ctx, scope, req.ToolID, memoryToolSelector{
+		Scope:     input.Scope,
+		Workspace: input.Workspace,
+		AgentName: input.AgentName,
+		AgentTier: input.AgentTier,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}
-	payload := redactMemorySearchResults(results)
-	return structuredResult(map[string]any{"results": payload}, fmt.Sprintf("%d memory results", len(payload)))
+	recall, err := location.Store.Recall(ctx, memcontract.Query{
+		WorkspaceID: location.WorkspaceID,
+		AgentName:   location.AgentName,
+		QueryText:   queryText,
+	}, memcontract.RecallOptions{
+		TopK: input.Limit,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	payload := redactMemoryPackaged(recall)
+	results := nativeMemoryRecallResults(payload)
+	return structuredResult(map[string]any{
+		"recall":  payload,
+		"results": results,
+	}, fmt.Sprintf("%d memory results", len(results)))
 }
 
-func (n *daemonNativeTools) memoryHistory(
+func (n *daemonNativeTools) memoryPropose(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input memoryHistoryInput
+	var input memoryProposeInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	memoryScope, workspace, err := n.memoryScopeAndWorkspace(ctx, scope, input.Scope, input.Workspace)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-	}
-	since, err := parseNativeOptionalRFC3339(req.ToolID, "since", input.Since)
+	op, err := nativeMemoryProposalOperation(req.ToolID, input.Operation)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	records, err := n.deps.MemoryStore.History(ctx, memorypkg.OperationHistoryQuery{
-		Scope:     memoryScope,
-		Workspace: workspace,
-		Operation: memorypkg.Operation(strings.TrimSpace(input.Operation)),
-		Since:     since,
-		Limit:     input.Limit,
+	location, err := n.memoryWriteStore(ctx, scope, req.ToolID, memoryToolSelector{
+		Scope:     input.Scope,
+		Workspace: input.Workspace,
+		AgentName: input.AgentName,
+		AgentTier: input.AgentTier,
+	}, input.Type)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	actorKind, err := n.memoryCallerActorKind(ctx, scope, req)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	if err := n.denySubagentMemoryWrite(
+		ctx,
+		req,
+		location,
+		actorKind,
+		firstNonEmpty(input.TargetFilename, input.Filename),
+	); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+
+	if op == memcontract.OpDelete {
+		filename, err := requiredNativeString(
+			req.ToolID,
+			"target_filename",
+			firstNonEmpty(input.TargetFilename, input.Filename),
+		)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		result, err := location.Store.ProposeDelete(ctx, location.Scope, filename, memcontract.OriginTool)
+		if err != nil {
+			return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+		}
+		n.recordMemoryToolWrite(scope, req, actorKind)
+		return nativeMemoryDecisionResult(result)
+	}
+
+	content, err := requiredNativeString(req.ToolID, "content", input.Content)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	filename := firstNonEmpty(input.Filename, input.TargetFilename)
+	if strings.TrimSpace(filename) == "" {
+		filename = nativeMemoryFilename(input.Type, firstNonEmpty(input.Name, input.Entity, content))
+	}
+	document, err := renderNativeMemoryDocument(nativeMemoryWriteDocument{
+		Filename:    filename,
+		Scope:       location.Scope,
+		AgentName:   location.AgentName,
+		AgentTier:   location.AgentTier,
+		Name:        input.Name,
+		Description: input.Description,
+		Type:        input.Type,
+		Content:     content,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}
-	payload := core.MemoryOperationPayloads(records)
-	for i := range payload {
-		payload[i].Summary = taskpkg.RedactClaimTokens(payload[i].Summary)
+	result, err := location.Store.ProposeWrite(ctx, location.Scope, filename, document, memcontract.OriginTool)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"operations": payload}, fmt.Sprintf("%d memory operations", len(payload)))
+	n.recordMemoryToolWrite(scope, req, actorKind)
+	return nativeMemoryDecisionResult(result)
+}
+
+func (n *daemonNativeTools) memoryNote(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input memoryNoteInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	content, err := requiredNativeString(req.ToolID, "content", input.Content)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	location, err := n.memoryWriteStore(ctx, scope, req.ToolID, memoryToolSelector{
+		Scope:     input.Scope,
+		Workspace: input.Workspace,
+		AgentName: input.AgentName,
+		AgentTier: input.AgentTier,
+	}, "")
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	actorKind, err := n.memoryCallerActorKind(ctx, scope, req)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	if err := n.denySubagentMemoryWrite(ctx, req, location, actorKind, input.Slug); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	filename := nativeMemoryAdHocFilename(input.Slug, content, time.Now().UTC())
+	document, err := renderNativeMemoryDocument(nativeMemoryWriteDocument{
+		Filename:    filename,
+		Scope:       location.Scope,
+		AgentName:   location.AgentName,
+		AgentTier:   location.AgentTier,
+		Name:        "Ad Hoc Memory Note",
+		Description: nativeMemoryDescription(content),
+		Type:        string(nativeMemoryTypeForScope("", location.Scope)),
+		Content:     nativeMemoryTaggedContent(content, input.Tags),
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	result, err := location.Store.ProposeWrite(ctx, location.Scope, filename, document, memcontract.OriginTool)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	n.recordMemoryToolWrite(scope, req, actorKind)
+	return nativeMemoryDecisionResult(result)
 }
 
 func (n *daemonNativeTools) observeEvents(
@@ -2696,13 +2828,17 @@ type workspaceRefInput struct {
 type memoryListInput struct {
 	Scope     string `json:"scope,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
+	AgentName string `json:"agent_name,omitempty"`
+	AgentTier string `json:"agent_tier,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
 }
 
-type memoryReadInput struct {
+type memoryShowInput struct {
 	Filename  string `json:"filename"`
 	Scope     string `json:"scope,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
+	AgentName string `json:"agent_name,omitempty"`
+	AgentTier string `json:"agent_tier,omitempty"`
 }
 
 type memorySearchInput struct {
@@ -2710,33 +2846,80 @@ type memorySearchInput struct {
 	Q         string `json:"q,omitempty"`
 	Scope     string `json:"scope,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
+	AgentName string `json:"agent_name,omitempty"`
+	AgentTier string `json:"agent_tier,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
 }
 
-type memoryHistoryInput struct {
-	Scope     string `json:"scope,omitempty"`
-	Workspace string `json:"workspace,omitempty"`
-	Operation string `json:"operation,omitempty"`
-	Since     string `json:"since,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+type memoryProposeInput struct {
+	Operation      string `json:"operation,omitempty"`
+	Filename       string `json:"filename,omitempty"`
+	TargetFilename string `json:"target_filename,omitempty"`
+	Content        string `json:"content,omitempty"`
+	Name           string `json:"name,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Type           string `json:"type,omitempty"`
+	Scope          string `json:"scope,omitempty"`
+	Workspace      string `json:"workspace,omitempty"`
+	AgentName      string `json:"agent_name,omitempty"`
+	AgentTier      string `json:"agent_tier,omitempty"`
+	Entity         string `json:"entity,omitempty"`
+	Attribute      string `json:"attribute,omitempty"`
+}
+
+type memoryNoteInput struct {
+	Content   string   `json:"content"`
+	Slug      string   `json:"slug,omitempty"`
+	Scope     string   `json:"scope,omitempty"`
+	Workspace string   `json:"workspace,omitempty"`
+	AgentName string   `json:"agent_name,omitempty"`
+	AgentTier string   `json:"agent_tier,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
 }
 
 type memoryToolLocation struct {
-	Store     *memorypkg.Store
-	Scope     memorypkg.Scope
+	Store       *memorypkg.Store
+	Scope       memcontract.Scope
+	Workspace   string
+	WorkspaceID string
+	AgentName   string
+	AgentTier   memcontract.AgentTier
+	Filename    string
+}
+
+type memoryToolSelector struct {
+	Scope     string
 	Workspace string
-	Filename  string
+	AgentName string
+	AgentTier string
+}
+
+type nativeMemoryWriteDocument struct {
+	Filename    string
+	Scope       memcontract.Scope
+	AgentName   string
+	AgentTier   memcontract.AgentTier
+	Name        string
+	Description string
+	Type        string
+	Content     string
 }
 
 type memoryHeaderPayload struct {
-	Filename    string          `json:"filename"`
-	Name        string          `json:"name"`
-	Type        memorypkg.Type  `json:"type"`
-	Scope       memorypkg.Scope `json:"scope"`
-	Workspace   string          `json:"workspace,omitempty"`
-	AgentName   string          `json:"agent_name,omitempty"`
-	Description string          `json:"description,omitempty"`
-	ModTime     time.Time       `json:"mod_time"`
+	Filename    string            `json:"filename"`
+	Name        string            `json:"name"`
+	Type        memcontract.Type  `json:"type"`
+	Scope       memcontract.Scope `json:"scope"`
+	Workspace   string            `json:"workspace,omitempty"`
+	AgentName   string            `json:"agent_name,omitempty"`
+	Description string            `json:"description,omitempty"`
+	ModTime     time.Time         `json:"mod_time"`
+}
+
+type nativeMemoryRecallEntry struct {
+	Key     string  `json:"key"`
+	Content string  `json:"content"`
+	Score   float64 `json:"score"`
 }
 
 type observeEventQueryInput struct {
@@ -3240,37 +3423,64 @@ func decodeSessionEventQueryInput(req toolspkg.CallRequest) (sessionEventQueryIn
 func (n *daemonNativeTools) memoryHeaderPayloads(
 	ctx context.Context,
 	callerScope toolspkg.Scope,
-	rawScope string,
-	rawWorkspace string,
+	selector memoryToolSelector,
 ) ([]memoryHeaderPayload, error) {
-	scope, err := core.ParseOptionalMemoryScope(rawScope)
+	scope, err := core.ParseOptionalMemoryScope(selector.Scope)
 	if err != nil {
 		return nil, err
 	}
-	workspaceRef := firstNonEmpty(rawWorkspace, callerScope.WorkspaceID)
-	locations := []memoryToolLocation{{Store: n.deps.MemoryStore, Scope: memorypkg.ScopeGlobal}}
+	locations := []memoryToolLocation{{Store: n.deps.MemoryStore, Scope: memcontract.ScopeGlobal}}
 	switch scope {
-	case memorypkg.ScopeGlobal:
+	case memcontract.ScopeGlobal:
 		locations = locations[:1]
-	case memorypkg.ScopeWorkspace:
-		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+	case memcontract.ScopeWorkspace:
+		location, err := n.memoryStoreFor(
+			ctx,
+			callerScope,
+			toolspkg.ToolIDMemoryList,
+			selector,
+			memcontract.ScopeWorkspace,
+		)
 		if err != nil {
 			return nil, err
 		}
-		locations = []memoryToolLocation{
-			{Store: n.deps.MemoryStore.ForWorkspace(workspace), Scope: memorypkg.ScopeWorkspace, Workspace: workspace},
+		locations = []memoryToolLocation{location}
+	case memcontract.ScopeAgent:
+		location, err := n.memoryStoreFor(ctx, callerScope, toolspkg.ToolIDMemoryList, selector, memcontract.ScopeAgent)
+		if err != nil {
+			return nil, err
 		}
+		locations = []memoryToolLocation{location}
 	default:
-		if strings.TrimSpace(workspaceRef) != "" {
-			workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+		if strings.TrimSpace(firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)) != "" {
+			workspaceSelector := selector
+			workspaceSelector.Scope = string(memcontract.ScopeWorkspace)
+			location, err := n.memoryStoreFor(
+				ctx,
+				callerScope,
+				toolspkg.ToolIDMemoryList,
+				workspaceSelector,
+				memcontract.ScopeWorkspace,
+			)
 			if err != nil {
 				return nil, err
 			}
-			locations = append(locations, memoryToolLocation{
-				Store:     n.deps.MemoryStore.ForWorkspace(workspace),
-				Scope:     memorypkg.ScopeWorkspace,
-				Workspace: workspace,
-			})
+			locations = append(locations, location)
+		}
+		if strings.TrimSpace(firstNonEmpty(selector.AgentName, callerScope.AgentName)) != "" {
+			agentSelector := selector
+			agentSelector.Scope = string(memcontract.ScopeAgent)
+			location, err := n.memoryStoreFor(
+				ctx,
+				callerScope,
+				toolspkg.ToolIDMemoryList,
+				agentSelector,
+				memcontract.ScopeAgent,
+			)
+			if err != nil {
+				return nil, err
+			}
+			locations = append(locations, location)
 		}
 	}
 	payload := make([]memoryHeaderPayload, 0)
@@ -3297,20 +3507,18 @@ func (n *daemonNativeTools) resolveMemoryLocation(
 	callerScope toolspkg.Scope,
 	id toolspkg.ToolID,
 	filename string,
-	rawScope string,
-	rawWorkspace string,
+	selector memoryToolSelector,
 ) (memoryToolLocation, error) {
 	trimmedFilename, err := requiredNativeString(id, "filename", filename)
 	if err != nil {
 		return memoryToolLocation{}, err
 	}
-	scope, err := core.ParseOptionalMemoryScope(rawScope)
+	scope, err := core.ParseOptionalMemoryScope(selector.Scope)
 	if err != nil {
 		return memoryToolLocation{}, err
 	}
-	workspaceRef := firstNonEmpty(rawWorkspace, callerScope.WorkspaceID)
 	if scope != "" {
-		location, err := n.memoryStoreFor(ctx, scope, workspaceRef)
+		location, err := n.memoryStoreFor(ctx, callerScope, id, selector, scope)
 		if err != nil {
 			return memoryToolLocation{}, err
 		}
@@ -3325,19 +3533,27 @@ func (n *daemonNativeTools) resolveMemoryLocation(
 		return location, nil
 	}
 	candidates := []memoryToolLocation{
-		{Store: n.deps.MemoryStore, Scope: memorypkg.ScopeGlobal, Filename: trimmedFilename},
+		{Store: n.deps.MemoryStore, Scope: memcontract.ScopeGlobal, Filename: trimmedFilename},
 	}
-	if strings.TrimSpace(workspaceRef) != "" {
-		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+	if strings.TrimSpace(firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)) != "" {
+		workspaceSelector := selector
+		workspaceSelector.Scope = string(memcontract.ScopeWorkspace)
+		location, err := n.memoryStoreFor(ctx, callerScope, id, workspaceSelector, memcontract.ScopeWorkspace)
 		if err != nil {
 			return memoryToolLocation{}, err
 		}
-		candidates = append(candidates, memoryToolLocation{
-			Store:     n.deps.MemoryStore.ForWorkspace(workspace),
-			Scope:     memorypkg.ScopeWorkspace,
-			Workspace: workspace,
-			Filename:  trimmedFilename,
-		})
+		location.Filename = trimmedFilename
+		candidates = append(candidates, location)
+	}
+	if strings.TrimSpace(firstNonEmpty(selector.AgentName, callerScope.AgentName)) != "" {
+		agentSelector := selector
+		agentSelector.Scope = string(memcontract.ScopeAgent)
+		location, err := n.memoryStoreFor(ctx, callerScope, id, agentSelector, memcontract.ScopeAgent)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		location.Filename = trimmedFilename
+		candidates = append(candidates, location)
 	}
 	matches := make([]memoryToolLocation, 0, len(candidates))
 	for _, candidate := range candidates {
@@ -3363,70 +3579,257 @@ func (n *daemonNativeTools) resolveMemoryLocation(
 
 func (n *daemonNativeTools) memoryStoreFor(
 	ctx context.Context,
-	scope memorypkg.Scope,
-	workspaceRef string,
+	callerScope toolspkg.Scope,
+	id toolspkg.ToolID,
+	selector memoryToolSelector,
+	defaultScope memcontract.Scope,
 ) (memoryToolLocation, error) {
+	scope, err := core.ParseOptionalMemoryScope(selector.Scope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
+	if scope == "" {
+		scope = defaultScope.Normalize()
+	}
+	if scope == "" {
+		scope = memcontract.ScopeGlobal
+	}
+	workspaceRef := firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)
 	switch scope.Normalize() {
-	case memorypkg.ScopeGlobal:
-		return memoryToolLocation{Store: n.deps.MemoryStore, Scope: memorypkg.ScopeGlobal}, nil
-	case memorypkg.ScopeWorkspace:
-		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+	case memcontract.ScopeGlobal:
+		return memoryToolLocation{Store: n.deps.MemoryStore, Scope: memcontract.ScopeGlobal}, nil
+	case memcontract.ScopeWorkspace:
+		workspaceID, workspace, err := n.memoryWorkspaceIdentity(ctx, workspaceRef)
 		if err != nil {
 			return memoryToolLocation{}, err
 		}
+		if workspace == "" {
+			return memoryToolLocation{}, core.NewMemoryValidationError(
+				errors.New("workspace is required for workspace memory scope"),
+			)
+		}
 		return memoryToolLocation{
-			Store:     n.deps.MemoryStore.ForWorkspace(workspace),
-			Scope:     memorypkg.ScopeWorkspace,
-			Workspace: workspace,
+			Store:       n.deps.MemoryStore.ForWorkspace(workspace),
+			Scope:       memcontract.ScopeWorkspace,
+			Workspace:   workspace,
+			WorkspaceID: workspaceID,
 		}, nil
+	case memcontract.ScopeAgent:
+		return n.agentMemoryStoreFor(ctx, callerScope, id, selector, workspaceRef)
 	default:
 		return memoryToolLocation{}, core.NewMemoryValidationError(fmt.Errorf("unsupported scope %q", scope))
 	}
 }
 
-func (n *daemonNativeTools) memoryScopeAndWorkspace(
+func (n *daemonNativeTools) memoryRecallStore(
 	ctx context.Context,
 	callerScope toolspkg.Scope,
-	rawScope string,
-	rawWorkspace string,
-) (memorypkg.Scope, string, error) {
-	scope, err := core.ParseOptionalMemoryScope(rawScope)
+	id toolspkg.ToolID,
+	selector memoryToolSelector,
+) (memoryToolLocation, error) {
+	scope, err := core.ParseOptionalMemoryScope(selector.Scope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
+	if scope == "" {
+		if strings.TrimSpace(firstNonEmpty(selector.AgentName, callerScope.AgentName)) != "" {
+			scope = memcontract.ScopeAgent
+		} else if strings.TrimSpace(firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)) != "" {
+			scope = memcontract.ScopeWorkspace
+		}
+	}
+	return n.memoryStoreFor(ctx, callerScope, id, selector, scope)
+}
+
+func (n *daemonNativeTools) memoryWriteStore(
+	ctx context.Context,
+	callerScope toolspkg.Scope,
+	id toolspkg.ToolID,
+	selector memoryToolSelector,
+	rawType string,
+) (memoryToolLocation, error) {
+	scope, err := core.ParseOptionalMemoryScope(selector.Scope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
+	if scope == "" {
+		if strings.TrimSpace(firstNonEmpty(selector.AgentName, callerScope.AgentName)) != "" {
+			scope = memcontract.ScopeAgent
+		} else if inferred, inferErr := memcontract.DefaultScopeForType(memcontract.Type(rawType)); inferErr == nil {
+			scope = inferred
+		} else if strings.TrimSpace(firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)) != "" {
+			scope = memcontract.ScopeWorkspace
+		}
+	}
+	return n.memoryStoreFor(ctx, callerScope, id, selector, scope)
+}
+
+func (n *daemonNativeTools) memoryCallerActorKind(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (string, error) {
+	if actorKind := strings.TrimSpace(firstNonEmpty(req.ActorKind, scope.ActorKind)); actorKind != "" {
+		return actorKind, nil
+	}
+	sessionID := strings.TrimSpace(firstNonEmpty(req.SessionID, scope.SessionID))
+	if sessionID == "" || n == nil || n.deps == nil || n.deps.Sessions == nil {
+		return "", nil
+	}
+	info, err := n.deps.Sessions.Status(ctx, sessionID)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve memory tool caller session %q: %w", sessionID, err)
+	}
+	if info != nil && info.Lineage != nil && strings.TrimSpace(info.Lineage.ParentSessionID) != "" {
+		return "agent_subagent", nil
+	}
+	return "agent_root", nil
+}
+
+func (n *daemonNativeTools) denySubagentMemoryWrite(
+	ctx context.Context,
+	req toolspkg.CallRequest,
+	location memoryToolLocation,
+	actorKind string,
+	targetID string,
+) error {
+	if strings.TrimSpace(actorKind) != "agent_subagent" {
+		return nil
+	}
+	cause := fmt.Errorf("%w: sub-agent memory writes are denied", toolspkg.ErrToolDenied)
+	if location.Store != nil {
+		if err := location.Store.RecordMemoryWriteRejected(ctx, memorypkg.WriteRejectedEvent{
+			Scope:       location.Scope,
+			WorkspaceID: location.WorkspaceID,
+			AgentName:   location.AgentName,
+			AgentTier:   location.AgentTier,
+			SessionID:   strings.TrimSpace(req.SessionID),
+			ActorKind:   actorKind,
+			TargetID:    targetID,
+			Reason:      string(toolspkg.ReasonMemorySubagentWriteDenied),
+			ToolID:      string(req.ToolID),
+		}); err != nil {
+			cause = errors.Join(cause, err)
+		}
+	}
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		req.ToolID,
+		"sub-agent memory writes are denied",
+		cause,
+		toolspkg.ReasonMemorySubagentWriteDenied,
+	)
+}
+
+func (n *daemonNativeTools) recordMemoryToolWrite(
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	actorKind string,
+) {
+	if n == nil || n.deps == nil || n.deps.MemoryToolWrites == nil {
+		return
+	}
+	if strings.TrimSpace(actorKind) != "agent_root" {
+		return
+	}
+	sessionID := strings.TrimSpace(firstNonEmpty(req.SessionID, scope.SessionID))
+	if sessionID == "" {
+		return
+	}
+	n.deps.MemoryToolWrites.RecordToolWrite(sessionID, 0)
+}
+
+func (n *daemonNativeTools) agentMemoryStoreFor(
+	ctx context.Context,
+	callerScope toolspkg.Scope,
+	id toolspkg.ToolID,
+	selector memoryToolSelector,
+	workspaceRef string,
+) (memoryToolLocation, error) {
+	agentName := strings.TrimSpace(firstNonEmpty(selector.AgentName, callerScope.AgentName))
+	if agentName == "" {
+		return memoryToolLocation{}, nativeRequiredInputError(id, "agent_name")
+	}
+	tier, err := parseNativeOptionalAgentTier(id, selector.AgentTier, memcontract.AgentTierWorkspace)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
+	base := n.deps.MemoryStore
+	location := memoryToolLocation{
+		Scope:     memcontract.ScopeAgent,
+		AgentName: agentName,
+		AgentTier: tier,
+	}
+	if tier == memcontract.AgentTierWorkspace {
+		workspaceID, workspace, err := n.memoryWorkspaceIdentity(ctx, workspaceRef)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		if workspace == "" {
+			return memoryToolLocation{}, core.NewMemoryValidationError(
+				errors.New("workspace is required for workspace-tier agent memory"),
+			)
+		}
+		base = base.ForWorkspace(workspace)
+		location.Workspace = workspace
+		location.WorkspaceID = workspaceID
+	}
+	location.Store = base.ForAgent(location.WorkspaceID, agentName, tier)
+	return location, nil
+}
+
+func parseNativeOptionalAgentTier(
+	id toolspkg.ToolID,
+	raw string,
+	defaultTier memcontract.AgentTier,
+) (memcontract.AgentTier, error) {
+	tier := memcontract.AgentTier(strings.TrimSpace(raw)).Normalize()
+	if tier == "" {
+		tier = defaultTier.Normalize()
+	}
+	if err := tier.Validate(); err != nil {
+		return "", toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return tier, nil
+}
+
+func (n *daemonNativeTools) memoryWorkspaceIdentity(ctx context.Context, ref string) (string, string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed != "" && n.deps.Workspaces != nil {
+		resolved, err := n.deps.Workspaces.Resolve(ctx, trimmed)
+		switch {
+		case err == nil:
+			root := firstNonEmpty(resolved.RootDir, trimmed)
+			workspaceRoot, resolveErr := core.ResolveMemoryWorkspace(root)
+			workspaceID := firstNonEmpty(resolved.WorkspaceID, resolved.ID)
+			return strings.TrimSpace(workspaceID), workspaceRoot, resolveErr
+		case !errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+			return "", "", err
+		}
+		if workspacepkg.IsWorkspaceID(trimmed) {
+			return "", "", err
+		}
+	}
+	workspaceRoot, err := core.ResolveMemoryWorkspace(trimmed)
 	if err != nil {
 		return "", "", err
 	}
-	workspaceRef := firstNonEmpty(rawWorkspace, callerScope.WorkspaceID)
-	if scope == memorypkg.ScopeWorkspace || strings.TrimSpace(workspaceRef) != "" {
-		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
-		if err != nil {
-			return "", "", err
-		}
-		return scope, workspace, nil
+	identity, err := workspacepkg.EnsureIdentity(ctx, workspaceRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("daemon: resolve memory workspace identity: %w", err)
 	}
-	return scope, "", nil
-}
-
-func (n *daemonNativeTools) memoryWorkspaceRoot(ctx context.Context, ref string) (string, error) {
-	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" {
-		return core.ResolveMemoryWorkspace(trimmed)
-	}
-	if n.deps.Workspaces != nil {
-		workspace, err := n.deps.Workspaces.Get(ctx, trimmed)
-		switch {
-		case err == nil && strings.TrimSpace(workspace.RootDir) != "":
-			return core.ResolveMemoryWorkspace(workspace.RootDir)
-		case err == nil:
-			return core.ResolveMemoryWorkspace(trimmed)
-		case !errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
-			return "", err
-		}
-	}
-	return core.ResolveMemoryWorkspace(trimmed)
+	return identity.WorkspaceID, workspaceRoot, nil
 }
 
 func memoryHeaderPayloadFromHeader(
-	header memorypkg.Header,
-	scope memorypkg.Scope,
+	header memcontract.Header,
+	scope memcontract.Scope,
 	workspace string,
 ) memoryHeaderPayload {
 	return memoryHeaderPayload{
@@ -3448,18 +3851,213 @@ func limitMemoryPayloads(items []memoryHeaderPayload, limit int) []memoryHeaderP
 	return items[:limit]
 }
 
-func redactMemorySearchResults(results []memorypkg.SearchResult) []memorypkg.SearchResult {
-	payload := make([]memorypkg.SearchResult, 0, len(results))
-	for _, result := range results {
-		next := result
-		next.Name = taskpkg.RedactClaimTokens(strings.TrimSpace(next.Name))
-		next.Description = taskpkg.RedactClaimTokens(strings.TrimSpace(next.Description))
-		next.Snippet = taskpkg.RedactClaimTokens(strings.TrimSpace(next.Snippet))
-		next.Workspace = strings.TrimSpace(next.Workspace)
-		next.ModTime = next.ModTime.UTC()
-		payload = append(payload, next)
+func nativeMemoryProposalOperation(id toolspkg.ToolID, raw string) (memcontract.Op, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", memcontract.OpAdd.String(), memcontract.OpUpdate.String():
+		return memcontract.OpAdd, nil
+	case memcontract.OpDelete.String():
+		return memcontract.OpDelete, nil
+	default:
+		return 0, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"operation must be add, update, or delete",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSchemaInvalid,
+		)
 	}
-	return payload
+}
+
+func renderNativeMemoryDocument(doc nativeMemoryWriteDocument) ([]byte, error) {
+	memoryType := nativeMemoryTypeForScope(doc.Type, doc.Scope)
+	header := memcontract.Header{
+		Name:        firstNonEmpty(doc.Name, nativeMemoryNameFromFilename(doc.Filename)),
+		Description: firstNonEmpty(doc.Description, nativeMemoryDescription(doc.Content)),
+		Type:        memoryType,
+		Scope:       doc.Scope.Normalize(),
+	}
+	if header.Scope == memcontract.ScopeAgent {
+		header.AgentName = strings.TrimSpace(doc.AgentName)
+		header.AgentTier = doc.AgentTier.Normalize()
+	}
+	if err := header.Validate(); err != nil {
+		return nil, core.NewMemoryValidationError(err)
+	}
+
+	metadata, err := yaml.Marshal(header)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: marshal memory frontmatter: %w", err)
+	}
+	var builder strings.Builder
+	builder.WriteString("---\n")
+	builder.Write(metadata)
+	builder.WriteString("---\n\n")
+	builder.WriteString(strings.TrimSpace(doc.Content))
+	return []byte(builder.String()), nil
+}
+
+func nativeMemoryTypeForScope(raw string, scope memcontract.Scope) memcontract.Type {
+	memoryType := memcontract.Type(strings.TrimSpace(raw)).Normalize()
+	if memoryType != "" {
+		return memoryType
+	}
+	switch scope.Normalize() {
+	case memcontract.ScopeWorkspace:
+		return memcontract.TypeProject
+	default:
+		return memcontract.TypeUser
+	}
+}
+
+func nativeMemoryDecisionResult(result memorypkg.DecisionApplyResult) (toolspkg.ToolResult, error) {
+	decision := redactNativeMemoryDecision(result.Decision)
+	return structuredResult(map[string]any{
+		"decision": decision,
+		"applied":  result.Applied,
+	}, fmt.Sprintf("memory decision %s", decision.Op.String()))
+}
+
+func redactNativeMemoryDecision(decision memcontract.Decision) memcontract.Decision {
+	redacted := decision
+	redacted.Frontmatter.Name = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Frontmatter.Name))
+	redacted.Frontmatter.Description = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Frontmatter.Description))
+	redacted.PostContent = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.PostContent))
+	redacted.PriorContent = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.PriorContent))
+	redacted.Reason = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Reason))
+	if redacted.LLMTrace != nil {
+		trace := *redacted.LLMTrace
+		trace.RawResponse = taskpkg.RedactClaimTokens(strings.TrimSpace(trace.RawResponse))
+		trace.Error = taskpkg.RedactClaimTokens(strings.TrimSpace(trace.Error))
+		redacted.LLMTrace = &trace
+	}
+	return redacted
+}
+
+func redactMemoryPackaged(packaged memcontract.Packaged) memcontract.Packaged {
+	redacted := packaged
+	redacted.Header.Text = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Header.Text))
+	for blockIdx := range redacted.Blocks {
+		for entryIdx := range redacted.Blocks[blockIdx].Entries {
+			entry := &redacted.Blocks[blockIdx].Entries[entryIdx]
+			entry.Title = taskpkg.RedactClaimTokens(strings.TrimSpace(entry.Title))
+			entry.Body = taskpkg.RedactClaimTokens(strings.TrimSpace(entry.Body))
+			entry.StalenessBanner = taskpkg.RedactClaimTokens(strings.TrimSpace(entry.StalenessBanner))
+			for i := range entry.WhyRecalled {
+				entry.WhyRecalled[i] = taskpkg.RedactClaimTokens(strings.TrimSpace(entry.WhyRecalled[i]))
+			}
+		}
+	}
+	return redacted
+}
+
+func nativeMemoryRecallResults(packaged memcontract.Packaged) []nativeMemoryRecallEntry {
+	total := 0
+	for _, block := range packaged.Blocks {
+		total += len(block.Entries)
+	}
+	results := make([]nativeMemoryRecallEntry, 0, total)
+	score := float64(total)
+	for _, block := range packaged.Blocks {
+		for _, entry := range block.Entries {
+			results = append(results, nativeMemoryRecallEntry{
+				Key:     strings.TrimSpace(entry.ID),
+				Content: strings.TrimSpace(entry.Body),
+				Score:   score,
+			})
+			score--
+		}
+	}
+	return results
+}
+
+func nativeMemoryFilename(rawType string, seed string) string {
+	prefix := string(memcontract.Type(strings.TrimSpace(rawType)).Normalize())
+	if prefix == "" {
+		prefix = string(HarnessPromptSectionMemory)
+	}
+	return prefix + "_" + nativeMemorySlug(seed) + ".md"
+}
+
+func nativeMemoryAdHocFilename(rawSlug string, content string, now time.Time) string {
+	slug := nativeMemorySlug(firstNonEmpty(rawSlug, content, "note"))
+	return fmt.Sprintf("ad_hoc_%s_%s.md", now.UTC().Format("20060102T150405Z"), slug)
+}
+
+func nativeMemoryNameFromFilename(filename string) string {
+	base := strings.TrimSuffix(filepath.Base(strings.TrimSpace(filename)), filepath.Ext(strings.TrimSpace(filename)))
+	parts := strings.Fields(strings.NewReplacer("-", " ", "_", " ", ".", " ").Replace(base))
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+	}
+	return strings.Join(parts, " ")
+}
+
+func nativeMemoryDescription(content string) string {
+	firstLine := strings.TrimSpace(strings.Split(strings.TrimSpace(content), "\n")[0])
+	const maxNativeMemoryDescriptionLength = 160
+	if len(firstLine) <= maxNativeMemoryDescriptionLength {
+		return firstLine
+	}
+	return strings.TrimSpace(firstLine[:maxNativeMemoryDescriptionLength]) + "..."
+}
+
+func nativeMemoryTaggedContent(content string, tags []string) string {
+	body := strings.TrimSpace(content)
+	normalized := nativeNormalizeUniqueStrings(tags)
+	if len(normalized) == 0 {
+		return body
+	}
+	return "<!-- agh-tags: " + strings.Join(normalized, ", ") + " -->\n\n" + body
+}
+
+func nativeNormalizeUniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
+}
+
+func nativeMemorySlug(seed string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(seed))
+	var builder strings.Builder
+	lastDash := false
+	for _, r := range trimmed {
+		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if isAlphaNum {
+			builder.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash && builder.Len() > 0 {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	slug := strings.Trim(builder.String(), "-")
+	if slug == "" {
+		return "note"
+	}
+	const maxNativeMemorySlugLength = 48
+	if len(slug) > maxNativeMemorySlugLength {
+		slug = strings.Trim(slug[:maxNativeMemorySlugLength], "-")
+	}
+	if slug == "" {
+		return "note"
+	}
+	return slug
 }
 
 func nativeMemoryToolError(id toolspkg.ToolID, err error) error {

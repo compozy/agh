@@ -154,6 +154,10 @@ func StatusForMemoryError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case errors.Is(err, ErrMemoryUnsupported):
+		return http.StatusNotImplemented
+	case errors.Is(err, ErrMemoryRejected):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound
 	case errors.Is(err, memory.ErrValidation):

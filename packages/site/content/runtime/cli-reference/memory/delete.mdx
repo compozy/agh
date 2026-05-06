@@ -1,28 +1,24 @@
 ---
 title: "agh memory delete"
-description: "Delete a persistent memory file"
+description: "Delete a Memory v2 entry through the controller"
 ---
 
 ## agh memory delete
 
-Delete a persistent memory file
+Delete a Memory v2 entry through the controller
 
 ```
 agh memory delete <filename> [flags]
 ```
 
-### Examples
-
-```
-  # Delete a workspace memory file
-  agh memory delete runtime-notes.md --scope workspace
-```
-
 ### Options
 
 ```
-  -h, --help           help for delete
-      --scope string   Memory scope: global or workspace
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+  -h, --help                help for delete
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Workspace ID or path for workspace-bound memory
 ```
 
 ### Options inherited from parent commands

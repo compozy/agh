@@ -6,6 +6,7 @@ export { ProviderCard, providerStateTone } from "./provider-card";
 export { ProviderLogo } from "./provider-logo";
 export { ProvidersGrid } from "./providers-grid";
 export { SettingsPageActions } from "./settings-page-actions";
+export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsFieldRow } from "./settings-field-row";
 export { SettingsNumberInput } from "./settings-number-input";
 export { SettingsPageShell } from "./settings-page-shell";

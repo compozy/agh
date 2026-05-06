@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
@@ -471,12 +473,12 @@ func TestPromptInputCompositeIncludesDurableMemoryRecall(t *testing.T) {
 	if err := workspaceStore.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
-	if err := workspaceStore.Write(memory.ScopeWorkspace, "auth.md", []byte(`---
+	if err := workspaceStore.Write(memcontract.ScopeWorkspace, "auth.md", []byte(`---
 name: Auth
 description: Auth migration notes
 type: project
 ---
-Remember auth migration details and session handling.
+Remember auth migration sessions and workspace-scoped handling.
 `)); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -501,7 +503,7 @@ Remember auth migration details and session handling.
 	got, err := augmenter(
 		context.Background(),
 		newPromptInputTestSession(workspaceRoot),
-		"auth migration",
+		"auth migration sessions",
 	)
 	if err != nil {
 		t.Fatalf("Augment() error = %v", err)
@@ -512,7 +514,7 @@ Remember auth migration details and session handling.
 	if !strings.Contains(got, "Auth") {
 		t.Fatalf("Augment() = %q, want recalled memory metadata", got)
 	}
-	if !strings.Contains(got, "User message:\nauth migration") {
+	if !strings.Contains(got, "User message:\nauth migration sessions") {
 		t.Fatalf("Augment() = %q, want preserved user message suffix", got)
 	}
 }

@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -13,7 +12,7 @@ import (
 const (
 	memoryPromptIntro = `# Persistent Memory
 
-Only prompt-safe MEMORY.md indexes are injected here. Read full memory files on demand when relevant.`
+Only prompt-safe MEMORY.md indexes are injected here. Show full memory entries on demand when relevant.`
 	memoryTaxonomySection = `## Memory Taxonomy
 
 - ` + "`user`" + `: stable preferences or working style that apply across projects.
@@ -24,9 +23,9 @@ Only prompt-safe MEMORY.md indexes are injected here. Read full memory files on 
 
 - ` + "`agh memory list`" + ` shows discoverable memory files in the current scope.
 - ` + "`agh memory search <query>`" + ` searches durable memory before opening individual files.
-- ` + "`agh memory read <filename>`" + ` reads the full content of one memory file.
+- ` + "`agh memory show <filename>`" + ` shows the full content of one memory entry.
 - ` + "`agh memory reindex`" + ` rebuilds the derived search catalog from Markdown memory files.
-- ` + "`agh memory write <filename> --type <type> --description <desc> --content <content>`" + ` writes or updates durable memory.`
+- ` + "`agh memory write --name <name> --type <type> --description <desc> --content <content>`" + ` proposes a durable memory write through the controller.`
 	memoryStalenessSection = `## Staleness Policy
 
 - Memories older than 1 day should be verified against the current repository
@@ -35,63 +34,85 @@ Only prompt-safe MEMORY.md indexes are injected here. Read full memory files on 
 
 // Assembler loads prompt-safe memory indexes and prepends them to the agent prompt.
 type Assembler struct {
-	store *Store
+	store     *Store
+	snapshots *SnapshotService
 }
 
 var _ session.PromptProvider = (*Assembler)(nil)
 
 // NewAssembler constructs a prompt assembler for the provided store.
-func NewAssembler(store *Store) *Assembler {
-	return &Assembler{store: store}
+func NewAssembler(store *Store, opts ...AssemblerOption) *Assembler {
+	assembler := &Assembler{store: store}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(assembler)
+		}
+	}
+	if assembler.snapshots == nil {
+		assembler.snapshots = NewSnapshotService(store)
+	}
+	return assembler
 }
 
-// PromptSection renders the dual-scope memory context block without the base
-// agent prompt so it can participate in composed prompt assembly.
+// AssemblerOption customizes memory startup prompt assembly.
+type AssemblerOption func(*Assembler)
+
+// WithSnapshotService installs the frozen-snapshot service used by the assembler.
+func WithSnapshotService(service *SnapshotService) AssemblerOption {
+	return func(assembler *Assembler) {
+		if assembler != nil && service != nil {
+			assembler.snapshots = service
+		}
+	}
+}
+
+// WithSnapshotProvider lets the assembler source prompt blocks from an active provider.
+func WithSnapshotProvider(provider SnapshotProvider) AssemblerOption {
+	return func(assembler *Assembler) {
+		if assembler != nil {
+			assembler.snapshots = NewSnapshotService(assembler.store, WithProviderSnapshotSource(provider))
+		}
+	}
+}
+
+// PromptSection renders the frozen memory context block without the base agent
+// prompt so it can participate in composed prompt assembly.
 func (a *Assembler) PromptSection(ctx context.Context, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
-	if a == nil || a.store == nil {
+	if a == nil || a.snapshots == nil {
 		return "", nil
 	}
-	if err := contextErr(ctx); err != nil {
-		return "", err
-	}
-
-	globalIndex, globalTruncated, err := a.store.LoadIndex(ScopeGlobal)
+	snapshot, err := a.snapshots.Capture(ctx, PromptSnapshotRequest{
+		WorkspaceID:   workspaceIDFromResolved(workspace),
+		WorkspaceRoot: workspaceRootFromResolved(workspace),
+		SessionType:   session.SessionTypeUser,
+	})
 	if err != nil {
-		return "", fmt.Errorf("memory: load global index: %w", err)
-	}
-	if err := contextErr(ctx); err != nil {
 		return "", err
 	}
+	return snapshot.Section, nil
+}
 
-	workspaceIndex := ""
-	workspaceTruncated := false
-	workspaceRoot := ""
-	if workspace != nil {
-		workspaceRoot = strings.TrimSpace(workspace.RootDir)
-	}
-	if workspaceRoot != "" {
-		var err error
-		workspaceIndex, workspaceTruncated, err = a.store.ForWorkspace(workspaceRoot).LoadIndex(ScopeWorkspace)
-		if err != nil {
-			return "", fmt.Errorf("memory: load workspace index: %w", err)
-		}
-		if err := contextErr(ctx); err != nil {
-			return "", err
-		}
-	}
-
-	globalIndex = strings.TrimSpace(globalIndex)
-	workspaceIndex = strings.TrimSpace(workspaceIndex)
-	if globalIndex == "" && workspaceIndex == "" {
+// PromptStartupSection renders memory using durable startup metadata.
+func (a *Assembler) PromptStartupSection(
+	ctx context.Context,
+	startup session.StartupPromptContext,
+	_ aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	if a == nil || a.snapshots == nil {
 		return "", nil
 	}
-
-	return renderMemoryContext(memoryContext{
-		globalIndex:        globalIndex,
-		globalTruncated:    globalTruncated,
-		workspaceIndex:     workspaceIndex,
-		workspaceTruncated: workspaceTruncated,
-	}), nil
+	snapshot, err := a.snapshots.Capture(ctx, PromptSnapshotRequest{
+		SessionID:     startup.SessionID,
+		WorkspaceID:   firstAssemblerValue(startup.WorkspaceID, workspaceIDFromResolved(workspace)),
+		WorkspaceRoot: firstAssemblerValue(startup.Workspace, workspaceRootFromResolved(workspace)),
+		AgentName:     startup.AgentName,
+		SessionType:   startup.SessionType,
+	})
+	if err != nil {
+		return "", err
+	}
+	return snapshot.Section, nil
 }
 
 // Assemble renders the dual-scope memory context ahead of the agent system prompt.
@@ -102,7 +123,12 @@ func (a *Assembler) Assemble(
 ) (string, error) {
 	basePrompt := strings.TrimSpace(agent.Prompt)
 
-	contextBlock, err := a.PromptSection(ctx, workspace)
+	contextBlock, err := a.PromptStartupSection(ctx, session.StartupPromptContext{
+		AgentName:   agent.Name,
+		WorkspaceID: workspaceIDFromResolved(workspace),
+		Workspace:   workspaceRootFromResolved(workspace),
+		SessionType: session.SessionTypeUser,
+	}, agent, workspace)
 	if err != nil {
 		return "", err
 	}
@@ -116,52 +142,32 @@ func (a *Assembler) Assemble(
 	return contextBlock + "\n\n" + basePrompt, nil
 }
 
-type memoryContext struct {
-	globalIndex        string
-	globalTruncated    bool
-	workspaceIndex     string
-	workspaceTruncated bool
-}
-
-func renderMemoryContext(ctx memoryContext) string {
-	sections := []string{
-		memoryPromptIntro,
-		renderMemoryIndexSection("Global MEMORY.md Index", ctx.globalIndex, ctx.globalTruncated),
-		renderMemoryIndexSection("Workspace MEMORY.md Index", ctx.workspaceIndex, ctx.workspaceTruncated),
-		memoryTaxonomySection,
-		memoryCommandsSection,
-		memoryStalenessSection,
-	}
-
-	parts := make([]string, 0, len(sections))
-	for _, section := range sections {
-		trimmed := strings.TrimSpace(section)
-		if trimmed == "" {
-			continue
-		}
-		parts = append(parts, trimmed)
-	}
-
-	return strings.Join(parts, "\n\n")
-}
-
-func renderMemoryIndexSection(title string, index string, truncated bool) string {
-	content := strings.TrimSpace(index)
-	if content == "" {
-		return ""
-	}
-
-	lines := []string{"## " + strings.TrimSpace(title)}
-	if truncated {
-		lines = append(lines, "_Index truncated to fit prompt limits._")
-	}
-	lines = append(lines, content)
-	return strings.Join(lines, "\n\n")
-}
-
 func contextErr(ctx context.Context) error {
 	if ctx == nil {
 		return nil
 	}
 	return ctx.Err()
+}
+
+func workspaceIDFromResolved(workspace *workspacepkg.ResolvedWorkspace) string {
+	if workspace == nil {
+		return ""
+	}
+	return strings.TrimSpace(workspace.ID)
+}
+
+func workspaceRootFromResolved(workspace *workspacepkg.ResolvedWorkspace) string {
+	if workspace == nil {
+		return ""
+	}
+	return strings.TrimSpace(workspace.RootDir)
+}
+
+func firstAssemblerValue(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

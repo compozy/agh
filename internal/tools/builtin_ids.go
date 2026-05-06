@@ -64,12 +64,14 @@ const (
 	ToolIDWorkspaceDescribe ToolID = "agh__workspace_describe"
 	// ToolIDMemoryList lists memory headers visible for a scope.
 	ToolIDMemoryList ToolID = "agh__memory_list"
-	// ToolIDMemoryRead reads one memory document through the current memory store.
-	ToolIDMemoryRead ToolID = "agh__memory_read"
-	// ToolIDMemorySearch searches memory documents through the current memory store.
+	// ToolIDMemoryShow reads one memory document through the current memory store.
+	ToolIDMemoryShow ToolID = "agh__memory_show"
+	// ToolIDMemorySearch recalls memory documents through the active memory provider.
 	ToolIDMemorySearch ToolID = "agh__memory_search"
-	// ToolIDMemoryHistory reads redacted memory operation history.
-	ToolIDMemoryHistory ToolID = "agh__memory_history"
+	// ToolIDMemoryPropose submits a controller-backed memory proposal.
+	ToolIDMemoryPropose ToolID = "agh__memory_propose"
+	// ToolIDMemoryNote records a controller-backed ad-hoc memory note.
+	ToolIDMemoryNote ToolID = "agh__memory_note"
 	// ToolIDObserveEvents reads redacted observability events.
 	ToolIDObserveEvents ToolID = "agh__observe_events"
 	// ToolIDObserveMetrics reads daemon observability health and metrics.
@@ -225,7 +227,7 @@ const (
 	ToolsetIDAuthoredContext ToolsetID = "agh__authored_context"
 	// ToolsetIDWorkspace groups read-only workspace tools.
 	ToolsetIDWorkspace ToolsetID = "agh__workspace"
-	// ToolsetIDMemory groups read-only memory inspection tools.
+	// ToolsetIDMemory groups Memory v2 read and proposal tools.
 	ToolsetIDMemory ToolsetID = "agh__memory"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "agh__observe"

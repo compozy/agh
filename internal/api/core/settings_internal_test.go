@@ -4,11 +4,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
@@ -183,14 +185,14 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Fatal("generalSettingsFromPayload(invalid timeout) error = nil, want non-nil")
 	}
 
-	if _, err := memoryConfigFromPayload(contract.SettingsMemoryConfigPayload{
-		Enabled: true,
-		Dream: contract.SettingsMemoryDreamPayload{
-			Enabled:       true,
-			Agent:         "dreamer",
-			CheckInterval: "bad",
-		},
-	}); err == nil {
+	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	memoryConfig := aghconfig.DefaultWithHome(homePaths).Memory
+	memoryPayload := settingsMemoryConfigPayload(&memoryConfig)
+	memoryPayload.Dream.CheckInterval = "bad"
+	if _, err := memoryConfigFromPayload(&memoryPayload); err == nil {
 		t.Fatal("memoryConfigFromPayload(invalid interval) error = nil, want non-nil")
 	}
 
@@ -287,5 +289,33 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		},
 	}); err != nil {
 		t.Fatalf("observabilityConfigFromPayload(valid) error = %v", err)
+	}
+}
+
+func TestMemorySettingsPayloadRoundTripIncludesV2Config(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	want := aghconfig.DefaultWithHome(homePaths).Memory
+	want.GlobalDir = "/tmp/roundtrip-memory"
+	want.Controller.Mode = "rules"
+	want.Controller.Policy.AllowOrigins = []string{"cli", "tool"}
+	want.Recall.IncludeAlreadySurfaced = true
+	want.Extractor.Queue.CoalesceMax = 12
+	want.Dream.Agent = "curator"
+	want.Session.UnboundPartition = "_orphans"
+	want.Provider.Name = "local"
+	want.Workspace.AutoCreate = false
+
+	payload := settingsMemoryConfigPayload(&want)
+	got, err := memoryConfigFromPayload(&payload)
+	if err != nil {
+		t.Fatalf("memoryConfigFromPayload() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("memoryConfigFromPayload() = %#v, want %#v", got, want)
 	}
 }

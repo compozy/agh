@@ -115,6 +115,23 @@ type SessionPreStopPayload = SessionLifecyclePayload
 // SessionPostStopPayload is delivered after a session stops.
 type SessionPostStopPayload = SessionLifecyclePayload
 
+// SessionMessagePersistedPayload is delivered after an assistant message is durably persisted.
+type SessionMessagePersistedPayload struct {
+	PayloadBase
+	SessionContext
+	TurnContext
+	MessageID       string          `json:"message_id,omitempty"`
+	MessageSeq      int64           `json:"message_seq,omitempty"`
+	Role            string          `json:"role,omitempty"`
+	Text            string          `json:"text,omitempty"`
+	Raw             json.RawMessage `json:"raw,omitempty"`
+	Persisted       json.RawMessage `json:"persisted,omitempty"`
+	RootSessionID   string          `json:"root_session_id,omitempty"`
+	ParentSessionID string          `json:"parent_session_id,omitempty"`
+	ActorKind       string          `json:"actor_kind,omitempty"`
+	ActorID         string          `json:"actor_id,omitempty"`
+}
+
 // SessionCreatePatch mutates or denies session lifecycle operations.
 type SessionCreatePatch struct {
 	ControlPatch
@@ -1021,6 +1038,10 @@ func (p SessionPreCreatePayload) hookSessionContext() SessionContext {
 }
 
 func (p SessionLifecyclePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p SessionMessagePersistedPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 

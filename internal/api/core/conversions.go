@@ -25,6 +25,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/skills"
+	ssepkg "github.com/pedronauck/agh/internal/sse"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/workref"
@@ -359,12 +360,12 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 		SessionID:        event.SessionID,
 		Type:             event.Type,
 		AgentName:        event.AgentName,
-		Content:          append([]byte(nil), event.Content...),
+		Content:          ssepkg.ScrubMemoryContextBytes(append([]byte(nil), event.Content...)),
 		EventCorrelation: event.Normalize(),
 		ParentSessionID:  event.ParentSessionID,
 		RootSessionID:    event.RootSessionID,
 		SpawnDepth:       event.SpawnDepth,
-		Summary:          event.Summary,
+		Summary:          ssepkg.ScrubMemoryContextString(event.Summary),
 		Timestamp:        event.Timestamp,
 	}
 }
@@ -1205,7 +1206,7 @@ func settingsMemorySectionResponse(envelope settingspkg.SectionEnvelope) (any, e
 	}
 	return contract.SettingsMemoryResponse{
 		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsMemoryConfigPayload(envelope.Memory.Config),
+		Config:                                   settingsMemoryConfigPayload(&envelope.Memory.Config),
 		Health:                                   settingsMemoryHealthPayload(envelope.Memory.Health),
 		Actions: contract.SettingsMemoryActionsPayload{
 			Consolidate: settingsActionMetadataPayload(envelope.Memory.Actions.Consolidate),
@@ -1541,17 +1542,163 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 	}
 }
 
-func settingsMemoryConfigPayload(value aghconfig.MemoryConfig) contract.SettingsMemoryConfigPayload {
+func settingsMemoryConfigPayload(value *aghconfig.MemoryConfig) contract.SettingsMemoryConfigPayload {
+	if value == nil {
+		return contract.SettingsMemoryConfigPayload{}
+	}
 	return contract.SettingsMemoryConfigPayload{
-		Enabled:   value.Enabled,
-		GlobalDir: strings.TrimSpace(value.GlobalDir),
-		Dream: contract.SettingsMemoryDreamPayload{
-			Enabled:       value.Dream.Enabled,
-			Agent:         strings.TrimSpace(value.Dream.Agent),
-			MinHours:      value.Dream.MinHours,
-			MinSessions:   value.Dream.MinSessions,
-			CheckInterval: value.Dream.CheckInterval.String(),
+		Enabled:    value.Enabled,
+		GlobalDir:  strings.TrimSpace(value.GlobalDir),
+		Controller: settingsMemoryControllerPayload(value.Controller),
+		Recall:     settingsMemoryRecallPayload(value.Recall),
+		Decisions:  settingsMemoryDecisionsPayload(value.Decisions),
+		Extractor:  settingsMemoryExtractorPayload(value.Extractor),
+		Dream:      settingsMemoryDreamPayload(value.Dream),
+		Session:    settingsMemorySessionPayload(value.Session),
+		Daily:      settingsMemoryDailyPayload(value.Daily),
+		File:       contract.SettingsMemoryFilePayload{MaxLines: value.File.MaxLines, MaxBytes: value.File.MaxBytes},
+		Provider:   settingsMemoryProviderPayload(value.Provider),
+		Workspace: contract.SettingsMemoryWorkspacePayload{
+			TOMLPath:   strings.TrimSpace(value.Workspace.TOMLPath),
+			AutoCreate: value.Workspace.AutoCreate,
 		},
+	}
+}
+
+func settingsMemoryControllerPayload(value aghconfig.MemoryControllerConfig) contract.SettingsMemoryControllerPayload {
+	return contract.SettingsMemoryControllerPayload{
+		Mode:            strings.TrimSpace(value.Mode),
+		MaxLatency:      value.MaxLatency.String(),
+		DefaultOpOnFail: strings.TrimSpace(value.DefaultOpOnFail),
+		LLM: contract.SettingsMemoryControllerLLMPayload{
+			Enabled:       value.LLM.Enabled,
+			Model:         strings.TrimSpace(value.LLM.Model),
+			TopK:          value.LLM.TopK,
+			PromptVersion: strings.TrimSpace(value.LLM.PromptVersion),
+			Timeout:       value.LLM.Timeout.String(),
+			MaxTokensOut:  value.LLM.MaxTokensOut,
+		},
+		Policy: contract.SettingsMemoryControllerPolicyPayload{
+			MaxContentChars: value.Policy.MaxContentChars,
+			MaxWritesPerMin: value.Policy.MaxWritesPerMin,
+			AllowOrigins:    cloneStrings(value.Policy.AllowOrigins),
+		},
+	}
+}
+
+func settingsMemoryRecallPayload(value aghconfig.MemoryRecallConfig) contract.SettingsMemoryRecallPayload {
+	return contract.SettingsMemoryRecallPayload{
+		TopK:                   value.TopK,
+		RawCandidates:          value.RawCandidates,
+		Fusion:                 strings.TrimSpace(value.Fusion),
+		IncludeAlreadySurfaced: value.IncludeAlreadySurfaced,
+		IncludeSystem:          value.IncludeSystem,
+		Weights: contract.SettingsMemoryRecallWeightsPayload{
+			BM25Unicode:  value.Weights.BM25Unicode,
+			BM25Trigram:  value.Weights.BM25Trigram,
+			Recency:      value.Weights.Recency,
+			RecallSignal: value.Weights.RecallSignal,
+		},
+		Freshness: contract.SettingsMemoryRecallFreshnessPayload{
+			BannerAfterDays: value.Freshness.BannerAfterDays,
+		},
+		Signals: contract.SettingsMemoryRecallSignalsPayload{
+			QueueCapacity:  value.Signals.QueueCapacity,
+			WorkerRetryMax: value.Signals.WorkerRetryMax,
+			MetricsEnabled: value.Signals.MetricsEnabled,
+		},
+	}
+}
+
+func settingsMemoryDecisionsPayload(value aghconfig.MemoryDecisionsConfig) contract.SettingsMemoryDecisionsPayload {
+	return contract.SettingsMemoryDecisionsPayload{
+		PruneAfterAppliedDays: value.PruneAfterAppliedDays,
+		KeepAuditSummary:      value.KeepAuditSummary,
+		MaxPostContentBytes:   value.MaxPostContentBytes,
+	}
+}
+
+func settingsMemoryExtractorPayload(value aghconfig.MemoryExtractorConfig) contract.SettingsMemoryExtractorPayload {
+	return contract.SettingsMemoryExtractorPayload{
+		Enabled:          value.Enabled,
+		Mode:             strings.TrimSpace(value.Mode),
+		ThrottleTurns:    value.ThrottleTurns,
+		Deadline:         value.Deadline.String(),
+		SandboxInboxOnly: value.SandboxInboxOnly,
+		InboxPath:        strings.TrimSpace(value.InboxPath),
+		DLQPath:          strings.TrimSpace(value.DLQPath),
+		Model:            strings.TrimSpace(value.Model),
+		Queue: contract.SettingsMemoryExtractorQueuePayload{
+			Capacity:    value.Queue.Capacity,
+			CoalesceMax: value.Queue.CoalesceMax,
+		},
+	}
+}
+
+func settingsMemoryDreamPayload(value aghconfig.DreamConfig) contract.SettingsMemoryDreamPayload {
+	return contract.SettingsMemoryDreamPayload{
+		Enabled:       value.Enabled,
+		Agent:         strings.TrimSpace(value.Agent),
+		MinHours:      value.MinHours,
+		MinSessions:   value.MinSessions,
+		Debounce:      value.Debounce.String(),
+		PromptVersion: strings.TrimSpace(value.PromptVersion),
+		CheckInterval: value.CheckInterval.String(),
+		Gates: contract.SettingsMemoryDreamGatesPayload{
+			MinUnpromoted:  value.Gates.MinUnpromoted,
+			MinRecallCount: value.Gates.MinRecallCount,
+			MinScore:       value.Gates.MinScore,
+		},
+		Scoring: settingsMemoryDreamScoringPayload(value.Scoring),
+	}
+}
+
+func settingsMemoryDreamScoringPayload(
+	value aghconfig.MemoryDreamScoringConfig,
+) contract.SettingsMemoryDreamScoringPayload {
+	return contract.SettingsMemoryDreamScoringPayload{
+		RecencyHalfLifeDays: value.RecencyHalfLifeDays,
+		Weights: contract.SettingsMemoryDreamScoringWeightsPayload{
+			Frequency: value.Weights.Frequency,
+			Relevance: value.Weights.Relevance,
+			Recency:   value.Weights.Recency,
+			Freshness: value.Weights.Freshness,
+		},
+	}
+}
+
+func settingsMemorySessionPayload(value aghconfig.MemorySessionConfig) contract.SettingsMemorySessionPayload {
+	return contract.SettingsMemorySessionPayload{
+		LedgerFormat:     strings.TrimSpace(value.LedgerFormat),
+		LedgerRoot:       strings.TrimSpace(value.LedgerRoot),
+		EventsPurgeGrace: value.EventsPurgeGrace.String(),
+		ColdArchiveDays:  value.ColdArchiveDays,
+		HardDeleteDays:   value.HardDeleteDays,
+		MaxArchiveBytes:  value.MaxArchiveBytes,
+		UnboundPartition: strings.TrimSpace(value.UnboundPartition),
+	}
+}
+
+func settingsMemoryDailyPayload(value aghconfig.MemoryDailyConfig) contract.SettingsMemoryDailyPayload {
+	return contract.SettingsMemoryDailyPayload{
+		MaxBytes:        value.MaxBytes,
+		MaxLines:        value.MaxLines,
+		RotateFormat:    strings.TrimSpace(value.RotateFormat),
+		DreamingWindow:  value.DreamingWindow,
+		ColdArchiveDays: value.ColdArchiveDays,
+		HardDeleteDays:  value.HardDeleteDays,
+		MaxArchiveBytes: value.MaxArchiveBytes,
+		SweepHour:       value.SweepHour,
+		ArchivePath:     strings.TrimSpace(value.ArchivePath),
+	}
+}
+
+func settingsMemoryProviderPayload(value aghconfig.MemoryProviderConfig) contract.SettingsMemoryProviderPayload {
+	return contract.SettingsMemoryProviderPayload{
+		Name:             strings.TrimSpace(value.Name),
+		Timeout:          value.Timeout.String(),
+		FailureThreshold: value.FailureThreshold,
+		Cooldown:         value.Cooldown.String(),
 	}
 }
 

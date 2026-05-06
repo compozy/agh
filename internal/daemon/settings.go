@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -167,7 +169,7 @@ func (s *settingsRuntimeSurface) MemoryHealthStatus(context.Context) (settingspk
 		return status, nil
 	}
 
-	headers, err := s.memoryStore.Scan(memory.ScopeGlobal)
+	headers, err := s.memoryStore.Scan(memcontract.ScopeGlobal)
 	if err != nil {
 		return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health scan: %w", err)
 	}

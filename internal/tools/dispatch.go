@@ -103,6 +103,9 @@ func normalizeCallRequest(scope Scope, req CallRequest) CallRequest {
 	if req.AgentName == "" {
 		req.AgentName = scope.AgentName
 	}
+	if req.ActorKind == "" {
+		req.ActorKind = scope.ActorKind
+	}
 	return req
 }
 

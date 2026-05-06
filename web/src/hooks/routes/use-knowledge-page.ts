@@ -1,66 +1,153 @@
 import { useMemo, useState } from "react";
 
 import {
-  filterKnowledgeMemories,
   knowledgeMemoryKey,
   sortKnowledgeMemories,
   useDeleteMemory,
+  useEditMemory,
   useMemories,
   useMemory,
+  useMemoryDecisions,
+  useMemorySearch,
+  type EditMemoryParams,
+  type KnowledgeAgentTier,
   type KnowledgeMemoryItem,
   type KnowledgeScope,
+  type KnowledgeSelector,
+  type MemoryDecision,
+  type MemoryEditRequest,
+  type MemoryHeader,
 } from "@/systems/knowledge";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-type Tab = "all" | "global" | "workspace";
+interface DecorateOptions {
+  scope: KnowledgeScope;
+  agentTier?: KnowledgeAgentTier;
+  agentName?: string;
+  workspaceId?: string;
+}
 
 function decorateKnowledgeMemories(
-  memories: KnowledgeMemoryItem[] | undefined,
-  scope: KnowledgeScope
+  memories: MemoryHeader[] | undefined,
+  defaults: DecorateOptions
 ): KnowledgeMemoryItem[] {
-  return (memories ?? []).map(memory => ({
-    ...memory,
-    scope,
-    key: memory.key ?? knowledgeMemoryKey({ ...memory, scope }),
-  }));
+  return (memories ?? []).map(memory => {
+    const decorated: KnowledgeMemoryItem = {
+      ...memory,
+      scope: memory.scope ?? defaults.scope,
+      agent_tier: memory.agent_tier ?? defaults.agentTier,
+      agent_name: memory.agent_name ?? defaults.agentName,
+      workspace_id: memory.workspace_id ?? defaults.workspaceId,
+    };
+    decorated.key = decorated.key ?? knowledgeMemoryKey(decorated);
+    return decorated;
+  });
+}
+
+function selectorFromMemory(memory: KnowledgeMemoryItem): KnowledgeSelector {
+  return {
+    scope: memory.scope,
+    workspaceId: memory.workspace_id,
+    agentName: memory.agent_name,
+    agentTier: memory.agent_tier,
+  };
+}
+
+function describeError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
 }
 
 function useKnowledgePage() {
-  const [activeTab, setActiveTab] = useState<Tab>("all");
-  const [selectedMemoryKey, setSelectedMemoryKey] = useState<string | null>(null);
+  const { activeWorkspaceId } = useActiveWorkspace();
+
+  const [activeScope, setActiveScope] = useState<KnowledgeScope>("global");
+  const [agentName, setAgentName] = useState("");
+  const [agentTier, setAgentTier] = useState<KnowledgeAgentTier>("workspace");
   const [searchQuery, setSearchQuery] = useState("");
-  const [deleteTargetKey, setDeleteTargetKey] = useState<string | null>(null);
+  const [selectedMemoryKey, setSelectedMemoryKey] = useState<string | null>(null);
+  const [actionTargetKey, setActionTargetKey] = useState<string | null>(null);
 
-  const { activeWorkspace } = useActiveWorkspace();
-  const activeWorkspacePath = activeWorkspace?.root_dir ?? null;
+  const trimmedAgentName = agentName.trim();
+  const trimmedSearchQuery = searchQuery.trim();
 
-  const globalMemoriesQuery = useMemories("global");
-  const workspaceMemoriesQuery = useMemories("workspace", activeWorkspacePath ?? undefined, {
-    enabled: Boolean(activeWorkspacePath),
+  const selector: KnowledgeSelector | null = useMemo(() => {
+    if (activeScope === "workspace") {
+      if (!activeWorkspaceId) {
+        return null;
+      }
+      return { scope: "workspace", workspaceId: activeWorkspaceId };
+    }
+    if (activeScope === "agent") {
+      if (trimmedAgentName === "") {
+        return null;
+      }
+      return {
+        scope: "agent",
+        agentName: trimmedAgentName,
+        agentTier,
+        workspaceId: agentTier === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
+      };
+    }
+    return { scope: "global" };
+  }, [activeScope, agentTier, activeWorkspaceId, trimmedAgentName]);
+
+  const decorateOptions: DecorateOptions = useMemo(() => {
+    return {
+      scope: activeScope,
+      agentTier: activeScope === "agent" ? agentTier : undefined,
+      agentName: activeScope === "agent" ? trimmedAgentName : undefined,
+      workspaceId: selector?.workspaceId,
+    };
+  }, [activeScope, agentTier, selector?.workspaceId, trimmedAgentName]);
+
+  const memoriesQuery = useMemories(selector ?? undefined, { enabled: Boolean(selector) });
+  const searchEnabled = Boolean(selector) && trimmedSearchQuery.length > 0;
+  const searchQueryResult = useMemorySearch(selector ?? undefined, trimmedSearchQuery, {
+    enabled: searchEnabled,
   });
+
   const {
     error: deleteMutationError,
     isPending: isDeletePending,
-    mutateAsync: deleteMemory,
+    mutateAsync: deleteMemoryMutate,
     reset: resetDeleteMutation,
   } = useDeleteMemory();
 
-  const relevantMemories = useMemo(() => {
-    const globalMemories = decorateKnowledgeMemories(globalMemoriesQuery.data, "global");
-    const workspaceMemories = decorateKnowledgeMemories(workspaceMemoriesQuery.data, "workspace");
+  const {
+    error: editMutationError,
+    isPending: isEditPending,
+    mutateAsync: editMemoryMutate,
+    reset: resetEditMutation,
+  } = useEditMemory();
 
-    if (activeTab === "global") {
-      return globalMemories;
+  const listMemories = useMemo<KnowledgeMemoryItem[]>(() => {
+    if (searchEnabled) {
+      const results = searchQueryResult.data?.results ?? [];
+      return results.map(result => {
+        const decorated: KnowledgeMemoryItem = {
+          ...result.memory,
+          scope: result.memory.scope ?? activeScope,
+          agent_tier: result.memory.agent_tier ?? decorateOptions.agentTier,
+          agent_name: result.memory.agent_name ?? decorateOptions.agentName,
+          workspace_id: result.memory.workspace_id ?? decorateOptions.workspaceId,
+        };
+        decorated.key = knowledgeMemoryKey(decorated);
+        return decorated;
+      });
     }
-    if (activeTab === "workspace") {
-      return workspaceMemories;
-    }
-    return [...globalMemories, ...workspaceMemories];
-  }, [activeTab, globalMemoriesQuery.data, workspaceMemoriesQuery.data]);
+    return decorateKnowledgeMemories(memoriesQuery.data, decorateOptions);
+  }, [
+    activeScope,
+    decorateOptions,
+    memoriesQuery.data,
+    searchEnabled,
+    searchQueryResult.data?.results,
+  ]);
 
-  const visibleMemories = useMemo(() => {
-    return sortKnowledgeMemories(filterKnowledgeMemories(relevantMemories, searchQuery));
-  }, [relevantMemories, searchQuery]);
+  const visibleMemories = useMemo(() => sortKnowledgeMemories(listMemories), [listMemories]);
 
   const effectiveSelectedMemoryKey = useMemo(() => {
     if (
@@ -69,7 +156,6 @@ function useKnowledgePage() {
     ) {
       return selectedMemoryKey;
     }
-
     return visibleMemories[0] ? knowledgeMemoryKey(visibleMemories[0]) : null;
   }, [selectedMemoryKey, visibleMemories]);
 
@@ -78,95 +164,161 @@ function useKnowledgePage() {
     [effectiveSelectedMemoryKey, visibleMemories]
   );
 
-  const selectedScope = selectedMemory?.scope;
-  const selectedWorkspace =
-    selectedScope === "workspace" ? (activeWorkspacePath ?? undefined) : undefined;
-  const {
-    data: selectedContent,
-    isLoading: isContentLoading,
-    error: contentError,
-  } = useMemory(selectedScope, selectedMemory?.filename ?? "", selectedWorkspace);
+  const detailSelector = selectedMemory ? selectorFromMemory(selectedMemory) : null;
+  const memoryDetailQuery = useMemory(detailSelector ?? undefined, selectedMemory?.filename, {
+    enabled: Boolean(detailSelector && selectedMemory),
+  });
+  const decisionsQuery = useMemoryDecisions(
+    detailSelector ? { ...detailSelector, limit: 10 } : undefined,
+    { enabled: Boolean(detailSelector) }
+  );
 
-  const isLoading =
-    activeTab === "global"
-      ? globalMemoriesQuery.isLoading
-      : activeTab === "workspace"
-        ? workspaceMemoriesQuery.isLoading
-        : globalMemoriesQuery.isLoading || workspaceMemoriesQuery.isLoading;
+  const isListLoading = searchEnabled ? searchQueryResult.isLoading : memoriesQuery.isLoading;
+  const listError = searchEnabled ? searchQueryResult.error : memoriesQuery.error;
 
-  const error =
-    activeTab === "global"
-      ? (globalMemoriesQuery.error ?? null)
-      : activeTab === "workspace"
-        ? (workspaceMemoriesQuery.error ?? null)
-        : (globalMemoriesQuery.error ?? workspaceMemoriesQuery.error ?? null);
+  const isLoading = isListLoading;
+  const error = listError ?? null;
 
-  const clearDeleteState = () => {
-    if (deleteTargetKey !== null || deleteMutationError !== null) {
+  const decisionsForSelected: MemoryDecision[] = useMemo(() => {
+    const decisions = decisionsQuery.data?.decisions ?? [];
+    if (!selectedMemory) return [];
+    return decisions.filter(
+      decision =>
+        decision.target_filename === selectedMemory.filename ||
+        decision.frontmatter.filename === selectedMemory.filename
+    );
+  }, [decisionsQuery.data?.decisions, selectedMemory]);
+
+  const clearActionState = () => {
+    if (actionTargetKey !== null || deleteMutationError !== null) {
       resetDeleteMutation();
     }
-    setDeleteTargetKey(null);
+    if (editMutationError !== null) {
+      resetEditMutation();
+    }
+    setActionTargetKey(null);
   };
 
-  const handleSetActiveTab = (nextTab: Tab) => {
-    clearDeleteState();
-    setActiveTab(nextTab);
+  const handleSetActiveScope = (nextScope: KnowledgeScope) => {
+    clearActionState();
+    setActiveScope(nextScope);
   };
 
-  const handleSetSearchQuery = (nextQuery: string) => {
-    clearDeleteState();
-    setSearchQuery(nextQuery);
+  const handleSetAgentName = (next: string) => {
+    clearActionState();
+    setAgentName(next);
   };
 
-  const handleSetSelectedMemoryKey = (nextMemoryKey: string | null) => {
-    clearDeleteState();
-    setSelectedMemoryKey(nextMemoryKey);
+  const handleSetAgentTier = (next: KnowledgeAgentTier) => {
+    clearActionState();
+    setAgentTier(next);
+  };
+
+  const handleSetSearchQuery = (next: string) => {
+    clearActionState();
+    setSearchQuery(next);
+  };
+
+  const handleSetSelectedMemoryKey = (next: string | null) => {
+    clearActionState();
+    setSelectedMemoryKey(next);
   };
 
   const handleDelete = async (memory: KnowledgeMemoryItem) => {
-    const scope = memory.scope;
-    if (!scope) {
+    const memorySelector = selectorFromMemory(memory);
+    if (memorySelector.scope === "workspace" && !memorySelector.workspaceId) {
       return;
     }
-
     const memoryKey = knowledgeMemoryKey(memory);
     resetDeleteMutation();
-    setDeleteTargetKey(memoryKey);
-    await deleteMemory({
-      scope,
-      filename: memory.filename,
-      workspace: scope === "workspace" ? (activeWorkspacePath ?? undefined) : undefined,
-    });
-    setDeleteTargetKey(null);
+    setActionTargetKey(memoryKey);
+    await deleteMemoryMutate({ selector: memorySelector, filename: memory.filename });
+    setActionTargetKey(prev => (prev === memoryKey ? null : prev));
   };
 
+  const handleEdit = async (
+    memory: KnowledgeMemoryItem,
+    input: { content: string; description?: string }
+  ) => {
+    const memoryKey = knowledgeMemoryKey(memory);
+    resetEditMutation();
+    setActionTargetKey(memoryKey);
+    const body: MemoryEditRequest = {
+      content: input.content,
+      description: input.description,
+      scope: memory.scope,
+      type: memory.type,
+      name: memory.name,
+      workspace_id: memory.workspace_id,
+      agent_name: memory.agent_name,
+      agent_tier: memory.agent_tier,
+    };
+    const params: EditMemoryParams = { filename: memory.filename, body };
+    await editMemoryMutate(params);
+    setActionTargetKey(prev => (prev === memoryKey ? null : prev));
+  };
+
+  const selectedTargetMatches = (() => {
+    if (!selectedMemory) return false;
+    const key = knowledgeMemoryKey(selectedMemory);
+    return actionTargetKey === key;
+  })();
+
+  const deleteError =
+    selectedTargetMatches && deleteMutationError
+      ? describeError(deleteMutationError, "Failed to delete knowledge entry")
+      : null;
+  const editError =
+    selectedTargetMatches && editMutationError
+      ? describeError(editMutationError, "Failed to edit knowledge entry")
+      : null;
+
+  const requiresWorkspace = activeScope === "workspace" && !activeWorkspaceId;
+  const requiresAgentName = activeScope === "agent" && trimmedAgentName === "";
+  const guardMessage = requiresWorkspace
+    ? "Select an active workspace to view workspace memories."
+    : requiresAgentName
+      ? "Enter an agent name to view agent-scoped memories."
+      : null;
+
+  const searchInfo = searchEnabled
+    ? `Recall ${searchQueryResult.data?.results.length ?? 0} of top-K`
+    : null;
+
   return {
-    activeTab,
-    contentError,
-    effectiveSelectedMemoryKey,
-    error,
-    handleDelete,
-    isContentLoading: isContentLoading && effectiveSelectedMemoryKey !== null,
-    isDeletePending,
-    deleteError:
-      deleteTargetKey !== null &&
-      selectedMemory &&
-      deleteTargetKey === knowledgeMemoryKey(selectedMemory) &&
-      deleteMutationError
-        ? deleteMutationError instanceof Error
-          ? deleteMutationError.message
-          : "Failed to delete knowledge entry"
-        : null,
-    isLoading,
-    memoryCount: visibleMemories.length,
-    memories: visibleMemories,
+    activeScope,
+    setActiveScope: handleSetActiveScope,
+    agentName,
+    setAgentName: handleSetAgentName,
+    agentTier,
+    setAgentTier: handleSetAgentTier,
     searchQuery,
-    selectedContent,
-    selectedMemory,
-    selectedScope,
-    setActiveTab: handleSetActiveTab,
     setSearchQuery: handleSetSearchQuery,
+    selectedMemoryKey: effectiveSelectedMemoryKey,
     setSelectedMemoryKey: handleSetSelectedMemoryKey,
+    effectiveSelectedMemoryKey,
+    memories: visibleMemories,
+    memoryCount: visibleMemories.length,
+    isLoading,
+    error,
+    selectedMemory,
+    selectedScope: selectedMemory?.scope,
+    selectedContent: memoryDetailQuery.data?.content,
+    isContentLoading: memoryDetailQuery.isLoading && Boolean(selectedMemory),
+    contentError: memoryDetailQuery.error,
+    handleDelete,
+    isDeletePending,
+    deleteError,
+    handleEdit,
+    isEditPending,
+    editError,
+    decisions: decisionsForSelected,
+    decisionsError: decisionsQuery.error,
+    isDecisionsLoading: decisionsQuery.isLoading && Boolean(selectedMemory),
+    searchActive: searchEnabled,
+    searchInfo,
+    guardMessage,
+    selector,
   };
 }
 

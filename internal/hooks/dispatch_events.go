@@ -82,6 +82,8 @@ func TurnIDFromPayload(payload any) string {
 		return strings.TrimSpace(typed.TurnID)
 	case EventRecordPayload:
 		return strings.TrimSpace(typed.TurnID)
+	case SessionMessagePersistedPayload:
+		return strings.TrimSpace(typed.TurnID)
 	case TurnPayload:
 		return strings.TrimSpace(typed.TurnID)
 	case MessagePayload:

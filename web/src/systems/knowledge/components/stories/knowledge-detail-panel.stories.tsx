@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { storyAgentNames } from "@/storybook/fintech-scenario";
+import { storyAgentNames, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
-import type { MemoryHeader } from "@/systems/knowledge/types";
+import type { MemoryDecision, MemoryHeader } from "@/systems/knowledge/types";
 
 import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";
 
@@ -18,20 +18,39 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const defaultMemory: MemoryHeader = {
-  filename: "global/operator-style.md",
+  filename: "operator-style.md",
   mod_time: "2026-04-17T17:30:00Z",
   name: "Operator Style",
+  scope: "global",
   type: "user",
+  recall_count: 4,
+  last_recalled_at: "2026-04-17T17:25:00Z",
+  injection: true,
+  system_managed: false,
   description: "Northstar guidance for concise, accountable operator communication.",
 };
 
-const workspaceMemory: MemoryHeader = {
-  filename: "workspace/executive-risk-memo.md",
-  mod_time: "2026-04-17T16:10:00Z",
-  name: "Executive Risk Memo",
-  type: "reference",
-  description: "Workspace-local memo for launch blockers, fallback paths, and decision thresholds.",
+const agentMemory: MemoryHeader = {
+  filename: "cto-tone.md",
+  mod_time: "2026-04-17T17:25:00Z",
+  name: "CTO Tone",
+  scope: "agent",
+  type: "user",
+  recall_count: 6,
+  last_recalled_at: "2026-04-17T17:20:00Z",
+  injection: true,
+  system_managed: false,
+  description: "Direct, calm tone for CTO summaries; lead with the next decision.",
   agent_name: storyAgentNames.cto,
+  agent_tier: "workspace",
+  workspace_id: storyWorkspaceIds.hq,
+};
+
+const supersededMemory: MemoryHeader = {
+  ...defaultMemory,
+  filename: "operator-style-v1.md",
+  staleness_banner: "Updated >7 days after last recall",
+  superseded_by: "operator-style-v2.md",
 };
 
 const defaultContent = [
@@ -44,48 +63,88 @@ const defaultContent = [
   "- Keep customer-facing language calm, specific, and launch-safe.",
 ].join("\n");
 
+const sampleDecision: MemoryDecision = {
+  id: "dec_demo",
+  candidate_hash: "h",
+  op: "update",
+  scope: "global",
+  source: "rule",
+  confidence: 0.93,
+  decided_at: "2026-04-17T17:31:00Z",
+  applied_at: "2026-04-17T17:31:01Z",
+  target_filename: "operator-style.md",
+  reason: "rule:exact-slug-collision",
+  frontmatter: {
+    filename: "operator-style.md",
+    mod_time: "2026-04-17T17:30:00Z",
+    name: "Operator Style",
+    type: "user",
+  },
+};
+
 export const Default: Story = {
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
         content={defaultContent}
+        decisions={[sampleDecision]}
+        decisionsError={null}
+        deleteError={null}
+        editError={null}
         error={null}
+        isDecisionsLoading={false}
         isDeletePending={false}
+        isEditPending={false}
         isLoading={false}
         memory={defaultMemory}
         onDelete={async () => {}}
+        onEdit={async () => {}}
         scope="global"
       />
     </PanelSurface>
   ),
 };
 
-export const WorkspaceScope: Story = {
+export const AgentScope: Story = {
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
         content={defaultContent}
+        decisions={[]}
+        decisionsError={null}
+        deleteError={null}
+        editError={null}
         error={null}
+        isDecisionsLoading={false}
         isDeletePending={false}
+        isEditPending={false}
         isLoading={false}
-        memory={workspaceMemory}
+        memory={agentMemory}
         onDelete={async () => {}}
-        scope="workspace"
+        onEdit={async () => {}}
+        scope="agent"
       />
     </PanelSurface>
   ),
 };
 
-export const NoContent: Story = {
+export const Superseded: Story = {
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
-        content={undefined}
+        content={defaultContent}
+        decisions={[sampleDecision]}
+        decisionsError={null}
+        deleteError={null}
+        editError={null}
         error={null}
+        isDecisionsLoading={false}
         isDeletePending={false}
+        isEditPending={false}
         isLoading={false}
-        memory={defaultMemory}
+        memory={supersededMemory}
         onDelete={async () => {}}
+        onEdit={async () => {}}
         scope="global"
       />
     </PanelSurface>
@@ -97,6 +156,7 @@ export const Loading: Story = {
     <PanelSurface>
       <KnowledgeDetailPanel
         content={undefined}
+        decisions={[]}
         error={null}
         isDeletePending={false}
         isLoading
@@ -113,6 +173,7 @@ export const ErrorState: Story = {
     <PanelSurface>
       <KnowledgeDetailPanel
         content={undefined}
+        decisions={[]}
         error={new globalThis.Error("Content fetch failed")}
         isDeletePending={false}
         isLoading={false}
@@ -129,11 +190,52 @@ export const EmptySelection: Story = {
     <PanelSurface>
       <KnowledgeDetailPanel
         content={undefined}
+        decisions={[]}
         error={null}
         isDeletePending={false}
         isLoading={false}
         memory={undefined}
         onDelete={async () => {}}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const DecisionsLoading: Story = {
+  render: () => (
+    <PanelSurface>
+      <KnowledgeDetailPanel
+        content={defaultContent}
+        decisions={[]}
+        decisionsError={null}
+        deleteError={null}
+        error={null}
+        isDecisionsLoading
+        isDeletePending={false}
+        isLoading={false}
+        memory={defaultMemory}
+        onDelete={async () => {}}
+        scope="global"
+      />
+    </PanelSurface>
+  ),
+};
+
+export const DecisionsError: Story = {
+  render: () => (
+    <PanelSurface>
+      <KnowledgeDetailPanel
+        content={defaultContent}
+        decisions={[]}
+        decisionsError={new globalThis.Error("Decisions failed")}
+        deleteError={null}
+        error={null}
+        isDecisionsLoading={false}
+        isDeletePending={false}
+        isLoading={false}
+        memory={defaultMemory}
+        onDelete={async () => {}}
+        scope="global"
       />
     </PanelSurface>
   ),

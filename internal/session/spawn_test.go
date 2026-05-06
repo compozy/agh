@@ -298,6 +298,131 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 	}
 }
 
+func TestManagerSpawnStoppedParentRules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject stopped parents for regular spawned sessions", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
+			Tools: []string{testToolRead},
+		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+			t.Fatalf("Stop(parent) error = %v", err)
+		}
+
+		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if !errors.Is(err, ErrSpawnValidation) {
+			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
+		}
+	})
+
+	t.Run("Should allow daemon memory extractor spawns from stopped parents", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "networked parent",
+			Workspace: h.workspaceID,
+			Channel:   "builders",
+			Type:      SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					Tools:           []string{testToolRead},
+					NetworkChannels: []string{"builders"},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+			t.Fatalf("Stop(parent) error = %v", err)
+		}
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:    parent.ID,
+			AgentName:          "coder",
+			Channel:            "builders",
+			SpawnRole:          SpawnRoleMemoryExtractor,
+			TTL:                time.Minute,
+			AllowStoppedParent: true,
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools: []string{testToolRead},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+
+		if got := child.Info().Channel; got != "" {
+			t.Fatalf("child channel = %q, want empty for memory extractor", got)
+		}
+		if got := readMeta(t, child.MetaPath()).Channel; got != "" {
+			t.Fatalf("persisted child channel = %q, want empty for memory extractor", got)
+		}
+
+		lineage := child.Info().Lineage
+		if lineage == nil ||
+			lineage.ParentSessionID != parent.ID ||
+			lineage.RootSessionID != parent.ID ||
+			lineage.SpawnRole != SpawnRoleMemoryExtractor ||
+			lineage.AutoStopOnParent {
+			t.Fatalf("child lineage = %#v, want extractor child linked to stopped parent without auto-stop", lineage)
+		}
+	})
+
+	t.Run("Should reject stopped parent override outside memory extractor role", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
+			Tools: []string{testToolRead},
+		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+		cleanupSessionStop(t, h, parent.ID)
+
+		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:    parent.ID,
+			AgentName:          "coder",
+			TTL:                time.Minute,
+			AllowStoppedParent: true,
+		})
+		if !errors.Is(err, ErrSpawnValidation) {
+			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
+		}
+	})
+
+	t.Run("Should reject stopped parent override with auto stop lineage", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
+			Tools: []string{testToolRead},
+		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+		cleanupSessionStop(t, h, parent.ID)
+
+		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:    parent.ID,
+			AgentName:          "coder",
+			SpawnRole:          SpawnRoleMemoryExtractor,
+			TTL:                time.Minute,
+			AutoStopOnParent:   true,
+			AllowStoppedParent: true,
+		})
+		if !errors.Is(err, ErrSpawnValidation) {
+			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
+		}
+	})
+}
+
 func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 	t.Parallel()
 

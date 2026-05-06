@@ -1,127 +1,478 @@
 package cli
 
 import (
-	"bytes"
-	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/api/contract"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/spf13/cobra"
 )
 
+type memorySelectorFlags struct {
+	Scope     string
+	Workspace string
+	Agent     string
+	AgentTier string
+}
+
+type memorySelectorOptions struct {
+	DefaultScope     memcontract.Scope
+	DefaultWorkspace bool
+}
+
 type memoryListItem struct {
-	Filename    string       `json:"filename"`
-	Name        string       `json:"name"`
-	Type        memory.Type  `json:"type"`
-	Scope       memory.Scope `json:"scope"`
-	Age         string       `json:"age"`
-	Description string       `json:"description,omitempty"`
-	ModTime     time.Time    `json:"mod_time"`
-}
-
-type memoryReadView struct {
-	Filename string       `json:"filename"`
-	Scope    memory.Scope `json:"scope"`
-	Content  string       `json:"content"`
-}
-
-type memoryMutationView struct {
-	Filename string       `json:"filename"`
-	Scope    memory.Scope `json:"scope"`
-	Type     memory.Type  `json:"type,omitempty"`
-	Status   string       `json:"status"`
-	Reason   string       `json:"reason,omitempty"`
+	Filename        string                `json:"filename"`
+	Name            string                `json:"name"`
+	Type            memcontract.Type      `json:"type"`
+	Scope           memcontract.Scope     `json:"scope"`
+	WorkspaceID     string                `json:"workspace_id,omitempty"`
+	AgentName       string                `json:"agent_name,omitempty"`
+	AgentTier       memcontract.AgentTier `json:"agent_tier,omitempty"`
+	Age             string                `json:"age"`
+	Description     string                `json:"description,omitempty"`
+	StalenessBanner string                `json:"staleness_banner,omitempty"`
+	ModTime         time.Time             `json:"mod_time"`
 }
 
 type memorySearchItem struct {
-	Filename    string       `json:"filename"`
-	Name        string       `json:"name"`
-	Type        memory.Type  `json:"type"`
-	Scope       memory.Scope `json:"scope"`
-	Workspace   string       `json:"workspace,omitempty"`
-	Score       float64      `json:"score"`
-	Description string       `json:"description,omitempty"`
-	Snippet     string       `json:"snippet,omitempty"`
-	ModTime     time.Time    `json:"mod_time"`
+	Filename      string            `json:"filename"`
+	Name          string            `json:"name"`
+	Type          memcontract.Type  `json:"type"`
+	Scope         memcontract.Scope `json:"scope"`
+	Score         float64           `json:"score"`
+	Snippet       string            `json:"snippet,omitempty"`
+	WhyRecalled   []string          `json:"why_recalled,omitempty"`
+	ShadowedBy    string            `json:"shadowed_by,omitempty"`
+	AlreadyShown  bool              `json:"already_shown"`
+	StalenessNote string            `json:"staleness_banner,omitempty"`
 }
 
 type memoryHistoryItem struct {
-	ID        string       `json:"id"`
-	Operation string       `json:"operation"`
-	Scope     memory.Scope `json:"scope,omitempty"`
-	Workspace string       `json:"workspace,omitempty"`
-	Filename  string       `json:"filename,omitempty"`
-	AgentName string       `json:"agent_name,omitempty"`
-	Summary   string       `json:"summary,omitempty"`
-	Age       string       `json:"age"`
-	Timestamp time.Time    `json:"timestamp"`
-}
-
-type memoryReindexView struct {
-	IndexedFiles int          `json:"indexed_files"`
-	Scope        memory.Scope `json:"scope,omitempty"`
-	Workspace    string       `json:"workspace,omitempty"`
-	CompletedAt  time.Time    `json:"completed_at"`
-}
-
-var memoryWriteExample = strings.Join([]string{
-	"  # Write workspace-scoped project memory from a flag",
-	`  agh memory write runtime-notes.md --type project --description "Runtime docs live in the site package" ` +
-		`--content "Runtime docs are authored under packages/site/content/runtime."`,
-	"",
-	"  # Write global user memory from stdin",
-	`  printf "Prefer concise PR summaries.\n" | agh memory write review-style.md --type user ` +
-		`--description "User wants concise PR summaries"`,
-}, "\n")
-
-type memoryLocation struct {
-	Scope     memory.Scope
-	Workspace string
-	Header    MemoryHeaderRecord
+	ID          string                `json:"id"`
+	Operation   memcontract.Operation `json:"operation"`
+	Scope       memcontract.Scope     `json:"scope,omitempty"`
+	WorkspaceID string                `json:"workspace_id,omitempty"`
+	Filename    string                `json:"filename,omitempty"`
+	AgentName   string                `json:"agent_name,omitempty"`
+	AgentTier   memcontract.AgentTier `json:"agent_tier,omitempty"`
+	Summary     string                `json:"summary,omitempty"`
+	Age         string                `json:"age"`
+	Timestamp   time.Time             `json:"timestamp"`
 }
 
 func newMemoryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "memory",
-		Short: "Manage persistent cross-session memories",
+		Short: "Show, write, search, and operate Memory v2 durable context",
 	}
 
 	cmd.AddCommand(newMemoryListCommand(deps))
-	cmd.AddCommand(newMemoryHealthCommand(deps))
-	cmd.AddCommand(newMemoryHistoryCommand(deps))
-	cmd.AddCommand(newMemorySearchCommand(deps))
-	cmd.AddCommand(newMemoryReadCommand(deps))
+	cmd.AddCommand(newMemoryShowCommand(deps))
 	cmd.AddCommand(newMemoryWriteCommand(deps))
+	cmd.AddCommand(newMemoryEditCommand(deps))
 	cmd.AddCommand(newMemoryDeleteCommand(deps))
+	cmd.AddCommand(newMemorySearchCommand(deps))
 	cmd.AddCommand(newMemoryReindexCommand(deps))
-	cmd.AddCommand(newMemoryConsolidateCommand(deps))
+	cmd.AddCommand(newMemoryHistoryCommand(deps))
+	cmd.AddCommand(newMemoryHealthCommand(deps))
+	cmd.AddCommand(newMemoryPromoteCommand(deps))
+	cmd.AddCommand(newMemoryResetCommand(deps))
+	cmd.AddCommand(newMemoryReloadCommand(deps))
+	cmd.AddCommand(newMemoryScopeShowCommand(deps))
+	cmd.AddCommand(newMemoryDecisionsCommand(deps))
+	cmd.AddCommand(newMemoryRecallCommand(deps))
+	cmd.AddCommand(newMemoryDreamCommand(deps))
+	cmd.AddCommand(newMemoryDailyCommand(deps))
+	cmd.AddCommand(newMemoryExtractorCommand(deps))
+	cmd.AddCommand(newMemoryProviderCommand(deps))
+	cmd.AddCommand(newMemoryAdhocCommand())
 	return cmd
 }
 
-func newMemoryHealthCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "health",
-		Short: "Show memory health",
-		Example: `  # Show global and current-workspace memory health
-  agh memory health
+func newMemoryListCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var typeRaw string
+	var includeShadowed bool
+	var includeSystem bool
 
-  # Show memory health as JSON
-  agh memory health -o json`,
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List Memory v2 entries",
+		Example: `  # List global and current-workspace memories
+  agh memory list
+
+  # List agent-workspace memories
+  agh memory list --scope agent --agent reviewer --agent-tier workspace`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			typ, err := parseOptionalMemoryType(typeRaw)
+			if err != nil {
+				return err
+			}
+			selector.IncludeSystem = includeSystem
+			response, err := client.ListMemory(cmd.Context(), MemoryListQuery{
+				MemorySelectorQuery: selector,
+				Type:                typ,
+				IncludeShadowed:     includeShadowed,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryListBundle(response, deps.now))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type: user, feedback, project, or reference")
+	cmd.Flags().BoolVar(&includeShadowed, "include-shadowed", false, "Include shadowed entries")
+	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Include _system memory entries")
+	return cmd
+}
 
+func newMemoryShowCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var includeSystem bool
+
+	cmd := &cobra.Command{
+		Use:   "show <filename>",
+		Short: "Show one Memory v2 entry",
+		Example: `  # Show a workspace memory entry
+  agh memory show runtime-notes.md --scope workspace
+
+  # Show an agent-global memory entry as JSON
+  agh memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json`,
+		Args: exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			selector.IncludeSystem = includeSystem
+			response, err := client.ShowMemory(cmd.Context(), strings.TrimSpace(args[0]), selector)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryEntryBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Allow showing _system memory entries")
+	return cmd
+}
+
+func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var typeRaw string
+	var name string
+	var description string
+	var contentFlag string
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "write --type <type> --name <name> --content <@file|text>",
+		Short: "Create a Memory v2 entry through the controller",
+		Example: `  # Write workspace-scoped project memory from a file
+  agh memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
+
+  # Write agent-global feedback
+  agh memory write --scope agent --agent reviewer --agent-tier global \
+    --type feedback --name "Review tone" --content @feedback.md`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			typ, err := parseRequiredMemoryType(typeRaw)
+			if err != nil {
+				return err
+			}
+			defaultScope, err := memcontract.DefaultScopeForType(typ)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultScope: defaultScope})
+			if err != nil {
+				return err
+			}
+			content, err := resolveMemoryContent(cmd, deps, contentFlag)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(name) == "" {
+				return errors.New("memory.name_required: --name is required")
+			}
+			response, err := client.CreateMemory(cmd.Context(), MemoryCreateRequest{
+				Scope:       selector.Scope,
+				WorkspaceID: selector.WorkspaceID,
+				AgentName:   selector.AgentName,
+				AgentTier:   selector.AgentTier,
+				Origin:      memcontract.OriginCLI,
+				Type:        typ,
+				Name:        strings.TrimSpace(name),
+				Description: strings.TrimSpace(description),
+				Content:     content,
+				DryRun:      dryRun,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryMutationBundle("Memory Write", response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type: user, feedback, project, or reference")
+	cmd.Flags().StringVar(&name, "name", "", "Memory display name")
+	cmd.Flags().StringVar(&description, "description", "", "One-line durable memory description")
+	cmd.Flags().StringVar(&contentFlag, "content", "", "Memory content; use @file to read from disk or - for stdin")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Ask the controller for a decision without applying it")
+	mustMarkFlagRequired(cmd, "type")
+	mustMarkFlagRequired(cmd, "name")
+	mustMarkFlagRequired(cmd, "content")
+	return cmd
+}
+
+func newMemoryEditCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var typeRaw string
+	var name string
+	var description string
+	var contentFlag string
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "edit <filename> --content <@file|text>",
+		Short: "Edit a Memory v2 entry through the controller",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			typ, err := parseOptionalMemoryType(typeRaw)
+			if err != nil {
+				return err
+			}
+			content, err := resolveMemoryContent(cmd, deps, contentFlag)
+			if err != nil {
+				return err
+			}
+			response, err := client.EditMemory(cmd.Context(), strings.TrimSpace(args[0]), MemoryEditRequest{
+				Scope:       selector.Scope,
+				WorkspaceID: selector.WorkspaceID,
+				AgentName:   selector.AgentName,
+				AgentTier:   selector.AgentTier,
+				Type:        typ,
+				Name:        strings.TrimSpace(name),
+				Description: strings.TrimSpace(description),
+				Content:     content,
+				DryRun:      dryRun,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryMutationBundle("Memory Edit", response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type override")
+	cmd.Flags().StringVar(&name, "name", "", "Memory display name override")
+	cmd.Flags().StringVar(&description, "description", "", "Memory description override")
+	cmd.Flags().StringVar(&contentFlag, "content", "", "Memory content; use @file to read from disk or - for stdin")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Ask the controller for a decision without applying it")
+	mustMarkFlagRequired(cmd, "content")
+	return cmd
+}
+
+func newMemoryDeleteCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+
+	cmd := &cobra.Command{
+		Use:   "delete <filename>",
+		Short: "Delete a Memory v2 entry through the controller",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			response, err := client.DeleteMemory(cmd.Context(), strings.TrimSpace(args[0]), selector)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryDeleteBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	return cmd
+}
+
+func newMemorySearchCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var topK int
+	var includeSystem bool
+
+	cmd := &cobra.Command{
+		Use:   "search <query>",
+		Short: "Search deterministic Memory v2 recall",
+		Example: `  # Search global and current-workspace memories
+  agh memory search "auth sessions"
+
+  # Search agent memory with system entries included
+  agh memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			query := strings.TrimSpace(strings.Join(args, " "))
+			if query == "" {
+				return errors.New("memory.query_required: query is required")
+			}
+			response, err := client.SearchMemory(cmd.Context(), MemorySearchRequest{
+				QueryText:     query,
+				Scope:         selector.Scope,
+				WorkspaceID:   selector.WorkspaceID,
+				AgentName:     selector.AgentName,
+				AgentTier:     selector.AgentTier,
+				TopK:          topK,
+				IncludeSystem: includeSystem,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memorySearchBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().IntVar(&topK, "top-k", 0, "Maximum number of recalled entries")
+	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Include _system memory entries")
+	return cmd
+}
+
+func newMemoryReindexCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var includeSystem bool
+
+	cmd := &cobra.Command{
+		Use:   "reindex",
+		Short: "Rebuild the derived Memory v2 search catalog",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			response, err := client.ReindexMemory(cmd.Context(), MemoryReindexRequest{
+				Scope:         selector.Scope,
+				WorkspaceID:   selector.WorkspaceID,
+				AgentName:     selector.AgentName,
+				AgentTier:     selector.AgentTier,
+				IncludeSystem: includeSystem,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryReindexBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Include _system memory entries")
+	return cmd
+}
+
+func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var operation string
+	var sinceRaw string
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "history",
+		Short: "Show redaction-safe Memory v2 operation history",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{})
+			if err != nil {
+				return err
+			}
+			since, err := parseSinceFlag(sinceRaw, deps.now)
+			if err != nil {
+				return err
+			}
+			records, err := client.MemoryHistory(cmd.Context(), MemoryHistoryQuery{
+				Scope:       selector.Scope,
+				WorkspaceID: selector.WorkspaceID,
+				AgentName:   selector.AgentName,
+				AgentTier:   selector.AgentTier,
+				Operation:   strings.TrimSpace(operation),
+				Since:       since,
+				Limit:       limit,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryHistoryBundle(records, deps.now))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().StringVar(&operation, "operation", "", "Memory operation type, for example memory.write")
+	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show operations since an RFC3339 timestamp or relative duration")
+	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of operations to return")
+	return cmd
+}
+
+func newMemoryHealthCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "health",
+		Short: "Show Memory v2 health",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
 			workspace, err := currentWorkingDirectory(deps)
 			if err != nil {
 				return err
@@ -135,29 +486,172 @@ func newMemoryHealthCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
-	var (
-		scope     string
-		operation string
-		sinceRaw  string
-		limit     int
-	)
+func newMemoryPromoteCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var fromRaw string
+	var toRaw string
+	var dryRun bool
 
 	cmd := &cobra.Command{
-		Use:   "history",
-		Short: "Show memory operation history",
-		Example: `  # Show recent global and current-workspace memory operations
-  agh memory history
+		Use:   "promote <filename> --from <scope[:tier]> --to <scope[:tier]>",
+		Short: "Promote a memory entry across Memory v2 scopes",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			from, err := parseMemoryPromotionSelector(deps, flags, fromRaw)
+			if err != nil {
+				return err
+			}
+			to, err := parseMemoryPromotionSelector(deps, flags, toRaw)
+			if err != nil {
+				return err
+			}
+			response, err := client.PromoteMemory(cmd.Context(), MemoryPromoteRequest{
+				Filename: strings.TrimSpace(args[0]),
+				From:     from,
+				To:       to,
+				DryRun:   dryRun,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryPromoteBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().StringVar(&fromRaw, "from", "", "Source scope: global, workspace, agent:workspace, or agent:global")
+	cmd.Flags().StringVar(&toRaw, "to", "", "Destination scope: global, workspace, agent:workspace, or agent:global")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Ask for a promotion decision without applying it")
+	mustMarkFlagRequired(cmd, "from")
+	mustMarkFlagRequired(cmd, "to")
+	return cmd
+}
 
-  # Filter memory writes in the current workspace
-  agh memory history --scope workspace --operation memory.write --since 24h`,
-		Args: cobra.NoArgs,
+func newMemoryResetCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var includeSystem bool
+	var includeDaily bool
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Reset derived Memory v2 state through the daemon",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			parsedScope, err := parseOptionalCLIMemoryScope(scope)
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			_ = includeSystem
+			response, err := client.ResetMemory(cmd.Context(), MemoryResetRequest{
+				Scope:       selector.Scope,
+				WorkspaceID: selector.WorkspaceID,
+				AgentName:   selector.AgentName,
+				AgentTier:   selector.AgentTier,
+				DerivedOnly: !includeDaily,
+				Confirm:     !dryRun,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Reset", response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Include _system memory state")
+	cmd.Flags().BoolVar(&includeDaily, "include-daily", false, "Include daily memory artifacts")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show reset work without applying it")
+	return cmd
+}
+
+func newMemoryReloadCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+
+	cmd := &cobra.Command{
+		Use:   "reload",
+		Short: "Invalidate frozen memory snapshots for future session boots",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{})
+			if err != nil {
+				return err
+			}
+			response, err := client.ReloadMemory(cmd.Context(), selector)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Reload", response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	return cmd
+}
+
+func newMemoryScopeShowCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+
+	cmd := &cobra.Command{
+		Use:   "scope-show",
+		Short: "Show resolved Memory v2 precedence for a selector",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			response, err := client.MemoryScopeShow(cmd.Context(), selector)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryScopeShowBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	return cmd
+}
+
+func newMemoryDecisionsCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "decisions",
+		Short: "Inspect and revert Memory v2 controller decisions",
+	}
+	cmd.AddCommand(newMemoryDecisionsListCommand(deps))
+	cmd.AddCommand(newMemoryDecisionsShowCommand(deps))
+	cmd.AddCommand(newMemoryDecisionsRevertCommand(deps))
+	return cmd
+}
+
+func newMemoryDecisionsListCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var op string
+	var sinceRaw string
+	var reason string
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List Memory v2 controller decisions",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{})
 			if err != nil {
 				return err
 			}
@@ -165,493 +659,708 @@ func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			workspace := ""
-			if parsedScope != memory.ScopeGlobal {
-				workspace, err = currentWorkingDirectory(deps)
-				if err != nil {
-					return err
-				}
-			}
-			operations, err := client.MemoryHistory(cmd.Context(), MemoryHistoryQuery{
-				Scope:     parsedScope,
-				Workspace: workspace,
-				Operation: operation,
-				Since:     since,
-				Limit:     limit,
+			response, err := client.ListMemoryDecisions(cmd.Context(), MemoryDecisionListQuery{
+				Scope:       selector.Scope,
+				WorkspaceID: selector.WorkspaceID,
+				AgentName:   selector.AgentName,
+				AgentTier:   selector.AgentTier,
+				Operation:   op,
+				Since:       since,
+				Reason:      reason,
 			})
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, memoryHistoryBundle(operations, deps.now))
+			return writeCommandOutput(cmd, memoryDecisionListBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	cmd.Flags().StringVar(&operation, "operation", "", "Operation type, for example memory.write")
-	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show operations since an RFC3339 timestamp or relative duration")
-	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of operations to return")
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().StringVar(&op, "op", "", "Decision operation filter")
+	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show decisions since an RFC3339 timestamp or relative duration")
+	cmd.Flags().StringVar(&reason, "reason", "", "Reason substring filter")
 	return cmd
 }
 
-func newMemoryListCommand(deps commandDeps) *cobra.Command {
-	var scope string
-
-	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List persistent memories",
-		Example: `  # List global and workspace memories visible from the current directory
-  agh memory list
-
-  # List only workspace-scoped memories
-  agh memory list --scope workspace`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			locations, err := listMemoryLocations(cmd.Context(), client, deps, scope)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, memoryListBundle(locations, deps.now))
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	return cmd
-}
-
-func newMemoryReadCommand(deps commandDeps) *cobra.Command {
-	var scope string
-
-	cmd := &cobra.Command{
-		Use:   "read <filename>",
-		Short: "Read a persistent memory file",
-		Example: `  # Read a workspace memory file
-  agh memory read runtime-notes.md --scope workspace
-
-  # Read a global memory file as JSON
-  agh memory read review-style.md --scope global -o json`,
-		Args: exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			filename := strings.TrimSpace(args[0])
-			location, err := resolveMemoryLocation(cmd.Context(), client, deps, scope, filename)
-			if err != nil {
-				return err
-			}
-
-			record, err := client.ReadMemory(cmd.Context(), filename, location.Scope, location.Workspace)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, memoryReadBundle(memoryReadView{
-				Filename: filename,
-				Scope:    location.Scope,
-				Content:  record.Content,
-			}))
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	return cmd
-}
-
-func newMemorySearchCommand(deps commandDeps) *cobra.Command {
-	var (
-		scope string
-		limit int
-	)
-
-	cmd := &cobra.Command{
-		Use:   "search <terms...>",
-		Short: "Search durable memory",
-		Example: `  # Search global and current-workspace memories
-  agh memory search auth rewrite
-
-  # Search only workspace-scoped memories
-  agh memory search release plan --scope workspace --limit 5`,
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			query := strings.TrimSpace(strings.Join(args, " "))
-			if query == "" {
-				return errors.New("memory query is required")
-			}
-
-			parsedScope, err := parseOptionalCLIMemoryScope(scope)
-			if err != nil {
-				return err
-			}
-
-			workspace := ""
-			if parsedScope != memory.ScopeGlobal {
-				workspace, err = currentWorkingDirectory(deps)
-				if err != nil {
-					return err
-				}
-			}
-
-			results, err := client.SearchMemory(cmd.Context(), query, MemorySearchQuery{
-				Scope:     parsedScope,
-				Workspace: workspace,
-				Limit:     limit,
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, memorySearchBundle(results))
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	cmd.Flags().IntVar(&limit, "limit", 10, "Maximum number of results to return")
-	return cmd
-}
-
-func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
-	var (
-		scope       string
-		typeRaw     string
-		description string
-		contentFlag string
-	)
-
-	cmd := &cobra.Command{
-		Use:     "write <filename> --type <type> --description <description>",
-		Short:   "Write or update a persistent memory file",
-		Example: memoryWriteExample,
-		Args:    exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			filename := strings.TrimSpace(args[0])
-			memoryType, err := parseMemoryType(typeRaw)
-			if err != nil {
-				return err
-			}
-			if strings.TrimSpace(description) == "" {
-				return errors.New("memory description is required")
-			}
-
-			content, err := resolveMemoryWriteContent(cmd, contentFlag)
-			if err != nil {
-				return err
-			}
-
-			resolvedScope, err := resolveCLIMemoryWriteScope(scope, memoryType)
-			if err != nil {
-				return err
-			}
-			workspace, err := memoryWorkspaceForScope(deps, resolvedScope)
-			if err != nil {
-				return err
-			}
-
-			payload, err := formatMemoryDocument(filename, memoryType, description, content)
-			if err != nil {
-				return err
-			}
-
-			result, err := client.WriteMemory(cmd.Context(), filename, MemoryWriteRequest{
-				Content:   payload,
-				Scope:     string(resolvedScope),
-				Workspace: workspace,
-			})
-			if err != nil {
-				return err
-			}
-			if !result.OK {
-				return errors.New("cli: memory write was not acknowledged")
-			}
-
-			return writeCommandOutput(cmd, memoryMutationBundle(memoryMutationView{
-				Filename: filename,
-				Scope:    resolvedScope,
-				Type:     memoryType,
-				Status:   "written",
-			}))
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type: user, feedback, project, or reference")
-	cmd.Flags().StringVar(&description, "description", "", "One-line durable memory description")
-	cmd.Flags().StringVar(&contentFlag, "content", "", "Memory body content (alternative to stdin)")
-	mustMarkFlagRequired(cmd, "type")
-	mustMarkFlagRequired(cmd, "description")
-	return cmd
-}
-
-func newMemoryDeleteCommand(deps commandDeps) *cobra.Command {
-	var scope string
-
-	cmd := &cobra.Command{
-		Use:   "delete <filename>",
-		Short: "Delete a persistent memory file",
-		Example: `  # Delete a workspace memory file
-  agh memory delete runtime-notes.md --scope workspace`,
-		Args: exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			filename := strings.TrimSpace(args[0])
-			location, err := resolveMemoryLocation(cmd.Context(), client, deps, scope, filename)
-			if err != nil {
-				return err
-			}
-
-			result, err := client.DeleteMemory(cmd.Context(), filename, location.Scope, location.Workspace)
-			if err != nil {
-				return err
-			}
-			if !result.OK {
-				return errors.New("cli: memory delete was not acknowledged")
-			}
-
-			return writeCommandOutput(cmd, memoryMutationBundle(memoryMutationView{
-				Filename: filename,
-				Scope:    location.Scope,
-				Status:   "deleted",
-			}))
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	return cmd
-}
-
-func newMemoryReindexCommand(deps commandDeps) *cobra.Command {
-	var scope string
-
-	cmd := &cobra.Command{
-		Use:   "reindex",
-		Short: "Rebuild the derived memory search catalog",
-		Example: `  # Reindex global and current-workspace memory
-  agh memory reindex
-
-  # Reindex only workspace-scoped memory
-  agh memory reindex --scope workspace`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			parsedScope, err := parseOptionalCLIMemoryScope(scope)
-			if err != nil {
-				return err
-			}
-
-			workspace := ""
-			if parsedScope != memory.ScopeGlobal {
-				workspace, err = currentWorkingDirectory(deps)
-				if err != nil {
-					return err
-				}
-			}
-
-			result, err := client.ReindexMemory(cmd.Context(), MemoryReindexRequest{
-				Scope:     string(parsedScope),
-				Workspace: workspace,
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, memoryReindexBundle(memoryReindexView(result)))
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
-	return cmd
-}
-
-func newMemoryConsolidateCommand(deps commandDeps) *cobra.Command {
+func newMemoryDecisionsShowCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "consolidate",
-		Short: "Trigger manual memory consolidation",
-		Example: `  # Ask the daemon to consolidate memory for the current workspace
-  agh memory consolidate`,
-		Args: cobra.NoArgs,
+		Use:   "show <id>",
+		Short: "Show one Memory v2 controller decision",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.GetMemoryDecision(cmd.Context(), strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryDecisionBundle("Memory Decision", response.Decision, response))
+		},
+	}
+}
+
+func newMemoryDecisionsRevertCommand(deps commandDeps) *cobra.Command {
+	var reason string
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "revert <id>",
+		Short: "Revert one Memory v2 controller decision",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.RevertMemoryDecision(
+				cmd.Context(),
+				strings.TrimSpace(args[0]),
+				MemoryDecisionRevertRequest{
+					Reason: strings.TrimSpace(reason),
+					DryRun: dryRun,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryDecisionRevertBundle(response))
+		},
+	}
+	cmd.Flags().StringVar(&reason, "reason", "", "Operator-visible revert reason")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Return the revert decision without applying it")
+	return cmd
+}
+
+func newMemoryRecallCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "recall",
+		Short: "Inspect Memory v2 recall traces",
+	}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "trace <session_id> <turn_seq>",
+		Short: "Show one redaction-safe recall trace",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			turnSeq, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
+			if err != nil || turnSeq <= 0 {
+				return errors.New("memory.recall.turn_seq_invalid: turn_seq must be a positive integer")
+			}
+			response, err := client.GetMemoryRecallTrace(cmd.Context(), strings.TrimSpace(args[0]), turnSeq)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Recall Trace", response))
+		},
+	})
+	return cmd
+}
+
+func newMemoryDreamCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "dream",
+		Short: "Operate Memory v2 dreaming runs",
+	}
+	cmd.AddCommand(newMemoryDreamShowCommand(deps))
+	cmd.AddCommand(newMemoryDreamRetryCommand(deps))
+	cmd.AddCommand(newMemoryDreamTriggerCommand(deps))
+	cmd.AddCommand(newMemoryDreamStatusCommand(deps))
+	return cmd
+}
+
+func newMemoryDreamShowCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <date-or-run-id>",
+		Short: "Show one Memory v2 dreaming run",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.GetMemoryDream(cmd.Context(), strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Dream", response))
+		},
+	}
+}
+
+func newMemoryDreamRetryCommand(deps commandDeps) *cobra.Command {
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "retry <run_id>",
+		Short: "Retry one failed Memory v2 dreaming run",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.RetryMemoryDream(cmd.Context(), strings.TrimSpace(args[0]), MemoryDreamRetryRequest{
+				Force: force,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Dream Retry", response))
+		},
+	}
+	cmd.Flags().BoolVar(&force, "force", false, "Retry even if normal gates would skip the run")
+	return cmd
+}
+
+func newMemoryDreamTriggerCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "trigger",
+		Short: "Trigger Memory v2 dreaming",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-
-			workspace, err := currentWorkingDirectory(deps)
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
 			if err != nil {
 				return err
 			}
-
-			result, err := client.ConsolidateMemory(cmd.Context(), workspace)
+			response, err := client.TriggerMemoryDream(cmd.Context(), MemoryDreamTriggerRequest{
+				Scope:       selector.Scope,
+				WorkspaceID: selector.WorkspaceID,
+				AgentName:   selector.AgentName,
+				AgentTier:   selector.AgentTier,
+				Force:       force,
+			})
 			if err != nil {
 				return err
 			}
+			return writeCommandOutput(cmd, memoryDreamTriggerBundle(response))
+		},
+	}
+	addMemorySelectorFlags(cmd, &flags)
+	cmd.Flags().BoolVar(&force, "force", false, "Trigger even if normal gates would skip the run")
+	return cmd
+}
 
-			return writeCommandOutput(cmd, memoryMutationBundle(memoryMutationView{
-				Filename: "",
-				Scope:    memory.ScopeWorkspace,
-				Status:   boolStatus(result.Triggered),
-				Reason:   result.Reason,
-			}))
+func newMemoryDreamStatusCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show Memory v2 dreaming runtime status",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.GetMemoryDreamStatus(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryDreamListBundle(response))
 		},
 	}
 }
 
-func listMemoryLocations(
-	ctx context.Context,
-	client DaemonClient,
-	deps commandDeps,
-	rawScope string,
-) ([]memoryLocation, error) {
-	scope, err := parseOptionalCLIMemoryScope(rawScope)
-	if err != nil {
-		return nil, err
+func newMemoryDailyCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "daily",
+		Short: "Inspect Memory v2 daily operation logs",
 	}
-
-	scopes := []memory.Scope{memory.ScopeGlobal, memory.ScopeWorkspace}
-	if scope != "" {
-		scopes = []memory.Scope{scope}
-	}
-
-	locations := make([]memoryLocation, 0, len(scopes))
-	for _, currentScope := range scopes {
-		workspace, err := memoryWorkspaceForScope(deps, currentScope)
-		if err != nil {
-			return nil, err
-		}
-
-		headers, err := client.ListMemory(ctx, currentScope, workspace)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, header := range headers {
-			item := header
-			locations = append(locations, memoryLocation{
-				Scope:     currentScope,
-				Workspace: workspace,
-				Header:    item,
-			})
-		}
-	}
-
-	sort.SliceStable(locations, func(i, j int) bool {
-		if locations[i].Header.ModTime.Equal(locations[j].Header.ModTime) {
-			return locations[i].Header.Filename < locations[j].Header.Filename
-		}
-		return locations[i].Header.ModTime.After(locations[j].Header.ModTime)
-	})
-
-	return locations, nil
+	cmd.AddCommand(newMemoryDailyListCommand(deps))
+	cmd.AddCommand(
+		newMemoryDailyUnsupportedSelectorCommand(
+			"show <date>",
+			"memory.unsupported: daily show is not registered in Slice 1 API",
+			exactOneNonBlankArg(),
+		),
+	)
+	cmd.AddCommand(
+		newMemoryDailyRetentionCommand("archive", "memory.unsupported: daily archive is not registered in Slice 1 API"),
+	)
+	cmd.AddCommand(
+		newMemoryDailyUnsupportedSelectorCommand(
+			"restore <date>",
+			"memory.unsupported: daily restore is not registered in Slice 1 API",
+			exactOneNonBlankArg(),
+		),
+	)
+	cmd.AddCommand(
+		newMemoryDailyRetentionCommand("purge", "memory.unsupported: daily purge is not registered in Slice 1 API"),
+	)
+	return cmd
 }
 
-func resolveMemoryLocation(
-	ctx context.Context,
-	client DaemonClient,
-	deps commandDeps,
-	rawScope string,
-	filename string,
-) (memoryLocation, error) {
-	scope, err := parseOptionalCLIMemoryScope(rawScope)
-	if err != nil {
-		return memoryLocation{}, err
-	}
-	filename = strings.TrimSpace(filename)
-	if filename == "" {
-		return memoryLocation{}, errors.New("memory filename is required")
-	}
+func newMemoryDailyListCommand(deps commandDeps) *cobra.Command {
+	var flags memorySelectorFlags
 
-	if scope != "" {
-		workspace, err := memoryWorkspaceForScope(deps, scope)
-		if err != nil {
-			return memoryLocation{}, err
-		}
-		headers, err := client.ListMemory(ctx, scope, workspace)
-		if err != nil {
-			return memoryLocation{}, err
-		}
-		for _, header := range headers {
-			if strings.TrimSpace(header.Filename) == filename {
-				return memoryLocation{Scope: scope, Workspace: workspace, Header: header}, nil
+	cmd := &cobra.Command{
+		Use:   "ls",
+		Short: "List Memory v2 daily operation logs",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
 			}
-		}
-		return memoryLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, filename)
+			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			if err != nil {
+				return err
+			}
+			response, err := client.ListMemoryDailyLogs(cmd.Context(), selector)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Daily Logs", response))
+		},
 	}
+	addMemorySelectorFlags(cmd, &flags)
+	return cmd
+}
 
-	locations, err := listMemoryLocations(ctx, client, deps, "")
-	if err != nil {
-		return memoryLocation{}, err
+func newMemoryExtractorCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "extractor",
+		Short: "Operate Memory v2 extractor runtime",
 	}
+	cmd.AddCommand(newMemoryExtractorStatusCommand(deps))
+	cmd.AddCommand(newMemoryExtractorListPendingCommand(deps))
+	cmd.AddCommand(newMemoryExtractorReplayCommand(deps))
+	cmd.AddCommand(newMemoryExtractorDrainCommand(deps))
+	cmd.AddCommand(newMemoryExtractorDisableCommand())
+	return cmd
+}
 
-	matches := make([]memoryLocation, 0, 2)
-	for _, location := range locations {
-		if strings.TrimSpace(location.Header.Filename) == filename {
-			matches = append(matches, location)
-		}
+func newMemoryExtractorStatusCommand(deps commandDeps) *cobra.Command {
+	var sessionID string
+
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show Memory v2 extractor runtime status",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.GetMemoryExtractorStatus(cmd.Context(), sessionID)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Status", response))
+		},
 	}
+	cmd.Flags().StringVar(&sessionID, "session", "", "Filter extractor status by session")
+	return cmd
+}
 
-	switch len(matches) {
-	case 0:
-		return memoryLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, filename)
-	case 1:
-		return matches[0], nil
-	default:
-		return memoryLocation{}, fmt.Errorf("memory %q exists in multiple scopes; set --scope explicitly", filename)
+func newMemoryExtractorListPendingCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list-pending",
+		Short: "List Memory v2 extractor pending/DLQ records",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.ListMemoryExtractorFailures(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Pending", response))
+		},
 	}
 }
 
-func parseMemoryType(raw string) (memory.Type, error) {
-	typ := memory.Type(strings.TrimSpace(raw)).Normalize()
+func newMemoryExtractorReplayCommand(deps commandDeps) *cobra.Command {
+	var sessionID string
+	var fromDLQ bool
+
+	cmd := &cobra.Command{
+		Use:   "replay --session <id>",
+		Short: "Replay Memory v2 extractor work",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(sessionID) == "" {
+				return errors.New("memory.extractor.session_required: --session is required")
+			}
+			_ = fromDLQ
+			response, err := client.RetryMemoryExtractor(cmd.Context(), MemoryExtractorRetryRequest{
+				SessionID: strings.TrimSpace(sessionID),
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Replay", response))
+		},
+	}
+	cmd.Flags().StringVar(&sessionID, "session", "", "Session whose extractor work should be replayed")
+	cmd.Flags().BoolVar(&fromDLQ, "from-dlq", false, "Replay from dead-letter queue records")
+	mustMarkFlagRequired(cmd, "session")
+	return cmd
+}
+
+func newMemoryExtractorDrainCommand(deps commandDeps) *cobra.Command {
+	var timeoutRaw string
+
+	cmd := &cobra.Command{
+		Use:   "drain",
+		Short: "Drain Memory v2 extractor work",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(timeoutRaw) != "" {
+				if _, err := time.ParseDuration(strings.TrimSpace(timeoutRaw)); err != nil {
+					return fmt.Errorf("memory.extractor.timeout_invalid: %w", err)
+				}
+			}
+			response, err := client.DrainMemoryExtractor(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Drain", response))
+		},
+	}
+	cmd.Flags().StringVar(&timeoutRaw, "timeout", "60s", "Maximum drain wait duration")
+	return cmd
+}
+
+func newMemoryExtractorDisableCommand() *cobra.Command {
+	var sessionID string
+	cmd := newUnsupportedMemoryCommand(
+		"disable --session <id>",
+		"memory.unsupported: extractor disable is not registered in Slice 1 API",
+		cobra.NoArgs,
+	)
+	cmd.Flags().StringVar(&sessionID, "session", "", "Session whose extractor should be disabled")
+	mustMarkFlagRequired(cmd, "session")
+	return cmd
+}
+
+func newMemoryProviderCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "provider",
+		Short: "Operate Memory v2 providers",
+	}
+	cmd.AddCommand(newMemoryProviderListCommand(deps))
+	cmd.AddCommand(newMemoryProviderEnableCommand(deps))
+	cmd.AddCommand(newMemoryProviderDisableCommand(deps))
+	return cmd
+}
+
+func newMemoryProviderListCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List registered Memory v2 providers",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.ListMemoryProviders(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryProviderListBundle(response))
+		},
+	}
+}
+
+func newMemoryProviderEnableCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "enable <name>",
+		Short: "Enable and select one Memory v2 provider",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			name := strings.TrimSpace(args[0])
+			response, err := client.EnableMemoryProvider(
+				cmd.Context(),
+				name,
+				MemoryProviderLifecycleRequest{Name: name},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Provider", response))
+		},
+	}
+}
+
+func newMemoryProviderDisableCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "disable <name>",
+		Short: "Disable one Memory v2 provider",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			name := strings.TrimSpace(args[0])
+			response, err := client.DisableMemoryProvider(
+				cmd.Context(),
+				name,
+				MemoryProviderLifecycleRequest{Name: name},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Provider", response))
+		},
+	}
+}
+
+func newMemoryAdhocCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "adhoc",
+		Short: "Inspect ad-hoc Memory v2 notes",
+	}
+	cmd.AddCommand(newMemoryAdhocListCommand())
+	cmd.AddCommand(
+		newUnsupportedMemoryCommand(
+			"show <slug>",
+			"memory.unsupported: adhoc show is not registered in Slice 1 API",
+			exactOneNonBlankArg(),
+		),
+	)
+	return cmd
+}
+
+func newMemoryAdhocListCommand() *cobra.Command {
+	var flags memorySelectorFlags
+	cmd := newUnsupportedMemoryCommand(
+		"list",
+		"memory.unsupported: adhoc list is not registered in Slice 1 API",
+		cobra.NoArgs,
+	)
+	addMemorySelectorFlags(cmd, &flags)
+	return cmd
+}
+
+func newMemoryDailyUnsupportedSelectorCommand(
+	use string,
+	message string,
+	args cobra.PositionalArgs,
+) *cobra.Command {
+	var flags memorySelectorFlags
+	cmd := newUnsupportedMemoryCommand(use, message, args)
+	addMemorySelectorFlags(cmd, &flags)
+	return cmd
+}
+
+func newMemoryDailyRetentionCommand(use string, message string) *cobra.Command {
+	var olderThan string
+	var dryRun bool
+	cmd := newUnsupportedMemoryCommand(use, message, cobra.NoArgs)
+	cmd.Flags().StringVar(&olderThan, "older-than", "", "Retention age threshold")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show retention work without applying it")
+	return cmd
+}
+
+func newUnsupportedMemoryCommand(use string, message string, args cobra.PositionalArgs) *cobra.Command {
+	return &cobra.Command{
+		Use:   use,
+		Short: "Reserved Memory v2 command",
+		Args:  args,
+		RunE: func(*cobra.Command, []string) error {
+			return errors.New(message)
+		},
+	}
+}
+
+func addMemorySelectorFlags(cmd *cobra.Command, flags *memorySelectorFlags) {
+	cmd.Flags().StringVar(&flags.Scope, "scope", "", "Memory scope: global, workspace, or agent")
+	cmd.Flags().StringVar(&flags.Workspace, "workspace", "", "Workspace ID or path for workspace-bound memory")
+	cmd.Flags().StringVar(&flags.Agent, "agent", "", "Agent name for agent-scoped memory")
+	cmd.Flags().StringVar(&flags.AgentTier, "agent-tier", "", "Agent memory tier: workspace or global")
+}
+
+func resolveMemorySelectorFlags(
+	deps commandDeps,
+	flags memorySelectorFlags,
+	opts memorySelectorOptions,
+) (MemorySelectorQuery, error) {
+	scope, err := parseOptionalCLIMemoryScope(flags.Scope)
+	if err != nil {
+		return MemorySelectorQuery{}, err
+	}
+	agent := strings.TrimSpace(flags.Agent)
+	tier, err := parseOptionalCLIAgentTier(flags.AgentTier)
+	if err != nil {
+		return MemorySelectorQuery{}, err
+	}
+	if scope == "" && (agent != "" || tier != "") {
+		scope = memcontract.ScopeAgent
+	}
+	if scope == "" {
+		scope = opts.DefaultScope
+	}
+	if scope != memcontract.ScopeAgent && (agent != "" || tier != "") {
+		return MemorySelectorQuery{}, errors.New(
+			"memory.scope.agent_flags_invalid: --agent and --agent-tier require --scope agent",
+		)
+	}
+	if scope == memcontract.ScopeAgent {
+		if agent == "" {
+			return MemorySelectorQuery{}, errors.New(
+				"memory.scope.agent_required: --agent is required when --scope agent",
+			)
+		}
+		if tier == "" {
+			return MemorySelectorQuery{}, errors.New(
+				"memory.scope.agent_tier_required: --agent-tier is required when --scope agent",
+			)
+		}
+	}
+
+	workspace := strings.TrimSpace(flags.Workspace)
+	needsWorkspace := scope == memcontract.ScopeWorkspace || (scope == "" && opts.DefaultWorkspace) ||
+		(scope == memcontract.ScopeAgent && tier == memcontract.AgentTierWorkspace)
+	if workspace == "" && needsWorkspace {
+		var err error
+		workspace, err = currentWorkingDirectory(deps)
+		if err != nil {
+			return MemorySelectorQuery{}, err
+		}
+	}
+	return MemorySelectorQuery{
+		Scope:       scope,
+		WorkspaceID: workspace,
+		AgentName:   agent,
+		AgentTier:   tier,
+	}, nil
+}
+
+func parseOptionalCLIMemoryScope(raw string) (memcontract.Scope, error) {
+	scope := memcontract.Scope(strings.TrimSpace(raw)).Normalize()
+	switch scope {
+	case "":
+		return "", nil
+	case memcontract.ScopeGlobal, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
+		return scope, nil
+	default:
+		return "", errors.New("memory.scope.invalid: scope must be one of global, workspace, or agent")
+	}
+}
+
+func parseOptionalCLIAgentTier(raw string) (memcontract.AgentTier, error) {
+	tier := memcontract.AgentTier(strings.TrimSpace(raw)).Normalize()
+	switch tier {
+	case "":
+		return "", nil
+	case memcontract.AgentTierWorkspace, memcontract.AgentTierGlobal:
+		return tier, nil
+	default:
+		return "", errors.New("memory.scope.agent_tier_invalid: agent-tier must be one of workspace or global")
+	}
+}
+
+func parseRequiredMemoryType(raw string) (memcontract.Type, error) {
+	typ, err := parseOptionalMemoryType(raw)
+	if err != nil {
+		return "", err
+	}
+	if typ == "" {
+		return "", errors.New("memory.type_required: --type is required")
+	}
+	return typ, nil
+}
+
+func parseOptionalMemoryType(raw string) (memcontract.Type, error) {
+	typ := memcontract.Type(strings.TrimSpace(raw)).Normalize()
+	if typ == "" {
+		return "", nil
+	}
 	if err := typ.Validate(); err != nil {
 		return "", err
 	}
 	return typ, nil
 }
 
-func resolveCLIMemoryWriteScope(rawScope string, memoryType memory.Type) (memory.Scope, error) {
-	scope, err := parseOptionalCLIMemoryScope(rawScope)
-	if err != nil {
-		return "", err
-	}
-	if scope != "" {
-		return scope, nil
-	}
-	return memory.DefaultScopeForType(memoryType)
-}
-
-func resolveMemoryWriteContent(cmd *cobra.Command, contentFlag string) (string, error) {
+func resolveMemoryContent(cmd *cobra.Command, deps commandDeps, raw string) (string, error) {
+	flag := cmd.Flags().Lookup("content")
+	flagChanged := flag != nil && flag.Changed
 	stdinContent, err := readOptionalCommandInput(cmd.InOrStdin())
 	if err != nil {
 		return "", err
 	}
-
-	flagChanged := cmd.Flags().Lookup("content") != nil && cmd.Flags().Lookup("content").Changed
-	switch {
-	case flagChanged && strings.TrimSpace(stdinContent) != "":
-		return "", errors.New("memory content must be provided via --content or stdin, not both")
-	case flagChanged:
-		if strings.TrimSpace(contentFlag) == "" {
-			return "", errors.New("memory content is required via --content or stdin")
-		}
-		return contentFlag, nil
-	case strings.TrimSpace(stdinContent) != "":
-		return stdinContent, nil
-	default:
-		return "", errors.New("memory content is required via --content or stdin")
+	if flagChanged && strings.TrimSpace(stdinContent) != "" && strings.TrimSpace(raw) != "-" {
+		return "", errors.New("memory.content_conflict: provide memory content via --content or stdin, not both")
 	}
+	if flagChanged {
+		if strings.TrimSpace(raw) == "-" {
+			if strings.TrimSpace(stdinContent) == "" {
+				return "", errors.New("memory.content_required: stdin content is required")
+			}
+			return stdinContent, nil
+		}
+		return resolveMemoryContentValue(deps, raw, cmd.InOrStdin())
+	}
+	if strings.TrimSpace(stdinContent) != "" {
+		return stdinContent, nil
+	}
+	return "", errors.New("memory.content_required: content is required via --content or stdin")
+}
+
+func resolveMemoryContentValue(deps commandDeps, raw string, stdin io.Reader) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", errors.New("memory.content_required: content is required")
+	}
+	if trimmed == "-" {
+		content, err := readOptionalCommandInput(stdin)
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(content) == "" {
+			return "", errors.New("memory.content_required: stdin content is required")
+		}
+		return content, nil
+	}
+	if after, ok := strings.CutPrefix(trimmed, "@"); ok {
+		path := strings.TrimSpace(after)
+		if path == "" {
+			return "", errors.New("memory.content_path_required: @ content path is required")
+		}
+		cleaned := filepath.Clean(path)
+		if !filepath.IsAbs(cleaned) && deps.getwd != nil {
+			wd, err := currentWorkingDirectory(deps)
+			if err != nil {
+				return "", err
+			}
+			cleaned = filepath.Join(wd, cleaned)
+		}
+		data, err := os.ReadFile(cleaned)
+		if err != nil {
+			return "", fmt.Errorf("memory.content_read_failed: read %s: %w", cleaned, err)
+		}
+		if strings.TrimSpace(string(data)) == "" {
+			return "", errors.New("memory.content_required: file content is required")
+		}
+		return string(data), nil
+	}
+	return raw, nil
 }
 
 func readOptionalCommandInput(reader io.Reader) (string, error) {
@@ -675,101 +1384,73 @@ func readOptionalCommandInput(reader io.Reader) (string, error) {
 	return string(data), nil
 }
 
-func memoryWorkspaceForScope(deps commandDeps, scope memory.Scope) (string, error) {
-	if scope != memory.ScopeWorkspace {
-		return "", nil
+func parseMemoryPromotionSelector(
+	deps commandDeps,
+	flags memorySelectorFlags,
+	raw string,
+) (contract.MemoryScopeSelectorPayload, error) {
+	parts := strings.Split(strings.TrimSpace(raw), ":")
+	if len(parts) > 2 || strings.TrimSpace(parts[0]) == "" {
+		return contract.MemoryScopeSelectorPayload{}, errors.New(
+			"memory.promote.selector_invalid: selector must be scope[:tier]",
+		)
 	}
-	return currentWorkingDirectory(deps)
-}
-
-func parseOptionalCLIMemoryScope(raw string) (memory.Scope, error) {
-	scope := memory.Scope(strings.TrimSpace(raw)).Normalize()
-	switch scope {
-	case "":
-		return "", nil
-	case memory.ScopeGlobal, memory.ScopeWorkspace:
-		return scope, nil
-	default:
-		return "", errors.New("memory scope must be one of global or workspace")
-	}
-}
-
-func formatMemoryDocument(
-	filename string,
-	memoryType memory.Type,
-	description string,
-	body string,
-) (string, error) {
-	header := memory.Header{
-		Name:        memoryNameFromFilename(filename),
-		Description: strings.TrimSpace(description),
-		Type:        memoryType,
-	}
-	if err := header.Validate(); err != nil {
-		return "", err
-	}
-
-	metadata, err := yaml.Marshal(header)
+	scope, err := parseOptionalCLIMemoryScope(parts[0])
 	if err != nil {
-		return "", fmt.Errorf("cli: encode memory frontmatter: %w", err)
+		return contract.MemoryScopeSelectorPayload{}, err
 	}
-
-	var buffer bytes.Buffer
-	buffer.WriteString("---\n")
-	buffer.Write(metadata)
-	buffer.WriteString("---\n\n")
-	buffer.WriteString(body)
-	return buffer.String(), nil
-}
-
-func memoryNameFromFilename(filename string) string {
-	base := strings.TrimSuffix(filepath.Base(strings.TrimSpace(filename)), filepath.Ext(strings.TrimSpace(filename)))
-	if base == "" {
-		return ""
+	if scope == "" {
+		return contract.MemoryScopeSelectorPayload{}, errors.New(
+			"memory.promote.selector_invalid: selector scope is required",
+		)
 	}
-
-	normalized := strings.NewReplacer("-", " ", "_", " ", ".", " ").Replace(base)
-	parts := strings.Fields(normalized)
-	for idx, part := range parts {
-		parts[idx] = titleCaseWord(part)
+	promoteFlags := flags
+	promoteFlags.Scope = string(scope)
+	if len(parts) == 2 {
+		promoteFlags.AgentTier = strings.TrimSpace(parts[1])
 	}
-	return strings.Join(parts, " ")
-}
-
-func titleCaseWord(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
+	if scope != memcontract.ScopeAgent {
+		promoteFlags.Agent = ""
+		promoteFlags.AgentTier = ""
 	}
-	if len(trimmed) == 1 {
-		return strings.ToUpper(trimmed)
+	selector, err := resolveMemorySelectorFlags(deps, promoteFlags, memorySelectorOptions{DefaultWorkspace: true})
+	if err != nil {
+		return contract.MemoryScopeSelectorPayload{}, err
 	}
-	return strings.ToUpper(trimmed[:1]) + strings.ToLower(trimmed[1:])
+	return contract.MemoryScopeSelectorPayload{
+		Scope:       selector.Scope,
+		WorkspaceID: selector.WorkspaceID,
+		AgentName:   selector.AgentName,
+		AgentTier:   selector.AgentTier,
+	}, nil
 }
 
 func boolStatus(value bool) string {
 	if value {
-		return "triggered"
+		return toolBoolTrue
 	}
-	return "not-triggered"
+	return toolBoolFalse
 }
 
-func memoryListBundle(locations []memoryLocation, now func() time.Time) outputBundle {
-	items := make([]memoryListItem, 0, len(locations))
-	for _, location := range locations {
+func memoryListBundle(response MemoryListRecord, now func() time.Time) outputBundle {
+	items := make([]memoryListItem, 0, len(response.Memories))
+	for _, memory := range response.Memories {
 		items = append(items, memoryListItem{
-			Filename:    location.Header.Filename,
-			Name:        location.Header.Name,
-			Type:        location.Header.Type,
-			Scope:       location.Scope,
-			Age:         formatAge(now, location.Header.ModTime),
-			Description: location.Header.Description,
-			ModTime:     location.Header.ModTime,
+			Filename:        memory.Filename,
+			Name:            memory.Name,
+			Type:            memory.Type,
+			Scope:           memory.Scope,
+			WorkspaceID:     memory.WorkspaceID,
+			AgentName:       memory.AgentName,
+			AgentTier:       memory.AgentTier,
+			Age:             formatAge(now, memory.ModTime),
+			Description:     memory.Description,
+			StalenessBanner: memory.StalenessBanner,
+			ModTime:         memory.ModTime,
 		})
 	}
-
-	return listBundle(
-		items,
+	bundle := listBundle(
+		response,
 		items,
 		"Memories",
 		[]string{"Filename", "Name", "Type", "Scope", "Age", "Description"},
@@ -780,7 +1461,7 @@ func memoryListBundle(locations []memoryLocation, now func() time.Time) outputBu
 				stringOrDash(item.Filename),
 				stringOrDash(item.Name),
 				stringOrDash(string(item.Type)),
-				stringOrDash(string(item.Scope)),
+				stringOrDash(memoryScopeLabel(item.Scope, item.AgentTier)),
 				stringOrDash(item.Age),
 				stringOrDash(item.Description),
 			}
@@ -790,48 +1471,56 @@ func memoryListBundle(locations []memoryLocation, now func() time.Time) outputBu
 				item.Filename,
 				item.Name,
 				string(item.Type),
-				string(item.Scope),
+				memoryScopeLabel(item.Scope, item.AgentTier),
 				item.Age,
 				item.Description,
 			}
 		},
 	)
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLines(cmd, response.Memories)
+	}
+	return bundle
 }
 
-func memoryReadBundle(view memoryReadView) outputBundle {
+func memoryEntryBundle(response MemoryEntryRecord) outputBundle {
 	return outputBundle{
-		jsonValue: view,
+		jsonValue: response,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, response)
+		},
 		human: func() (string, error) {
-			return strings.TrimRight(view.Content, "\n"), nil
+			return strings.TrimRight(response.Memory.Content, "\n"), nil
 		},
 		toon: func() (string, error) {
+			summary := response.Memory.Summary
 			return renderToonObject("memory", []string{"filename", "scope", "content"}, []string{
-				view.Filename,
-				string(view.Scope),
-				view.Content,
+				summary.Filename,
+				memoryScopeLabel(summary.Scope, summary.AgentTier),
+				response.Memory.Content,
 			}), nil
 		},
 	}
 }
 
-func memorySearchBundle(results []MemorySearchRecord) outputBundle {
-	items := make([]memorySearchItem, 0, len(results))
-	for _, result := range results {
+func memorySearchBundle(response MemorySearchRecord) outputBundle {
+	items := make([]memorySearchItem, 0, len(response.Results))
+	for _, result := range response.Results {
 		items = append(items, memorySearchItem{
-			Filename:    result.Filename,
-			Name:        result.Name,
-			Type:        result.Type,
-			Scope:       result.Scope,
-			Workspace:   result.Workspace,
-			Score:       result.Score,
-			Description: result.Description,
-			Snippet:     result.Snippet,
-			ModTime:     result.ModTime,
+			Filename:      result.Memory.Filename,
+			Name:          result.Memory.Name,
+			Type:          result.Memory.Type,
+			Scope:         result.Memory.Scope,
+			Score:         result.Score,
+			Snippet:       result.Snippet,
+			WhyRecalled:   result.WhyRecalled,
+			ShadowedBy:    result.ShadowedBy,
+			AlreadyShown:  result.AlreadyShown,
+			StalenessNote: result.Memory.StalenessBanner,
 		})
 	}
-
-	return listBundle(
-		items,
+	bundle := listBundle(
+		response,
 		items,
 		"Memory Search",
 		[]string{"Filename", "Name", "Scope", "Score", "Snippet"},
@@ -847,22 +1536,23 @@ func memorySearchBundle(results []MemorySearchRecord) outputBundle {
 			}
 		},
 		func(item memorySearchItem) []string {
-			return []string{
-				item.Filename,
-				item.Name,
-				string(item.Scope),
-				fmt.Sprintf("%.2f", item.Score),
-				item.Snippet,
-			}
+			return []string{item.Filename, item.Name, string(item.Scope), fmt.Sprintf("%.2f", item.Score), item.Snippet}
 		},
 	)
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLines(cmd, response.Results)
+	}
+	return bundle
 }
 
 func memoryHealthBundle(view MemoryHealthRecord) outputBundle {
 	return outputBundle{
 		jsonValue: view,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, view)
+		},
 		human: func() (string, error) {
-			rows := []keyValue{
+			return renderHumanSection("Memory Health", []keyValue{
 				{Label: "Status", Value: stringOrDash(view.Status)},
 				{Label: "Reason", Value: stringOrDash(view.Reason)},
 				{Label: "Enabled", Value: fmt.Sprintf("%t", view.Enabled)},
@@ -873,41 +1563,23 @@ func memoryHealthBundle(view MemoryHealthRecord) outputBundle {
 				{Label: "Workspace Count", Value: fmt.Sprintf("%d", view.WorkspaceCount)},
 				{Label: "Indexed Files", Value: fmt.Sprintf("%d", view.IndexedFiles)},
 				{Label: "Orphaned Files", Value: fmt.Sprintf("%d", view.OrphanedFiles)},
-				{Label: "Last Reindex", Value: stringOrDash(formatMemoryOptionalTime(view.LastReindex))},
 				{Label: "Operation Count", Value: fmt.Sprintf("%d", view.OperationCount)},
 				{Label: "Last Operation", Value: stringOrDash(formatMemoryOptionalTime(view.LastOperationAt))},
 				{Label: "Dream Enabled", Value: fmt.Sprintf("%t", view.DreamEnabled)},
 				{Label: "Dream Agent", Value: stringOrDash(view.DreamAgent)},
-				{Label: "Last Consolidation", Value: stringOrDash(formatMemoryOptionalTime(view.LastConsolidation))},
-			}
-			return renderHumanSection("Memory Health", rows), nil
+			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"memory_health",
-				[]string{
-					"status",
-					"reason",
-					"enabled",
-					"configured",
-					"global_files",
-					"workspace_files",
-					"indexed_files",
-					"orphaned_files",
-					"operation_count",
-					"last_operation_at",
-				},
+				[]string{"status", "enabled", "configured", "global_files", "workspace_files", "operation_count"},
 				[]string{
 					view.Status,
-					view.Reason,
 					fmt.Sprintf("%t", view.Enabled),
 					fmt.Sprintf("%t", view.Configured),
 					fmt.Sprintf("%d", view.GlobalFiles),
 					fmt.Sprintf("%d", view.WorkspaceFiles),
-					fmt.Sprintf("%d", view.IndexedFiles),
-					fmt.Sprintf("%d", view.OrphanedFiles),
 					fmt.Sprintf("%d", view.OperationCount),
-					formatMemoryOptionalTime(view.LastOperationAt),
 				},
 			), nil
 		},
@@ -918,20 +1590,20 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 	items := make([]memoryHistoryItem, 0, len(records))
 	for _, record := range records {
 		items = append(items, memoryHistoryItem{
-			ID:        record.ID,
-			Operation: record.Operation,
-			Scope:     memory.Scope(record.Scope),
-			Workspace: record.Workspace,
-			Filename:  record.Filename,
-			AgentName: record.AgentName,
-			Summary:   record.Summary,
-			Age:       formatAge(now, record.Timestamp),
-			Timestamp: record.Timestamp,
+			ID:          record.ID,
+			Operation:   record.Operation,
+			Scope:       record.Scope,
+			WorkspaceID: record.WorkspaceID,
+			Filename:    record.Filename,
+			AgentName:   record.AgentName,
+			AgentTier:   record.AgentTier,
+			Summary:     record.Summary,
+			Age:         formatAge(now, record.Timestamp),
+			Timestamp:   record.Timestamp,
 		})
 	}
-
 	return listBundle(
-		items,
+		contract.MemoryOperationHistoryResponse{Operations: records},
 		items,
 		"Memory History",
 		[]string{"Time", "Operation", "Scope", "Filename", "Summary"},
@@ -940,8 +1612,8 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 		func(item memoryHistoryItem) []string {
 			return []string{
 				stringOrDash(formatTime(item.Timestamp)),
-				stringOrDash(item.Operation),
-				stringOrDash(string(item.Scope)),
+				stringOrDash(string(item.Operation)),
+				stringOrDash(memoryScopeLabel(item.Scope, item.AgentTier)),
 				stringOrDash(item.Filename),
 				stringOrDash(item.Summary),
 			}
@@ -949,8 +1621,8 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 		func(item memoryHistoryItem) []string {
 			return []string{
 				formatTime(item.Timestamp),
-				item.Operation,
-				string(item.Scope),
+				string(item.Operation),
+				memoryScopeLabel(item.Scope, item.AgentTier),
 				item.Filename,
 				item.Summary,
 			}
@@ -958,47 +1630,62 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 	)
 }
 
-func memoryMutationBundle(view memoryMutationView) outputBundle {
+func memoryMutationBundle(title string, response MemoryMutationRecord) outputBundle {
+	return memoryDecisionBundle(title, response.Decision, response)
+}
+
+func memoryDeleteBundle(response MemoryDeleteRecord) outputBundle {
+	return memoryDecisionBundle("Memory Delete", response.Decision, response)
+}
+
+func memoryPromoteBundle(response MemoryPromoteRecord) outputBundle {
+	return memoryDecisionBundle("Memory Promote", response.Decision, response)
+}
+
+func memoryDecisionRevertBundle(response MemoryDecisionRevertRecord) outputBundle {
+	return memoryDecisionBundle("Memory Decision Revert", response.Decision, response)
+}
+
+func memoryDecisionBundle(title string, decision contract.MemoryDecisionPayload, jsonValue any) outputBundle {
 	return outputBundle{
-		jsonValue: view,
+		jsonValue: jsonValue,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, jsonValue)
+		},
 		human: func() (string, error) {
-			rows := []keyValue{
-				{Label: "Filename", Value: stringOrDash(view.Filename)},
-				{Label: "Scope", Value: stringOrDash(string(view.Scope))},
-				{Label: "Type", Value: stringOrDash(string(view.Type))},
-				{Label: "Status", Value: stringOrDash(view.Status)},
-			}
-			if strings.TrimSpace(view.Reason) != "" {
-				rows = append(rows, keyValue{Label: "Reason", Value: view.Reason})
-			}
-			return renderHumanSection("Memory", rows), nil
+			return renderHumanSection(title, []keyValue{
+				{Label: "Decision ID", Value: stringOrDash(decision.ID)},
+				{Label: "Operation", Value: stringOrDash(string(decision.Op))},
+				{Label: "Scope", Value: stringOrDash(memoryScopeLabel(decision.Scope, decision.AgentTier))},
+				{Label: "Filename", Value: stringOrDash(decision.TargetFilename)},
+				{Label: "Confidence", Value: fmt.Sprintf("%.2f", decision.Confidence)},
+				{Label: "Source", Value: stringOrDash(string(decision.Source))},
+				{Label: "Reason", Value: stringOrDash(decision.Reason)},
+			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("memory", []string{"filename", "scope", "type", "status", "reason"}, []string{
-				view.Filename,
-				string(view.Scope),
-				string(view.Type),
-				view.Status,
-				view.Reason,
+			return renderToonObject("memory_decision", []string{"id", "op", "scope", "filename", "reason"}, []string{
+				decision.ID,
+				string(decision.Op),
+				memoryScopeLabel(decision.Scope, decision.AgentTier),
+				decision.TargetFilename,
+				decision.Reason,
 			}), nil
 		},
 	}
 }
 
-func formatMemoryOptionalTime(value *time.Time) string {
-	if value == nil {
-		return ""
-	}
-	return formatTime(*value)
-}
-
-func memoryReindexBundle(view memoryReindexView) outputBundle {
+func memoryReindexBundle(view MemoryReindexRecord) outputBundle {
 	return outputBundle{
 		jsonValue: view,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, view)
+		},
 		human: func() (string, error) {
 			return renderHumanSection("Memory Reindex", []keyValue{
-				{Label: "Scope", Value: stringOrDash(string(view.Scope))},
-				{Label: "Workspace", Value: stringOrDash(view.Workspace)},
+				{Label: "Scope", Value: stringOrDash(memoryScopeLabel(view.Scope, view.AgentTier))},
+				{Label: "Workspace ID", Value: stringOrDash(view.WorkspaceID)},
+				{Label: "Agent", Value: stringOrDash(view.AgentName)},
 				{Label: "Indexed Files", Value: fmt.Sprintf("%d", view.IndexedFiles)},
 				{Label: "Completed At", Value: view.CompletedAt.Format(time.RFC3339)},
 			}), nil
@@ -1006,14 +1693,135 @@ func memoryReindexBundle(view memoryReindexView) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"memory_reindex",
-				[]string{"scope", "workspace", "indexed_files", "completed_at"},
+				[]string{"scope", "workspace_id", "agent_name", "indexed_files", "completed_at"},
 				[]string{
-					string(view.Scope),
-					view.Workspace,
+					memoryScopeLabel(view.Scope, view.AgentTier),
+					view.WorkspaceID,
+					view.AgentName,
 					fmt.Sprintf("%d", view.IndexedFiles),
 					view.CompletedAt.Format(time.RFC3339),
 				},
 			), nil
 		},
 	}
+}
+
+func memoryScopeShowBundle(response MemoryScopeShowRecord) outputBundle {
+	return memoryObjectBundle("Memory Scope", response)
+}
+
+func memoryDecisionListBundle(response MemoryDecisionListRecord) outputBundle {
+	bundle := memoryObjectBundle("Memory Decisions", response)
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLines(cmd, response.Decisions)
+	}
+	return bundle
+}
+
+func memoryDreamTriggerBundle(response MemoryDreamTriggerRecord) outputBundle {
+	return outputBundle{
+		jsonValue: response,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, response)
+		},
+		human: func() (string, error) {
+			return renderHumanSection("Memory Dream Trigger", []keyValue{
+				{Label: "Triggered", Value: boolStatus(response.Triggered)},
+				{Label: "Status", Value: stringOrDash(string(response.Dream.Status))},
+				{Label: "Scope", Value: stringOrDash(memoryScopeLabel(response.Dream.Scope, response.Dream.AgentTier))},
+				{Label: "Reason", Value: stringOrDash(response.Reason)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"memory_dream_trigger",
+				[]string{"triggered", "status", "scope", "reason"},
+				[]string{
+					boolStatus(response.Triggered),
+					string(response.Dream.Status),
+					memoryScopeLabel(response.Dream.Scope, response.Dream.AgentTier),
+					response.Reason,
+				},
+			), nil
+		},
+	}
+}
+
+func memoryDreamListBundle(response MemoryDreamListRecord) outputBundle {
+	bundle := memoryObjectBundle("Memory Dreams", response)
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLines(cmd, response.Dreams)
+	}
+	return bundle
+}
+
+func memoryProviderListBundle(response MemoryProviderListRecord) outputBundle {
+	bundle := listBundle(
+		response,
+		response.Providers,
+		"Memory Providers",
+		[]string{"Name", "Status", "Active", "Builtin", "Failure Count"},
+		"providers",
+		[]string{"name", "status", "active", "builtin", "failure_count"},
+		func(item contract.MemoryProviderPayload) []string {
+			return []string{
+				stringOrDash(item.Name),
+				stringOrDash(string(item.Status)),
+				boolStatus(item.Active),
+				boolStatus(item.Builtin),
+				fmt.Sprintf("%d", item.FailureCount),
+			}
+		},
+		func(item contract.MemoryProviderPayload) []string {
+			return []string{
+				item.Name,
+				string(item.Status),
+				boolStatus(item.Active),
+				boolStatus(item.Builtin),
+				fmt.Sprintf("%d", item.FailureCount),
+			}
+		},
+	)
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLines(cmd, response.Providers)
+	}
+	return bundle
+}
+
+func memoryObjectBundle(title string, value any) outputBundle {
+	return outputBundle{
+		jsonValue: value,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, value)
+		},
+		human: func() (string, error) {
+			data, err := json.MarshalIndent(value, "", "  ")
+			if err != nil {
+				return "", fmt.Errorf("cli: render %s: %w", title, err)
+			}
+			return renderHumanBlocks(title, string(data)), nil
+		},
+		toon: func() (string, error) {
+			data, err := json.Marshal(value)
+			if err != nil {
+				return "", fmt.Errorf("cli: render %s toon: %w", title, err)
+			}
+			return renderToonObject("memory", []string{"payload"}, []string{string(data)}), nil
+		},
+	}
+}
+
+func memoryScopeLabel(scope memcontract.Scope, tier memcontract.AgentTier) string {
+	normalized := scope.Normalize()
+	if normalized == memcontract.ScopeAgent && tier.Normalize() != "" {
+		return string(normalized) + ":" + string(tier.Normalize())
+	}
+	return string(normalized)
+}
+
+func formatMemoryOptionalTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return formatTime(*value)
 }

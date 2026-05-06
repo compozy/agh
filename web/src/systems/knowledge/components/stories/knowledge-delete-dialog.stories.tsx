@@ -17,7 +17,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <KnowledgeDeleteDialog
-      filename="workspace/project-context.md"
+      filename="project-context.md"
       isPending={false}
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
@@ -30,7 +30,7 @@ export const Default: Story = {
 export const PendingDelete: Story = {
   render: () => (
     <KnowledgeDeleteDialog
-      filename="global/user-role.md"
+      filename="user-role.md"
       isPending
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
@@ -46,7 +46,7 @@ export const ConfirmSubmits: Story = {
     const onConfirm = fn();
     return (
       <KnowledgeDeleteDialog
-        filename="workspace/project-context.md"
+        filename="project-context.md"
         isPending={false}
         onConfirm={onConfirm}
         onOpenChange={() => undefined}

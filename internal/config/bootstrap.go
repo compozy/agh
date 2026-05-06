@@ -57,7 +57,7 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 	dreamAgent := ""
 	if strings.TrimSpace(current.Memory.Dream.Agent) == "" ||
 		strings.TrimSpace(current.Memory.Dream.Agent) == legacyDreamAgentName {
-		dreamAgent = DefaultAgentName
+		dreamAgent = DefaultMemoryDreamAgentName
 	}
 
 	return EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {

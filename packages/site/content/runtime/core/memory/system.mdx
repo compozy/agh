@@ -1,230 +1,366 @@
 ---
 title: Memory System
-description: How AGH stores persistent memory, injects memory indexes into prompts, and exposes memory files through CLI and API surfaces.
+description: How AGH stores curated Markdown memory, captures a frozen snapshot at session start, and routes every write through the controller WAL.
 ---
 
-AGH memory is persistent Markdown that survives across sessions. It is designed for durable facts
-that future agents should be able to discover without replaying every old transcript.
+AGH memory is curated Markdown that survives across sessions. It is designed for durable facts that
+future agents should be able to discover without replaying every old transcript.
 
-The current implementation is intentionally small:
+The current implementation is intentionally hybrid:
 
-- memory is file-based, not stored in SQLite
-- there are two scopes: global and workspace
-- each scope has a `MEMORY.md` index
-- only indexes are injected into startup prompts
-- full memory files are read on demand with `agh memory read`
+- curated semantic memory (`user`, `feedback`, `project`, `reference`) is **Markdown-authoritative**
+  on disk
+- `memory_decisions` is a per-database write-ahead log: every controller decision lands there
+  before any file mutation
+- `memory_events` is the canonical observability log for memory operations
+- `memory_catalog_entries`, `memory_chunks`, and FTS5 indexes are derived projections
+- `memory_recall_signals` and `memory_consolidations` carry live runtime state for dreaming
+- there are three scopes: `global`, `workspace`, and `agent` — agent has two tiers
+- only the **frozen startup snapshot** is injected into prompts; new writes become visible to the
+  next session
 
 <OperatorNote>
-  RFC 001 describes future agent-scoped memory fields in `AGENT.md`. The current runtime does not
-  support those fields. Use global and workspace memory today.
+  Memory v2 is the only memory subsystem. There is no `[memory.v2] enabled` flag and no legacy
+  two-scope mode. If you used `agh memory read` or `agh memory consolidate` previously, the
+  replacement verbs are `agh memory show` and `agh memory dream trigger`.
 </OperatorNote>
 
 ## Runtime Flow
 
 <Mermaid
   chart={`flowchart TD
-SessionStart[Session starts] --> PromptAssembly[Prompt assembly]
-PromptAssembly --> GlobalIndex[Load global MEMORY.md]
-PromptAssembly --> WorkspaceIndex[Load workspace MEMORY.md]
-GlobalIndex --> StartupPrompt[Startup system prompt]
-WorkspaceIndex --> StartupPrompt
+SessionStart[Session starts] --> Snapshot[Frozen snapshot]
+Snapshot --> Recall[Deterministic recall packaging]
+Snapshot --> StartupPrompt[Startup system prompt]
 StartupPrompt --> Agent[Agent works]
-Agent --> WriteMemory[agh memory write]
-WriteMemory --> MemoryFiles[Markdown memory files]
-MemoryFiles --> Dream[Dream consolidation]
-Dream --> Indexes[Updated memory files and indexes]
-Indexes --> NextSession[Next session sees refreshed indexes]`}
-  caption="AGH gives each new session a frozen memory snapshot by loading prompt-safe indexes at startup. Later writes affect future sessions."
+Agent --> Extractor[Async extractor on session.message_persisted]
+Extractor --> Controller[Write controller]
+Agent --> Tools[CLI / HTTP / UDS / native tools]
+Tools --> Controller
+Controller --> WAL[memory_decisions WAL]
+WAL --> Files[Curated Markdown files]
+WAL --> Events[memory_events]
+Files --> Catalog[Catalog + FTS5 + chunks]
+Files --> NextSession[Next session sees the new snapshot]`}
+  caption="Every write — operator, agent, extractor, dreaming — goes through the controller. The WAL is durable before the file lands; the catalog is rebuilt from the file."
 />
 
-Memory is not streamed into an already-running process. When a session starts, AGH loads the global
-and workspace indexes, prepends them to the agent prompt, and hands that assembled prompt to the ACP
-subprocess. New memory written during the session becomes visible to the next session.
+Memory is not streamed into an already-running process. When a session starts, AGH captures a
+**frozen snapshot** of the resolved scopes, packages a recall block, prepends the assembled memory
+section to the agent prompt, and hands that prompt to the ACP subprocess. Writes during the session
+are durable immediately but only become visible to the **next** session via a fresh snapshot.
+
+## Scopes And Authorities
+
+| Scope                 | Storage root                              | Authority                                                    |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `global`              | `$AGH_HOME/memory/`                       | Cross-workspace user-wide facts.                             |
+| `workspace`           | `<workspace>/.agh/memory/`                | Workspace-private project facts.                             |
+| `agent` (`workspace`) | `<workspace>/.agh/agents/<agent>/memory/` | Default agent tier. Workspace-private agent state.           |
+| `agent` (`global`)    | `$AGH_HOME/agents/<agent>/memory/`        | Cross-workspace agent state. Explicit `--agent-tier global`. |
+
+Read precedence is `agent-workspace ▸ agent-global ▸ workspace ▸ global`. Identity is keyed by
+`(type, slug)` per scope, and a deeper scope shadows a shallower scope with the same identity. The
+runtime never silently merges shadowed entries — see [Scopes](/runtime/core/memory/scopes).
+
+Scope is selected explicitly. `--scope agent` requires `--agent <name>` and a validated
+`--agent-tier {workspace, global}`; the agent tier defaults to `workspace` when omitted. CLI/HTTP/UDS
+operator writes that omit `--scope` fall back to a conservative type-driven default for the
+non-agent scopes only: `user` and `feedback` → `global`, `project` and `reference` → `workspace`.
+Agent scope must be explicit.
+
+## Workspace Identity
+
+Workspace memory is keyed by a stable ULID stored in `<workspace>/.agh/workspace.toml`:
+
+```toml
+workspace_id = "01HXJ9YR4Q..."
+created_at   = "2026-05-04T14:30:00Z"
+realpath_at_creation = "/Users/you/dev/checkout-api"
+```
+
+The runtime resolves the workspace by walking ancestors for `.agh/workspace.toml`, reads the ULID,
+and uses that as the durable identity for catalog rows, events, decisions, dreaming runs, and
+session ledgers. Path-keyed memory is gone — moving the workspace directory does not orphan its
+memory because the ULID travels with the directory. See
+[Workspace Resolver](/runtime/core/workspaces/resolver) for the lookup cascade.
 
 ## Four Memory Types
 
-Every memory file has one of four types. The type also determines the default write scope when you
-do not pass `--scope`.
+Every curated memory file declares one of four types:
 
-| Type        | Default scope | Use it for                                                                         | Example                                                                   |
-| ----------- | ------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `user`      | global        | Stable user preferences, working style, or recurring personal context.             | "Prefer concise PR summaries with risk and test notes."                   |
-| `feedback`  | global        | Repeated corrections, review guidance, and quality signals that apply across work. | "Do not weaken tests to match broken behavior."                           |
-| `project`   | workspace     | Decisions, constraints, active architecture, and local project facts.              | "This repo keeps docs site pages under `packages/site/content/runtime/`." |
-| `reference` | workspace     | External references, runbooks, links, or system facts worth re-reading on demand.  | "Production logs live in the hosted provider console, not local files."   |
+| Type        | Use it for                                                                         | Example                                                                   |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `user`      | Stable user preferences, working style, or recurring personal context.             | "Prefer concise PR summaries with risk and test notes."                   |
+| `feedback`  | Repeated corrections, review guidance, and quality signals that apply across work. | "Do not weaken tests to match broken behavior."                           |
+| `project`   | Decisions, constraints, active architecture, and local project facts.              | "This repo keeps docs site pages under `packages/site/content/runtime/`." |
+| `reference` | External references, runbooks, links, or system facts worth re-reading on demand.  | "Production logs live in the hosted provider console, not local files."   |
 
-The taxonomy is closed. Unsupported types are rejected.
+The taxonomy is closed. Unsupported types are rejected at the controller boundary.
 
 ## Memory File Format
 
-Memory files are Markdown files with strict YAML frontmatter.
+Memory files are Markdown with strict YAML frontmatter. The canonical YAML key for the agent name
+is `agent`; JSON and HTTP payloads use `agent_name`.
 
-Required fields:
+| Field         | Required when        | Meaning                                                                |
+| ------------- | -------------------- | ---------------------------------------------------------------------- |
+| `name`        | yes                  | Human-readable title shown in list output and useful in index entries. |
+| `description` | yes                  | One concise discovery sentence used by recall and indexing.            |
+| `type`        | yes                  | One of `user`, `feedback`, `project`, or `reference`.                  |
+| `scope`       | yes                  | One of `global`, `workspace`, `agent`.                                 |
+| `agent`       | when `scope = agent` | Producer agent name.                                                   |
+| `agent_tier`  | when `scope = agent` | One of `workspace`, `global`.                                          |
+| `provenance`  | optional             | Source actor, source sessions, confidence, supersession, timestamps.   |
 
-| Field         | Required                                     | Meaning                                                                |
-| ------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
-| `name`        | yes                                          | Human-readable title shown in list output and useful in index entries. |
-| `type`        | yes                                          | One of `user`, `feedback`, `project`, or `reference`.                  |
-| `description` | no for the store, required by the CLI writer | One concise discovery sentence.                                        |
-| `agent_name`  | no                                           | Optional producer hint for team memory and audits.                     |
-
-Example `user` memory:
-
-```text
----
-name: Review Style
-description: User wants concise review findings with file references first
-type: user
----
-
-When reviewing code, put blocking findings first and cite the file path and symbol. Keep summaries
-short unless the user asks for deeper explanation.
-```
-
-Example `feedback` memory:
+Example `feedback` memory written through the controller:
 
 ```text
 ---
 name: Test Integrity
 description: Production bugs must be fixed instead of weakening tests
 type: feedback
+scope: global
+provenance:
+  source_actor: extractor
+  source_sessions:
+    - 01J7VR2Q8MZ4FXWZ8WB7M2A4S0
+  confidence: high
+  created_at: 2026-04-12T14:32:11Z
+  updated_at: 2026-04-12T14:32:11Z
 ---
 
 If a test reveals incorrect behavior, fix the production code. Do not relax assertions just to make
 the suite green.
 ```
 
-Example `project` memory:
+## Storage Layout
+
+Each scope has a `MEMORY.md` index next to its memory documents and a structurally-excluded
+`_system/` namespace for machine-managed artifacts:
 
 ```text
----
-name: Runtime Docs Location
-description: Runtime documentation pages live in the Fumadocs runtime collection
-type: project
-agent_name: codex
----
-
-AGH runtime docs are authored under `packages/site/content/runtime/` and build to `/runtime/*`.
-Protocol pages live in a separate `/protocol/*` collection.
-```
-
-Example `reference` memory:
-
-```text
----
-name: Session Events API
-description: Stored session events are available through the stream endpoint
-type: reference
----
-
-Use `GET /api/sessions/:id/stream` for persisted SSE replay. Use `agh session events <id>` when
-working from the CLI.
-```
-
-## MEMORY.md Indexes
-
-Each scope can include a `MEMORY.md` file next to the memory documents:
-
-```text
-~/.agh/memory/
+$AGH_HOME/memory/
   MEMORY.md
-  review-style.md
-  test-integrity.md
+  user_review-style.md
+  feedback_test-integrity.md
+  _inbox/                        # extractor staging (operator-quiet)
+  _system/
+    dreaming/
+    extractor/
+    extractor/failures/
+    ad_hoc/
 
 <workspace>/.agh/memory/
   MEMORY.md
-  runtime-docs-location.md
-  session-events-api.md
+  project_runtime-docs.md
+  reference_session-events.md
+  _system/
+    dreaming/
+    ...
+
+<workspace>/.agh/agents/<agent>/memory/
+  MEMORY.md
+  user_pedro-style.md
+  _system/
+    ...
 ```
 
-The index is the prompt-safe table of contents. AGH reads it at session start and injects it into
-the prompt. A useful index entry is short and points to one file:
+`_system/` is reserved. Curated indexing skips it, recall filters it out by default, and the
+controller rejects any write that would land directly in a top-level `_system_*.md` file. Operators
+can browse `_system/` artifacts explicitly with `--include-system` on `list`/`show`/`search`/etc.
+
+## The Write Controller
+
+Every write — CLI, HTTP, UDS, native tool, extractor, dreaming, file-watcher, provider — passes
+through the controller:
+
+1. Caller submits a `Candidate { workspace_id, scope, agent, agent_tier, origin, frontmatter, content, ... }`.
+2. The controller computes a deterministic **decision** with rule-first lexical+entity-slot logic; an
+   LLM tiebreaker runs only when the rule trace falls in the configured ambiguity band.
+3. The decision is persisted to `memory_decisions` (per-database WAL) **before** any file mutation,
+   carrying full replay material: `target_filename`, `frontmatter`, `post_content`,
+   `post_content_hash`, `prior_content` (for update/delete), `idempotency_key`, and the rule/LLM
+   trace.
+4. The file mutation lands atomically; the catalog reindexes the affected file; a canonical
+   `memory_events` row is appended.
+5. On crash, daemon boot replays unapplied decisions in `decided_at` order. Replay is idempotent by
+   `idempotency_key` and `post_content_hash`.
+
+There is exactly one write path. Controller-bypassing tools are forbidden; provider-supplied tools
+that collide with reserved names are rejected at registration with a `memory.provider.collision`
+event.
+
+## Frozen Snapshot And Recall
+
+At session start, AGH captures a **frozen snapshot** of the resolved memory context (global,
+workspace, and the agent's two tiers when applicable). The snapshot includes:
+
+- the per-scope `MEMORY.md` index after staleness banners
+- a packaged recall block produced by the deterministic recall pipeline (FTS5 unicode + trigram,
+  scope shadow, top-K) when a contextual query is available
+- a freshness banner for entries whose age exceeds `memory.recall.freshness.banner_after_days`
+
+The snapshot is captured once per session and **does not** mutate mid-session. Sub-agent sessions
+inherit the parent snapshot read-only. Manual writes during the session land in the WAL and on
+disk, but the running session keeps its captured prompt; the **next** session sees a fresh
+snapshot.
+
+`_system/` artifacts are never injected into the prompt by default. Recall skips ledger files,
+extractor inbox/DLQ artifacts, and dreaming output unless the caller explicitly opts in.
+
+## Operator And Agent Surfaces
+
+Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice 1 verbs are:
+
+| Capability         | CLI                                                            | HTTP / UDS                                                                | Native tool           |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------- |
+| List entries       | `agh memory list`                                              | `GET /api/memory`                                                         | `agh__memory_list`    |
+| Show one entry     | `agh memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `agh__memory_show`    |
+| Search recall      | `agh memory search <query>`                                    | `POST /api/memory/search`                                                 | `agh__memory_search`  |
+| Operator write     | `agh memory write`                                             | `POST /api/memory`                                                        | n/a                   |
+| Edit               | `agh memory edit <filename>`                                   | `PATCH /api/memory/{filename}`                                            | `agh__memory_propose` |
+| Delete             | `agh memory delete <filename>`                                 | `DELETE /api/memory/{filename}`                                           | `agh__memory_propose` |
+| Agent proposal     | n/a                                                            | controller-backed via `POST /api/memory` / `PATCH /api/memory/{filename}` | `agh__memory_propose` |
+| Ad-hoc note        | n/a                                                            | `POST /api/memory/ad-hoc`                                                 | `agh__memory_note`    |
+| Dream trigger      | `agh memory dream trigger`                                     | `POST /api/memory/dreams/trigger`                                         | n/a                   |
+| Dream listing      | `agh memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | n/a                   |
+| Dream retry        | `agh memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | n/a                   |
+| Dream status       | `agh memory dream status`                                      | `GET /api/memory/dreams/status`                                           | n/a                   |
+| Decisions list     | `agh memory decisions list`                                    | `GET /api/memory/decisions`                                               | n/a                   |
+| Decision detail    | `agh memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | n/a                   |
+| Decision revert    | `agh memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | n/a                   |
+| Recall trace       | `agh memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | n/a                   |
+| History            | `agh memory history`                                           | `GET /api/memory/history`                                                 | n/a                   |
+| Health             | `agh memory health`                                            | `GET /api/memory/health`                                                  | n/a                   |
+| Config metadata    | n/a                                                            | `GET /api/memory/config`                                                  | n/a                   |
+| Reindex            | `agh memory reindex`                                           | `POST /api/memory/reindex`                                                | n/a                   |
+| Promote            | `agh memory promote --from <scope[:tier]> --to <scope[:tier]>` | `POST /api/memory/promote`                                                | n/a                   |
+| Reset              | `agh memory reset`                                             | `POST /api/memory/reset`                                                  | n/a                   |
+| Reload snapshot    | `agh memory reload`                                            | `POST /api/memory/reload`                                                 | n/a                   |
+| Scope inspector    | `agh memory scope-show`                                        | `GET /api/memory/scope-show`                                              | n/a                   |
+| Daily logs         | `agh memory daily ls`                                          | `GET /api/memory/daily`                                                   | n/a                   |
+| Extractor status   | `agh memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | n/a                   |
+| Extractor failures | `agh memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | n/a                   |
+| Extractor replay   | `agh memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | n/a                   |
+| Extractor drain    | `agh memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | n/a                   |
+| Provider list      | `agh memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | n/a                   |
+| Provider select    | n/a                                                            | `POST /api/memory/providers/select`                                       | n/a                   |
+| Provider enable    | `agh memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | n/a                   |
+| Provider disable   | `agh memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | n/a                   |
+| Session ledger     | n/a                                                            | `GET /api/memory/sessions/{session_id}/ledger`                            | n/a                   |
+| Session replay     | n/a                                                            | `POST /api/memory/sessions/{session_id}/replay`                           | n/a                   |
+| Session prune      | n/a                                                            | `POST /api/memory/sessions/prune`                                         | n/a                   |
+| Session repair     | n/a                                                            | `POST /api/memory/sessions/repair`                                        | n/a                   |
+
+`agh__memory_propose` and `agh__memory_note` are the only native write surfaces; both route through
+the controller. There is no `agh__memory_read`, no `memory_history` tool, no `agh memory read`, and
+no `agh memory consolidate` in this slice — the renamed verbs above own the same intent.
+
+CLI verbs accept `-o json` and `-o jsonl` for structured output. Errors are deterministic
+`{code, message, details}` payloads with stable codes such as `memory.scope.invalid`,
+`memory.controller.timeout`, and `memory.provider.collision`.
+
+## MEMORY.md Indexes
+
+The per-scope `MEMORY.md` is the prompt-safe table of contents. AGH reads it inside the snapshot,
+caps it at `[memory.file] max_lines = 200` and `max_bytes = 25600`, and includes the entries that
+fit. Useful index entries are short and point to one file:
 
 ```markdown
-- [Review Style](review-style.md) - User wants concise review findings with file references first.
-- [Runtime Docs Location](runtime-docs-location.md) - Runtime docs live under `packages/site/content/runtime/`.
+- [Review Style](user_review-style.md) — User wants concise review findings with file references first.
+- [Runtime Docs Location](project_runtime-docs.md) — Runtime docs live under `packages/site/content/runtime/`.
 ```
 
-Index behavior:
+| Behavior            | Current implementation                                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Missing `MEMORY.md` | AGH synthesizes an index from memory-file frontmatter for that scope and warns when an existing index is stale.                     |
+| Prompt limits       | Index injection is capped by `[memory.file] max_lines` and `max_bytes`.                                                             |
+| Write behavior      | Controller writes the file, updates the WAL, reindexes the catalog, and re-renders the scope index so new entries are discoverable. |
+| Delete behavior     | Deleting a memory file also removes index lines that link to that filename and emits `memory.write.committed` with op `delete`.     |
+| Full entry content  | Not injected. Agents fetch full entries on demand with `agh memory show <filename>` or `agh__memory_show`.                          |
 
-| Behavior            | Current implementation                                                                                                        |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Missing `MEMORY.md` | AGH synthesizes an index from memory-file frontmatter for that scope and can warn when an existing index is stale.            |
-| Prompt limits       | Loaded indexes are capped at 200 lines and 25 KB before injection.                                                            |
-| Write behavior      | `agh memory write` validates the memory file, writes it, and synchronizes the scope index so new entries become discoverable. |
-| Delete behavior     | Deleting a memory file also removes index lines that link to that filename.                                                   |
-| Full file content   | Not injected. Agents read full files on demand with `agh memory read <filename>`.                                             |
+## Observability
 
-Dream consolidation is the normal way to tighten memory files over time. Manual writes and deletes
-still keep the index synchronized so the next session can discover changed memories.
+Every controller decision and recall outcome is observable.
 
-## Operator Visibility
+| Surface                                                 | Use it for                                                                                                                                         |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agh memory health`                                     | Enabled state, controller backlog, provider circuit state, dreaming gate status, and per-scope catalog/file counts.                                |
+| `agh memory decisions list`                             | The Slice 1 truthful audit log: every committed/rejected/shadowed/reverted controller decision with redaction-safe traces.                         |
+| `agh memory recall trace <session_id> <turn_seq>`       | The deterministic recall pipeline trace for a specific session turn: candidate set, scoring weights, freshness banners, and shadow-by-id outcomes. |
+| `GET /api/memory/health`                                | Same data as `agh memory health` over HTTP/UDS.                                                                                                    |
+| `GET /api/memory/decisions`                             | Same data as `agh memory decisions list` with redaction-safe payloads (no `post_content`, `prior_content`, or raw LLM responses on the wire).      |
+| `GET /api/memory/recall-traces/{session_id}/{turn_seq}` | Same data as `agh memory recall trace` over HTTP/UDS.                                                                                              |
 
-Memory has two operator-facing visibility surfaces:
+`memory_events` rows have stable canonical op names (`memory.write.committed`,
+`memory.write.rejected`, `memory.recall.executed`, `memory.dream.run.promoted`,
+`memory.extractor.completed`, `memory.provider.collision`, etc.). They are queryable through the
+event store and feed `agh memory health` and the web Memory inspector.
 
-| Surface              | Use it for                                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agh memory health`  | Inspect enabled/configured state, global and workspace file counts, catalog health, recent operation counts, and dream consolidation state. |
-| `agh memory history` | Inspect recent memory writes, deletes, searches, and reindex operations with scope, workspace, filename, and redacted summaries.            |
+`agh memory history` returns the same audit material in the legacy summary shape as a thin
+compatibility view over `memory_events`. Use `agh memory decisions list` when you need
+controller-level detail.
 
-The same typed data is available through `GET /api/memory/health` and
-`GET /api/memory/history`. History output is intentionally bounded and redacted before it is
-returned to CLI or API clients.
+## Basic Usage
 
-These visibility surfaces do not change prompt assembly. Runtime prompts still receive only the
-startup memory index snapshot described above; future context-reference and provider-hook support
-will be integrated by a separate runtime task.
-
-## Prompt Injection
-
-When memory is enabled, AGH prepends a `# Persistent Memory` section to the startup prompt. That
-section can include:
-
-1. Global `MEMORY.md` index
-2. Workspace `MEMORY.md` index
-3. The four-type taxonomy
-4. A short command guide for `agh memory list`, `agh memory read`, and `agh memory write`
-5. A staleness warning policy
-
-This memory block is assembled before the agent's `AGENT.md` body. The skills catalog is appended
-after the base prompt when skills are enabled, so memory gives the agent durable context before it
-starts applying reusable skills.
-
-## Basic usage
-
-Write a global preference:
+Write a global preference (operator-only):
 
 ```bash
-agh memory write review-style.md \
+agh memory write \
+  --scope global \
   --type user \
+  --name "Review Style" \
   --description "User wants concise review findings with file references first" \
   --content "Put blocking findings first. Cite file paths and symbols."
 ```
 
-Write a workspace decision:
+Write a workspace decision in the current workspace:
 
 ```bash
-agh memory write runtime-docs-location.md \
+agh memory write \
+  --scope workspace \
   --type project \
+  --name "Runtime Docs Location" \
   --description "Runtime docs live in the Fumadocs runtime collection" \
   --content 'Runtime docs are authored under `packages/site/content/runtime/` and build to `/runtime/*`.'
 ```
 
-List memories:
+Write to a specific agent tier:
+
+```bash
+agh memory write \
+  --scope agent \
+  --agent reviewer \
+  --agent-tier global \
+  --type feedback \
+  --name "Reviewer Tone" \
+  --description "Reviewer keeps findings short and actionable" \
+  --content "Lead with the blocker. Cite file:line. Keep lists tight."
+```
+
+List and show:
 
 ```bash
 agh memory list
+agh memory show project_runtime-docs.md --scope workspace
 ```
 
-Read the full file when an index entry looks relevant:
+Search recall:
 
 ```bash
-agh memory read runtime-docs-location.md --scope workspace
+agh memory search "review tone" --scope agent --agent reviewer --agent-tier global
+```
+
+Trigger a gated dreaming pass:
+
+```bash
+agh memory dream trigger
 ```
 
 ## Related Pages
 
-- [Scopes](/runtime/core/memory/scopes) explains global and workspace storage rules.
-- [Dream Consolidation](/runtime/core/memory/dream) explains automatic cleanup and index tightening.
+- [Scopes](/runtime/core/memory/scopes) explains scope selection, agent-tier rules, and shadowing.
+- [Dream](/runtime/core/memory/dream) explains gates, signals, and what `dream trigger` actually changes.
 - [Memory Best Practices](/runtime/core/memory/best-practices) gives concrete writing and hygiene guidance.
 - [Memory CLI Reference](/runtime/cli-reference/memory) lists every generated memory command.

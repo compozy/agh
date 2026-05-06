@@ -7,7 +7,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -17,8 +17,12 @@ type agentPayload = contract.AgentPayload
 type observeEventPayload = contract.ObserveEventPayload
 type observeCursor = core.ObserveCursor
 type memoryWriteRequest = contract.MemoryWriteRequest
-type memoryReadResponse = contract.MemoryReadResponse
-type memoryConsolidateResponse = contract.MemoryConsolidateResponse
+type memoryListResponse = contract.MemoryListResponse
+type memoryEntryResponse = contract.MemoryEntryResponse
+type memoryMutationDecisionResponse = contract.MemoryMutationDecisionResponse
+type memorySearchResponse = contract.MemorySearchResponse
+type memoryReindexResponse = contract.MemoryReindexResponse
+type memoryDreamTriggerResponse = contract.MemoryDreamTriggerResponse
 type memoryHealthPayload = contract.MemoryHealthPayload
 type memoryLocation = core.MemoryLocation
 type workspacePayload = contract.WorkspacePayload
@@ -47,11 +51,11 @@ func acpCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 	return core.ACPCapsPayloadFromInfo(caps)
 }
 
-func resolveMemoryWriteScope(req memoryWriteRequest) (memory.Scope, string, error) {
+func resolveMemoryWriteScope(req memoryWriteRequest) (memcontract.Scope, string, error) {
 	return core.ResolveMemoryWriteScope(req)
 }
 
-func parseOptionalMemoryScope(raw string) (memory.Scope, error) {
+func parseOptionalMemoryScope(raw string) (memcontract.Scope, error) {
 	return core.ParseOptionalMemoryScope(raw)
 }
 

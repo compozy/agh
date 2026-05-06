@@ -410,6 +410,7 @@ type Scope struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
+	ActorKind   string `json:"actor_kind,omitempty"`
 	Operator    bool   `json:"operator,omitempty"`
 }
 
@@ -434,6 +435,7 @@ type CallRequest struct {
 	SessionID            string          `json:"session_id,omitempty"`
 	WorkspaceID          string          `json:"workspace_id,omitempty"`
 	AgentName            string          `json:"agent_name,omitempty"`
+	ActorKind            string          `json:"actor_kind,omitempty"`
 	CorrelationID        string          `json:"correlation_id,omitempty"`
 	Input                json.RawMessage `json:"input"`
 	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`

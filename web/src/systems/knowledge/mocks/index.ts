@@ -1,7 +1,12 @@
 export { handlers } from "./handlers";
 export {
-  memoryConsolidationFixture,
+  memoryDecisionsFixture,
+  memoryDeleteFixture,
+  memoryDreamTriggerFixture,
+  memoryEditFixture,
   memoryHeadersFixture,
   memoryMutationFixture,
   memoryReadFixtures,
+  memorySearchFixture,
+  memoryWriteFixture,
 } from "./fixtures";

@@ -54,9 +54,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDWorkspaceInfo,
 			toolspkg.ToolIDWorkspaceDescribe,
 			toolspkg.ToolIDMemoryList,
-			toolspkg.ToolIDMemoryRead,
+			toolspkg.ToolIDMemoryShow,
 			toolspkg.ToolIDMemorySearch,
-			toolspkg.ToolIDMemoryHistory,
+			toolspkg.ToolIDMemoryPropose,
+			toolspkg.ToolIDMemoryNote,
 			toolspkg.ToolIDObserveEvents,
 			toolspkg.ToolIDObserveMetrics,
 			toolspkg.ToolIDObserveSearch,
@@ -244,9 +245,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceInfo], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceDescribe], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryRead], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryShow], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemorySearch], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryHistory], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryPropose], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryNote], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveEvents], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveMetrics], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveSearch], toolspkg.RiskRead, true, false, false)
@@ -641,10 +643,13 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(memory) error = %v", err)
 		}
-		if !slices.Contains(memory, toolspkg.ToolIDMemoryRead) ||
-			!slices.Contains(memory, toolspkg.ToolIDMemoryHistory) ||
+		if !slices.Contains(memory, toolspkg.ToolIDMemoryShow) ||
+			!slices.Contains(memory, toolspkg.ToolIDMemoryPropose) ||
+			!slices.Contains(memory, toolspkg.ToolIDMemoryNote) ||
+			slices.Contains(memory, toolspkg.ToolID("agh__memory_read")) ||
+			slices.Contains(memory, toolspkg.ToolID("agh__memory_history")) ||
 			slices.Contains(memory, toolspkg.ToolID("agh__memory_write")) {
-			t.Fatalf("memory toolset expansion = %#v, want read-only memory tools", memory)
+			t.Fatalf("memory toolset expansion = %#v, want Memory v2 Slice 1 tools", memory)
 		}
 
 		observe, err := catalog.Expand(toolspkg.ToolsetIDObserve, universe)

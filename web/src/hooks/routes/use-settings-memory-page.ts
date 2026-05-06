@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
-import { useConsolidateMemory } from "@/systems/knowledge";
+import { useTriggerMemoryDream } from "@/systems/knowledge";
 import {
   SettingsApiError,
   useSettingsMemory,
@@ -15,7 +15,7 @@ type MemoryConfig = SettingsMemorySection["config"];
 export function useSettingsMemoryPage() {
   const query = useSettingsMemory();
   const mutation = useUpdateSettingsMemory();
-  const consolidate = useConsolidateMemory();
+  const triggerDream = useTriggerMemoryDream();
   const page = useSettingsPage({ currentSlug: "memory" });
 
   const envelope = query.data ?? null;
@@ -55,24 +55,24 @@ export function useSettingsMemoryPage() {
     });
   }, [draft, mutation]);
 
-  const handleConsolidate = useCallback(() => {
+  const handleTriggerDream = useCallback(() => {
     setActionMessage(null);
-    consolidate.mutate(
+    triggerDream.mutate(
       {},
       {
         onSuccess: response => {
           setActionMessage(
-            response.triggered
-              ? "Consolidation triggered"
-              : response.reason || "Consolidation not triggered"
+            response.triggered ? "Dream triggered" : response.reason || "Dream not triggered"
           );
         },
         onError: error => {
-          setActionMessage(error instanceof Error ? error.message : "Failed to consolidate memory");
+          setActionMessage(
+            error instanceof Error ? error.message : "Failed to trigger memory dream"
+          );
         },
       }
     );
-  }, [consolidate]);
+  }, [triggerDream]);
 
   const saveError =
     mutation.error instanceof SettingsApiError
@@ -98,8 +98,8 @@ export function useSettingsMemoryPage() {
     saveError,
     warnings: mutation.data?.warnings,
     lastAppliedLabel,
-    handleConsolidate,
-    isConsolidating: consolidate.isPending,
+    handleTriggerDream,
+    isTriggeringDream: triggerDream.isPending,
     actionMessage,
     handleRetry,
     restart: page.restart,

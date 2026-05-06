@@ -43,6 +43,29 @@ func TestRuntimeTriggerReturnsAlreadyRunningWhenLockUnavailable(t *testing.T) {
 	}
 }
 
+func TestRuntimeTriggerReturnsGateMissWhenRunSignalGateMisses(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeDreamService{
+		shouldRun: true,
+		runErr:    memory.ErrDreamGateNotSatisfied,
+	}
+	runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+		return nil
+	}, time.Minute, discardLogger(), nil)
+
+	triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
+	if err != nil {
+		t.Fatalf("Trigger() error = %v", err)
+	}
+	if triggered {
+		t.Fatal("Trigger() triggered = true, want false")
+	}
+	if reason != "dream consolidation gates are not satisfied" {
+		t.Fatalf("Trigger() reason = %q, want gates-not-satisfied message", reason)
+	}
+}
+
 func TestRuntimeTriggerStates(t *testing.T) {
 	t.Parallel()
 
@@ -254,6 +277,27 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("signal gate miss is swallowed", func(t *testing.T) {
+		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrDreamGateNotSatisfied}
+		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+			return nil
+		}, time.Minute, discardLogger(), nil)
+
+		runtime.runCheck(
+			context.Background(),
+			discardLogger(),
+			service,
+			func(context.Context, string, string, string) error {
+				return nil
+			},
+			"manual",
+			"ws-1",
+		)
+		if got := service.runCount(); got != 1 {
+			t.Fatalf("run count = %d, want 1", got)
+		}
+	})
+
 	t.Run("should run error skips spawn", func(t *testing.T) {
 		service := &fakeDreamService{shouldRunErr: errors.New("gate failed")}
 		spawnCalls := 0
@@ -314,6 +358,9 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	if got := sessions.createCall(0).Provider; got != "" {
 		t.Fatalf("Create() provider = %q, want explicit empty provider", got)
 	}
+	if got := sessions.createCall(0).AgentName; got != "memory-agent" {
+		t.Fatalf("Create() agent = %q, want explicit configured memory-agent", got)
+	}
 	if got := sessions.createCall(0).Workspace; got != "ws-created" {
 		t.Fatalf("Create() workspace = %q, want ws-created", got)
 	}
@@ -328,6 +375,28 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	}
 	if got := resolver.resolveOrRegisterCalls; got != 1 {
 		t.Fatalf("ResolveOrRegister() calls = %d, want 1", got)
+	}
+}
+
+func TestNewSessionSpawnerUsesDedicatedDreamingCuratorForDefaultAgent(t *testing.T) {
+	t.Parallel()
+
+	cfg := dreamConfig()
+	cfg.Memory.Dream.Agent = aghconfig.DefaultAgentName
+	sessions := &fakeSessionManager{}
+	resolver := &fakeWorkspaceResolver{
+		resolveResolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-default", RootDir: filepath.Join(t.TempDir(), "workspace")},
+		},
+	}
+
+	spawner := NewSessionSpawner(sessions, resolver, &cfg, filepath.Join(t.TempDir(), "memory"))
+	if err := spawner(context.Background(), "memory-consolidation", "prompt", "ws-default"); err != nil {
+		t.Fatalf("spawner() error = %v", err)
+	}
+
+	if got := sessions.createCall(0).AgentName; got != DreamingCuratorAgentName {
+		t.Fatalf("Create() agent = %q, want %q", got, DreamingCuratorAgentName)
 	}
 }
 

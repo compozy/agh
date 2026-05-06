@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	storepkg "github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -51,6 +53,7 @@ type Service struct {
 	logger      *slog.Logger
 	goal        string
 	prompt      string
+	dreamGate   DreamGateConfig
 
 	lock               consolidationLocker
 	now                func() time.Time
@@ -78,6 +81,7 @@ func NewService(opts ...Option) *Service {
 		logger:      slog.Default(),
 		goal:        defaultGoal,
 		prompt:      ConsolidationPrompt(),
+		dreamGate:   defaultDreamGateConfig(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -160,6 +164,13 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
+// WithDreamGateConfig overrides recall-signal promotion thresholds for dreaming.
+func WithDreamGateConfig(config DreamGateConfig) Option {
+	return func(service *Service) {
+		service.dreamGate = normalizeDreamGateConfig(config)
+	}
+}
+
 func withGoal(goal string) Option {
 	return func(service *Service) {
 		if trimmed := strings.TrimSpace(goal); trimmed != "" {
@@ -233,57 +244,216 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 		return err
 	}
 
-	workspaceID, err := s.prepareWorkspace(ctx, workspaceRef)
+	workspace, err := s.prepareWorkspace(ctx, workspaceRef)
 	if err != nil {
+		return s.failBeforeDreamStart("prepare workspace", workspaceRef, priorMtime, err)
+	}
+	gate, err := s.evaluateDreamSignalGate(ctx, workspace)
+	if err != nil {
+		return s.failBeforeDreamStart("evaluate dream signal gate", workspace.id, priorMtime, err)
+	}
+	if err := s.handleDreamGateResult(ctx, workspace, gate, priorMtime); err != nil {
+		return err
+	}
+
+	s.logger.Debug("memory: starting consolidation run", "goal", s.goal, "workspace_id", workspace.id)
+
+	if err := spawn(ctx, s.goal, s.prompt, workspace.id); err != nil {
+		return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "spawn consolidation session")
+	}
+	if !gate.active {
 		s.logger.Debug(
-			"memory: consolidation run failed before spawn; rolling back lock",
-			"workspace_ref",
-			strings.TrimSpace(workspaceRef),
+			"memory: consolidation run completed; releasing lock",
+			"goal",
+			s.goal,
+			"workspace_id",
+			workspace.id,
+		)
+		return s.completeRun(true, priorMtime)
+	}
+
+	if err := s.promoteDreamRun(ctx, workspace, gate, priorMtime); err != nil {
+		return err
+	}
+	s.logger.Debug("memory: consolidation run completed; releasing lock", "goal", s.goal, "workspace_id", workspace.id)
+	return s.completeRun(true, priorMtime)
+}
+
+func (s *Service) handleDreamGateResult(
+	ctx context.Context,
+	workspace dreamRunWorkspace,
+	gate dreamSignalGateResult,
+	priorMtime time.Time,
+) error {
+	if gate.active && len(gate.candidates) < s.dreamGate.MinCandidates {
+		s.logger.Debug(
+			"memory: dream signal gate blocked consolidation",
+			"workspace_id",
+			workspace.id,
+			"candidate_count",
+			len(gate.candidates),
+			"min_candidates",
+			s.dreamGate.MinCandidates,
+			"reason",
+			gate.reason,
+		)
+		return errors.Join(ErrDreamGateNotSatisfied, s.completeRun(true, priorMtime))
+	}
+	if !gate.active {
+		return nil
+	}
+	if err := workspace.store.startDreamRun(ctx, gate, workspace, s.now().UTC()); err != nil {
+		s.logger.Debug("memory: dream run start failed; rolling back lock", "workspace_id", workspace.id, "error", err)
+		return errors.Join(fmt.Errorf("memory: start dream run: %w", err), s.completeRun(false, priorMtime))
+	}
+	return nil
+}
+
+func (s *Service) promoteDreamRun(
+	ctx context.Context,
+	workspace dreamRunWorkspace,
+	gate dreamSignalGateResult,
+	priorMtime time.Time,
+) error {
+	artifactPath, err := workspace.store.writeDreamArtifact(ctx, workspace, gate, s.now().UTC())
+	if err != nil {
+		return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "write dream artifact")
+	}
+	decision, err := workspace.store.ProposeCandidate(
+		ctx,
+		dreamPromotionCandidate(gate, workspace, artifactPath, s.now().UTC()),
+	)
+	if err != nil {
+		return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "propose dream promotion")
+	}
+	promoted := 0
+	if decision.Op == memcontract.OpAdd || decision.Op == memcontract.OpUpdate {
+		promoted, err = workspace.store.markDreamPromoted(ctx, gate.candidates, gate.runID, s.now().UTC())
+		if err != nil {
+			return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "mark dream promoted")
+		}
+	}
+	if err := workspace.store.completeDreamRun(ctx, gate, workspace, promoted, s.now().UTC()); err != nil {
+		s.logger.Debug(
+			"memory: dream run completion failed; rolling back lock",
+			"workspace_id",
+			workspace.id,
 			"error",
 			err,
 		)
 		rollbackErr := s.completeRun(false, priorMtime)
-		return errors.Join(
-			fmt.Errorf("memory: prepare workspace %q: %w", strings.TrimSpace(workspaceRef), err),
-			rollbackErr,
-		)
+		return errors.Join(fmt.Errorf("memory: complete dream run: %w", err), rollbackErr)
 	}
-
-	s.logger.Debug("memory: starting consolidation run", "goal", s.goal, "workspace_id", workspaceID)
-
-	if err := spawn(ctx, s.goal, s.prompt, workspaceID); err != nil {
-		s.logger.Debug("memory: consolidation run failed; rolling back lock", "workspace_id", workspaceID, "error", err)
-		rollbackErr := s.completeRun(false, priorMtime)
-		return errors.Join(fmt.Errorf("memory: spawn consolidation session: %w", err), rollbackErr)
-	}
-
-	s.logger.Debug("memory: consolidation run completed; releasing lock", "goal", s.goal, "workspace_id", workspaceID)
-	return s.completeRun(true, priorMtime)
+	return nil
 }
 
-func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (string, error) {
+func (s *Service) failBeforeDreamStart(operation string, target string, priorMtime time.Time, cause error) error {
+	s.logger.Debug(
+		"memory: consolidation run failed before spawn; rolling back lock",
+		"operation",
+		operation,
+		"target",
+		strings.TrimSpace(target),
+		"error",
+		cause,
+	)
+	return errors.Join(
+		fmt.Errorf("memory: %s %q: %w", operation, strings.TrimSpace(target), cause),
+		s.completeRun(false, priorMtime),
+	)
+}
+
+func (s *Service) evaluateDreamSignalGate(
+	ctx context.Context,
+	workspace dreamRunWorkspace,
+) (dreamSignalGateResult, error) {
+	run := dreamSignalGateResult{runID: storepkg.NewID("dream")}
+	if workspace.store == nil || workspace.store.catalog == nil {
+		run.reason = "catalog disabled"
+		return run, nil
+	}
+	run.active = true
+	candidates, err := workspace.store.dreamCandidates(ctx, workspace.id, s.dreamGate, s.now().UTC())
+	if err != nil {
+		return dreamSignalGateResult{}, err
+	}
+	run.candidates = candidates
+	if len(candidates) < s.dreamGate.MinCandidates {
+		run.reason = fmt.Sprintf(
+			"eligible_candidates=%d min_candidates=%d",
+			len(candidates),
+			s.dreamGate.MinCandidates,
+		)
+	}
+	return run, nil
+}
+
+func (s *Service) failDreamRun(
+	ctx context.Context,
+	workspace dreamRunWorkspace,
+	run dreamSignalGateResult,
+	priorMtime time.Time,
+	cause error,
+	operation string,
+) error {
+	s.logger.Debug(
+		"memory: consolidation run failed; rolling back lock",
+		"workspace_id",
+		workspace.id,
+		"operation",
+		operation,
+		"error",
+		cause,
+	)
+	var cleanupErrs []error
+	if workspace.store != nil {
+		if _, err := workspace.store.writeDreamFailure(ctx, workspace, run, cause, s.now().UTC()); err != nil {
+			cleanupErrs = append(cleanupErrs, err)
+		}
+		if err := workspace.store.failDreamRun(ctx, run, workspace, cause, s.now().UTC()); err != nil {
+			cleanupErrs = append(cleanupErrs, err)
+		}
+	}
+	rollbackErr := s.completeRun(false, priorMtime)
+	errs := []error{fmt.Errorf("memory: %s: %w", operation, cause)}
+	errs = append(errs, cleanupErrs...)
+	errs = append(errs, rollbackErr)
+	return errors.Join(errs...)
+}
+
+func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (dreamRunWorkspace, error) {
 	trimmedRef := strings.TrimSpace(workspaceRef)
 	if trimmedRef == "" {
-		return "", nil
+		return dreamRunWorkspace{id: "", store: s.memStore, scope: memcontract.ScopeGlobal}, nil
 	}
 	if s.workspaceResolver == nil {
-		return "", errors.New("memory: workspace resolver is required")
+		return dreamRunWorkspace{}, errors.New("memory: workspace resolver is required")
 	}
 
 	resolved, err := s.workspaceResolver.Resolve(ctx, trimmedRef)
 	if err != nil {
-		return "", fmt.Errorf("memory: resolve workspace %q: %w", trimmedRef, err)
+		return dreamRunWorkspace{}, fmt.Errorf("memory: resolve workspace %q: %w", trimmedRef, err)
 	}
 	if strings.TrimSpace(resolved.ID) == "" {
-		return "", errors.New("memory: workspace id is required")
+		return dreamRunWorkspace{}, errors.New("memory: workspace id is required")
 	}
+	workspaceStore := s.memStore
 	if s.memStore != nil {
-		if err := s.memStore.ForWorkspace(resolved.RootDir).EnsureDirs(); err != nil {
-			return "", fmt.Errorf("memory: ensure workspace memory dirs for %q: %w", resolved.RootDir, err)
+		workspaceStore = s.memStore.ForWorkspace(resolved.RootDir)
+		if err := workspaceStore.EnsureDirs(); err != nil {
+			return dreamRunWorkspace{}, fmt.Errorf(
+				"memory: ensure workspace memory dirs for %q: %w",
+				resolved.RootDir,
+				err,
+			)
 		}
 	}
 
-	return strings.TrimSpace(resolved.ID), nil
+	return dreamRunWorkspace{
+		id:    strings.TrimSpace(resolved.ID),
+		store: workspaceStore,
+		scope: memcontract.ScopeWorkspace,
+	}, nil
 }
 
 func (s *Service) validate() error {

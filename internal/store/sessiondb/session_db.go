@@ -106,7 +106,12 @@ type sessionWriteRequest struct {
 	event  store.SessionEvent
 	usage  store.TokenUsage
 	hook   hookspkg.HookRunRecord
-	result chan error
+	result chan sessionWriteResult
+}
+
+type sessionWriteResult struct {
+	event store.SessionEvent
+	err   error
 }
 
 type sessionShutdownRequest struct {
@@ -215,7 +220,35 @@ func (s *SessionDB) Record(ctx context.Context, event store.SessionEvent) error 
 		ctx:    ctx,
 		kind:   sessionWriteEvent,
 		event:  event,
-		result: make(chan error, 1),
+		result: make(chan sessionWriteResult, 1),
+	})
+}
+
+// RecordPersisted appends a session event and returns the stored row with sequence metadata.
+func (s *SessionDB) RecordPersisted(ctx context.Context, event store.SessionEvent) (store.SessionEvent, error) {
+	if s == nil {
+		return store.SessionEvent{}, errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return store.SessionEvent{}, errors.New("store: record event context is required")
+	}
+	if err := event.Validate(); err != nil {
+		return store.SessionEvent{}, err
+	}
+	if event.SessionID != "" && event.SessionID != s.sessionID {
+		return store.SessionEvent{}, fmt.Errorf(
+			"store: event session id %q does not match session database %q",
+			event.SessionID,
+			s.sessionID,
+		)
+	}
+	event.SessionID = s.sessionID
+
+	return s.enqueueWritePersisted(ctx, sessionWriteRequest{
+		ctx:    ctx,
+		kind:   sessionWriteEvent,
+		event:  event,
+		result: make(chan sessionWriteResult, 1),
 	})
 }
 
@@ -235,7 +268,7 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage
 		ctx:    ctx,
 		kind:   sessionWriteUsage,
 		usage:  usage,
-		result: make(chan error, 1),
+		result: make(chan sessionWriteResult, 1),
 	})
 }
 
@@ -252,7 +285,7 @@ func (s *SessionDB) RecordHookRun(ctx context.Context, record hookspkg.HookRunRe
 		ctx:    ctx,
 		kind:   sessionWriteHookRun,
 		hook:   cloneHookRunRecord(record),
-		result: make(chan error, 1),
+		result: make(chan sessionWriteResult, 1),
 	})
 }
 
@@ -475,10 +508,38 @@ func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) e
 	}
 
 	select {
-	case err := <-req.result:
-		return err
+	case result := <-req.result:
+		return result.err
 	case <-ctx.Done():
 		return fmt.Errorf("store: wait for session write completion: %w", ctx.Err())
+	}
+}
+
+func (s *SessionDB) enqueueWritePersisted(
+	ctx context.Context,
+	req sessionWriteRequest,
+) (store.SessionEvent, error) {
+	s.acceptMu.RLock()
+	defer s.acceptMu.RUnlock()
+
+	if s.state.Load() != sessionStateOpen {
+		return store.SessionEvent{}, store.ErrClosed
+	}
+
+	select {
+	case s.writeCh <- req:
+	case <-ctx.Done():
+		return store.SessionEvent{}, fmt.Errorf("store: enqueue session write: %w", ctx.Err())
+	}
+
+	select {
+	case result := <-req.result:
+		if result.err != nil {
+			return store.SessionEvent{}, result.err
+		}
+		return result.event, nil
+	case <-ctx.Done():
+		return store.SessionEvent{}, fmt.Errorf("store: wait for session write completion: %w", ctx.Err())
 	}
 }
 
@@ -504,10 +565,10 @@ func (s *SessionDB) drainWrites(ctx context.Context) error {
 		case <-ctx.Done():
 			return errors.Join(drainErr, fmt.Errorf("%w: %w", store.ErrDrainTimeout, ctx.Err()))
 		case req := <-s.writeCh:
-			err := s.executeWrite(req)
-			req.result <- err
-			if err != nil {
-				drainErr = errors.Join(drainErr, err)
+			result := s.executeWrite(req)
+			req.result <- result
+			if result.err != nil {
+				drainErr = errors.Join(drainErr, result.err)
 			}
 		default:
 			return drainErr
@@ -515,24 +576,25 @@ func (s *SessionDB) drainWrites(ctx context.Context) error {
 	}
 }
 
-func (s *SessionDB) executeWrite(req sessionWriteRequest) error {
+func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 	if err := req.ctx.Err(); err != nil {
-		return fmt.Errorf("store: session write canceled before execution: %w", err)
+		return sessionWriteResult{err: fmt.Errorf("store: session write canceled before execution: %w", err)}
 	}
 
 	switch req.kind {
 	case sessionWriteEvent:
-		return s.writeEvent(req.ctx, req.event)
+		event, err := s.writeEvent(req.ctx, req.event)
+		return sessionWriteResult{event: event, err: err}
 	case sessionWriteUsage:
-		return s.writeTokenUsage(req.ctx, req.usage)
+		return sessionWriteResult{err: s.writeTokenUsage(req.ctx, req.usage)}
 	case sessionWriteHookRun:
-		return s.writeHookRun(req.ctx, req.hook)
+		return sessionWriteResult{err: s.writeHookRun(req.ctx, req.hook)}
 	default:
-		return fmt.Errorf("store: unsupported session write kind %d", req.kind)
+		return sessionWriteResult{err: fmt.Errorf("store: unsupported session write kind %d", req.kind)}
 	}
 }
 
-func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) error {
+func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) (store.SessionEvent, error) {
 	if strings.TrimSpace(event.ID) == "" {
 		event.ID = store.NewID("ev")
 	}
@@ -556,10 +618,10 @@ func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) er
 		store.FormatTimestamp(event.Timestamp),
 	); err != nil {
 		s.nextSequence--
-		return fmt.Errorf("store: insert session event: %w", err)
+		return store.SessionEvent{}, fmt.Errorf("store: insert session event: %w", err)
 	}
 
-	return nil
+	return event, nil
 }
 
 func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage) error {

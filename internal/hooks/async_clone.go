@@ -54,6 +54,10 @@ func (payload AgentLifecyclePayload) cloneForAsync() AgentLifecyclePayload {
 	return cloneAgentLifecyclePayload(payload)
 }
 
+func (payload SessionMessagePersistedPayload) cloneForAsync() SessionMessagePersistedPayload {
+	return cloneSessionMessagePersistedPayload(payload)
+}
+
 func (payload MessagePayload) cloneForAsync() MessagePayload {
 	return cloneMessagePayload(payload)
 }
@@ -212,6 +216,12 @@ func cloneAgentPreStartPayload(payload AgentPreStartPayload) AgentPreStartPayloa
 
 func cloneAgentLifecyclePayload(payload AgentLifecyclePayload) AgentLifecyclePayload {
 	payload.Args = cloneStringSlice(payload.Args)
+	return payload
+}
+
+func cloneSessionMessagePersistedPayload(payload SessionMessagePersistedPayload) SessionMessagePersistedPayload {
+	payload.Raw = cloneRawJSON(payload.Raw)
+	payload.Persisted = cloneRawJSON(payload.Persisted)
 	return payload
 }
 

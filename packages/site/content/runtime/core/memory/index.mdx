@@ -1,29 +1,30 @@
 ---
 title: Memory
-description: How AGH stores durable Markdown memory, scopes it across global and workspace contexts, consolidates it during dream sessions, and keeps it useful.
+description: How AGH stores durable Markdown memory across global, workspace, and agent scopes, gates dreaming runs, and routes every write through the controller.
 ---
 
-Memory is the durable layer that survives a session. AGH stores memories as Markdown files behind
-typed indexes so agents can rediscover knowledge without replaying past transcripts. The runtime
-keeps two scopes — global and workspace — and a consolidation loop that prunes and merges what is
-no longer load-bearing.
+Memory is the durable layer that survives a session. AGH stores curated facts as Markdown files
+behind typed indexes so agents can rediscover knowledge without replaying past transcripts. The
+runtime keeps three scopes — global, workspace, and agent — and a dreaming loop that promotes
+recall-validated signal into curated memory.
 
 Use this section when an agent should carry durable project knowledge across sessions, when a
-workspace needs facts that should not live in a prompt, or when consolidation changed a memory file
-and you need to understand why. Memory is not a transcript archive. It is a curated working set:
-small enough for agents to read, typed enough to inspect, and scoped enough that one project does not
-leak into another.
+workspace needs facts that should not live in a prompt, or when the controller, dreaming, or the
+extractor changed a memory file and you need to understand why. Memory is not a transcript archive.
+It is a curated working set: small enough for agents to read, typed enough to inspect, and scoped
+enough that one project does not leak into another.
 
 <OperatorNote>
-  Start with the system page for CLI/API surfaces and storage layout. Use scopes when a memory lands
-  in the wrong place. Use dream consolidation only after you understand the files AGH is allowed to
-  rewrite, then use best practices to keep future memories short and verifiable.
+  Start with the system page for storage layout, prompt injection, and the CLI/API surfaces that
+  read or mutate memory. Use scopes when a memory lands in the wrong place. Use dreaming after you
+  understand what the controller is allowed to rewrite, then use best practices to keep future
+  memories short and verifiable.
 </OperatorNote>
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
   <img
     src="/images/runtime/memory-overview-storyboard-v1.png"
-    alt="Hand-drawn Memory poster showing global and workspace memory, markdown indexes, dream consolidation, and memory hygiene with the octopus mascot."
+    alt="Hand-drawn Memory poster showing global, workspace, and agent memory, markdown indexes, dreaming, and memory hygiene with the octopus mascot."
     loading="eager"
     decoding="async"
     className="h-auto w-full rounded-md"
@@ -37,21 +38,21 @@ leak into another.
     href="/runtime/core/memory/system"
     label="System"
     title="Memory system"
-    description="Use this page for storage layout, prompt injection, and the CLI/API surfaces that read or mutate memory."
+    description="Use this page for storage layout, prompt injection, the controller WAL, and the CLI/API surfaces that read or mutate memory."
     meta="Mechanics"
   />
   <RouteRow
     href="/runtime/core/memory/scopes"
     label="Scopes"
-    title="Global vs workspace memory"
-    description="Use this page when you need scope resolution rules and where each kind of memory lives on disk."
+    title="Global, workspace, and agent memory"
+    description="Use this page when you need scope resolution rules, agent-tier selection, and where each kind of memory lives on disk."
     meta="Resolution"
   />
   <RouteRow
     href="/runtime/core/memory/dream"
     label="Dream"
-    title="Dream consolidation"
-    description="Use this page when you need to understand the consolidation loop and what a dream session changes."
+    title="Dreaming and promotion gates"
+    description="Use this page to understand the dreaming loop, recall-signal gates, and what `agh memory dream trigger` actually does."
     meta="Maintenance"
   />
   <RouteRow

@@ -792,16 +792,92 @@ func TestRecordEventDispatchesAroundPersistence(t *testing.T) {
 	}
 }
 
+func TestRecordEventDispatchesSessionMessagePersistedAfterDurableAgentMessage(t *testing.T) {
+	t.Parallel()
+
+	order := make([]string, 0, 4)
+	var persistedPayload hookspkg.SessionMessagePersistedPayload
+	dispatcher := &spyHookDispatcher{
+		dispatchEventPreRecordFn: func(_ context.Context, payload hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error) {
+			order = append(order, "pre:"+payload.RecordType)
+			return payload, nil
+		},
+		dispatchEventPostRecordFn: func(_ context.Context, payload hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error) {
+			order = append(order, "post:"+payload.RecordType)
+			if payload.Sequence != 1 {
+				t.Fatalf("event.post_record sequence = %d, want 1", payload.Sequence)
+			}
+			return payload, nil
+		},
+		dispatchSessionMessagePersistedFn: func(_ context.Context, payload hookspkg.SessionMessagePersistedPayload) (hookspkg.SessionMessagePersistedPayload, error) {
+			order = append(order, "persisted:"+payload.Role)
+			persistedPayload = payload
+			return payload, nil
+		},
+	}
+	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+
+	recorder := &orderedRecorder{
+		onRecord: func(event store.SessionEvent) {
+			order = append(order, "record:"+event.Type)
+		},
+	}
+	now := h.manager.now()
+	session := &Session{
+		ID:          "sess-event",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		Workspace:   h.workspace,
+		Type:        SessionTypeUser,
+		State:       StateActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		recorder:    recorder,
+	}
+
+	err := h.manager.recordEvent(testutil.Context(t), session, acp.AgentEvent{
+		Type:      acp.EventTypeAgentMessage,
+		TurnID:    "turn-1",
+		Timestamp: now,
+		Text:      "durable reply",
+		Raw:       []byte(`{"type":"agent_message","text":"durable reply"}`),
+	})
+	if err != nil {
+		t.Fatalf("recordEvent() error = %v", err)
+	}
+
+	want := []string{"pre:agent_message", "record:agent_message", "post:agent_message", "persisted:assistant"}
+	if !testutil.EqualStringSlices(order, want) {
+		t.Fatalf("dispatch order = %#v, want %#v", order, want)
+	}
+	if persistedPayload.MessageSeq != 1 {
+		t.Fatalf("message seq = %d, want 1", persistedPayload.MessageSeq)
+	}
+	if persistedPayload.Text != "durable reply" {
+		t.Fatalf("payload text = %q, want durable reply", persistedPayload.Text)
+	}
+	if persistedPayload.RootSessionID != session.ID {
+		t.Fatalf("root session id = %q, want %q", persistedPayload.RootSessionID, session.ID)
+	}
+	if persistedPayload.ParentSessionID != "" {
+		t.Fatalf("parent session id = %q, want empty root session", persistedPayload.ParentSessionID)
+	}
+	if persistedPayload.ActorKind != "agent_root" {
+		t.Fatalf("actor kind = %q, want agent_root", persistedPayload.ActorKind)
+	}
+}
+
 func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {
 	t.Parallel()
 
-	order := make([]string, 0, 5)
+	order := make([]string, 0, 6)
 	var (
-		turnStartPayload    hookspkg.TurnStartPayload
-		messageStartPayload hookspkg.MessageStartPayload
-		messageDeltaPayload hookspkg.MessageDeltaPayload
-		messageEndPayload   hookspkg.MessageEndPayload
-		turnEndPayload      hookspkg.TurnEndPayload
+		turnStartPayload        hookspkg.TurnStartPayload
+		messageStartPayload     hookspkg.MessageStartPayload
+		messageDeltaPayload     hookspkg.MessageDeltaPayload
+		messagePersistedPayload hookspkg.SessionMessagePersistedPayload
+		messageEndPayload       hookspkg.MessageEndPayload
+		turnEndPayload          hookspkg.TurnEndPayload
 	)
 
 	dispatcher := &spyHookDispatcher{
@@ -818,6 +894,11 @@ func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {
 		dispatchMessageDeltaFn: func(_ context.Context, payload hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
 			order = append(order, "message.delta")
 			messageDeltaPayload = payload
+			return payload, nil
+		},
+		dispatchSessionMessagePersistedFn: func(_ context.Context, payload hookspkg.SessionMessagePersistedPayload) (hookspkg.SessionMessagePersistedPayload, error) {
+			order = append(order, "session.message_persisted")
+			messagePersistedPayload = payload
 			return payload, nil
 		},
 		dispatchMessageEndFn: func(_ context.Context, payload hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
@@ -847,7 +928,14 @@ func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {
 		t.Fatalf("len(events) = %d, want 2", len(events))
 	}
 
-	wantOrder := []string{"turn.start", "message.start", "message.delta", "message.end", "turn.end"}
+	wantOrder := []string{
+		"turn.start",
+		"message.start",
+		"message.delta",
+		"session.message_persisted",
+		"message.end",
+		"turn.end",
+	}
 	if !testutil.EqualStringSlices(order, wantOrder) {
 		t.Fatalf("hook order = %#v, want %#v", order, wantOrder)
 	}
@@ -878,6 +966,22 @@ func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {
 	}
 	if messageDeltaPayload.DeltaType != hookMessageDeltaTypeText {
 		t.Fatalf("message.delta delta type = %q, want %q", messageDeltaPayload.DeltaType, hookMessageDeltaTypeText)
+	}
+	if messagePersistedPayload.MessageSeq <= 0 {
+		t.Fatalf(
+			"session.message_persisted sequence = %d, want durable positive sequence",
+			messagePersistedPayload.MessageSeq,
+		)
+	}
+	if messagePersistedPayload.Text != "reply" {
+		t.Fatalf("session.message_persisted text = %q, want %q", messagePersistedPayload.Text, "reply")
+	}
+	if messagePersistedPayload.Role != hookMessageRoleAssistant {
+		t.Fatalf(
+			"session.message_persisted role = %q, want %q",
+			messagePersistedPayload.Role,
+			hookMessageRoleAssistant,
+		)
 	}
 	if messageEndPayload.MessageID != messageStartPayload.MessageID {
 		t.Fatalf("message.end message id = %q, want %q", messageEndPayload.MessageID, messageStartPayload.MessageID)
@@ -1155,25 +1259,29 @@ func fullHookSet(runtime interface {
 }
 
 type spyHookDispatcher struct {
-	dispatchSessionPreCreateFn   func(context.Context, hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error)
-	dispatchSessionPostCreateFn  func(context.Context, hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error)
-	dispatchSessionPreResumeFn   func(context.Context, hookspkg.SessionPreResumePayload) (hookspkg.SessionPreResumePayload, error)
-	dispatchSessionPostResumeFn  func(context.Context, hookspkg.SessionPostResumePayload) (hookspkg.SessionPostResumePayload, error)
-	dispatchSessionPreStopFn     func(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
-	dispatchSessionPostStopFn    func(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
-	dispatchInputPreSubmitFn     func(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
-	dispatchPromptPostAssembleFn func(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
-	dispatchEventPreRecordFn     func(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
-	dispatchEventPostRecordFn    func(context.Context, hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error)
-	dispatchAgentPreStartFn      func(context.Context, hookspkg.AgentPreStartPayload) (hookspkg.AgentPreStartPayload, error)
-	dispatchAgentSpawnedFn       func(context.Context, hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error)
-	dispatchAgentCrashedFn       func(context.Context, hookspkg.AgentCrashedPayload) (hookspkg.AgentCrashedPayload, error)
-	dispatchAgentStoppedFn       func(context.Context, hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error)
-	dispatchTurnStartFn          func(context.Context, hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error)
-	dispatchTurnEndFn            func(context.Context, hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error)
-	dispatchMessageStartFn       func(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
-	dispatchMessageDeltaFn       func(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
-	dispatchMessageEndFn         func(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	dispatchSessionPreCreateFn        func(context.Context, hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error)
+	dispatchSessionPostCreateFn       func(context.Context, hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error)
+	dispatchSessionPreResumeFn        func(context.Context, hookspkg.SessionPreResumePayload) (hookspkg.SessionPreResumePayload, error)
+	dispatchSessionPostResumeFn       func(context.Context, hookspkg.SessionPostResumePayload) (hookspkg.SessionPostResumePayload, error)
+	dispatchSessionPreStopFn          func(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
+	dispatchSessionPostStopFn         func(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
+	dispatchInputPreSubmitFn          func(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
+	dispatchPromptPostAssembleFn      func(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
+	dispatchEventPreRecordFn          func(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
+	dispatchEventPostRecordFn         func(context.Context, hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error)
+	dispatchAgentPreStartFn           func(context.Context, hookspkg.AgentPreStartPayload) (hookspkg.AgentPreStartPayload, error)
+	dispatchAgentSpawnedFn            func(context.Context, hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error)
+	dispatchAgentCrashedFn            func(context.Context, hookspkg.AgentCrashedPayload) (hookspkg.AgentCrashedPayload, error)
+	dispatchAgentStoppedFn            func(context.Context, hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error)
+	dispatchTurnStartFn               func(context.Context, hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error)
+	dispatchTurnEndFn                 func(context.Context, hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error)
+	dispatchMessageStartFn            func(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
+	dispatchMessageDeltaFn            func(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
+	dispatchMessageEndFn              func(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	dispatchSessionMessagePersistedFn func(
+		context.Context,
+		hookspkg.SessionMessagePersistedPayload,
+	) (hookspkg.SessionMessagePersistedPayload, error)
 	dispatchContextPreCompactFn  func(context.Context, hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error)
 	dispatchContextPostCompactFn func(context.Context, hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error)
 }
@@ -1368,6 +1476,16 @@ func (s *spyHookDispatcher) DispatchMessageEnd(
 	return payload, nil
 }
 
+func (s *spyHookDispatcher) DispatchSessionMessagePersisted(
+	ctx context.Context,
+	payload hookspkg.SessionMessagePersistedPayload,
+) (hookspkg.SessionMessagePersistedPayload, error) {
+	if s.dispatchSessionMessagePersistedFn != nil {
+		return s.dispatchSessionMessagePersistedFn(ctx, payload)
+	}
+	return payload, nil
+}
+
 func (s *spyHookDispatcher) DispatchContextPreCompact(
 	ctx context.Context,
 	payload hookspkg.ContextPreCompactPayload,
@@ -1390,6 +1508,7 @@ func (s *spyHookDispatcher) DispatchContextPostCompact(
 
 type orderedRecorder struct {
 	onRecord func(store.SessionEvent)
+	nextSeq  int64
 	events   []store.SessionEvent
 }
 
@@ -1434,11 +1553,23 @@ func (r *recordingNetworkPeerLifecycle) leaveCount() int {
 }
 
 func (r *orderedRecorder) Record(_ context.Context, event store.SessionEvent) error {
+	_, err := r.RecordPersisted(context.Background(), event)
+	return err
+}
+
+func (r *orderedRecorder) RecordPersisted(_ context.Context, event store.SessionEvent) (store.SessionEvent, error) {
+	if event.ID == "" {
+		event.ID = store.NewID("ev")
+	}
+	if event.Sequence <= 0 {
+		r.nextSeq++
+		event.Sequence = r.nextSeq
+	}
 	r.events = append(r.events, event)
 	if r.onRecord != nil {
 		r.onRecord(event)
 	}
-	return nil
+	return event, nil
 }
 
 func (r *orderedRecorder) RecordTokenUsage(context.Context, store.TokenUsage) error {

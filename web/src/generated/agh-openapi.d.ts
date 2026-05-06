@@ -1031,17 +1031,18 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List memory document headers */
+    /** List Memory v2 curated entries */
     get: operations["listMemory"];
     put?: never;
-    post?: never;
+    /** Create or propose one Memory v2 curated entry */
+    post: operations["writeMemory"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/memory/consolidate": {
+  "/api/memory/ad-hoc": {
     parameters: {
       query?: never;
       header?: never;
@@ -1050,8 +1051,246 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Trigger dream consolidation */
-    post: operations["consolidateMemory"];
+    /** Create a Memory v2 ad-hoc note for dreaming reconciliation */
+    post: operations["createMemoryAdhocNote"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/config": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Memory v2 config metadata and provider registry state */
+    get: operations["getMemoryConfigMetadata"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/daily": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Memory v2 daily operation logs */
+    get: operations["listMemoryDailyLogs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Memory v2 controller decisions */
+    get: operations["listMemoryDecisions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/decisions/{decision_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one Memory v2 controller decision */
+    get: operations["getMemoryDecision"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/decisions/{decision_id}/revert": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Revert one applied Memory v2 controller decision */
+    post: operations["revertMemoryDecision"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/dreams": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Memory v2 dreaming runs */
+    get: operations["listMemoryDreams"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/dreams/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Memory v2 dreaming status */
+    get: operations["getMemoryDreamStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/dreams/trigger": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Trigger Memory v2 dreaming immediately */
+    post: operations["triggerMemoryDream"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/dreams/{dream_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one Memory v2 dreaming run */
+    get: operations["getMemoryDream"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/dreams/{dream_id}/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry a failed Memory v2 dreaming run */
+    post: operations["retryMemoryDream"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/extractor/drain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Drain Memory v2 extractor queue */
+    post: operations["drainMemoryExtractor"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/extractor/failures": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Memory v2 extractor DLQ records */
+    get: operations["listMemoryExtractorFailures"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/extractor/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry Memory v2 extractor DLQ records */
+    post: operations["retryMemoryExtractor"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/extractor/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Memory v2 extractor queue status */
+    get: operations["getMemoryExtractorStatus"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1092,6 +1331,278 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/memory/promote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Promote a Memory v2 entry between scopes or agent tiers */
+    post: operations["promoteMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/providers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List registered Memory v2 providers */
+    get: operations["listMemoryProviders"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/providers/select": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Select the active Memory v2 provider */
+    post: operations["selectMemoryProvider"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/providers/{provider_name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one Memory v2 provider */
+    get: operations["getMemoryProvider"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/providers/{provider_name}/disable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Disable a Memory v2 provider */
+    post: operations["disableMemoryProvider"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/providers/{provider_name}/enable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enable a Memory v2 provider */
+    post: operations["enableMemoryProvider"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/recall-traces/{session_id}/{turn_seq}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one Memory v2 recall trace */
+    get: operations["getMemoryRecallTrace"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/reindex": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rebuild Memory v2 derived catalog indexes */
+    post: operations["reindexMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/reload": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Invalidate Memory v2 frozen snapshots for the next session boot */
+    post: operations["reloadMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/reset": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reset Memory v2 derived state or curated storage */
+    post: operations["resetMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/scope-show": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Resolve the effective Memory v2 scope/tier and precedence chain */
+    get: operations["showMemoryScope"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run deterministic Memory v2 recall/search */
+    post: operations["searchMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/sessions/prune": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Prune materialized Memory v2 session ledger state */
+    post: operations["pruneMemorySessions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/sessions/repair": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Repair materialized Memory v2 session ledgers */
+    post: operations["repairMemorySessions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/sessions/{session_id}/ledger": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one materialized Memory v2 session ledger */
+    get: operations["getMemorySessionLedger"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/sessions/{session_id}/replay": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Replay one materialized Memory v2 session ledger */
+    post: operations["replayMemorySession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/memory/{filename}": {
     parameters: {
       query?: never;
@@ -1101,14 +1612,14 @@ export interface paths {
     };
     /** Read one memory document */
     get: operations["readMemory"];
-    /** Write one memory document */
-    put: operations["writeMemory"];
+    put?: never;
     post?: never;
     /** Delete one memory document */
     delete: operations["deleteMemory"];
     options?: never;
     head?: never;
-    patch?: never;
+    /** Edit one Memory v2 curated entry through the controller */
+    patch: operations["editMemory"];
     trace?: never;
   };
   "/api/network/channels": {
@@ -14345,6 +14856,7 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
+          | "session.message_persisted"
           | "sandbox.prepare"
           | "sandbox.ready"
           | "sandbox.sync.before"
@@ -14609,6 +15121,7 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
+          | "session.message_persisted"
           | "sandbox.prepare"
           | "sandbox.ready"
           | "sandbox.sync.before"
@@ -14755,9 +15268,15 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace";
-        /** @description Workspace id or path */
-        workspace?: string;
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
+        /** @description Maximum number of memories to return */
+        limit?: number;
       };
       header?: never;
       path?: never;
@@ -14772,15 +15291,34 @@ export interface operations {
         };
         content: {
           "application/json": {
-            agent_name?: string;
-            description?: string;
-            filename: string;
-            /** Format: date-time */
-            mod_time: string;
-            name: string;
-            /** @enum {string} */
-            type: "user" | "feedback" | "project" | "reference";
-          }[];
+            memories: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              content_hash?: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              description?: string;
+              filename: string;
+              injection: boolean;
+              /** Format: date-time */
+              last_recalled_at?: string | null;
+              /** Format: date-time */
+              mod_time: string;
+              name: string;
+              recall_count: number;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              staleness_banner?: string;
+              superseded_by?: string;
+              system_managed: boolean;
+              /** @enum {string} */
+              type: "user" | "feedback" | "project" | "reference";
+              /** Format: date-time */
+              updated_at?: string | null;
+              workspace_id?: string;
+            }[];
+          };
         };
       };
       /** @description Invalid memory filter */
@@ -14790,7 +15328,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14801,7 +15343,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14812,7 +15358,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14824,7 +15374,7 @@ export interface operations {
       };
     };
   };
-  consolidateMemory: {
+  writeMemory: {
     parameters: {
       query?: never;
       header?: never;
@@ -14835,7 +15385,26 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          workspace?: string;
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          attribute?: string;
+          content: string;
+          description?: string;
+          dry_run?: boolean;
+          entity?: string;
+          idempotency_key?: string;
+          metadata?: {
+            [key: string]: string;
+          };
+          name: string;
+          /** @enum {string} */
+          origin?: "cli" | "http" | "uds" | "tool" | "extractor" | "dreaming" | "file" | "provider";
+          /** @enum {string} */
+          scope: "global" | "workspace" | "agent";
+          /** @enum {string} */
+          type: "user" | "feedback" | "project" | "reference";
+          workspace_id?: string;
         };
       };
     };
@@ -14847,30 +15416,126 @@ export interface operations {
         };
         content: {
           "application/json": {
-            reason?: string;
-            triggered: boolean;
+            applied: boolean;
+            decision: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            };
+            dry_run?: boolean;
           };
         };
       };
-      /** @description Invalid consolidate request */
+      /** @description Invalid memory write request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
-      /** @description Workspace not found */
-      404: {
+      /** @description Memory decision conflict */
+      409: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory write rejected by policy */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14881,7 +15546,1511 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createMemoryAdhocNote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          content: string;
+          /** @enum {string} */
+          scope: "global" | "workspace" | "agent";
+          slug?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            accepted: boolean;
+            /** Format: date-time */
+            created_at: string;
+            path: string;
+          };
+        };
+      };
+      /** @description Invalid memory ad-hoc note request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory ad-hoc note rejected by policy */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryConfigMetadata: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            config: {
+              controller: {
+                default_op_on_fail: string;
+                llm: {
+                  enabled: boolean;
+                  max_tokens_out: number;
+                  model: string;
+                  prompt_version: string;
+                  timeout: string;
+                  top_k: number;
+                };
+                max_latency: string;
+                mode: string;
+                policy: {
+                  allow_origins: string[];
+                  max_content_chars: number;
+                  max_writes_per_min: number;
+                };
+              };
+              daily: {
+                archive_path: string;
+                cold_archive_days: number;
+                dreaming_window: number;
+                hard_delete_days: number;
+                /** Format: int64 */
+                max_archive_bytes: number;
+                /** Format: int64 */
+                max_bytes: number;
+                max_lines: number;
+                rotate_format: string;
+                sweep_hour: number;
+              };
+              decisions: {
+                keep_audit_summary: boolean;
+                /** Format: int64 */
+                max_post_content_bytes: number;
+                prune_after_applied_days: number;
+              };
+              dream: {
+                agent: string;
+                check_interval: string;
+                debounce: string;
+                enabled: boolean;
+                gates: {
+                  min_recall_count: number;
+                  /** Format: double */
+                  min_score: number;
+                  min_unpromoted: number;
+                };
+                /** Format: double */
+                min_hours: number;
+                min_sessions: number;
+                prompt_version: string;
+                scoring: {
+                  recency_half_life_days: number;
+                  weights: {
+                    /** Format: double */
+                    frequency: number;
+                    /** Format: double */
+                    freshness: number;
+                    /** Format: double */
+                    recency: number;
+                    /** Format: double */
+                    relevance: number;
+                  };
+                };
+              };
+              enabled: boolean;
+              extractor: {
+                deadline: string;
+                dlq_path: string;
+                enabled: boolean;
+                inbox_path: string;
+                mode: string;
+                model: string;
+                queue: {
+                  capacity: number;
+                  coalesce_max: number;
+                };
+                sandbox_inbox_only: boolean;
+                throttle_turns: number;
+              };
+              file: {
+                /** Format: int64 */
+                max_bytes: number;
+                max_lines: number;
+              };
+              global_dir?: string;
+              provider: {
+                cooldown: string;
+                failure_threshold: number;
+                name: string;
+                timeout: string;
+              };
+              recall: {
+                freshness: {
+                  banner_after_days: number;
+                };
+                fusion: string;
+                include_already_surfaced: boolean;
+                include_system: boolean;
+                raw_candidates: number;
+                signals: {
+                  metrics_enabled: boolean;
+                  queue_capacity: number;
+                  worker_retry_max: number;
+                };
+                top_k: number;
+                weights: {
+                  /** Format: double */
+                  bm25_trigram: number;
+                  /** Format: double */
+                  bm25_unicode: number;
+                  /** Format: double */
+                  recall_signal: number;
+                  /** Format: double */
+                  recency: number;
+                };
+              };
+              session: {
+                cold_archive_days: number;
+                events_purge_grace: string;
+                hard_delete_days: number;
+                ledger_format: string;
+                ledger_root: string;
+                /** Format: int64 */
+                max_archive_bytes: number;
+                unbound_partition: string;
+              };
+              workspace: {
+                auto_create: boolean;
+                toml_path: string;
+              };
+            };
+            locked_paths: string[];
+            mutable_paths: string[];
+            providers: {
+              active: boolean;
+              builtin: boolean;
+              /** Format: date-time */
+              cooldown_until?: string | null;
+              failure_count: number;
+              last_error_code?: string;
+              name: string;
+              /** @enum {string} */
+              status: "active" | "standby" | "cooling_down" | "failed";
+              tools?: string[];
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryDailyLogs: {
+    parameters: {
+      query?: {
+        /** @description Memory scope */
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
+        /** @description Daily log date in YYYY-MM-DD format */
+        date?: string;
+        /** @description Maximum number of daily logs to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            logs: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              date: string;
+              operation_count: number;
+              path: string;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid memory daily log filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryDecisions: {
+    parameters: {
+      query?: {
+        /** @description Memory scope */
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
+        /** @description Controller decision op */
+        op?: string;
+        /** @description Only decisions since this timestamp */
+        since?: string;
+        /** @description Maximum number of decisions to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            decisions: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid memory decision filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryDecision: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Controller decision id */
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            decision: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Memory decision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  revertMemoryDecision: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Controller decision id */
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          dry_run?: boolean;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            decision: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            };
+            dry_run?: boolean;
+            reverted: boolean;
+          };
+        };
+      };
+      /** @description Invalid memory decision revert request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory decision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory decision cannot be reverted */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryDreams: {
+    parameters: {
+      query?: {
+        /** @description Memory scope */
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
+        /** @description Dream status */
+        status?: string;
+        /** @description Maximum number of dreaming runs to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dreams: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              artifact_paths?: string[];
+              candidate_count: number;
+              /** Format: date-time */
+              completed_at?: string | null;
+              failure_path?: string;
+              failure_reason?: string;
+              id: string;
+              /** Format: date-time */
+              lock_until?: string | null;
+              promoted_count: number;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status: "idle" | "running" | "promoted" | "skipped" | "failed";
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid memory dream filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryDreamStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dreams: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              artifact_paths?: string[];
+              candidate_count: number;
+              /** Format: date-time */
+              completed_at?: string | null;
+              failure_path?: string;
+              failure_reason?: string;
+              id: string;
+              /** Format: date-time */
+              lock_until?: string | null;
+              promoted_count: number;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status: "idle" | "running" | "promoted" | "skipped" | "failed";
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  triggerMemoryDream: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          force?: boolean;
+          /** @enum {string} */
+          scope?: "global" | "workspace" | "agent";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dream: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              artifact_paths?: string[];
+              candidate_count: number;
+              /** Format: date-time */
+              completed_at?: string | null;
+              failure_path?: string;
+              failure_reason?: string;
+              id: string;
+              /** Format: date-time */
+              lock_until?: string | null;
+              promoted_count: number;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status: "idle" | "running" | "promoted" | "skipped" | "failed";
+              workspace_id?: string;
+            };
+            reason?: string;
+            triggered: boolean;
+          };
+        };
+      };
+      /** @description Invalid memory dream trigger request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory dream gate not satisfied */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryDream: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Dreaming run id */
+        dream_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dream: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              artifact_paths?: string[];
+              candidate_count: number;
+              /** Format: date-time */
+              completed_at?: string | null;
+              failure_path?: string;
+              failure_reason?: string;
+              id: string;
+              /** Format: date-time */
+              lock_until?: string | null;
+              promoted_count: number;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status: "idle" | "running" | "promoted" | "skipped" | "failed";
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Memory dream not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retryMemoryDream: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Dreaming run id */
+        dream_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          failure_id?: string;
+          force?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dream: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              artifact_paths?: string[];
+              candidate_count: number;
+              /** Format: date-time */
+              completed_at?: string | null;
+              failure_path?: string;
+              failure_reason?: string;
+              id: string;
+              /** Format: date-time */
+              lock_until?: string | null;
+              promoted_count: number;
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status: "idle" | "running" | "promoted" | "skipped" | "failed";
+              workspace_id?: string;
+            };
+            retried: boolean;
+          };
+        };
+      };
+      /** @description Invalid memory dream retry request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory dream not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  drainMemoryExtractor: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            drained_at: string;
+            remaining: number;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryExtractorFailures: {
+    parameters: {
+      query?: {
+        /** @description Filter by session id */
+        session_id?: string;
+        /** @description Maximum number of failures to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            failures: {
+              agent_name?: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              path: string;
+              reason: string;
+              session_id: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid extractor failure filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retryMemoryExtractor: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          failure_id?: string;
+          session_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            failed: number;
+            retried: number;
+          };
+        };
+      };
+      /** @description Invalid extractor retry request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryExtractorStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            extractor: {
+              coalesced_turns: number;
+              dropped_turns: number;
+              failure_count: number;
+              in_flight_sessions: number;
+              queued_sessions: number;
+              /** @enum {string} */
+              status: "idle" | "running" | "draining" | "stopped";
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14896,8 +17065,14 @@ export interface operations {
   getMemoryHealth: {
     parameters: {
       query?: {
-        /** @description Workspace id or path */
-        workspace?: string;
+        /** @description Memory scope */
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
       };
       header?: never;
       path?: never;
@@ -14945,7 +17120,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14956,7 +17135,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -14972,9 +17155,13 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace";
-        /** @description Workspace id or path */
-        workspace?: string;
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
         /** @description Memory operation type */
         operation?: string;
         /** @description Only operations since this timestamp */
@@ -14997,14 +17184,18 @@ export interface operations {
           "application/json": {
             operations: {
               agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
               filename?: string;
               id: string;
-              operation: string;
-              scope?: string;
+              /** @enum {string} */
+              operation: "memory.write" | "memory.delete" | "memory.search" | "memory.reindex";
+              /** @enum {string} */
+              scope?: "global" | "workspace" | "agent";
               summary?: string;
               /** Format: date-time */
               timestamp: string;
-              workspace?: string;
+              workspace_id?: string;
             }[];
           };
         };
@@ -15016,7 +17207,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15027,7 +17222,1488 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  promoteMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          dry_run?: boolean;
+          filename: string;
+          from: {
+            agent_name?: string;
+            /** @enum {string} */
+            agent_tier?: "workspace" | "global";
+            /** @enum {string} */
+            scope: "global" | "workspace" | "agent";
+            workspace_id?: string;
+          };
+          idempotency_key?: string;
+          to: {
+            agent_name?: string;
+            /** @enum {string} */
+            agent_tier?: "workspace" | "global";
+            /** @enum {string} */
+            scope: "global" | "workspace" | "agent";
+            workspace_id?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            decision: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            };
+            dry_run?: boolean;
+          };
+        };
+      };
+      /** @description Invalid memory promote request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory promotion conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryProviders: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            providers: {
+              active: boolean;
+              builtin: boolean;
+              /** Format: date-time */
+              cooldown_until?: string | null;
+              failure_count: number;
+              last_error_code?: string;
+              name: string;
+              /** @enum {string} */
+              status: "active" | "standby" | "cooling_down" | "failed";
+              tools?: string[];
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  selectMemoryProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            provider: {
+              active: boolean;
+              builtin: boolean;
+              /** Format: date-time */
+              cooldown_until?: string | null;
+              failure_count: number;
+              last_error_code?: string;
+              name: string;
+              /** @enum {string} */
+              status: "active" | "standby" | "cooling_down" | "failed";
+              tools?: string[];
+            };
+          };
+        };
+      };
+      /** @description Invalid memory provider selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory provider collision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Memory provider name */
+        provider_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            provider: {
+              active: boolean;
+              builtin: boolean;
+              /** Format: date-time */
+              cooldown_until?: string | null;
+              failure_count: number;
+              last_error_code?: string;
+              name: string;
+              /** @enum {string} */
+              status: "active" | "standby" | "cooling_down" | "failed";
+              tools?: string[];
+            };
+          };
+        };
+      };
+      /** @description Memory provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  disableMemoryProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Memory provider name */
+        provider_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            changed: boolean;
+            provider: {
+              active: boolean;
+              builtin: boolean;
+              /** Format: date-time */
+              cooldown_until?: string | null;
+              failure_count: number;
+              last_error_code?: string;
+              name: string;
+              /** @enum {string} */
+              status: "active" | "standby" | "cooling_down" | "failed";
+              tools?: string[];
+            };
+          };
+        };
+      };
+      /** @description Invalid memory provider disable request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  enableMemoryProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Memory provider name */
+        provider_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            changed: boolean;
+            provider: {
+              active: boolean;
+              builtin: boolean;
+              /** Format: date-time */
+              cooldown_until?: string | null;
+              failure_count: number;
+              last_error_code?: string;
+              name: string;
+              /** @enum {string} */
+              status: "active" | "standby" | "cooling_down" | "failed";
+              tools?: string[];
+            };
+          };
+        };
+      };
+      /** @description Invalid memory provider enable request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory provider collision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemoryRecallTrace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+        /** @description Turn sequence */
+        turn_seq: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            trace: {
+              /** Format: date-time */
+              executed_at: string;
+              options: {
+                already_surfaced?: string[];
+                include_already_surfaced?: boolean;
+                include_system?: boolean;
+                raw_candidates?: number;
+                top_k?: number;
+              };
+              query: {
+                agent_name?: string;
+                context_hint?: string;
+                query_text: string;
+                workspace_id?: string;
+              };
+              recall: {
+                blocks: {
+                  /** @enum {string} */
+                  agent_tier?: "workspace" | "global";
+                  entries: {
+                    age_days: number;
+                    body: string;
+                    filename?: string;
+                    id: string;
+                    staleness_banner?: string;
+                    title: string;
+                    /** @enum {string} */
+                    type?: "user" | "feedback" | "project" | "reference";
+                    why_recalled?: string[];
+                    workspace_id?: string;
+                  }[];
+                  /** @enum {string} */
+                  scope: "global" | "workspace" | "agent";
+                }[];
+                header: {
+                  content_hash: string;
+                  text: string;
+                };
+              };
+              session_id: string;
+              skipped_reason?: string;
+              /** Format: int64 */
+              turn_seq: number;
+            };
+          };
+        };
+      };
+      /** @description Memory recall trace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reindexMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          include_system?: boolean;
+          /** @enum {string} */
+          scope?: "global" | "workspace" | "agent";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agent_name?: string;
+            /** @enum {string} */
+            agent_tier?: "workspace" | "global";
+            /** Format: date-time */
+            completed_at: string;
+            indexed_files: number;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid memory reindex request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reloadMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: int64 */
+            generation: number;
+            /** Format: date-time */
+            reloaded_at: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resetMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          confirm: boolean;
+          derived_only: boolean;
+          /** @enum {string} */
+          scope?: "global" | "workspace" | "agent";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            deleted_files: number;
+            deleted_rows: number;
+            derived_only: boolean;
+            /** Format: date-time */
+            reset_at: string;
+          };
+        };
+      };
+      /** @description Invalid memory reset request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory reset confirmation required */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  showMemoryScope: {
+    parameters: {
+      query?: {
+        /** @description Memory scope */
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            precedence: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              workspace_id?: string;
+            }[];
+            roots: {
+              [key: string]: string;
+            };
+            selector: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid memory scope selector */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Workspace or agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  searchMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          already_surfaced?: string[];
+          context_hint?: string;
+          explain?: boolean;
+          include_already_surfaced?: boolean;
+          include_system?: boolean;
+          query_text: string;
+          raw_candidates?: number;
+          /** @enum {string} */
+          scope?: "global" | "workspace" | "agent";
+          top_k?: number;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            recall: {
+              blocks: {
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                entries: {
+                  age_days: number;
+                  body: string;
+                  filename?: string;
+                  id: string;
+                  staleness_banner?: string;
+                  title: string;
+                  /** @enum {string} */
+                  type?: "user" | "feedback" | "project" | "reference";
+                  why_recalled?: string[];
+                  workspace_id?: string;
+                }[];
+                /** @enum {string} */
+                scope: "global" | "workspace" | "agent";
+              }[];
+              header: {
+                content_hash: string;
+                text: string;
+              };
+            };
+            results: {
+              already_shown?: boolean;
+              memory: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                content_hash?: string;
+                /** Format: date-time */
+                created_at?: string | null;
+                description?: string;
+                filename: string;
+                injection: boolean;
+                /** Format: date-time */
+                last_recalled_at?: string | null;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                recall_count: number;
+                /** @enum {string} */
+                scope: "global" | "workspace" | "agent";
+                staleness_banner?: string;
+                superseded_by?: string;
+                system_managed: boolean;
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+                /** Format: date-time */
+                updated_at?: string | null;
+                workspace_id?: string;
+              };
+              /** Format: double */
+              score: number;
+              shadowed_by?: string;
+              snippet?: string;
+              why_recalled?: string[];
+            }[];
+          };
+        };
+      };
+      /** @description Invalid memory search request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  pruneMemorySessions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          dry_run?: boolean;
+          older_than_hours: number;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dry_run?: boolean;
+            pruned_events: number;
+            pruned_sessions: number;
+          };
+        };
+      };
+      /** @description Invalid session prune request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  repairMemorySessions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            completed_at: string;
+            repaired_ledgers: number;
+            skipped_ledgers: number;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemorySessionLedger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              /** Format: date-time */
+              emitted_at: string;
+              event_type: string;
+              payload?: {
+                [key: string]: unknown;
+              };
+              /** Format: int64 */
+              sequence: number;
+            }[];
+            meta: {
+              checksum: string;
+              /** Format: date-time */
+              created_at: string;
+              parent_session_id?: string;
+              path: string;
+              root_session_id?: string;
+              session_id: string;
+              spawn_depth: number;
+              /** Format: date-time */
+              stopped_at?: string | null;
+              version: number;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Session ledger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  replayMemorySession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          include_memory?: boolean;
+          include_tool_events?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              /** Format: date-time */
+              emitted_at: string;
+              event_type: string;
+              payload?: {
+                [key: string]: unknown;
+              };
+              /** Format: int64 */
+              sequence: number;
+            }[];
+            session_id: string;
+          };
+        };
+      };
+      /** @description Invalid session replay request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Session ledger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15043,9 +18719,13 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace";
-        /** @description Workspace id or path */
-        workspace?: string;
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
       };
       header?: never;
       path: {
@@ -15063,7 +18743,36 @@ export interface operations {
         };
         content: {
           "application/json": {
-            content: string;
+            memory: {
+              content: string;
+              summary: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                content_hash?: string;
+                /** Format: date-time */
+                created_at?: string | null;
+                description?: string;
+                filename: string;
+                injection: boolean;
+                /** Format: date-time */
+                last_recalled_at?: string | null;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                recall_count: number;
+                /** @enum {string} */
+                scope: "global" | "workspace" | "agent";
+                staleness_banner?: string;
+                superseded_by?: string;
+                system_managed: boolean;
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+                /** Format: date-time */
+                updated_at?: string | null;
+                workspace_id?: string;
+              };
+            };
           };
         };
       };
@@ -15074,7 +18783,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15085,7 +18798,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15096,80 +18813,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  writeMemory: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Memory filename */
-        filename: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          content: string;
-          scope?: string;
-          workspace?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            ok: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory write request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15185,9 +18833,13 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace";
-        /** @description Workspace id or path */
-        workspace?: string;
+        scope?: "global" | "workspace" | "agent";
+        /** @description Durable workspace id */
+        workspace_id?: string;
+        /** @description Agent name for agent-scoped memory */
+        agent_name?: string;
+        /** @description Agent memory tier */
+        agent_tier?: "workspace" | "global";
       };
       header?: never;
       path: {
@@ -15205,7 +18857,80 @@ export interface operations {
         };
         content: {
           "application/json": {
-            ok: boolean;
+            applied: boolean;
+            decision: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            };
           };
         };
       };
@@ -15216,7 +18941,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15227,7 +18956,26 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory decision conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -15238,7 +18986,213 @@ export interface operations {
         };
         content: {
           "application/json": {
-            error: string;
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  editMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Memory filename */
+        filename: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          agent_tier?: "workspace" | "global";
+          content: string;
+          description?: string;
+          dry_run?: boolean;
+          idempotency_key?: string;
+          metadata?: {
+            [key: string]: string;
+          };
+          name?: string;
+          /** @enum {string} */
+          scope?: "global" | "workspace" | "agent";
+          /** @enum {string} */
+          type?: "user" | "feedback" | "project" | "reference";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            decision: {
+              agent_name?: string;
+              /** @enum {string} */
+              agent_tier?: "workspace" | "global";
+              /** Format: date-time */
+              applied_at?: string | null;
+              candidate_hash: string;
+              /** Format: float */
+              confidence: number;
+              /** Format: date-time */
+              decided_at: string;
+              frontmatter: {
+                agent_name?: string;
+                /** @enum {string} */
+                agent_tier?: "workspace" | "global";
+                description?: string;
+                filename: string;
+                /** Format: date-time */
+                mod_time: string;
+                name: string;
+                provenance?: {
+                  confidence?: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  /** @enum {string} */
+                  source_actor:
+                    | "cli"
+                    | "http"
+                    | "uds"
+                    | "tool"
+                    | "extractor"
+                    | "dreaming"
+                    | "file"
+                    | "provider";
+                  source_session_ids?: string[];
+                  superseded_by?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                } | null;
+                /** @enum {string} */
+                scope?: "global" | "workspace" | "agent";
+                /** @enum {string} */
+                type: "user" | "feedback" | "project" | "reference";
+              };
+              id: string;
+              idempotency_key?: string;
+              llm_trace?: {
+                error?: string;
+                /** Format: int64 */
+                latency_ms: number;
+                model: string;
+                prompt_version: string;
+              } | null;
+              /** @enum {string} */
+              op: "noop" | "add" | "update" | "delete" | "reject";
+              post_content_hash?: string;
+              prompt_version?: string;
+              reason?: string;
+              rule_trace?: {
+                details?: string;
+                name: string;
+                passed: boolean;
+                reason?: string;
+                target?: string;
+              }[];
+              /** @enum {string} */
+              scope: "global" | "workspace" | "agent";
+              /** @enum {string} */
+              source: "rule" | "llm";
+              target_filename?: string;
+              targets?: string[];
+              workspace_id?: string;
+            };
+            dry_run?: boolean;
+          };
+        };
+      };
+      /** @description Invalid memory edit request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory decision conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Memory edit rejected by policy */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
           };
         };
       };
@@ -21619,6 +25573,7 @@ export interface operations {
                   | "session.post_resume"
                   | "session.pre_stop"
                   | "session.post_stop"
+                  | "session.message_persisted"
                   | "sandbox.prepare"
                   | "sandbox.ready"
                   | "sandbox.sync.before"
@@ -21855,6 +25810,7 @@ export interface operations {
                   | "session.post_resume"
                   | "session.pre_stop"
                   | "session.post_stop"
+                  | "session.message_persisted"
                   | "sandbox.prepare"
                   | "sandbox.ready"
                   | "sandbox.sync.before"
@@ -22216,6 +26172,7 @@ export interface operations {
               | "session.post_resume"
               | "session.pre_stop"
               | "session.post_stop"
+              | "session.message_persisted"
               | "sandbox.prepare"
               | "sandbox.ready"
               | "sandbox.sync.before"
@@ -22938,16 +26895,138 @@ export interface operations {
             };
             available_scopes: "global"[];
             config: {
+              controller: {
+                default_op_on_fail: string;
+                llm: {
+                  enabled: boolean;
+                  max_tokens_out: number;
+                  model: string;
+                  prompt_version: string;
+                  timeout: string;
+                  top_k: number;
+                };
+                max_latency: string;
+                mode: string;
+                policy: {
+                  allow_origins: string[];
+                  max_content_chars: number;
+                  max_writes_per_min: number;
+                };
+              };
+              daily: {
+                archive_path: string;
+                cold_archive_days: number;
+                dreaming_window: number;
+                hard_delete_days: number;
+                /** Format: int64 */
+                max_archive_bytes: number;
+                /** Format: int64 */
+                max_bytes: number;
+                max_lines: number;
+                rotate_format: string;
+                sweep_hour: number;
+              };
+              decisions: {
+                keep_audit_summary: boolean;
+                /** Format: int64 */
+                max_post_content_bytes: number;
+                prune_after_applied_days: number;
+              };
               dream: {
                 agent: string;
                 check_interval: string;
+                debounce: string;
                 enabled: boolean;
+                gates: {
+                  min_recall_count: number;
+                  /** Format: double */
+                  min_score: number;
+                  min_unpromoted: number;
+                };
                 /** Format: double */
                 min_hours: number;
                 min_sessions: number;
+                prompt_version: string;
+                scoring: {
+                  recency_half_life_days: number;
+                  weights: {
+                    /** Format: double */
+                    frequency: number;
+                    /** Format: double */
+                    freshness: number;
+                    /** Format: double */
+                    recency: number;
+                    /** Format: double */
+                    relevance: number;
+                  };
+                };
               };
               enabled: boolean;
+              extractor: {
+                deadline: string;
+                dlq_path: string;
+                enabled: boolean;
+                inbox_path: string;
+                mode: string;
+                model: string;
+                queue: {
+                  capacity: number;
+                  coalesce_max: number;
+                };
+                sandbox_inbox_only: boolean;
+                throttle_turns: number;
+              };
+              file: {
+                /** Format: int64 */
+                max_bytes: number;
+                max_lines: number;
+              };
               global_dir?: string;
+              provider: {
+                cooldown: string;
+                failure_threshold: number;
+                name: string;
+                timeout: string;
+              };
+              recall: {
+                freshness: {
+                  banner_after_days: number;
+                };
+                fusion: string;
+                include_already_surfaced: boolean;
+                include_system: boolean;
+                raw_candidates: number;
+                signals: {
+                  metrics_enabled: boolean;
+                  queue_capacity: number;
+                  worker_retry_max: number;
+                };
+                top_k: number;
+                weights: {
+                  /** Format: double */
+                  bm25_trigram: number;
+                  /** Format: double */
+                  bm25_unicode: number;
+                  /** Format: double */
+                  recall_signal: number;
+                  /** Format: double */
+                  recency: number;
+                };
+              };
+              session: {
+                cold_archive_days: number;
+                events_purge_grace: string;
+                hard_delete_days: number;
+                ledger_format: string;
+                ledger_root: string;
+                /** Format: int64 */
+                max_archive_bytes: number;
+                unbound_partition: string;
+              };
+              workspace: {
+                auto_create: boolean;
+                toml_path: string;
+              };
             };
             health: {
               available: boolean;
@@ -23001,16 +27080,138 @@ export interface operations {
       content: {
         "application/json": {
           config: {
+            controller: {
+              default_op_on_fail: string;
+              llm: {
+                enabled: boolean;
+                max_tokens_out: number;
+                model: string;
+                prompt_version: string;
+                timeout: string;
+                top_k: number;
+              };
+              max_latency: string;
+              mode: string;
+              policy: {
+                allow_origins: string[];
+                max_content_chars: number;
+                max_writes_per_min: number;
+              };
+            };
+            daily: {
+              archive_path: string;
+              cold_archive_days: number;
+              dreaming_window: number;
+              hard_delete_days: number;
+              /** Format: int64 */
+              max_archive_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              max_lines: number;
+              rotate_format: string;
+              sweep_hour: number;
+            };
+            decisions: {
+              keep_audit_summary: boolean;
+              /** Format: int64 */
+              max_post_content_bytes: number;
+              prune_after_applied_days: number;
+            };
             dream: {
               agent: string;
               check_interval: string;
+              debounce: string;
               enabled: boolean;
+              gates: {
+                min_recall_count: number;
+                /** Format: double */
+                min_score: number;
+                min_unpromoted: number;
+              };
               /** Format: double */
               min_hours: number;
               min_sessions: number;
+              prompt_version: string;
+              scoring: {
+                recency_half_life_days: number;
+                weights: {
+                  /** Format: double */
+                  frequency: number;
+                  /** Format: double */
+                  freshness: number;
+                  /** Format: double */
+                  recency: number;
+                  /** Format: double */
+                  relevance: number;
+                };
+              };
             };
             enabled: boolean;
+            extractor: {
+              deadline: string;
+              dlq_path: string;
+              enabled: boolean;
+              inbox_path: string;
+              mode: string;
+              model: string;
+              queue: {
+                capacity: number;
+                coalesce_max: number;
+              };
+              sandbox_inbox_only: boolean;
+              throttle_turns: number;
+            };
+            file: {
+              /** Format: int64 */
+              max_bytes: number;
+              max_lines: number;
+            };
             global_dir?: string;
+            provider: {
+              cooldown: string;
+              failure_threshold: number;
+              name: string;
+              timeout: string;
+            };
+            recall: {
+              freshness: {
+                banner_after_days: number;
+              };
+              fusion: string;
+              include_already_surfaced: boolean;
+              include_system: boolean;
+              raw_candidates: number;
+              signals: {
+                metrics_enabled: boolean;
+                queue_capacity: number;
+                worker_retry_max: number;
+              };
+              top_k: number;
+              weights: {
+                /** Format: double */
+                bm25_trigram: number;
+                /** Format: double */
+                bm25_unicode: number;
+                /** Format: double */
+                recall_signal: number;
+                /** Format: double */
+                recency: number;
+              };
+            };
+            session: {
+              cold_archive_days: number;
+              events_purge_grace: string;
+              hard_delete_days: number;
+              ledger_format: string;
+              ledger_root: string;
+              /** Format: int64 */
+              max_archive_bytes: number;
+              unbound_partition: string;
+            };
+            workspace: {
+              auto_create: boolean;
+              toml_path: string;
+            };
           };
         };
       };

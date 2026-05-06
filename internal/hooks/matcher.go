@@ -488,6 +488,10 @@ func matchSessionHealthUpdateAfter(matcher HookMatcher, payload SessionHealthUpd
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
+func matchSessionMessagePersisted(matcher HookMatcher, payload SessionMessagePersistedPayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
 func matchTurn(matcher HookMatcher, payload TurnPayload) bool {
 	return matcher.MatchesTurn(payload)
 }

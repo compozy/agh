@@ -15,15 +15,18 @@ import (
 const FixtureVersion = 2
 
 const (
-	aghSituationContextOpen             = "<agh-situation-context>"
-	aghSituationContextClose            = "</agh-situation-context>"
-	aghCurrentSkillsOpen                = "<current-available-skills>"
-	aghCurrentSkillsClose               = "</current-available-skills>"
-	aghCurrentSkillsLastInstructionLine = "If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
-	aghAvailableSkillsOpen              = "<available-skills>"
-	aghAvailableSkillsClose             = "</available-skills>"
-	aghDurableMemoryOpen                = "Relevant durable memory for this turn:"
-	aghDurableMemoryUserMessageMarker   = "\n\nUser message:\n"
+	aghSituationContextOpen           = "<agh-situation-context>"
+	aghSituationContextClose          = "</agh-situation-context>"
+	availableSkillsOpen               = "<available-skills>"
+	availableSkillsClose              = "</available-skills>"
+	availableSkillsSelfClosing        = "<available-skills />"
+	currentAvailableSkillsOpen        = "<current-available-skills>"
+	currentAvailableSkillsClose       = "</current-available-skills>"
+	currentAvailableSkillsSelfClosing = "<current-available-skills />"
+	currentSkillsCatalogFinalLine     = "If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
+	durableMemoryPromptPrefix         = "Relevant durable memory for this turn:"
+	durableMemoryUserMessageMark      = "\n\nUser message:\n"
+	inboundBridgePromptPrefix         = "Inbound bridge message"
 )
 
 type StepKind string
@@ -232,8 +235,9 @@ func (a AgentFixture) SelectTurn(prompt string, occurrence int, meta ...acp.Prom
 	}
 
 	return TurnFixture{}, fmt.Errorf(
-		"acpmock: no turn matched agent %q prompt %q at occurrence %d with meta %#v",
+		"acpmock: no turn matched agent %q canonical_prompt %q raw_prompt %q at occurrence %d with meta %#v",
 		a.Name,
+		canonicalUserText(input.UserText),
 		input.UserText,
 		occurrence,
 		input.Meta,
@@ -345,13 +349,15 @@ func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
 }
 
 func canonicalUserText(prompt string) string {
-	trimmed := promptAfterLastUserMarker(prompt)
+	current := strings.TrimSpace(prompt)
 	for {
-		next, changed := stripLeadingPromptAugmentation(trimmed)
-		if !changed {
-			return trimmed
+		current = promptAfterLastUserMarker(current)
+		next := stripKnownPromptAugmentation(current)
+		next = promptAfterLastUserMarker(next)
+		if next == current {
+			return current
 		}
-		trimmed = promptAfterLastUserMarker(next)
+		current = next
 	}
 }
 
@@ -387,70 +393,70 @@ func lastLineMarkerIndex(text string, marker string) int {
 	return -1
 }
 
-func stripLeadingPromptAugmentation(prompt string) (string, bool) {
-	if next, ok := stripLeadingPromptBlock(prompt, aghSituationContextOpen, aghSituationContextClose); ok {
-		return next, true
-	}
-	if next, ok := stripLeadingPromptBlock(prompt, aghCurrentSkillsOpen, aghCurrentSkillsClose); ok {
-		return stripCurrentSkillsInstructions(next), true
-	}
-	if next, ok := stripLeadingPromptBlock(prompt, aghAvailableSkillsOpen, aghAvailableSkillsClose); ok {
-		return stripCurrentSkillsInstructions(next), true
-	}
-	if next, ok := stripLeadingDurableMemory(prompt); ok {
-		return next, true
-	}
-	return strings.TrimSpace(prompt), false
+func stripKnownPromptAugmentation(prompt string) string {
+	next := stripLeadingPromptBlock(prompt, aghSituationContextOpen, aghSituationContextClose)
+	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)
+	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
+	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)
+	next = stripLeadingSelfClosingPromptBlock(next, availableSkillsSelfClosing)
+	next = stripLeadingDurableMemoryBlock(next)
+	next = stripLeadingInboundBridgePrompt(next)
+	return strings.TrimSpace(next)
 }
 
-func stripLeadingPromptBlock(prompt string, open string, closeMarker string) (string, bool) {
+func stripLeadingPromptBlock(prompt string, open string, closeTag string) string {
 	trimmed := strings.TrimSpace(prompt)
 	if !strings.HasPrefix(trimmed, open) {
-		return trimmed, false
+		return trimmed
 	}
-	_, after, ok := strings.Cut(trimmed, closeMarker)
+	_, after, ok := strings.Cut(trimmed, closeTag)
 	if !ok {
-		return trimmed, false
+		return trimmed
 	}
-	return strings.TrimSpace(after), true
+	return strings.TrimSpace(after)
 }
 
-func stripCurrentSkillsInstructions(prompt string) string {
+func stripLeadingSkillsCatalogBlock(prompt string, open string, closeTag string) string {
+	after := stripLeadingPromptBlock(prompt, open, closeTag)
+	if after == strings.TrimSpace(prompt) {
+		return after
+	}
+	if _, rest, ok := strings.Cut(after, currentSkillsCatalogFinalLine); ok {
+		return strings.TrimSpace(rest)
+	}
+	return after
+}
+
+func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {
 	trimmed := strings.TrimSpace(prompt)
-	for {
-		next, changed := stripOneCurrentSkillsInstruction(trimmed)
-		if !changed {
-			return trimmed
-		}
-		trimmed = next
+	if !strings.HasPrefix(trimmed, block) {
+		return trimmed
 	}
+	return strings.TrimSpace(strings.TrimPrefix(trimmed, block))
 }
 
-func stripOneCurrentSkillsInstruction(prompt string) (string, bool) {
-	for _, instruction := range []string{
-		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
-		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
-		"Use `agh__skill_view` to load full instructions for any skill.",
-		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		aghCurrentSkillsLastInstructionLine,
-	} {
-		if after, ok := strings.CutPrefix(prompt, instruction); ok {
-			return strings.TrimSpace(after), true
-		}
-	}
-	return prompt, false
-}
-
-func stripLeadingDurableMemory(prompt string) (string, bool) {
+func stripLeadingDurableMemoryBlock(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, aghDurableMemoryOpen) {
-		return trimmed, false
+	if !strings.HasPrefix(trimmed, durableMemoryPromptPrefix) {
+		return trimmed
 	}
-	_, after, ok := strings.Cut(trimmed, aghDurableMemoryUserMessageMarker)
+	_, after, ok := strings.Cut(trimmed, durableMemoryUserMessageMark)
 	if !ok {
-		return trimmed, false
+		return trimmed
 	}
-	return strings.TrimSpace(after), true
+	return strings.TrimSpace(after)
+}
+
+func stripLeadingInboundBridgePrompt(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, inboundBridgePromptPrefix) {
+		return trimmed
+	}
+	_, after, ok := strings.Cut(trimmed, "\n\n")
+	if !ok {
+		return trimmed
+	}
+	return strings.TrimSpace(after)
 }
 
 // Normalize returns a trimmed copy of the network matcher.

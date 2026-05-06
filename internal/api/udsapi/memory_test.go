@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 
 	"github.com/goccy/go-yaml"
 	core "github.com/pedronauck/agh/internal/api/core"
@@ -18,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 type stubDreamTrigger struct {
@@ -47,14 +51,14 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memory.ScopeGlobal, "", "global.md", memory.MemoryTypeUser, "global memory")
+	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "global.md", memcontract.TypeUser, "global memory")
 	mustWriteMemory(
 		t,
 		store,
-		memory.ScopeWorkspace,
+		memcontract.ScopeWorkspace,
 		workspace,
 		"workspace.md",
-		memory.MemoryTypeProject,
+		memcontract.TypeProject,
 		"workspace memory",
 	)
 
@@ -67,10 +71,10 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
 
-		var headers []memory.Header
-		decodeJSONResponse(t, resp, &headers)
-		if len(headers) != 1 || headers[0].Filename != "global.md" {
-			t.Fatalf("headers = %#v, want only global memory", headers)
+		var payload memoryListResponse
+		decodeJSONResponse(t, resp, &payload)
+		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "global.md" {
+			t.Fatalf("memories = %#v, want only global memory", payload.Memories)
 		}
 	})
 
@@ -80,36 +84,48 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 			t.Fatalf("status = %d, want %d", resp.Code, http.StatusOK)
 		}
 
-		var headers []memory.Header
-		decodeJSONResponse(t, resp, &headers)
-		if len(headers) != 1 || headers[0].Filename != "global.md" {
-			t.Fatalf("headers = %#v, want only global memory", headers)
+		var payload memoryListResponse
+		decodeJSONResponse(t, resp, &payload)
+		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "global.md" {
+			t.Fatalf("memories = %#v, want only global memory", payload.Memories)
 		}
 	})
 
 	t.Run("scope workspace filters to workspace", func(t *testing.T) {
-		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=workspace&workspace="+workspace, nil)
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/memory?scope=workspace&workspace_id="+url.QueryEscape(workspace),
+			nil,
+		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
 
-		var headers []memory.Header
-		decodeJSONResponse(t, resp, &headers)
-		if len(headers) != 1 || headers[0].Filename != "workspace.md" {
-			t.Fatalf("headers = %#v, want only workspace memory", headers)
+		var payload memoryListResponse
+		decodeJSONResponse(t, resp, &payload)
+		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "workspace.md" {
+			t.Fatalf("memories = %#v, want only workspace memory", payload.Memories)
 		}
 	})
 
 	t.Run("workspace query without scope includes both scopes", func(t *testing.T) {
-		resp := performRequest(t, engine, http.MethodGet, "/api/memory?workspace="+workspace, nil)
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/memory?workspace_id="+url.QueryEscape(workspace),
+			nil,
+		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
 
-		var headers []memory.Header
-		decodeJSONResponse(t, resp, &headers)
-		if len(headers) != 2 {
-			t.Fatalf("headers len = %d, want 2; headers=%#v", len(headers), headers)
+		var payload memoryListResponse
+		decodeJSONResponse(t, resp, &payload)
+		if len(payload.Memories) != 2 {
+			t.Fatalf("memories len = %d, want 2; memories=%#v", len(payload.Memories), payload.Memories)
 		}
 	})
 }
@@ -118,7 +134,7 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memory.ScopeGlobal, "", "readme.md", memory.MemoryTypeUser, "hello world")
+	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "readme.md", memcontract.TypeUser, "hello world")
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
@@ -128,10 +144,10 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
 
-	var payload memoryReadResponse
+	var payload memoryEntryResponse
 	decodeJSONResponse(t, resp, &payload)
-	if !strings.Contains(payload.Content, "hello world") {
-		t.Fatalf("content = %q, want stored body", payload.Content)
+	if !strings.Contains(payload.Memory.Content, "hello world") {
+		t.Fatalf("content = %q, want stored body", payload.Memory.Content)
 	}
 
 	missing := performRequest(t, engine, http.MethodGet, "/api/memory/missing.md?scope=global", nil)
@@ -150,33 +166,34 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	valid := performRequest(
 		t,
 		engine,
-		http.MethodPut,
-		"/api/memory/valid.md",
-		[]byte(
-			`{"scope":"global","content":"`+escapeJSON(
-				memoryDocument(t, "Valid", "desc", memory.MemoryTypeUser, "hello"),
-			)+`"}`,
-		),
+		http.MethodPost,
+		"/api/memory",
+		[]byte(`{"scope":"global","type":"user","name":"Valid","description":"desc","content":"hello"}`),
 	)
 	if valid.Code != http.StatusOK {
 		t.Fatalf("valid status = %d, want %d; body=%s", valid.Code, http.StatusOK, valid.Body.String())
 	}
-	if _, err := store.Read(memory.ScopeGlobal, "valid.md"); err != nil {
+	var validPayload memoryMutationDecisionResponse
+	decodeJSONResponse(t, valid, &validPayload)
+	if !validPayload.Applied || validPayload.Decision.TargetFilename == "" {
+		t.Fatalf("valid payload = %#v, want applied decision with target filename", validPayload)
+	}
+	if _, err := store.Read(memcontract.ScopeGlobal, validPayload.Decision.TargetFilename); err != nil {
 		t.Fatalf("store.Read(valid) error = %v", err)
 	}
 
 	invalid := performRequest(
 		t,
 		engine,
-		http.MethodPut,
-		"/api/memory/invalid.md",
-		[]byte(`{"scope":"global","content":"not frontmatter"}`),
+		http.MethodPost,
+		"/api/memory",
+		[]byte(`{"scope":"global","type":"user","name":"Invalid"}`),
 	)
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid status = %d, want %d; body=%s", invalid.Code, http.StatusBadRequest, invalid.Body.String())
 	}
 
-	missing := performRequest(t, engine, http.MethodPut, "/api/memory/missing.md", []byte(`{"scope":"global"}`))
+	missing := performRequest(t, engine, http.MethodPost, "/api/memory", []byte(`{"scope":"global"}`))
 	if missing.Code != http.StatusBadRequest {
 		t.Fatalf("missing status = %d, want %d; body=%s", missing.Code, http.StatusBadRequest, missing.Body.String())
 	}
@@ -184,13 +201,9 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	userDefault := performRequest(
 		t,
 		engine,
-		http.MethodPut,
-		"/api/memory/user-default.md",
-		[]byte(
-			`{"content":"`+escapeJSON(
-				memoryDocument(t, "User Default", "desc", memory.MemoryTypeUser, "global body"),
-			)+`"}`,
-		),
+		http.MethodPost,
+		"/api/memory",
+		[]byte(`{"type":"user","name":"User Default","description":"desc","content":"global body"}`),
 	)
 	if userDefault.Code != http.StatusOK {
 		t.Fatalf(
@@ -200,22 +213,20 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 			userDefault.Body.String(),
 		)
 	}
-	if _, err := store.Read(memory.ScopeGlobal, "user-default.md"); err != nil {
+	var userDefaultPayload memoryMutationDecisionResponse
+	decodeJSONResponse(t, userDefault, &userDefaultPayload)
+	if _, err := store.Read(memcontract.ScopeGlobal, userDefaultPayload.Decision.TargetFilename); err != nil {
 		t.Fatalf("store.Read(global inferred) error = %v", err)
 	}
 
 	projectDefault := performRequest(
 		t,
 		engine,
-		http.MethodPut,
-		"/api/memory/project-default.md",
-		[]byte(
-			`{"workspace":"`+escapeJSON(
-				workspace,
-			)+`","content":"`+escapeJSON(
-				memoryDocument(t, "Project Default", "desc", memory.MemoryTypeProject, "workspace body"),
-			)+`"}`,
-		),
+		http.MethodPost,
+		"/api/memory",
+		[]byte(`{"workspace_id":"`+escapeJSON(
+			workspace,
+		)+`","type":"project","name":"Project Default","description":"desc","content":"workspace body"}`),
 	)
 	if projectDefault.Code != http.StatusOK {
 		t.Fatalf(
@@ -225,7 +236,12 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 			projectDefault.Body.String(),
 		)
 	}
-	if _, err := store.ForWorkspace(workspace).Read(memory.ScopeWorkspace, "project-default.md"); err != nil {
+	var projectDefaultPayload memoryMutationDecisionResponse
+	decodeJSONResponse(t, projectDefault, &projectDefaultPayload)
+	if _, err := store.ForWorkspace(workspace).Read(
+		memcontract.ScopeWorkspace,
+		projectDefaultPayload.Decision.TargetFilename,
+	); err != nil {
 		t.Fatalf("store.Read(workspace inferred) error = %v", err)
 	}
 }
@@ -234,7 +250,7 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memory.ScopeGlobal, "", "delete-me.md", memory.MemoryTypeUser, "bye")
+	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "delete-me.md", memcontract.TypeUser, "bye")
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
@@ -243,7 +259,7 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
-	if _, err := store.Read(memory.ScopeGlobal, "delete-me.md"); err == nil {
+	if _, err := store.Read(memcontract.ScopeGlobal, "delete-me.md"); err == nil {
 		t.Fatal("expected file to be deleted")
 	}
 
@@ -257,14 +273,22 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memory.ScopeGlobal, "", "prefs.md", memory.MemoryTypeUser, "User prefers concise answers")
 	mustWriteMemory(
 		t,
 		store,
-		memory.ScopeWorkspace,
+		memcontract.ScopeGlobal,
+		"",
+		"prefs.md",
+		memcontract.TypeUser,
+		"User prefers concise answers",
+	)
+	mustWriteMemory(
+		t,
+		store,
+		memcontract.ScopeWorkspace,
 		workspace,
 		"auth.md",
-		memory.MemoryTypeProject,
+		memcontract.TypeProject,
 		"Auth migration uses sessions",
 	)
 
@@ -274,18 +298,18 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 	search := performRequest(
 		t,
 		engine,
-		http.MethodGet,
-		"/api/memory/search?q=auth%20sessions&workspace="+workspace,
-		nil,
+		http.MethodPost,
+		"/api/memory/search",
+		[]byte(`{"query_text":"auth migration sessions","workspace_id":"`+escapeJSON(workspace)+`"}`),
 	)
 	if search.Code != http.StatusOK {
 		t.Fatalf("search status = %d, want %d; body=%s", search.Code, http.StatusOK, search.Body.String())
 	}
 
-	var results []memory.SearchResult
-	decodeJSONResponse(t, search, &results)
-	if len(results) == 0 || results[0].Scope != memory.ScopeWorkspace {
-		t.Fatalf("search results = %#v, want workspace hit first", results)
+	var searchPayload memorySearchResponse
+	decodeJSONResponse(t, search, &searchPayload)
+	if len(searchPayload.Results) == 0 || searchPayload.Results[0].Memory.Scope != memcontract.ScopeWorkspace {
+		t.Fatalf("search results = %#v, want workspace hit first", searchPayload.Results)
 	}
 
 	reindex := performRequest(
@@ -293,20 +317,20 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory/reindex",
-		[]byte(`{"workspace":"`+escapeJSON(workspace)+`"}`),
+		[]byte(`{"workspace_id":"`+escapeJSON(workspace)+`"}`),
 	)
 	if reindex.Code != http.StatusOK {
 		t.Fatalf("reindex status = %d, want %d; body=%s", reindex.Code, http.StatusOK, reindex.Body.String())
 	}
 
-	var payload memory.ReindexResult
+	var payload memoryReindexResponse
 	decodeJSONResponse(t, reindex, &payload)
 	if payload.IndexedFiles != 2 {
 		t.Fatalf("reindex payload = %#v, want indexed_files=2", payload)
 	}
 }
 
-func TestMemoryHandlersConsolidate(t *testing.T) {
+func TestMemoryHandlersDreamTrigger(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
@@ -318,14 +342,14 @@ func TestMemoryHandlersConsolidate(t *testing.T) {
 		t,
 		engine,
 		http.MethodPost,
-		"/api/memory/consolidate",
-		[]byte(`{"workspace":"/tmp/project"}`),
+		"/api/memory/dreams/trigger",
+		[]byte(`{"workspace_id":"ws-project"}`),
 	)
 	if triggered.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", triggered.Code, http.StatusOK, triggered.Body.String())
 	}
 
-	var triggeredPayload memoryConsolidateResponse
+	var triggeredPayload memoryDreamTriggerResponse
 	decodeJSONResponse(t, triggered, &triggeredPayload)
 	if !triggeredPayload.Triggered {
 		t.Fatalf("payload = %#v, want triggered", triggeredPayload)
@@ -334,25 +358,25 @@ func TestMemoryHandlersConsolidate(t *testing.T) {
 	trigger.triggered = false
 	trigger.reason = "gates not satisfied"
 
-	notTriggered := performRequest(t, engine, http.MethodPost, "/api/memory/consolidate", []byte(`{}`))
+	notTriggered := performRequest(t, engine, http.MethodPost, "/api/memory/dreams/trigger", []byte(`{}`))
 	if notTriggered.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", notTriggered.Code, http.StatusOK, notTriggered.Body.String())
 	}
 
-	var notTriggeredPayload memoryConsolidateResponse
+	var notTriggeredPayload memoryDreamTriggerResponse
 	decodeJSONResponse(t, notTriggered, &notTriggeredPayload)
 	if notTriggeredPayload.Triggered || notTriggeredPayload.Reason != "gates not satisfied" {
 		t.Fatalf("payload = %#v, want gates-failed response", notTriggeredPayload)
 	}
 }
 
-func TestMemoryHandlersConsolidateDisabledAndBadJSON(t *testing.T) {
+func TestMemoryHandlersDreamTriggerDisabledAndBadJSON(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
 	engine := newTestRouter(t, newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, nil))
 
-	badRequest := performRequest(t, engine, http.MethodPost, "/api/memory/consolidate", []byte(`{`))
+	badRequest := performRequest(t, engine, http.MethodPost, "/api/memory/dreams/trigger", []byte(`{`))
 	if badRequest.Code != http.StatusBadRequest {
 		t.Fatalf(
 			"badRequest status = %d, want %d; body=%s",
@@ -362,12 +386,12 @@ func TestMemoryHandlersConsolidateDisabledAndBadJSON(t *testing.T) {
 		)
 	}
 
-	disabled := performRequest(t, engine, http.MethodPost, "/api/memory/consolidate", nil)
+	disabled := performRequest(t, engine, http.MethodPost, "/api/memory/dreams/trigger", nil)
 	if disabled.Code != http.StatusOK {
 		t.Fatalf("disabled status = %d, want %d; body=%s", disabled.Code, http.StatusOK, disabled.Body.String())
 	}
 
-	var payload memoryConsolidateResponse
+	var payload memoryDreamTriggerResponse
 	decodeJSONResponse(t, disabled, &payload)
 	if payload.Triggered || !strings.Contains(payload.Reason, "disabled") {
 		t.Fatalf("payload = %#v, want disabled response", payload)
@@ -378,14 +402,14 @@ func TestHealthIncludesMemoryStats(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memory.ScopeGlobal, "", "health-global.md", memory.MemoryTypeUser, "global")
+	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "health-global.md", memcontract.TypeUser, "global")
 	mustWriteMemory(
 		t,
 		store,
-		memory.ScopeWorkspace,
+		memcontract.ScopeWorkspace,
 		workspace,
 		"health-workspace.md",
-		memory.MemoryTypeProject,
+		memcontract.TypeProject,
 		"workspace",
 	)
 
@@ -435,15 +459,15 @@ func TestMemoryHelpersResolveLocationAndScope(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memory.ScopeGlobal, "", "shared.md", memory.MemoryTypeUser, "global")
-	mustWriteMemory(t, store, memory.ScopeWorkspace, workspace, "shared.md", memory.MemoryTypeProject, "workspace")
+	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "shared.md", memcontract.TypeUser, "global")
+	mustWriteMemory(t, store, memcontract.ScopeWorkspace, workspace, "shared.md", memcontract.TypeProject, "workspace")
 	mustWriteMemory(
 		t,
 		store,
-		memory.ScopeWorkspace,
+		memcontract.ScopeWorkspace,
 		workspace,
 		"workspace-only.md",
-		memory.MemoryTypeProject,
+		memcontract.TypeProject,
 		"workspace only",
 	)
 
@@ -453,7 +477,7 @@ func TestMemoryHelpersResolveLocationAndScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveMemoryLocation(workspace-only) error = %v", err)
 	}
-	if location.Scope != memory.ScopeWorkspace || location.Workspace != workspace {
+	if location.Scope != memcontract.ScopeWorkspace || location.Workspace != workspace {
 		t.Fatalf("location = %#v, want workspace match", location)
 	}
 
@@ -477,7 +501,10 @@ func TestMemoryHelpersWriteScopeStatusAndWorkspaces(t *testing.T) {
 	t.Parallel()
 
 	workspace := filepath.Join(t.TempDir(), "..", "workspace")
-	content := memoryDocument(t, "Project Default", "desc", memory.MemoryTypeProject, "workspace body")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", workspace, err)
+	}
+	content := memoryDocument(t, "Project Default", "desc", memcontract.TypeProject, "workspace body")
 
 	scope, resolvedWorkspace, err := resolveMemoryWriteScope(memoryWriteRequest{
 		Scope:     "workspace",
@@ -487,7 +514,7 @@ func TestMemoryHelpersWriteScopeStatusAndWorkspaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveMemoryWriteScope() error = %v", err)
 	}
-	if scope != memory.ScopeWorkspace {
+	if scope != memcontract.ScopeWorkspace {
 		t.Fatalf("scope = %q, want workspace", scope)
 	}
 	if resolvedWorkspace == "" || !filepath.IsAbs(resolvedWorkspace) {
@@ -544,7 +571,8 @@ func TestMemoryHelpersWriteScopeStatusAndWorkspaces(t *testing.T) {
 		t.Fatalf("workspaces = %#v, want one absolute path", workspaces)
 	}
 
-	explicit, err := handlers.memoryHealthWorkspaces(context.Background(), filepath.Join("..", "workspace"))
+	explicitWorkspace := t.TempDir()
+	explicit, err := handlers.memoryHealthWorkspaces(context.Background(), explicitWorkspace)
 	if err != nil {
 		t.Fatalf("memoryHealthWorkspaces(explicit) error = %v", err)
 	}
@@ -558,7 +586,7 @@ func TestMemoryHandlersReturnInternalErrorWithoutConfiguredStore(t *testing.T) {
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, nil, &stubDreamTrigger{enabled: true})
 	engine := newTestRouter(t, handlers)
-	document := escapeJSON(memoryDocument(t, "Valid", "desc", memory.MemoryTypeUser, "hello"))
+	document := escapeJSON(memoryDocument(t, "Valid", "desc", memcontract.TypeUser, "hello"))
 
 	requests := []struct {
 		method string
@@ -568,9 +596,11 @@ func TestMemoryHandlersReturnInternalErrorWithoutConfiguredStore(t *testing.T) {
 		{method: http.MethodGet, path: "/api/memory"},
 		{method: http.MethodGet, path: "/api/memory/valid.md?scope=global"},
 		{
-			method: http.MethodPut,
-			path:   "/api/memory/valid.md",
-			body:   []byte(`{"scope":"global","content":"` + document + `"}`),
+			method: http.MethodPost,
+			path:   "/api/memory",
+			body: []byte(
+				`{"scope":"global","type":"user","name":"Valid","content":"` + document + `"}`,
+			),
 		},
 		{method: http.MethodDelete, path: "/api/memory/valid.md?scope=global"},
 	}
@@ -630,22 +660,26 @@ func newTestMemoryStore(t *testing.T) (*memory.Store, string) {
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
-	return store, t.TempDir()
+	workspace := t.TempDir()
+	if _, err := aghworkspace.EnsureIdentity(context.Background(), workspace); err != nil {
+		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)
+	}
+	return store, workspace
 }
 
 func mustWriteMemory(
 	t *testing.T,
 	store *memory.Store,
-	scope memory.Scope,
+	scope memcontract.Scope,
 	workspace string,
 	filename string,
-	typ memory.Type,
+	typ memcontract.Type,
 	body string,
 ) {
 	t.Helper()
 
 	target := store
-	if scope == memory.ScopeWorkspace {
+	if scope == memcontract.ScopeWorkspace {
 		target = store.ForWorkspace(workspace)
 	}
 	if err := target.Write(scope, filename, []byte(memoryDocument(t, filename, "desc", typ, body))); err != nil {
@@ -653,10 +687,10 @@ func mustWriteMemory(
 	}
 }
 
-func memoryDocument(t *testing.T, name string, description string, typ memory.Type, body string) string {
+func memoryDocument(t *testing.T, name string, description string, typ memcontract.Type, body string) string {
 	t.Helper()
 
-	header := memory.Header{
+	header := memcontract.Header{
 		Name:        name,
 		Description: description,
 		Type:        typ,

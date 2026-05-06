@@ -26,6 +26,10 @@ var (
 	ErrWorkspacePathTaken = errors.New("workspace path already registered")
 	// ErrWorkspaceHasSessions reports that a workspace cannot be deleted because sessions still reference it.
 	ErrWorkspaceHasSessions = errors.New("workspace has sessions")
+	// ErrWorkspaceIdentityInvalid reports a malformed .agh/workspace.toml identity file.
+	ErrWorkspaceIdentityInvalid = errors.New("workspace identity invalid")
+	// ErrWorkspaceIdentityPermissionDenied reports a fail-closed identity file permission failure.
+	ErrWorkspaceIdentityPermissionDenied = errors.New("workspace identity permission denied")
 )
 
 // Workspace is the persisted workspace registration stored in the global database.
@@ -43,6 +47,7 @@ type Workspace struct {
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.
 type ResolvedWorkspace struct {
 	Workspace
+	WorkspaceID      string
 	Config           aghconfig.Config
 	Agents           []aghconfig.AgentDef
 	AgentDiagnostics []AgentDiagnostic

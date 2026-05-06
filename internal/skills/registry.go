@@ -21,6 +21,7 @@ import (
 const (
 	workspaceCacheTTL          = 10 * time.Minute
 	skillSourceMarketplaceName = "marketplace"
+	skillSourceWorkspaceName   = "workspace"
 )
 
 // Option customizes a Registry instance.
@@ -226,7 +227,7 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 	shadowEvents = r.buildSkillShadowSummaries(
 		globalSkills,
 		workspaceSkills,
-		"workspace",
+		skillSourceWorkspaceName,
 		"",
 		resourceWorkspaceKey(resolved),
 		"",
@@ -409,7 +410,7 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 			r.buildSkillShadowSummaries(
 				globalSkills,
 				workspaceSkills[workspaceID],
-				"workspace",
+				skillSourceWorkspaceName,
 				"",
 				workspaceID,
 				"",
@@ -866,7 +867,7 @@ func skillSourceName(source SkillSource) string {
 	case SourceAdditional:
 		return "additional"
 	case SourceWorkspace:
-		return "workspace"
+		return skillSourceWorkspaceName
 	case SourceAgentLocal:
 		return "agent-local"
 	default:
@@ -876,7 +877,7 @@ func skillSourceName(source SkillSource) string {
 
 func skillSourceFromWorkspacePath(source string) (SkillSource, bool, error) {
 	switch strings.TrimSpace(source) {
-	case "", "workspace":
+	case "", skillSourceWorkspaceName:
 		return SourceWorkspace, true, nil
 	case "additional":
 		return SourceAdditional, true, nil

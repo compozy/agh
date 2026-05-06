@@ -1,31 +1,20 @@
 ---
-title: "agh memory read"
-description: "Read a persistent memory file"
+title: "agh memory provider enable"
+description: "Enable and select one Memory v2 provider"
 ---
 
-## agh memory read
+## agh memory provider enable
 
-Read a persistent memory file
-
-```
-agh memory read <filename> [flags]
-```
-
-### Examples
+Enable and select one Memory v2 provider
 
 ```
-  # Read a workspace memory file
-  agh memory read runtime-notes.md --scope workspace
-
-  # Read a global memory file as JSON
-  agh memory read review-style.md --scope global -o json
+agh memory provider enable <name> [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help           help for read
-      --scope string   Memory scope: global or workspace
+  -h, --help   help for enable
 ```
 
 ### Options inherited from parent commands
@@ -47,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory read <filename> -o json
+agh memory provider enable <name> -o json
 ```

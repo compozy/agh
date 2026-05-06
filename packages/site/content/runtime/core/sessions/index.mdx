@@ -6,6 +6,13 @@ description: The durable runtime unit AGH creates, resumes, audits, and governs.
 A session is the unit AGH actually manages. It binds one agent subprocess to a workspace,
 permission policy, event store, and resume record under one stable AGH session ID.
 
+Live session events are written to `events.db` while the session runs. After the session stops,
+AGH materializes a read-only forensic JSONL ledger at
+`$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
+`$AGH_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
+is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
+the recall pipeline — it is operator-readable history only.
+
 Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ordinary encrypted
 Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
 for those refs.

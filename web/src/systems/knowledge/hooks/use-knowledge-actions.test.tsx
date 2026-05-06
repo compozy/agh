@@ -4,19 +4,32 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  useConsolidateMemory,
   useDeleteMemory,
+  useEditMemory,
+  useTriggerMemoryDream,
 } from "@/systems/knowledge/hooks/use-knowledge-actions";
+import {
+  memoryDeleteFixture,
+  memoryDreamTriggerFixture,
+  memoryEditFixture,
+} from "@/systems/knowledge/mocks";
 
 vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
   listMemories: vi.fn(),
+  listMemoryDecisions: vi.fn(),
   readMemory: vi.fn(),
+  searchMemory: vi.fn(),
   deleteMemory: vi.fn(),
+  editMemory: vi.fn(),
   writeMemory: vi.fn(),
-  consolidateMemory: vi.fn(),
+  triggerMemoryDream: vi.fn(),
 }));
 
-import { consolidateMemory, deleteMemory } from "@/systems/knowledge/adapters/knowledge-api";
+import {
+  deleteMemory,
+  editMemory,
+  triggerMemoryDream,
+} from "@/systems/knowledge/adapters/knowledge-api";
 
 describe("useDeleteMemory", () => {
   beforeEach(() => {
@@ -27,8 +40,8 @@ describe("useDeleteMemory", () => {
     vi.restoreAllMocks();
   });
 
-  it("calls deleteMemory and invalidates memory list cache on settle", async () => {
-    vi.mocked(deleteMemory).mockResolvedValue({ ok: true });
+  it("Should call deleteMemory with the selector and invalidate the knowledge cache", async () => {
+    vi.mocked(deleteMemory).mockResolvedValue(memoryDeleteFixture);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -41,21 +54,49 @@ describe("useDeleteMemory", () => {
     const { result } = renderHook(() => useDeleteMemory(), { wrapper });
 
     act(() => {
-      result.current.mutate({ scope: "global", filename: "old.md" });
+      result.current.mutate({
+        selector: { scope: "agent", agentName: "cto", agentTier: "workspace", workspaceId: "ws" },
+        filename: "old.md",
+      });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(deleteMemory).toHaveBeenCalledWith("global", "old.md", undefined);
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ["knowledge"],
+    expect(deleteMemory).toHaveBeenCalledWith(
+      { scope: "agent", agentName: "cto", agentTier: "workspace", workspaceId: "ws" },
+      "old.md"
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
+  });
+
+  it("Should surface daemon failures as the mutation error", async () => {
+    const failure = new Error("daemon down");
+    vi.mocked(deleteMemory).mockRejectedValue(failure);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
     });
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useDeleteMemory(), { wrapper });
+
+    act(() => {
+      result.current.mutate({ selector: { scope: "global" }, filename: "missing.md" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.error).toBe(failure);
   });
 });
 
-describe("useConsolidateMemory", () => {
+describe("useEditMemory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -64,8 +105,8 @@ describe("useConsolidateMemory", () => {
     vi.restoreAllMocks();
   });
 
-  it("calls consolidateMemory and invalidates cache on settle", async () => {
-    vi.mocked(consolidateMemory).mockResolvedValue({ triggered: true });
+  it("Should call editMemory and invalidate the knowledge cache on settle", async () => {
+    vi.mocked(editMemory).mockResolvedValue(memoryEditFixture);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -75,19 +116,87 @@ describe("useConsolidateMemory", () => {
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client: queryClient }, children);
 
-    const { result } = renderHook(() => useConsolidateMemory(), { wrapper });
+    const { result } = renderHook(() => useEditMemory(), { wrapper });
 
     act(() => {
-      result.current.mutate({ workspace: "/home/user/project" });
+      result.current.mutate({
+        filename: "operator-style.md",
+        body: { content: "next", scope: "global", type: "user", name: "Operator Style" },
+      });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(consolidateMemory).toHaveBeenCalledWith("/home/user/project");
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ["knowledge"],
+    expect(editMemory).toHaveBeenCalledWith("operator-style.md", {
+      content: "next",
+      scope: "global",
+      type: "user",
+      name: "Operator Style",
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
+  });
+
+  it("Should surface daemon failures as the mutation error", async () => {
+    const failure = new Error("policy reject");
+    vi.mocked(editMemory).mockRejectedValue(failure);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useEditMemory(), { wrapper });
+
+    act(() => {
+      result.current.mutate({
+        filename: "operator-style.md",
+        body: { content: "x" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.error).toBe(failure);
+  });
+});
+
+describe("useTriggerMemoryDream", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should call triggerMemoryDream and invalidate cache on settle", async () => {
+    vi.mocked(triggerMemoryDream).mockResolvedValue(memoryDreamTriggerFixture);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useTriggerMemoryDream(), { wrapper });
+
+    act(() => {
+      result.current.mutate({ workspaceID: "ws_launch" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(triggerMemoryDream).toHaveBeenCalledWith("ws_launch");
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
   });
 });

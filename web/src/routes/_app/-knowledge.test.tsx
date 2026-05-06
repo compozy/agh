@@ -3,27 +3,50 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MemoryHeader } from "@/systems/knowledge/types";
+import type { MemoryDecision, MemoryHeader, MemorySearchResponse } from "@/systems/knowledge/types";
 
 // ---------------------------------------------------------------------------
 // Mock state
 // ---------------------------------------------------------------------------
 
+interface SelectorLike {
+  scope?: string;
+  workspaceId?: string;
+  agentName?: string;
+  agentTier?: string;
+}
+
 let mockGlobalMemories: MemoryHeader[] = [];
 let mockWorkspaceMemories: MemoryHeader[] = [];
+let mockAgentMemories: MemoryHeader[] = [];
 let mockGlobalMemoriesLoading = false;
 let mockWorkspaceMemoriesLoading = false;
+let mockAgentMemoriesLoading = false;
 let mockGlobalMemoriesError: Error | null = null;
 let mockWorkspaceMemoriesError: Error | null = null;
+let mockAgentMemoriesError: Error | null = null;
 
 let mockMemoryContent: string | undefined;
 let mockMemoryContentLoading = false;
 let mockMemoryContentError: Error | null = null;
 
+let mockSearchResponse: MemorySearchResponse | undefined;
+let mockSearchLoading = false;
+let mockSearchError: Error | null = null;
+
+let mockDecisions: MemoryDecision[] = [];
+let mockDecisionsLoading = false;
+let mockDecisionsError: Error | null = null;
+
 const mockDeleteMutateAsync = vi.fn();
 const mockDeleteReset = vi.fn();
 let mockDeletePending = false;
 let mockDeleteError: Error | null = null;
+
+const mockEditMutateAsync = vi.fn();
+const mockEditReset = vi.fn();
+let mockEditPending = false;
+let mockEditError: Error | null = null;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -68,15 +91,47 @@ vi.mock("@/systems/knowledge", async () => {
   const actual = await vi.importActual("@/systems/knowledge");
   return {
     ...actual,
-    useMemories: (scope?: string) => ({
-      data: scope === "workspace" ? mockWorkspaceMemories : mockGlobalMemories,
-      isLoading: scope === "workspace" ? mockWorkspaceMemoriesLoading : mockGlobalMemoriesLoading,
-      error: scope === "workspace" ? mockWorkspaceMemoriesError : mockGlobalMemoriesError,
-    }),
+    useMemories: (selector?: SelectorLike) => {
+      if (!selector) {
+        return { data: [], isLoading: false, error: null };
+      }
+      if (selector.scope === "workspace") {
+        return {
+          data: mockWorkspaceMemories,
+          isLoading: mockWorkspaceMemoriesLoading,
+          error: mockWorkspaceMemoriesError,
+        };
+      }
+      if (selector.scope === "agent") {
+        return {
+          data: mockAgentMemories,
+          isLoading: mockAgentMemoriesLoading,
+          error: mockAgentMemoriesError,
+        };
+      }
+      return {
+        data: mockGlobalMemories,
+        isLoading: mockGlobalMemoriesLoading,
+        error: mockGlobalMemoriesError,
+      };
+    },
     useMemory: () => ({
-      data: mockMemoryContent,
+      data:
+        mockMemoryContent === undefined
+          ? undefined
+          : { content: mockMemoryContent, filename: "user_role.md" },
       isLoading: mockMemoryContentLoading,
       error: mockMemoryContentError,
+    }),
+    useMemorySearch: () => ({
+      data: mockSearchResponse,
+      isLoading: mockSearchLoading,
+      error: mockSearchError,
+    }),
+    useMemoryDecisions: () => ({
+      data: { decisions: mockDecisions },
+      isLoading: mockDecisionsLoading,
+      error: mockDecisionsError,
     }),
     useDeleteMemory: () => ({
       mutateAsync: mockDeleteMutateAsync,
@@ -84,10 +139,16 @@ vi.mock("@/systems/knowledge", async () => {
       isPending: mockDeletePending,
       error: mockDeleteError,
     }),
+    useEditMemory: () => ({
+      mutateAsync: mockEditMutateAsync,
+      reset: mockEditReset,
+      isPending: mockEditPending,
+      error: mockEditError,
+    }),
   };
 });
 
-import { Route } from "./knowledge";
+import { KnowledgePage } from "./knowledge";
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -99,7 +160,11 @@ function makeMemory(overrides: Partial<MemoryHeader> = {}): MemoryHeader {
     mod_time: "2026-04-09T10:00:00Z",
     name: "User Role",
     description: "User is a senior engineer",
+    scope: "global",
     type: "user",
+    recall_count: 0,
+    injection: true,
+    system_managed: false,
     ...overrides,
   };
 }
@@ -130,28 +195,42 @@ const GLOBAL_MEMORIES: MemoryHeader[] = [
 
 const WORKSPACE_MEMORIES: MemoryHeader[] = [
   makeMemory({
-    filename: "workspace/ref_api.md",
+    filename: "ref_api.md",
     name: "API Reference",
     description: "REST API docs at docs.internal",
     type: "reference",
     mod_time: "2026-04-06T11:00:00Z",
-    agent_name: "coder",
+    scope: "workspace",
+    workspace_id: "ws_test",
   }),
   makeMemory({
-    filename: "workspace/project_sprint.md",
+    filename: "project_sprint.md",
     name: "Sprint Planning",
     description: "Sprint 5 goals and deadlines",
     type: "project",
     mod_time: "2026-04-05T08:00:00Z",
+    scope: "workspace",
+    workspace_id: "ws_test",
+  }),
+];
+
+const AGENT_MEMORIES: MemoryHeader[] = [
+  makeMemory({
+    filename: "cto_tone.md",
+    name: "CTO Tone",
+    description: "Direct, calm tone for CTO summaries",
+    type: "user",
+    mod_time: "2026-04-09T11:00:00Z",
+    scope: "agent",
+    agent_name: "cto",
+    agent_tier: "workspace",
+    workspace_id: "ws_test",
   }),
 ];
 
 // ---------------------------------------------------------------------------
-// Helper
+// Helpers
 // ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const KnowledgePage = (Route as any).component as () => React.ReactNode;
 
 function renderPage() {
   return render(
@@ -169,169 +248,111 @@ describe("KnowledgePage", () => {
   beforeEach(() => {
     mockGlobalMemories = GLOBAL_MEMORIES;
     mockWorkspaceMemories = WORKSPACE_MEMORIES;
+    mockAgentMemories = AGENT_MEMORIES;
     mockGlobalMemoriesLoading = false;
     mockWorkspaceMemoriesLoading = false;
+    mockAgentMemoriesLoading = false;
     mockGlobalMemoriesError = null;
     mockWorkspaceMemoriesError = null;
+    mockAgentMemoriesError = null;
     mockMemoryContent = undefined;
     mockMemoryContentLoading = false;
     mockMemoryContentError = null;
+    mockSearchResponse = undefined;
+    mockSearchLoading = false;
+    mockSearchError = null;
+    mockDecisions = [];
+    mockDecisionsLoading = false;
+    mockDecisionsError = null;
     mockDeletePending = false;
     mockDeleteError = null;
+    mockEditPending = false;
+    mockEditError = null;
     mockDeleteMutateAsync.mockReset();
-    mockDeleteMutateAsync.mockResolvedValue({ ok: true });
+    mockDeleteMutateAsync.mockResolvedValue(undefined);
     mockDeleteReset.mockReset();
+    mockEditMutateAsync.mockReset();
+    mockEditMutateAsync.mockResolvedValue(undefined);
+    mockEditReset.mockReset();
   });
 
-  // -----------------------------------------------------------------------
-  // Rendering & tabs
-  // -----------------------------------------------------------------------
-
-  it("renders ALL tab by default with full memory list", () => {
+  it("Should default to the GLOBAL scope and render the global memory list", () => {
     renderPage();
-    expect(screen.getByTestId("tab-all")).toHaveTextContent("ALL");
-    expect(screen.getByTestId("tab-all")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
-  });
-
-  it("shows total memory count badge in header", () => {
-    renderPage();
-    expect(screen.getByTestId("knowledge-shell")).toBeInTheDocument();
-    const header = screen.getByTestId("knowledge-shell-title").closest("header");
-    expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("5")).toBeInTheDocument();
-  });
-
-  it("GLOBAL tab activates when clicked", async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await user.click(screen.getByTestId("tab-global"));
+    expect(screen.getByTestId("tab-global")).toHaveTextContent("GLOBAL");
     expect(screen.getByTestId("tab-global")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("tab-all")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-global:user_role.md")).toBeInTheDocument();
   });
 
-  it("WORKSPACE tab activates when clicked", async () => {
+  it("Should switch to the WORKSPACE scope when clicked", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(screen.getByTestId("tab-workspace"));
     expect(screen.getByTestId("tab-workspace")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("memory-item-workspace:ref_api.md")).toBeInTheDocument();
   });
 
-  it("clicking ALL tab returns to full list", async () => {
+  it("Should reveal agent inputs and require an agent name on the AGENT scope", async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByTestId("tab-global"));
-    await user.click(screen.getByTestId("tab-all"));
+    await user.click(screen.getByTestId("tab-agent"));
+    expect(screen.getByTestId("agent-name-input")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-guard")).toBeInTheDocument();
 
-    expect(screen.getByTestId("tab-all")).toHaveAttribute("aria-pressed", "true");
+    await user.type(screen.getByTestId("agent-name-input"), "cto");
+    expect(screen.queryByTestId("knowledge-guard")).not.toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-agent:cto_tone.md")).toBeInTheDocument();
   });
 
-  it("re-selects the first visible memory when search filters out the current selection", async () => {
+  it("Should render scope-aware metadata badges (agent tier, recall count, system flag)", async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByTestId("memory-item-workspace:workspace/project_sprint.md"));
-    await user.type(screen.getByLabelText("Search knowledge"), "user");
+    await user.click(screen.getByTestId("tab-agent"));
+    await user.type(screen.getByTestId("agent-name-input"), "cto");
 
-    expect(
-      within(screen.getByTestId("memory-item-global:user_role.md")).getByTestId(
-        "memory-active-indicator"
-      )
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("memory-item-workspace:workspace/project_sprint.md")
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-tier-badge-workspace")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-name-badge")).toHaveTextContent("cto");
   });
 
-  // -----------------------------------------------------------------------
-  // Grouping
-  // -----------------------------------------------------------------------
-
-  it("groups memories by scope (GLOBAL before WORKSPACE) with counts", () => {
-    renderPage();
-    const groups = screen.getAllByTestId(/^knowledge-group-/).filter(el => {
-      const testId = el.getAttribute("data-testid") ?? "";
-      return testId === "knowledge-group-global" || testId === "knowledge-group-workspace";
-    });
-    expect(groups).toHaveLength(2);
-    expect(groups[0]).toHaveAttribute("data-testid", "knowledge-group-global");
-    expect(groups[1]).toHaveAttribute("data-testid", "knowledge-group-workspace");
-    expect(
-      within(screen.getByTestId("knowledge-group-header-global")).getByText("3")
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("knowledge-group-header-workspace")).getByText("2")
-    ).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Selection
-  // -----------------------------------------------------------------------
-
-  it("selecting a memory highlights it with accent left bar", async () => {
+  it("Should switch to server-backed search when a query is entered", async () => {
     const user = userEvent.setup();
+    mockSearchResponse = {
+      results: [
+        {
+          memory: {
+            ...AGENT_MEMORIES[0],
+          },
+          score: 0.92,
+          snippet: "match",
+          why_recalled: ["fts5"],
+        },
+      ],
+      recall: { blocks: [], header: { content_hash: "h", text: "" } },
+    };
+
     renderPage();
+    await user.click(screen.getByTestId("tab-agent"));
+    await user.type(screen.getByTestId("agent-name-input"), "cto");
+    await user.type(screen.getByTestId("knowledge-search-input"), "tone");
 
-    await user.click(screen.getByTestId("memory-item-global:feedback_testing.md"));
-
-    const item = screen.getByTestId("memory-item-global:feedback_testing.md");
-    expect(within(item).getByTestId("memory-active-indicator")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-search-info")).toHaveTextContent(/Recall/);
+    expect(screen.getByTestId("memory-item-agent:cto_tone.md")).toBeInTheDocument();
   });
 
-  it("auto-selects first memory when no selection is made", () => {
-    renderPage();
-    const item = screen.getByTestId("memory-item-global:project_migration.md");
-    expect(within(item).getByTestId("memory-active-indicator")).toBeInTheDocument();
-  });
-
-  it("detail panel renders when a memory is selected", () => {
-    mockMemoryContent = "Some memory content here";
-    renderPage();
-    expect(screen.getByTestId("knowledge-detail-panel")).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Detail panel
-  // -----------------------------------------------------------------------
-
-  it("detail panel shows type + scope MonoBadges for the selected memory", () => {
-    mockGlobalMemories = [makeMemory({ type: "user", name: "User Role" })];
-    mockWorkspaceMemories = [];
-    mockMemoryContent = "content";
+  it("Should render the detail panel with full Memory v2 metadata", () => {
+    mockMemoryContent = "# Memory content";
     renderPage();
 
-    const typeBadge = screen.getByTestId("detail-type-badge");
-    expect(typeBadge).toHaveTextContent("user");
-    expect(typeBadge).toHaveAttribute("data-tone", "accent");
-
-    const scopeBadge = screen.getByTestId("detail-scope-badge");
-    expect(scopeBadge).toHaveTextContent("GLOBAL");
+    expect(screen.getByTestId("metadata-row-Type")).toBeInTheDocument();
+    expect(screen.getByTestId("metadata-row-Scope")).toBeInTheDocument();
+    expect(screen.getByTestId("metadata-row-Recalls")).toBeInTheDocument();
+    expect(screen.getByTestId("metadata-row-Injection")).toBeInTheDocument();
   });
 
-  it("detail panel renders the markdown preview inside the CodeBlock primitive", () => {
-    mockMemoryContent = "# Heading\n\nline one\nline two";
-    renderPage();
-
-    const preview = screen.getByTestId("content-preview");
-    expect(preview).toBeInTheDocument();
-    expect(preview).toHaveAttribute("data-slot", "code-block");
-  });
-
-  it("delete button opens the confirmation dialog without mutating yet", async () => {
-    const user = userEvent.setup();
-    mockMemoryContent = "content";
-    renderPage();
-
-    await user.click(screen.getByTestId("delete-memory-btn"));
-
-    expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
-    expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
-  });
-
-  it("confirming the delete dialog calls useDeleteMemory mutation", async () => {
+  it("Should open the delete dialog and call the delete mutation with the full selector", async () => {
     const user = userEvent.setup();
     mockMemoryContent = "content";
     renderPage();
@@ -341,24 +362,137 @@ describe("KnowledgePage", () => {
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(mockDeleteMutateAsync).toHaveBeenCalledWith({
+      selector: {
+        scope: "global",
+        workspaceId: undefined,
+        agentName: undefined,
+        agentTier: undefined,
+      },
       filename: "user_role.md",
-      scope: "global",
-      workspace: undefined,
     });
   });
 
-  it("cancelling the delete dialog closes it without mutating", async () => {
+  it("Should open the edit dialog and submit the controller edit body", async () => {
     const user = userEvent.setup();
-    mockMemoryContent = "content";
+    mockMemoryContent = "# original content\n";
     renderPage();
 
-    await user.click(screen.getByTestId("delete-memory-btn"));
-    await user.click(screen.getByTestId("cancel-delete-memory-btn"));
+    await user.click(screen.getByTestId("memory-item-global:user_role.md"));
+    await user.click(screen.getByTestId("edit-memory-btn"));
 
-    expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
+    const contentInput = screen.getByTestId("knowledge-edit-content");
+    await user.type(contentInput, " edited");
+
+    await user.click(screen.getByTestId("confirm-edit-memory-btn"));
+
+    expect(mockEditMutateAsync).toHaveBeenCalledWith({
+      filename: "user_role.md",
+      body: expect.objectContaining({
+        content: "# original content\n edited",
+        scope: "global",
+        type: "user",
+        name: "User Role",
+      }),
+    });
   });
 
-  it("clears a failed delete error after selecting a different memory", async () => {
+  it("Should show the controller decisions section with returned decisions", async () => {
+    const user = userEvent.setup();
+    mockMemoryContent = "content";
+    mockDecisions = [
+      {
+        id: "dec_1",
+        candidate_hash: "h",
+        op: "update",
+        scope: "global",
+        source: "rule",
+        confidence: 0.9,
+        decided_at: "2026-04-25T21:03:00Z",
+        target_filename: "user_role.md",
+        frontmatter: {
+          filename: "user_role.md",
+          mod_time: "2026-04-25T21:00:00Z",
+          name: "User Role",
+          type: "user",
+        },
+      },
+    ];
+
+    renderPage();
+
+    await user.click(screen.getByTestId("memory-item-global:user_role.md"));
+
+    expect(screen.getByTestId("knowledge-decisions-list")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-decision-dec_1")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-decision-op-dec_1")).toHaveTextContent("UPDATE");
+  });
+
+  it("Should show empty decisions state when no decisions are returned", () => {
+    mockMemoryContent = "content";
+    renderPage();
+    expect(screen.getByTestId("knowledge-decisions-empty")).toBeInTheDocument();
+  });
+
+  it("Should show the loading spinner when the list query is loading", () => {
+    mockGlobalMemoriesLoading = true;
+    mockGlobalMemories = [];
+    renderPage();
+    expect(screen.getByTestId("knowledge-loading")).toBeInTheDocument();
+  });
+
+  it("Should show an Empty error card when the list query fails", () => {
+    mockGlobalMemoriesError = new Error("Network failure");
+    mockGlobalMemories = [];
+    renderPage();
+    expect(screen.getByTestId("knowledge-error")).toBeInTheDocument();
+    expect(screen.getByText("Network failure")).toBeInTheDocument();
+  });
+
+  it("Should show the empty list fallback when there are no memories", () => {
+    mockGlobalMemories = [];
+    renderPage();
+    expect(screen.getByTestId("knowledge-list-empty")).toBeInTheDocument();
+  });
+
+  it("Should show the detail loading spinner while content fetches", () => {
+    mockMemoryContentLoading = true;
+    renderPage();
+    expect(screen.getByTestId("knowledge-detail-loading")).toBeInTheDocument();
+  });
+
+  it("Should surface a detail error when the content fetch fails", () => {
+    mockMemoryContentError = new Error("Content fetch failed");
+    renderPage();
+    expect(screen.getByTestId("knowledge-detail-error")).toBeInTheDocument();
+    expect(screen.getByText("Content fetch failed")).toBeInTheDocument();
+  });
+
+  it("Should surface a detail empty state when no memory is selected", () => {
+    mockGlobalMemories = [];
+    renderPage();
+    const empty = screen.getByTestId("knowledge-detail-empty");
+    expect(empty).toBeInTheDocument();
+    expect(
+      within(empty).getByText("Select a memory to view details", { selector: "h3" })
+    ).toBeInTheDocument();
+  });
+
+  it("Should surface a search error when the recall query fails", async () => {
+    const user = userEvent.setup();
+    mockSearchError = new Error("Recall failed");
+    mockSearchResponse = {
+      results: [],
+      recall: { blocks: [], header: { content_hash: "h", text: "" } },
+    };
+    renderPage();
+
+    await user.type(screen.getByTestId("knowledge-search-input"), "anything");
+
+    expect(screen.getByTestId("knowledge-error")).toBeInTheDocument();
+    expect(screen.getByText("Recall failed")).toBeInTheDocument();
+  });
+
+  it("Should surface a delete failure inline when the mutation rejects", async () => {
     const user = userEvent.setup();
     mockDeleteMutateAsync.mockImplementation(async () => {
       mockDeleteError = new Error("Delete failed");
@@ -372,191 +506,5 @@ describe("KnowledgePage", () => {
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(await screen.findByTestId("knowledge-delete-error")).toHaveTextContent("Delete failed");
-
-    await user.click(screen.getByTestId("memory-item-global:project_migration.md"));
-
-    expect(screen.queryByTestId("knowledge-delete-error")).not.toBeInTheDocument();
-  });
-
-  it("delete button is disabled while a delete is pending", () => {
-    mockDeletePending = true;
-    mockMemoryContent = "content";
-    renderPage();
-
-    expect(screen.getByTestId("delete-memory-btn")).toBeDisabled();
-  });
-
-  // -----------------------------------------------------------------------
-  // Metadata table
-  // -----------------------------------------------------------------------
-
-  it("metadata rows cover type, scope, agent, and modified", () => {
-    mockGlobalMemories = [];
-    mockWorkspaceMemories = [
-      makeMemory({
-        filename: "workspace/ref_api.md",
-        name: "API Reference",
-        type: "reference",
-        agent_name: "coder",
-      }),
-    ];
-    mockMemoryContent = "content";
-    renderPage();
-
-    expect(screen.getByTestId("metadata-table")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Type")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Scope")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Agent")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Modified")).toBeInTheDocument();
-  });
-
-  it("metadata Modified row falls back to the original string for invalid dates", () => {
-    mockGlobalMemories = [makeMemory({ mod_time: "not-a-date" })];
-    mockWorkspaceMemories = [];
-    mockMemoryContent = "content";
-    renderPage();
-
-    expect(screen.getByTestId("metadata-row-Modified")).toHaveTextContent("not-a-date");
-  });
-
-  // -----------------------------------------------------------------------
-  // Type/scope badges
-  // -----------------------------------------------------------------------
-
-  it("list items show type MonoBadges (user, feedback, project, reference)", () => {
-    renderPage();
-
-    expect(screen.getAllByTestId("type-badge-user").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTestId("type-badge-feedback").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTestId("type-badge-project").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTestId("type-badge-reference").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("list items show scope MonoBadges (GLOBAL, WS)", () => {
-    renderPage();
-
-    expect(screen.getAllByTestId("scope-badge-global").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTestId("scope-badge-workspace").length).toBeGreaterThanOrEqual(1);
-  });
-
-  // -----------------------------------------------------------------------
-  // Dream status
-  // -----------------------------------------------------------------------
-
-  it("omits the stale dream placeholder from the page header", () => {
-    renderPage();
-    expect(screen.queryByTestId("dream-status")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Dream:/)).not.toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Search
-  // -----------------------------------------------------------------------
-
-  it("search input filters the memory list (case-insensitive, name/description/type)", async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    const searchInput = screen.getByTestId("knowledge-search-input");
-    await user.type(searchInput, "api reference");
-
-    expect(screen.getByTestId("memory-item-workspace:workspace/ref_api.md")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-global:user_role.md")).not.toBeInTheDocument();
-  });
-
-  it("search with no results shows the empty fallback", async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    const searchInput = screen.getByTestId("knowledge-search-input");
-    await user.type(searchInput, "zzzznotfound");
-
-    expect(screen.getByTestId("knowledge-list-empty")).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Loading / Error states
-  // -----------------------------------------------------------------------
-
-  it("loading state shows spinner", () => {
-    mockGlobalMemoriesLoading = true;
-    mockWorkspaceMemoriesLoading = true;
-    mockGlobalMemories = [];
-    mockWorkspaceMemories = [];
-    renderPage();
-
-    expect(screen.getByTestId("knowledge-loading")).toBeInTheDocument();
-  });
-
-  it("error state shows the Empty error card", () => {
-    mockGlobalMemoriesError = new Error("Network failure");
-    mockWorkspaceMemoriesError = new Error("Network failure");
-    mockGlobalMemories = [];
-    mockWorkspaceMemories = [];
-    renderPage();
-
-    expect(screen.getByTestId("knowledge-error")).toBeInTheDocument();
-    expect(screen.getByText("Network failure")).toBeInTheDocument();
-  });
-
-  it("empty memories list renders an Empty fallback inside the list panel", () => {
-    mockGlobalMemories = [];
-    mockWorkspaceMemories = [];
-    renderPage();
-
-    expect(screen.getByTestId("knowledge-list-empty")).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Detail loading / error
-  // -----------------------------------------------------------------------
-
-  it("detail panel shows loading spinner when fetching content", () => {
-    mockMemoryContentLoading = true;
-    renderPage();
-    expect(screen.getByTestId("knowledge-detail-loading")).toBeInTheDocument();
-  });
-
-  it("detail panel shows Empty error when content fetch fails", () => {
-    mockMemoryContentError = new Error("Content fetch failed");
-    renderPage();
-    expect(screen.getByTestId("knowledge-detail-error")).toBeInTheDocument();
-    expect(screen.getByText("Content fetch failed")).toBeInTheDocument();
-  });
-
-  it("detail panel shows Empty state when no memories exist", () => {
-    mockGlobalMemories = [];
-    mockWorkspaceMemories = [];
-    renderPage();
-    const empty = screen.getByTestId("knowledge-detail-empty");
-    expect(empty).toBeInTheDocument();
-    expect(
-      within(empty).getByText("Select a memory to view details", { selector: "h3" })
-    ).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Integration: full flow
-  // -----------------------------------------------------------------------
-
-  it("full page flow: load memories, select, view detail, confirm delete, switch tabs", async () => {
-    const user = userEvent.setup();
-    mockMemoryContent = "Full content of the memory file";
-    renderPage();
-
-    expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("memory-item-workspace:workspace/ref_api.md"));
-    expect(screen.getByTestId("content-preview")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("delete-memory-btn"));
-    await user.click(screen.getByTestId("confirm-delete-memory-btn"));
-    expect(mockDeleteMutateAsync).toHaveBeenCalled();
-
-    await user.click(screen.getByTestId("tab-global"));
-    expect(screen.getByTestId("tab-global")).toHaveAttribute("aria-pressed", "true");
-
-    await user.click(screen.getByTestId("tab-all"));
-    expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
   });
 });

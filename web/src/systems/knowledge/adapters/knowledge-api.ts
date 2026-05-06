@@ -6,10 +6,18 @@ import {
 } from "@/lib/api-client";
 
 import type {
-  MemoryConsolidateResponse,
+  KnowledgeSelector,
+  MemoryDecisionOp,
+  MemoryDecisionsResponse,
+  MemoryDeleteResponse,
+  MemoryDreamTriggerResponse,
+  MemoryEditRequest,
+  MemoryEditResponse,
   MemoryHeader,
-  MemoryMutationResponse,
-  MemoryScope,
+  MemorySearchRequest,
+  MemorySearchResponse,
+  MemoryWriteRequest,
+  MemoryWriteResponse,
 } from "../types";
 
 export class KnowledgeApiError extends Error {
@@ -22,18 +30,34 @@ export class KnowledgeApiError extends Error {
   }
 }
 
+interface SelectorParams {
+  scope?: KnowledgeSelector["scope"];
+  workspace_id?: string;
+  agent_name?: string;
+  agent_tier?: KnowledgeSelector["agentTier"];
+}
+
+function selectorToQuery(selector: KnowledgeSelector | undefined): SelectorParams {
+  if (!selector) return {};
+  const params: SelectorParams = { scope: selector.scope };
+  if (selector.workspaceId) {
+    params.workspace_id = selector.workspaceId;
+  }
+  if (selector.agentName) {
+    params.agent_name = selector.agentName;
+  }
+  if (selector.agentTier) {
+    params.agent_tier = selector.agentTier;
+  }
+  return params;
+}
+
 export async function listMemories(
-  scope?: MemoryScope,
-  workspace?: string,
+  selector?: KnowledgeSelector,
   signal?: AbortSignal
 ): Promise<MemoryHeader[]> {
   const { data, error, response } = await apiClient.GET("/api/memory", {
-    params: {
-      query: {
-        scope,
-        workspace,
-      },
-    },
+    params: { query: selectorToQuery(selector) },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -42,22 +66,18 @@ export async function listMemories(
       response.status
     );
   }
-  return requireResponseData(data, response, "Failed to fetch memories");
+  return requireResponseData(data, response, "Failed to fetch memories").memories;
 }
 
 export async function readMemory(
-  scope: MemoryScope,
+  selector: KnowledgeSelector,
   filename: string,
-  workspace?: string,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<MemoryHeader & { content: string }> {
   const { data, error, response } = await apiClient.GET("/api/memory/{filename}", {
     params: {
       path: { filename },
-      query: {
-        scope,
-        workspace,
-      },
+      query: selectorToQuery(selector),
     },
     signal,
   });
@@ -70,43 +90,58 @@ export async function readMemory(
       response.status
     );
   }
-  return requireResponseData(data, response, `Failed to read memory "${filename}"`).content;
+  const payload = requireResponseData(data, response, `Failed to read memory "${filename}"`).memory;
+  return { ...payload.summary, content: payload.content };
 }
 
 export async function writeMemory(
-  filename: string,
-  content: string,
-  scope?: MemoryScope,
-  workspace?: string,
+  body: MemoryWriteRequest,
   signal?: AbortSignal
-): Promise<MemoryMutationResponse> {
-  const { data, error, response } = await apiClient.PUT("/api/memory/{filename}", {
-    params: { path: { filename } },
-    body: { content, scope, workspace },
+): Promise<MemoryWriteResponse> {
+  const { data, error, response } = await apiClient.POST("/api/memory", {
+    body,
     signal,
   });
   if (apiRequestFailed(response, error)) {
     throw new KnowledgeApiError(
-      defaultApiErrorMessage(`Failed to write memory "${filename}"`, response, error),
+      defaultApiErrorMessage("Failed to write memory", response, error),
       response.status
     );
   }
-  return requireResponseData(data, response, `Failed to write memory "${filename}"`);
+  return requireResponseData(data, response, "Failed to write memory");
+}
+
+export async function editMemory(
+  filename: string,
+  body: MemoryEditRequest,
+  signal?: AbortSignal
+): Promise<MemoryEditResponse> {
+  const { data, error, response } = await apiClient.PATCH("/api/memory/{filename}", {
+    params: { path: { filename } },
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new KnowledgeApiError(`Memory not found: ${filename}`, 404);
+    }
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage(`Failed to edit memory "${filename}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to edit memory "${filename}"`);
 }
 
 export async function deleteMemory(
-  scope: MemoryScope,
+  selector: KnowledgeSelector,
   filename: string,
-  workspace?: string,
   signal?: AbortSignal
-): Promise<MemoryMutationResponse> {
+): Promise<MemoryDeleteResponse> {
   const { data, error, response } = await apiClient.DELETE("/api/memory/{filename}", {
     params: {
       path: { filename },
-      query: {
-        scope,
-        workspace,
-      },
+      query: selectorToQuery(selector),
     },
     signal,
   });
@@ -122,19 +157,67 @@ export async function deleteMemory(
   return requireResponseData(data, response, `Failed to delete memory "${filename}"`);
 }
 
-export async function consolidateMemory(
-  workspace?: string,
+export async function searchMemory(
+  body: MemorySearchRequest,
   signal?: AbortSignal
-): Promise<MemoryConsolidateResponse> {
-  const { data, error, response } = await apiClient.POST("/api/memory/consolidate", {
-    body: { workspace },
+): Promise<MemorySearchResponse> {
+  const { data, error, response } = await apiClient.POST("/api/memory/search", {
+    body,
     signal,
   });
   if (apiRequestFailed(response, error)) {
     throw new KnowledgeApiError(
-      defaultApiErrorMessage("Failed to consolidate memory", response, error),
+      defaultApiErrorMessage("Failed to search memory", response, error),
       response.status
     );
   }
-  return requireResponseData(data, response, "Failed to consolidate memory");
+  return requireResponseData(data, response, "Failed to search memory");
+}
+
+export interface ListMemoryDecisionsParams extends KnowledgeSelector {
+  op?: MemoryDecisionOp;
+  since?: string;
+  limit?: number;
+}
+
+export async function listMemoryDecisions(
+  params: ListMemoryDecisionsParams,
+  signal?: AbortSignal
+): Promise<MemoryDecisionsResponse> {
+  const query = selectorToQuery(params);
+  const { data, error, response } = await apiClient.GET("/api/memory/decisions", {
+    params: {
+      query: {
+        ...query,
+        ...(params.op ? { op: params.op } : {}),
+        ...(params.since ? { since: params.since } : {}),
+        ...(typeof params.limit === "number" ? { limit: params.limit } : {}),
+      },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage("Failed to load memory decisions", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to load memory decisions");
+}
+
+export async function triggerMemoryDream(
+  workspaceID?: string,
+  signal?: AbortSignal
+): Promise<MemoryDreamTriggerResponse> {
+  const { data, error, response } = await apiClient.POST("/api/memory/dreams/trigger", {
+    body: { workspace_id: workspaceID },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage("Failed to trigger memory dreaming", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to trigger memory dreaming");
 }

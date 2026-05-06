@@ -87,26 +87,7 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 	start := r.now()
 	cacheHit := false
 	workspaceID := ""
-
-	defer func() {
-		if err == nil {
-			r.logger.Debug("workspace.resolve",
-				"workspace_id", workspaceID,
-				"cache_hit", cacheHit,
-				"agents_count", len(resolved.Agents),
-				"skills_count", len(resolved.Skills),
-				"duration_ms", durationMillis(r.now().Sub(start)),
-			)
-			return
-		}
-
-		r.logger.Warn("workspace.resolve.error",
-			"workspace_id", workspaceID,
-			"error_type", errorType(err),
-			"duration_ms", durationMillis(r.now().Sub(start)),
-			"error", err,
-		)
-	}()
+	defer r.observeResolve(start, &workspaceID, &cacheHit, &resolved, &err)
 
 	if err := checkContext(ctx); err != nil {
 		return ResolvedWorkspace{}, err
@@ -123,6 +104,11 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 		return ResolvedWorkspace{}, err
 	}
 	workspaceID = ws.ID
+	identity, err := ensureIdentity(ctx, ws.RootDir, r.now, NewWorkspaceID)
+	if err != nil {
+		return ResolvedWorkspace{}, err
+	}
+	workspaceID = identity.WorkspaceID
 
 	scan, err := r.scanWorkspace(ctx, ws)
 	if err != nil {
@@ -138,6 +124,7 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 		cacheHit = true
 		resolved = cloneResolvedWorkspace(&cached.resolved)
 		resolved.Workspace = cloneWorkspace(ws)
+		resolved.WorkspaceID = identity.WorkspaceID
 		r.mu.Unlock()
 		return resolved, nil
 	}
@@ -147,6 +134,7 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
+	resolved.WorkspaceID = identity.WorkspaceID
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
@@ -159,6 +147,32 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 	r.mu.Unlock()
 
 	return resolved, nil
+}
+
+func (r *Resolver) observeResolve(
+	start time.Time,
+	workspaceID *string,
+	cacheHit *bool,
+	resolved *ResolvedWorkspace,
+	err *error,
+) {
+	if *err == nil {
+		r.logger.Debug("workspace.resolve",
+			"workspace_id", *workspaceID,
+			"cache_hit", *cacheHit,
+			"agents_count", len(resolved.Agents),
+			"skills_count", len(resolved.Skills),
+			"duration_ms", durationMillis(r.now().Sub(start)),
+		)
+		return
+	}
+
+	r.logger.Warn("workspace.resolve.error",
+		"workspace_id", *workspaceID,
+		"error_type", errorType(*err),
+		"duration_ms", durationMillis(r.now().Sub(start)),
+		"error", *err,
+	)
 }
 
 // ResolveOrRegister resolves an existing workspace by canonical path or auto-registers it.

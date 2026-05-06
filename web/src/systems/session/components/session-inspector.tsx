@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   Activity,
+  AlertCircle,
   ChevronRight,
   FileCode,
   Gauge,
   KeyRound,
   Library,
+  Loader2,
   PanelRightOpen,
 } from "lucide-react";
 import type { AssistantState } from "@assistant-ui/react";
@@ -27,6 +29,8 @@ import {
 } from "@agh/ui";
 
 import { isAgentEventPayload, parseToolUseResult } from "../lib/message-parts";
+import { SessionLedgerUnavailableError } from "../adapters/session-api";
+import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 type ThreadMessageState = AssistantState["thread"]["messages"][number];
@@ -62,11 +66,15 @@ export interface InspectorUsage {
   costDelta?: number;
 }
 
-export interface InspectorMemoryDoc {
-  id: string;
-  kind: string;
-  title: string;
-  bytes?: number;
+export interface InspectorSessionLedger {
+  meta: SessionLedgerMeta;
+  events: readonly SessionLedgerEvent[];
+}
+
+export interface InspectorMemoryState {
+  ledger?: InspectorSessionLedger | null;
+  isLoading?: boolean;
+  error?: Error | null;
 }
 
 export interface InspectorFileEntry {
@@ -78,7 +86,14 @@ export interface SessionInspectorProps {
   messages: readonly ThreadMessageState[];
   sessionId?: string;
   usage?: InspectorUsage | null;
-  memoryDocs?: InspectorMemoryDoc[];
+  /**
+   * Forensic Memory v2 session ledger state. The Memory tab renders the
+   * lineage meta block plus the full session ledger event stream (transcript,
+   * memory, lifecycle, redaction metadata) and surfaces truthful
+   * loading/empty/error states without ever exposing editor or replay
+   * controls.
+   */
+  memory?: InspectorMemoryState;
   vaultSecrets?: readonly VaultSecret[];
   vaultIsLoading?: boolean;
   vaultError?: Error | null;
@@ -94,6 +109,8 @@ export interface SessionInspectorProps {
 
 const TRACE_LIMIT_DEFAULT = 6;
 const INSPECTOR_WIDTH = 320;
+const LEDGER_EVENT_LIMIT = 20;
+const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
 const SECTION_LABELS = {
   trace: "Trace",
   usage: "Usage",
@@ -335,13 +352,6 @@ function formatCost(value?: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-function formatBytes(bytes?: number): string {
-  if (typeof bytes !== "number" || !Number.isFinite(bytes)) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function deltaTone(delta?: number): "default" | "success" | "danger" {
   if (typeof delta !== "number" || !Number.isFinite(delta) || delta === 0) return "default";
   return delta > 0 ? "success" : "danger";
@@ -359,7 +369,7 @@ interface SectionBodyProps {
   traceLimit: number;
   onViewAllTrace?: () => void;
   usage: InspectorUsage | null | undefined;
-  memoryDocs: InspectorMemoryDoc[];
+  memory: InspectorMemoryState;
   sessionId?: string;
   vaultSecrets: readonly VaultSecret[];
   vaultIsLoading: boolean;
@@ -379,7 +389,7 @@ function InspectorBody({
   traceLimit,
   onViewAllTrace,
   usage,
-  memoryDocs,
+  memory,
   sessionId,
   vaultSecrets,
   vaultIsLoading,
@@ -483,7 +493,7 @@ function InspectorBody({
             data-testid="session-inspector-bottom-panel"
             data-active-tab={bottomTab}
           >
-            {bottomTab === "memory" && <MemorySection docs={memoryDocs} />}
+            {bottomTab === "memory" && <MemorySection memory={memory} />}
             {bottomTab === "files" && <FilesSection files={files} />}
             {bottomTab === "vault" && (
               <SessionVaultPanel
@@ -510,7 +520,7 @@ export function SessionInspector({
   messages,
   sessionId,
   usage,
-  memoryDocs = [],
+  memory,
   vaultSecrets = [],
   vaultIsLoading = false,
   vaultError = null,
@@ -526,6 +536,7 @@ export function SessionInspector({
   );
   const derivedFiles = useMemo(() => files ?? deriveFileReads(messages), [files, messages]);
   const traceTotal = totalTraceEvents ?? messages.length;
+  const memoryState = memory ?? EMPTY_MEMORY_STATE;
 
   return (
     <aside
@@ -545,7 +556,7 @@ export function SessionInspector({
         traceLimit={traceLimit}
         onViewAllTrace={onViewAllTrace}
         usage={usage}
-        memoryDocs={memoryDocs}
+        memory={memoryState}
         sessionId={sessionId}
         vaultSecrets={vaultSecrets}
         vaultIsLoading={vaultIsLoading}
@@ -707,51 +718,231 @@ function UsageSection({ usage }: UsageSectionProps) {
 }
 
 interface MemorySectionProps {
-  docs: InspectorMemoryDoc[];
+  memory: InspectorMemoryState;
 }
 
-function MemorySection({ docs }: MemorySectionProps) {
-  return (
-    <div data-testid="session-inspector-memory" className="flex min-h-full flex-col">
-      {docs.length === 0 ? (
+function MemorySection({ memory }: MemorySectionProps) {
+  if (memory.isLoading) {
+    return (
+      <div
+        data-testid="session-inspector-memory"
+        data-state="loading"
+        className="flex min-h-full flex-col"
+      >
+        <div
+          data-testid="session-inspector-memory-loading"
+          className="flex items-center gap-2 px-1 py-3 text-[12px] text-[color:var(--color-text-tertiary)]"
+        >
+          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+          Loading session ledger…
+        </div>
+      </div>
+    );
+  }
+
+  if (memory.error && !(memory.error instanceof SessionLedgerUnavailableError)) {
+    return (
+      <div
+        data-testid="session-inspector-memory"
+        data-state="error"
+        className="flex min-h-full flex-col"
+      >
+        <Empty
+          icon={AlertCircle}
+          title="Unable to load session ledger"
+          description={memory.error.message || "Failed to load forensic session ledger."}
+          data-testid="session-inspector-memory-error"
+        />
+      </div>
+    );
+  }
+
+  const ledger = memory.ledger;
+  if (!ledger) {
+    return (
+      <div
+        data-testid="session-inspector-memory"
+        data-state="unavailable"
+        className="flex min-h-full flex-col"
+      >
         <Empty
           icon={Library}
-          title="No memory loaded"
-          description="Workspace and repository memory docs appear here when they're attached to the session."
+          title="No session ledger yet"
+          description="The forensic ledger materializes once the session stops. Lineage and ledger event metadata appear here after that."
           data-testid="session-inspector-memory-empty"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid="session-inspector-memory"
+      data-state="ready"
+      className="flex min-h-full flex-col gap-4"
+    >
+      <SessionLedgerMetaPanel meta={ledger.meta} />
+      <SessionLedgerEventsPanel events={ledger.events} />
+    </div>
+  );
+}
+
+interface SessionLedgerMetaPanelProps {
+  meta: SessionLedgerMeta;
+}
+
+function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
+  const items: Array<{ label: string; value: string; testId: string; mono?: boolean }> = [
+    { label: "Workspace", value: meta.workspace_id ?? "—", testId: "workspace", mono: true },
+    {
+      label: "Root session",
+      value: meta.root_session_id ?? meta.session_id,
+      testId: "root-session",
+      mono: true,
+    },
+    {
+      label: "Parent session",
+      value: meta.parent_session_id ?? "—",
+      testId: "parent-session",
+      mono: true,
+    },
+    {
+      label: "Spawn depth",
+      value: String(meta.spawn_depth),
+      testId: "spawn-depth",
+      mono: true,
+    },
+    {
+      label: "Created",
+      value: formatLedgerTimestamp(meta.created_at),
+      testId: "created-at",
+      mono: true,
+    },
+    {
+      label: "Stopped",
+      value: meta.stopped_at ? formatLedgerTimestamp(meta.stopped_at) : "—",
+      testId: "stopped-at",
+      mono: true,
+    },
+    { label: "Path", value: meta.path, testId: "path", mono: true },
+    { label: "Checksum", value: meta.checksum, testId: "checksum", mono: true },
+    { label: "Version", value: `v${meta.version}`, testId: "version", mono: true },
+  ];
+
+  return (
+    <section
+      aria-label="Session ledger lineage"
+      data-testid="session-inspector-memory-meta"
+      className="flex flex-col gap-2"
+    >
+      <div className="flex items-center gap-2">
+        <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
+          LEDGER
+        </Pill>
+        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+          Forensic
+        </span>
+      </div>
+      <dl className="grid grid-cols-1 gap-x-3 gap-y-1.5">
+        {items.map(item => (
+          <div
+            key={item.testId}
+            data-testid={`session-inspector-memory-meta-${item.testId}`}
+            className="flex items-baseline justify-between gap-2"
+          >
+            <dt className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+              {item.label}
+            </dt>
+            <dd
+              className={cn(
+                "min-w-0 flex-1 break-all text-right text-[12px] text-[color:var(--color-text-primary)]",
+                item.mono ? "font-mono text-[11.5px]" : null
+              )}
+              data-testid={`session-inspector-memory-meta-${item.testId}-value`}
+            >
+              {item.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+interface SessionLedgerEventsPanelProps {
+  events: readonly SessionLedgerEvent[];
+}
+
+function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
+  const visible = events.slice(-LEDGER_EVENT_LIMIT);
+  return (
+    <section
+      aria-label="Session ledger events"
+      data-testid="session-inspector-memory-events"
+      className="flex flex-col gap-2"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+          Ledger events
+        </span>
+        <span
+          className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+          data-testid="session-inspector-memory-events-count"
+        >
+          {events.length}
+        </span>
+      </div>
+      {visible.length === 0 ? (
+        <Empty
+          icon={Library}
+          title="No ledger events"
+          description="The session ended without recorded events; nothing was journaled for this run."
+          data-testid="session-inspector-memory-events-empty"
         />
       ) : (
         <ul
-          data-testid="session-inspector-memory-list"
+          data-testid="session-inspector-memory-events-list"
           className="flex flex-col divide-y divide-[color:var(--color-divider)]"
         >
-          {docs.map(doc => (
+          {visible.map(event => (
             <li
-              key={doc.id}
-              data-testid="session-inspector-memory-row"
+              key={`${event.sequence}-${event.event_type}`}
+              data-testid="session-inspector-memory-event-row"
               className="flex items-center gap-2 py-2"
             >
-              <Pill mono tone="info" data-testid="session-inspector-memory-kind">
-                {doc.kind}
+              <span
+                data-testid="session-inspector-memory-event-sequence"
+                className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+              >
+                #{event.sequence}
+              </span>
+              <Pill mono tone="neutral" data-testid="session-inspector-memory-event-type">
+                {event.event_type}
               </Pill>
               <span
-                className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--color-text-primary)]"
-                data-testid="session-inspector-memory-title"
+                data-testid="session-inspector-memory-event-timestamp"
+                className="ml-auto shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
               >
-                {doc.title}
-              </span>
-              <span
-                className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
-                data-testid="session-inspector-memory-bytes"
-              >
-                {formatBytes(doc.bytes)}
+                {formatLedgerTimestamp(event.emitted_at)}
               </span>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
+}
+
+function formatLedgerTimestamp(value: string): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 interface FilesSectionProps {
@@ -818,7 +1009,7 @@ export function SessionInspectorDrawer({
   messages,
   sessionId,
   usage,
-  memoryDocs = [],
+  memory,
   vaultSecrets = [],
   vaultIsLoading = false,
   vaultError = null,
@@ -833,6 +1024,7 @@ export function SessionInspectorDrawer({
   );
   const derivedFiles = useMemo(() => files ?? deriveFileReads(messages), [files, messages]);
   const traceTotal = totalTraceEvents ?? messages.length;
+  const memoryState = memory ?? EMPTY_MEMORY_STATE;
 
   return (
     <Sheet>
@@ -866,7 +1058,7 @@ export function SessionInspectorDrawer({
           traceLimit={traceLimit}
           onViewAllTrace={onViewAllTrace}
           usage={usage}
-          memoryDocs={memoryDocs}
+          memory={memoryState}
           sessionId={sessionId}
           vaultSecrets={vaultSecrets}
           vaultIsLoading={vaultIsLoading}

@@ -1,18 +1,17 @@
 import { AlertCircle, BookOpen, Loader2 } from "lucide-react";
-import { useMemo } from "react";
 
 import { Empty, Pill, SearchInput } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
   formatKnowledgeRelativeTime,
-  knowledgeScopeShortLabel,
+  knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
+  knowledgeScopeShortLabel,
   memoryScopeTone,
-  resolveKnowledgeScope,
   memoryTypeTone,
 } from "../lib/knowledge-formatters";
-import { filterKnowledgeMemories, groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
+import { groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
 import type { KnowledgeMemoryItem } from "../types";
 import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
@@ -24,6 +23,8 @@ interface KnowledgeListPanelProps {
   onSearchChange: (query: string) => void;
   isLoading?: boolean;
   errorMessage?: string | null;
+  searchMode?: boolean;
+  searchInfo?: string | null;
 }
 
 interface KnowledgeListItemProps {
@@ -34,7 +35,7 @@ interface KnowledgeListItemProps {
 
 function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemProps) {
   const memoryKey = knowledgeMemoryKey(memory);
-  const scope = resolveKnowledgeScope(memory);
+  const scope = memory.scope;
   return (
     <button
       aria-pressed={isSelected}
@@ -83,6 +84,31 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         >
           {knowledgeScopeShortLabel(scope)}
         </Pill>
+        {memory.scope === "agent" && memory.agent_tier ? (
+          <Pill mono data-testid={`agent-tier-badge-${memory.agent_tier}`} tone="warning">
+            {knowledgeAgentTierShortLabel(memory.agent_tier)}
+          </Pill>
+        ) : null}
+        {memory.agent_name ? (
+          <Pill mono data-testid="agent-name-badge" tone="neutral">
+            {memory.agent_name}
+          </Pill>
+        ) : null}
+        {memory.recall_count > 0 ? (
+          <Pill mono data-testid="recall-count-badge" tone="info">
+            ↻ {memory.recall_count}
+          </Pill>
+        ) : null}
+        {memory.staleness_banner ? (
+          <Pill mono data-testid="staleness-badge" tone="warning">
+            STALE
+          </Pill>
+        ) : null}
+        {memory.system_managed ? (
+          <Pill mono data-testid="system-managed-badge" tone="neutral">
+            SYSTEM
+          </Pill>
+        ) : null}
       </div>
     </button>
   );
@@ -96,13 +122,11 @@ function KnowledgeListPanel({
   onSearchChange,
   isLoading = false,
   errorMessage = null,
+  searchMode = false,
+  searchInfo = null,
 }: KnowledgeListPanelProps) {
-  const filtered = useMemo(
-    () => filterKnowledgeMemories(memories, searchQuery),
-    [memories, searchQuery]
-  );
-  const groups = useMemo(() => groupKnowledgeMemoriesByScope(filtered), [filtered]);
-  const isEmpty = filtered.length === 0;
+  const groups = groupKnowledgeMemoriesByScope(memories);
+  const isEmpty = memories.length === 0;
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
@@ -111,9 +135,17 @@ function KnowledgeListPanel({
           aria-label="Search knowledge"
           data-testid="knowledge-search-input"
           onChange={onSearchChange}
-          placeholder="Filter knowledge…"
+          placeholder={searchMode ? "Recall query…" : "Filter knowledge…"}
           value={searchQuery}
         />
+        {searchInfo ? (
+          <p
+            className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--color-text-tertiary)]"
+            data-testid="knowledge-search-info"
+          >
+            {searchInfo}
+          </p>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -147,9 +179,11 @@ function KnowledgeListPanel({
             <Empty
               className="max-w-sm"
               description={
-                searchQuery.trim() !== ""
-                  ? "Try a different search term or adjust the scope filter."
-                  : "No knowledge items found"
+                searchMode
+                  ? "No memories matched this recall query."
+                  : searchQuery.trim() !== ""
+                    ? "Try a different search term or adjust the scope filter."
+                    : "No knowledge items found"
               }
               icon={BookOpen}
               title="No knowledge items found"

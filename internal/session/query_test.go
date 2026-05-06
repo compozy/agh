@@ -522,7 +522,6 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		if err := recorder.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(active recorder) error = %v", err)
 		}
-		session.setRecorder(nil)
 
 		done := make(chan struct{})
 		h.manager.mu.Lock()

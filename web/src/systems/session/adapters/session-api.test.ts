@@ -9,6 +9,7 @@ import {
 
 import {
   SessionApiError,
+  SessionLedgerUnavailableError,
   SessionNotFoundError,
   cancelSessionPrompt,
   clearSessionConversation,
@@ -16,6 +17,7 @@ import {
   deleteSession,
   fetchSession,
   fetchSessionEvents,
+  fetchSessionLedger,
   fetchSessionTranscript,
   fetchSessions,
   repairSession,
@@ -467,6 +469,72 @@ describe("fetchSessionEvents", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(fetchSessionEvents("unknown")).rejects.toThrow("Session not found: unknown");
+  });
+});
+
+describe("fetchSessionLedger", () => {
+  const mockLedger = {
+    meta: {
+      version: 1,
+      session_id: "sess-001",
+      workspace_id: "ws_alpha",
+      root_session_id: "sess-root",
+      parent_session_id: "sess-parent",
+      spawn_depth: 1,
+      path: "/sessions/ws_alpha/sess-001/ledger.jsonl",
+      checksum: "sha256:abc",
+      created_at: "2026-04-20T10:00:00Z",
+      stopped_at: "2026-04-20T11:00:00Z",
+    },
+    events: [
+      { sequence: 1, event_type: "session.started", emitted_at: "2026-04-20T10:00:00Z" },
+      { sequence: 2, event_type: "memory.recall", emitted_at: "2026-04-20T10:01:00Z" },
+    ],
+  };
+
+  it("returns the materialized ledger response on success", async () => {
+    mockJsonResponse(mockLedger);
+
+    const result = await fetchSessionLedger("sess-001");
+
+    expect(result).toEqual(mockLedger);
+    await expectFetchRequest({ path: "/api/memory/sessions/sess-001/ledger" });
+  });
+
+  it("throws SessionLedgerUnavailableError when the ledger has not materialized (404)", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(fetchSessionLedger("sess-001")).rejects.toBeInstanceOf(
+      SessionLedgerUnavailableError
+    );
+    await expect(fetchSessionLedger("sess-001")).rejects.toMatchObject({
+      message: "Session ledger not materialized: sess-001",
+      status: 404,
+      sessionId: "sess-001",
+    });
+  });
+
+  it("throws a typed adapter error for non-404 failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(fetchSessionLedger("sess-001")).rejects.toBeInstanceOf(SessionApiError);
+    await expect(fetchSessionLedger("sess-001")).rejects.toMatchObject({
+      message: 'Failed to fetch session ledger "sess-001": 500',
+      status: 500,
+      sessionId: "sess-001",
+    });
+  });
+
+  it("passes the abort signal through to fetch", async () => {
+    mockJsonResponse(mockLedger);
+
+    const controller = new AbortController();
+    await fetchSessionLedger("sess-001", controller.signal);
+
+    await expectFetchRequest({
+      path: "/api/memory/sessions/sess-001/ledger",
+      signal: controller.signal,
+    });
   });
 });
 

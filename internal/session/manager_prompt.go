@@ -816,13 +816,14 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 
-	if err := recorder.Record(ctx, store.SessionEvent{
+	persisted, err := recordPersistedSessionEvent(ctx, recorder, store.SessionEvent{
 		TurnID:    event.TurnID,
 		Type:      event.Type,
 		AgentName: session.Info().AgentName,
 		Content:   payload,
 		Timestamp: event.Timestamp,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
@@ -845,9 +846,28 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 		}
 	}
 
-	m.dispatchEventPostRecord(ctx, session, event, payload)
+	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
+	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 
 	return nil
+}
+
+type persistedSessionEventRecorder interface {
+	RecordPersisted(context.Context, store.SessionEvent) (store.SessionEvent, error)
+}
+
+func recordPersistedSessionEvent(
+	ctx context.Context,
+	recorder EventRecorder,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	if persistedRecorder, ok := recorder.(persistedSessionEventRecorder); ok {
+		return persistedRecorder.RecordPersisted(ctx, event)
+	}
+	if err := recorder.Record(ctx, event); err != nil {
+		return store.SessionEvent{}, err
+	}
+	return event, nil
 }
 
 func marshalAgentEvent(event acp.AgentEvent) (string, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	ssepkg "github.com/pedronauck/agh/internal/sse"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -598,7 +599,7 @@ func promptRedactValue(value any) any {
 }
 
 func promptRedactString(value string) string {
-	return diagnostics.Redact(taskpkg.RedactClaimTokens(value))
+	return ssepkg.ScrubMemoryContextString(diagnostics.Redact(taskpkg.RedactClaimTokens(value)))
 }
 
 func promptKeyCarriesSecret(key string) bool {

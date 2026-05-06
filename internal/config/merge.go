@@ -195,17 +195,161 @@ type logOverlay struct {
 }
 
 type memoryOverlay struct {
-	Enabled   *bool        `toml:"enabled"`
-	GlobalDir *string      `toml:"global_dir"`
-	Dream     dreamOverlay `toml:"dream"`
+	Enabled    *bool                   `toml:"enabled"`
+	GlobalDir  *string                 `toml:"global_dir"`
+	Controller memoryControllerOverlay `toml:"controller"`
+	Recall     memoryRecallOverlay     `toml:"recall"`
+	Decisions  memoryDecisionsOverlay  `toml:"decisions"`
+	Extractor  memoryExtractorOverlay  `toml:"extractor"`
+	Dream      dreamOverlay            `toml:"dream"`
+	Session    memorySessionOverlay    `toml:"session"`
+	Daily      memoryDailyOverlay      `toml:"daily"`
+	File       memoryFileOverlay       `toml:"file"`
+	Provider   memoryProviderOverlay   `toml:"provider"`
+	Workspace  memoryWorkspaceOverlay  `toml:"workspace"`
+}
+
+type memoryControllerOverlay struct {
+	Mode            *string                       `toml:"mode"`
+	MaxLatency      *time.Duration                `toml:"max_latency"`
+	DefaultOpOnFail *string                       `toml:"default_op_on_fail"`
+	LLM             memoryControllerLLMOverlay    `toml:"llm"`
+	Policy          memoryControllerPolicyOverlay `toml:"policy"`
+}
+
+type memoryControllerLLMOverlay struct {
+	Enabled       *bool          `toml:"enabled"`
+	Model         *string        `toml:"model"`
+	TopK          *int           `toml:"top_k"`
+	PromptVersion *string        `toml:"prompt_version"`
+	Timeout       *time.Duration `toml:"timeout"`
+	MaxTokensOut  *int           `toml:"max_tokens_out"`
+}
+
+type memoryControllerPolicyOverlay struct {
+	MaxContentChars *int      `toml:"max_content_chars"`
+	MaxWritesPerMin *int      `toml:"max_writes_per_min"`
+	AllowOrigins    *[]string `toml:"allow_origins"`
+}
+
+type memoryRecallOverlay struct {
+	TopK                   *int                         `toml:"top_k"`
+	RawCandidates          *int                         `toml:"raw_candidates"`
+	Fusion                 *string                      `toml:"fusion"`
+	IncludeAlreadySurfaced *bool                        `toml:"include_already_surfaced"`
+	IncludeSystem          *bool                        `toml:"include_system"`
+	Weights                memoryRecallWeightsOverlay   `toml:"weights"`
+	Freshness              memoryRecallFreshnessOverlay `toml:"freshness"`
+	Signals                memoryRecallSignalsOverlay   `toml:"signals"`
+}
+
+type memoryRecallWeightsOverlay struct {
+	BM25Unicode  *float64 `toml:"bm25_unicode"`
+	BM25Trigram  *float64 `toml:"bm25_trigram"`
+	Recency      *float64 `toml:"recency"`
+	RecallSignal *float64 `toml:"recall_signal"`
+}
+
+type memoryRecallFreshnessOverlay struct {
+	BannerAfterDays *int `toml:"banner_after_days"`
+}
+
+type memoryRecallSignalsOverlay struct {
+	QueueCapacity  *int  `toml:"queue_capacity"`
+	WorkerRetryMax *int  `toml:"worker_retry_max"`
+	MetricsEnabled *bool `toml:"metrics_enabled"`
+}
+
+type memoryDecisionsOverlay struct {
+	PruneAfterAppliedDays *int   `toml:"prune_after_applied_days"`
+	KeepAuditSummary      *bool  `toml:"keep_audit_summary"`
+	MaxPostContentBytes   *int64 `toml:"max_post_content_bytes"`
+}
+
+type memoryExtractorOverlay struct {
+	Enabled          *bool                       `toml:"enabled"`
+	Mode             *string                     `toml:"mode"`
+	ThrottleTurns    *int                        `toml:"throttle_turns"`
+	Deadline         *time.Duration              `toml:"deadline"`
+	SandboxInboxOnly *bool                       `toml:"sandbox_inbox_only"`
+	InboxPath        *string                     `toml:"inbox_path"`
+	DLQPath          *string                     `toml:"dlq_path"`
+	Model            *string                     `toml:"model"`
+	Queue            memoryExtractorQueueOverlay `toml:"queue"`
+}
+
+type memoryExtractorQueueOverlay struct {
+	Capacity    *int `toml:"capacity"`
+	CoalesceMax *int `toml:"coalesce_max"`
 }
 
 type dreamOverlay struct {
-	Enabled       *bool          `toml:"enabled"`
-	Agent         *string        `toml:"agent"`
-	MinHours      *float64       `toml:"min_hours"`
-	MinSessions   *int           `toml:"min_sessions"`
-	CheckInterval *time.Duration `toml:"check_interval"`
+	Enabled       *bool                     `toml:"enabled"`
+	Agent         *string                   `toml:"agent"`
+	MinHours      *float64                  `toml:"min_hours"`
+	MinSessions   *int                      `toml:"min_sessions"`
+	Debounce      *time.Duration            `toml:"debounce"`
+	PromptVersion *string                   `toml:"prompt_version"`
+	CheckInterval *time.Duration            `toml:"check_interval"`
+	Gates         memoryDreamGatesOverlay   `toml:"gates"`
+	Scoring       memoryDreamScoringOverlay `toml:"scoring"`
+}
+
+type memoryDreamGatesOverlay struct {
+	MinUnpromoted  *int     `toml:"min_unpromoted"`
+	MinRecallCount *int     `toml:"min_recall_count"`
+	MinScore       *float64 `toml:"min_score"`
+}
+
+type memoryDreamScoringOverlay struct {
+	RecencyHalfLifeDays *int                             `toml:"recency_half_life_days"`
+	Weights             memoryDreamScoringWeightsOverlay `toml:"weights"`
+}
+
+type memoryDreamScoringWeightsOverlay struct {
+	Frequency *float64 `toml:"frequency"`
+	Relevance *float64 `toml:"relevance"`
+	Recency   *float64 `toml:"recency"`
+	Freshness *float64 `toml:"freshness"`
+}
+
+type memorySessionOverlay struct {
+	LedgerFormat     *string        `toml:"ledger_format"`
+	LedgerRoot       *string        `toml:"ledger_root"`
+	EventsPurgeGrace *time.Duration `toml:"events_purge_grace"`
+	ColdArchiveDays  *int           `toml:"cold_archive_days"`
+	HardDeleteDays   *int           `toml:"hard_delete_days"`
+	MaxArchiveBytes  *int64         `toml:"max_archive_bytes"`
+	UnboundPartition *string        `toml:"unbound_partition"`
+}
+
+type memoryDailyOverlay struct {
+	MaxBytes        *int64  `toml:"max_bytes"`
+	MaxLines        *int    `toml:"max_lines"`
+	RotateFormat    *string `toml:"rotate_format"`
+	DreamingWindow  *int    `toml:"dreaming_window"`
+	ColdArchiveDays *int    `toml:"cold_archive_days"`
+	HardDeleteDays  *int    `toml:"hard_delete_days"`
+	MaxArchiveBytes *int64  `toml:"max_archive_bytes"`
+	SweepHour       *int    `toml:"sweep_hour"`
+	ArchivePath     *string `toml:"archive_path"`
+}
+
+type memoryFileOverlay struct {
+	MaxLines *int   `toml:"max_lines"`
+	MaxBytes *int64 `toml:"max_bytes"`
+}
+
+type memoryProviderOverlay struct {
+	Name             *string        `toml:"name"`
+	Timeout          *time.Duration `toml:"timeout"`
+	FailureThreshold *int           `toml:"failure_threshold"`
+	Cooldown         *time.Duration `toml:"cooldown"`
+}
+
+type memoryWorkspaceOverlay struct {
+	TOMLPath   *string `toml:"toml_path"`
+	AutoCreate *bool   `toml:"auto_create"`
 }
 
 type skillsOverlay struct {
@@ -412,7 +556,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
-	inheritDreamAgentFromDefaultAgent(dst, o)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)
 	o.Tools.Apply(&dst.Tools)
@@ -423,20 +566,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Network.Apply(&dst.Network)
 	o.Autonomy.Apply(&dst.Autonomy)
 	return o.Hooks.Apply(&dst.Hooks)
-}
-
-func inheritDreamAgentFromDefaultAgent(dst *Config, overlay *configOverlay) {
-	if dst == nil || overlay == nil || overlay.Defaults.Agent == nil || overlay.Memory.Dream.Agent != nil {
-		return
-	}
-	defaultAgent := strings.TrimSpace(dst.Defaults.Agent)
-	if defaultAgent == "" || defaultAgent == DefaultAgentName {
-		return
-	}
-	currentDreamAgent := strings.TrimSpace(dst.Memory.Dream.Agent)
-	if currentDreamAgent == "" || currentDreamAgent == DefaultAgentName {
-		dst.Memory.Dream.Agent = defaultAgent
-	}
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
@@ -743,14 +872,173 @@ func (o logOverlay) Apply(dst *LogConfig) {
 	}
 }
 
-func (o memoryOverlay) Apply(dst *MemoryConfig) {
+func (o *memoryOverlay) Apply(dst *MemoryConfig) {
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
 	}
 	if o.GlobalDir != nil && strings.TrimSpace(*o.GlobalDir) != "" {
 		dst.GlobalDir = *o.GlobalDir
 	}
+	o.Controller.Apply(&dst.Controller)
+	o.Recall.Apply(&dst.Recall)
+	o.Decisions.Apply(&dst.Decisions)
+	o.Extractor.Apply(&dst.Extractor)
 	o.Dream.Apply(&dst.Dream)
+	o.Session.Apply(&dst.Session)
+	o.Daily.Apply(&dst.Daily)
+	o.File.Apply(&dst.File)
+	o.Provider.Apply(&dst.Provider)
+	o.Workspace.Apply(&dst.Workspace)
+}
+
+func (o memoryControllerOverlay) Apply(dst *MemoryControllerConfig) {
+	if o.Mode != nil {
+		dst.Mode = *o.Mode
+	}
+	if o.MaxLatency != nil {
+		dst.MaxLatency = *o.MaxLatency
+	}
+	if o.DefaultOpOnFail != nil {
+		dst.DefaultOpOnFail = *o.DefaultOpOnFail
+	}
+	o.LLM.Apply(&dst.LLM)
+	o.Policy.Apply(&dst.Policy)
+}
+
+func (o memoryControllerLLMOverlay) Apply(dst *MemoryControllerLLMConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.Model != nil {
+		dst.Model = *o.Model
+	}
+	if o.TopK != nil {
+		dst.TopK = *o.TopK
+	}
+	if o.PromptVersion != nil {
+		dst.PromptVersion = *o.PromptVersion
+	}
+	if o.Timeout != nil {
+		dst.Timeout = *o.Timeout
+	}
+	if o.MaxTokensOut != nil {
+		dst.MaxTokensOut = *o.MaxTokensOut
+	}
+}
+
+func (o memoryControllerPolicyOverlay) Apply(dst *MemoryControllerPolicyConfig) {
+	if o.MaxContentChars != nil {
+		dst.MaxContentChars = *o.MaxContentChars
+	}
+	if o.MaxWritesPerMin != nil {
+		dst.MaxWritesPerMin = *o.MaxWritesPerMin
+	}
+	if o.AllowOrigins != nil {
+		dst.AllowOrigins = append([]string(nil), (*o.AllowOrigins)...)
+	}
+}
+
+func (o memoryRecallOverlay) Apply(dst *MemoryRecallConfig) {
+	if o.TopK != nil {
+		dst.TopK = *o.TopK
+	}
+	if o.RawCandidates != nil {
+		dst.RawCandidates = *o.RawCandidates
+	}
+	if o.Fusion != nil {
+		dst.Fusion = *o.Fusion
+	}
+	if o.IncludeAlreadySurfaced != nil {
+		dst.IncludeAlreadySurfaced = *o.IncludeAlreadySurfaced
+	}
+	if o.IncludeSystem != nil {
+		dst.IncludeSystem = *o.IncludeSystem
+	}
+	o.Weights.Apply(&dst.Weights)
+	o.Freshness.Apply(&dst.Freshness)
+	o.Signals.Apply(&dst.Signals)
+}
+
+func (o memoryRecallWeightsOverlay) Apply(dst *MemoryRecallWeightsConfig) {
+	if o.BM25Unicode != nil {
+		dst.BM25Unicode = *o.BM25Unicode
+	}
+	if o.BM25Trigram != nil {
+		dst.BM25Trigram = *o.BM25Trigram
+	}
+	if o.Recency != nil {
+		dst.Recency = *o.Recency
+	}
+	if o.RecallSignal != nil {
+		dst.RecallSignal = *o.RecallSignal
+	}
+}
+
+func (o memoryRecallFreshnessOverlay) Apply(dst *MemoryRecallFreshnessConfig) {
+	if o.BannerAfterDays != nil {
+		dst.BannerAfterDays = *o.BannerAfterDays
+	}
+}
+
+func (o memoryRecallSignalsOverlay) Apply(dst *MemoryRecallSignalsConfig) {
+	if o.QueueCapacity != nil {
+		dst.QueueCapacity = *o.QueueCapacity
+	}
+	if o.WorkerRetryMax != nil {
+		dst.WorkerRetryMax = *o.WorkerRetryMax
+	}
+	if o.MetricsEnabled != nil {
+		dst.MetricsEnabled = *o.MetricsEnabled
+	}
+}
+
+func (o memoryDecisionsOverlay) Apply(dst *MemoryDecisionsConfig) {
+	if o.PruneAfterAppliedDays != nil {
+		dst.PruneAfterAppliedDays = *o.PruneAfterAppliedDays
+	}
+	if o.KeepAuditSummary != nil {
+		dst.KeepAuditSummary = *o.KeepAuditSummary
+	}
+	if o.MaxPostContentBytes != nil {
+		dst.MaxPostContentBytes = *o.MaxPostContentBytes
+	}
+}
+
+func (o memoryExtractorOverlay) Apply(dst *MemoryExtractorConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.Mode != nil {
+		dst.Mode = *o.Mode
+	}
+	if o.ThrottleTurns != nil {
+		dst.ThrottleTurns = *o.ThrottleTurns
+	}
+	if o.Deadline != nil {
+		dst.Deadline = *o.Deadline
+	}
+	if o.SandboxInboxOnly != nil {
+		dst.SandboxInboxOnly = *o.SandboxInboxOnly
+	}
+	if o.InboxPath != nil {
+		dst.InboxPath = *o.InboxPath
+	}
+	if o.DLQPath != nil {
+		dst.DLQPath = *o.DLQPath
+	}
+	if o.Model != nil {
+		dst.Model = *o.Model
+	}
+	o.Queue.Apply(&dst.Queue)
+}
+
+func (o memoryExtractorQueueOverlay) Apply(dst *MemoryExtractorQueueConfig) {
+	if o.Capacity != nil {
+		dst.Capacity = *o.Capacity
+	}
+	if o.CoalesceMax != nil {
+		dst.CoalesceMax = *o.CoalesceMax
+	}
 }
 
 func (o dreamOverlay) Apply(dst *DreamConfig) {
@@ -766,8 +1054,137 @@ func (o dreamOverlay) Apply(dst *DreamConfig) {
 	if o.MinSessions != nil {
 		dst.MinSessions = *o.MinSessions
 	}
+	if o.Debounce != nil {
+		dst.Debounce = *o.Debounce
+	}
+	if o.PromptVersion != nil {
+		dst.PromptVersion = *o.PromptVersion
+	}
 	if o.CheckInterval != nil {
 		dst.CheckInterval = *o.CheckInterval
+	}
+	o.Gates.Apply(&dst.Gates)
+	o.Scoring.Apply(&dst.Scoring)
+}
+
+func (o memoryDreamGatesOverlay) Apply(dst *MemoryDreamGatesConfig) {
+	if o.MinUnpromoted != nil {
+		dst.MinUnpromoted = *o.MinUnpromoted
+	}
+	if o.MinRecallCount != nil {
+		dst.MinRecallCount = *o.MinRecallCount
+	}
+	if o.MinScore != nil {
+		dst.MinScore = *o.MinScore
+	}
+}
+
+func (o memoryDreamScoringOverlay) Apply(dst *MemoryDreamScoringConfig) {
+	if o.RecencyHalfLifeDays != nil {
+		dst.RecencyHalfLifeDays = *o.RecencyHalfLifeDays
+	}
+	o.Weights.Apply(&dst.Weights)
+}
+
+func (o memoryDreamScoringWeightsOverlay) Apply(dst *MemoryDreamScoringWeightsConfig) {
+	if o.Frequency != nil {
+		dst.Frequency = *o.Frequency
+	}
+	if o.Relevance != nil {
+		dst.Relevance = *o.Relevance
+	}
+	if o.Recency != nil {
+		dst.Recency = *o.Recency
+	}
+	if o.Freshness != nil {
+		dst.Freshness = *o.Freshness
+	}
+}
+
+func (o memorySessionOverlay) Apply(dst *MemorySessionConfig) {
+	if o.LedgerFormat != nil {
+		dst.LedgerFormat = *o.LedgerFormat
+	}
+	if o.LedgerRoot != nil {
+		dst.LedgerRoot = *o.LedgerRoot
+	}
+	if o.EventsPurgeGrace != nil {
+		dst.EventsPurgeGrace = *o.EventsPurgeGrace
+	}
+	if o.ColdArchiveDays != nil {
+		dst.ColdArchiveDays = *o.ColdArchiveDays
+	}
+	if o.HardDeleteDays != nil {
+		dst.HardDeleteDays = *o.HardDeleteDays
+	}
+	if o.MaxArchiveBytes != nil {
+		dst.MaxArchiveBytes = *o.MaxArchiveBytes
+	}
+	if o.UnboundPartition != nil {
+		dst.UnboundPartition = *o.UnboundPartition
+	}
+}
+
+func (o memoryDailyOverlay) Apply(dst *MemoryDailyConfig) {
+	if o.MaxBytes != nil {
+		dst.MaxBytes = *o.MaxBytes
+	}
+	if o.MaxLines != nil {
+		dst.MaxLines = *o.MaxLines
+	}
+	if o.RotateFormat != nil {
+		dst.RotateFormat = *o.RotateFormat
+	}
+	if o.DreamingWindow != nil {
+		dst.DreamingWindow = *o.DreamingWindow
+	}
+	if o.ColdArchiveDays != nil {
+		dst.ColdArchiveDays = *o.ColdArchiveDays
+	}
+	if o.HardDeleteDays != nil {
+		dst.HardDeleteDays = *o.HardDeleteDays
+	}
+	if o.MaxArchiveBytes != nil {
+		dst.MaxArchiveBytes = *o.MaxArchiveBytes
+	}
+	if o.SweepHour != nil {
+		dst.SweepHour = *o.SweepHour
+	}
+	if o.ArchivePath != nil {
+		dst.ArchivePath = *o.ArchivePath
+	}
+}
+
+func (o memoryFileOverlay) Apply(dst *MemoryFileConfig) {
+	if o.MaxLines != nil {
+		dst.MaxLines = *o.MaxLines
+	}
+	if o.MaxBytes != nil {
+		dst.MaxBytes = *o.MaxBytes
+	}
+}
+
+func (o memoryProviderOverlay) Apply(dst *MemoryProviderConfig) {
+	if o.Name != nil {
+		dst.Name = *o.Name
+	}
+	if o.Timeout != nil {
+		dst.Timeout = *o.Timeout
+	}
+	if o.FailureThreshold != nil {
+		dst.FailureThreshold = *o.FailureThreshold
+	}
+	if o.Cooldown != nil {
+		dst.Cooldown = *o.Cooldown
+	}
+}
+
+func (o memoryWorkspaceOverlay) Apply(dst *MemoryWorkspaceConfig) {
+	if o.TOMLPath != nil {
+		dst.TOMLPath = *o.TOMLPath
+	}
+	if o.AutoCreate != nil {
+		dst.AutoCreate = *o.AutoCreate
 	}
 }
 

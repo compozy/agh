@@ -19,7 +19,7 @@ import (
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -77,8 +77,17 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookSkillSource]():                     hookSkillSourceValues(),
 	reflect.TypeFor[hooks.HookExecutorKind]():                    hookExecutorKindValues(),
 	reflect.TypeFor[hooks.HookSource]():                          hookSourceValues(),
-	reflect.TypeFor[memory.Type]():                               memoryTypeValues(),
-	reflect.TypeFor[memory.Scope]():                              memoryScopeValues(),
+	reflect.TypeFor[memcontract.Type]():                          memoryTypeValues(),
+	reflect.TypeFor[memcontract.Scope]():                         memoryScopeValues(),
+	reflect.TypeFor[memcontract.AgentTier]():                     memoryAgentTierValues(),
+	reflect.TypeFor[memcontract.Origin]():                        memoryOriginValues(),
+	reflect.TypeFor[memcontract.Operation]():                     memoryOperationValues(),
+	reflect.TypeFor[memcontract.DecisionSource]():                memoryDecisionSourceValues(),
+	reflect.TypeFor[memcontract.Trigger]():                       memoryTriggerValues(),
+	reflect.TypeFor[contract.MemoryDecisionOp]():                 memoryDecisionOpValues(),
+	reflect.TypeFor[contract.MemoryProviderState]():              memoryProviderStateValues(),
+	reflect.TypeFor[contract.MemoryDreamState]():                 memoryDreamStateValues(),
+	reflect.TypeFor[contract.MemoryExtractorState]():             memoryExtractorStateValues(),
 	reflect.TypeFor[contract.SettingsScopeKind]():                settingsScopeValues(),
 	reflect.TypeFor[contract.SettingsGlobalScopeKind]():          settingsGlobalScopeValues(),
 	reflect.TypeFor[contract.SettingsAgentScopeKind]():           settingsAgentScopeValues(),
@@ -2061,18 +2070,18 @@ var operationRegistry = []OperationSpec{
 		Method:      "GET",
 		Path:        "/api/memory",
 		OperationID: "listMemory",
-		Summary:     "List memory document headers",
+		Summary:     "List Memory v2 curated entries",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Memory scope", memoryScopeValues()),
-			queryParam("workspace", "Workspace id or path", false),
-		},
+		Parameters: append(
+			memorySelectorQueryParams(),
+			intQueryParam("limit", "Maximum number of memories to return"),
+		),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: []memory.Header{}},
-			{Status: 400, Description: "Invalid memory filter", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Workspace or memory not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 200, Description: "OK", Body: contract.MemoryListResponse{}},
+			memoryError(400, "Invalid memory filter"),
+			memoryError(404, "Workspace or memory not found"),
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
@@ -2082,13 +2091,23 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Get memory health",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("workspace", "Workspace id or path", false),
-		},
+		Parameters:  memorySelectorQueryParams(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.MemoryHealthPayload{}},
-			{Status: 400, Description: "Invalid memory health filter", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			memoryError(400, "Invalid memory health filter"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/config",
+		OperationID: "getMemoryConfigMetadata",
+		Summary:     "Get Memory v2 config metadata and provider registry state",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryConfigMetadataResponse{}},
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
@@ -2098,17 +2117,30 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List redacted memory operation history",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Memory scope", memoryScopeValues()),
-			queryParam("workspace", "Workspace id or path", false),
+		Parameters: append(memorySelectorQueryParams(),
 			queryParam("operation", "Memory operation type", false),
 			dateTimeQueryParam("since", "Only operations since this timestamp"),
 			intQueryParam("limit", "Maximum number of operations to return"),
-		},
+		),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MemoryHistoryResponse{}},
-			{Status: 400, Description: "Invalid memory history filter", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 200, Description: "OK", Body: contract.MemoryOperationHistoryResponse{}},
+			memoryError(400, "Invalid memory history filter"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/scope-show",
+		OperationID: "showMemoryScope",
+		Summary:     "Resolve the effective Memory v2 scope/tier and precedence chain",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  memorySelectorQueryParams(),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryScopeShowResponse{}},
+			memoryError(400, "Invalid memory scope selector"),
+			memoryError(404, "Workspace or agent not found"),
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
@@ -2118,34 +2150,48 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Read one memory document",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("filename", "Memory filename"),
-			enumQueryParam("scope", "Memory scope", memoryScopeValues()),
-			queryParam("workspace", "Workspace id or path", false),
-		},
+		Parameters:  append([]ParameterSpec{pathParam("filename", "Memory filename")}, memorySelectorQueryParams()...),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MemoryReadResponse{}},
-			{Status: 400, Description: "Invalid memory reference", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Memory not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 200, Description: "OK", Body: contract.MemoryEntryResponse{}},
+			memoryError(400, "Invalid memory reference"),
+			memoryError(404, "Memory not found"),
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
-		Method:      "PUT",
-		Path:        "/api/memory/{filename}",
+		Method:      "POST",
+		Path:        "/api/memory",
 		OperationID: "writeMemory",
-		Summary:     "Write one memory document",
+		Summary:     "Create or propose one Memory v2 curated entry",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryCreateRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryMutationDecisionResponse{}},
+			memoryError(400, "Invalid memory write request"),
+			memoryError(409, "Memory decision conflict"),
+			memoryError(422, "Memory write rejected by policy"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/memory/{filename}",
+		OperationID: "editMemory",
+		Summary:     "Edit one Memory v2 curated entry through the controller",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("filename", "Memory filename"),
 		},
-		RequestBody: contract.MemoryWriteRequest{},
+		RequestBody: contract.MemoryEditRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MemoryMutationResponse{}},
-			{Status: 400, Description: "Invalid memory write request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 200, Description: "OK", Body: contract.MemoryMutationDecisionResponse{}},
+			memoryError(400, "Invalid memory edit request"),
+			memoryError(404, "Memory not found"),
+			memoryError(409, "Memory decision conflict"),
+			memoryError(422, "Memory edit rejected by policy"),
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
@@ -2155,31 +2201,467 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Delete one memory document",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("filename", "Memory filename"),
-			enumQueryParam("scope", "Memory scope", memoryScopeValues()),
-			queryParam("workspace", "Workspace id or path", false),
-		},
+		Parameters:  append([]ParameterSpec{pathParam("filename", "Memory filename")}, memorySelectorQueryParams()...),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MemoryMutationResponse{}},
-			{Status: 400, Description: "Invalid memory reference", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Memory not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 200, Description: "OK", Body: contract.MemoryDeleteResponse{}},
+			memoryError(400, "Invalid memory reference"),
+			memoryError(404, "Memory not found"),
+			memoryError(409, "Memory decision conflict"),
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/memory/consolidate",
-		OperationID: "consolidateMemory",
-		Summary:     "Trigger dream consolidation",
+		Path:        "/api/memory/search",
+		OperationID: "searchMemory",
+		Summary:     "Run deterministic Memory v2 recall/search",
 		Tags:        []string{"memory"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.MemoryConsolidateRequest{},
+		RequestBody: contract.MemorySearchRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MemoryConsolidateResponse{}},
-			{Status: 400, Description: "Invalid consolidate request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 200, Description: "OK", Body: contract.MemorySearchResponse{}},
+			memoryError(400, "Invalid memory search request"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/reindex",
+		OperationID: "reindexMemory",
+		Summary:     "Rebuild Memory v2 derived catalog indexes",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryReindexV2Request{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryReindexResponse{}},
+			memoryError(400, "Invalid memory reindex request"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/promote",
+		OperationID: "promoteMemory",
+		Summary:     "Promote a Memory v2 entry between scopes or agent tiers",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryPromoteRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryPromoteResponse{}},
+			memoryError(400, "Invalid memory promote request"),
+			memoryError(404, "Memory not found"),
+			memoryError(409, "Memory promotion conflict"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/reset",
+		OperationID: "resetMemory",
+		Summary:     "Reset Memory v2 derived state or curated storage",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryResetRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryResetResponse{}},
+			memoryError(400, "Invalid memory reset request"),
+			memoryError(409, "Memory reset confirmation required"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/reload",
+		OperationID: "reloadMemory",
+		Summary:     "Invalidate Memory v2 frozen snapshots for the next session boot",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryReloadResponse{}},
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/decisions",
+		OperationID: "listMemoryDecisions",
+		Summary:     "List Memory v2 controller decisions",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: append(memorySelectorQueryParams(),
+			queryParam("op", "Controller decision op", false),
+			dateTimeQueryParam("since", "Only decisions since this timestamp"),
+			intQueryParam("limit", "Maximum number of decisions to return"),
+		),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDecisionListResponse{}},
+			memoryError(400, "Invalid memory decision filter"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/decisions/{decision_id}",
+		OperationID: "getMemoryDecision",
+		Summary:     "Get one Memory v2 controller decision",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("decision_id", "Controller decision id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDecisionResponse{}},
+			memoryError(404, "Memory decision not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/decisions/{decision_id}/revert",
+		OperationID: "revertMemoryDecision",
+		Summary:     "Revert one applied Memory v2 controller decision",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("decision_id", "Controller decision id"),
+		},
+		RequestBody: contract.MemoryDecisionRevertRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDecisionRevertResponse{}},
+			memoryError(400, "Invalid memory decision revert request"),
+			memoryError(404, "Memory decision not found"),
+			memoryError(409, "Memory decision cannot be reverted"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/recall-traces/{session_id}/{turn_seq}",
+		OperationID: "getMemoryRecallTrace",
+		Summary:     "Get one Memory v2 recall trace",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("session_id", "Session id"),
+			{
+				Name:        "turn_seq",
+				In:          openapi3.ParameterInPath,
+				Description: "Turn sequence",
+				Required:    true,
+				Kind:        "integer",
+				Format:      "int64",
+			},
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryRecallTraceResponse{}},
+			memoryError(404, "Memory recall trace not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/dreams",
+		OperationID: "listMemoryDreams",
+		Summary:     "List Memory v2 dreaming runs",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: append(memorySelectorQueryParams(),
+			queryParam("status", "Dream status", false),
+			intQueryParam("limit", "Maximum number of dreaming runs to return"),
+		),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDreamListResponse{}},
+			memoryError(400, "Invalid memory dream filter"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/dreams/{dream_id}",
+		OperationID: "getMemoryDream",
+		Summary:     "Get one Memory v2 dreaming run",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("dream_id", "Dreaming run id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDreamResponse{}},
+			memoryError(404, "Memory dream not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/dreams/trigger",
+		OperationID: "triggerMemoryDream",
+		Summary:     "Trigger Memory v2 dreaming immediately",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryDreamTriggerRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDreamTriggerResponse{}},
+			memoryError(400, "Invalid memory dream trigger request"),
+			memoryError(409, "Memory dream gate not satisfied"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/dreams/{dream_id}/retry",
+		OperationID: "retryMemoryDream",
+		Summary:     "Retry a failed Memory v2 dreaming run",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("dream_id", "Dreaming run id"),
+		},
+		RequestBody: contract.MemoryDreamRetryRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDreamRetryResponse{}},
+			memoryError(400, "Invalid memory dream retry request"),
+			memoryError(404, "Memory dream not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/dreams/status",
+		OperationID: "getMemoryDreamStatus",
+		Summary:     "Get Memory v2 dreaming status",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDreamListResponse{}},
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/daily",
+		OperationID: "listMemoryDailyLogs",
+		Summary:     "List Memory v2 daily operation logs",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: append(memorySelectorQueryParams(),
+			queryParam("date", "Daily log date in YYYY-MM-DD format", false),
+			intQueryParam("limit", "Maximum number of daily logs to return"),
+		),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryDailyLogListResponse{}},
+			memoryError(400, "Invalid memory daily log filter"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/extractor/status",
+		OperationID: "getMemoryExtractorStatus",
+		Summary:     "Get Memory v2 extractor queue status",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryExtractorStatusResponse{}},
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/extractor/failures",
+		OperationID: "listMemoryExtractorFailures",
+		Summary:     "List Memory v2 extractor DLQ records",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("session_id", "Filter by session id", false),
+			intQueryParam("limit", "Maximum number of failures to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryExtractorFailuresResponse{}},
+			memoryError(400, "Invalid extractor failure filter"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/extractor/retry",
+		OperationID: "retryMemoryExtractor",
+		Summary:     "Retry Memory v2 extractor DLQ records",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryExtractorRetryRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryExtractorRetryResponse{}},
+			memoryError(400, "Invalid extractor retry request"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/extractor/drain",
+		OperationID: "drainMemoryExtractor",
+		Summary:     "Drain Memory v2 extractor queue",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryExtractorDrainResponse{}},
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/providers",
+		OperationID: "listMemoryProviders",
+		Summary:     "List registered Memory v2 providers",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryProviderListResponse{}},
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/providers/{provider_name}",
+		OperationID: "getMemoryProvider",
+		Summary:     "Get one Memory v2 provider",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("provider_name", "Memory provider name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryProviderResponse{}},
+			memoryError(404, "Memory provider not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/providers/select",
+		OperationID: "selectMemoryProvider",
+		Summary:     "Select the active Memory v2 provider",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryProviderSelectRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryProviderResponse{}},
+			memoryError(400, "Invalid memory provider selection"),
+			memoryError(404, "Memory provider not found"),
+			memoryError(409, "Memory provider collision"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/providers/{provider_name}/enable",
+		OperationID: "enableMemoryProvider",
+		Summary:     "Enable a Memory v2 provider",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("provider_name", "Memory provider name"),
+		},
+		RequestBody: contract.MemoryProviderLifecycleRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryProviderLifecycleResponse{}},
+			memoryError(400, "Invalid memory provider enable request"),
+			memoryError(404, "Memory provider not found"),
+			memoryError(409, "Memory provider collision"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/providers/{provider_name}/disable",
+		OperationID: "disableMemoryProvider",
+		Summary:     "Disable a Memory v2 provider",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("provider_name", "Memory provider name"),
+		},
+		RequestBody: contract.MemoryProviderLifecycleRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryProviderLifecycleResponse{}},
+			memoryError(400, "Invalid memory provider disable request"),
+			memoryError(404, "Memory provider not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/ad-hoc",
+		OperationID: "createMemoryAdhocNote",
+		Summary:     "Create a Memory v2 ad-hoc note for dreaming reconciliation",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemoryAdhocNoteRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryAdhocNoteResponse{}},
+			memoryError(400, "Invalid memory ad-hoc note request"),
+			memoryError(422, "Memory ad-hoc note rejected by policy"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/sessions/{session_id}/ledger",
+		OperationID: "getMemorySessionLedger",
+		Summary:     "Get one materialized Memory v2 session ledger",
+		Tags:        []string{"memory", "sessions"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemorySessionLedgerResponse{}},
+			memoryError(404, "Session ledger not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/sessions/{session_id}/replay",
+		OperationID: "replayMemorySession",
+		Summary:     "Replay one materialized Memory v2 session ledger",
+		Tags:        []string{"memory", "sessions"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("session_id", "Session id"),
+		},
+		RequestBody: contract.MemorySessionReplayRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemorySessionReplayResponse{}},
+			memoryError(400, "Invalid session replay request"),
+			memoryError(404, "Session ledger not found"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/sessions/prune",
+		OperationID: "pruneMemorySessions",
+		Summary:     "Prune materialized Memory v2 session ledger state",
+		Tags:        []string{"memory", "sessions"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.MemorySessionsPruneRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemorySessionsPruneResponse{}},
+			memoryError(400, "Invalid session prune request"),
+			memoryError(500, "Internal server error"),
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/memory/sessions/repair",
+		OperationID: "repairMemorySessions",
+		Summary:     "Repair materialized Memory v2 session ledgers",
+		Tags:        []string{"memory", "sessions"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemorySessionsRepairResponse{}},
+			memoryError(500, "Internal server error"),
 		},
 	},
 	{
@@ -4403,6 +4885,19 @@ func intQueryParam(name string, description string) ParameterSpec {
 	}
 }
 
+func memorySelectorQueryParams() []ParameterSpec {
+	return []ParameterSpec{
+		enumQueryParam("scope", "Memory scope", memoryScopeValues()),
+		queryParam("workspace_id", "Durable workspace id", false),
+		queryParam("agent_name", "Agent name for agent-scoped memory", false),
+		enumQueryParam("agent_tier", "Agent memory tier", memoryAgentTierValues()),
+	}
+}
+
+func memoryError(status int, description string) ResponseSpec {
+	return ResponseSpec{Status: status, Description: description, Body: contract.MemoryErrorPayload{}}
+}
+
 func afterSequenceQueryParam(description string) ParameterSpec {
 	return ParameterSpec{
 		Name:        "after_sequence",
@@ -4706,15 +5201,87 @@ func hookSourceValues() []string {
 
 func memoryTypeValues() []string {
 	return []string{
-		string(memory.MemoryTypeUser),
-		string(memory.MemoryTypeFeedback),
-		string(memory.MemoryTypeProject),
-		string(memory.MemoryTypeReference),
+		string(memcontract.TypeUser),
+		string(memcontract.TypeFeedback),
+		string(memcontract.TypeProject),
+		string(memcontract.TypeReference),
 	}
 }
 
 func memoryScopeValues() []string {
-	return []string{string(memory.ScopeGlobal), string(memory.ScopeWorkspace)}
+	return []string{string(memcontract.ScopeGlobal), string(memcontract.ScopeWorkspace), string(memcontract.ScopeAgent)}
+}
+
+func memoryAgentTierValues() []string {
+	return []string{string(memcontract.AgentTierWorkspace), string(memcontract.AgentTierGlobal)}
+}
+
+func memoryOriginValues() []string {
+	return []string{
+		string(memcontract.OriginCLI),
+		string(memcontract.OriginHTTP),
+		string(memcontract.OriginUDS),
+		string(memcontract.OriginTool),
+		string(memcontract.OriginExtractor),
+		string(memcontract.OriginDreaming),
+		string(memcontract.OriginFile),
+		string(memcontract.OriginProvider),
+	}
+}
+
+func memoryOperationValues() []string {
+	return []string{
+		string(memcontract.OperationWrite),
+		string(memcontract.OperationDelete),
+		string(memcontract.OperationSearch),
+		string(memcontract.OperationReindex),
+	}
+}
+
+func memoryDecisionOpValues() []string {
+	return []string{
+		string(contract.MemoryDecisionOpNoop),
+		string(contract.MemoryDecisionOpAdd),
+		string(contract.MemoryDecisionOpUpdate),
+		string(contract.MemoryDecisionOpDelete),
+		string(contract.MemoryDecisionOpReject),
+	}
+}
+
+func memoryDecisionSourceValues() []string {
+	return []string{string(memcontract.SourceRule), string(memcontract.SourceLLM)}
+}
+
+func memoryTriggerValues() []string {
+	return []string{string(memcontract.TriggerPostMessage), string(memcontract.TriggerCompactionFlush)}
+}
+
+func memoryProviderStateValues() []string {
+	return []string{
+		string(contract.MemoryProviderStateActive),
+		string(contract.MemoryProviderStateStandby),
+		string(contract.MemoryProviderStateCoolingDown),
+		string(contract.MemoryProviderStateFailed),
+	}
+}
+
+func memoryDreamStateValues() []string {
+	return []string{
+		string(contract.MemoryDreamStateIdle),
+		string(contract.MemoryDreamStateRunning),
+		string(contract.MemoryDreamStatePromoted),
+		string(contract.MemoryDreamStateSkipped),
+		string(contract.MemoryDreamStateFailed),
+	}
+}
+
+func memoryExtractorStateValues() []string {
+	return []string{
+		string(contract.MemoryExtractorStateIdle),
+		string(contract.MemoryExtractorStateRunning),
+		string(contract.MemoryExtractorStateDraining),
+		string(contract.MemoryExtractorStateStopped),
+	}
 }
 
 func bridgeScopeValues() []string {

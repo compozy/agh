@@ -74,6 +74,11 @@ type TurnEndNotifier func(sessionID string)
 // PromptInputAugmenter can add bounded daemon-local context before prompt dispatch.
 type PromptInputAugmenter func(ctx context.Context, session *Session, message string) (string, error)
 
+// LedgerMaterializer is the thin session-end seam for forensic ledger projection.
+type LedgerMaterializer interface {
+	MaterializeSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
+}
+
 // AgentArtifacts returns an agent definition and optional resource-backed authored-context sidecars.
 type AgentArtifacts struct {
 	Agent               aghconfig.AgentDef

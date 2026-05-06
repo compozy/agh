@@ -10,11 +10,14 @@ import {
   DialogTitle,
 } from "@agh/ui";
 
+import type { KnowledgeScope } from "../types";
+import { knowledgeScopeLabel } from "../lib/knowledge-formatters";
+
 interface KnowledgeDeleteDialogProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
   filename: string;
-  scope: string;
+  scope: KnowledgeScope;
   isPending: boolean;
   error?: string | null;
   onConfirm: () => Promise<void>;
@@ -39,8 +42,9 @@ function KnowledgeDeleteDialog({
         <DialogHeader className="gap-2 border-b border-[color:var(--color-divider)] px-5 py-4">
           <DialogTitle>Delete knowledge entry?</DialogTitle>
           <DialogDescription>
-            This removes <span className="font-mono">{filename}</span> from the {scope} scope. This
-            action cannot be undone.
+            This removes <span className="font-mono">{filename}</span> from the {scope} scope. The
+            controller records the delete decision; the file is removed from{" "}
+            {knowledgeScopeLabel(scope)} after the decision applies.
           </DialogDescription>
         </DialogHeader>
         {error ? (

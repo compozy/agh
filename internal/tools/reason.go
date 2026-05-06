@@ -78,6 +78,8 @@ const (
 	ReasonApprovalTokenReplayed ReasonCode = "approval_token_replayed"
 	// ReasonSessionDenied reports session lineage denial.
 	ReasonSessionDenied ReasonCode = "session_denied"
+	// ReasonMemorySubagentWriteDenied reports a sub-agent direct memory write denial.
+	ReasonMemorySubagentWriteDenied ReasonCode = "memory_subagent_write_denied"
 	// ReasonHookDenied reports hook denial.
 	ReasonHookDenied ReasonCode = "hook_denied"
 	// ReasonSchemaInvalid reports invalid JSON schema.
@@ -172,6 +174,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonApprovalTokenMismatch:          {},
 	ReasonApprovalTokenReplayed:          {},
 	ReasonSessionDenied:                  {},
+	ReasonMemorySubagentWriteDenied:      {},
 	ReasonHookDenied:                     {},
 	ReasonSchemaInvalid:                  {},
 	ReasonConflictedID:                   {},

@@ -5,6 +5,7 @@ export default defineConfig({
     name: "extension-sdk",
     environment: "node",
     pool: "forks",
+    fileParallelism: false,
     sequence: {
       groupOrder: 1,
     },

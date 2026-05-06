@@ -583,7 +583,14 @@ func (h *HostAPIHandler) submitBridgePrompt(
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
-	drainAgentEvents(eventsCh)
+	drainDone := make(chan struct{})
+	go func() {
+		defer close(drainDone)
+		drainAgentEvents(eventsCh)
+	}()
+	if err := h.waitForSubmittedBridgePrompt(ctx, sessionID, drainDone); err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
 
 	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
 		AfterSequence: lastSequence,
@@ -593,6 +600,41 @@ func (h *HostAPIHandler) submitBridgePrompt(
 	}
 
 	return promptSubmissionFromStoredEvents(events)
+}
+
+func (h *HostAPIHandler) waitForSubmittedBridgePrompt(
+	ctx context.Context,
+	sessionID string,
+	drainDone <-chan struct{},
+) error {
+	if ctx == nil {
+		return errors.New("extension: bridge prompt wait context is required")
+	}
+	if drainDone == nil {
+		return nil
+	}
+
+	if _, ok := h.sessions.(hostAPIPromptingSessionManager); ok {
+		select {
+		case <-drainDone:
+			return nil
+		default:
+		}
+		waited, err := h.waitForBridgePromptAvailability(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		if waited {
+			return nil
+		}
+	}
+
+	select {
+	case <-drainDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (h *HostAPIHandler) promptBridgeSession(

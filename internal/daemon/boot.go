@@ -22,6 +22,9 @@ import (
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	localprovider "github.com/pedronauck/agh/internal/memory/provider/local"
+	"github.com/pedronauck/agh/internal/memory/provider/local/memstore"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
@@ -29,6 +32,7 @@ import (
 	"github.com/pedronauck/agh/internal/sandbox/daytona"
 	"github.com/pedronauck/agh/internal/sandbox/local"
 	"github.com/pedronauck/agh/internal/session"
+	sessionledger "github.com/pedronauck/agh/internal/sessions/ledger"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
@@ -43,68 +47,72 @@ import (
 )
 
 type bootState struct {
-	cfg                 aghconfig.Config
-	logger              *slog.Logger
-	closeLogger         func() error
-	lock                *Lock
-	harnessResolver     *HarnessContextResolver
-	harnessRecorder     *harnessLifecycleRecorder
-	memoryStore         *memory.Store
-	skillsRegistry      *skills.Registry
-	mcpResolver         *skills.MCPResolver
-	dreamSvc            consolidation.Service
-	dreamRuntime        *consolidation.Runtime
-	globalMemoryDir     string
-	situationContext    *situation.Service
-	promptAssembler     session.PromptAssembler
-	startupOverlay      session.StartupPromptOverlay
-	promptAugmenter     session.PromptInputAugmenter
-	notifier            *hooksNotifier
-	registry            Registry
-	processRegistry     *toolruntime.Registry
-	sandboxRegistry     *sandbox.Registry
-	workspaceResolver   *workspacepkg.Resolver
-	sessions            SessionManager
-	hostedMCP           *mcppkg.HostedService
-	providerVault       *vault.Service
-	tasks               *taskRuntime
-	reviewRequests      *runReviewRequestedForwarder
-	spawnReaper         *spawnReaper
-	scheduler           *schedulerRuntime
-	coordinator         *coordinatorRuntime
-	network             networkRuntime
-	toolRegistry        toolspkg.Registry
-	toolsets            core.ToolsetRegistry
-	toolApprovals       toolspkg.ApprovalTokenIssuer
-	observer            Observer
-	lifecycleObservers  *sessionLifecycleFanout
-	hookTelemetrySinks  *hookTelemetryFanout
-	hooks               hookRuntime
-	hookDispatcher      *hookspkg.Hooks
-	hookBindings        hookBindingPublisher
-	resourceKernel      *resources.Kernel
-	resourceCodecs      *resources.CodecRegistry
-	agentCatalog        *resourceCatalog[aghconfig.AgentDef]
-	soulCatalog         *resourceCatalog[soul.ResourceSpec]
-	heartbeatCatalog    *resourceCatalog[heartbeat.ResourceSpec]
-	toolCatalog         *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog    *resourceCatalog[aghconfig.MCPServer]
-	agentSkillResources agentSkillPublisher
-	toolMCPResources    toolMCPPublisher
-	bundleResources     bundleResourcePublisher
-	extMu               sync.RWMutex
-	extensions          extensionRuntime
-	resourceReconcile   resources.ReconcileDriver
-	automation          automationRuntime
-	bridges             *bridgeRuntime
-	bundles             *bundlepkg.Service
-	httpServer          Server
-	udsServer           Server
-	skillsCancel        context.CancelFunc
-	skillsDone          chan struct{}
-	startedAt           time.Time
-	info                Info
-	deps                RuntimeDeps
+	cfg                    aghconfig.Config
+	logger                 *slog.Logger
+	closeLogger            func() error
+	lock                   *Lock
+	harnessResolver        *HarnessContextResolver
+	harnessRecorder        *harnessLifecycleRecorder
+	memoryStore            *memory.Store
+	localMemoryProvider    *localprovider.Provider
+	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
+	memoryExtractor        *daemonMemoryExtractor
+	ledgerMaterializer     session.LedgerMaterializer
+	skillsRegistry         *skills.Registry
+	mcpResolver            *skills.MCPResolver
+	dreamSvc               consolidation.Service
+	dreamRuntime           *consolidation.Runtime
+	globalMemoryDir        string
+	situationContext       *situation.Service
+	promptAssembler        session.PromptAssembler
+	startupOverlay         session.StartupPromptOverlay
+	promptAugmenter        session.PromptInputAugmenter
+	notifier               *hooksNotifier
+	registry               Registry
+	processRegistry        *toolruntime.Registry
+	sandboxRegistry        *sandbox.Registry
+	workspaceResolver      *workspacepkg.Resolver
+	sessions               SessionManager
+	hostedMCP              *mcppkg.HostedService
+	providerVault          *vault.Service
+	tasks                  *taskRuntime
+	reviewRequests         *runReviewRequestedForwarder
+	spawnReaper            *spawnReaper
+	scheduler              *schedulerRuntime
+	coordinator            *coordinatorRuntime
+	network                networkRuntime
+	toolRegistry           toolspkg.Registry
+	toolsets               core.ToolsetRegistry
+	toolApprovals          toolspkg.ApprovalTokenIssuer
+	observer               Observer
+	lifecycleObservers     *sessionLifecycleFanout
+	hookTelemetrySinks     *hookTelemetryFanout
+	hooks                  hookRuntime
+	hookDispatcher         *hookspkg.Hooks
+	hookBindings           hookBindingPublisher
+	resourceKernel         *resources.Kernel
+	resourceCodecs         *resources.CodecRegistry
+	agentCatalog           *resourceCatalog[aghconfig.AgentDef]
+	soulCatalog            *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog       *resourceCatalog[heartbeat.ResourceSpec]
+	toolCatalog            *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog       *resourceCatalog[aghconfig.MCPServer]
+	agentSkillResources    agentSkillPublisher
+	toolMCPResources       toolMCPPublisher
+	bundleResources        bundleResourcePublisher
+	extMu                  sync.RWMutex
+	extensions             extensionRuntime
+	resourceReconcile      resources.ReconcileDriver
+	automation             automationRuntime
+	bridges                *bridgeRuntime
+	bundles                *bundlepkg.Service
+	httpServer             Server
+	udsServer              Server
+	skillsCancel           context.CancelFunc
+	skillsDone             chan struct{}
+	startedAt              time.Time
+	info                   Info
+	deps                   RuntimeDeps
 }
 
 func (s *bootState) currentExtensionRuntime() extensionRuntime {
@@ -273,24 +281,16 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 	return nil
 }
 
-func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error {
+func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) error {
 	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
-	var err error
 
 	if state.cfg.Memory.Enabled {
-		state.globalMemoryDir = strings.TrimSpace(state.cfg.Memory.GlobalDir)
-		if state.globalMemoryDir == "" {
-			state.globalMemoryDir = d.homePaths.MemoryDir
+		provider, err := d.bootMemoryPromptProvider(ctx, state)
+		if err != nil {
+			return err
 		}
-		state.memoryStore = memory.NewStore(
-			state.globalMemoryDir,
-			memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
-		)
-		if err := state.memoryStore.EnsureDirs(); err != nil {
-			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
-		}
-		prependProviders = append(prependProviders, memory.NewAssembler(state.memoryStore))
+		prependProviders = append(prependProviders, provider)
 	}
 
 	if state.cfg.Skills.Enabled {
@@ -323,7 +323,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 			)...,
 		),
 	)
-	state.promptAugmenter, err = newPromptInputCompositeAugmenter(
+	promptAugmenter, err := newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,
 		state.harnessRecorder,
@@ -338,7 +338,57 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 	if err != nil {
 		return fmt.Errorf("daemon: build prompt input composite: %w", err)
 	}
+	state.promptAugmenter = promptAugmenter
 	return nil
+}
+
+func (d *Daemon) bootMemoryPromptProvider(
+	ctx context.Context,
+	state *bootState,
+) (session.PromptProvider, error) {
+	state.globalMemoryDir = strings.TrimSpace(state.cfg.Memory.GlobalDir)
+	if state.globalMemoryDir == "" {
+		state.globalMemoryDir = d.homePaths.MemoryDir
+	}
+	state.memoryStore = memory.NewStore(
+		state.globalMemoryDir,
+		memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
+		memory.WithRecallSignalRecorderConfig(state.cfg.Memory.Recall.Signals),
+	)
+	if err := state.memoryStore.EnsureDirs(); err != nil {
+		return nil, fmt.Errorf("daemon: ensure memory store directories: %w", err)
+	}
+	state.localMemoryProvider = localprovider.New(
+		memstore.New(state.memoryStore),
+		localprovider.WithLogger(state.logger),
+		localprovider.WithClock(d.now),
+	)
+	providerCtx, cancel := d.memoryProviderInitContext(ctx, state)
+	if cancel != nil {
+		defer cancel()
+	}
+	if err := state.localMemoryProvider.Initialize(providerCtx, memcontract.ProviderInit{
+		Logger: state.logger,
+		Config: map[string]any{
+			"name": localprovider.Name,
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("daemon: initialize local memory provider: %w", err)
+	}
+	return memory.NewAssembler(
+		state.memoryStore,
+		memory.WithSnapshotProvider(state.localMemoryProvider),
+	), nil
+}
+
+func (d *Daemon) memoryProviderInitContext(
+	ctx context.Context,
+	state *bootState,
+) (context.Context, context.CancelFunc) {
+	if state.cfg.Memory.Provider.Timeout <= 0 {
+		return ctx, nil
+	}
+	return context.WithTimeout(ctx, state.cfg.Memory.Provider.Timeout)
 }
 
 func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
@@ -466,6 +516,11 @@ func (d *Daemon) bootRegistryState(
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
 	}
+	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)
+	if err != nil {
+		return fmt.Errorf("daemon: create memory provider registry: %w", err)
+	}
+	state.memoryProviderRegistry = memoryProviders
 	return nil
 }
 
@@ -507,6 +562,13 @@ func (d *Daemon) bootRuntimeServices(
 	}
 	state.hostedMCP = hostedMCP
 
+	if err := d.bootRuntimeResourceGraph(state); err != nil {
+		return err
+	}
+	return d.bootMemorySessionRuntime(ctx, state)
+}
+
+func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	resourceKernel, err := d.buildResourceKernel(state.registry)
 	if err != nil {
 		return err
@@ -535,12 +597,26 @@ func (d *Daemon) bootRuntimeServices(
 	state.agentCatalog = newResourceCatalog(cloneAgentDef)
 	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
 	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
+	return nil
+}
+
+func (d *Daemon) bootMemorySessionRuntime(ctx context.Context, state *bootState) error {
+	ledgerMaterializer, err := d.newSessionLedgerMaterializer(state)
+	if err != nil {
+		return err
+	}
+	state.ledgerMaterializer = ledgerMaterializer
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
+	memoryExtractor, err := newDaemonMemoryExtractor(ctx, state, sessions, d.now)
+	if err != nil {
+		return err
+	}
+	state.memoryExtractor = memoryExtractor
 	state.deps = d.runtimeDeps(ctx, state, sessions)
 	resourceService, err := d.buildResourceService(state)
 	if err != nil {
@@ -677,6 +753,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		StartupPromptOverlay: state.startupOverlay,
 		PromptInputAugmenter: state.promptAugmenter,
 		MemoryStore:          state.memoryStore,
+		LedgerMaterializer:   state.ledgerMaterializer,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -694,6 +771,24 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SoulRunChecker:      soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:  sessionHealthStoreDependency(state.registry),
 	}
+}
+
+func (d *Daemon) newSessionLedgerMaterializer(state *bootState) (session.LedgerMaterializer, error) {
+	if state == nil || !state.cfg.Memory.Enabled {
+		return nil, nil
+	}
+	root := strings.TrimSpace(state.cfg.Memory.Session.LedgerRoot)
+	if root == "" {
+		root = d.homePaths.SessionsDir
+	}
+	materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
+		RootDir:          root,
+		UnboundPartition: state.cfg.Memory.Session.UnboundPartition,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create session ledger materializer: %w", err)
+	}
+	return materializer, nil
 }
 
 func (d *Daemon) buildProviderVault(state *bootState) (*vault.Service, error) {
@@ -838,17 +933,24 @@ func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions Ses
 		)
 	}
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
+	var memoryProviders core.MemoryProviderService
+	if state.memoryProviderRegistry != nil {
+		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}
+	}
 
 	return RuntimeDeps{
-		Config:            state.cfg,
-		HomePaths:         d.homePaths,
-		Logger:            state.logger,
-		Sessions:          sessions,
-		Bridges:           state.bridges,
-		Registry:          state.registry,
-		MemoryStore:       state.memoryStore,
-		WorkspaceResolver: state.workspaceResolver,
-		WorkspaceService:  state.workspaceResolver,
+		Config:              state.cfg,
+		HomePaths:           d.homePaths,
+		Logger:              state.logger,
+		Sessions:            sessions,
+		Bridges:             state.bridges,
+		Registry:            state.registry,
+		MemoryStore:         state.memoryStore,
+		MemoryExtractor:     state.memoryExtractor,
+		MemoryProviders:     memoryProviders,
+		MemorySessionLedger: newDaemonMemorySessionLedgerService(state, d.now),
+		WorkspaceResolver:   state.workspaceResolver,
+		WorkspaceService:    state.workspaceResolver,
 		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -1181,7 +1283,7 @@ func (d *Daemon) initializeHookObservers(state *bootState) ([]hookspkg.HookDecl,
 	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
 		state.hookTelemetrySinks.Add(sink)
 	}
-	return daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime)
+	return daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime, state.memoryExtractor)
 }
 
 func (d *Daemon) hookBindingProviders(
@@ -1480,21 +1582,22 @@ func (d *Daemon) extensionManagerDeps(
 		Automation: func() extensionpkg.HostAPIAutomationManager {
 			return state.automation
 		},
-		Tasks:             state.deps.Tasks,
-		Network:           state.deps.Network,
-		NetworkStore:      state.registry,
-		MemoryStore:       state.memoryStore,
-		Observer:          state.observer,
-		SkillsRegistry:    state.skillsRegistry,
-		WorkspaceResolver: state.workspaceResolver,
-		Logger:            state.logger,
-		BridgeRegistry:    state.bridges,
-		BridgeDedupStore:  bridgeRuntimeDedupStore(state.bridges),
-		BridgeBroker:      bridgeRuntimeBroker(state.bridges),
-		BridgeRuntime:     state.bridges,
-		ResourceStore:     resourceRawStore(state.resourceKernel),
-		SourceSessions:    resourceSourceSessions(state.resourceKernel),
-		ResourceCodecs:    state.resourceCodecs,
+		Tasks:                  state.deps.Tasks,
+		Network:                state.deps.Network,
+		NetworkStore:           state.registry,
+		MemoryStore:            state.memoryStore,
+		MemoryProviderRegistry: state.memoryProviderRegistry,
+		Observer:               state.observer,
+		SkillsRegistry:         state.skillsRegistry,
+		WorkspaceResolver:      state.workspaceResolver,
+		Logger:                 state.logger,
+		BridgeRegistry:         state.bridges,
+		BridgeDedupStore:       bridgeRuntimeDedupStore(state.bridges),
+		BridgeBroker:           bridgeRuntimeBroker(state.bridges),
+		BridgeRuntime:          state.bridges,
+		ResourceStore:          resourceRawStore(state.resourceKernel),
+		SourceSessions:         resourceSourceSessions(state.resourceKernel),
+		ResourceCodecs:         state.resourceCodecs,
 		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
@@ -1765,6 +1868,12 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.harnessResolver = state.harnessResolver
 	d.registry = state.registry
 	d.memoryStore = state.memoryStore
+	d.memoryProviderRegistry = state.memoryProviderRegistry
+	d.memoryExtractor = state.memoryExtractor
+	d.localMemoryProvider = nil
+	if state.localMemoryProvider != nil {
+		d.localMemoryProvider = state.localMemoryProvider
+	}
 	d.situationContext = state.situationContext
 	d.sessions = state.sessions
 	d.tasks = state.tasks

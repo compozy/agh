@@ -118,6 +118,11 @@ func AppliedMigrations(ctx context.Context, db *sql.DB) ([]MigrationRecord, erro
 	return appliedMigrations(ctx, db, schemaMigrationsTable)
 }
 
+// AppliedMigrationsWithTable returns applied migration records from a named migration table.
+func AppliedMigrationsWithTable(ctx context.Context, db *sql.DB, table string) ([]MigrationRecord, error) {
+	return appliedMigrations(ctx, db, table)
+}
+
 func newMigrationConfig(opts ...MigrationOption) (migrationConfig, error) {
 	cfg := migrationConfig{table: schemaMigrationsTable}
 	for _, opt := range opts {
@@ -321,7 +326,7 @@ func migrationChecksum(migration Migration) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func appliedMigrations(ctx context.Context, db *sql.DB, table string) ([]MigrationRecord, error) {
+func appliedMigrations(ctx context.Context, db *sql.DB, table string) (records []MigrationRecord, err error) {
 	if ctx == nil {
 		return nil, errors.New("store: list schema migrations context is required")
 	}
@@ -352,10 +357,17 @@ func appliedMigrations(ctx context.Context, db *sql.DB, table string) ([]Migrati
 		return nil, fmt.Errorf("store: query schema migrations: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("store: close schema migration rows: %w", closeErr)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
 	}()
 
-	records := make([]MigrationRecord, 0)
+	records = make([]MigrationRecord, 0)
 	for rows.Next() {
 		var (
 			record     MigrationRecord

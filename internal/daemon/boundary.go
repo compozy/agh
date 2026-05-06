@@ -65,7 +65,16 @@ func verifyImportBoundaries(root string) ([]error, error) {
 		moduleImportPath + "/internal/api/udsapi":  {},
 		moduleImportPath + "/internal/cli":         {},
 	}
+	memoryContractForbiddenImports := map[string]struct{}{
+		moduleImportPath + "/internal/memory":                {},
+		moduleImportPath + "/internal/memory/controller":     {},
+		moduleImportPath + "/internal/memory/recall":         {},
+		moduleImportPath + "/internal/memory/extractor":      {},
+		moduleImportPath + "/internal/memory/provider/local": {},
+		moduleImportPath + "/internal/store/workspacedb":     {},
+	}
 	daemonPackage := moduleImportPath + "/internal/daemon"
+	memoryContractPackage := moduleImportPath + "/internal/memory/contract"
 
 	violations := make([]error, 0)
 	fileSet := token.NewFileSet()
@@ -105,6 +114,14 @@ func verifyImportBoundaries(root string) ([]error, error) {
 					violations,
 					fmt.Errorf("daemon: boundary violation: %s imports %s", importer, target),
 				)
+			}
+			if importer == memoryContractPackage {
+				if _, forbidden := memoryContractForbiddenImports[target]; forbidden {
+					violations = append(
+						violations,
+						fmt.Errorf("daemon: boundary violation: %s imports %s", importer, target),
+					)
+				}
 			}
 		}
 

@@ -12,6 +12,11 @@ import (
 // ErrInvalidPath reports a path that cannot be represented safely by the filesystem boundary.
 var ErrInvalidPath = errors.New("fileutil: invalid path")
 
+// AtomicWrite writes content with the default AGH file permissions via temp-file-and-rename.
+func AtomicWrite(path string, content []byte) error {
+	return AtomicWriteFile(path, content, 0o644)
+}
+
 // AtomicWriteFile writes content to path via temp-file-and-rename.
 // It always syncs the temp file before rename for durability.
 func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
