@@ -67,53 +67,57 @@ func TestTurnIDFromPayloadTrimsSupportedPayloads(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "input",
+			name:    "Should return turn ID for input payload",
 			payload: InputPreSubmitPayload{TurnContext: TurnContext{TurnID: " turn-input "}},
 			want:    "turn-input",
 		},
 		{
-			name:    "prompt",
+			name:    "Should return turn ID for prompt payload",
 			payload: PromptPayload{TurnContext: TurnContext{TurnID: " turn-prompt "}},
 			want:    "turn-prompt",
 		},
 		{
-			name:    "event",
+			name:    "Should return turn ID for event payload",
 			payload: EventRecordPayload{TurnContext: TurnContext{TurnID: " turn-event "}},
 			want:    "turn-event",
 		},
-		{name: "turn", payload: TurnPayload{TurnContext: TurnContext{TurnID: " turn "}}, want: "turn"},
 		{
-			name:    "message",
+			name:    "Should return turn ID for turn payload",
+			payload: TurnPayload{TurnContext: TurnContext{TurnID: " turn "}},
+			want:    "turn",
+		},
+		{
+			name:    "Should return turn ID for message payload",
 			payload: MessagePayload{TurnContext: TurnContext{TurnID: " turn-message "}},
 			want:    "turn-message",
 		},
 		{
-			name:    "tool pre",
+			name:    "Should return turn ID for tool pre-call payload",
 			payload: ToolPreCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-pre "}},
 			want:    "turn-tool-pre",
 		},
 		{
-			name:    "tool post",
+			name:    "Should return turn ID for tool post-call payload",
 			payload: ToolPostCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-post "}},
 			want:    "turn-tool-post",
 		},
 		{
-			name:    "tool error",
+			name:    "Should return turn ID for tool error payload",
 			payload: ToolPostErrorPayload{TurnContext: TurnContext{TurnID: " turn-tool-error "}},
 			want:    "turn-tool-error",
 		},
 		{
-			name:    "permission request",
+			name:    "Should return turn ID for permission request payload",
 			payload: PermissionRequestPayload{TurnContext: TurnContext{TurnID: " turn-permission-request "}},
 			want:    "turn-permission-request",
 		},
 		{
-			name:    "permission resolution",
+			name:    "Should return turn ID for permission resolution payload",
 			payload: PermissionResolutionPayload{TurnContext: TurnContext{TurnID: " turn-permission-resolution "}},
 			want:    "turn-permission-resolution",
 		},
 		{
-			name:    "context compact",
+			name:    "Should return turn ID for context compact payload",
 			payload: ContextCompactPayload{TurnContext: TurnContext{TurnID: " turn-compact "}},
 			want:    "turn-compact",
 		},
@@ -148,43 +152,123 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		payload  any
 		expected SessionContext
 	}{
-		{name: "session pre create", payload: SessionPreCreatePayload{SessionContext: session}, expected: session},
-		{name: "session lifecycle", payload: SessionLifecyclePayload{SessionContext: session}, expected: session},
-		{name: "sandbox prepare", payload: SandboxPreparePayload{SessionContext: session}, expected: session},
-		{name: "sandbox ready", payload: SandboxReadyPayload{SessionContext: session}, expected: session},
-		{name: "sandbox sync before", payload: SandboxSyncBeforePayload{SessionContext: session}, expected: session},
-		{name: "sandbox sync after", payload: SandboxSyncAfterPayload{SessionContext: session}, expected: session},
-		{name: "sandbox stop", payload: SandboxStopPayload{SessionContext: session}, expected: session},
-		{name: "input", payload: InputPreSubmitPayload{SessionContext: session}, expected: session},
-		{name: "prompt", payload: PromptPayload{SessionContext: session}, expected: session},
-		{name: "event", payload: EventRecordPayload{SessionContext: session}, expected: session},
-		{name: "agent pre start", payload: AgentPreStartPayload{SessionContext: session}, expected: session},
-		{name: "agent lifecycle", payload: AgentLifecyclePayload{SessionContext: session}, expected: session},
 		{
-			name:     "heartbeat wake before",
+			name:     "Should return session context for session pre-create payload",
+			payload:  SessionPreCreatePayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for session lifecycle payload",
+			payload:  SessionLifecyclePayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for sandbox prepare payload",
+			payload:  SandboxPreparePayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for sandbox ready payload",
+			payload:  SandboxReadyPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for sandbox sync-before payload",
+			payload:  SandboxSyncBeforePayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for sandbox sync-after payload",
+			payload:  SandboxSyncAfterPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for sandbox stop payload",
+			payload:  SandboxStopPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for input payload",
+			payload:  InputPreSubmitPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for prompt payload",
+			payload:  PromptPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for event payload",
+			payload:  EventRecordPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for agent pre-start payload",
+			payload:  AgentPreStartPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for agent lifecycle payload",
+			payload:  AgentLifecyclePayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for heartbeat wake-before payload",
 			payload:  AgentHeartbeatWakeBeforePayload{SessionContext: session},
 			expected: session,
 		},
 		{
-			name:     "heartbeat wake after",
+			name:     "Should return session context for heartbeat wake-after payload",
 			payload:  AgentHeartbeatWakeAfterPayload{SessionContext: session},
 			expected: session,
 		},
-		{name: "session health", payload: SessionHealthUpdateAfterPayload{SessionContext: session}, expected: session},
-		{name: "turn", payload: TurnPayload{SessionContext: session}, expected: session},
-		{name: "message", payload: MessagePayload{SessionContext: session}, expected: session},
-		{name: "tool pre", payload: ToolPreCallPayload{SessionContext: session}, expected: session},
-		{name: "tool post", payload: ToolPostCallPayload{SessionContext: session}, expected: session},
-		{name: "tool error", payload: ToolPostErrorPayload{SessionContext: session}, expected: session},
-		{name: "permission request", payload: PermissionRequestPayload{SessionContext: session}, expected: session},
 		{
-			name:     "permission resolution",
+			name:     "Should return session context for session health payload",
+			payload:  SessionHealthUpdateAfterPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for turn payload",
+			payload:  TurnPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for message payload",
+			payload:  MessagePayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for tool pre-call payload",
+			payload:  ToolPreCallPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for tool post-call payload",
+			payload:  ToolPostCallPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for tool error payload",
+			payload:  ToolPostErrorPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for permission request payload",
+			payload:  PermissionRequestPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name:     "Should return session context for permission resolution payload",
 			payload:  PermissionResolutionPayload{SessionContext: session},
 			expected: session,
 		},
-		{name: "context compact", payload: ContextCompactPayload{SessionContext: session}, expected: session},
 		{
-			name: "coordinator pre spawn",
+			name:     "Should return session context for context compact payload",
+			payload:  ContextCompactPayload{SessionContext: session},
+			expected: session,
+		},
+		{
+			name: "Should map coordinator pre-spawn payload into session context",
 			payload: CoordinatorPreSpawnPayload{CoordinatorContext: CoordinatorContext{
 				CoordinatorSessionID: "coord-session",
 				AgentName:            "coord-agent",
@@ -199,7 +283,7 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			},
 		},
 		{
-			name: "coordinator lifecycle",
+			name: "Should map coordinator lifecycle payload into session context",
 			payload: CoordinatorLifecyclePayload{CoordinatorContext: CoordinatorContext{
 				CoordinatorSessionID: "coord-life-session",
 				AgentName:            "coord-life-agent",
@@ -214,7 +298,7 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			},
 		},
 		{
-			name: "task enqueued",
+			name: "Should return session context for task-enqueued payload",
 			payload: TaskRunEnqueuedPayload{TaskRunContext: TaskRunContext{
 				SessionID:      "task-session",
 				AgentName:      "task-agent",
@@ -230,22 +314,22 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:     "task pre claim",
+			name:     "Should return session context for task pre-claim payload",
 			payload:  TaskRunPreClaimPayload{TaskRunContext: TaskRunContext{SessionID: "task-pre"}},
 			expected: SessionContext{SessionID: "task-pre"},
 		},
 		{
-			name:     "task post claim",
+			name:     "Should return session context for task post-claim payload",
 			payload:  TaskRunPostClaimPayload{TaskRunContext: TaskRunContext{SessionID: "task-post"}},
 			expected: SessionContext{SessionID: "task-post"},
 		},
 		{
-			name:     "task lease",
+			name:     "Should return session context for task lease payload",
 			payload:  TaskRunLeasePayload{TaskRunContext: TaskRunContext{SessionID: "task-lease"}},
 			expected: SessionContext{SessionID: "task-lease"},
 		},
 		{
-			name: "spawn pre create",
+			name: "Should return session context for spawn pre-create payload",
 			payload: SpawnPreCreatePayload{SpawnContext: SpawnContext{
 				ChildSessionID: "child-session",
 				AgentName:      "child-agent",
@@ -263,14 +347,20 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:     "spawn lifecycle",
+			name:     "Should return session context for spawn lifecycle payload",
 			payload:  SpawnLifecyclePayload{SpawnContext: SpawnContext{ChildSessionID: "child-life"}},
 			expected: SessionContext{SessionID: "child-life"},
 		},
-		{name: "unsupported", payload: NetworkPayload{SessionID: "network-session"}, expected: SessionContext{}},
+		{
+			name:     "Should return empty session context for unsupported payloads",
+			payload:  NetworkPayload{SessionID: "network-session"},
+			expected: SessionContext{},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := SessionContextFromPayload(tc.payload)
 			assertSessionContext(t, got, tc.expected)
 		})
@@ -286,7 +376,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		expected DispatchCorrelation
 	}{
 		{
-			name: "coordinator pre spawn",
+			name: "Should derive correlation from coordinator pre-spawn payload",
 			payload: CoordinatorPreSpawnPayload{CoordinatorContext: CoordinatorContext{
 				CoordinatorSessionID: " coord-session ",
 				WorkflowID:           " workflow ",
@@ -299,7 +389,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name: "coordinator lifecycle",
+			name: "Should derive correlation from coordinator lifecycle payload",
 			payload: CoordinatorLifecyclePayload{CoordinatorContext: CoordinatorContext{
 				CoordinatorSessionID: " coord-life ",
 				WorkflowID:           " workflow-life ",
@@ -312,7 +402,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:    "task enqueued",
+			name:    "Should derive correlation from task-enqueued payload",
 			payload: TaskRunEnqueuedPayload{TaskRunContext: taskRunCorrelationContext()},
 			expected: DispatchCorrelation{
 				TaskID:               "task-1",
@@ -325,22 +415,22 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:     "task pre claim",
+			name:     "Should derive correlation from task pre-claim payload",
 			payload:  TaskRunPreClaimPayload{TaskRunContext: taskRunCorrelationContext()},
 			expected: taskRunDispatchCorrelation(),
 		},
 		{
-			name:     "task post claim",
+			name:     "Should derive correlation from task post-claim payload",
 			payload:  TaskRunPostClaimPayload{TaskRunContext: taskRunCorrelationContext()},
 			expected: taskRunDispatchCorrelation(),
 		},
 		{
-			name:     "task lease",
+			name:     "Should derive correlation from task lease payload",
 			payload:  TaskRunLeasePayload{TaskRunContext: taskRunCorrelationContext()},
 			expected: taskRunDispatchCorrelation(),
 		},
 		{
-			name: "spawn pre create",
+			name: "Should derive correlation from spawn pre-create payload",
 			payload: SpawnPreCreatePayload{SpawnContext: SpawnContext{
 				TaskID:          " task-spawn ",
 				RunID:           " run-spawn ",
@@ -357,7 +447,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name: "spawn lifecycle falls back to parent",
+			name: "Should fall back to the parent session for spawn lifecycle correlation",
 			payload: SpawnLifecyclePayload{SpawnContext: SpawnContext{
 				TaskID:          " task-parent ",
 				RunID:           " run-parent ",
@@ -373,7 +463,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:    "network peer",
+			name:    "Should derive correlation from network peer payload",
 			payload: NetworkPayload{PeerFrom: " peer-a ", SessionID: " session-a "},
 			expected: DispatchCorrelation{
 				ActorKind: "network_peer",
@@ -381,7 +471,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:    "network session fallback",
+			name:    "Should fall back to session ID for network correlation",
 			payload: NetworkPayload{SessionID: " network-session "},
 			expected: DispatchCorrelation{
 				ActorKind: "network_peer",
@@ -389,23 +479,29 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			},
 		},
 		{
-			name:     "network empty",
+			name:     "Should return empty correlation for empty network payload",
 			payload:  NetworkPayload{},
 			expected: DispatchCorrelation{},
 		},
 		{
-			name:    "session fallback",
+			name:    "Should fall back to session context when no specialized actor exists",
 			payload: PromptPayload{SessionContext: SessionContext{SessionID: " prompt-session "}},
 			expected: DispatchCorrelation{
 				ActorKind: "agent_session",
 				ActorID:   "prompt-session",
 			},
 		},
-		{name: "empty fallback", payload: struct{}{}, expected: DispatchCorrelation{}},
+		{
+			name:     "Should return empty correlation for unsupported payloads",
+			payload:  struct{}{},
+			expected: DispatchCorrelation{},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := CorrelationFromPayload(tc.payload)
 			if got != tc.expected {
 				t.Fatalf("CorrelationFromPayload() = %#v, want %#v", got, tc.expected)

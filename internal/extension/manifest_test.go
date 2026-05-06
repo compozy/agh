@@ -108,10 +108,11 @@ capabilities = ["memory.read", "   "]
 }
 
 func TestLoadManifestParsesNetworkHookMatcher(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
+	t.Run("Should parse network hook matcher", func(t *testing.T) {
+		withDaemonVersion(t, "0.6.0")
 
-	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
 name = "network-observer"
 version = "0.1.0"
 description = "Network hook observer"
@@ -132,31 +133,32 @@ direction = "received"
 work_state = "completed"
 `)
 
-	manifest, err := LoadManifest(dir)
-	if err != nil {
-		t.Fatalf("LoadManifest() error = %v", err)
-	}
-	if got, want := len(manifest.Resources.Hooks), 1; got != want {
-		t.Fatalf("len(Resources.Hooks) = %d, want %d", got, want)
-	}
-	matcher := manifest.Resources.Hooks[0].Matcher
-	if matcher.Channel != "builders" ||
-		matcher.Surface != "thread" ||
-		matcher.Kind != "trace" ||
-		matcher.Direction != "received" ||
-		matcher.WorkState != "completed" {
-		t.Fatalf("Hook matcher = %#v, want parsed network fields", matcher)
-	}
+		manifest, err := LoadManifest(dir)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		if got, want := len(manifest.Resources.Hooks), 1; got != want {
+			t.Fatalf("len(Resources.Hooks) = %d, want %d", got, want)
+		}
+		matcher := manifest.Resources.Hooks[0].Matcher
+		if matcher.Channel != "builders" ||
+			matcher.Surface != "thread" ||
+			matcher.Kind != "trace" ||
+			matcher.Direction != "received" ||
+			matcher.WorkState != "completed" {
+			t.Fatalf("Hook matcher = %#v, want parsed network fields", matcher)
+		}
 
-	hookMatcher := hookConfigMatcher(matcher)
-	if hookMatcher.NetworkMatcher == nil ||
-		hookMatcher.Channel != "builders" ||
-		hookMatcher.Surface != "thread" ||
-		hookMatcher.Kind != "trace" ||
-		hookMatcher.Direction != "received" ||
-		hookMatcher.WorkState != "completed" {
-		t.Fatalf("hookConfigMatcher() = %#v, want network matcher fields", hookMatcher)
-	}
+		hookMatcher := hookConfigMatcher(matcher)
+		if hookMatcher.NetworkMatcher == nil ||
+			hookMatcher.Channel != "builders" ||
+			hookMatcher.Surface != "thread" ||
+			hookMatcher.Kind != "trace" ||
+			hookMatcher.Direction != "received" ||
+			hookMatcher.WorkState != "completed" {
+			t.Fatalf("hookConfigMatcher() = %#v, want network matcher fields", hookMatcher)
+		}
+	})
 }
 
 func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {

@@ -1640,6 +1640,7 @@ func TestManagerDurableConversationDeliveryStillWritesAuditRows(t *testing.T) {
 	manager := &Manager{
 		auditor: auditor,
 		logger:  discardManagerLogger(),
+		stats:   newRuntimeStats(),
 	}
 	envelope := withDirectSurface(Envelope{
 		ID:      "msg-durable-audit",
@@ -1658,6 +1659,13 @@ func TestManagerDurableConversationDeliveryStillWritesAuditRows(t *testing.T) {
 	}
 	if got, want := len(auditor.received), 1; got != want {
 		t.Fatalf("durable received audit count = %d, want %d", got, want)
+	}
+	snapshot := manager.stats.snapshot()
+	if got, want := snapshot.MessagesSent, int64(1); got != want {
+		t.Fatalf("durable sent stats count = %d, want %d", got, want)
+	}
+	if got, want := snapshot.MessagesReceived, int64(1); got != want {
+		t.Fatalf("durable received stats count = %d, want %d", got, want)
 	}
 }
 

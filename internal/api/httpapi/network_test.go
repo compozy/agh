@@ -163,6 +163,132 @@ func TestNetworkPeerMessagesPreserveConversationRouting(t *testing.T) {
 	})
 }
 
+func TestNetworkPeerMessagesKeepPresenceEpisodesScopedByRouting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep peer presence episodes separate across routing containers", func(t *testing.T) {
+		t.Parallel()
+
+		recordedAt := time.Date(2026, 4, 12, 12, 0, 0, 0, time.UTC)
+		homePaths := newTestHomePaths(t)
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+		handlers.Config.Network.Enabled = true
+		handlers.Config.Network.GreetInterval = 30
+		handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, ""; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return []network.PeerInfo{{
+					PeerID:  "reviewer.sess-remote",
+					Channel: "builders",
+				}}, nil
+			},
+		}
+		handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.PeerID, "reviewer.sess-remote"; got != want {
+					t.Fatalf("ListNetworkMessages() peer_id = %q, want %q", got, want)
+				}
+				return []store.NetworkMessageEntry{
+					{
+						MessageID: "msg-thread-01",
+						Channel:   "builders",
+						Surface:   "thread",
+						ThreadID:  "thread_alpha",
+						Kind:      "greet",
+						Direction: "received",
+						PeerFrom:  "reviewer.sess-remote",
+						Body: []byte(
+							`{"peer_id":"reviewer.sess-remote","display_name":"Reviewer","capability_summary":"Review pull requests","summary":""}`,
+						),
+						Timestamp: recordedAt,
+					},
+					{
+						MessageID: "msg-thread-02",
+						Channel:   "builders",
+						Surface:   "thread",
+						ThreadID:  "thread_alpha",
+						Kind:      "greet",
+						Direction: "received",
+						PeerFrom:  "reviewer.sess-remote",
+						Body: []byte(
+							`{"peer_id":"reviewer.sess-remote","display_name":"Reviewer","capability_summary":"Review pull requests","summary":""}`,
+						),
+						Timestamp: recordedAt.Add(20 * time.Second),
+					},
+					{
+						MessageID: "msg-direct-01",
+						Channel:   "builders",
+						Surface:   "direct",
+						DirectID:  "direct_99401d24bee62651d189e5a561785466",
+						Kind:      "greet",
+						Direction: "received",
+						PeerFrom:  "reviewer.sess-remote",
+						Body: []byte(
+							`{"peer_id":"reviewer.sess-remote","display_name":"Reviewer","capability_summary":"Review pull requests","summary":""}`,
+						),
+						Timestamp: recordedAt.Add(25 * time.Second),
+					},
+				}, nil
+			},
+		}
+
+		engine := gin.New()
+		engine.GET("/api/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/network/peers/reviewer.sess-remote/messages?include_presence=true",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("peer messages status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+
+		var payload contract.NetworkPeerMessagesResponse
+		decodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Messages), 2; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+
+		threadEpisode := payload.Messages[0]
+		if got, want := threadEpisode.MessageID, "msg-thread-02"; got != want {
+			t.Fatalf("thread episode message_id = %q, want %q", got, want)
+		}
+		if got, want := threadEpisode.Surface, "thread"; got != want {
+			t.Fatalf("thread episode surface = %q, want %q", got, want)
+		}
+		if got, want := threadEpisode.ThreadID, "thread_alpha"; got != want {
+			t.Fatalf("thread episode thread_id = %q, want %q", got, want)
+		}
+		if got := threadEpisode.DirectID; got != "" {
+			t.Fatalf("thread episode direct_id = %q, want empty", got)
+		}
+		if got, want := threadEpisode.PresenceCount, 2; got != want {
+			t.Fatalf("thread episode presence_count = %d, want %d", got, want)
+		}
+
+		directEpisode := payload.Messages[1]
+		if got, want := directEpisode.MessageID, "msg-direct-01"; got != want {
+			t.Fatalf("direct episode message_id = %q, want %q", got, want)
+		}
+		if got, want := directEpisode.Surface, "direct"; got != want {
+			t.Fatalf("direct episode surface = %q, want %q", got, want)
+		}
+		if got, want := directEpisode.DirectID, "direct_99401d24bee62651d189e5a561785466"; got != want {
+			t.Fatalf("direct episode direct_id = %q, want %q", got, want)
+		}
+		if got := directEpisode.ThreadID; got != "" {
+			t.Fatalf("direct episode thread_id = %q, want empty", got)
+		}
+		if got, want := directEpisode.PresenceCount, 1; got != want {
+			t.Fatalf("direct episode presence_count = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestRegisterNetworkRoutesMatchDocumentedHTTPSurface(t *testing.T) {
 	t.Parallel()
 

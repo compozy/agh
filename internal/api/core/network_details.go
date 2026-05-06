@@ -60,6 +60,10 @@ type networkChannelMetadataFields struct {
 type networkPresenceEpisodeKey struct {
 	direction string
 	channel   string
+	surface   string
+	threadID  string
+	directID  string
+	workID    string
 	peerFrom  string
 	peerTo    string
 }
@@ -1333,6 +1337,18 @@ func canExtendPresenceEpisode(
 	if strings.TrimSpace(current.entry.Channel) != strings.TrimSpace(next.Channel) {
 		return false
 	}
+	if strings.TrimSpace(current.entry.Surface) != strings.TrimSpace(next.Surface) {
+		return false
+	}
+	if strings.TrimSpace(current.entry.ThreadID) != strings.TrimSpace(next.ThreadID) {
+		return false
+	}
+	if strings.TrimSpace(current.entry.DirectID) != strings.TrimSpace(next.DirectID) {
+		return false
+	}
+	if strings.TrimSpace(current.entry.WorkID) != strings.TrimSpace(next.WorkID) {
+		return false
+	}
 	if strings.TrimSpace(current.entry.PeerFrom) != strings.TrimSpace(next.PeerFrom) {
 		return false
 	}
@@ -1346,6 +1362,10 @@ func networkPresenceEpisodeKeyForMessage(message store.NetworkMessageEntry) netw
 	return networkPresenceEpisodeKey{
 		direction: strings.TrimSpace(message.Direction),
 		channel:   strings.TrimSpace(message.Channel),
+		surface:   strings.TrimSpace(message.Surface),
+		threadID:  strings.TrimSpace(message.ThreadID),
+		directID:  strings.TrimSpace(message.DirectID),
+		workID:    strings.TrimSpace(message.WorkID),
 		peerFrom:  strings.TrimSpace(message.PeerFrom),
 		peerTo:    strings.TrimSpace(message.PeerTo),
 	}

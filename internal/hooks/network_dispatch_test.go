@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -52,36 +53,36 @@ func TestDispatchNetworkHooksUseAsyncObservationPayloads(t *testing.T) {
 	}
 
 	for _, event := range events {
-		payload := networkDispatchTestPayload(event)
-		var err error
-		switch event {
-		case HookNetworkThreadOpened:
-			_, err = hooks.DispatchNetworkThreadOpened(t.Context(), payload)
-		case HookNetworkDirectRoomOpened:
-			_, err = hooks.DispatchNetworkDirectRoomOpened(t.Context(), payload)
-		case HookNetworkMessagePersisted:
-			_, err = hooks.DispatchNetworkMessagePersisted(t.Context(), payload)
-		case HookNetworkWorkOpened:
-			_, err = hooks.DispatchNetworkWorkOpened(t.Context(), payload)
-		case HookNetworkWorkTransitioned:
-			_, err = hooks.DispatchNetworkWorkTransitioned(t.Context(), payload)
-		case HookNetworkWorkClosed:
-			_, err = hooks.DispatchNetworkWorkClosed(t.Context(), payload)
-		}
-		if err != nil {
-			t.Fatalf("dispatch %s error = %v", event, err)
-		}
-	}
-
-	for _, want := range events {
-		select {
-		case got := <-seen:
-			if got != want {
-				t.Fatalf("async network hook event = %q, want %q", got, want)
+		t.Run(fmt.Sprintf("Should dispatch %s async observation payload", event), func(t *testing.T) {
+			payload := networkDispatchTestPayload(event)
+			var err error
+			switch event {
+			case HookNetworkThreadOpened:
+				_, err = hooks.DispatchNetworkThreadOpened(t.Context(), payload)
+			case HookNetworkDirectRoomOpened:
+				_, err = hooks.DispatchNetworkDirectRoomOpened(t.Context(), payload)
+			case HookNetworkMessagePersisted:
+				_, err = hooks.DispatchNetworkMessagePersisted(t.Context(), payload)
+			case HookNetworkWorkOpened:
+				_, err = hooks.DispatchNetworkWorkOpened(t.Context(), payload)
+			case HookNetworkWorkTransitioned:
+				_, err = hooks.DispatchNetworkWorkTransitioned(t.Context(), payload)
+			case HookNetworkWorkClosed:
+				_, err = hooks.DispatchNetworkWorkClosed(t.Context(), payload)
 			}
-		case <-time.After(time.Second):
-			t.Fatalf("timed out waiting for async network hook %q", want)
-		}
+			if err != nil {
+				t.Fatalf("dispatch %s error = %v", event, err)
+			}
+
+			select {
+			case got := <-seen:
+				if got != event {
+					t.Fatalf("async network hook event = %q, want %q", got, event)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("timed out waiting for async network hook %q", event)
+			}
+		})
 	}
 }
 

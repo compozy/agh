@@ -304,9 +304,13 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		t.Fatalf("DecodeBody(blank say) body = %#v, error = %v, want nil + ErrInvalidBody", blankSay, err)
 	}
 
-	blankDirect, err := DecodeBody(KindSay, mustRawJSON(t, map[string]any{"text": "\n"}))
-	if !errors.Is(err, ErrInvalidBody) || blankDirect != nil {
-		t.Fatalf("DecodeBody(blank direct) body = %#v, error = %v, want nil + ErrInvalidBody", blankDirect, err)
+	blankSayNewline, err := DecodeBody(KindSay, mustRawJSON(t, map[string]any{"text": "\n"}))
+	if !errors.Is(err, ErrInvalidBody) || blankSayNewline != nil {
+		t.Fatalf(
+			"DecodeBody(blank say newline) body = %#v, error = %v, want nil + ErrInvalidBody",
+			blankSayNewline,
+			err,
+		)
 	}
 
 	if cloned := cloneRawMessage(nil); cloned != nil {

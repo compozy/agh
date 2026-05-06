@@ -1080,6 +1080,8 @@ func (m *Manager) recordInboundAudit(result RouteResult, persisted map[string]st
 func (m *Manager) recordSentDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
 	if durable {
 		m.recordSentObserved(sessionID, envelope)
+		m.persistSentAudit(ctx, sessionID, envelope)
+		return
 	}
 	m.recordAuditSent(ctx, sessionID, envelope)
 }
@@ -1087,6 +1089,8 @@ func (m *Manager) recordSentDelivery(ctx context.Context, sessionID string, enve
 func (m *Manager) recordReceivedDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
 	if durable {
 		m.recordReceivedObserved(sessionID, envelope)
+		m.persistReceivedAudit(ctx, sessionID, envelope)
+		return
 	}
 	m.recordAuditReceived(ctx, sessionID, envelope)
 }
@@ -1349,8 +1353,18 @@ func (m *Manager) connectionState() (bool, string) {
 }
 
 func (m *Manager) recordAuditSent(ctx context.Context, sessionID string, envelope Envelope) {
-	if m == nil || m.auditor == nil {
+	if !m.persistSentAudit(ctx, sessionID, envelope) {
 		return
+	}
+	if m.stats != nil {
+		m.stats.recordSent(envelope)
+	}
+	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
+}
+
+func (m *Manager) persistSentAudit(ctx context.Context, sessionID string, envelope Envelope) bool {
+	if m == nil || m.auditor == nil {
+		return false
 	}
 	if err := m.auditor.RecordSent(ctx, sessionID, envelope); err != nil {
 		m.logger.Warn(
@@ -1362,17 +1376,24 @@ func (m *Manager) recordAuditSent(ctx context.Context, sessionID string, envelop
 			"error",
 			err,
 		)
-		return
+		return false
 	}
-	if m.stats != nil {
-		m.stats.recordSent(envelope)
-	}
-	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
+	return true
 }
 
 func (m *Manager) recordAuditReceived(ctx context.Context, sessionID string, envelope Envelope) {
-	if m == nil || m.auditor == nil {
+	if !m.persistReceivedAudit(ctx, sessionID, envelope) {
 		return
+	}
+	if m.stats != nil {
+		m.stats.recordReceived(envelope)
+	}
+	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
+}
+
+func (m *Manager) persistReceivedAudit(ctx context.Context, sessionID string, envelope Envelope) bool {
+	if m == nil || m.auditor == nil {
+		return false
 	}
 	if err := m.auditor.RecordReceived(ctx, sessionID, envelope); err != nil {
 		m.logger.Warn(
@@ -1384,12 +1405,9 @@ func (m *Manager) recordAuditReceived(ctx context.Context, sessionID string, env
 			"error",
 			err,
 		)
-		return
+		return false
 	}
-	if m.stats != nil {
-		m.stats.recordReceived(envelope)
-	}
-	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
+	return true
 }
 
 func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, envelope Envelope, reason string) {

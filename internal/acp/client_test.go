@@ -1094,34 +1094,39 @@ func TestProcessCrashDetected(t *testing.T) {
 func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
+	t.Run("Should not emit runtime error after explicit stop", func(t *testing.T) {
+		driver := New()
+		proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
 
-	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-		TurnID:  "turn-stop",
-		Message: "block until stopped",
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-stop",
+			Message: "block until stopped",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		select {
+		case event := <-eventsCh:
+			if got, want := event.Type, EventTypeAgentMessage; got != want {
+				t.Fatalf("first prompt event = %q, want %q", got, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for blocking prompt to start")
+		}
+
+		if err := driver.Stop(testutil.Context(t), proc); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		for _, event := range collectEvents(t, eventsCh) {
+			if event.Type == EventTypeError {
+				t.Fatalf("prompt events contain %q after explicit stop: %#v", EventTypeError, event)
+			}
+		}
 	})
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-
-	select {
-	case event := <-eventsCh:
-		if got, want := event.Type, EventTypeAgentMessage; got != want {
-			t.Fatalf("first prompt event = %q, want %q", got, want)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for blocking prompt to start")
-	}
-
-	if err := driver.Stop(testutil.Context(t), proc); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	for _, event := range collectEvents(t, eventsCh) {
-		if event.Type == EventTypeError {
-			t.Fatalf("prompt events contain %q after explicit stop: %#v", EventTypeError, event)
-		}
-	}
 }
 
 func TestShouldSuppressPromptErrorOnStop(t *testing.T) {

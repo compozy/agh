@@ -270,8 +270,22 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 	t.Parallel()
 
-	entries := []store.NetworkAuditEntry{
-		{
+	t.Run("Should match duplicate rejection entries", func(t *testing.T) {
+		t.Parallel()
+
+		entries := []store.NetworkAuditEntry{
+			{
+				MessageID: "msg_direct_01",
+				Direction: "rejected",
+				Kind:      "say",
+				Surface:   "direct",
+				DirectID:  "direct_test_01",
+				WorkID:    "work_patch_42",
+				Reason:    "duplicate",
+			},
+		}
+
+		if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
 			MessageID: "msg_direct_01",
 			Direction: "rejected",
 			Kind:      "say",
@@ -279,44 +293,38 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 			DirectID:  "direct_test_01",
 			WorkID:    "work_patch_42",
 			Reason:    "duplicate",
-		},
-	}
-
-	if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
-		MessageID: "msg_direct_01",
-		Direction: "rejected",
-		Kind:      "say",
-		Surface:   "direct",
-		DirectID:  "direct_test_01",
-		WorkID:    "work_patch_42",
-		Reason:    "duplicate",
-	}); err != nil {
-		t.Fatalf("validateNetworkAuditEntry() error = %v", err)
-	}
+		}); err != nil {
+			t.Fatalf("validateNetworkAuditEntry() error = %v", err)
+		}
+	})
 }
 
 func TestValidateNetworkAuditEntryRejectsWrongContainer(t *testing.T) {
 	t.Parallel()
 
-	entries := []store.NetworkAuditEntry{
-		{
+	t.Run("Should reject audit entries for the wrong container", func(t *testing.T) {
+		t.Parallel()
+
+		entries := []store.NetworkAuditEntry{
+			{
+				MessageID: "msg_direct_01",
+				Direction: "delivered",
+				Kind:      "say",
+				Surface:   "direct",
+				DirectID:  "direct_wrong",
+				WorkID:    "work_patch_42",
+			},
+		}
+
+		if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
 			MessageID: "msg_direct_01",
 			Direction: "delivered",
 			Kind:      "say",
 			Surface:   "direct",
-			DirectID:  "direct_wrong",
+			DirectID:  "direct_test_01",
 			WorkID:    "work_patch_42",
-		},
-	}
-
-	if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
-		MessageID: "msg_direct_01",
-		Direction: "delivered",
-		Kind:      "say",
-		Surface:   "direct",
-		DirectID:  "direct_test_01",
-		WorkID:    "work_patch_42",
-	}); err == nil {
-		t.Fatal("validateNetworkAuditEntry() error = nil, want direct_id mismatch")
-	}
+		}); err == nil {
+			t.Fatal("validateNetworkAuditEntry() error = nil, want direct_id mismatch")
+		}
+	})
 }
