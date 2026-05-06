@@ -55,6 +55,14 @@ type legacySessionMetaCompat struct {
 }
 
 func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
+	fresh, err := globalDatabaseIsEmpty(ctx, db)
+	if err != nil {
+		return err
+	}
+	if fresh {
+		return bootstrapFreshGlobalSchema(ctx, db)
+	}
+
 	if err := migrateExtensionColumns(ctx, db); err != nil {
 		return err
 	}
@@ -100,6 +108,90 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	}
 
 	return store.RunMigrations(ctx, db, globalSchemaMigrations)
+}
+
+func globalDatabaseIsEmpty(ctx context.Context, db *sql.DB) (bool, error) {
+	var name string
+	err := db.QueryRowContext(
+		ctx,
+		`SELECT name
+		 FROM sqlite_master
+		 WHERE type IN ('table', 'index', 'view', 'trigger')
+		   AND name NOT LIKE 'sqlite_%'
+		 LIMIT 1`,
+	).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("store: inspect global schema objects: %w", err)
+	}
+	return false, nil
+}
+
+func bootstrapFreshGlobalSchema(ctx context.Context, db *sql.DB) (err error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin fresh global schema bootstrap: %w", err)
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			err = errors.Join(err, fmt.Errorf("store: rollback fresh global schema bootstrap: %w", rollbackErr))
+		}
+	}()
+
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version    INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL,
+		checksum   TEXT NOT NULL,
+		applied_at TEXT NOT NULL
+	);`); err != nil {
+		return fmt.Errorf("store: bootstrap schema_migrations table: %w", err)
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_schema_migrations_name ON schema_migrations(name);`,
+	); err != nil {
+		return fmt.Errorf("store: bootstrap schema_migrations name index: %w", err)
+	}
+
+	appliedAt := store.FormatTimestamp(time.Now().UTC())
+	for _, migration := range globalSchemaMigrations {
+		name := strings.TrimSpace(migration.Name)
+		if migration.Up != nil {
+			if err := migration.Up(ctx, tx); err != nil {
+				return fmt.Errorf("store: bootstrap fresh migration %d %q: %w", migration.Version, name, err)
+			}
+		} else {
+			for _, statement := range migration.Statements {
+				if _, err := tx.ExecContext(ctx, statement); err != nil {
+					return fmt.Errorf("store: bootstrap fresh migration %d %q: %w", migration.Version, name, err)
+				}
+			}
+		}
+
+		checksum, err := store.MigrationChecksum(migration)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
+			migration.Version,
+			name,
+			checksum,
+			appliedAt,
+		); err != nil {
+			return fmt.Errorf("store: record fresh global schema migration %d: %w", migration.Version, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit fresh global schema bootstrap: %w", err)
+	}
+	return nil
 }
 
 func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
@@ -165,10 +257,21 @@ func migrateTaskRunMetadataColumn(ctx context.Context, db *sql.DB) error {
 }
 
 type taskTableMigrationSpec struct {
-	priorityExpr       string
-	maxAttemptsExpr    string
-	approvalPolicyExpr string
-	approvalStateExpr  string
+	priorityExpr              string
+	maxAttemptsExpr           string
+	approvalPolicyExpr        string
+	approvalStateExpr         string
+	currentRunIDExpr          string
+	maxRuntimeSecondsExpr     string
+	spawnFailureCountExpr     string
+	lastSpawnErrorExpr        string
+	reviewPolicyExpr          string
+	reviewMaxRoundsExpr       string
+	reviewRoundExpr           string
+	lastReviewIDExpr          string
+	lastReviewOutcomeExpr     string
+	reviewCircuitOpenedAtExpr string
+	reviewCircuitReasonExpr   string
 }
 
 func taskTableMigrationSpecForExistingSchema(
@@ -193,10 +296,21 @@ func taskTableMigrationSpecForExistingSchema(
 	}
 
 	return taskTableMigrationSpec{
-		priorityExpr:       existingTaskColumnExpr(columns, "priority", `'medium'`),
-		maxAttemptsExpr:    existingTaskColumnExpr(columns, "max_attempts", "3"),
-		approvalPolicyExpr: existingTaskColumnExpr(columns, "approval_policy", `'none'`),
-		approvalStateExpr:  existingTaskColumnExpr(columns, "approval_state", `'not_required'`),
+		priorityExpr:              existingTaskColumnExpr(columns, "priority", `'medium'`),
+		maxAttemptsExpr:           existingTaskColumnExpr(columns, "max_attempts", "3"),
+		approvalPolicyExpr:        existingTaskColumnExpr(columns, "approval_policy", `'none'`),
+		approvalStateExpr:         existingTaskColumnExpr(columns, "approval_state", `'not_required'`),
+		currentRunIDExpr:          existingTaskColumnExpr(columns, "current_run_id", "NULL"),
+		maxRuntimeSecondsExpr:     existingTaskColumnExpr(columns, "max_runtime_seconds", "0"),
+		spawnFailureCountExpr:     existingTaskColumnExpr(columns, "spawn_failure_count", "0"),
+		lastSpawnErrorExpr:        existingTaskColumnExpr(columns, "last_spawn_error", `''`),
+		reviewPolicyExpr:          existingTaskColumnExpr(columns, "review_policy", `'none'`),
+		reviewMaxRoundsExpr:       existingTaskColumnExpr(columns, "review_max_rounds", "3"),
+		reviewRoundExpr:           existingTaskColumnExpr(columns, "review_round", "0"),
+		lastReviewIDExpr:          existingTaskColumnExpr(columns, "last_review_id", "NULL"),
+		lastReviewOutcomeExpr:     existingTaskColumnExpr(columns, "last_review_outcome", "NULL"),
+		reviewCircuitOpenedAtExpr: existingTaskColumnExpr(columns, "review_circuit_opened_at", "NULL"),
+		reviewCircuitReasonExpr:   existingTaskColumnExpr(columns, "review_circuit_reason", "NULL"),
 	}, true, nil
 }
 
@@ -342,6 +456,23 @@ func taskTableCreateStatement() string {
 		updated_at      TEXT NOT NULL,
 		closed_at       TEXT,
 		metadata_json   TEXT,
+		current_run_id  TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
+		max_runtime_seconds INTEGER NOT NULL DEFAULT 0 CHECK (max_runtime_seconds >= 0),
+		spawn_failure_count INTEGER NOT NULL DEFAULT 0 CHECK (spawn_failure_count >= 0),
+		last_spawn_error TEXT NOT NULL DEFAULT '',
+		review_policy TEXT NOT NULL DEFAULT 'none' CHECK (
+			review_policy IN ('none', 'on_success', 'on_failure', 'always')
+		),
+		review_max_rounds INTEGER NOT NULL DEFAULT 3 CHECK (review_max_rounds >= 0),
+		review_round INTEGER NOT NULL DEFAULT 0 CHECK (review_round >= 0),
+		last_review_id TEXT,
+		last_review_outcome TEXT CHECK (
+			last_review_outcome IS NULL OR last_review_outcome IN (
+				'approved', 'rejected', 'blocked', 'error', 'timeout', 'invalid_output'
+			)
+		),
+		review_circuit_opened_at TEXT,
+		review_circuit_reason TEXT,
 		CHECK (
 			(scope = 'global' AND workspace_id IS NULL) OR
 			(scope = 'workspace' AND workspace_id IS NOT NULL)
@@ -364,17 +495,30 @@ func taskTableCopyStatement(spec taskTableMigrationSpec) string {
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json
+			created_at, updated_at, closed_at, metadata_json, current_run_id, max_runtime_seconds,
+			spawn_failure_count, last_spawn_error, review_policy, review_max_rounds, review_round,
+			last_review_id, last_review_outcome, review_circuit_opened_at, review_circuit_reason
 		) SELECT
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			%s, %s, status, %s, %s,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json
+			created_at, updated_at, closed_at, metadata_json, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 		FROM tasks`,
 		spec.priorityExpr,
 		spec.maxAttemptsExpr,
 		spec.approvalPolicyExpr,
 		spec.approvalStateExpr,
+		spec.currentRunIDExpr,
+		spec.maxRuntimeSecondsExpr,
+		spec.spawnFailureCountExpr,
+		spec.lastSpawnErrorExpr,
+		spec.reviewPolicyExpr,
+		spec.reviewMaxRoundsExpr,
+		spec.reviewRoundExpr,
+		spec.lastReviewIDExpr,
+		spec.lastReviewOutcomeExpr,
+		spec.reviewCircuitOpenedAtExpr,
+		spec.reviewCircuitReasonExpr,
 	)
 }
 

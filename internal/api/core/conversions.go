@@ -19,6 +19,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/notifications"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
@@ -835,6 +836,93 @@ func BridgePayloadFromBridgeInstance(instance bridgepkg.BridgeInstance) contract
 		CreatedAt:        instance.CreatedAt,
 		UpdatedAt:        instance.UpdatedAt,
 	}
+}
+
+// TaskBridgeNotificationSubscriptionPayloadFromSubscription converts one
+// bridge task subscription into the shared task-scoped transport payload.
+func TaskBridgeNotificationSubscriptionPayloadFromSubscription(
+	subscription bridgepkg.BridgeTaskSubscription,
+) contract.TaskBridgeNotificationSubscriptionPayload {
+	normalized := subscription.Normalize()
+	return contract.TaskBridgeNotificationSubscriptionPayload{
+		SubscriptionID:   normalized.SubscriptionID,
+		TaskID:           normalized.TaskID,
+		BridgeInstanceID: normalized.BridgeInstanceID,
+		Scope:            normalized.Scope,
+		WorkspaceID:      normalized.WorkspaceID,
+		PeerID:           normalized.PeerID,
+		ThreadID:         normalized.ThreadID,
+		GroupID:          normalized.GroupID,
+		DeliveryMode:     normalized.DeliveryMode,
+		Cursor:           TaskBridgeNotificationCursorPayloadFromKey(normalized.CursorKey()),
+		CreatedBy:        normalized.CreatedBy,
+		CreatedAt:        normalized.CreatedAt,
+		UpdatedAt:        normalized.UpdatedAt,
+	}
+}
+
+// TaskBridgeNotificationSubscriptionPayloadFromSubscriptionAndCursor converts
+// one bridge task subscription with its persisted cursor diagnostics.
+func TaskBridgeNotificationSubscriptionPayloadFromSubscriptionAndCursor(
+	subscription bridgepkg.BridgeTaskSubscription,
+	cursor notifications.Cursor,
+) contract.TaskBridgeNotificationSubscriptionPayload {
+	payload := TaskBridgeNotificationSubscriptionPayloadFromSubscription(subscription)
+	payload.Cursor = TaskBridgeNotificationCursorPayloadFromCursor(cursor)
+	return payload
+}
+
+// TaskBridgeNotificationSubscriptionPayloadsFromSubscriptions converts
+// bridge task subscriptions into shared task-scoped transport payloads.
+func TaskBridgeNotificationSubscriptionPayloadsFromSubscriptions(
+	subscriptions []bridgepkg.BridgeTaskSubscription,
+) []contract.TaskBridgeNotificationSubscriptionPayload {
+	payloads := make([]contract.TaskBridgeNotificationSubscriptionPayload, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		payloads = append(payloads, TaskBridgeNotificationSubscriptionPayloadFromSubscription(subscription))
+	}
+	return payloads
+}
+
+// TaskBridgeNotificationCursorPayloadFromKey converts a durable cursor identity
+// into the transport diagnostics shape before any delivery has been persisted.
+func TaskBridgeNotificationCursorPayloadFromKey(
+	key notifications.CursorKey,
+) contract.TaskBridgeNotificationCursorPayload {
+	normalized, err := key.Normalize()
+	if err != nil {
+		normalized = notifications.CursorKey{
+			ConsumerID: strings.TrimSpace(key.ConsumerID),
+			StreamName: strings.TrimSpace(key.StreamName),
+			SubjectID:  strings.TrimSpace(key.SubjectID),
+		}
+	}
+	return contract.TaskBridgeNotificationCursorPayload{
+		ConsumerID:   normalized.ConsumerID,
+		StreamName:   normalized.StreamName,
+		SubjectID:    normalized.SubjectID,
+		LastSequence: 0,
+	}
+}
+
+// TaskBridgeNotificationCursorPayloadFromCursor converts persisted cursor
+// diagnostics into the transport payload used by HTTP, UDS, CLI, and web.
+func TaskBridgeNotificationCursorPayloadFromCursor(
+	cursor notifications.Cursor,
+) contract.TaskBridgeNotificationCursorPayload {
+	payload := TaskBridgeNotificationCursorPayloadFromKey(cursor.Key)
+	payload.LastSequence = cursor.LastSequence
+	payload.LastDeliveryID = cursor.LastDeliveryID
+	payload.LastError = cursor.LastError
+	if !cursor.LastDeliveredAt.IsZero() {
+		lastDeliveredAt := cursor.LastDeliveredAt.UTC()
+		payload.LastDeliveredAt = &lastDeliveredAt
+	}
+	if !cursor.UpdatedAt.IsZero() {
+		updatedAt := cursor.UpdatedAt.UTC()
+		payload.UpdatedAt = &updatedAt
+	}
+	return payload
 }
 
 // BridgeProviderPayloadFromBridgeProvider converts installed provider metadata
@@ -2043,14 +2131,15 @@ func durationString(value time.Duration) string {
 // TaskReferencePayloadFromReference converts one task reference into the shared payload.
 func TaskReferencePayloadFromReference(record taskpkg.Reference) contract.TaskReferencePayload {
 	return contract.TaskReferencePayload{
-		ID:          record.ID,
-		Identifier:  record.Identifier,
-		Title:       record.Title,
-		Status:      record.Status,
-		Priority:    record.Priority,
-		Owner:       cloneOwnership(record.Owner),
-		Scope:       record.Scope,
-		WorkspaceID: record.WorkspaceID,
+		ID:             record.ID,
+		Identifier:     record.Identifier,
+		Title:          record.Title,
+		Status:         record.Status,
+		Priority:       record.Priority,
+		Owner:          cloneOwnership(record.Owner),
+		Scope:          record.Scope,
+		WorkspaceID:    record.WorkspaceID,
+		LatestEventSeq: record.LatestEventSeq,
 	}
 }
 
@@ -2379,6 +2468,7 @@ func taskDashboardActiveRunsPayload(
 			TaskOwner:      cloneOwnership(item.TaskOwner),
 			Scope:          item.Scope,
 			WorkspaceID:    item.WorkspaceID,
+			LatestEventSeq: item.LatestEventSeq,
 			RunID:          item.RunID,
 			RunStatus:      item.RunStatus,
 			Attempt:        item.Attempt,

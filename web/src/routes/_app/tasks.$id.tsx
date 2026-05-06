@@ -1,18 +1,17 @@
 import { AlertCircle, Loader2 } from "lucide-react";
-import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 
-import { useTaskDetailPage } from "@/hooks/routes/use-task-detail-page";
+import { useTaskDetailRoute } from "@/hooks/routes/use-task-detail-route";
 import {
   TasksDetailChildrenPanel,
   TasksDetailDependenciesPanel,
   TasksDetailHeader,
+  TasksDetailOrchestrationPanel,
   TasksDetailOverviewPanel,
   TasksDetailRunsPanel,
   TasksDetailTabs,
   TasksMultiAgentPanel,
   TasksTimelinePanel,
-  useDeleteTask,
 } from "@/systems/tasks";
 import type { TasksDetailTabItem } from "@/systems/tasks/components/tasks-detail-tabs";
 
@@ -22,12 +21,11 @@ export const Route = createFileRoute("/_app/tasks/$id")({
 
 function TaskDetailRoute() {
   const { id } = Route.useParams();
-  const navigate = useNavigate({ from: "/tasks/$id" });
   const childMatches = useChildMatches();
   const hasChildMatch = childMatches.length > 0;
 
-  const page = useTaskDetailPage(id);
-  const deleteMutation = useDeleteTask();
+  const { page, orchestration, deleteMutation, handleDeleteTask, latestEventSeq } =
+    useTaskDetailRoute(id);
 
   if (hasChildMatch) {
     return <Outlet />;
@@ -82,17 +80,10 @@ function TaskDetailRoute() {
     },
     { id: "children", label: "Children", count: children.length },
     { id: "dependencies", label: "Dependencies", count: dependencies.length },
+    { id: "orchestration", label: "Orchestration" },
   ];
 
-  const handleDeleteTask = async (taskId: string) => {
-    void navigate({ to: "/tasks", replace: true });
-    try {
-      await deleteMutation.mutateAsync({ id: taskId });
-      toast.success("Task deleted.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete task");
-    }
-  };
+  const hasActiveRun = Boolean(detail.summary?.active_run);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-detail-content">
@@ -151,6 +142,42 @@ function TaskDetailRoute() {
           <TasksDetailDependenciesPanel
             dependencies={dependencies}
             errorMessage={page.detailError?.message ?? null}
+          />
+        ) : null}
+        {page.panel === "orchestration" ? (
+          <TasksDetailOrchestrationPanel
+            notifications={{
+              subscriptions: orchestration.subscriptions,
+              isLoading: orchestration.subscriptionsLoading,
+              errorMessage: orchestration.subscriptionsError?.message ?? null,
+              isCreatePending: orchestration.isCreateSubscriptionPending,
+              isDeletePending: orchestration.isDeleteSubscriptionPending,
+              onCreate: orchestration.handleCreateSubscription,
+              onDelete: orchestration.handleDeleteSubscription,
+            }}
+            profile={{
+              taskId: id,
+              profile: orchestration.profile,
+              isLoading: orchestration.profileLoading,
+              errorMessage: orchestration.profileError?.message ?? null,
+              hasActiveRun,
+              isSetPending: orchestration.isSetProfilePending,
+              isDeletePending: orchestration.isDeleteProfilePending,
+              onSetProfile: orchestration.handleSetProfile,
+              onDeleteProfile: orchestration.handleDeleteProfile,
+            }}
+            reviews={{
+              reviews: orchestration.reviews,
+              isLoading: orchestration.reviewsLoading,
+              errorMessage: orchestration.reviewsError?.message ?? null,
+            }}
+            stream={{
+              latestEventSeq,
+              hasLatestEventSeq: orchestration.hasLatestEventSeq,
+              streamSeedSequence: orchestration.streamSeedSequence,
+              streamState: orchestration.streamState,
+              streamErrorMessage: orchestration.streamErrorMessage,
+            }}
           />
         ) : null}
       </div>

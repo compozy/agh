@@ -192,8 +192,11 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)
 	clearTurnSource = false
-	// pumpPrompt terminates when the driver closes the source channel or the request context ends.
-	go m.pumpPrompt(ctx, session, turnState, source, activity.eventsChannel(), out, activity, cancelPromptExecution)
+	finishDrain := m.trackPromptDrain()
+	go func() {
+		defer finishDrain()
+		m.pumpPrompt(ctx, session, turnState, source, activity.eventsChannel(), out, activity, cancelPromptExecution)
+	}()
 	return out, nil
 }
 

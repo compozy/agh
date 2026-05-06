@@ -93,6 +93,37 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	}
 }
 
+func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve the session with the explicit model override", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Model:     "task-profile-model",
+			Name:      "profiled-worker",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		})
+
+		if got, want := session.Info().Model, "task-profile-model"; got != want {
+			t.Fatalf("session.Info().Model = %q, want %q", got, want)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.Model != "task-profile-model" {
+			t.Fatalf("meta.Model = %q, want task-profile-model", meta.Model)
+		}
+	})
+}
+
 func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {
 	t.Parallel()
 
@@ -2508,6 +2539,51 @@ func TestPromptSerializesSetupAgainstConcurrentStop(t *testing.T) {
 	if err := <-stopDone; err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
+}
+
+func TestWaitForPromptDrains(t *testing.T) {
+	t.Run("Should wait for active prompt pump exit", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
+		})
+
+		promptEvents := make(chan acp.AgentEvent)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return promptEvents, nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		waitDone := make(chan error, 1)
+		go func() {
+			ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+			defer cancel()
+			waitDone <- h.manager.WaitForPromptDrains(ctx)
+		}()
+
+		select {
+		case err := <-waitDone:
+			t.Fatalf("WaitForPromptDrains() returned before prompt source closed: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		close(promptEvents)
+		_ = collectEvents(t, eventsCh)
+
+		if err := <-waitDone; err != nil {
+			t.Fatalf("WaitForPromptDrains() error = %v", err)
+		}
+	})
 }
 
 func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {

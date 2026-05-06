@@ -165,6 +165,29 @@ type TaskRunResponse struct {
 	Run TaskRunPayload `json:"run"`
 }
 
+// TaskRunReviewRequestResponse wraps one review request and idempotent-create marker.
+type TaskRunReviewRequestResponse struct {
+	Review  TaskRunReviewPayload `json:"review"`
+	Created bool                 `json:"created"`
+}
+
+// TaskRunReviewResponse wraps one task-run review payload.
+type TaskRunReviewResponse struct {
+	Review TaskRunReviewPayload `json:"review"`
+}
+
+// TaskRunReviewsResponse wraps a task-run review list.
+type TaskRunReviewsResponse struct {
+	Reviews []TaskRunReviewPayload `json:"reviews"`
+}
+
+// TaskRunReviewVerdictResponse wraps one recorded review verdict result.
+type TaskRunReviewVerdictResponse struct {
+	Review          TaskRunReviewPayload `json:"review"`
+	ContinuationRun *TaskRunPayload      `json:"continuation_run,omitempty"`
+	CircuitOpened   bool                 `json:"circuit_opened,omitempty"`
+}
+
 // TaskRunDetailResponse wraps one shared task-run detail payload.
 type TaskRunDetailResponse struct {
 	Run TaskRunDetailPayload `json:"run"`

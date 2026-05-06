@@ -17,6 +17,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 
 	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
@@ -124,6 +125,109 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 	if info := session.Info(); info.Sandbox == nil || info.Sandbox.SandboxID != "env-1" {
 		t.Fatalf("session.Info().Sandbox = %#v, want env-1", info.Sandbox)
 	}
+}
+
+func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve explicit sandbox ref through workspace config", func(t *testing.T) {
+		t.Parallel()
+
+		provider := &recordingSandboxProvider{}
+		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+		resolved, err := h.resolver.Resolve(context.Background(), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+		}
+		resolved.Config.Sandboxes["task-ref"] = aghconfig.SandboxProfile{
+			Backend:     string(sandbox.BackendLocal),
+			SyncMode:    string(sandbox.SyncModeNone),
+			Persistence: string(sandbox.PersistenceReuse),
+			Env:         map[string]string{"TASK_PROFILE": "enabled"},
+		}
+		h.resolver.upsert(&resolved)
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:  "coder",
+			Workspace:  h.workspaceID,
+			SandboxRef: "task-ref",
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		})
+
+		if got, want := provider.prepareRequests[0].Sandbox.Profile, "task-ref"; got != want {
+			t.Fatalf("PrepareRequest.Sandbox.Profile = %q, want %q", got, want)
+		}
+		if got, want := provider.prepareRequests[0].Sandbox.Env["TASK_PROFILE"], "enabled"; got != want {
+			t.Fatalf("PrepareRequest.Sandbox.Env[TASK_PROFILE] = %q, want %q", got, want)
+		}
+		if info := session.Info(); info.Sandbox == nil || info.Sandbox.Profile != "task-ref" {
+			t.Fatalf("session.Info().Sandbox = %#v, want task-ref profile", info.Sandbox)
+		}
+	})
+
+	t.Run("Should disable sandbox startup when explicitly requested", func(t *testing.T) {
+		t.Parallel()
+
+		provider := &recordingSandboxProvider{
+			prepareHook: func(sandbox.PrepareRequest) error {
+				t.Fatal("Prepare() called for disabled sandbox")
+				return nil
+			},
+		}
+		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:      "coder",
+			Workspace:      h.workspaceID,
+			DisableSandbox: true,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		})
+
+		if got := len(provider.prepareRequests); got != 0 {
+			t.Fatalf("Prepare() calls = %d, want 0", got)
+		}
+		if info := session.Info(); info.Sandbox != nil {
+			t.Fatalf("session.Info().Sandbox = %#v, want nil", info.Sandbox)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.Sandbox != nil {
+			t.Fatalf("meta.Sandbox = %#v, want nil", meta.Sandbox)
+		}
+		if got, want := h.driver.startCalls[0].Cwd, h.workspace; got != want {
+			t.Fatalf("StartOpts.Cwd = %q, want workspace root %q", got, want)
+		}
+	})
+
+	t.Run("Should reject conflicting sandbox ref and disabled sandbox", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:      "coder",
+			Workspace:      h.workspaceID,
+			SandboxRef:     "task-ref",
+			DisableSandbox: true,
+		})
+		if err == nil {
+			t.Fatal("Create() error = nil, want sandbox conflict")
+		}
+		if !strings.Contains(err.Error(), "mutually exclusive") {
+			t.Fatalf("Create() error = %v, want mutually exclusive", err)
+		}
+	})
 }
 
 func TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy(t *testing.T) {

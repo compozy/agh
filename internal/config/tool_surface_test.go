@@ -102,6 +102,131 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow task orchestration summary budget mutation",
+			path: "task.orchestration.summary_max_bytes",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration context budget mutation",
+			path: "task.orchestration.context_body_max_bytes",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration prior attempts mutation",
+			path: "task.orchestration.context_prior_attempts",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration recent events mutation",
+			path: "task.orchestration.context_recent_events",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration spawn failure limit mutation",
+			path: "task.orchestration.spawn_failure_limit",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration scheduler threshold mutation",
+			path: "task.orchestration.scheduler_bad_tick_threshold",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration scheduler cooldown mutation",
+			path: "task.orchestration.scheduler_bad_tick_cooldown",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow task orchestration runtime watchdog mutation",
+			path: "task.orchestration.default_max_runtime",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow task orchestration coordinator mode mutation",
+			path: "task.orchestration.profile.default_coordinator_mode",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow task orchestration worker mode mutation",
+			path: "task.orchestration.profile.default_worker_mode",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow task orchestration sandbox mode mutation",
+			path: "task.orchestration.profile.default_sandbox_mode",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow task orchestration provider override gate mutation",
+			path: "task.orchestration.profile.allow_task_provider_override",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow task orchestration sandbox none gate mutation",
+			path: "task.orchestration.profile.allow_task_sandbox_none",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow task review default policy mutation",
+			path: "task.orchestration.review.default_policy",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow task review max rounds mutation",
+			path: "task.orchestration.review.max_rounds",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review attempts mutation",
+			path: "task.orchestration.review.max_review_attempts",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review timeout mutation",
+			path: "task.orchestration.review.timeout",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow task review rapid terminal window mutation",
+			path: "task.orchestration.review.rapid_terminal_window",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow task review rapid terminal limit mutation",
+			path: "task.orchestration.review.rapid_terminal_limit",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review missing work item count mutation",
+			path: "task.orchestration.review.missing_work_max_items",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review missing work item byte mutation",
+			path: "task.orchestration.review.missing_work_item_max_bytes",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review reason budget mutation",
+			path: "task.orchestration.review.reason_max_bytes",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review text budget mutation",
+			path: "task.orchestration.review.review_text_max_bytes",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review guidance budget mutation",
+			path: "task.orchestration.review.next_round_guidance_max_bytes",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task review failure policy mutation",
+			path: "task.orchestration.review.failure_policy",
+			kind: ConfigValueString,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,

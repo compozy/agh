@@ -284,6 +284,8 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrTaskDependencyNotFound),
 		errors.Is(err, taskpkg.ErrTaskEventNotFound),
 		errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound),
+		errors.Is(err, taskpkg.ErrExecutionProfileNotFound),
+		errors.Is(err, taskpkg.ErrRunReviewNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, os.ErrNotExist):
@@ -315,9 +317,13 @@ func StatusForBridgeError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding):
 		return http.StatusBadRequest
+	case errors.Is(err, bridgepkg.ErrInvalidBridgeTaskSubscription):
+		return http.StatusBadRequest
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, bridgepkg.ErrBridgeTaskSubscriptionNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeRouteNotFound):
 		return http.StatusNotFound

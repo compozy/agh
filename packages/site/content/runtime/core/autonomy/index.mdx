@@ -31,6 +31,27 @@ runs, sessions, hooks, and network channels are used by manual and autonomous fl
     meta="Ownership"
   />
   <RouteRow
+    href="/runtime/core/autonomy/execution-profiles"
+    label="Profiles"
+    title="Typed task execution profiles"
+    description="Steer coordinator guidance, worker selection, reviewer routing, participant policy, and sandbox mode through one typed task-owned overlay."
+    meta="Selection"
+  />
+  <RouteRow
+    href="/runtime/core/autonomy/review-gate"
+    label="Review"
+    title="Post-terminal review gate"
+    description="Request reviews after terminal runs, route reviewers, persist typed verdicts, and create bounded continuation runs with missing-work guidance."
+    meta="Verdict"
+  />
+  <RouteRow
+    href="/runtime/core/autonomy/notification-cursors"
+    label="Notifications"
+    title="Bridge terminal notifications and cursor diagnostics"
+    description="Deliver accepted-final terminal task notifications, advance durable cursors, surface delivery diagnostics, and seed SSE reconnects."
+    meta="Delivery"
+  />
+  <RouteRow
     href="/runtime/core/autonomy/coordination-channels"
     label="Channels"
     title="Task-run coordination channels"
@@ -100,5 +121,8 @@ The autonomy docs describe only the implemented local MVP. They do not promise:
 - [Tool CLI Reference](/runtime/cli-reference/tool) documents the operator commands that inspect the registry and the `agh__autonomy` tool family.
 - [Sessions](/runtime/core/sessions/lifecycle) explains session types, state, stop behavior, and persistence.
 - [Network Channels](/runtime/core/network/channels-and-peers) explains channel and peer behavior.
-- [config.toml](/runtime/core/configuration/config-toml) documents `[autonomy.coordinator]`.
+- [config.toml](/runtime/core/configuration/config-toml) documents `[autonomy.coordinator]` and `[task.orchestration]`.
+- [Task Execution Profiles](/runtime/core/autonomy/execution-profiles) documents the typed task-owned overlay used for coordinator guidance, worker selection, reviewer routing, participant policy, and sandbox mode.
+- [Review Gate](/runtime/core/autonomy/review-gate) documents the post-terminal review gate, reviewer routing, verdict semantics, and continuation runs.
+- [Notification Cursors](/runtime/core/autonomy/notification-cursors) documents bridge terminal notifications, durable cursor diagnostics, and SSE resume seeding.
 - [Hook Event Catalog](/runtime/core/hooks/event-catalog) lists `coordinator.*`, `task.run.*`, and `spawn.*` hook events.

@@ -27,6 +27,8 @@ type sessionStartSpec struct {
 	sessionName            string
 	agentName              string
 	provider               string
+	model                  string
+	sandboxDisabled        bool
 	workspace              workspacepkg.ResolvedWorkspace
 	channel                string
 	promptOverlay          string
@@ -71,6 +73,10 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	sandboxDisabled, err := applyCreateSandboxOverride(&resolvedWorkspace, opts)
+	if err != nil {
+		return sessionStartSpec{}, err
+	}
 
 	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config.Defaults)
 	if err != nil {
@@ -96,6 +102,8 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		sessionName:       strings.TrimSpace(opts.Name),
 		agentName:         strings.TrimSpace(agentName),
 		provider:          strings.TrimSpace(opts.Provider),
+		model:             strings.TrimSpace(opts.Model),
+		sandboxDisabled:   sandboxDisabled,
 		workspace:         resolvedWorkspace,
 		channel:           strings.TrimSpace(opts.Channel),
 		promptOverlay:     strings.TrimSpace(opts.PromptOverlay),
@@ -123,6 +131,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		sessionID:              meta.ID,
 		sandboxID:              sessionSandboxID(meta.Sandbox),
 		sandbox:                cloneSessionSandboxMeta(meta.Sandbox),
+		sandboxDisabled:        meta.Sandbox == nil,
 		sessionName:            meta.Name,
 		agentName:              meta.AgentName,
 		provider:               strings.TrimSpace(meta.Provider),
@@ -351,7 +360,7 @@ func (m *Manager) prepareSessionStartRuntime(
 		}
 	}
 
-	resolved, err := spec.workspace.Config.ResolveSessionAgent(agentDef, spec.provider)
+	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, spec.provider, spec.model)
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
@@ -451,7 +460,7 @@ func (s *sessionStartSpec) newStartingSession(
 		metaPath:             storage.metaPath,
 		dbPath:               storage.dbPath,
 		recorder:             storage.recorder,
-		sandboxDestroyOnStop: s.workspace.Sandbox.DestroyOnStop,
+		sandboxDestroyOnStop: !s.sandboxDisabled && s.workspace.Sandbox.DestroyOnStop,
 	}
 }
 

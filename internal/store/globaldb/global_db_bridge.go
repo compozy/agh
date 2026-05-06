@@ -11,8 +11,11 @@ import (
 
 	"github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
+
+var _ bridges.BridgeTaskSubscriptionStore = (*GlobalDB)(nil)
 
 // InsertBridgeInstance creates a new persisted bridge instance row.
 func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.BridgeInstance) error {
@@ -839,6 +842,177 @@ func (g *GlobalDB) DeleteExpiredBridgeIngestDedup(ctx context.Context, now time.
 	return affected, nil
 }
 
+// PutBridgeTaskSubscription inserts or refreshes a terminal task notification subscription.
+func (g *GlobalDB) PutBridgeTaskSubscription(
+	ctx context.Context,
+	subscription bridges.BridgeTaskSubscription,
+) error {
+	if err := g.checkReady(ctx, "put bridge task subscription"); err != nil {
+		return err
+	}
+	normalized := subscription.Normalize()
+	if err := normalized.Validate(); err != nil {
+		return err
+	}
+	if normalized.CreatedAt.IsZero() {
+		normalized.CreatedAt = g.now()
+	}
+	if normalized.UpdatedAt.IsZero() {
+		normalized.UpdatedAt = normalized.CreatedAt
+	}
+
+	if _, err := g.db.ExecContext(
+		ctx,
+		`INSERT INTO bridge_task_subscriptions (
+			subscription_id, task_id, bridge_instance_id, scope, workspace_id,
+			peer_id, thread_id, group_id, delivery_mode, created_by_kind,
+			created_by_ref, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(subscription_id) DO UPDATE SET
+			task_id = excluded.task_id,
+			bridge_instance_id = excluded.bridge_instance_id,
+			scope = excluded.scope,
+			workspace_id = excluded.workspace_id,
+			peer_id = excluded.peer_id,
+			thread_id = excluded.thread_id,
+			group_id = excluded.group_id,
+			delivery_mode = excluded.delivery_mode,
+			updated_at = excluded.updated_at`,
+		normalized.SubscriptionID,
+		normalized.TaskID,
+		normalized.BridgeInstanceID,
+		string(normalized.Scope),
+		store.NullableString(normalized.WorkspaceID),
+		store.NullableString(normalized.PeerID),
+		store.NullableString(normalized.ThreadID),
+		store.NullableString(normalized.GroupID),
+		string(normalized.DeliveryMode),
+		string(normalized.CreatedBy.Kind),
+		normalized.CreatedBy.Ref,
+		store.FormatTimestamp(normalized.CreatedAt),
+		store.FormatTimestamp(normalized.UpdatedAt),
+	); err != nil {
+		return fmt.Errorf(
+			"store: put bridge task subscription %q: %w",
+			normalized.SubscriptionID,
+			err,
+		)
+	}
+	return nil
+}
+
+// GetBridgeTaskSubscription loads one persisted task notification subscription.
+func (g *GlobalDB) GetBridgeTaskSubscription(
+	ctx context.Context,
+	subscriptionID string,
+) (bridges.BridgeTaskSubscription, error) {
+	if err := g.checkReady(ctx, "get bridge task subscription"); err != nil {
+		return bridges.BridgeTaskSubscription{}, err
+	}
+	trimmedID := strings.TrimSpace(subscriptionID)
+	if trimmedID == "" {
+		return bridges.BridgeTaskSubscription{}, errors.New("store: bridge task subscription id is required")
+	}
+
+	row := g.db.QueryRowContext(
+		ctx,
+		`SELECT
+			subscription_id, task_id, bridge_instance_id, scope, workspace_id,
+			peer_id, thread_id, group_id, delivery_mode, created_by_kind,
+			created_by_ref, created_at, updated_at
+		 FROM bridge_task_subscriptions
+		 WHERE subscription_id = ?`,
+		trimmedID,
+	)
+	subscription, err := scanBridgeTaskSubscription(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return bridges.BridgeTaskSubscription{}, bridges.ErrBridgeTaskSubscriptionNotFound
+		}
+		return bridges.BridgeTaskSubscription{}, err
+	}
+	return subscription, nil
+}
+
+// ListBridgeTaskSubscriptions returns active bridge task subscriptions matching the query.
+func (g *GlobalDB) ListBridgeTaskSubscriptions(
+	ctx context.Context,
+	query bridges.BridgeTaskSubscriptionQuery,
+) (subscriptions []bridges.BridgeTaskSubscription, err error) {
+	if err := g.checkReady(ctx, "list bridge task subscriptions"); err != nil {
+		return nil, err
+	}
+	normalized := query.Normalize()
+	sqlQuery := `SELECT
+			subscription_id, task_id, bridge_instance_id, scope, workspace_id,
+			peer_id, thread_id, group_id, delivery_mode, created_by_kind,
+			created_by_ref, created_at, updated_at
+		FROM bridge_task_subscriptions`
+	where, args := store.BuildClauses(
+		store.StringClause("task_id", normalized.TaskID),
+		store.StringClause("bridge_instance_id", normalized.BridgeInstanceID),
+		store.StringClause("scope", string(normalized.Scope)),
+		store.StringClause("workspace_id", normalized.WorkspaceID),
+	)
+	sqlQuery = store.AppendWhere(sqlQuery, where)
+	sqlQuery += " ORDER BY task_id ASC, updated_at DESC, subscription_id ASC"
+	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
+
+	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: query bridge task subscriptions: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("store: close bridge task subscription rows: %w", closeErr)
+		}
+	}()
+
+	subscriptions = make([]bridges.BridgeTaskSubscription, 0)
+	for rows.Next() {
+		subscription, scanErr := scanBridgeTaskSubscription(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		subscriptions = append(subscriptions, subscription)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate bridge task subscriptions: %w", err)
+	}
+	return subscriptions, nil
+}
+
+// DeleteBridgeTaskSubscription removes one terminal task notification subscription.
+func (g *GlobalDB) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
+	if err := g.checkReady(ctx, "delete bridge task subscription"); err != nil {
+		return err
+	}
+	trimmedID := strings.TrimSpace(subscriptionID)
+	if trimmedID == "" {
+		return errors.New("store: bridge task subscription id is required")
+	}
+	result, err := g.db.ExecContext(
+		ctx,
+		`DELETE FROM bridge_task_subscriptions WHERE subscription_id = ?`,
+		trimmedID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: delete bridge task subscription %q: %w", trimmedID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: rows affected for bridge task subscription %q: %w", trimmedID, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf(
+			"store: bridge task subscription %q: %w",
+			trimmedID,
+			bridges.ErrBridgeTaskSubscriptionNotFound,
+		)
+	}
+	return nil
+}
+
 func normalizeBridgeInstanceRecord(
 	instance bridges.BridgeInstance,
 ) (bridges.BridgeInstance, string, any, any, any, any, error) {
@@ -1104,6 +1278,68 @@ func scanBridgeIngestDedup(scanner rowScanner) (bridges.IngestDedupRecord, error
 		return bridges.IngestDedupRecord{}, err
 	}
 	return record, nil
+}
+
+func scanBridgeTaskSubscription(scanner rowScanner) (bridges.BridgeTaskSubscription, error) {
+	var (
+		subscription  bridges.BridgeTaskSubscription
+		scopeRaw      string
+		workspaceID   sql.NullString
+		peerID        sql.NullString
+		threadID      sql.NullString
+		groupID       sql.NullString
+		deliveryMode  string
+		createdByKind string
+		createdAtRaw  string
+		updatedAtRaw  string
+	)
+	if err := scanner.Scan(
+		&subscription.SubscriptionID,
+		&subscription.TaskID,
+		&subscription.BridgeInstanceID,
+		&scopeRaw,
+		&workspaceID,
+		&peerID,
+		&threadID,
+		&groupID,
+		&deliveryMode,
+		&createdByKind,
+		&subscription.CreatedBy.Ref,
+		&createdAtRaw,
+		&updatedAtRaw,
+	); err != nil {
+		return bridges.BridgeTaskSubscription{}, fmt.Errorf("store: scan bridge task subscription: %w", err)
+	}
+	subscription.Scope = bridges.Scope(scopeRaw)
+	if value := store.NullString(workspaceID); value != nil {
+		subscription.WorkspaceID = *value
+	}
+	if value := store.NullString(peerID); value != nil {
+		subscription.PeerID = *value
+	}
+	if value := store.NullString(threadID); value != nil {
+		subscription.ThreadID = *value
+	}
+	if value := store.NullString(groupID); value != nil {
+		subscription.GroupID = *value
+	}
+	subscription.DeliveryMode = bridges.DeliveryMode(deliveryMode)
+	subscription.CreatedBy.Kind = taskpkg.ActorKind(createdByKind)
+
+	createdAt, err := store.ParseTimestamp(createdAtRaw)
+	if err != nil {
+		return bridges.BridgeTaskSubscription{}, err
+	}
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
+	if err != nil {
+		return bridges.BridgeTaskSubscription{}, err
+	}
+	subscription.CreatedAt = createdAt
+	subscription.UpdatedAt = updatedAt
+	if err := subscription.Validate(); err != nil {
+		return bridges.BridgeTaskSubscription{}, err
+	}
+	return subscription.Normalize(), nil
 }
 
 func mapBridgeInstanceConstraintError(err error) error {

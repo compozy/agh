@@ -41,6 +41,9 @@ var (
 type CreateOpts struct {
 	AgentName        string
 	Provider         string
+	Model            string
+	SandboxRef       string
+	DisableSandbox   bool
 	Name             string
 	Workspace        string
 	WorkspacePath    string
@@ -81,11 +84,12 @@ type Option func(*Manager)
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu         sync.RWMutex
-	sessions   map[string]*Session
-	pending    map[string]struct{}
-	finalizing map[string]chan struct{}
-	spawnMu    sync.Mutex
+	mu           sync.RWMutex
+	sessions     map[string]*Session
+	pending      map[string]struct{}
+	finalizing   map[string]chan struct{}
+	promptDrains map[chan struct{}]struct{}
+	spawnMu      sync.Mutex
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt
@@ -338,6 +342,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		sessions:              make(map[string]*Session),
 		pending:               make(map[string]struct{}),
 		finalizing:            make(map[string]chan struct{}),
+		promptDrains:          make(map[chan struct{}]struct{}),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),
@@ -506,6 +511,57 @@ func (m *Manager) IsPrompting(id string) bool {
 		return false
 	}
 	return session.IsPrompting()
+}
+
+// WaitForPromptDrains blocks until active prompt pump goroutines finish.
+func (m *Manager) WaitForPromptDrains(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("session: wait for prompt drains context is required")
+	}
+
+	for {
+		m.mu.RLock()
+		pending := make([]<-chan struct{}, 0, len(m.promptDrains))
+		for done := range m.promptDrains {
+			pending = append(pending, done)
+		}
+		m.mu.RUnlock()
+
+		if len(pending) == 0 {
+			return nil
+		}
+
+		for _, done := range pending {
+			select {
+			case <-done:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+}
+
+func (m *Manager) trackPromptDrain() func() {
+	if m == nil {
+		return func() {}
+	}
+
+	done := make(chan struct{})
+	m.mu.Lock()
+	m.promptDrains[done] = struct{}{}
+	m.mu.Unlock()
+
+	return func() {
+		m.mu.Lock()
+		if _, ok := m.promptDrains[done]; ok {
+			delete(m.promptDrains, done)
+			close(done)
+		}
+		m.mu.Unlock()
+	}
 }
 
 func (m *Manager) currentNetworkPeerLifecycle() NetworkPeerLifecycle {

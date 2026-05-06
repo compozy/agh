@@ -169,6 +169,7 @@ type AgentTaskContextPayload struct {
 	Available bool                        `json:"available"`
 	Task      *TaskReferencePayload       `json:"task,omitempty"`
 	Lease     *TaskRunLeaseSummaryPayload `json:"lease,omitempty"`
+	Bundle    *taskpkg.ContextBundle      `json:"bundle,omitempty"`
 }
 
 // AgentCoordinationChannelContextPayload is the active coordination-channel section.
@@ -386,6 +387,10 @@ func NormalizeAgentContextPayload(source *AgentContextPayload) AgentContextPaylo
 	if payload.Task.Lease != nil {
 		lease := NormalizeTaskRunLeaseSummaryPayload(*payload.Task.Lease)
 		payload.Task.Lease = &lease
+	}
+	if payload.Task.Bundle != nil {
+		bundle := taskpkg.NormalizeContextBundle(*payload.Task.Bundle)
+		payload.Task.Bundle = &bundle
 	}
 	if payload.CoordinationChannel.Channel != nil {
 		channel := NormalizeCoordinationChannelPayload(*payload.CoordinationChannel.Channel)

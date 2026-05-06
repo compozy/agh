@@ -721,6 +721,58 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	}
 }
 
+func TestNewHostAPISessionManagerAdapter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldExposeBridgePromptMethodsWhenSourceSupportsThem", func(t *testing.T) {
+		t.Parallel()
+
+		source := newFakeNetworkBindableSessionManager()
+		source.prompting["sess-bridge"] = true
+		promptNetworkCalls := 0
+		source.promptNetworkFn = func(_ context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+			promptNetworkCalls++
+			if got, want := id, "sess-bridge"; got != want {
+				t.Fatalf("PromptNetwork() id = %q, want %q", got, want)
+			}
+			if got, want := msg, "bridge message"; got != want {
+				t.Fatalf("PromptNetwork() message = %q, want %q", got, want)
+			}
+			events := make(chan acp.AgentEvent)
+			close(events)
+			return events, nil
+		}
+
+		adapter := newHostAPISessionManagerAdapter(source)
+		bridgePrompts, ok := adapter.(hostAPIBridgePromptSessionManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want bridge prompt methods", adapter)
+		}
+		if !bridgePrompts.IsPrompting("sess-bridge") {
+			t.Fatal("IsPrompting(sess-bridge) = false, want forwarded true")
+		}
+
+		events, err := bridgePrompts.PromptNetwork(
+			testutil.Context(t),
+			"sess-bridge",
+			"bridge message",
+			acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "message", From: "peer-1"},
+		)
+		if err != nil {
+			t.Fatalf("PromptNetwork() error = %v", err)
+		}
+		for event := range events {
+			t.Fatalf("PromptNetwork() emitted unexpected event %#v", event)
+		}
+		if got, want := promptNetworkCalls, 1; got != want {
+			t.Fatalf("PromptNetwork() calls = %d, want %d", got, want)
+		}
+		if got := len(source.promptCalls); got != 0 {
+			t.Fatalf("Prompt() fallback calls = %d, want 0", got)
+		}
+	})
+}
+
 func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	t.Parallel()
 
@@ -5651,6 +5703,61 @@ func (r *recordingRegistry) GetTaskTriageState(
 
 func (r *recordingRegistry) UpsertTaskTriageState(context.Context, taskpkg.TriageState) error {
 	return nil
+}
+
+func (r *recordingRegistry) GetExecutionProfile(
+	context.Context,
+	string,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, taskpkg.ErrExecutionProfileNotFound
+}
+
+func (r *recordingRegistry) UpsertExecutionProfile(
+	context.Context,
+	*taskpkg.ExecutionProfile,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
+func (r *recordingRegistry) DeleteExecutionProfile(context.Context, string) error {
+	return taskpkg.ErrExecutionProfileNotFound
+}
+
+func (r *recordingRegistry) RequestRunReview(
+	context.Context,
+	*taskpkg.RunReview,
+) (taskpkg.RunReview, bool, error) {
+	return taskpkg.RunReview{}, false, taskpkg.ErrRunReviewNotFound
+}
+
+func (r *recordingRegistry) GetRunReview(context.Context, string) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (r *recordingRegistry) RecordRunReview(
+	context.Context,
+	taskpkg.RecordRunReviewRequest,
+	taskpkg.ActorContext,
+	time.Time,
+	string,
+) (taskpkg.RunReviewResult, error) {
+	return taskpkg.RunReviewResult{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (r *recordingRegistry) BindRunReviewSession(
+	context.Context,
+	taskpkg.BindRunReviewSessionRequest,
+	time.Time,
+) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (r *recordingRegistry) LookupRunReviewBySession(context.Context, string) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (r *recordingRegistry) ListRunReviews(context.Context, taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error) {
+	return nil, nil
 }
 
 func (r *recordingRegistry) ListTaskTriageStates(

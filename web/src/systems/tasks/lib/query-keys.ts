@@ -1,8 +1,12 @@
 import type {
+  TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskInboxFilter,
   TaskListFilter,
+  TaskReviewsFilter,
+  TaskRunReviewsFilter,
   TaskRunsFilter,
+  TaskStreamFilter,
   TaskTimelineFilter,
 } from "../types";
 
@@ -94,4 +98,53 @@ export const tasksKeys = {
     ] as const,
 
   triageRoot: () => [...tasksKeys.all, "triage"] as const,
+
+  // Execution profile (per-task overlay)
+  profilesRoot: () => [...tasksKeys.all, "profile"] as const,
+  profile: (taskId: string) => [...tasksKeys.profilesRoot(), taskId] as const,
+
+  // Review state
+  reviewsRoot: () => [...tasksKeys.all, "reviews"] as const,
+  reviewsByRun: (runId: string, filters: TaskRunReviewsFilter = {}) =>
+    [
+      ...tasksKeys.reviewsRoot(),
+      "run",
+      runId,
+      normalizeText(filters.status),
+      normalizeText(filters.reviewer_session_id),
+      normalizeNumber(filters.limit),
+    ] as const,
+  reviewsByTask: (taskId: string, filters: TaskReviewsFilter = {}) =>
+    [
+      ...tasksKeys.reviewsRoot(),
+      "task",
+      taskId,
+      normalizeText(filters.status),
+      normalizeText(filters.reviewer_session_id),
+      normalizeNumber(filters.limit),
+    ] as const,
+  reviewDetail: (reviewId: string) => [...tasksKeys.reviewsRoot(), "detail", reviewId] as const,
+
+  // Agent task context bundle (extracted from /api/agent/context)
+  agentContext: () => [...tasksKeys.all, "agent-context"] as const,
+  contextBundle: () => [...tasksKeys.all, "context-bundle"] as const,
+
+  // SSE stream metadata (resume seed reflects after_sequence + last-event-id intent)
+  streamsRoot: () => [...tasksKeys.all, "stream"] as const,
+  stream: (taskId: string, filters: TaskStreamFilter = {}) =>
+    [...tasksKeys.streamsRoot(), taskId, normalizeNumber(filters.after_sequence)] as const,
+
+  // Bridge notification diagnostics
+  bridgeNotificationsRoot: () => [...tasksKeys.all, "bridge-notifications"] as const,
+  bridgeNotifications: (taskId: string, filters: TaskBridgeNotificationSubscriptionsFilter = {}) =>
+    [
+      ...tasksKeys.bridgeNotificationsRoot(),
+      taskId,
+      normalizeText(filters.bridge_instance_id),
+      normalizeText(filters.scope),
+      normalizeText(filters.workspace_id),
+      normalizeNumber(filters.limit),
+    ] as const,
+  bridgeNotification: (taskId: string, subscriptionId: string) =>
+    [...tasksKeys.bridgeNotificationsRoot(), taskId, "detail", subscriptionId] as const,
 };

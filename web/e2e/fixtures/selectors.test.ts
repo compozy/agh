@@ -360,5 +360,30 @@ describe("tasks operator selectors", () => {
     expect(selectors.detailPreviewCoordination).toBe(
       `locator:${tasksOperatorTestIds.detailPreviewCoordination}`
     );
+    expect(selectors.detailTabOrchestration).toBe(
+      `locator:${tasksOperatorTestIds.detailTabOrchestration}`
+    );
+    expect(selectors.orchestrationPanel).toBe(`locator:${tasksOperatorTestIds.orchestrationPanel}`);
+    expect(selectors.orchestrationProfileEmpty).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationProfileEmpty}`
+    );
+    expect(selectors.orchestrationProfileSummary).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationProfileSummary}`
+    );
+    expect(selectors.orchestrationReviewsEmpty).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationReviewsEmpty}`
+    );
+    expect(selectors.orchestrationNotificationsEmpty).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationNotificationsEmpty}`
+    );
+    expect(selectors.orchestrationStreamCard).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationStreamCard}`
+    );
+    expect(selectors.orchestrationStreamLatest).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationStreamLatest}`
+    );
+    expect(selectors.orchestrationStreamSeed).toBe(
+      `locator:${tasksOperatorTestIds.orchestrationStreamSeed}`
+    );
   });
 });

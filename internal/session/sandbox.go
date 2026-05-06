@@ -74,6 +74,9 @@ func (m *Manager) prepareSandboxForStart(
 	if session == nil {
 		return acp.StartOpts{}, errors.New("session: session is required")
 	}
+	if spec.sandboxDisabled {
+		return opts, nil
+	}
 	if m.sandbox == nil {
 		return acp.StartOpts{}, errors.New("session: sandbox registry is required")
 	}

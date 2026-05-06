@@ -2166,6 +2166,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-reviews/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one task-run review */
+    get: operations["getTaskRunReview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-reviews/{id}/verdict": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Submit one task-run review verdict */
+    post: operations["submitTaskRunReviewVerdict"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/task-runs/{id}": {
     parameters: {
       query?: never;
@@ -2262,6 +2296,24 @@ export interface paths {
     put?: never;
     /** Fail one task run */
     post: operations["failTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List reviews for one task run */
+    get: operations["listTaskRunReviews"];
+    put?: never;
+    /** Request review for one terminal task run */
+    post: operations["requestTaskRunReview"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2407,6 +2459,61 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/execution-profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one task execution profile */
+    get: operations["getTaskExecutionProfile"];
+    /** Replace one task execution profile */
+    put: operations["setTaskExecutionProfile"];
+    post?: never;
+    /** Delete one task execution profile */
+    delete: operations["deleteTaskExecutionProfile"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/notifications/bridges": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List bridge terminal notification subscriptions for one task */
+    get: operations["listTaskBridgeNotificationSubscriptions"];
+    put?: never;
+    /** Create one bridge terminal notification subscription for a task */
+    post: operations["createTaskBridgeNotificationSubscription"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/notifications/bridges/{subscription_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one bridge terminal notification subscription for a task */
+    get: operations["getTaskBridgeNotificationSubscription"];
+    put?: never;
+    post?: never;
+    /** Delete one bridge terminal notification subscription for a task */
+    delete: operations["deleteTaskBridgeNotificationSubscription"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{id}/publish": {
     parameters: {
       query?: never;
@@ -2435,6 +2542,23 @@ export interface paths {
     put?: never;
     /** Reject one approval-gated task */
     post: operations["rejectTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List task-run reviews for one task */
+    get: operations["listTaskReviews"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3550,6 +3674,317 @@ export interface operations {
               };
               task: {
                 available: boolean;
+                bundle?: {
+                  current_run?: {
+                    attempt: number;
+                    claim_token_hash?: string;
+                    /** Format: date-time */
+                    claimed_at: string;
+                    claimed_by?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "daemon";
+                      ref: string;
+                    } | null;
+                    coordination_channel_id?: string;
+                    /** Format: date-time */
+                    ended_at: string;
+                    error?: string;
+                    /** Format: date-time */
+                    heartbeat_at: string;
+                    id: string;
+                    /** Format: date-time */
+                    lease_until: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    queued_at: string;
+                    session_id?: string;
+                    /** Format: date-time */
+                    started_at: string;
+                    /** @enum {string} */
+                    status:
+                      | "queued"
+                      | "claimed"
+                      | "starting"
+                      | "running"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    task_id: string;
+                  } | null;
+                  execution_profile?: {
+                    coordinator: {
+                      agent_name?: string;
+                      guidance?: string;
+                      /** @enum {string} */
+                      mode: "inherit" | "guided";
+                      model?: string;
+                      provider?: string;
+                    };
+                    /** Format: date-time */
+                    created_at: string;
+                    participants: {
+                      allowed_agent_names?: string[];
+                      allowed_channel_ids?: string[];
+                      allowed_peer_ids?: string[];
+                      preferred_agent_names?: string[];
+                      preferred_capabilities?: string[];
+                      preferred_channel_ids?: string[];
+                      preferred_peer_ids?: string[];
+                      required_capabilities?: string[];
+                    };
+                    review: {
+                      agent_name?: string;
+                      allowed_agent_names?: string[];
+                      allowed_channel_ids?: string[];
+                      allowed_peer_ids?: string[];
+                      model?: string;
+                      preferred_agent_names?: string[];
+                      preferred_capabilities?: string[];
+                      preferred_channel_ids?: string[];
+                      preferred_peer_ids?: string[];
+                      provider?: string;
+                      required_capabilities?: string[];
+                    };
+                    sandbox: {
+                      /** @enum {string} */
+                      mode: "inherit" | "none" | "ref";
+                      sandbox_ref?: string;
+                    };
+                    task_id: string;
+                    /** Format: date-time */
+                    updated_at: string;
+                    worker: {
+                      agent_name?: string;
+                      allowed_agent_names?: string[];
+                      /** @enum {string} */
+                      mode: "inherit" | "select";
+                      model?: string;
+                      preferred_agent_names?: string[];
+                      preferred_capabilities?: string[];
+                      provider?: string;
+                      required_capabilities?: string[];
+                    };
+                  } | null;
+                  handoff_summary?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
+                  limits: {
+                    context_body_max_bytes: number;
+                    /** Format: int64 */
+                    max_runtime_seconds: number;
+                    summary_max_bytes: number;
+                  };
+                  prior_attempts: {
+                    attempt: number;
+                    claim_token_hash?: string;
+                    /** Format: date-time */
+                    claimed_at: string;
+                    claimed_by?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "daemon";
+                      ref: string;
+                    } | null;
+                    coordination_channel_id?: string;
+                    /** Format: date-time */
+                    ended_at: string;
+                    error?: string;
+                    /** Format: date-time */
+                    heartbeat_at: string;
+                    id: string;
+                    /** Format: date-time */
+                    lease_until: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    queued_at: string;
+                    session_id?: string;
+                    /** Format: date-time */
+                    started_at: string;
+                    /** @enum {string} */
+                    status:
+                      | "queued"
+                      | "claimed"
+                      | "starting"
+                      | "running"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    task_id: string;
+                  }[];
+                  recent_events: {
+                    actor: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "daemon";
+                      ref: string;
+                    };
+                    event_id: string;
+                    event_type: string;
+                    origin: {
+                      /** @enum {string} */
+                      kind:
+                        | "cli"
+                        | "web"
+                        | "uds"
+                        | "http"
+                        | "automation"
+                        | "extension"
+                        | "network"
+                        | "agent_session"
+                        | "daemon";
+                      ref: string;
+                    };
+                    payload?: unknown;
+                    run?: {
+                      attempt: number;
+                      claim_token_hash?: string;
+                      /** Format: date-time */
+                      claimed_at: string;
+                      claimed_by?: {
+                        /** @enum {string} */
+                        kind:
+                          | "human"
+                          | "agent_session"
+                          | "automation"
+                          | "extension"
+                          | "network_peer"
+                          | "daemon";
+                        ref: string;
+                      } | null;
+                      coordination_channel_id?: string;
+                      /** Format: date-time */
+                      ended_at: string;
+                      error?: string;
+                      /** Format: date-time */
+                      heartbeat_at: string;
+                      id: string;
+                      /** Format: date-time */
+                      lease_until: string;
+                      max_attempts: number;
+                      /** Format: date-time */
+                      queued_at: string;
+                      session_id?: string;
+                      /** Format: date-time */
+                      started_at: string;
+                      /** @enum {string} */
+                      status:
+                        | "queued"
+                        | "claimed"
+                        | "starting"
+                        | "running"
+                        | "completed"
+                        | "failed"
+                        | "canceled";
+                      task_id: string;
+                    } | null;
+                    /** Format: int64 */
+                    sequence: number;
+                    task: {
+                      id: string;
+                      identifier?: string;
+                      /** Format: int64 */
+                      latest_event_seq: number;
+                      owner?: {
+                        /** @enum {string} */
+                        kind:
+                          | "human"
+                          | "agent_session"
+                          | "automation"
+                          | "extension"
+                          | "network_peer"
+                          | "pool";
+                        ref: string;
+                      } | null;
+                      /** @enum {string} */
+                      priority?: "low" | "medium" | "high" | "urgent";
+                      /** @enum {string} */
+                      scope: "global" | "workspace";
+                      /** @enum {string} */
+                      status:
+                        | "draft"
+                        | "pending"
+                        | "blocked"
+                        | "ready"
+                        | "in_progress"
+                        | "completed"
+                        | "failed"
+                        | "canceled";
+                      title: string;
+                      workspace_id?: string;
+                    };
+                    /** Format: date-time */
+                    timestamp: string;
+                  }[];
+                  review_continuation?: {
+                    missing_work: string[];
+                    next_round_guidance: string;
+                    outcome: string;
+                    reason: string;
+                    review_id: string;
+                    review_round: number;
+                    reviewed_run_id: string;
+                  } | null;
+                  review_history: {
+                    attempt: number;
+                    outcome?: string;
+                    reason?: string;
+                    review_id: string;
+                    review_round: number;
+                    reviewed_at?: string;
+                    reviewer_label?: string;
+                    run_id: string;
+                    status: string;
+                  }[];
+                  task: {
+                    id: string;
+                    identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                } | null;
                 lease?: {
                   claim_token_hash?: string;
                   claimed_by?: {
@@ -3605,6 +4040,8 @@ export interface operations {
                 task?: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:
@@ -4830,6 +5267,8 @@ export interface operations {
               task: {
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -17031,6 +17470,8 @@ export interface operations {
                   health_status: string;
                   /** Format: date-time */
                   last_activity_at: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   max_attempts: number;
                   network_channel?: string;
                   run_id: string;
@@ -17368,6 +17809,8 @@ export interface operations {
                   task: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -24869,6 +25312,377 @@ export interface operations {
       };
     };
   };
+  getTaskRunReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Review id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            review: {
+              attempt: number;
+              /** Format: double */
+              confidence?: number | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              deadline_at: string;
+              delivery_id?: string;
+              missing_work?: unknown;
+              next_round_guidance?: string;
+              /** @enum {string} */
+              outcome?:
+                | "approved"
+                | "rejected"
+                | "blocked"
+                | "error"
+                | "timeout"
+                | "invalid_output";
+              parent_review_id?: string;
+              /** @enum {string} */
+              policy: "always" | "on_success" | "on_failure";
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              review_id: string;
+              review_round: number;
+              review_text?: string;
+              /** Format: date-time */
+              reviewed_at: string;
+              reviewed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              reviewer_agent_name?: string;
+              reviewer_channel_id?: string;
+              reviewer_peer_id?: string;
+              reviewer_session_id?: string;
+              /** Format: date-time */
+              routed_at: string;
+              run_id: string;
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status:
+                | "requested"
+                | "routed"
+                | "in_review"
+                | "recorded"
+                | "circuit_opened"
+                | "canceled";
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Review not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  submitTaskRunReviewVerdict: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Review id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          run_id: string;
+          verdict: {
+            /** Format: double */
+            confidence: number | null;
+            delivery_id: string;
+            missing_work?: unknown;
+            next_round_guidance?: string;
+            /** @enum {string} */
+            outcome: "approved" | "rejected" | "blocked" | "error" | "timeout" | "invalid_output";
+            reason: string;
+            review_text?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            circuit_opened?: boolean;
+            continuation_run?: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            } | null;
+            review: {
+              attempt: number;
+              /** Format: double */
+              confidence?: number | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              deadline_at: string;
+              delivery_id?: string;
+              missing_work?: unknown;
+              next_round_guidance?: string;
+              /** @enum {string} */
+              outcome?:
+                | "approved"
+                | "rejected"
+                | "blocked"
+                | "error"
+                | "timeout"
+                | "invalid_output";
+              parent_review_id?: string;
+              /** @enum {string} */
+              policy: "always" | "on_success" | "on_failure";
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              review_id: string;
+              review_round: number;
+              review_text?: string;
+              /** Format: date-time */
+              reviewed_at: string;
+              reviewed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              reviewer_agent_name?: string;
+              reviewer_channel_id?: string;
+              reviewer_peer_id?: string;
+              reviewer_session_id?: string;
+              /** Format: date-time */
+              routed_at: string;
+              run_id: string;
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status:
+                | "requested"
+                | "routed"
+                | "in_review"
+                | "recorded"
+                | "circuit_opened"
+                | "canceled";
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid review verdict */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Review or task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Review verdict conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getTaskRun: {
     parameters: {
       query?: never;
@@ -25002,6 +25816,8 @@ export interface operations {
               task: {
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -25948,6 +26764,386 @@ export interface operations {
       };
     };
   };
+  listTaskRunReviews: {
+    parameters: {
+      query?: {
+        /** @description Filter by review status */
+        status?: "requested" | "routed" | "in_review" | "recorded" | "circuit_opened" | "canceled";
+        /** @description Filter by reviewer session id */
+        reviewer_session_id?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            reviews: {
+              attempt: number;
+              /** Format: double */
+              confidence?: number | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              deadline_at: string;
+              delivery_id?: string;
+              missing_work?: unknown;
+              next_round_guidance?: string;
+              /** @enum {string} */
+              outcome?:
+                | "approved"
+                | "rejected"
+                | "blocked"
+                | "error"
+                | "timeout"
+                | "invalid_output";
+              parent_review_id?: string;
+              /** @enum {string} */
+              policy: "always" | "on_success" | "on_failure";
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              review_id: string;
+              review_round: number;
+              review_text?: string;
+              /** Format: date-time */
+              reviewed_at: string;
+              reviewed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              reviewer_agent_name?: string;
+              reviewer_channel_id?: string;
+              reviewer_peer_id?: string;
+              reviewer_session_id?: string;
+              /** Format: date-time */
+              routed_at: string;
+              run_id: string;
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status:
+                | "requested"
+                | "routed"
+                | "in_review"
+                | "recorded"
+                | "circuit_opened"
+                | "canceled";
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid review filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  requestTaskRunReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          attempt?: number;
+          /** Format: date-time */
+          deadline_at: string;
+          parent_review_id?: string;
+          /** @enum {string} */
+          policy?: "always" | "on_success" | "on_failure";
+          reason?: string;
+          review_round?: number;
+          run_id: string;
+          task_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            created: boolean;
+            review: {
+              attempt: number;
+              /** Format: double */
+              confidence?: number | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              deadline_at: string;
+              delivery_id?: string;
+              missing_work?: unknown;
+              next_round_guidance?: string;
+              /** @enum {string} */
+              outcome?:
+                | "approved"
+                | "rejected"
+                | "blocked"
+                | "error"
+                | "timeout"
+                | "invalid_output";
+              parent_review_id?: string;
+              /** @enum {string} */
+              policy: "always" | "on_success" | "on_failure";
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              review_id: string;
+              review_round: number;
+              review_text?: string;
+              /** Format: date-time */
+              reviewed_at: string;
+              reviewed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              reviewer_agent_name?: string;
+              reviewer_channel_id?: string;
+              reviewer_peer_id?: string;
+              reviewer_session_id?: string;
+              /** Format: date-time */
+              routed_at: string;
+              run_id: string;
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status:
+                | "requested"
+                | "routed"
+                | "in_review"
+                | "recorded"
+                | "circuit_opened"
+                | "canceled";
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            created: boolean;
+            review: {
+              attempt: number;
+              /** Format: double */
+              confidence?: number | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              deadline_at: string;
+              delivery_id?: string;
+              missing_work?: unknown;
+              next_round_guidance?: string;
+              /** @enum {string} */
+              outcome?:
+                | "approved"
+                | "rejected"
+                | "blocked"
+                | "error"
+                | "timeout"
+                | "invalid_output";
+              parent_review_id?: string;
+              /** @enum {string} */
+              policy: "always" | "on_success" | "on_failure";
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              review_id: string;
+              review_round: number;
+              review_text?: string;
+              /** Format: date-time */
+              reviewed_at: string;
+              reviewed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              reviewer_agent_name?: string;
+              reviewer_channel_id?: string;
+              reviewer_peer_id?: string;
+              reviewer_session_id?: string;
+              /** Format: date-time */
+              routed_at: string;
+              run_id: string;
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status:
+                | "requested"
+                | "routed"
+                | "in_review"
+                | "recorded"
+                | "circuit_opened"
+                | "canceled";
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid review request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Review request conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   startTaskRun: {
     parameters: {
       query?: never;
@@ -26265,6 +27461,8 @@ export interface operations {
                 depends_on: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:
@@ -26304,6 +27502,8 @@ export interface operations {
               identifier?: string;
               /** Format: date-time */
               last_activity_at?: string | null;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               network_channel?: string;
               origin: {
@@ -26472,6 +27672,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -26707,6 +27909,8 @@ export interface operations {
                   depends_on: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -26746,6 +27950,8 @@ export interface operations {
                 identifier?: string;
                 /** Format: date-time */
                 last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 network_channel?: string;
                 origin: {
@@ -26807,6 +28013,8 @@ export interface operations {
                 depends_on: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:
@@ -27044,6 +28252,8 @@ export interface operations {
                   depends_on: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -27083,6 +28293,8 @@ export interface operations {
                 identifier?: string;
                 /** Format: date-time */
                 last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 network_channel?: string;
                 origin: {
@@ -27154,6 +28366,8 @@ export interface operations {
                 draft?: boolean;
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 metadata?: unknown;
                 network_channel?: string;
@@ -27393,6 +28607,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -27639,6 +28855,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -27804,6 +29022,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -27987,6 +29207,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -28231,6 +29453,8 @@ export interface operations {
                   depends_on: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -28270,6 +29494,8 @@ export interface operations {
                 identifier?: string;
                 /** Format: date-time */
                 last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 network_channel?: string;
                 origin: {
@@ -28331,6 +29557,8 @@ export interface operations {
                 depends_on: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:
@@ -28568,6 +29796,8 @@ export interface operations {
                   depends_on: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -28607,6 +29837,8 @@ export interface operations {
                 identifier?: string;
                 /** Format: date-time */
                 last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 network_channel?: string;
                 origin: {
@@ -28678,6 +29910,8 @@ export interface operations {
                 draft?: boolean;
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 metadata?: unknown;
                 network_channel?: string;
@@ -28905,6 +30139,8 @@ export interface operations {
                   depends_on: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -28944,6 +30180,8 @@ export interface operations {
                 identifier?: string;
                 /** Format: date-time */
                 last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 network_channel?: string;
                 origin: {
@@ -29005,6 +30243,8 @@ export interface operations {
                 depends_on: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:
@@ -29242,6 +30482,8 @@ export interface operations {
                   depends_on: {
                     id: string;
                     identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
                     owner?: {
                       /** @enum {string} */
                       kind:
@@ -29281,6 +30523,8 @@ export interface operations {
                 identifier?: string;
                 /** Format: date-time */
                 last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 network_channel?: string;
                 origin: {
@@ -29352,6 +30596,8 @@ export interface operations {
                 draft?: boolean;
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 max_attempts?: number;
                 metadata?: unknown;
                 network_channel?: string;
@@ -29438,6 +30684,825 @@ export interface operations {
         };
       };
       /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTaskExecutionProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            profile: {
+              coordinator: {
+                agent_name?: string;
+                guidance?: string;
+                /** @enum {string} */
+                mode: "inherit" | "guided";
+                model?: string;
+                provider?: string;
+              };
+              /** Format: date-time */
+              created_at: string;
+              participants: {
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                required_capabilities?: string[];
+              };
+              review: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+              sandbox: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref";
+                sandbox_ref?: string;
+              };
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              worker: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                /** @enum {string} */
+                mode: "inherit" | "select";
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task id */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  setTaskExecutionProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          coordinator: {
+            agent_name?: string;
+            guidance?: string;
+            /** @enum {string} */
+            mode: "inherit" | "guided";
+            model?: string;
+            provider?: string;
+          };
+          /** Format: date-time */
+          created_at: string;
+          participants: {
+            allowed_agent_names?: string[];
+            allowed_channel_ids?: string[];
+            allowed_peer_ids?: string[];
+            preferred_agent_names?: string[];
+            preferred_capabilities?: string[];
+            preferred_channel_ids?: string[];
+            preferred_peer_ids?: string[];
+            required_capabilities?: string[];
+          };
+          review: {
+            agent_name?: string;
+            allowed_agent_names?: string[];
+            allowed_channel_ids?: string[];
+            allowed_peer_ids?: string[];
+            model?: string;
+            preferred_agent_names?: string[];
+            preferred_capabilities?: string[];
+            preferred_channel_ids?: string[];
+            preferred_peer_ids?: string[];
+            provider?: string;
+            required_capabilities?: string[];
+          };
+          sandbox: {
+            /** @enum {string} */
+            mode: "inherit" | "none" | "ref";
+            sandbox_ref?: string;
+          };
+          task_id: string;
+          /** Format: date-time */
+          updated_at: string;
+          worker: {
+            agent_name?: string;
+            allowed_agent_names?: string[];
+            /** @enum {string} */
+            mode: "inherit" | "select";
+            model?: string;
+            preferred_agent_names?: string[];
+            preferred_capabilities?: string[];
+            provider?: string;
+            required_capabilities?: string[];
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            profile: {
+              coordinator: {
+                agent_name?: string;
+                guidance?: string;
+                /** @enum {string} */
+                mode: "inherit" | "guided";
+                model?: string;
+                provider?: string;
+              };
+              /** Format: date-time */
+              created_at: string;
+              participants: {
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                required_capabilities?: string[];
+              };
+              review: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+              sandbox: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref";
+                sandbox_ref?: string;
+              };
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              worker: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                /** @enum {string} */
+                mode: "inherit" | "select";
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid task execution profile */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task execution profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteTaskExecutionProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Task or execution profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task execution profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listTaskBridgeNotificationSubscriptions: {
+    parameters: {
+      query?: {
+        /** @description Filter by bridge instance id */
+        bridge_instance_id?: string;
+        /** @description Filter by bridge scope */
+        scope?: "global" | "workspace";
+        /** @description Filter by workspace id */
+        workspace_id?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            subscriptions: {
+              bridge_instance_id: string;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              cursor: {
+                consumer_id: string;
+                /** Format: date-time */
+                last_delivered_at?: string | null;
+                last_delivery_id?: string;
+                last_error?: string;
+                /** Format: int64 */
+                last_sequence: number;
+                stream_name: string;
+                subject_id: string;
+                /** Format: date-time */
+                updated_at?: string | null;
+              };
+              /** @enum {string} */
+              delivery_mode: "direct-send" | "reply";
+              group_id?: string;
+              peer_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              subscription_id: string;
+              task_id: string;
+              thread_id?: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid bridge notification filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createTaskBridgeNotificationSubscription: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          bridge_instance_id: string;
+          /** @enum {string} */
+          delivery_mode: "direct-send" | "reply";
+          group_id?: string;
+          peer_id?: string;
+          /** @enum {string} */
+          scope: "global" | "workspace";
+          subscription_id?: string;
+          thread_id?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            subscription: {
+              bridge_instance_id: string;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              cursor: {
+                consumer_id: string;
+                /** Format: date-time */
+                last_delivered_at?: string | null;
+                last_delivery_id?: string;
+                last_error?: string;
+                /** Format: int64 */
+                last_sequence: number;
+                stream_name: string;
+                subject_id: string;
+                /** Format: date-time */
+                updated_at?: string | null;
+              };
+              /** @enum {string} */
+              delivery_mode: "direct-send" | "reply";
+              group_id?: string;
+              peer_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              subscription_id: string;
+              task_id: string;
+              thread_id?: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid bridge notification subscription */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or bridge not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTaskBridgeNotificationSubscription: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+        /** @description Bridge task subscription id */
+        subscription_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            subscription: {
+              bridge_instance_id: string;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              cursor: {
+                consumer_id: string;
+                /** Format: date-time */
+                last_delivered_at?: string | null;
+                last_delivery_id?: string;
+                last_error?: string;
+                /** Format: int64 */
+                last_sequence: number;
+                stream_name: string;
+                subject_id: string;
+                /** Format: date-time */
+                updated_at?: string | null;
+              };
+              /** @enum {string} */
+              delivery_mode: "direct-send" | "reply";
+              group_id?: string;
+              peer_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              subscription_id: string;
+              task_id: string;
+              thread_id?: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task or bridge notification subscription not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteTaskBridgeNotificationSubscription: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+        /** @description Bridge task subscription id */
+        subscription_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Task or bridge notification subscription not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -29588,6 +31653,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -29745,6 +31812,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -29820,6 +31889,149 @@ export interface operations {
       };
       /** @description Invalid task rejection request */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listTaskReviews: {
+    parameters: {
+      query?: {
+        /** @description Filter by review status */
+        status?: "requested" | "routed" | "in_review" | "recorded" | "circuit_opened" | "canceled";
+        /** @description Filter by reviewer session id */
+        reviewer_session_id?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            reviews: {
+              attempt: number;
+              /** Format: double */
+              confidence?: number | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              deadline_at: string;
+              delivery_id?: string;
+              missing_work?: unknown;
+              next_round_guidance?: string;
+              /** @enum {string} */
+              outcome?:
+                | "approved"
+                | "rejected"
+                | "blocked"
+                | "error"
+                | "timeout"
+                | "invalid_output";
+              parent_review_id?: string;
+              /** @enum {string} */
+              policy: "always" | "on_success" | "on_failure";
+              reason?: string;
+              /** Format: date-time */
+              requested_at: string;
+              review_id: string;
+              review_round: number;
+              review_text?: string;
+              /** Format: date-time */
+              reviewed_at: string;
+              reviewed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              reviewer_agent_name?: string;
+              reviewer_channel_id?: string;
+              reviewer_peer_id?: string;
+              reviewer_session_id?: string;
+              /** Format: date-time */
+              routed_at: string;
+              run_id: string;
+              /** Format: date-time */
+              started_at: string;
+              /** @enum {string} */
+              status:
+                | "requested"
+                | "routed"
+                | "in_review"
+                | "recorded"
+                | "circuit_opened"
+                | "canceled";
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid review filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -30333,6 +32545,8 @@ export interface operations {
               draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
@@ -30568,6 +32782,8 @@ export interface operations {
               task: {
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -30776,6 +32992,8 @@ export interface operations {
               task: {
                 id: string;
                 identifier?: string;
+                /** Format: int64 */
+                latest_event_seq: number;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -30954,6 +33172,8 @@ export interface operations {
                 task: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:
@@ -31055,6 +33275,8 @@ export interface operations {
                 task: {
                   id: string;
                   identifier?: string;
+                  /** Format: int64 */
+                  latest_event_seq: number;
                   owner?: {
                     /** @enum {string} */
                     kind:

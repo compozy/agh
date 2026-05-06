@@ -28,6 +28,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"tasks",
 		"task_triage_state",
 		"task_runs",
+		"task_run_reviews",
 		"task_run_required_capabilities",
 		"task_run_preferred_capabilities",
 		"task_dependencies",
@@ -58,6 +59,17 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"updated_at",
 		"closed_at",
 		"metadata_json",
+		"current_run_id",
+		"max_runtime_seconds",
+		"spawn_failure_count",
+		"last_spawn_error",
+		"review_policy",
+		"review_max_rounds",
+		"review_round",
+		"last_review_id",
+		"last_review_outcome",
+		"review_circuit_opened_at",
+		"review_circuit_reason",
 	})
 	assertTableColumns(t, globalDB.db, "task_triage_state", []string{
 		"task_id",
@@ -88,6 +100,24 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"error",
 		"metadata_json",
 		"result_json",
+		"summary",
+		"claimed_agent_name",
+		"claimed_peer_id",
+		"terminalized_by_session_id",
+		"terminalized_by_agent_name",
+		"terminalized_by_peer_id",
+		"terminalized_by_actor_kind",
+		"terminalized_by_actor_ref",
+		"review_required",
+		"review_request_round",
+		"review_policy_snapshot",
+		"review_request_id",
+		"parent_run_id",
+		"review_id",
+		"review_round",
+		"continuation_reason",
+		"missing_work_json",
+		"next_round_guidance",
 		"claim_token",
 		"claim_token_hash",
 		"lease_until",
@@ -137,6 +167,9 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_tasks_parent",
 		"idx_tasks_owner",
 		"idx_tasks_channel",
+		"idx_tasks_current_run",
+		"idx_tasks_review_policy",
+		"idx_tasks_review_round",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_triage_state",
 		"idx_task_triage_task",
@@ -152,6 +185,10 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_runs_active_lease_recovery",
 		"idx_task_runs_coordination_channel",
 		"idx_task_runs_session_status",
+		"idx_task_runs_parent_run",
+		"idx_task_runs_review_request",
+		"uq_task_runs_review_id",
+		"idx_task_runs_task_review_round",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_run_required_capabilities",
 		"idx_task_run_required_capabilities_capability",
@@ -1604,6 +1641,33 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create legacy tasks table error = %v", err)
 	}
+	if _, err := legacyDB.ExecContext(ctx, `CREATE TABLE task_runs (
+		id TEXT PRIMARY KEY,
+		task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		status TEXT NOT NULL,
+		attempt INTEGER NOT NULL,
+		claimed_by_kind TEXT,
+		claimed_by_ref TEXT,
+		session_id TEXT,
+		origin_kind TEXT NOT NULL,
+		origin_ref TEXT NOT NULL,
+		idempotency_key TEXT,
+		network_channel TEXT,
+		queued_at TEXT NOT NULL,
+		claimed_at TEXT,
+		started_at TEXT,
+		ended_at TEXT,
+		error TEXT,
+		metadata_json TEXT,
+		result_json TEXT,
+		claim_token TEXT,
+		claim_token_hash TEXT,
+		lease_until TEXT,
+		heartbeat_at TEXT,
+		coordination_channel_id TEXT
+	)`); err != nil {
+		t.Fatalf("create legacy task_runs table error = %v", err)
+	}
 	if _, err := legacyDB.ExecContext(ctx, `CREATE TABLE task_events (
 		id TEXT PRIMARY KEY,
 		task_id TEXT NOT NULL,
@@ -1856,6 +1920,7 @@ func assertTaskEqual(t *testing.T, got taskpkg.Task, want taskpkg.Task) {
 		got.Status != want.Status ||
 		got.ApprovalPolicy != want.ApprovalPolicy ||
 		got.ApprovalState != want.ApprovalState ||
+		got.CurrentRunID != want.CurrentRunID ||
 		got.CreatedBy != want.CreatedBy ||
 		got.Origin != want.Origin ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
@@ -1882,6 +1947,7 @@ func assertTaskSummaryMatchesTask(t *testing.T, got taskpkg.Summary, want taskpk
 		got.Status != want.Status ||
 		got.ApprovalPolicy != want.ApprovalPolicy ||
 		got.ApprovalState != want.ApprovalState ||
+		got.CurrentRunID != want.CurrentRunID ||
 		got.Draft != (want.Status == taskpkg.TaskStatusDraft) ||
 		got.CreatedBy != want.CreatedBy ||
 		got.Origin != want.Origin ||

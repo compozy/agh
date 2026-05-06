@@ -8,6 +8,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 // BridgeProviderConfigPayload carries provider-owned runtime configuration
@@ -195,6 +196,19 @@ type BridgeTestDeliveryRequest struct {
 	Target  BridgeDeliveryTargetInput `json:"target"`
 }
 
+// CreateTaskBridgeNotificationSubscriptionRequest captures one task-scoped
+// terminal bridge notification target.
+type CreateTaskBridgeNotificationSubscriptionRequest struct {
+	SubscriptionID   string                 `json:"subscription_id,omitempty"`
+	BridgeInstanceID string                 `json:"bridge_instance_id"`
+	Scope            bridgepkg.Scope        `json:"scope"`
+	WorkspaceID      string                 `json:"workspace_id,omitempty"`
+	PeerID           string                 `json:"peer_id,omitempty"`
+	ThreadID         string                 `json:"thread_id,omitempty"`
+	GroupID          string                 `json:"group_id,omitempty"`
+	DeliveryMode     bridgepkg.DeliveryMode `json:"delivery_mode"`
+}
+
 // ToResolveDeliveryTargetRequest validates and converts the transport payload
 // into the daemon-owned delivery-target resolution request for the supplied
 // bridge instance id.
@@ -258,6 +272,49 @@ type BridgeResponse struct {
 // BridgeRoutesResponse wraps one bridge's route set.
 type BridgeRoutesResponse struct {
 	Routes []bridgepkg.BridgeRoute `json:"routes"`
+}
+
+// TaskBridgeNotificationCursorPayload exposes the durable cursor identity and
+// latest diagnostic state for one bridge terminal notification subscription.
+type TaskBridgeNotificationCursorPayload struct {
+	ConsumerID      string     `json:"consumer_id"`
+	StreamName      string     `json:"stream_name"`
+	SubjectID       string     `json:"subject_id"`
+	LastSequence    int64      `json:"last_sequence"`
+	LastDeliveryID  string     `json:"last_delivery_id,omitempty"`
+	LastDeliveredAt *time.Time `json:"last_delivered_at,omitempty"`
+	LastError       string     `json:"last_error,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+}
+
+// TaskBridgeNotificationSubscriptionPayload exposes one bridge terminal
+// notification subscription plus its durable cursor diagnostics.
+type TaskBridgeNotificationSubscriptionPayload struct {
+	SubscriptionID   string                              `json:"subscription_id"`
+	TaskID           string                              `json:"task_id"`
+	BridgeInstanceID string                              `json:"bridge_instance_id"`
+	Scope            bridgepkg.Scope                     `json:"scope"`
+	WorkspaceID      string                              `json:"workspace_id,omitempty"`
+	PeerID           string                              `json:"peer_id,omitempty"`
+	ThreadID         string                              `json:"thread_id,omitempty"`
+	GroupID          string                              `json:"group_id,omitempty"`
+	DeliveryMode     bridgepkg.DeliveryMode              `json:"delivery_mode"`
+	Cursor           TaskBridgeNotificationCursorPayload `json:"cursor"`
+	CreatedBy        taskpkg.ActorIdentity               `json:"created_by"`
+	CreatedAt        time.Time                           `json:"created_at"`
+	UpdatedAt        time.Time                           `json:"updated_at"`
+}
+
+// TaskBridgeNotificationSubscriptionResponse wraps one task bridge
+// notification subscription payload.
+type TaskBridgeNotificationSubscriptionResponse struct {
+	Subscription TaskBridgeNotificationSubscriptionPayload `json:"subscription"`
+}
+
+// TaskBridgeNotificationSubscriptionsResponse wraps a task bridge notification
+// subscription list.
+type TaskBridgeNotificationSubscriptionsResponse struct {
+	Subscriptions []TaskBridgeNotificationSubscriptionPayload `json:"subscriptions"`
 }
 
 // BridgeTestDeliveryResponse wraps the dry-run delivery-target resolution payload.

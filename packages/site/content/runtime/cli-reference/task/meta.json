@@ -19,6 +19,9 @@
         "update",
         "child",
         "dependency",
+        "notification",
+        "profile",
+        "review",
         "run"
     ]
 }

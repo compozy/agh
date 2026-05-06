@@ -1923,17 +1923,20 @@ type integrationBridgeSecretStore interface {
 
 type integrationBridgeService struct {
 	*bridgepkg.Service
-	store     integrationBridgeSecretStore
-	providers []bridgepkg.BridgeProvider
+	store             integrationBridgeSecretStore
+	taskSubscriptions bridgepkg.BridgeTaskSubscriptionStore
+	providers         []bridgepkg.BridgeProvider
 }
 
 var _ core.BridgeService = (*integrationBridgeService)(nil)
 
 func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
 	secretStore, _ := store.(integrationBridgeSecretStore)
+	taskSubscriptions, _ := store.(bridgepkg.BridgeTaskSubscriptionStore)
 	return &integrationBridgeService{
-		Service: bridgepkg.NewRegistry(store),
-		store:   secretStore,
+		Service:           bridgepkg.NewRegistry(store),
+		store:             secretStore,
+		taskSubscriptions: taskSubscriptions,
 	}
 }
 
@@ -2016,6 +2019,45 @@ func (s *integrationBridgeService) DeleteSecretBinding(ctx context.Context, brid
 		return errors.New("integration bridge secret store is not configured")
 	}
 	return s.store.DeleteBridgeSecretBinding(ctx, bridgeInstanceID, bindingName)
+}
+
+func (s *integrationBridgeService) PutBridgeTaskSubscription(
+	ctx context.Context,
+	subscription bridgepkg.BridgeTaskSubscription,
+) error {
+	if s == nil || s.taskSubscriptions == nil {
+		return errors.New("integration bridge task subscription store is not configured")
+	}
+	return s.taskSubscriptions.PutBridgeTaskSubscription(ctx, subscription)
+}
+
+func (s *integrationBridgeService) GetBridgeTaskSubscription(
+	ctx context.Context,
+	subscriptionID string,
+) (bridgepkg.BridgeTaskSubscription, error) {
+	if s == nil || s.taskSubscriptions == nil {
+		return bridgepkg.BridgeTaskSubscription{}, errors.New(
+			"integration bridge task subscription store is not configured",
+		)
+	}
+	return s.taskSubscriptions.GetBridgeTaskSubscription(ctx, subscriptionID)
+}
+
+func (s *integrationBridgeService) ListBridgeTaskSubscriptions(
+	ctx context.Context,
+	query bridgepkg.BridgeTaskSubscriptionQuery,
+) ([]bridgepkg.BridgeTaskSubscription, error) {
+	if s == nil || s.taskSubscriptions == nil {
+		return nil, errors.New("integration bridge task subscription store is not configured")
+	}
+	return s.taskSubscriptions.ListBridgeTaskSubscriptions(ctx, query)
+}
+
+func (s *integrationBridgeService) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
+	if s == nil || s.taskSubscriptions == nil {
+		return errors.New("integration bridge task subscription store is not configured")
+	}
+	return s.taskSubscriptions.DeleteBridgeTaskSubscription(ctx, subscriptionID)
 }
 
 func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {

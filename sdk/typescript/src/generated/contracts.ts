@@ -3779,6 +3779,7 @@ export interface Task {
   approval_state?: ApprovalState;
   draft?: boolean;
   owner?: Ownership;
+  latest_event_seq: number;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
@@ -3913,6 +3914,7 @@ export interface TaskDashboardActiveRunPayload {
   task_owner?: Ownership;
   scope: Scope;
   workspace_id?: string;
+  latest_event_seq: number;
   run_id: string;
   run_status: RunStatus;
   attempt: number;
@@ -3975,6 +3977,7 @@ export interface TaskReferencePayload {
   owner?: Ownership;
   scope: Scope;
   workspace_id?: string;
+  latest_event_seq: number;
 }
 
 export interface TaskDependencyReferencePayload {
@@ -4035,6 +4038,7 @@ export interface TaskSummary {
   approval_state?: ApprovalState;
   draft?: boolean;
   owner?: Ownership;
+  latest_event_seq: number;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;

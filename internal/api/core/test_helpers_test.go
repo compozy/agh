@@ -111,12 +111,59 @@ func newHandlerFixtureWithTasks(
 	)
 }
 
+func newHandlerFixtureWithTasksAndBridges(
+	t *testing.T,
+	manager testutil.StubSessionManager,
+	observer testutil.StubObserver,
+	tasks testutil.StubTaskManager,
+	bridges testutil.StubBridgeService,
+	workspaces testutil.StubWorkspaceService,
+	store *memory.Store,
+	dream core.DreamTrigger,
+) handlerFixture {
+	return newHandlerFixtureWithAutomationTasksAndBridges(
+		t,
+		manager,
+		observer,
+		testutil.StubAutomationManager{},
+		tasks,
+		bridges,
+		workspaces,
+		store,
+		dream,
+	)
+}
+
 func newHandlerFixtureWithAutomationAndTasks(
 	t *testing.T,
 	manager testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	tasks testutil.StubTaskManager,
+	workspaces testutil.StubWorkspaceService,
+	store *memory.Store,
+	dream core.DreamTrigger,
+) handlerFixture {
+	return newHandlerFixtureWithAutomationTasksAndBridges(
+		t,
+		manager,
+		observer,
+		automation,
+		tasks,
+		testutil.StubBridgeService{},
+		workspaces,
+		store,
+		dream,
+	)
+}
+
+func newHandlerFixtureWithAutomationTasksAndBridges(
+	t *testing.T,
+	manager testutil.StubSessionManager,
+	observer testutil.StubObserver,
+	automation testutil.StubAutomationManager,
+	tasks testutil.StubTaskManager,
+	bridges testutil.StubBridgeService,
 	workspaces testutil.StubWorkspaceService,
 	store *memory.Store,
 	dream core.DreamTrigger,
@@ -138,6 +185,7 @@ func newHandlerFixtureWithAutomationAndTasks(
 		Observer:                     observer,
 		Automation:                   automation,
 		Tasks:                        tasks,
+		Bridges:                      bridges,
 		Workspaces:                   workspaces,
 		MemoryStore:                  store,
 		DreamTrigger:                 dream,
@@ -214,6 +262,17 @@ func newHandlerFixtureWithAutomationAndTasks(
 	engine.GET("/tasks/:id", handlers.GetTask)
 	engine.DELETE("/tasks/:id", handlers.DeleteTask)
 	engine.PATCH("/tasks/:id", handlers.UpdateTask)
+	engine.GET("/tasks/:id/execution-profile", handlers.GetTaskExecutionProfile)
+	engine.PUT("/tasks/:id/execution-profile", handlers.SetTaskExecutionProfile)
+	engine.DELETE("/tasks/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
+	engine.POST("/tasks/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
+	engine.GET("/tasks/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
+	engine.GET("/tasks/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
+	engine.DELETE(
+		"/tasks/:id/notifications/bridges/:subscription_id",
+		handlers.DeleteTaskBridgeNotificationSubscription,
+	)
+	engine.GET("/tasks/:id/reviews", handlers.ListTaskReviews)
 	engine.POST("/tasks/:id/publish", handlers.PublishTask)
 	engine.POST("/tasks/:id/start", handlers.StartTask)
 	engine.POST("/tasks/:id/cancel", handlers.CancelTask)
@@ -237,6 +296,10 @@ func newHandlerFixtureWithAutomationAndTasks(
 	engine.POST("/task-runs/:id/complete", handlers.CompleteTaskRun)
 	engine.POST("/task-runs/:id/fail", handlers.FailTaskRun)
 	engine.POST("/task-runs/:id/cancel", handlers.CancelTaskRun)
+	engine.POST("/task-runs/:id/reviews", handlers.RequestTaskRunReview)
+	engine.GET("/task-runs/:id/reviews", handlers.ListTaskRunReviews)
+	engine.GET("/task-reviews/:id", handlers.GetTaskRunReview)
+	engine.POST("/task-reviews/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
 	engine.GET("/observe/tasks/dashboard", handlers.TaskDashboard)
 	engine.GET("/observe/tasks/inbox", handlers.TaskInbox)
 	engine.GET("/memory", handlers.ListMemory)

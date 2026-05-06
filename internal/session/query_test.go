@@ -570,6 +570,92 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
+	t.Run("finalizing active session waits before reading a closed recorder handle", func(t *testing.T) {
+		h := newHarness(t)
+		session := createSession(t, h)
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		runtimeEvents := collectEvents(t, eventsCh)
+		if len(runtimeEvents) == 0 {
+			t.Fatal("Prompt() returned no runtime events, want recorded prompt events")
+		}
+
+		activeEvents, err := h.manager.Events(testutil.Context(t), session.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Events(active) error = %v", err)
+		}
+		if len(activeEvents) == 0 {
+			t.Fatal("Events(active) returned no events, want persisted session events")
+		}
+
+		recorder := session.recorderHandle()
+		if recorder == nil {
+			t.Fatal("recorderHandle() = nil, want active recorder")
+		}
+		if err := recorder.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(active recorder) error = %v", err)
+		}
+
+		done := make(chan struct{})
+		h.manager.mu.Lock()
+		h.manager.finalizing[session.ID] = done
+		h.manager.mu.Unlock()
+
+		type queryResult struct {
+			events []store.SessionEvent
+			err    error
+		}
+		resultCh := make(chan queryResult, 1)
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
+		defer cancel()
+		go func() {
+			got, cleanup, err := h.manager.openQueryRecorder(ctx, session.ID)
+			if err != nil {
+				resultCh <- queryResult{err: err}
+				return
+			}
+			events, err := got.Query(ctx, store.EventQuery{})
+			if cleanupErr := cleanup(); cleanupErr != nil && err == nil {
+				err = cleanupErr
+			}
+			resultCh <- queryResult{events: events, err: err}
+		}()
+
+		select {
+		case result := <-resultCh:
+			t.Fatalf(
+				"openQueryRecorder returned before finalization finished: events=%d err=%v",
+				len(result.events),
+				result.err,
+			)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		now := time.Now().UTC()
+		if err := session.beginStopping(now); err != nil {
+			t.Fatalf("beginStopping() error = %v", err)
+		}
+		if err := session.markStopped(now); err != nil {
+			t.Fatalf("markStopped() error = %v", err)
+		}
+		if err := h.manager.writeMeta(session); err != nil {
+			t.Fatalf("writeMeta(stopped) error = %v", err)
+		}
+		h.manager.removeActive(session.ID)
+		h.manager.finishFinalization(session.ID)
+
+		result := <-resultCh
+		if result.err != nil {
+			t.Fatalf("openQueryRecorder(finalized active) error = %v", result.err)
+		}
+		if len(result.events) != len(activeEvents) {
+			t.Fatalf("openQueryRecorder(finalized active) events = %d, want %d", len(result.events), len(activeEvents))
+		}
+	})
+
 	t.Run("missing session metadata", func(t *testing.T) {
 		h := newHarness(t)
 		if _, _, err := h.manager.openQueryRecorder(

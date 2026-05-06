@@ -2,25 +2,40 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 
 import type {
   CreateTaskRequest,
+  TaskBridgeNotificationSubscription,
+  TaskBridgeNotificationSubscriptionCreateRequest,
+  TaskExecutionProfileSetRequest,
   TaskInboxItem,
   TaskListItem,
   TaskRecord,
   TaskRun,
+  TaskRunReviewRequest,
+  TaskRunReviewVerdictRequest,
   TaskSummary,
   TaskTriageState,
   UpdateTaskRequest,
 } from "../types";
 import {
   TASK_FIXTURES,
+  agentContextFixture,
+  buildBridgeNotificationCursorFixture,
   buildCreatedTaskFixture,
   buildDetailFixture,
+  buildTaskBridgeNotificationSubscriptionFixture,
+  buildTaskExecutionProfileFixture,
   buildTaskRunRecordFixture,
   buildTaskRunDetailFixture,
+  buildTaskRunReviewFixture,
+  buildTaskRunReviewVerdictResultFixture,
   buildTaskTreeFixture,
+  taskBridgeNotificationSubscriptionsFixture,
   taskDashboardFixture,
   taskDetailFixture,
+  taskExecutionProfileFixture,
   taskInboxFixture,
   taskRunDetailFixture,
+  taskRunReviewFixture,
+  taskRunReviewListFixture,
   taskTimelineFixture,
   taskTriageStateFixture,
 } from "./fixtures";
@@ -436,4 +451,170 @@ export const handlers: HttpHandler[] = [
       triage: withTriageState(String(params.id), { dismissed: true, read: true }),
     })
   ),
+
+  // Execution profile
+  http.get("/api/tasks/:id/execution-profile", ({ params }) => {
+    const id = String(params.id);
+    if (!resolveTask(id)) {
+      return notFound("Task", id);
+    }
+    return HttpResponse.json({
+      profile: { ...taskExecutionProfileFixture, task_id: id },
+    });
+  }),
+  http.put("/api/tasks/:id/execution-profile", async ({ params, request }) => {
+    const id = String(params.id);
+    if (!resolveTask(id)) {
+      return notFound("Task", id);
+    }
+    const body = (await request.json()) as TaskExecutionProfileSetRequest;
+    return HttpResponse.json({
+      profile: buildTaskExecutionProfileFixture({ ...body, task_id: id }),
+    });
+  }),
+  http.delete("/api/tasks/:id/execution-profile", ({ params }) => {
+    const id = String(params.id);
+    if (!resolveTask(id)) {
+      return notFound("Task", id);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Run reviews
+  http.get("/api/task-runs/:id/reviews", ({ params, request }) => {
+    const runId = String(params.id);
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const reviewerSessionId = url.searchParams.get("reviewer_session_id");
+    const filtered = taskRunReviewListFixture.filter(review => {
+      if (status && review.status !== status) return false;
+      if (reviewerSessionId && review.reviewer_session_id !== reviewerSessionId) return false;
+      return review.run_id === runId || true;
+    });
+    return HttpResponse.json({ reviews: filtered });
+  }),
+  http.post("/api/task-runs/:id/reviews", async ({ params, request }) => {
+    const runId = String(params.id);
+    const body = (await request.json()) as TaskRunReviewRequest;
+    const review = buildTaskRunReviewFixture({
+      review_id: "review_created",
+      run_id: runId,
+      task_id: body.task_id,
+      review_round: body.review_round ?? 1,
+      attempt: body.attempt ?? 1,
+      policy: body.policy ?? "on_success",
+      reason: body.reason,
+      deadline_at: body.deadline_at,
+    });
+    return HttpResponse.json({ review, created: true }, { status: 201 });
+  }),
+  http.get("/api/task-reviews/:id", ({ params }) => {
+    const reviewId = String(params.id);
+    const review =
+      taskRunReviewListFixture.find(item => item.review_id === reviewId) ??
+      (reviewId === taskRunReviewFixture.review_id ? taskRunReviewFixture : null);
+    if (!review) {
+      return notFound("Task review", reviewId);
+    }
+    return HttpResponse.json({ review });
+  }),
+  http.post("/api/task-reviews/:id/verdict", async ({ params, request }) => {
+    const reviewId = String(params.id);
+    const body = (await request.json()) as TaskRunReviewVerdictRequest;
+    const verdictResult = buildTaskRunReviewVerdictResultFixture({
+      review: buildTaskRunReviewFixture({
+        review_id: reviewId,
+        run_id: body.run_id,
+        status: "recorded",
+        outcome: body.verdict.outcome,
+        reason: body.verdict.reason,
+        next_round_guidance: body.verdict.next_round_guidance,
+        confidence: body.verdict.confidence ?? undefined,
+        delivery_id: body.verdict.delivery_id,
+        review_text: body.verdict.review_text,
+      }),
+    });
+    return HttpResponse.json(verdictResult);
+  }),
+
+  // Task-level reviews
+  http.get("/api/tasks/:id/reviews", ({ params }) => {
+    const taskId = String(params.id);
+    if (!resolveTask(taskId)) {
+      return notFound("Task", taskId);
+    }
+    return HttpResponse.json({ reviews: taskRunReviewListFixture });
+  }),
+
+  // Bridge notification subscriptions
+  http.get("/api/tasks/:id/notifications/bridges", ({ params, request }) => {
+    const taskId = String(params.id);
+    if (!resolveTask(taskId)) {
+      return notFound("Task", taskId);
+    }
+    const url = new URL(request.url);
+    const bridgeInstanceId = url.searchParams.get("bridge_instance_id");
+    const scope = url.searchParams.get("scope");
+    const workspaceId = url.searchParams.get("workspace_id");
+    const filtered: TaskBridgeNotificationSubscription[] =
+      taskBridgeNotificationSubscriptionsFixture.filter(sub => {
+        if (bridgeInstanceId && sub.bridge_instance_id !== bridgeInstanceId) return false;
+        if (scope && sub.scope !== scope) return false;
+        if (workspaceId && sub.workspace_id !== workspaceId) return false;
+        return true;
+      });
+    return HttpResponse.json({ subscriptions: filtered });
+  }),
+  http.post("/api/tasks/:id/notifications/bridges", async ({ params, request }) => {
+    const taskId = String(params.id);
+    if (!resolveTask(taskId)) {
+      return notFound("Task", taskId);
+    }
+    const body = (await request.json()) as TaskBridgeNotificationSubscriptionCreateRequest;
+    const subscriptionId = body.subscription_id ?? "bsub_created";
+    const subscription = buildTaskBridgeNotificationSubscriptionFixture({
+      subscription_id: subscriptionId,
+      task_id: taskId,
+      bridge_instance_id: body.bridge_instance_id,
+      delivery_mode: body.delivery_mode,
+      scope: body.scope,
+      workspace_id: body.workspace_id,
+      peer_id: body.peer_id,
+      group_id: body.group_id,
+      thread_id: body.thread_id,
+      cursor: buildBridgeNotificationCursorFixture({
+        consumer_id: `bridge_task_subscription:${subscriptionId}`,
+        subject_id: taskId,
+        last_sequence: 0,
+        last_delivery_id: undefined,
+        last_delivered_at: null,
+        updated_at: null,
+      }),
+    });
+    return HttpResponse.json({ subscription }, { status: 201 });
+  }),
+  http.get("/api/tasks/:id/notifications/bridges/:subscriptionId", ({ params }) => {
+    const taskId = String(params.id);
+    const subscriptionId = String(params.subscriptionId);
+    const subscription = taskBridgeNotificationSubscriptionsFixture.find(
+      item => item.subscription_id === subscriptionId
+    );
+    if (!subscription) {
+      return notFound("Bridge notification subscription", subscriptionId);
+    }
+    return HttpResponse.json({ subscription: { ...subscription, task_id: taskId } });
+  }),
+  http.delete("/api/tasks/:id/notifications/bridges/:subscriptionId", ({ params }) => {
+    const subscriptionId = String(params.subscriptionId);
+    const subscription = taskBridgeNotificationSubscriptionsFixture.find(
+      item => item.subscription_id === subscriptionId
+    );
+    if (!subscription) {
+      return notFound("Bridge notification subscription", subscriptionId);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Agent context (carries the task context bundle)
+  http.get("/api/agent/context", () => HttpResponse.json({ context: agentContextFixture })),
 ];

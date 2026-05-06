@@ -201,6 +201,15 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	tasks.GET("/:id", handlers.GetTask)
 	tasks.DELETE("/:id", handlers.DeleteTask)
 	tasks.PATCH("/:id", handlers.UpdateTask)
+	tasks.GET("/:id/execution-profile", handlers.GetTaskExecutionProfile)
+	tasks.PUT("/:id/execution-profile", handlers.SetTaskExecutionProfile)
+	tasks.DELETE("/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
+	tasks.POST("/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
+	tasks.GET("/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
+	tasks.GET("/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
+	deleteBridgeNotificationSubscription := handlers.DeleteTaskBridgeNotificationSubscription
+	tasks.DELETE("/:id/notifications/bridges/:subscription_id", deleteBridgeNotificationSubscription)
+	tasks.GET("/:id/reviews", handlers.ListTaskReviews)
 	tasks.POST("/:id/publish", handlers.PublishTask)
 	tasks.POST("/:id/start", handlers.StartTask)
 	tasks.POST("/:id/cancel", handlers.CancelTask)
@@ -220,12 +229,18 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 
 	taskRuns := api.Group("/task-runs")
 	taskRuns.GET("/:id", handlers.GetTaskRun)
+	taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
+	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
 	taskRuns.POST("/:id/claim", handlers.ClaimTaskRun)
 	taskRuns.POST("/:id/start", handlers.StartTaskRun)
 	taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
 	taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)
 	taskRuns.POST("/:id/fail", handlers.FailTaskRun)
 	taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
+
+	taskReviews := api.Group("/task-reviews")
+	taskReviews.GET("/:id", handlers.GetTaskRunReview)
+	taskReviews.POST("/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
 }
 
 func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {

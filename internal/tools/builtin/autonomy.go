@@ -73,6 +73,20 @@ var autonomyTools = []toolspkg.Descriptor{
 		[]string{"autonomy", "tasks", "leases"},
 		[]string{"release task run", "handoff work"},
 	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskRunReviewSubmit,
+		"submit_run_review",
+		"Submit Run Review",
+		"Submit the caller session's bound task-run review verdict through the task service.",
+		autonomySubmitRunReviewInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
+		[]string{"autonomy", "tasks", "reviews"},
+		[]string{"submit_run_review", "review verdict", "task run review"},
+	),
 }
 
 func autonomyDescriptors() []toolspkg.Descriptor {
@@ -127,6 +141,23 @@ const autonomyReleaseInputSchema = `{
 	"properties":{
 		"run_id":{"type":"string"},
 		"reason":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const autonomySubmitRunReviewInputSchema = `{
+	"type":"object",
+	"required":["review_id","run_id","outcome","confidence","reason","missing_work","next_round_guidance","delivery_id"],
+	"properties":{
+		"review_id":{"type":"string"},
+		"run_id":{"type":"string"},
+		"outcome":{"type":"string","enum":["approved","rejected","blocked","error","timeout","invalid_output"]},
+		"confidence":{"type":"number","minimum":0,"maximum":1},
+		"reason":{"type":"string"},
+		"missing_work":{"type":"array","items":{"type":"string"}},
+		"next_round_guidance":{"type":"string"},
+		"review_text":{"type":"string"},
+		"delivery_id":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

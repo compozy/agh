@@ -280,6 +280,7 @@ type Config struct {
 	Extensions    ExtensionsConfig          `toml:"extensions"`
 	Tools         ToolsConfig               `toml:"tools"`
 	Automation    AutomationConfig          `toml:"automation"`
+	Task          TaskConfig                `toml:"task"`
 	Hooks         HooksConfig               `toml:"hooks"`
 	Network       NetworkConfig             `toml:"network"`
 	Autonomy      AutonomyConfig            `toml:"autonomy"`
@@ -498,6 +499,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
+		Task: DefaultTaskConfig(),
 		Network: NetworkConfig{
 			Enabled:        true,
 			DefaultChannel: "default",
@@ -588,6 +590,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	}
 	if err := c.Automation.validateWithEnv(lookup); err != nil {
 		return fmt.Errorf("validate automation config: %w", err)
+	}
+	if err := c.Task.Validate(); err != nil {
+		return fmt.Errorf("validate task config: %w", err)
 	}
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("validate hooks config: %w", err)

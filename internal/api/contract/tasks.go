@@ -9,14 +9,15 @@ import (
 
 // TaskReferencePayload is the human-meaningful task identity shared across task read models.
 type TaskReferencePayload struct {
-	ID          string             `json:"id"`
-	Identifier  string             `json:"identifier,omitempty"`
-	Title       string             `json:"title"`
-	Status      taskpkg.Status     `json:"status"`
-	Priority    taskpkg.Priority   `json:"priority,omitempty"`
-	Owner       *taskpkg.Ownership `json:"owner,omitempty"`
-	Scope       taskpkg.Scope      `json:"scope"`
-	WorkspaceID string             `json:"workspace_id,omitempty"`
+	ID             string             `json:"id"`
+	Identifier     string             `json:"identifier,omitempty"`
+	Title          string             `json:"title"`
+	Status         taskpkg.Status     `json:"status"`
+	Priority       taskpkg.Priority   `json:"priority,omitempty"`
+	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
+	Scope          taskpkg.Scope      `json:"scope"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	LatestEventSeq int64              `json:"latest_event_seq"`
 }
 
 // TaskSummaryPayload is the shared list-oriented task response payload.
@@ -35,6 +36,7 @@ type TaskSummaryPayload struct {
 	ApprovalState   taskpkg.ApprovalState            `json:"approval_state,omitempty"`
 	Draft           bool                             `json:"draft,omitempty"`
 	Owner           *taskpkg.Ownership               `json:"owner,omitempty"`
+	LatestEventSeq  int64                            `json:"latest_event_seq"`
 	CreatedBy       taskpkg.ActorIdentity            `json:"created_by"`
 	Origin          taskpkg.Origin                   `json:"origin"`
 	CreatedAt       time.Time                        `json:"created_at"`
@@ -64,6 +66,7 @@ type TaskPayload struct {
 	ApprovalState  taskpkg.ApprovalState  `json:"approval_state,omitempty"`
 	Draft          bool                   `json:"draft,omitempty"`
 	Owner          *taskpkg.Ownership     `json:"owner,omitempty"`
+	LatestEventSeq int64                  `json:"latest_event_seq"`
 	CreatedBy      taskpkg.ActorIdentity  `json:"created_by"`
 	Origin         taskpkg.Origin         `json:"origin"`
 	CreatedAt      time.Time              `json:"created_at"`
@@ -71,6 +74,32 @@ type TaskPayload struct {
 	ClosedAt       *time.Time             `json:"closed_at,omitempty"`
 	Metadata       json.RawMessage        `json:"metadata,omitempty"`
 }
+
+// TaskExecutionProfilePayload is the task-owned orchestration profile read model.
+type TaskExecutionProfilePayload = taskpkg.ExecutionProfile
+
+// SetTaskExecutionProfileRequest captures one profile replacement request.
+type SetTaskExecutionProfileRequest = taskpkg.ExecutionProfile
+
+// TaskExecutionProfileResponse wraps one execution profile response.
+type TaskExecutionProfileResponse struct {
+	Profile TaskExecutionProfilePayload `json:"profile"`
+}
+
+// TaskRunReviewPayload is the task-run review gate read model.
+type TaskRunReviewPayload = taskpkg.RunReview
+
+// CreateTaskRunReviewRequest captures one request to review a terminal task run.
+type CreateTaskRunReviewRequest = taskpkg.RunReviewRequest
+
+// SubmitTaskRunReviewVerdictRequest captures one persisted reviewer verdict write.
+type SubmitTaskRunReviewVerdictRequest struct {
+	RunID   string                   `json:"run_id"`
+	Verdict taskpkg.RunReviewVerdict `json:"verdict"`
+}
+
+// TaskRunReviewListQuery captures shared review read filters.
+type TaskRunReviewListQuery = taskpkg.RunReviewQuery
 
 // TaskDependencyPayload is the shared dependency-edge response payload.
 type TaskDependencyPayload struct {
@@ -364,6 +393,7 @@ type TaskDashboardActiveRunPayload struct {
 	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
 	Scope          taskpkg.Scope      `json:"scope"`
 	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	LatestEventSeq int64              `json:"latest_event_seq"`
 	RunID          string             `json:"run_id"`
 	RunStatus      taskpkg.RunStatus  `json:"run_status"`
 	Attempt        int                `json:"attempt"`

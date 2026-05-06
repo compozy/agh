@@ -42,6 +42,17 @@ const (
 	taskActionTimeline         = "timeline"
 	taskActionStream           = "stream"
 	taskActionTree             = "tree"
+	taskActionGetProfile       = "get_profile"
+	taskActionSetProfile       = "set_profile"
+	taskActionDeleteProfile    = "delete_profile"
+	taskActionRequestReview    = "request_review"
+	taskActionListReviews      = "list_reviews"
+	taskActionGetReview        = "get_review"
+	taskActionSubmitReview     = "submit_review"
+	taskActionCreateBridgeSub  = "create_bridge_notification_subscription"
+	taskActionListBridgeSubs   = "list_bridge_notification_subscriptions"
+	taskActionGetBridgeSub     = "get_bridge_notification_subscription"
+	taskActionDeleteBridgeSub  = "delete_bridge_notification_subscription"
 	taskActionDashboard        = "dashboard"
 	taskActionInbox            = "inbox"
 	taskActionApprove          = "approve"
@@ -280,6 +291,105 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+}
+
+// GetTaskExecutionProfile returns one task-owned execution profile.
+func (h *BaseHandlers) GetTaskExecutionProfile(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionGetProfile)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	profile, err := manager.GetExecutionProfile(c.Request.Context(), taskID, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskExecutionProfileResponse{Profile: profile})
+}
+
+// SetTaskExecutionProfile replaces one task-owned execution profile.
+func (h *BaseHandlers) SetTaskExecutionProfile(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	var req contract.SetTaskExecutionProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode task execution profile request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	profile, err := taskExecutionProfileFromRequest(taskID, &req)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionSetProfile)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	stored, err := manager.SetExecutionProfile(c.Request.Context(), taskID, profile, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskExecutionProfileResponse{Profile: stored})
+}
+
+// DeleteTaskExecutionProfile removes one persisted task-owned execution profile.
+func (h *BaseHandlers) DeleteTaskExecutionProfile(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionDeleteProfile)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	if err := manager.DeleteExecutionProfile(c.Request.Context(), taskID, actor); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // PublishTask publishes one draft task into the canonical runnable lifecycle.
@@ -1424,6 +1534,27 @@ func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error)
 	return patch, nil
 }
 
+func taskExecutionProfileFromRequest(
+	taskID string,
+	req *contract.SetTaskExecutionProfileRequest,
+) (*taskpkg.ExecutionProfile, error) {
+	trimmedID := strings.TrimSpace(taskID)
+	if trimmedID == "" {
+		return nil, NewTaskValidationError(errors.New("task id is required"))
+	}
+	if req == nil {
+		return nil, NewTaskValidationError(errors.New("task execution profile request is required"))
+	}
+	if strings.TrimSpace(req.TaskID) != "" && strings.TrimSpace(req.TaskID) != trimmedID {
+		return nil, NewTaskValidationError(fmt.Errorf(
+			"task_execution_profile.task_id must match task id %q",
+			trimmedID,
+		))
+	}
+	req.TaskID = trimmedID
+	return req, nil
+}
+
 func cancelTaskFromRequest(req contract.CancelTaskRequest) (taskpkg.CancelTask, error) {
 	cancelReq := taskpkg.CancelTask{
 		Reason:   strings.TrimSpace(req.Reason),
@@ -1606,6 +1737,7 @@ func TaskSummaryPayloadFromSummary(record taskpkg.Summary) contract.TaskSummaryP
 		ApprovalState:   record.ApprovalState,
 		Draft:           record.Draft,
 		Owner:           cloneOwnership(record.Owner),
+		LatestEventSeq:  record.LatestEventSeq,
 		CreatedBy:       record.CreatedBy,
 		Origin:          record.Origin,
 		CreatedAt:       record.CreatedAt,
@@ -1641,6 +1773,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		ApprovalState:  record.ApprovalState,
 		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
 		Owner:          cloneOwnership(record.Owner),
+		LatestEventSeq: record.LatestEventSeq,
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,

@@ -109,6 +109,229 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 	}
 }
 
+func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass worker agent provider and model to session creation", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-profile",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-profile",
+				Title:       "Profiled Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-profile",
+				TaskID:   "task-profile",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 11, 30, 0, 0, time.UTC),
+			},
+			ExecutionProfile: &taskpkg.ExecutionProfile{
+				TaskID: "task-profile",
+				Worker: taskpkg.WorkerProfile{
+					Mode:      taskpkg.WorkerModeSelect,
+					AgentName: "builder",
+					Provider:  "codex",
+					Model:     "gpt-5.4",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		createCall := sessions.createCall(0)
+		if got, want := createCall.AgentName, "builder"; got != want {
+			t.Fatalf("createCall.AgentName = %q, want %q", got, want)
+		}
+		if got, want := createCall.Provider, "codex"; got != want {
+			t.Fatalf("createCall.Provider = %q, want %q", got, want)
+		}
+		if got, want := createCall.Model, "gpt-5.4"; got != want {
+			t.Fatalf("createCall.Model = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should pass sandbox ref selection to session creation", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-sandbox-ref",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-profile",
+				Title:       "Sandbox Ref Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-sandbox-ref",
+				TaskID:   "task-sandbox-ref",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC),
+			},
+			ExecutionProfile: &taskpkg.ExecutionProfile{
+				TaskID: "task-sandbox-ref",
+				Sandbox: taskpkg.SandboxPolicy{
+					Mode:       taskpkg.SandboxModeRef,
+					SandboxRef: "task-runtime",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		createCall := sessions.createCall(0)
+		if got, want := createCall.SandboxRef, "task-runtime"; got != want {
+			t.Fatalf("createCall.SandboxRef = %q, want %q", got, want)
+		}
+		if createCall.DisableSandbox {
+			t.Fatal("createCall.DisableSandbox = true, want false")
+		}
+	})
+
+	t.Run("Should pass no sandbox selection to session creation", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-sandbox-none",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-profile",
+				Title:       "Sandbox None Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-sandbox-none",
+				TaskID:   "task-sandbox-none",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 5, 0, 0, time.UTC),
+			},
+			ExecutionProfile: &taskpkg.ExecutionProfile{
+				TaskID: "task-sandbox-none",
+				Sandbox: taskpkg.SandboxPolicy{
+					Mode: taskpkg.SandboxModeNone,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		createCall := sessions.createCall(0)
+		if !createCall.DisableSandbox {
+			t.Fatal("createCall.DisableSandbox = false, want true")
+		}
+		if got := createCall.SandboxRef; got != "" {
+			t.Fatalf("createCall.SandboxRef = %q, want empty", got)
+		}
+	})
+}
+
+func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include rendered task context in the session prompt overlay", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		overlay := &taskContextOverlayStub{overlay: "task context bundle"}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionContextOverlay(overlay),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-context",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-context",
+				Title:       "Context Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-context",
+				TaskID:   "task-context",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 10, 0, 0, time.UTC),
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		if got := sessions.createCall(0).PromptOverlay; got != "task context bundle" {
+			t.Fatalf("PromptOverlay = %q, want task context bundle", got)
+		}
+		if len(overlay.calls) != 1 ||
+			overlay.calls[0].taskID != "task-context" ||
+			overlay.calls[0].runID != "run-context" {
+			t.Fatalf("overlay calls = %#v, want task/run context", overlay.calls)
+		}
+	})
+
+	t.Run("Should fail session start when task context rendering fails", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("render failed")
+		bridge, err := newTaskSessionBridge(
+			&fakeSessionManager{},
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionContextOverlay(&taskContextOverlayStub{err: wantErr}),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-context-error",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-context",
+				Title:       "Context Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-context-error",
+				TaskID:   "task-context-error",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 15, 0, 0, time.UTC),
+			},
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("StartTaskSession() error = %v, want %v", err, wantErr)
+		}
+	})
+}
+
 func TestTaskSessionBridgeAttachTaskSessionRejectsStoppedSessions(t *testing.T) {
 	t.Parallel()
 
@@ -971,6 +1194,33 @@ func TestTaskRecoveryLivenessHelpers(t *testing.T) {
 	if got, want := firstTaskRecoveryDetail("", " detail ", "fallback"), "detail"; got != want {
 		t.Fatalf("firstTaskRecoveryDetail() = %q, want %q", got, want)
 	}
+}
+
+type taskContextOverlayCall struct {
+	taskID string
+	runID  string
+}
+
+type taskContextOverlayStub struct {
+	overlay string
+	err     error
+	calls   []taskContextOverlayCall
+}
+
+func (s *taskContextOverlayStub) TaskRunPromptOverlay(
+	_ context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	_ *taskpkg.ExecutionProfile,
+) (string, error) {
+	s.calls = append(s.calls, taskContextOverlayCall{
+		taskID: strings.TrimSpace(taskRecord.ID),
+		runID:  strings.TrimSpace(run.ID),
+	})
+	if s.err != nil {
+		return "", s.err
+	}
+	return s.overlay, nil
 }
 
 func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotency(t *testing.T) {

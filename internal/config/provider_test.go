@@ -1310,6 +1310,43 @@ func TestResolveSessionAgent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should use a runtime model override after selecting the override provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["codex"] = ProviderConfig{
+			Command:      "workspace-codex-command",
+			DefaultModel: "workspace-codex-model",
+		}
+
+		agent := AgentDef{
+			Name:     "coder",
+			Provider: "claude",
+			Command:  "agent-command",
+			Model:    "agent-model",
+			Prompt:   "prompt",
+		}
+
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, "codex", "profile-model")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+		}
+		if got, want := resolved.Provider, "codex"; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.Command, "workspace-codex-command"; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() Command = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, "profile-model"; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() Model = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should reject an unknown override provider with the wrapped provider error", func(t *testing.T) {
 		t.Parallel()
 

@@ -43,6 +43,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		ApprovalState:   taskpkg.ApprovalStatePending,
 		Draft:           false,
 		Owner:           &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+		LatestEventSeq:  17,
 		CreatedBy:       taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user-1"},
 		Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
 		CreatedAt:       now.Add(-2 * time.Hour),
@@ -55,14 +56,15 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Kind:            taskpkg.DependencyKindBlocks,
 			CreatedAt:       now.Add(-time.Hour),
 			DependsOn: taskpkg.Reference{
-				ID:          "task-blocker",
-				Identifier:  "TASK-2",
-				Title:       "Blocked task",
-				Status:      taskpkg.TaskStatusReady,
-				Priority:    taskpkg.PriorityUrgent,
-				Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
-				Scope:       taskpkg.ScopeWorkspace,
-				WorkspaceID: "ws-alpha",
+				ID:             "task-blocker",
+				Identifier:     "TASK-2",
+				Title:          "Blocked task",
+				Status:         taskpkg.TaskStatusReady,
+				Priority:       taskpkg.PriorityUrgent,
+				Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+				Scope:          taskpkg.ScopeWorkspace,
+				WorkspaceID:    "ws-alpha",
+				LatestEventSeq: 11,
 			},
 		}},
 		ActiveRun: &taskpkg.RunSummary{
@@ -84,9 +86,11 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		summaryPayload.MaxAttempts != 4 ||
 		summaryPayload.ApprovalState != taskpkg.ApprovalStatePending ||
 		summaryPayload.DependencyCount != 1 ||
+		summaryPayload.LatestEventSeq != 17 ||
 		summaryPayload.ActiveRun == nil ||
 		summaryPayload.LastActivityAt == nil ||
-		summaryPayload.Dependencies[0].DependsOn.Identifier != "TASK-2" {
+		summaryPayload.Dependencies[0].DependsOn.Identifier != "TASK-2" ||
+		summaryPayload.Dependencies[0].DependsOn.LatestEventSeq != 11 {
 		t.Fatalf("TaskSummaryPayloadFromSummary() = %#v", summaryPayload)
 	}
 
@@ -107,6 +111,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 			ApprovalState:  taskpkg.ApprovalStatePending,
 			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			LatestEventSeq: 17,
 			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user-1"},
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
 			CreatedAt:      now.Add(-2 * time.Hour),
@@ -118,6 +123,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 	if detailPayload.Summary.Priority != taskpkg.PriorityHigh ||
 		detailPayload.Task.MaxAttempts != 4 ||
 		detailPayload.Task.ApprovalPolicy != taskpkg.ApprovalPolicyManual ||
+		detailPayload.Task.LatestEventSeq != 17 ||
 		len(detailPayload.DependencyReferences) != 1 {
 		t.Fatalf("TaskDetailPayloadFromView() = %#v", detailPayload)
 	}
@@ -132,14 +138,15 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			QueuedAt: now.Add(-10 * time.Minute),
 		},
 		Task: taskpkg.Reference{
-			ID:          "task-1",
-			Identifier:  "TASK-1",
-			Title:       "Review handlers",
-			Status:      taskpkg.TaskStatusInProgress,
-			Priority:    taskpkg.PriorityHigh,
-			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			Scope:       taskpkg.ScopeWorkspace,
-			WorkspaceID: "ws-alpha",
+			ID:             "task-1",
+			Identifier:     "TASK-1",
+			Title:          "Review handlers",
+			Status:         taskpkg.TaskStatusInProgress,
+			Priority:       taskpkg.PriorityHigh,
+			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			Scope:          taskpkg.ScopeWorkspace,
+			WorkspaceID:    "ws-alpha",
+			LatestEventSeq: 19,
 		},
 		Session: &taskpkg.RunSessionRef{
 			SessionID:   "sess-1",
@@ -163,7 +170,8 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		runDetailPayload.Session.AgentName != "coder" ||
 		runDetailPayload.Summary.ToolCallCount == nil ||
 		*runDetailPayload.Summary.ToolCallCount != 3 ||
-		runDetailPayload.Task.Priority != taskpkg.PriorityHigh {
+		runDetailPayload.Task.Priority != taskpkg.PriorityHigh ||
+		runDetailPayload.Task.LatestEventSeq != 19 {
 		t.Fatalf("TaskRunDetailPayloadFromView() = %#v", runDetailPayload)
 	}
 	if nilSession := core.TaskRunSessionPayloadFromSession(nil); nilSession != nil {
@@ -259,6 +267,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 				TaskOwner:      &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
 				Scope:          taskpkg.ScopeWorkspace,
 				WorkspaceID:    "ws-alpha",
+				LatestEventSeq: 21,
 				RunID:          "run-1",
 				RunStatus:      taskpkg.TaskRunStatusRunning,
 				Attempt:        2,
@@ -281,6 +290,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 	})
 	if dashboardPayload.Queue.Depth[0].NetworkChannel != "builders" ||
 		dashboardPayload.ActiveRuns.Items[0].RunID != "run-1" ||
+		dashboardPayload.ActiveRuns.Items[0].LatestEventSeq != 21 ||
 		len(dashboardPayload.StatusBreakdown) != 1 ||
 		dashboardPayload.StatusBreakdown[0].Status != taskpkg.TaskStatusInProgress ||
 		dashboardPayload.Freshness.Status != "live" {
@@ -297,13 +307,14 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			UnreadCount: 1,
 			Items: []observe.TaskInboxItem{{
 				Task: taskpkg.Reference{
-					ID:          "task-1",
-					Identifier:  "TASK-1",
-					Title:       "Review handlers",
-					Status:      taskpkg.TaskStatusBlocked,
-					Priority:    taskpkg.PriorityHigh,
-					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-alpha",
+					ID:             "task-1",
+					Identifier:     "TASK-1",
+					Title:          "Review handlers",
+					Status:         taskpkg.TaskStatusBlocked,
+					Priority:       taskpkg.PriorityHigh,
+					Scope:          taskpkg.ScopeWorkspace,
+					WorkspaceID:    "ws-alpha",
+					LatestEventSeq: 23,
 				},
 				Lane:             observe.TaskInboxLaneApprovals,
 				ApprovalPolicy:   taskpkg.ApprovalPolicyManual,
@@ -321,6 +332,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		}},
 	})
 	if inboxPayload.Groups[0].Items[0].Run == nil ||
+		inboxPayload.Groups[0].Items[0].Task.LatestEventSeq != 23 ||
 		inboxPayload.Groups[0].Items[0].Triage.LastSeenActivityAt == nil ||
 		inboxPayload.Groups[0].Items[0].BlockingReason != "awaiting_approval" {
 		t.Fatalf("TaskInboxPayloadFromView() = %#v", inboxPayload)

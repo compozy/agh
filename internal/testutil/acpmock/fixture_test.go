@@ -380,6 +380,60 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		t.Fatalf("augmented turn.Name = %q, want %q", got, want)
 	}
 
+	startupAugmentedPrompt := strings.Join([]string{
+		"Session instructions (treat as system guidance for this conversation):",
+		"",
+		"You are alpha.",
+		"",
+		"User request:",
+		"",
+		"<agh-situation-context>",
+		`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
+		"</agh-situation-context>",
+		"",
+		"<current-available-skills>",
+		`  <skill name="agh-session-guide">Guide session usage.</skill>`,
+		"</current-available-skills>",
+		"",
+		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
+		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
+		"Use `agh__skill_view` to load full instructions for any skill.",
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"",
+		"hello alpha",
+	}, "\n")
+	turn, err = alpha.SelectTurn(
+		startupAugmentedPrompt,
+		1,
+		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	)
+	if err != nil {
+		t.Fatalf("alpha.SelectTurn(startup augmented prompt) error = %v", err)
+	}
+	if got, want := turn.Name, "alpha-hello"; got != want {
+		t.Fatalf("startup augmented turn.Name = %q, want %q", got, want)
+	}
+
+	memoryAugmentedPrompt := strings.Join([]string{
+		"Relevant durable memory for this turn:",
+		"- Auth [workspace]",
+		"",
+		"User message:",
+		"hello alpha",
+	}, "\n")
+	turn, err = alpha.SelectTurn(
+		memoryAugmentedPrompt,
+		1,
+		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	)
+	if err != nil {
+		t.Fatalf("alpha.SelectTurn(memory augmented prompt) error = %v", err)
+	}
+	if got, want := turn.Name, "alpha-hello"; got != want {
+		t.Fatalf("memory augmented turn.Name = %q, want %q", got, want)
+	}
+
 	networkFixture, err := LoadFixture(filepath.Join("testdata", "network_collaboration_fixture.json"))
 	if err != nil {
 		t.Fatalf("LoadFixture(network) error = %v", err)

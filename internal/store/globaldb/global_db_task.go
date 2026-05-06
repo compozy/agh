@@ -52,7 +52,15 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 const taskRunSelectColumnsSQL = `id, task_id, status, attempt, claimed_by_kind, claimed_by_ref,
 	session_id, origin_kind, origin_ref, idempotency_key, network_channel, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, coordination_channel_id, queued_at,
-	claimed_at, started_at, ended_at, error, metadata_json, result_json`
+	claimed_at, started_at, ended_at, error, metadata_json, result_json, review_required,
+	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
+	review_round, continuation_reason, missing_work_json, next_round_guidance`
+
+const taskLatestEventSeqSelectSQL = `COALESCE((
+	SELECT MAX(te.event_seq)
+	FROM task_events te
+	WHERE te.task_id = tasks.id
+), 0)`
 
 // CreateTask inserts one durable task record.
 func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
@@ -244,7 +252,7 @@ func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json
+			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`, metadata_json
 			 FROM tasks
 			 WHERE id = ?`,
 		trimmedID,
@@ -274,7 +282,7 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 		priority, max_attempts, status, approval_policy, approval_state,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-		created_at, updated_at, closed_at, metadata_json
+		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `, metadata_json
 		FROM tasks`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(normalized.Scope)),
@@ -411,50 +419,70 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
 			return err
 		}
-
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE task_runs
-			 SET task_id = ?, status = ?, attempt = ?, claimed_by_kind = ?,
-			     claimed_by_ref = ?, session_id = ?, origin_kind = ?,
-			     origin_ref = ?, idempotency_key = ?, network_channel = ?,
-			     claim_token = ?, claim_token_hash = ?, lease_until = ?,
-			     heartbeat_at = ?, coordination_channel_id = ?, queued_at = ?,
-			     claimed_at = ?, started_at = ?, ended_at = ?, error = ?,
-			     metadata_json = ?, result_json = ?
-			 WHERE id = ?`,
-			normalized.TaskID,
-			string(normalized.Status),
-			normalized.Attempt,
-			taskActorKindValue(normalized.ClaimedBy),
-			taskActorRefValue(normalized.ClaimedBy),
-			store.NullableString(normalized.SessionID),
-			string(normalized.Origin.Kind),
-			normalized.Origin.Ref,
-			store.NullableString(normalized.IdempotencyKey),
-			store.NullableString(normalized.NetworkChannel),
-			nil,
-			store.NullableString(normalized.ClaimTokenHash),
-			nullableTaskTimestamp(normalized.LeaseUntil),
-			nullableTaskTimestamp(normalized.HeartbeatAt),
-			store.NullableString(normalized.CoordinationChannelID),
-			store.FormatTimestamp(normalized.QueuedAt),
-			nullableTaskTimestamp(normalized.ClaimedAt),
-			nullableTaskTimestamp(normalized.StartedAt),
-			nullableTaskTimestamp(normalized.EndedAt),
-			store.NullableString(normalized.Error),
-			nullableTaskJSON(normalized.Metadata),
-			nullableTaskJSON(normalized.Result),
-			normalized.ID,
-		)
-		if err != nil {
-			return fmt.Errorf("store: update task run %q: %w", normalized.ID, err)
+		if err := updateTaskRunRecordWithExecutor(ctx, exec, normalized); err != nil {
+			return err
 		}
-		if err := requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, normalized.ID, "task run"); err != nil {
+		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
 			return err
 		}
 		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 	})
+}
+
+func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
+	lineage := taskRunReviewLineage(run)
+	result, err := exec.ExecContext(
+		ctx,
+		`UPDATE task_runs
+		 SET task_id = ?, status = ?, attempt = ?, claimed_by_kind = ?,
+		     claimed_by_ref = ?, session_id = ?, origin_kind = ?,
+		     origin_ref = ?, idempotency_key = ?, network_channel = ?,
+		     claim_token = ?, claim_token_hash = ?, lease_until = ?,
+		     heartbeat_at = ?, coordination_channel_id = ?, queued_at = ?,
+		     claimed_at = ?, started_at = ?, ended_at = ?, error = ?,
+		     metadata_json = ?, result_json = ?, review_required = ?,
+		     review_request_round = ?, review_policy_snapshot = ?, review_request_id = ?,
+		     parent_run_id = ?, review_id = ?, review_round = ?, continuation_reason = ?,
+		     missing_work_json = ?, next_round_guidance = ?
+		 WHERE id = ?`,
+		run.TaskID,
+		string(run.Status),
+		run.Attempt,
+		taskActorKindValue(run.ClaimedBy),
+		taskActorRefValue(run.ClaimedBy),
+		store.NullableString(run.SessionID),
+		string(run.Origin.Kind),
+		run.Origin.Ref,
+		store.NullableString(run.IdempotencyKey),
+		store.NullableString(run.NetworkChannel),
+		nil,
+		store.NullableString(run.ClaimTokenHash),
+		nullableTaskTimestamp(run.LeaseUntil),
+		nullableTaskTimestamp(run.HeartbeatAt),
+		store.NullableString(run.CoordinationChannelID),
+		store.FormatTimestamp(run.QueuedAt),
+		nullableTaskTimestamp(run.ClaimedAt),
+		nullableTaskTimestamp(run.StartedAt),
+		nullableTaskTimestamp(run.EndedAt),
+		store.NullableString(run.Error),
+		nullableTaskJSON(run.Metadata),
+		nullableTaskJSON(run.Result),
+		lineage.Required,
+		lineage.RequestRound,
+		string(lineage.PolicySnapshot),
+		store.NullableString(lineage.RequestID),
+		store.NullableString(lineage.ParentRunID),
+		store.NullableString(lineage.ReviewID),
+		lineage.ReviewRound,
+		lineage.ContinuationReason,
+		string(lineage.MissingWork),
+		lineage.NextRoundGuidance,
+		run.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: update task run %q: %w", run.ID, err)
+	}
+	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, run.ID, "task run")
 }
 
 func allowsManagedTaskRunStartSessionTransfer(current taskpkg.Run, next taskpkg.Run) bool {
@@ -739,14 +767,17 @@ func (g *GlobalDB) normalizeTaskRunForUpdate(run taskpkg.Run) (taskpkg.Run, erro
 }
 
 func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
+	lineage := taskRunReviewLineage(run)
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO task_runs (
 			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
 			idempotency_key, network_channel, claim_token, claim_token_hash, lease_until,
 			heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
-			error, metadata_json, result_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			error, metadata_json, result_json, review_required, review_request_round,
+			review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
+			continuation_reason, missing_work_json, next_round_guidance
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID,
 		run.TaskID,
 		string(run.Status),
@@ -770,6 +801,16 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 		store.NullableString(run.Error),
 		nullableTaskJSON(run.Metadata),
 		nullableTaskJSON(run.Result),
+		lineage.Required,
+		lineage.RequestRound,
+		string(lineage.PolicySnapshot),
+		store.NullableString(lineage.RequestID),
+		store.NullableString(lineage.ParentRunID),
+		store.NullableString(lineage.ReviewID),
+		lineage.ReviewRound,
+		lineage.ContinuationReason,
+		string(lineage.MissingWork),
+		lineage.NextRoundGuidance,
 	); err != nil {
 		return fmt.Errorf("store: create task run %q: %w", run.ID, err)
 	}
@@ -966,78 +1007,40 @@ func (g *GlobalDB) ensureTaskExists(ctx context.Context, taskID string) error {
 }
 
 func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
-	var (
-		record         taskpkg.Task
-		identifier     sql.NullString
-		scope          string
-		workspaceID    sql.NullString
-		parentTaskID   sql.NullString
-		networkChannel sql.NullString
-		description    sql.NullString
-		priority       string
-		maxAttempts    int
-		status         string
-		approvalPolicy string
-		approvalState  string
-		ownerKind      sql.NullString
-		ownerRef       sql.NullString
-		createdByKind  string
-		originKind     string
-		createdAtRaw   string
-		updatedAtRaw   string
-		closedAtRaw    sql.NullString
-		metadataJSON   sql.NullString
-	)
-	if err := scanner.Scan(
-		&record.ID,
-		&identifier,
-		&scope,
-		&workspaceID,
-		&parentTaskID,
-		&networkChannel,
-		&record.Title,
-		&description,
-		&priority,
-		&maxAttempts,
-		&status,
-		&approvalPolicy,
-		&approvalState,
-		&ownerKind,
-		&ownerRef,
-		&createdByKind,
-		&record.CreatedBy.Ref,
-		&originKind,
-		&record.Origin.Ref,
-		&createdAtRaw,
-		&updatedAtRaw,
-		&closedAtRaw,
-		&metadataJSON,
-	); err != nil {
-		return taskpkg.Task{}, fmt.Errorf("store: scan task: %w", err)
+	record, fields, err := scanTaskRecordColumns(scanner)
+	if err != nil {
+		return taskpkg.Task{}, err
 	}
 
 	assignScannedTaskRecord(
 		&record,
-		identifier,
-		scope,
-		workspaceID,
-		parentTaskID,
-		networkChannel,
-		description,
-		priority,
-		maxAttempts,
-		status,
-		approvalPolicy,
-		approvalState,
-		ownerKind,
-		ownerRef,
-		createdByKind,
-		originKind,
+		fields.identifier,
+		fields.scope,
+		fields.workspaceID,
+		fields.parentTaskID,
+		fields.networkChannel,
+		fields.description,
+		fields.priority,
+		fields.maxAttempts,
+		fields.status,
+		fields.approvalPolicy,
+		fields.approvalState,
+		fields.ownerKind,
+		fields.ownerRef,
+		fields.createdByKind,
+		fields.originKind,
 	)
-	if err := assignTaskRecordTimestamps(&record, createdAtRaw, updatedAtRaw, closedAtRaw); err != nil {
+	record.CurrentRunID = strings.TrimSpace(fields.currentRunID.String)
+	record.LatestEventSeq = fields.latestEventSeq
+	if err := assignTaskRecordTimestamps(
+		&record,
+		fields.createdAtRaw,
+		fields.updatedAtRaw,
+		fields.closedAtRaw,
+	); err != nil {
 		return taskpkg.Task{}, err
 	}
-	if err := assignTaskMetadata(&record.Metadata, metadataJSON, "task.metadata_json"); err != nil {
+	if err := assignTaskMetadata(&record.Metadata, fields.metadataJSON, "task.metadata_json"); err != nil {
 		return taskpkg.Task{}, err
 	}
 	record = normalizeTaskRecord(record)
@@ -1046,6 +1049,65 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 	}
 
 	return record, nil
+}
+
+type taskScanFields struct {
+	identifier     sql.NullString
+	scope          string
+	workspaceID    sql.NullString
+	parentTaskID   sql.NullString
+	networkChannel sql.NullString
+	description    sql.NullString
+	priority       string
+	maxAttempts    int
+	status         string
+	approvalPolicy string
+	approvalState  string
+	ownerKind      sql.NullString
+	ownerRef       sql.NullString
+	createdByKind  string
+	originKind     string
+	createdAtRaw   string
+	updatedAtRaw   string
+	closedAtRaw    sql.NullString
+	currentRunID   sql.NullString
+	latestEventSeq int64
+	metadataJSON   sql.NullString
+}
+
+func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, error) {
+	var record taskpkg.Task
+	var fields taskScanFields
+	if err := scanner.Scan(
+		&record.ID,
+		&fields.identifier,
+		&fields.scope,
+		&fields.workspaceID,
+		&fields.parentTaskID,
+		&fields.networkChannel,
+		&record.Title,
+		&fields.description,
+		&fields.priority,
+		&fields.maxAttempts,
+		&fields.status,
+		&fields.approvalPolicy,
+		&fields.approvalState,
+		&fields.ownerKind,
+		&fields.ownerRef,
+		&fields.createdByKind,
+		&record.CreatedBy.Ref,
+		&fields.originKind,
+		&record.Origin.Ref,
+		&fields.createdAtRaw,
+		&fields.updatedAtRaw,
+		&fields.closedAtRaw,
+		&fields.currentRunID,
+		&fields.latestEventSeq,
+		&fields.metadataJSON,
+	); err != nil {
+		return taskpkg.Task{}, taskScanFields{}, fmt.Errorf("store: scan task: %w", err)
+	}
+	return record, fields, nil
 }
 
 func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
@@ -1075,35 +1137,55 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.runErr,
 		&fields.metadataJSON,
 		&fields.resultJSON,
+		&fields.reviewRequired,
+		&fields.reviewRequestRound,
+		&fields.reviewPolicySnapshot,
+		&fields.reviewRequestID,
+		&fields.parentRunID,
+		&fields.reviewID,
+		&fields.reviewRound,
+		&fields.continuationReason,
+		&fields.missingWorkJSON,
+		&fields.nextRoundGuidance,
 	); err != nil {
 		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
 	}
-	return fields.record(run)
+	return (&fields).record(run)
 }
 
 type taskRunScanFields struct {
-	status         string
-	claimedByKind  sql.NullString
-	claimedByRef   sql.NullString
-	sessionID      sql.NullString
-	originKind     string
-	idempotencyKey sql.NullString
-	networkChannel sql.NullString
-	claimToken     sql.NullString
-	claimTokenHash sql.NullString
-	leaseUntilRaw  sql.NullString
-	heartbeatAtRaw sql.NullString
-	coordChannelID sql.NullString
-	queuedAtRaw    string
-	claimedAtRaw   sql.NullString
-	startedAtRaw   sql.NullString
-	endedAtRaw     sql.NullString
-	runErr         sql.NullString
-	metadataJSON   sql.NullString
-	resultJSON     sql.NullString
+	status               string
+	claimedByKind        sql.NullString
+	claimedByRef         sql.NullString
+	sessionID            sql.NullString
+	originKind           string
+	idempotencyKey       sql.NullString
+	networkChannel       sql.NullString
+	claimToken           sql.NullString
+	claimTokenHash       sql.NullString
+	leaseUntilRaw        sql.NullString
+	heartbeatAtRaw       sql.NullString
+	coordChannelID       sql.NullString
+	queuedAtRaw          string
+	claimedAtRaw         sql.NullString
+	startedAtRaw         sql.NullString
+	endedAtRaw           sql.NullString
+	runErr               sql.NullString
+	metadataJSON         sql.NullString
+	resultJSON           sql.NullString
+	reviewRequired       bool
+	reviewRequestRound   int
+	reviewPolicySnapshot string
+	reviewRequestID      sql.NullString
+	parentRunID          sql.NullString
+	reviewID             sql.NullString
+	reviewRound          int
+	continuationReason   string
+	missingWorkJSON      string
+	nextRoundGuidance    string
 }
 
-func (fields taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
+func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 	assignScannedTaskRunRecord(
 		&run,
 		fields.status,
@@ -1135,6 +1217,7 @@ func (fields taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 	if err := assignTaskMetadata(&run.Result, fields.resultJSON, "task_run.result_json"); err != nil {
 		return taskpkg.Run{}, err
 	}
+	run.Review = taskRunReviewLineageFromScan(fields)
 	run = normalizeTaskRunRecord(run)
 	if err := run.Validate(); err != nil {
 		return taskpkg.Run{}, err
@@ -1298,6 +1381,7 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.CurrentRunID = strings.TrimSpace(normalized.CurrentRunID)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.Status = normalized.Status.Normalize()
@@ -1367,6 +1451,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
 	normalized.RequiredCapabilities = normalizeTaskRunCapabilityIDs(normalized.RequiredCapabilities)
 	normalized.PreferredCapabilities = normalizeTaskRunCapabilityIDs(normalized.PreferredCapabilities)
+	normalized.Review = normalizeTaskRunReviewLineage(normalized.Review)
 	normalized.Error = strings.TrimSpace(normalized.Error)
 	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)
 	normalized.Result = normalizeTaskJSON(normalized.Result)
@@ -1387,6 +1472,69 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	}
 	if !normalized.HeartbeatAt.IsZero() {
 		normalized.HeartbeatAt = normalized.HeartbeatAt.UTC()
+	}
+	return normalized
+}
+
+func taskRunReviewLineage(run taskpkg.Run) taskpkg.RunReviewLineage {
+	lineage := normalizeTaskRunReviewLineage(run.Review)
+	if lineage == nil {
+		return taskpkg.RunReviewLineage{MissingWork: json.RawMessage("[]")}
+	}
+	return *lineage
+}
+
+func taskRunReviewLineageFromScan(fields *taskRunScanFields) *taskpkg.RunReviewLineage {
+	lineage := &taskpkg.RunReviewLineage{
+		Required:           fields.reviewRequired,
+		RequestRound:       fields.reviewRequestRound,
+		PolicySnapshot:     taskpkg.ReviewPolicy(strings.TrimSpace(fields.reviewPolicySnapshot)),
+		RequestID:          taskNullStringValue(fields.reviewRequestID),
+		ParentRunID:        taskNullStringValue(fields.parentRunID),
+		ReviewID:           taskNullStringValue(fields.reviewID),
+		ReviewRound:        fields.reviewRound,
+		ContinuationReason: strings.TrimSpace(fields.continuationReason),
+		MissingWork:        []byte(strings.TrimSpace(fields.missingWorkJSON)),
+		NextRoundGuidance:  strings.TrimSpace(fields.nextRoundGuidance),
+	}
+	return normalizeTaskRunReviewLineage(lineage)
+}
+
+func normalizeTaskRunReviewLineage(lineage *taskpkg.RunReviewLineage) *taskpkg.RunReviewLineage {
+	if lineage == nil {
+		return nil
+	}
+	normalized := *lineage
+	normalized.PolicySnapshot = normalized.PolicySnapshot.Normalize()
+	normalized.RequestID = strings.TrimSpace(normalized.RequestID)
+	normalized.ParentRunID = strings.TrimSpace(normalized.ParentRunID)
+	normalized.ReviewID = strings.TrimSpace(normalized.ReviewID)
+	normalized.ContinuationReason = strings.TrimSpace(normalized.ContinuationReason)
+	normalized.MissingWork = normalizeTaskRunMissingWork(normalized.MissingWork)
+	normalized.NextRoundGuidance = strings.TrimSpace(normalized.NextRoundGuidance)
+	if isEmptyTaskRunReviewLineage(normalized) {
+		return nil
+	}
+	return &normalized
+}
+
+func isEmptyTaskRunReviewLineage(lineage taskpkg.RunReviewLineage) bool {
+	return !lineage.Required &&
+		lineage.RequestRound == 0 &&
+		lineage.PolicySnapshot == "" &&
+		lineage.RequestID == "" &&
+		lineage.ParentRunID == "" &&
+		lineage.ReviewID == "" &&
+		lineage.ReviewRound == 0 &&
+		lineage.ContinuationReason == "" &&
+		string(lineage.MissingWork) == "[]" &&
+		lineage.NextRoundGuidance == ""
+}
+
+func normalizeTaskRunMissingWork(raw json.RawMessage) json.RawMessage {
+	normalized := normalizeTaskJSON(raw)
+	if len(normalized) == 0 {
+		return json.RawMessage("[]")
 	}
 	return normalized
 }
@@ -1453,6 +1601,8 @@ func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 		ApprovalState:  record.ApprovalState,
 		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
 		Owner:          record.Owner,
+		CurrentRunID:   record.CurrentRunID,
+		LatestEventSeq: record.LatestEventSeq,
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,

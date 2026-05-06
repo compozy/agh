@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -188,6 +189,82 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) 
 	if got, want := storedOther.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("other workspace run status = %q, want %q", got, want)
 	}
+}
+
+func TestGlobalDBClaimNextRunAppliesExecutionProfileEligibility(t *testing.T) {
+	t.Run("Should reject ineligible agents and missing profile capabilities", func(t *testing.T) {
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 4, 26, 12, 15, 0, 0, time.UTC)
+
+		taskRecord := taskRecordForTest("task-profile-claim")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-profile-claim", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.UpsertExecutionProfile(ctx, &taskpkg.ExecutionProfile{
+			TaskID: taskRecord.ID,
+			Worker: taskpkg.WorkerProfile{
+				Mode:                 taskpkg.WorkerModeSelect,
+				AgentName:            "codex-worker",
+				AllowedAgentNames:    []string{"codex-worker"},
+				RequiredCapabilities: []string{"golang"},
+			},
+			Participants: taskpkg.ParticipantPolicy{
+				AllowedAgentNames:    []string{"codex-worker"},
+				RequiredCapabilities: []string{"sqlite"},
+			},
+		}); err != nil {
+			t.Fatalf("UpsertExecutionProfile() error = %v", err)
+		}
+
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                taskpkg.ScopeGlobal,
+			ClaimerSessionID:     "sess-wrong-agent",
+			AgentName:            "other-worker",
+			RequiredCapabilities: []string{"golang", "sqlite"},
+			LeaseDuration:        time.Minute,
+			Now:                  now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(wrong agent) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                taskpkg.ScopeGlobal,
+			ClaimerSessionID:     "sess-missing-capability",
+			AgentName:            "codex-worker",
+			RequiredCapabilities: []string{"golang"},
+			LeaseDuration:        time.Minute,
+			Now:                  now.Add(time.Second),
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(missing capability) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		storedQueued, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(before eligible claim) error = %v", err)
+		}
+		if got, want := storedQueued.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("run status before eligible claim = %q, want %q", got, want)
+		}
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                taskpkg.ScopeGlobal,
+			ClaimerSessionID:     "sess-codex-worker",
+			AgentName:            "codex-worker",
+			RequiredCapabilities: []string{"golang", "sqlite"},
+			LeaseDuration:        time.Minute,
+			Now:                  now.Add(2 * time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(eligible) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("ClaimNextRun(eligible) run id = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestGlobalDBClaimNextRunManualAndAgentCreatedRunsSharePrimitive(t *testing.T) {
@@ -626,6 +703,143 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	}
 }
 
+func TestGlobalDBTaskCurrentRunProjection(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "Should set projection when claiming the next run",
+			run: func(t *testing.T) {
+				globalDB, ctx, taskRecord, run, now := setupCurrentRunProjectionTest(t, "claim")
+
+				claim := claimProjectionRunForTest(ctx, t, globalDB, "sess-projection-claim", now)
+				if got, want := claim.Run.ID, run.ID; got != want {
+					t.Fatalf("ClaimNextRun() run id = %q, want %q", got, want)
+				}
+				if got, want := claim.Task.CurrentRunID, run.ID; got != want {
+					t.Fatalf("claim.Task.CurrentRunID = %q, want %q", got, want)
+				}
+
+				assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, run.ID)
+				summaries, err := globalDB.ListTasks(ctx, taskpkg.Query{Scope: taskpkg.ScopeGlobal})
+				if err != nil {
+					t.Fatalf("ListTasks() error = %v", err)
+				}
+				if got, want := summaries[0].CurrentRunID, run.ID; got != want {
+					t.Fatalf("summary.CurrentRunID = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name: "Should clear projection when completing a lease",
+			run: func(t *testing.T) {
+				globalDB, ctx, taskRecord, _, now := setupCurrentRunProjectionTest(t, "complete")
+				claim := claimProjectionRunForTest(ctx, t, globalDB, "sess-projection-complete", now)
+
+				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+					RunID:      claim.Run.ID,
+					ClaimToken: claim.ClaimToken,
+					Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+					Now:        now.Add(10 * time.Second),
+				}); err != nil {
+					t.Fatalf("CompleteRunLease() error = %v", err)
+				}
+
+				assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, "")
+			},
+		},
+		{
+			name: "Should clear projection when failing a lease",
+			run: func(t *testing.T) {
+				globalDB, ctx, taskRecord, _, now := setupCurrentRunProjectionTest(t, "fail")
+				claim := claimProjectionRunForTest(ctx, t, globalDB, "sess-projection-fail", now)
+
+				if _, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+					RunID:      claim.Run.ID,
+					ClaimToken: claim.ClaimToken,
+					Failure:    taskpkg.RunFailure{Error: "worker failed"},
+					Now:        now.Add(10 * time.Second),
+				}); err != nil {
+					t.Fatalf("FailRunLease() error = %v", err)
+				}
+
+				assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, "")
+			},
+		},
+		{
+			name: "Should clear projection when releasing a lease",
+			run: func(t *testing.T) {
+				globalDB, ctx, taskRecord, _, now := setupCurrentRunProjectionTest(t, "release")
+				claim := claimProjectionRunForTest(ctx, t, globalDB, "sess-projection-release", now)
+
+				if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+					RunID:      claim.Run.ID,
+					ClaimToken: claim.ClaimToken,
+					Reason:     "handoff",
+					Now:        now.Add(10 * time.Second),
+				}); err != nil {
+					t.Fatalf("ReleaseRunLease() error = %v", err)
+				}
+
+				assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, "")
+			},
+		},
+		{
+			name: "Should clear projection when recovering an expired lease",
+			run: func(t *testing.T) {
+				globalDB := openTestGlobalDB(t)
+				ctx := testutil.Context(t)
+				now := time.Date(2026, 4, 26, 15, 0, 0, 0, time.UTC)
+				taskRecord := taskRecordForTest("task-current-projection-recovery")
+				taskRecord.Status = taskpkg.TaskStatusReady
+				if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				run := leasedRunForGlobalTest(
+					t,
+					"run-current-projection-recovery",
+					taskRecord.ID,
+					"sess-projection-recovery",
+					"expired-projection-token",
+					now.Add(-time.Minute),
+				)
+				if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+					t.Fatalf("CreateTaskRun() error = %v", err)
+				}
+				if _, err := globalDB.db.ExecContext(
+					ctx,
+					`UPDATE tasks SET current_run_id = ? WHERE id = ?`,
+					run.ID,
+					taskRecord.ID,
+				); err != nil {
+					t.Fatalf("seed current_run_id error = %v", err)
+				}
+
+				recovered, err := globalDB.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+					Now:    now,
+					Reason: "orphaned_on_boot",
+				})
+				if err != nil {
+					t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+				}
+				if got, want := len(recovered), 1; got != want {
+					t.Fatalf("len(RecoverExpiredRunLeases()) = %d, want %d", got, want)
+				}
+
+				assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, "")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.run(t)
+		})
+	}
+}
+
 func TestGlobalDBClaimNextRunReturnsSafeCoordinationChannelMetadata(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -875,6 +1089,66 @@ func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
 		Now:              time.Date(2026, 4, 26, 13, 5, 0, 0, time.UTC),
 	}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
 		t.Fatalf("ClaimNextRun(blocked) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+	}
+}
+
+func setupCurrentRunProjectionTest(
+	t *testing.T,
+	suffix string,
+) (*GlobalDB, context.Context, taskpkg.Task, taskpkg.Run, time.Time) {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)
+	taskRecord := taskRecordForTest("task-current-projection-" + suffix)
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := taskRunForTest("run-current-projection-"+suffix, taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+	return globalDB, ctx, taskRecord, run, now
+}
+
+func claimProjectionRunForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	sessionID string,
+	now time.Time,
+) taskpkg.ClaimResult {
+	t.Helper()
+
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: sessionID,
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	return claim
+}
+
+func assertTaskCurrentRunProjection(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	taskID string,
+	want string,
+) {
+	t.Helper()
+
+	taskRecord, err := globalDB.GetTask(ctx, taskID)
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", taskID, err)
+	}
+	if got := taskRecord.CurrentRunID; got != want {
+		t.Fatalf("task.CurrentRunID = %q, want %q", got, want)
 	}
 }
 

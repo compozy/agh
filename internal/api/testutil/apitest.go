@@ -24,6 +24,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/notifications"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
@@ -286,9 +287,43 @@ type StubTaskManager struct {
 		taskpkg.CancelTask,
 		taskpkg.ActorContext,
 	) (*taskpkg.Task, error)
-	MarkTaskReadFn     func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
-	ArchiveTaskFn      func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
-	DismissTaskFn      func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
+	MarkTaskReadFn        func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
+	ArchiveTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
+	DismissTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
+	GetExecutionProfileFn func(
+		context.Context,
+		string,
+		taskpkg.ActorContext,
+	) (taskpkg.ExecutionProfile, error)
+	SetExecutionProfileFn func(
+		context.Context,
+		string,
+		*taskpkg.ExecutionProfile,
+		taskpkg.ActorContext,
+	) (taskpkg.ExecutionProfile, error)
+	DeleteExecutionProfileFn func(context.Context, string, taskpkg.ActorContext) error
+	RequestRunReviewFn       func(
+		context.Context,
+		taskpkg.RunReviewRequest,
+		taskpkg.ActorContext,
+	) (taskpkg.RunReview, bool, error)
+	GetRunReviewFn    func(context.Context, string, taskpkg.ActorContext) (taskpkg.RunReview, error)
+	RecordRunReviewFn func(
+		context.Context,
+		taskpkg.RecordRunReviewRequest,
+		taskpkg.ActorContext,
+	) (taskpkg.RunReviewResult, error)
+	BindRunReviewSessionFn func(
+		context.Context,
+		taskpkg.BindRunReviewSessionRequest,
+		taskpkg.ActorContext,
+	) (taskpkg.RunReviewBinding, error)
+	LookupRunReviewForSessionFn func(
+		context.Context,
+		string,
+		taskpkg.ActorContext,
+	) (taskpkg.RunReviewBinding, error)
+	ListRunReviewsFn   func(context.Context, taskpkg.RunReviewQuery, taskpkg.ActorContext) ([]taskpkg.RunReview, error)
 	AddDependencyFn    func(context.Context, taskpkg.AddDependency, taskpkg.ActorContext) error
 	RemoveDependencyFn func(context.Context, string, string, taskpkg.ActorContext) error
 	EnqueueRunFn       func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error)
@@ -709,6 +744,106 @@ func (s StubTaskManager) DismissTask(
 		return s.DismissTaskFn(ctx, id, actor)
 	}
 	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) GetExecutionProfile(
+	ctx context.Context,
+	taskID string,
+	actor taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	if s.GetExecutionProfileFn != nil {
+		return s.GetExecutionProfileFn(ctx, taskID, actor)
+	}
+	return taskpkg.ExecutionProfile{}, taskpkg.ErrExecutionProfileNotFound
+}
+
+func (s StubTaskManager) SetExecutionProfile(
+	ctx context.Context,
+	taskID string,
+	profile *taskpkg.ExecutionProfile,
+	actor taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	if s.SetExecutionProfileFn != nil {
+		return s.SetExecutionProfileFn(ctx, taskID, profile, actor)
+	}
+	return taskpkg.ExecutionProfile{}, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) DeleteExecutionProfile(
+	ctx context.Context,
+	taskID string,
+	actor taskpkg.ActorContext,
+) error {
+	if s.DeleteExecutionProfileFn != nil {
+		return s.DeleteExecutionProfileFn(ctx, taskID, actor)
+	}
+	return taskpkg.ErrExecutionProfileNotFound
+}
+
+func (s StubTaskManager) RequestRunReview(
+	ctx context.Context,
+	req taskpkg.RunReviewRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunReview, bool, error) {
+	if s.RequestRunReviewFn != nil {
+		return s.RequestRunReviewFn(ctx, req, actor)
+	}
+	return taskpkg.RunReview{}, false, taskpkg.ErrRunReviewNotFound
+}
+
+func (s StubTaskManager) GetRunReview(
+	ctx context.Context,
+	reviewID string,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunReview, error) {
+	if s.GetRunReviewFn != nil {
+		return s.GetRunReviewFn(ctx, reviewID, actor)
+	}
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (s StubTaskManager) RecordRunReview(
+	ctx context.Context,
+	req taskpkg.RecordRunReviewRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunReviewResult, error) {
+	if s.RecordRunReviewFn != nil {
+		return s.RecordRunReviewFn(ctx, req, actor)
+	}
+	return taskpkg.RunReviewResult{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (s StubTaskManager) BindRunReviewSession(
+	ctx context.Context,
+	req taskpkg.BindRunReviewSessionRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunReviewBinding, error) {
+	if s.BindRunReviewSessionFn != nil {
+		return s.BindRunReviewSessionFn(ctx, req, actor)
+	}
+	return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (s StubTaskManager) LookupRunReviewForSession(
+	ctx context.Context,
+	sessionID string,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunReviewBinding, error) {
+	if s.LookupRunReviewForSessionFn != nil {
+		return s.LookupRunReviewForSessionFn(ctx, sessionID, actor)
+	}
+	return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (s StubTaskManager) ListRunReviews(
+	ctx context.Context,
+	query taskpkg.RunReviewQuery,
+	actor taskpkg.ActorContext,
+) ([]taskpkg.RunReview, error) {
+	if s.ListRunReviewsFn != nil {
+		return s.ListRunReviewsFn(ctx, query, actor)
+	}
+	return nil, nil
 }
 
 func (s StubTaskManager) AddDependency(
@@ -1284,7 +1419,15 @@ type StubBridgeService struct {
 	ResolveOrCreateRouteFn  func(context.Context, bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, bool, error)
 	UpsertRouteFn           func(context.Context, bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, error)
 	ListRoutesFn            func(context.Context, string) ([]bridgepkg.BridgeRoute, error)
-	ResolveDeliveryTargetFn func(
+	PutTaskSubscriptionFn   func(context.Context, bridgepkg.BridgeTaskSubscription) error
+	GetTaskSubscriptionFn   func(context.Context, string) (bridgepkg.BridgeTaskSubscription, error)
+	ListTaskSubscriptionsFn func(context.Context, bridgepkg.BridgeTaskSubscriptionQuery) (
+		[]bridgepkg.BridgeTaskSubscription,
+		error,
+	)
+	DeleteTaskSubscriptionFn func(context.Context, string) error
+	GetCursorFn              func(context.Context, notifications.CursorKey) (notifications.Cursor, error)
+	ResolveDeliveryTargetFn  func(
 		context.Context,
 		bridgepkg.ResolveDeliveryTargetRequest,
 	) (*bridgepkg.DeliveryTarget, error)
@@ -1416,6 +1559,53 @@ func (s StubBridgeService) ListRoutes(ctx context.Context, bridgeInstanceID stri
 		return s.ListRoutesFn(ctx, bridgeInstanceID)
 	}
 	return nil, nil
+}
+
+func (s StubBridgeService) PutBridgeTaskSubscription(
+	ctx context.Context,
+	subscription bridgepkg.BridgeTaskSubscription,
+) error {
+	if s.PutTaskSubscriptionFn != nil {
+		return s.PutTaskSubscriptionFn(ctx, subscription)
+	}
+	return nil
+}
+
+func (s StubBridgeService) GetBridgeTaskSubscription(
+	ctx context.Context,
+	subscriptionID string,
+) (bridgepkg.BridgeTaskSubscription, error) {
+	if s.GetTaskSubscriptionFn != nil {
+		return s.GetTaskSubscriptionFn(ctx, subscriptionID)
+	}
+	return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+}
+
+func (s StubBridgeService) ListBridgeTaskSubscriptions(
+	ctx context.Context,
+	query bridgepkg.BridgeTaskSubscriptionQuery,
+) ([]bridgepkg.BridgeTaskSubscription, error) {
+	if s.ListTaskSubscriptionsFn != nil {
+		return s.ListTaskSubscriptionsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubBridgeService) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
+	if s.DeleteTaskSubscriptionFn != nil {
+		return s.DeleteTaskSubscriptionFn(ctx, subscriptionID)
+	}
+	return bridgepkg.ErrBridgeTaskSubscriptionNotFound
+}
+
+func (s StubBridgeService) GetCursor(
+	ctx context.Context,
+	key notifications.CursorKey,
+) (notifications.Cursor, error) {
+	if s.GetCursorFn != nil {
+		return s.GetCursorFn(ctx, key)
+	}
+	return notifications.Cursor{}, notifications.ErrCursorNotFound
 }
 
 func (s StubBridgeService) ResolveDeliveryTarget(

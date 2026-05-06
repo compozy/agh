@@ -101,6 +101,90 @@ var taskTools = []toolspkg.Descriptor{
 		[]string{"tasks", "runs"},
 		[]string{"task runs", "run history"},
 	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskRunReviewRequest,
+		"task_run_review_request",
+		"Task Run Review Request",
+		"Request a persisted review for one terminal task run through the task service.",
+		taskRunReviewRequestInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "reviews"},
+		[]string{"request task review", "run review"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskRunReviewList,
+		"task_run_review_list",
+		"Task Run Review List",
+		"List persisted task-run reviews through the task service.",
+		taskRunReviewListInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "reviews"},
+		[]string{"review history", "task reviews"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskRunReviewShow,
+		"task_run_review_show",
+		"Task Run Review Show",
+		"Read one persisted task-run review through the task service.",
+		taskRunReviewShowInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "reviews"},
+		[]string{"review detail", "show task review"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskExecutionProfileGet,
+		"task_execution_profile_get",
+		"Task Execution Profile Get",
+		"Read one task execution profile through the task service.",
+		taskExecutionProfileGetInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "execution_profile"},
+		[]string{"task execution profile", "profile get"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskExecutionProfileSet,
+		"task_execution_profile_set",
+		"Task Execution Profile Set",
+		"Update one task execution profile through the task service.",
+		taskExecutionProfileSetInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "execution_profile"},
+		[]string{"task execution profile", "profile set"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskExecutionProfileDelete,
+		"task_execution_profile_delete",
+		"Task Execution Profile Delete",
+		"Delete one task execution profile through the task service.",
+		taskExecutionProfileDeleteInputSchema,
+		toolspkg.RiskDestructive,
+		false,
+		true,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "execution_profile"},
+		[]string{"task execution profile", "profile delete"},
+	),
 }
 
 func taskDescriptors() []toolspkg.Descriptor {
@@ -215,6 +299,152 @@ const taskRunListInputSchema = `{
 		"session_id":{"type":"string"},
 		"coordination_channel_id":{"type":"string"},
 		"limit":{"type":"integer"}
+	},
+	"additionalProperties":false
+}`
+
+const taskRunReviewRequestInputSchema = `{
+	"type":"object",
+	"required":["task_id","run_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"run_id":{"type":"string"},
+		"policy":{"type":"string","enum":["","on_success","on_failure","always"]},
+		"review_round":{"type":"integer"},
+		"attempt":{"type":"integer"},
+		"parent_review_id":{"type":"string"},
+		"reason":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskRunReviewListInputSchema = `{
+	"type":"object",
+	"properties":{
+		"task_id":{"type":"string"},
+		"run_id":{"type":"string"},
+		"status":{"type":"string","enum":["","requested","routed","in_review","recorded","circuit_opened","canceled"]},
+		"reviewer_session_id":{"type":"string"},
+		"limit":{"type":"integer"}
+	},
+	"additionalProperties":false
+}`
+
+const taskRunReviewShowInputSchema = `{
+	"type":"object",
+	"required":["review_id"],
+	"properties":{
+		"review_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskExecutionProfileGetInputSchema = `{
+	"type":"object",
+	"required":["task_id"],
+	"properties":{
+		"task_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskExecutionProfileDeleteInputSchema = `{
+	"type":"object",
+	"required":["task_id"],
+	"properties":{
+		"task_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskExecutionProfileSetInputSchema = `{
+	"type":"object",
+	"required":["task_id","profile"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"profile":` + taskExecutionProfileSchema + `
+	},
+	"additionalProperties":false
+}`
+
+const taskExecutionProfileSchema = `{
+	"type":"object",
+	"properties":{
+		"task_id":{"type":"string"},
+		"coordinator":` + coordinatorProfileSchema + `,
+		"worker":` + workerProfileSchema + `,
+		"review":` + reviewProfileSchema + `,
+		"participants":` + participantPolicySchema + `,
+		"sandbox":` + sandboxPolicySchema + `
+	},
+	"additionalProperties":false
+}`
+
+const coordinatorProfileSchema = `{
+	"type":"object",
+	"properties":{
+		"mode":{"type":"string","enum":["","inherit","guided"]},
+		"agent_name":{"type":"string"},
+		"provider":{"type":"string"},
+		"model":{"type":"string"},
+		"guidance":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const workerProfileSchema = `{
+	"type":"object",
+	"properties":{
+		"mode":{"type":"string","enum":["","inherit","select"]},
+		"agent_name":{"type":"string"},
+		"provider":{"type":"string"},
+		"model":{"type":"string"},
+		"allowed_agent_names":{"type":"array","items":{"type":"string"}},
+		"preferred_agent_names":{"type":"array","items":{"type":"string"}},
+		"required_capabilities":{"type":"array","items":{"type":"string"}},
+		"preferred_capabilities":{"type":"array","items":{"type":"string"}}
+	},
+	"additionalProperties":false
+}`
+
+const reviewProfileSchema = `{
+	"type":"object",
+	"properties":{
+		"agent_name":{"type":"string"},
+		"provider":{"type":"string"},
+		"model":{"type":"string"},
+		"allowed_agent_names":{"type":"array","items":{"type":"string"}},
+		"preferred_agent_names":{"type":"array","items":{"type":"string"}},
+		"allowed_channel_ids":{"type":"array","items":{"type":"string"}},
+		"preferred_channel_ids":{"type":"array","items":{"type":"string"}},
+		"allowed_peer_ids":{"type":"array","items":{"type":"string"}},
+		"preferred_peer_ids":{"type":"array","items":{"type":"string"}},
+		"required_capabilities":{"type":"array","items":{"type":"string"}},
+		"preferred_capabilities":{"type":"array","items":{"type":"string"}}
+	},
+	"additionalProperties":false
+}`
+
+const participantPolicySchema = `{
+	"type":"object",
+	"properties":{
+		"allowed_channel_ids":{"type":"array","items":{"type":"string"}},
+		"preferred_channel_ids":{"type":"array","items":{"type":"string"}},
+		"allowed_peer_ids":{"type":"array","items":{"type":"string"}},
+		"preferred_peer_ids":{"type":"array","items":{"type":"string"}},
+		"allowed_agent_names":{"type":"array","items":{"type":"string"}},
+		"preferred_agent_names":{"type":"array","items":{"type":"string"}},
+		"required_capabilities":{"type":"array","items":{"type":"string"}},
+		"preferred_capabilities":{"type":"array","items":{"type":"string"}}
+	},
+	"additionalProperties":false
+}`
+
+const sandboxPolicySchema = `{
+	"type":"object",
+	"properties":{
+		"mode":{"type":"string","enum":["","inherit","none","ref"]},
+		"sandbox_ref":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

@@ -156,34 +156,61 @@ type stubClient struct {
 	getTaskFn                 func(context.Context, string) (TaskDetailRecord, error)
 	updateTaskFn              func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
 	deleteTaskFn              func(context.Context, string) error
-	publishTaskFn             func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
-	startTaskFn               func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
-	approveTaskFn             func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
-	rejectTaskFn              func(context.Context, string) (TaskRecord, error)
-	cancelTaskFn              func(context.Context, string, CancelTaskRequest) (TaskRecord, error)
-	createChildTaskFn         func(context.Context, string, CreateTaskChildRequest) (TaskRecord, error)
-	addTaskDependencyFn       func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
-	removeTaskDependencyFn    func(context.Context, string, string) (TaskDetailRecord, error)
-	enqueueTaskRunFn          func(context.Context, string, EnqueueTaskRunRequest) (TaskRunRecord, error)
-	listTaskRunsFn            func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
-	claimTaskRunFn            func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
-	startTaskRunFn            func(context.Context, string, StartTaskRunRequest) (TaskRunRecord, error)
-	attachTaskRunSessionFn    func(context.Context, string, AttachTaskRunSessionRequest) (TaskRunRecord, error)
-	completeTaskRunFn         func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
-	failTaskRunFn             func(context.Context, string, FailTaskRunRequest) (TaskRunRecord, error)
-	cancelTaskRunFn           func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
-	agentMeFn                 func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
-	agentContextFn            func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
-	agentSpawnFn              func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
-	agentChannelsFn           func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error)
-	agentChannelRecvFn        func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
-	agentChannelSendFn        func(context.Context, string, AgentChannelSendRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
-	agentChannelReplyFn       func(context.Context, AgentChannelReplyRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
-	agentTaskClaimNextFn      func(context.Context, AgentTaskClaimNextRequest, agentidentity.Credentials) (AgentTaskNextRecord, error)
-	agentTaskHeartbeatFn      func(context.Context, string, AgentTaskHeartbeatRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
-	agentTaskCompleteFn       func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
-	agentTaskFailFn           func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
-	agentTaskReleaseFn        func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	getTaskExecutionProfileFn func(context.Context, string) (TaskExecutionProfileRecord, error)
+	setTaskExecutionProfileFn func(
+		context.Context,
+		string,
+		*TaskExecutionProfileRequest,
+	) (TaskExecutionProfileRecord, error)
+	deleteTaskExecutionProfileFn               func(context.Context, string) error
+	createTaskBridgeNotificationSubscriptionFn func(
+		context.Context,
+		string,
+		*TaskBridgeNotificationSubscriptionRequest,
+	) (TaskBridgeNotificationSubscriptionRecord, error)
+	listTaskBridgeNotificationSubscriptionsFn func(
+		context.Context,
+		string,
+		TaskBridgeNotificationSubscriptionQuery,
+	) ([]TaskBridgeNotificationSubscriptionRecord, error)
+	getTaskBridgeNotificationSubscriptionFn    func(context.Context, string, string) (TaskBridgeNotificationSubscriptionRecord, error)
+	deleteTaskBridgeNotificationSubscriptionFn func(context.Context, string, string) error
+	requestTaskRunReviewFn                     func(context.Context, string, *TaskRunReviewRequest) (TaskRunReviewRequestRecord, error)
+	listTaskRunReviewsFn                       func(context.Context, TaskRunReviewListQuery) ([]TaskRunReviewRecord, error)
+	getTaskRunReviewFn                         func(context.Context, string) (TaskRunReviewRecord, error)
+	submitTaskRunReviewVerdictFn               func(
+		context.Context,
+		string,
+		*TaskRunReviewVerdictRequest,
+	) (TaskRunReviewVerdictRecord, error)
+	publishTaskFn          func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	startTaskFn            func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	approveTaskFn          func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	rejectTaskFn           func(context.Context, string) (TaskRecord, error)
+	cancelTaskFn           func(context.Context, string, CancelTaskRequest) (TaskRecord, error)
+	createChildTaskFn      func(context.Context, string, CreateTaskChildRequest) (TaskRecord, error)
+	addTaskDependencyFn    func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
+	removeTaskDependencyFn func(context.Context, string, string) (TaskDetailRecord, error)
+	enqueueTaskRunFn       func(context.Context, string, EnqueueTaskRunRequest) (TaskRunRecord, error)
+	listTaskRunsFn         func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
+	claimTaskRunFn         func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
+	startTaskRunFn         func(context.Context, string, StartTaskRunRequest) (TaskRunRecord, error)
+	attachTaskRunSessionFn func(context.Context, string, AttachTaskRunSessionRequest) (TaskRunRecord, error)
+	completeTaskRunFn      func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
+	failTaskRunFn          func(context.Context, string, FailTaskRunRequest) (TaskRunRecord, error)
+	cancelTaskRunFn        func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
+	agentMeFn              func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
+	agentContextFn         func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
+	agentSpawnFn           func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
+	agentChannelsFn        func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error)
+	agentChannelRecvFn     func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
+	agentChannelSendFn     func(context.Context, string, AgentChannelSendRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
+	agentChannelReplyFn    func(context.Context, AgentChannelReplyRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
+	agentTaskClaimNextFn   func(context.Context, AgentTaskClaimNextRequest, agentidentity.Credentials) (AgentTaskNextRecord, error)
+	agentTaskHeartbeatFn   func(context.Context, string, AgentTaskHeartbeatRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskCompleteFn    func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskFailFn        func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskReleaseFn     func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 }
 
 var _ DaemonClient = (*stubClient)(nil)
@@ -1431,6 +1458,121 @@ func (s *stubClient) DeleteTask(ctx context.Context, id string) error {
 		return s.deleteTaskFn(ctx, id)
 	}
 	return errors.New("unexpected DeleteTask call")
+}
+
+func (s *stubClient) GetTaskExecutionProfile(
+	ctx context.Context,
+	id string,
+) (TaskExecutionProfileRecord, error) {
+	if s.getTaskExecutionProfileFn != nil {
+		return s.getTaskExecutionProfileFn(ctx, id)
+	}
+	return TaskExecutionProfileRecord{}, errors.New("unexpected GetTaskExecutionProfile call")
+}
+
+func (s *stubClient) SetTaskExecutionProfile(
+	ctx context.Context,
+	id string,
+	request *TaskExecutionProfileRequest,
+) (TaskExecutionProfileRecord, error) {
+	if s.setTaskExecutionProfileFn != nil {
+		return s.setTaskExecutionProfileFn(ctx, id, request)
+	}
+	return TaskExecutionProfileRecord{}, errors.New("unexpected SetTaskExecutionProfile call")
+}
+
+func (s *stubClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {
+	if s.deleteTaskExecutionProfileFn != nil {
+		return s.deleteTaskExecutionProfileFn(ctx, id)
+	}
+	return errors.New("unexpected DeleteTaskExecutionProfile call")
+}
+
+func (s *stubClient) CreateTaskBridgeNotificationSubscription(
+	ctx context.Context,
+	taskID string,
+	request *TaskBridgeNotificationSubscriptionRequest,
+) (TaskBridgeNotificationSubscriptionRecord, error) {
+	if s.createTaskBridgeNotificationSubscriptionFn != nil {
+		return s.createTaskBridgeNotificationSubscriptionFn(ctx, taskID, request)
+	}
+	return TaskBridgeNotificationSubscriptionRecord{}, errors.New(
+		"unexpected CreateTaskBridgeNotificationSubscription call",
+	)
+}
+
+func (s *stubClient) ListTaskBridgeNotificationSubscriptions(
+	ctx context.Context,
+	taskID string,
+	query TaskBridgeNotificationSubscriptionQuery,
+) ([]TaskBridgeNotificationSubscriptionRecord, error) {
+	if s.listTaskBridgeNotificationSubscriptionsFn != nil {
+		return s.listTaskBridgeNotificationSubscriptionsFn(ctx, taskID, query)
+	}
+	return nil, errors.New("unexpected ListTaskBridgeNotificationSubscriptions call")
+}
+
+func (s *stubClient) GetTaskBridgeNotificationSubscription(
+	ctx context.Context,
+	taskID string,
+	subscriptionID string,
+) (TaskBridgeNotificationSubscriptionRecord, error) {
+	if s.getTaskBridgeNotificationSubscriptionFn != nil {
+		return s.getTaskBridgeNotificationSubscriptionFn(ctx, taskID, subscriptionID)
+	}
+	return TaskBridgeNotificationSubscriptionRecord{}, errors.New(
+		"unexpected GetTaskBridgeNotificationSubscription call",
+	)
+}
+
+func (s *stubClient) DeleteTaskBridgeNotificationSubscription(
+	ctx context.Context,
+	taskID string,
+	subscriptionID string,
+) error {
+	if s.deleteTaskBridgeNotificationSubscriptionFn != nil {
+		return s.deleteTaskBridgeNotificationSubscriptionFn(ctx, taskID, subscriptionID)
+	}
+	return errors.New("unexpected DeleteTaskBridgeNotificationSubscription call")
+}
+
+func (s *stubClient) RequestTaskRunReview(
+	ctx context.Context,
+	runID string,
+	request *TaskRunReviewRequest,
+) (TaskRunReviewRequestRecord, error) {
+	if s.requestTaskRunReviewFn != nil {
+		return s.requestTaskRunReviewFn(ctx, runID, request)
+	}
+	return TaskRunReviewRequestRecord{}, errors.New("unexpected RequestTaskRunReview call")
+}
+
+func (s *stubClient) ListTaskRunReviews(
+	ctx context.Context,
+	query TaskRunReviewListQuery,
+) ([]TaskRunReviewRecord, error) {
+	if s.listTaskRunReviewsFn != nil {
+		return s.listTaskRunReviewsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListTaskRunReviews call")
+}
+
+func (s *stubClient) GetTaskRunReview(ctx context.Context, reviewID string) (TaskRunReviewRecord, error) {
+	if s.getTaskRunReviewFn != nil {
+		return s.getTaskRunReviewFn(ctx, reviewID)
+	}
+	return TaskRunReviewRecord{}, errors.New("unexpected GetTaskRunReview call")
+}
+
+func (s *stubClient) SubmitTaskRunReviewVerdict(
+	ctx context.Context,
+	reviewID string,
+	request *TaskRunReviewVerdictRequest,
+) (TaskRunReviewVerdictRecord, error) {
+	if s.submitTaskRunReviewVerdictFn != nil {
+		return s.submitTaskRunReviewVerdictFn(ctx, reviewID, request)
+	}
+	return TaskRunReviewVerdictRecord{}, errors.New("unexpected SubmitTaskRunReviewVerdict call")
 }
 
 func (s *stubClient) PublishTask(

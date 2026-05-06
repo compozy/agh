@@ -69,11 +69,18 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskUpdate,
 			toolspkg.ToolIDTaskCancel,
 			toolspkg.ToolIDTaskRunList,
+			toolspkg.ToolIDTaskRunReviewRequest,
+			toolspkg.ToolIDTaskRunReviewList,
+			toolspkg.ToolIDTaskRunReviewShow,
+			toolspkg.ToolIDTaskExecutionProfileGet,
+			toolspkg.ToolIDTaskExecutionProfileSet,
+			toolspkg.ToolIDTaskExecutionProfileDelete,
 			toolspkg.ToolIDTaskRunClaimNext,
 			toolspkg.ToolIDTaskRunHeartbeat,
 			toolspkg.ToolIDTaskRunComplete,
 			toolspkg.ToolIDTaskRunFail,
 			toolspkg.ToolIDTaskRunRelease,
+			toolspkg.ToolIDTaskRunReviewSubmit,
 			toolspkg.ToolIDConfigShow,
 			toolspkg.ToolIDConfigList,
 			toolspkg.ToolIDConfigGet,
@@ -247,6 +254,30 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRead], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunReviewRequest],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunReviewList],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunReviewShow],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
 		requireDescriptorRisk(
 			t,
@@ -267,6 +298,30 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUpdate], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCancel], toolspkg.RiskDestructive, false, true, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskExecutionProfileGet],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskExecutionProfileSet],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskExecutionProfileDelete],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDTaskRunClaimNext],
@@ -293,6 +348,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunFail], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunRelease], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunReviewSubmit],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		if got := descriptors[toolspkg.ToolIDTaskRunReviewSubmit].Backend.NativeName; got != "submit_run_review" {
+			t.Fatalf("submit review native name = %q, want submit_run_review", got)
+		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigShow], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigSet], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigUnset], toolspkg.RiskDestructive, false, true, false)
@@ -494,6 +560,12 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(tasks) error = %v", err)
 		}
 		if !slices.Contains(tasks, toolspkg.ToolIDTaskChildCreate) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewRequest) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewList) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewShow) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileGet) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileSet) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileDelete) ||
 			slices.Contains(tasks, toolspkg.ToolIDTaskRunClaimNext) {
 			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
 		}
@@ -507,6 +579,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDTaskRunFail,
 			toolspkg.ToolIDTaskRunHeartbeat,
 			toolspkg.ToolIDTaskRunRelease,
+			toolspkg.ToolIDTaskRunReviewSubmit,
 		}; !slices.Equal(autonomy, want) {
 			t.Fatalf("autonomy expansion = %#v, want %#v", autonomy, want)
 		}
