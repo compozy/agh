@@ -16,7 +16,7 @@ import {
   NativeSelectOption,
 } from "@agh/ui";
 
-import { AgentIcon, type AgentPayload } from "@/systems/agent";
+import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
@@ -108,23 +108,15 @@ function SessionCreateDialog({
               <FieldDescription>
                 The agent owns the default prompt, tools, and provider for this session.
               </FieldDescription>
-              <NativeSelect
-                className="w-full"
-                data-testid="session-create-agent-select"
+              <AgentCommandSelect
+                agents={agents}
+                value={trimmedSelectedAgentName || null}
+                onChange={next => onAgentChange(next ?? "")}
                 disabled={!hasAgents || isSubmitting}
-                id="session-create-agent"
-                onChange={event => onAgentChange(event.target.value)}
-                value={selectedAgentName}
-              >
-                {hasAgents ? null : (
-                  <NativeSelectOption value="">No agents available</NativeSelectOption>
-                )}
-                {agents.map(agent => (
-                  <NativeSelectOption key={agent.name} value={agent.name}>
-                    {agent.name} · {agent.provider}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                triggerId="session-create-agent"
+                triggerTestId="session-create-agent-select"
+                placeholder={hasAgents ? "Select an agent" : "No agents available"}
+              />
               {activeAgent ? (
                 <div
                   className="mt-1 flex items-center gap-1.5 text-xs text-[color:var(--color-text-tertiary)]"

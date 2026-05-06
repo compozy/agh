@@ -1,0 +1,180 @@
+import { useState } from "react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+
+import { CenteredSurface } from "@/storybook/story-layout";
+import { storyAgentNames } from "@/storybook/fintech-scenario";
+import { agentFixtures } from "@/systems/agent/mocks";
+import type { AgentPayload } from "@/systems/agent/types";
+
+import { AgentCommandSelect } from "../agent-command-select";
+import { AgentCommandMultiSelect } from "../agent-command-multi-select";
+
+const categoryByName: Record<string, string[]> = {
+  [storyAgentNames.cto]: ["Engineering", "Leadership"],
+  [storyAgentNames.platform]: ["Engineering", "Platform"],
+  [storyAgentNames.frontend]: ["Engineering", "Platform"],
+  [storyAgentNames.release]: ["Engineering", "Platform"],
+  [storyAgentNames.cfo]: ["Finance"],
+  [storyAgentNames.marketing]: ["Marketing", "Campaigns"],
+  [storyAgentNames.copywriter]: ["Marketing", "Campaigns"],
+  [storyAgentNames.product]: ["Product"],
+  [storyAgentNames.support]: ["Support"],
+  [storyAgentNames.fraud]: ["Risk", "Fraud"],
+  [storyAgentNames.compliance]: ["Risk", "Compliance"],
+};
+
+const categorizedAgents: AgentPayload[] = agentFixtures.map(agent => {
+  const category_path = categoryByName[agent.name];
+  return category_path ? { ...agent, category_path } : agent;
+});
+
+const flatAgents: AgentPayload[] = agentFixtures.slice(0, 4);
+
+function Frame({ children }: { children: React.ReactNode }) {
+  return (
+    <CenteredSurface>
+      <div className="w-[420px]">{children}</div>
+    </CenteredSurface>
+  );
+}
+
+const meta: Meta<typeof AgentCommandSelect> = {
+  title: "systems/agent/AgentCommandSelect",
+  component: AgentCommandSelect,
+  parameters: {
+    layout: "fullscreen",
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+/**
+ * Trigger displays the selected agent's name + provider + formatted category label.
+ */
+export const Selected: Story = {
+  args: {
+    agents: categorizedAgents,
+    value: storyAgentNames.cto,
+    onChange: fn(),
+    triggerTestId: "agent-command-select-trigger",
+  },
+  render: args => (
+    <Frame>
+      <AgentCommandSelect {...args} />
+    </Frame>
+  ),
+};
+
+/**
+ * Empty value: the trigger shows the placeholder.
+ */
+export const Empty: Story = {
+  args: {
+    agents: flatAgents,
+    value: null,
+    onChange: fn(),
+    triggerTestId: "agent-command-select-trigger",
+    placeholder: "Select an agent",
+  },
+  render: args => (
+    <Frame>
+      <AgentCommandSelect {...args} />
+    </Frame>
+  ),
+};
+
+/**
+ * Grouped: opening the popover reveals one CommandGroup per category and a
+ * root-level "Agents" group for uncategorized entries.
+ */
+export const Grouped: Story = {
+  args: {
+    agents: categorizedAgents,
+    value: null,
+    onChange: fn(),
+    triggerTestId: "agent-command-select-trigger",
+  },
+  render: args => (
+    <Frame>
+      <AgentCommandSelect {...args} />
+    </Frame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("agent-command-select-trigger"));
+    await waitFor(() => {
+      expect(
+        canvas.getByTestId("agent-command-group-category:Engineering/Platform")
+      ).toBeInTheDocument();
+      expect(
+        canvas.getByTestId("agent-command-group-category:Marketing/Campaigns")
+      ).toBeInTheDocument();
+    });
+  },
+};
+
+/**
+ * No-match: typing a query that matches no agent renders the empty state.
+ */
+export const NoMatch: Story = {
+  args: {
+    agents: flatAgents,
+    value: null,
+    onChange: fn(),
+    triggerTestId: "agent-command-select-trigger",
+  },
+  render: args => (
+    <Frame>
+      <AgentCommandSelect {...args} />
+    </Frame>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("agent-command-select-trigger"));
+    await userEvent.type(canvas.getByTestId("agent-command-input"), "nonexistent-agent");
+    await waitFor(() => expect(canvas.getByTestId("agent-command-empty")).toBeInTheDocument());
+  },
+};
+
+/**
+ * Multi-select harness: keeps the popover open across selections, marks each
+ * picked item with `data-checked=true`, and surfaces a selected count.
+ */
+export const MultiSelect: StoryObj<typeof AgentCommandMultiSelect> = {
+  render: () => {
+    function Harness() {
+      const [value, setValue] = useState<string[]>([storyAgentNames.cto]);
+      return (
+        <Frame>
+          <AgentCommandMultiSelect
+            agents={categorizedAgents}
+            value={value}
+            onToggle={setValue}
+            triggerTestId="agent-command-multi-trigger"
+          />
+        </Frame>
+      );
+    }
+    return <Harness />;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("agent-command-multi-trigger"));
+    await waitFor(() =>
+      expect(canvas.getByTestId(`agent-command-item-${storyAgentNames.cto}`)).toHaveAttribute(
+        "data-checked",
+        "true"
+      )
+    );
+    await userEvent.click(canvas.getByTestId(`agent-command-item-${storyAgentNames.cfo}`));
+    await waitFor(() =>
+      expect(canvas.getByTestId(`agent-command-item-${storyAgentNames.cfo}`)).toHaveAttribute(
+        "data-checked",
+        "true"
+      )
+    );
+    await expect(canvas.getByTestId("agent-command-input")).toBeInTheDocument();
+  },
+};

@@ -88,6 +88,15 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			},
 			wantErr: "agent.capabilities",
 		},
+		{
+			name: "ShouldRejectInvalidCategoryPath",
+			spec: AgentDef{
+				Name:         "coder",
+				Prompt:       "You are helpful.",
+				CategoryPath: []string{"Marketing/Sales"},
+			},
+			wantErr: "agent.category_path[0]",
+		},
 	}
 
 	for _, tt := range tests {
@@ -115,93 +124,101 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 	t.Parallel()
 
-	codec, err := NewAgentResourceCodec()
-	if err != nil {
-		t.Fatalf("NewAgentResourceCodec() error = %v", err)
-	}
-	raw, err := codec.Encode(AgentDef{
-		Name:   " coder ",
-		Prompt: " Build things. ",
-		Tools:  []string{" mcp__github__search ", "mcp__github__search", " agh__skill_* "},
-		Toolsets: []string{
-			" agh__catalog ",
-			"agh__catalog",
-		},
-		DenyTools: []string{
-			" agh__task_* ",
-			"agh__task_*",
-		},
-		Capabilities: &CapabilityCatalog{
-			Capabilities: []CapabilityDef{{
-				ID:                " build-site ",
-				Summary:           " Build the landing page. ",
-				Outcome:           " A finished landing page. ",
-				ContextNeeded:     []string{" repo ", "", " brand brief "},
-				ExecutionOutline:  []string{" inspect ", " build "},
-				ArtifactsExpected: []string{" final page "},
-			}},
-		},
-		MCPServers: []MCPServer{{
-			Name:    " github ",
-			Command: " npx ",
-			Args:    []string{" -y "},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("Encode() error = %v", err)
-	}
+	t.Run("Should canonicalize typed record spec", func(t *testing.T) {
+		t.Parallel()
 
-	got, err := codec.DecodeAndValidate(
-		context.Background(),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
-		raw,
-	)
-	if err != nil {
-		t.Fatalf("DecodeAndValidate() error = %v", err)
-	}
-	if got.Name != "coder" || got.Prompt != "Build things." {
-		t.Fatalf("decoded agent = %#v, want trimmed name and prompt", got)
-	}
-	if want := []string{
-		"mcp__github__search",
-		"agh__skill_*",
-	}; strings.Join(
-		got.Tools,
-		",",
-	) != strings.Join(
-		want,
-		",",
-	) {
-		t.Fatalf("Tools = %#v, want %#v", got.Tools, want)
-	}
-	if want := []string{"agh__catalog"}; strings.Join(got.Toolsets, ",") != strings.Join(want, ",") {
-		t.Fatalf("Toolsets = %#v, want %#v", got.Toolsets, want)
-	}
-	if want := []string{"agh__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
-		t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)
-	}
-	if gotCount, wantCount := len(got.MCPServers), 1; gotCount != wantCount {
-		t.Fatalf("len(MCPServers) = %d, want %d", gotCount, wantCount)
-	}
-	if got.MCPServers[0].Name != "github" || got.MCPServers[0].Command != "npx" {
-		t.Fatalf("MCPServers = %#v, want trimmed name/command", got.MCPServers)
-	}
-	if got.Capabilities == nil || len(got.Capabilities.Capabilities) != 1 {
-		t.Fatalf("Capabilities = %#v, want one normalized capability", got.Capabilities)
-	}
-	if got.Capabilities.Capabilities[0].ID != "build-site" {
-		t.Fatalf("Capabilities[0].ID = %q, want build-site", got.Capabilities.Capabilities[0].ID)
-	}
-	if want := []string{
-		"repo",
-		"brand brief",
-	}; strings.Join(
-		got.Capabilities.Capabilities[0].ContextNeeded,
-		",",
-	) != strings.Join(
-		want,
-		",",
-	) {
-		t.Fatalf("ContextNeeded = %#v, want %#v", got.Capabilities.Capabilities[0].ContextNeeded, want)
-	}
+		codec, err := NewAgentResourceCodec()
+		if err != nil {
+			t.Fatalf("NewAgentResourceCodec() error = %v", err)
+		}
+		raw, err := codec.Encode(AgentDef{
+			Name:   " coder ",
+			Prompt: " Build things. ",
+			Tools:  []string{" mcp__github__search ", "mcp__github__search", " agh__skill_* "},
+			Toolsets: []string{
+				" agh__catalog ",
+				"agh__catalog",
+			},
+			DenyTools: []string{
+				" agh__task_* ",
+				"agh__task_*",
+			},
+			CategoryPath: []string{" Marketing ", " Sales "},
+			Capabilities: &CapabilityCatalog{
+				Capabilities: []CapabilityDef{{
+					ID:                " build-site ",
+					Summary:           " Build the landing page. ",
+					Outcome:           " A finished landing page. ",
+					ContextNeeded:     []string{" repo ", "", " brand brief "},
+					ExecutionOutline:  []string{" inspect ", " build "},
+					ArtifactsExpected: []string{" final page "},
+				}},
+			},
+			MCPServers: []MCPServer{{
+				Name:    " github ",
+				Command: " npx ",
+				Args:    []string{" -y "},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Encode() error = %v", err)
+		}
+
+		got, err := codec.DecodeAndValidate(
+			context.Background(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
+			raw,
+		)
+		if err != nil {
+			t.Fatalf("DecodeAndValidate() error = %v", err)
+		}
+		if got.Name != "coder" || got.Prompt != "Build things." {
+			t.Fatalf("decoded agent = %#v, want trimmed name and prompt", got)
+		}
+		if want := []string{
+			"mcp__github__search",
+			"agh__skill_*",
+		}; strings.Join(
+			got.Tools,
+			",",
+		) != strings.Join(
+			want,
+			",",
+		) {
+			t.Fatalf("Tools = %#v, want %#v", got.Tools, want)
+		}
+		if want := []string{"agh__catalog"}; strings.Join(got.Toolsets, ",") != strings.Join(want, ",") {
+			t.Fatalf("Toolsets = %#v, want %#v", got.Toolsets, want)
+		}
+		if want := []string{"agh__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
+			t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)
+		}
+		if want := []string{"Marketing", "Sales"}; strings.Join(got.CategoryPath, ",") != strings.Join(want, ",") {
+			t.Fatalf("CategoryPath = %#v, want %#v", got.CategoryPath, want)
+		}
+		if gotCount, wantCount := len(got.MCPServers), 1; gotCount != wantCount {
+			t.Fatalf("len(MCPServers) = %d, want %d", gotCount, wantCount)
+		}
+		if got.MCPServers[0].Name != "github" || got.MCPServers[0].Command != "npx" {
+			t.Fatalf("MCPServers = %#v, want trimmed name/command", got.MCPServers)
+		}
+		if got.Capabilities == nil || len(got.Capabilities.Capabilities) != 1 {
+			t.Fatalf("Capabilities = %#v, want one normalized capability", got.Capabilities)
+		}
+		if got.Capabilities.Capabilities[0].ID != "build-site" {
+			t.Fatalf("Capabilities[0].ID = %q, want build-site", got.Capabilities.Capabilities[0].ID)
+		}
+		if want := []string{
+			"repo",
+			"brand brief",
+		}; strings.Join(
+			got.Capabilities.Capabilities[0].ContextNeeded,
+			",",
+		) != strings.Join(
+			want,
+			",",
+		) {
+			t.Fatalf("ContextNeeded = %#v, want %#v", got.Capabilities.Capabilities[0].ContextNeeded, want)
+		}
+	})
 }

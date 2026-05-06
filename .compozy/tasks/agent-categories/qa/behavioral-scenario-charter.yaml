@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "startup_situation": "Fresh isolated AGH QA lab with one workspace-scoped categorized agent, one bundled categorized agent, and one root-level agent. The daemon, CLI, HTTP API, UDS API, native workspace tool, and Web UI all target the same isolated AGH_HOME.",
+  "operator_intent": "Verify that AGENT.md category_path metadata is display-only but visible and byte-for-byte stable across agent-manageable surfaces and the Web category tree.",
+  "expected_business_outcome": "Operators can organize many agents into nested category paths without changing provider behavior, session creation, permissions, scheduling, workspace scoping, or root-level agent visibility.",
+  "agents": [
+    {
+      "id": "qa-operator",
+      "role": "scenario-driver",
+      "expected_behavior": "Runs CLI/API/UDS/Web checks, performs disruption probes, and compares the same categorized agent across surfaces."
+    },
+    {
+      "id": "categorized-multi",
+      "role": "provider-backed categorized agent",
+      "category_path": ["Marketing", "Sales"],
+      "expected_behavior": "Starts a normal provider-backed session and responds to a live prompt while category_path remains metadata."
+    },
+    {
+      "id": "cross-surface-verifier",
+      "role": "runtime surface verifier",
+      "expected_behavior": "Uses native workspace description, HTTP payloads, and browser evidence to confirm category_path parity."
+    }
+  ],
+  "channels": [],
+  "task_tree": {
+    "roots": [],
+    "subtasks": [],
+    "dependencies": [],
+    "runs": []
+  },
+  "provider_plan": {
+    "provider": "codex",
+    "auth_mode": "native_cli",
+    "home_policy": "operator",
+    "expected_live_sessions": 1,
+    "evidence": "evidence/provider-session-events.json"
+  },
+  "cross_surface_targets": [
+    {
+      "id": "agent.category_path:categorized-multi",
+      "expected_value": ["Marketing", "Sales"],
+      "surfaces": ["cli", "api", "uds", "runtime", "web", "provider"],
+      "evidence": [
+        "evidence/agent-info-categorized-multi.json",
+        "evidence/http-agent-categorized-multi.json",
+        "evidence/uds-native-tool-workspace-describe.json",
+        "evidence/http-native-tool-workspace-describe.json",
+        "evidence/web-browser-flow.json",
+        "evidence/provider-session-events.json"
+      ]
+    }
+  ],
+  "disruption_probes": [
+    {
+      "id": "invalid-segment-rejection",
+      "description": "A category segment containing '/' is rejected with an indexed diagnostic and omitted from public agent payloads.",
+      "evidence": ["evidence/invalid-segment-agent-list.json", "evidence/invalid-segment-http-agents.json"]
+    },
+    {
+      "id": "daemon-restart-preserves-grouping",
+      "description": "After daemon restart, category_path remains present in CLI/UDS/native-tool evidence and the Web tree flow remains valid.",
+      "evidence": ["evidence/post-restart-agent-list.json", "evidence/post-restart-uds-native-tool-workspace-describe.json"]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "evidence/agent-info-categorized-multi.json",
+      "producer": "cli-agent-info-json",
+      "used_later_by": "cross-surface category_path comparison"
+    },
+    {
+      "path": "screenshots/web-sidebar-agent-category-tree.png",
+      "producer": "browser-flow",
+      "used_later_by": "verification report and UI regression proof"
+    }
+  ]
+}

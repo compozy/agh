@@ -283,15 +283,82 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps({ agentsLoading: true, agents: undefined }));
       expect(screen.getByText("Loading agents...")).toBeInTheDocument();
     });
+
+    it("renders categorized agents grouped by category_path through the real AppSidebar", () => {
+      matchedRouteFuzzy[routeMatchKey("/agents/$name", { name: "deals" })] = true;
+      renderSidebar(
+        makeProps({
+          agents: [
+            {
+              name: "deals",
+              provider: "claude",
+              prompt: "deals",
+              category_path: ["Marketing", "Sales"],
+            },
+            {
+              name: "outreach",
+              provider: "claude",
+              prompt: "outreach",
+              category_path: ["Operations"],
+            },
+            { name: "writer", provider: "openai", prompt: "write" },
+          ],
+          sessions: [
+            {
+              id: "s_active",
+              name: "Live",
+              agent_name: "deals",
+              provider: "claude",
+              workspace_id: "ws_alpha",
+              workspace_path: "/workspace/alpha",
+              state: "active",
+              updated_at: "2026-04-06T10:00:00Z",
+              created_at: "2026-04-06T10:00:00Z",
+            },
+          ],
+        })
+      );
+
+      expect(screen.getByTestId("agent-category-Marketing")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-category-Marketing/Sales")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-category-Operations")).toBeInTheDocument();
+
+      // Active leaf preserves existing testIds and surfaces the active indicator + status dot.
+      const dealsRow = screen.getByTestId("agent-row-deals");
+      expect(dealsRow).toHaveAttribute("href", "/agents/deals");
+      expect(dealsRow).toHaveAttribute("data-active", "true");
+      expect(screen.getByTestId("agent-active-deals")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-status-dot-deals")).toBeInTheDocument();
+
+      // Root-level agent still renders alongside categories without an Uncategorized folder.
+      expect(screen.getByTestId("agent-row-writer")).toHaveAttribute("href", "/agents/writer");
+
+      // Active agent's ancestor folders expand on initial render; unrelated branches do not.
+      expect(screen.getByTestId("agent-category-Marketing")).toHaveAttribute(
+        "data-expanded",
+        "true"
+      );
+      expect(screen.getByTestId("agent-category-Marketing/Sales")).toHaveAttribute(
+        "data-expanded",
+        "true"
+      );
+      expect(screen.getByTestId("agent-category-Operations")).toHaveAttribute(
+        "data-expanded",
+        "false"
+      );
+    });
   });
 
-  describe("Nav — Workspace section", () => {
-    it("renders a Workspace section label", () => {
+  describe("Nav — Section structure", () => {
+    it("renders Dashboard, Agents, Operate, Catalog, and System section labels in order", () => {
       renderSidebar(makeProps());
       const labels = screen.getAllByTestId("sidebar-section-label");
-      expect(labels.map(node => node.textContent)).toEqual(
-        expect.arrayContaining(["Agents", "Workspace"])
-      );
+      expect(labels.map(node => node.textContent)).toEqual([
+        "Agents",
+        "Operate",
+        "Catalog",
+        "System",
+      ]);
     });
 
     it("uses JetBrains mono 9px uppercase for section headers", () => {
@@ -303,53 +370,67 @@ describe("AppSidebar", () => {
       expect(label.className).toContain("tracking-[0.14em]");
     });
 
-    it("renders the workspace navigation in the expected order", () => {
+    it("renders Dashboard above the Agents section as the first nav item", () => {
       renderSidebar(makeProps());
       const nav = screen.getByTestId("sidebar-nav");
-      const workspaceLinks = Array.from(
-        nav.querySelectorAll<HTMLAnchorElement>('a[data-testid^="nav-"]')
-      )
-        .map(link => link.getAttribute("data-testid"))
-        .filter((testId): testId is string => testId !== null && testId !== "nav-settings");
+      const firstNavLink = nav.querySelector<HTMLAnchorElement>('a[data-testid^="nav-"]');
+      expect(firstNavLink?.getAttribute("data-testid")).toBe("nav-dashboard");
+      expect(firstNavLink).toHaveAttribute("href", "/");
+    });
 
-      expect(workspaceLinks).toEqual([
+    it("renders nav items in the new grouped order (Operate → Catalog → System)", () => {
+      renderSidebar(makeProps());
+      const nav = screen.getByTestId("sidebar-nav");
+      const navLinks = Array.from(
+        nav.querySelectorAll<HTMLAnchorElement>('a[data-testid^="nav-"]')
+      ).map(link => link.getAttribute("data-testid"));
+
+      expect(navLinks).toEqual([
+        "nav-dashboard",
         "nav-network",
         "nav-tasks",
-        "nav-bridges",
         "nav-jobs",
         "nav-triggers",
         "nav-knowledge",
         "nav-skills",
+        "nav-bridges",
         "nav-sandbox",
+        "nav-settings",
       ]);
     });
 
     it.each([
+      ["dashboard", "/"],
       ["network", "/network"],
       ["tasks", "/tasks"],
-      ["bridges", "/bridges"],
       ["jobs", "/jobs"],
       ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
+      ["bridges", "/bridges"],
       ["sandbox", "/sandbox"],
+      ["settings", "/settings"],
     ])("renders %s nav item linking to %s", (testKey, href) => {
       renderSidebar(makeProps());
       expect(screen.getByTestId(`nav-${testKey}`)).toHaveAttribute("href", href);
     });
 
-    it("renders the Settings nav item in the footer", () => {
+    it("renders the Settings nav item inside the panel (not the footer)", () => {
       renderSidebar(makeProps());
-      expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/settings");
+      const nav = screen.getByTestId("sidebar-nav");
+      const footer = screen.getByTestId("sidebar-footer");
+      expect(nav).toContainElement(screen.getByTestId("nav-settings"));
+      expect(footer).not.toContainElement(screen.queryByTestId("nav-settings"));
     });
 
     it.each([
+      ["dashboard", "/"],
       ["network", "/network"],
-      ["bridges", "/bridges"],
       ["jobs", "/jobs"],
       ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
+      ["bridges", "/bridges"],
       ["sandbox", "/sandbox"],
     ])("renders 2px accent bar on active %s nav", (testKey, path) => {
       matchedRoute[path] = true;
@@ -367,7 +448,7 @@ describe("AppSidebar", () => {
       expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 
-    it("marks Settings active when the settings route matches", () => {
+    it("marks Settings active when the settings route matches (fuzzy)", () => {
       matchedRouteFuzzy["/settings"] = true;
       renderSidebar(makeProps());
       const indicator = screen.getByTestId("nav-active-settings");
@@ -377,6 +458,7 @@ describe("AppSidebar", () => {
 
     it("does not show active indicators when no route matches", () => {
       renderSidebar(makeProps());
+      expect(screen.queryByTestId("nav-active-dashboard")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-tasks")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-jobs")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-triggers")).not.toBeInTheDocument();

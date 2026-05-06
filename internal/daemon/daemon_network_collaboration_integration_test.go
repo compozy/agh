@@ -209,8 +209,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			MessageID: "msg_summary_01",
 			Direction: "delivered",
 			Kind:      "say",
-			Surface:   "thread",
-			ThreadID:  buildersThreadID,
+			Surface:   auditFieldValue("thread"),
+			ThreadID:  auditFieldValue(buildersThreadID),
 		}) == nil &&
 			channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
 			sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_summary_01"))

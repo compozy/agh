@@ -34,30 +34,9 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
 	}
 
-	agent := AgentDef{
-		Name:        NormalizeAgentName(parsed.Name),
-		Provider:    strings.TrimSpace(parsed.Provider),
-		Command:     strings.TrimSpace(parsed.Command),
-		Model:       strings.TrimSpace(parsed.Model),
-		Tools:       normalizeAgentToolPatterns(parsed.Tools),
-		Toolsets:    normalizeAgentToolsetRefs(parsed.Toolsets),
-		DenyTools:   normalizeAgentToolPatterns(parsed.DenyTools),
-		Permissions: strings.TrimSpace(parsed.Permissions),
-		Skills:      normalizeAgentSkillsConfig(parsed.Skills),
-		MCPServers:  cloneMCPServers(parsed.MCPServers),
-		Prompt:      strings.TrimSpace(parts.Body),
-		SourcePath:  filepath.Clean(path),
-	}
-	if len(parsed.Hooks) > 0 {
-		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
-		for idx := range parsed.Hooks {
-			raw := &parsed.Hooks[idx]
-			decl, convErr := raw.toHookDecl(hookspkg.HookSourceAgentDefinition, agent.Name)
-			if convErr != nil {
-				return AgentDef{}, fmt.Errorf("parse agent file %q hook %d: %w", path, idx, convErr)
-			}
-			agent.Hooks = append(agent.Hooks, decl)
-		}
+	agent, err := agentDefFromParsedFile(path, parts, parsed)
+	if err != nil {
+		return AgentDef{}, err
 	}
 
 	if err := mutate(&agent); err != nil {
@@ -65,20 +44,12 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 	}
 	agent.Name = NormalizeAgentName(agent.Name)
 	agent.Skills = normalizeAgentSkillsConfig(agent.Skills)
+	agent.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
 	if err := agent.Validate(); err != nil {
 		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
 	}
 
-	parsed.Name = agent.Name
-	parsed.Provider = strings.TrimSpace(agent.Provider)
-	parsed.Command = strings.TrimSpace(agent.Command)
-	parsed.Model = strings.TrimSpace(agent.Model)
-	parsed.Tools = cloneStrings(agent.Tools)
-	parsed.Toolsets = cloneStrings(agent.Toolsets)
-	parsed.DenyTools = cloneStrings(agent.DenyTools)
-	parsed.Permissions = strings.TrimSpace(agent.Permissions)
-	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
-	parsed.MCPServers = cloneMCPServers(agent.MCPServers)
+	applyAgentDefToParsed(&parsed, agent)
 	meta, err := yaml.Marshal(parsed)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("marshal agent file %q: %w", path, err)
@@ -91,6 +62,55 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 
 	agent.SourcePath = filepath.Clean(path)
 	return agent, nil
+}
+
+func agentDefFromParsedFile(
+	path string,
+	parts frontmatter.Parts,
+	parsed parsedAgentDef,
+) (AgentDef, error) {
+	agent := AgentDef{
+		Name:         NormalizeAgentName(parsed.Name),
+		Provider:     strings.TrimSpace(parsed.Provider),
+		Command:      strings.TrimSpace(parsed.Command),
+		Model:        strings.TrimSpace(parsed.Model),
+		Tools:        normalizeAgentToolPatterns(parsed.Tools),
+		Toolsets:     normalizeAgentToolsetRefs(parsed.Toolsets),
+		DenyTools:    normalizeAgentToolPatterns(parsed.DenyTools),
+		Permissions:  strings.TrimSpace(parsed.Permissions),
+		Skills:       normalizeAgentSkillsConfig(parsed.Skills),
+		CategoryPath: normalizeAgentCategoryPath(parsed.CategoryPath),
+		MCPServers:   cloneMCPServers(parsed.MCPServers),
+		Prompt:       strings.TrimSpace(parts.Body),
+		SourcePath:   filepath.Clean(path),
+	}
+	if len(parsed.Hooks) == 0 {
+		return agent, nil
+	}
+	agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
+	for idx := range parsed.Hooks {
+		raw := &parsed.Hooks[idx]
+		decl, convErr := raw.toHookDecl(hookspkg.HookSourceAgentDefinition, agent.Name)
+		if convErr != nil {
+			return AgentDef{}, fmt.Errorf("parse agent file %q hook %d: %w", path, idx, convErr)
+		}
+		agent.Hooks = append(agent.Hooks, decl)
+	}
+	return agent, nil
+}
+
+func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) {
+	parsed.Name = agent.Name
+	parsed.Provider = strings.TrimSpace(agent.Provider)
+	parsed.Command = strings.TrimSpace(agent.Command)
+	parsed.Model = strings.TrimSpace(agent.Model)
+	parsed.Tools = cloneStrings(agent.Tools)
+	parsed.Toolsets = cloneStrings(agent.Toolsets)
+	parsed.DenyTools = cloneStrings(agent.DenyTools)
+	parsed.Permissions = strings.TrimSpace(agent.Permissions)
+	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
+	parsed.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
+	parsed.MCPServers = cloneMCPServers(agent.MCPServers)
 }
 
 func renderAgentMarkdown(meta []byte, prompt string) []byte {

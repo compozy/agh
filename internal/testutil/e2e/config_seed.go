@@ -21,16 +21,17 @@ var socketPathCounter atomic.Uint64
 
 // AgentSeed defines one persisted AGENT.md fixture.
 type AgentSeed struct {
-	Name        string
-	Provider    string
-	Command     string
-	Model       string
-	Permissions string
-	Tools       []string
-	Toolsets    []string
-	DenyTools   []string
-	MCPServers  []aghconfig.MCPServer
-	Prompt      string
+	Name         string
+	Provider     string
+	Command      string
+	Model        string
+	Permissions  string
+	Tools        []string
+	Toolsets     []string
+	DenyTools    []string
+	CategoryPath []string
+	MCPServers   []aghconfig.MCPServer
+	Prompt       string
 }
 
 // ConfigSeedOptions configures the seeded daemon runtime config.
@@ -294,15 +295,16 @@ func WriteAgentDef(t testing.TB, homePaths aghconfig.HomePaths, seed AgentSeed) 
 }
 
 type seedAgentDefFrontmatter struct {
-	Name        string                 `yaml:"name"`
-	Provider    string                 `yaml:"provider,omitempty"`
-	Command     string                 `yaml:"command,omitempty"`
-	Model       string                 `yaml:"model,omitempty"`
-	Permissions string                 `yaml:"permissions,omitempty"`
-	Tools       []string               `yaml:"tools,omitempty"`
-	Toolsets    []string               `yaml:"toolsets,omitempty"`
-	DenyTools   []string               `yaml:"deny_tools,omitempty"`
-	MCPServers  []seedAgentMCPServerFM `yaml:"mcp_servers,omitempty"`
+	Name         string                 `yaml:"name"`
+	Provider     string                 `yaml:"provider,omitempty"`
+	Command      string                 `yaml:"command,omitempty"`
+	Model        string                 `yaml:"model,omitempty"`
+	Permissions  string                 `yaml:"permissions,omitempty"`
+	Tools        []string               `yaml:"tools,omitempty"`
+	Toolsets     []string               `yaml:"toolsets,omitempty"`
+	DenyTools    []string               `yaml:"deny_tools,omitempty"`
+	CategoryPath []string               `yaml:"category_path,omitempty"`
+	MCPServers   []seedAgentMCPServerFM `yaml:"mcp_servers,omitempty"`
 }
 
 type seedAgentMCPServerFM struct {
@@ -320,15 +322,16 @@ func renderSeedAgentDef(seed AgentSeed) (string, error) {
 	}
 
 	metadata := seedAgentDefFrontmatter{
-		Name:        name,
-		Provider:    strings.TrimSpace(seed.Provider),
-		Command:     strings.TrimSpace(seed.Command),
-		Model:       strings.TrimSpace(seed.Model),
-		Permissions: strings.TrimSpace(seed.Permissions),
-		Tools:       trimSeedValues(seed.Tools),
-		Toolsets:    trimSeedValues(seed.Toolsets),
-		DenyTools:   trimSeedValues(seed.DenyTools),
-		MCPServers:  make([]seedAgentMCPServerFM, 0, len(seed.MCPServers)),
+		Name:         name,
+		Provider:     strings.TrimSpace(seed.Provider),
+		Command:      strings.TrimSpace(seed.Command),
+		Model:        strings.TrimSpace(seed.Model),
+		Permissions:  strings.TrimSpace(seed.Permissions),
+		Tools:        trimSeedValues(seed.Tools),
+		Toolsets:     trimSeedValues(seed.Toolsets),
+		DenyTools:    trimSeedValues(seed.DenyTools),
+		CategoryPath: trimSeedValues(seed.CategoryPath),
+		MCPServers:   make([]seedAgentMCPServerFM, 0, len(seed.MCPServers)),
 	}
 	for _, server := range seed.MCPServers {
 		metadata.MCPServers = append(metadata.MCPServers, seedAgentMCPServerFM{

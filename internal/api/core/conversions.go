@@ -271,16 +271,17 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 	}
 
 	return contract.AgentPayload{
-		Name:        agent.Name,
-		Provider:    agent.Provider,
-		Command:     agent.Command,
-		Model:       agent.Model,
-		Tools:       append([]string(nil), agent.Tools...),
-		Toolsets:    append([]string(nil), agent.Toolsets...),
-		DenyTools:   append([]string(nil), agent.DenyTools...),
-		Permissions: agent.Permissions,
-		MCPServers:  mcpServers,
-		Prompt:      agent.Prompt,
+		Name:         agent.Name,
+		Provider:     agent.Provider,
+		Command:      agent.Command,
+		Model:        agent.Model,
+		Tools:        append([]string(nil), agent.Tools...),
+		Toolsets:     append([]string(nil), agent.Toolsets...),
+		DenyTools:    append([]string(nil), agent.DenyTools...),
+		Permissions:  agent.Permissions,
+		CategoryPath: append([]string(nil), agent.CategoryPath...),
+		MCPServers:   mcpServers,
+		Prompt:       agent.Prompt,
 	}
 }
 

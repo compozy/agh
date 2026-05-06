@@ -43,12 +43,20 @@ describe("fetchAgents", () => {
     mockJsonResponse(validResponse);
 
     const controller = new AbortController();
-    await fetchAgents(controller.signal);
+    await fetchAgents(null, controller.signal);
 
     await expectFetchRequest({
       path: "/api/agents",
       signal: controller.signal,
     });
+  });
+
+  it("passes workspace context to the daemon", async () => {
+    mockJsonResponse(validResponse);
+
+    await fetchAgents("ws_alpha");
+
+    await expectFetchRequest({ path: "/api/agents?workspace=ws_alpha" });
   });
 
   it("throws on non-ok response", async () => {
@@ -90,6 +98,14 @@ describe("fetchAgent", () => {
 
     expect(result).toEqual(validResponse.agent);
     await expectFetchRequest({ path: "/api/agents/claude-agent" });
+  });
+
+  it("passes workspace context when fetching one agent", async () => {
+    mockJsonResponse(validResponse);
+
+    await fetchAgent("claude-agent", "ws_alpha");
+
+    await expectFetchRequest({ path: "/api/agents/claude-agent?workspace=ws_alpha" });
   });
 
   it("throws 404 error for unknown agent", async () => {

@@ -2,7 +2,7 @@ package config
 
 import "strings"
 
-// CloneAgentDef returns a deep copy of an agent definition.
+// CloneAgentDef returns a normalized deep copy of an agent definition.
 func CloneAgentDef(agent AgentDef) AgentDef {
 	return AgentDef{
 		Name:         strings.TrimSpace(agent.Name),
@@ -14,6 +14,7 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		DenyTools:    cloneStrings(agent.DenyTools),
 		Permissions:  strings.TrimSpace(agent.Permissions),
 		Skills:       normalizeAgentSkillsConfig(agent.Skills),
+		CategoryPath: normalizeAgentCategoryPath(agent.CategoryPath),
 		MCPServers:   cloneMCPServers(agent.MCPServers),
 		Hooks:        cloneHookDecls(agent.Hooks),
 		Capabilities: agent.Capabilities.Clone(),

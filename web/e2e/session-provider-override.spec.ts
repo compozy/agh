@@ -95,7 +95,7 @@ test("operator can create a provider-override session and gets an inline resume 
   await ui.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
-  await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(
+  await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
   await expect(appPage.getByTestId("session-create-provider-select")).toHaveValue("claude");

@@ -391,7 +391,7 @@ func renderWorkspaceDetailHuman(detail WorkspaceDetailRecord) (string, error) {
 		),
 		renderHumanTable(
 			"Agents",
-			[]string{"Name", "Provider", "Model", "Permissions"},
+			[]string{"Name", "Provider", "Model", "Category", "Permissions"},
 			workspaceAgentRows(detail.Agents, true),
 		),
 		renderHumanTable(
@@ -417,7 +417,7 @@ func renderWorkspaceDetailToon(detail WorkspaceDetailRecord) (string, error) {
 		),
 		renderToonArray(
 			"agents",
-			[]string{"name", "provider", "model", "permissions"},
+			[]string{"name", "provider", "model", "category", "permissions"},
 			workspaceAgentRows(detail.Agents, false),
 		),
 		renderToonArray(
@@ -457,12 +457,19 @@ func workspaceSessionRows(items []SessionRecord, human bool) [][]string {
 func workspaceAgentRows(items []AgentRecord, human bool) [][]string {
 	rows := make([][]string, 0, len(items))
 	for _, item := range items {
-		row := []string{item.Name, item.Provider, item.Model, item.Permissions}
+		row := []string{
+			item.Name,
+			item.Provider,
+			item.Model,
+			agentCategoryLabel(item.CategoryPath),
+			item.Permissions,
+		}
 		if human {
 			row = []string{
 				stringOrDash(item.Name),
 				stringOrDash(item.Provider),
 				stringOrDash(item.Model),
+				stringOrDash(agentCategoryLabel(item.CategoryPath)),
 				stringOrDash(item.Permissions),
 			}
 		}

@@ -14,13 +14,14 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
-			Name:        "coder",
-			Provider:    "fake",
-			Command:     "codex",
-			Model:       "gpt-5.4",
-			Tools:       []string{"shell", "git"},
-			Permissions: "standard",
-			Prompt:      "You are coder.",
+			Name:         "coder",
+			Provider:     "fake",
+			Command:      "codex",
+			Model:        "gpt-5.4",
+			Tools:        []string{"shell", "git"},
+			Permissions:  "standard",
+			CategoryPath: []string{"Marketing", "Sales"},
+			Prompt:       "You are coder.",
 			MCPServers: []AgentMCPServer{{
 				Name:    "github",
 				Command: "agh-github",
@@ -58,13 +59,34 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if len(listed) != 1 || listed[0].Name != agent.Name {
 			t.Fatalf("listed agents = %#v, want one %q record", listed, agent.Name)
 		}
+		if got, want := strings.Join(listed[0].CategoryPath, ","), "Marketing,Sales"; got != want {
+			t.Fatalf("listed agent category_path = %#v, want %q", listed[0].CategoryPath, want)
+		}
+
+		listHuman, _, err := executeRootCommand(t, deps, "agent", "list", "-o", "human")
+		if err != nil {
+			t.Fatalf("agent list human error = %v", err)
+		}
+		if !strings.Contains(listHuman, "Category") || !strings.Contains(listHuman, "Marketing / Sales") {
+			t.Fatalf("agent list human output = %q, want category column", listHuman)
+		}
+
+		listToon, _, err := executeRootCommand(t, deps, "agent", "list", "-o", "toon")
+		if err != nil {
+			t.Fatalf("agent list toon error = %v", err)
+		}
+		if !strings.Contains(listToon, "agents[1]{name,provider,model,category,tool_count,permissions}:") ||
+			!strings.Contains(listToon, "Marketing / Sales") {
+			t.Fatalf("agent list toon output = %q, want category key", listToon)
+		}
 
 		human, _, err := executeRootCommand(t, deps, "agent", "info", agent.Name, "-o", "human")
 		if err != nil {
 			t.Fatalf("agent info human error = %v", err)
 		}
 		if !strings.Contains(human, "Agent") || !strings.Contains(human, agent.Name) ||
-			!strings.Contains(human, "MCP Servers") {
+			!strings.Contains(human, "MCP Servers") ||
+			!strings.Contains(human, "Marketing / Sales") {
 			t.Fatalf("agent info human output = %q, want agent details", human)
 		}
 
@@ -72,7 +94,7 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("agent info toon error = %v", err)
 		}
-		if !strings.Contains(toon, "agent{name,provider,command,model,tools,permissions,prompt}:") ||
+		if !strings.Contains(toon, "agent{name,provider,command,model,category,tools,permissions,prompt}:") ||
 			!strings.Contains(toon, agent.Name) {
 			t.Fatalf("agent info toon output = %q, want TOON agent object", toon)
 		}

@@ -6068,6 +6068,7 @@ export interface operations {
         content: {
           "application/json": {
             agents: {
+              category_path?: string[];
               command?: string;
               deny_tools?: string[];
               diagnostics?: {
@@ -9452,6 +9453,7 @@ export interface operations {
         content: {
           "application/json": {
             agent: {
+              category_path?: string[];
               command?: string;
               deny_tools?: string[];
               diagnostics?: {
@@ -12881,6 +12883,7 @@ export interface operations {
           "application/json": {
             activations: {
               agents?: {
+                category_path?: string[];
                 has_heartbeat?: boolean;
                 has_soul?: boolean;
                 id: string;
@@ -13000,6 +13003,7 @@ export interface operations {
           "application/json": {
             activation: {
               agents?: {
+                category_path?: string[];
                 has_heartbeat?: boolean;
                 has_soul?: boolean;
                 id: string;
@@ -13154,6 +13158,7 @@ export interface operations {
           "application/json": {
             activation: {
               agents?: {
+                category_path?: string[];
                 has_heartbeat?: boolean;
                 has_soul?: boolean;
                 id: string;
@@ -13342,6 +13347,7 @@ export interface operations {
           "application/json": {
             activation: {
               agents?: {
+                category_path?: string[];
                 has_heartbeat?: boolean;
                 has_soul?: boolean;
                 id: string;
@@ -13626,6 +13632,7 @@ export interface operations {
           "application/json": {
             activation: {
               agents?: {
+                category_path?: string[];
                 has_heartbeat?: boolean;
                 has_soul?: boolean;
                 id: string;
@@ -37261,6 +37268,7 @@ export interface operations {
         content: {
           "application/json": {
             agents?: {
+              category_path?: string[];
               command?: string;
               deny_tools?: string[];
               diagnostics?: {

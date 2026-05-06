@@ -21,7 +21,7 @@ import {
   useSettingsSkillsPage,
   type SkillsScopeSelection,
 } from "@/hooks/routes/use-settings-skills-page";
-import type { AgentPayload } from "@/systems/agent";
+import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
@@ -218,18 +218,14 @@ function ScopeSelector({
             description="Select the logical agent that receives the tombstone list"
             hint="AGENT.MD"
             control={
-              <NativeSelect
+              <AgentCommandSelect
+                agents={agents}
+                value={selection.agentName || null}
+                onChange={next => onSelectAgent(next ?? "")}
+                triggerTestId="settings-agent-select"
                 className="w-56"
-                data-testid="settings-page-skills-agent-select-input"
-                value={selection.agentName}
-                onChange={event => onSelectAgent(event.target.value)}
-              >
-                {agents.map(agent => (
-                  <NativeSelectOption key={agent.name} value={agent.name}>
-                    {agent.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                placeholder="Select an agent"
+              />
             }
           />
           <SettingsFieldRow

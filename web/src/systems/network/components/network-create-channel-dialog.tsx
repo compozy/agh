@@ -1,4 +1,4 @@
-import { Check, Loader2, Users } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import type { FormEvent } from "react";
 
 import {
@@ -17,8 +17,7 @@ import {
   Section,
   Textarea,
 } from "@agh/ui";
-import { cn } from "@/lib/utils";
-import { AgentIcon, type AgentPayload } from "@/systems/agent";
+import { AgentCommandMultiSelect, type AgentPayload } from "@/systems/agent";
 
 import type { NetworkCreateChannelDraft } from "../types";
 
@@ -30,8 +29,8 @@ interface NetworkCreateChannelDialogProps {
   onChannelNameChange: (value: string) => void;
   onOpenChange: (open: boolean) => void;
   onPurposeChange: (value: string) => void;
+  onAgentSelectionChange: (agentNames: string[]) => void;
   onSubmit: () => void;
-  onToggleAgent: (agentName: string) => void;
   open: boolean;
   workspaceName?: string | null;
 }
@@ -44,8 +43,8 @@ export function NetworkCreateChannelDialog({
   onChannelNameChange,
   onOpenChange,
   onPurposeChange,
+  onAgentSelectionChange,
   onSubmit,
-  onToggleAgent,
   open,
   workspaceName,
 }: NetworkCreateChannelDialogProps) {
@@ -119,48 +118,14 @@ export function NetworkCreateChannelDialog({
                   description="This workspace has no local agents to invite."
                 />
               ) : (
-                <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]">
-                  {agents.map(agent => {
-                    const isSelected = draft.selectedAgentNames.includes(agent.name);
-
-                    return (
-                      <button
-                        aria-pressed={isSelected}
-                        className={cn(
-                          "flex w-full items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors last:border-b-0",
-                          "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-                          isSelected && "bg-[color:var(--color-surface)]"
-                        )}
-                        data-testid={`network-agent-option-${agent.name}`}
-                        key={agent.name}
-                        onClick={() => onToggleAgent(agent.name)}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "flex size-4 shrink-0 items-center justify-center rounded border",
-                            isSelected
-                              ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
-                              : "border-[color:var(--color-divider)] bg-transparent text-transparent"
-                          )}
-                        >
-                          <Check className="size-3" />
-                        </span>
-                        <AgentIcon
-                          className="size-4 text-[color:var(--color-text-tertiary)]"
-                          provider={agent.provider}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-[13px] text-[color:var(--color-text-primary)]">
-                          {agent.name}
-                        </span>
-                        <Pill mono tone={isSelected ? "accent" : "neutral"}>
-                          {agent.provider}
-                        </Pill>
-                      </button>
-                    );
-                  })}
-                </div>
+                <AgentCommandMultiSelect
+                  agents={agents}
+                  value={draft.selectedAgentNames}
+                  onToggle={onAgentSelectionChange}
+                  triggerTestId="network-create-channel-agent-trigger"
+                  placeholder="Select agents"
+                  itemTestId={agent => `network-agent-option-${agent.name}`}
+                />
               )}
 
               {!workspaceName ? (

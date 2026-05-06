@@ -52,15 +52,10 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
         onChannelNameChange={channelName => setDraft(current => ({ ...current, channelName }))}
         onOpenChange={() => undefined}
         onPurposeChange={purpose => setDraft(current => ({ ...current, purpose }))}
-        onSubmit={() => undefined}
-        onToggleAgent={agentName =>
-          setDraft(current => ({
-            ...current,
-            selectedAgentNames: current.selectedAgentNames.includes(agentName)
-              ? current.selectedAgentNames.filter(name => name !== agentName)
-              : [...current.selectedAgentNames, agentName],
-          }))
+        onAgentSelectionChange={selectedAgentNames =>
+          setDraft(current => ({ ...current, selectedAgentNames }))
         }
+        onSubmit={() => undefined}
         open
         workspaceName={storyDefaultWorkspaceName}
       />

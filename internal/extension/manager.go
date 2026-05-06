@@ -807,7 +807,7 @@ func (m *Manager) AgentDefinitions() []aghconfig.AgentDef {
 			continue
 		}
 		for _, agent := range ext.agents {
-			agents = append(agents, cloneAgentDef(agent))
+			agents = append(agents, aghconfig.CloneAgentDef(agent))
 		}
 	}
 	return agents
@@ -1501,7 +1501,7 @@ func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDe
 
 	agents := make([]aghconfig.AgentDef, 0, len(loaded))
 	for _, name := range sortedKeys(loaded) {
-		agents = append(agents, cloneAgentDef(loaded[name]))
+		agents = append(agents, aghconfig.CloneAgentDef(loaded[name]))
 	}
 	return agents, nil
 }
@@ -1987,7 +1987,7 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.Hooks = append(clone.Hooks, cloneHookDecl(decl))
 	}
 	for _, agent := range ext.agents {
-		clone.Agents = append(clone.Agents, cloneAgentDef(agent))
+		clone.Agents = append(clone.Agents, aghconfig.CloneAgentDef(agent))
 	}
 	clone.Bundles = cloneBundleSpecs(ext.bundles)
 	if len(ext.skills) > 0 {
@@ -2362,31 +2362,6 @@ func sortedKeys[T any](items map[string]T) []string {
 	}
 	slices.Sort(keys)
 	return keys
-}
-
-func cloneMCPServer(server aghconfig.MCPServer) aghconfig.MCPServer {
-	cloned := server
-	cloned.Args = slices.Clone(server.Args)
-	cloned.Env = cloneStringMap(server.Env)
-	cloned.SecretEnv = cloneStringMap(server.SecretEnv)
-	return cloned
-}
-
-func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
-	cloned := agent
-	cloned.Tools = slices.Clone(agent.Tools)
-	cloned.Toolsets = slices.Clone(agent.Toolsets)
-	cloned.DenyTools = slices.Clone(agent.DenyTools)
-	cloned.Capabilities = agent.Capabilities.Clone()
-	cloned.MCPServers = make([]aghconfig.MCPServer, 0, len(agent.MCPServers))
-	for _, server := range agent.MCPServers {
-		cloned.MCPServers = append(cloned.MCPServers, cloneMCPServer(server))
-	}
-	cloned.Hooks = make([]hookspkg.HookDecl, 0, len(agent.Hooks))
-	for _, decl := range agent.Hooks {
-		cloned.Hooks = append(cloned.Hooks, cloneHookDecl(decl))
-	}
-	return cloned
 }
 
 func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {

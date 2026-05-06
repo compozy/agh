@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { UIProvider } from "@agh/ui";
 import { storyCompany } from "@/storybook/fintech-scenario";
 import type { AgentPayload } from "@/systems/agent";
 import type { SettingsSkillsSection } from "@/systems/settings";
@@ -182,7 +184,11 @@ describe("SkillsSettingsPage", () => {
     pageState.isLoading = true;
     pageState.envelope = null;
     pageState.draft = null;
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-loading")).toBeInTheDocument();
   });
 
@@ -190,14 +196,22 @@ describe("SkillsSettingsPage", () => {
     pageState.error = new Error("skills boom");
     pageState.envelope = null;
     pageState.draft = null;
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-error")).toHaveTextContent("skills boom");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
   it("renders disabled-skill items and marketplace fields separately from the status line", () => {
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-status-line")).toHaveTextContent(
       "12 discovered"
     );
@@ -217,7 +231,11 @@ describe("SkillsSettingsPage", () => {
 
   it("shows the applied label for disabled skills when the draft is clean", () => {
     pageState.lastDisabledLabel = "Saved · applied immediately";
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-disabled-applied")).toHaveTextContent(
       "applied immediately"
     );
@@ -226,7 +244,11 @@ describe("SkillsSettingsPage", () => {
   it("wires disabled-skill save controls and prioritizes dirty state over stale labels", () => {
     pageState.isDisabledDirty = true;
     pageState.lastDisabledLabel = "Saved · applied immediately";
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-disabled-dirty")).toHaveTextContent(
       "Unsaved changes"
     );
@@ -240,7 +262,11 @@ describe("SkillsSettingsPage", () => {
 
   it("shows the applied label for policy settings when the draft is clean", () => {
     pageState.lastPolicyLabel = "Saved · restart required to apply";
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-policy-applied")).toHaveTextContent(
       "restart required"
     );
@@ -249,7 +275,11 @@ describe("SkillsSettingsPage", () => {
   it("wires policy save controls and prioritizes dirty state over stale labels", () => {
     pageState.isPolicyDirty = true;
     pageState.lastPolicyLabel = "Saved · restart required to apply";
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-policy-dirty")).toHaveTextContent(
       "Unsaved changes"
     );
@@ -259,13 +289,21 @@ describe("SkillsSettingsPage", () => {
   });
 
   it("toggles a disabled-skill entry via the per-item switch", () => {
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     fireEvent.click(screen.getByTestId("settings-page-skills-disabled-toggle-alpha"));
     expect(pageState.toggleDisabled).toHaveBeenCalledWith("alpha");
   });
 
   it("deep-links to the operational Skills route for managing skills", () => {
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     const link = screen.getByTestId("settings-page-skills-link-skills");
     expect(link).toHaveAttribute("href", "/skills");
   });
@@ -285,7 +323,11 @@ describe("SkillsSettingsPage", () => {
     pageState.selectedAgent = agentFixture;
     pageState.selectedWorkspaceContext = workspaceFixture;
 
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
 
     expect(screen.getByTestId("settings-page-skills-scope-label")).toHaveTextContent(
       "scope: agent coder"
@@ -293,7 +335,7 @@ describe("SkillsSettingsPage", () => {
     expect(screen.getByTestId("settings-page-skills-workspace-context-summary")).toHaveTextContent(
       "context: polybot"
     );
-    expect(screen.getByTestId("settings-page-skills-agent-select-input")).toHaveValue("coder");
+    expect(screen.getByTestId("settings-agent-select")).toHaveTextContent("coder");
     expect(screen.getByTestId("settings-page-skills-workspace-context-input")).toHaveValue(
       "ws-polybot"
     );
@@ -306,24 +348,33 @@ describe("SkillsSettingsPage", () => {
   it("wires the scope controls to the page hook callbacks", () => {
     pageState.availableScopes = ["global", "agent"];
 
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
 
     fireEvent.click(screen.getByTestId("settings-page-skills-scope-agent"));
     expect(pageState.selectAgentScope).toHaveBeenCalledTimes(1);
   });
 
-  it("wires the agent selectors to the page hook callbacks", () => {
+  it("wires the agent selectors to the page hook callbacks", async () => {
+    const user = userEvent.setup();
     pageState.availableScopes = ["global", "agent"];
     pageState.selection = { scope: "agent", agentName: "coder", workspaceId: "ws-polybot" };
     pageState.selectedAgent = agentFixture;
     pageState.selectedWorkspaceContext = workspaceFixture;
+    pageState.agents = [agentFixture, { name: "writer", provider: "claude", prompt: "" }];
 
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
 
-    fireEvent.change(screen.getByTestId("settings-page-skills-agent-select-input"), {
-      target: { value: "coder" },
-    });
-    expect(pageState.selectAgent).toHaveBeenCalledWith("coder");
+    await user.click(screen.getByTestId("settings-agent-select"));
+    await user.click(screen.getByTestId("agent-command-item-writer"));
+    expect(pageState.selectAgent).toHaveBeenCalledWith("writer");
 
     fireEvent.change(screen.getByTestId("settings-page-skills-workspace-context-input"), {
       target: { value: "" },
@@ -334,13 +385,21 @@ describe("SkillsSettingsPage", () => {
   it("renders the restart banner when the restart banner state reports visible", () => {
     pageState.restart.isVisible = true;
     pageState.restart.isRestartRequired = true;
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-restart-banner")).toBeInTheDocument();
   });
 
   it("shows a save error when the disabled-skills mutation fails", () => {
     pageState.saveDisabledError = "server exploded";
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     expect(screen.getByTestId("settings-page-skills-disabled-error")).toHaveTextContent(
       "server exploded"
     );
@@ -353,7 +412,11 @@ describe("SkillsSettingsPage", () => {
       config: { ...envelope.config, disabled_skills: [] },
     };
     pageState.draft = { ...envelope.config, disabled_skills: [] };
-    render(<SkillsSettingsPage />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
     const empty = screen.getByTestId("settings-page-skills-disabled-empty");
     expect(empty).toBeInTheDocument();
     expect(empty).toHaveAttribute("data-slot", "empty");

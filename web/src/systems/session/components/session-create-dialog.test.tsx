@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { UIProvider } from "@agh/ui";
 import type { AgentPayload } from "@/systems/agent";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
@@ -81,20 +83,28 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-provider-runtime")).toHaveTextContent("acp");
   });
 
-  it("preselects the incoming agent name in the agent picker", () => {
-    render(<SessionCreateDialog {...makeProps({ selectedAgentName: "codex-agent" })} />);
+  it("preselects the incoming agent name in the agent picker trigger", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog {...makeProps({ selectedAgentName: "codex-agent" })} />
+      </UIProvider>
+    );
 
-    const agentSelect = screen.getByTestId("session-create-agent-select") as HTMLSelectElement;
-    expect(agentSelect.value).toBe("codex-agent");
+    const trigger = screen.getByTestId("session-create-agent-select");
+    expect(trigger).toHaveTextContent("codex-agent");
   });
 
-  it("calls onAgentChange when the operator picks a different agent", () => {
+  it("calls onAgentChange when the operator picks a different agent", async () => {
+    const user = userEvent.setup();
     const onAgentChange = vi.fn();
-    render(<SessionCreateDialog {...makeProps({ onAgentChange })} />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog {...makeProps({ onAgentChange })} />
+      </UIProvider>
+    );
 
-    fireEvent.change(screen.getByTestId("session-create-agent-select"), {
-      target: { value: "codex-agent" },
-    });
+    await user.click(screen.getByTestId("session-create-agent-select"));
+    await user.click(screen.getByTestId("agent-command-item-codex-agent"));
     expect(onAgentChange).toHaveBeenCalledWith("codex-agent");
   });
 

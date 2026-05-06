@@ -156,17 +156,18 @@ type SessionRepairActionPayload struct {
 
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
-	Name        string                   `json:"name"`
-	Provider    string                   `json:"provider"`
-	Command     string                   `json:"command,omitempty"`
-	Model       string                   `json:"model,omitempty"`
-	Tools       []string                 `json:"tools,omitempty"`
-	Toolsets    []string                 `json:"toolsets,omitempty"`
-	DenyTools   []string                 `json:"deny_tools,omitempty"`
-	Permissions string                   `json:"permissions,omitempty"`
-	MCPServers  []AgentMCPServerJSON     `json:"mcp_servers,omitempty"`
-	Prompt      string                   `json:"prompt"`
-	Diagnostics []AgentDiagnosticPayload `json:"diagnostics,omitempty"`
+	Name         string                   `json:"name"`
+	Provider     string                   `json:"provider"`
+	Command      string                   `json:"command,omitempty"`
+	Model        string                   `json:"model,omitempty"`
+	Tools        []string                 `json:"tools,omitempty"`
+	Toolsets     []string                 `json:"toolsets,omitempty"`
+	DenyTools    []string                 `json:"deny_tools,omitempty"`
+	Permissions  string                   `json:"permissions,omitempty"`
+	CategoryPath []string                 `json:"category_path,omitempty"`
+	MCPServers   []AgentMCPServerJSON     `json:"mcp_servers,omitempty"`
+	Prompt       string                   `json:"prompt"`
+	Diagnostics  []AgentDiagnosticPayload `json:"diagnostics,omitempty"`
 }
 
 // AgentDiagnosticPayload reports one malformed agent definition encountered during discovery.

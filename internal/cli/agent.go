@@ -100,14 +100,15 @@ func agentListBundle(items []AgentRecord) outputBundle {
 		items,
 		items,
 		"Agents",
-		[]string{"Name", "Provider", "Model", "Tools", "Permissions"},
+		[]string{"Name", "Provider", "Model", "Category", "Tools", "Permissions"},
 		"agents",
-		[]string{"name", "provider", "model", "tool_count", "permissions"},
+		[]string{"name", "provider", "model", "category", "tool_count", "permissions"},
 		func(item AgentRecord) []string {
 			return []string{
 				stringOrDash(item.Name),
 				stringOrDash(item.Provider),
 				stringOrDash(item.Model),
+				stringOrDash(agentCategoryLabel(item.CategoryPath)),
 				strconv.Itoa(len(item.Tools)),
 				stringOrDash(item.Permissions),
 			}
@@ -117,6 +118,7 @@ func agentListBundle(items []AgentRecord) outputBundle {
 				item.Name,
 				item.Provider,
 				item.Model,
+				agentCategoryLabel(item.CategoryPath),
 				strconv.Itoa(len(item.Tools)),
 				item.Permissions,
 			}
@@ -133,6 +135,7 @@ func agentBundle(item AgentRecord) outputBundle {
 				{Label: "Provider", Value: stringOrDash(item.Provider)},
 				{Label: "Command", Value: stringOrDash(item.Command)},
 				{Label: "Model", Value: stringOrDash(item.Model)},
+				{Label: "Category", Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
 				{Label: "Tools", Value: stringOrDash(strings.Join(item.Tools, ", "))},
 				{Label: "Permissions", Value: stringOrDash(item.Permissions)},
 			})
@@ -150,17 +153,27 @@ func agentBundle(item AgentRecord) outputBundle {
 			return renderHumanBlocks(base, mcp, prompt), nil
 		},
 		toon: func() (string, error) {
+			// Detail output emits tool names; list output keeps the table dense with tool_count.
 			return renderToonObject("agent", []string{
-				"name", "provider", "command", "model", "tools", "permissions", "prompt",
+				"name", "provider", "command", "model", "category", "tools", "permissions", "prompt",
 			}, []string{
 				item.Name,
 				item.Provider,
 				item.Command,
 				item.Model,
+				agentCategoryLabel(item.CategoryPath),
 				strings.Join(item.Tools, "|"),
 				item.Permissions,
 				item.Prompt,
 			}), nil
 		},
 	}
+}
+
+func agentCategoryLabel(path []string) string {
+	if len(path) == 0 {
+		return ""
+	}
+	// AGENT.md category paths render as a single space-delimited CLI path.
+	return strings.Join(path, " / ")
 }
