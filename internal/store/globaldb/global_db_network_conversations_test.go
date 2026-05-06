@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
 	"slices"
@@ -352,16 +351,24 @@ func seedLegacyNetworkConversationDatabase(t *testing.T, path string) {
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	db, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		statements := []string{
-			`CREATE TABLE schema_migrations (
-				version    INTEGER PRIMARY KEY,
-				name       TEXT NOT NULL,
-				checksum   TEXT NOT NULL,
-				applied_at TEXT NOT NULL
-			);`,
-			`CREATE UNIQUE INDEX idx_schema_migrations_name ON schema_migrations(name);`,
-			`CREATE TABLE network_timeline_log (
+	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(legacy) error = %v", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Fatalf("legacy db.Close() error = %v", closeErr)
+		}
+	}()
+
+	if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:networkConversationMigrationVersion-1]); err != nil {
+		t.Fatalf("RunMigrations(legacy seed) error = %v", err)
+	}
+
+	statements := []string{
+		`DROP TABLE IF EXISTS network_timeline_log;`,
+		`DROP TABLE IF EXISTS network_audit_log;`,
+		`CREATE TABLE network_timeline_log (
 				message_id     TEXT PRIMARY KEY,
 				session_id     TEXT,
 				channel        TEXT NOT NULL,
@@ -379,11 +386,11 @@ func seedLegacyNetworkConversationDatabase(t *testing.T, path string) {
 				body_json      TEXT NOT NULL,
 				timestamp      TEXT NOT NULL
 			);`,
-			`CREATE INDEX idx_net_timeline_channel_ts ON network_timeline_log(channel, timestamp, message_id);`,
-			`CREATE INDEX idx_net_timeline_peer_from_ts ON network_timeline_log(peer_from, timestamp, message_id);`,
-			`CREATE INDEX idx_net_timeline_peer_to_ts ON network_timeline_log(peer_to, timestamp, message_id);`,
-			`CREATE INDEX idx_net_timeline_kind_ts ON network_timeline_log(kind, timestamp, message_id);`,
-			`CREATE TABLE network_audit_log (
+		`CREATE INDEX idx_net_timeline_channel_ts ON network_timeline_log(channel, timestamp, message_id);`,
+		`CREATE INDEX idx_net_timeline_peer_from_ts ON network_timeline_log(peer_from, timestamp, message_id);`,
+		`CREATE INDEX idx_net_timeline_peer_to_ts ON network_timeline_log(peer_to, timestamp, message_id);`,
+		`CREATE INDEX idx_net_timeline_kind_ts ON network_timeline_log(kind, timestamp, message_id);`,
+		`CREATE TABLE network_audit_log (
 				id         TEXT PRIMARY KEY,
 				session_id TEXT NOT NULL,
 				direction  TEXT NOT NULL,
@@ -396,35 +403,12 @@ func seedLegacyNetworkConversationDatabase(t *testing.T, path string) {
 				size       INTEGER NOT NULL,
 				timestamp  TEXT NOT NULL
 			);`,
-			`CREATE INDEX idx_net_audit_ts ON network_audit_log(timestamp);`,
-			`CREATE INDEX idx_net_audit_session ON network_audit_log(session_id);`,
-		}
-		for _, stmt := range statements {
-			if _, err := db.ExecContext(ctx, stmt); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(legacy) error = %v", err)
+		`CREATE INDEX idx_net_audit_ts ON network_audit_log(timestamp);`,
+		`CREATE INDEX idx_net_audit_session ON network_audit_log(session_id);`,
 	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Fatalf("legacy db.Close() error = %v", closeErr)
-		}
-	}()
-
-	for _, record := range appliedMigrationRecordsThrough(t, 16) {
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
-			record.Version,
-			record.Name,
-			record.Checksum,
-			store.FormatTimestamp(record.AppliedAt),
-		); err != nil {
-			t.Fatalf("insert schema migration %d error = %v", record.Version, err)
+	for _, stmt := range statements {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("apply legacy network statement error = %v", err)
 		}
 	}
 
@@ -485,30 +469,6 @@ func seedLegacyNetworkConversationDatabase(t *testing.T, path string) {
 	); err != nil {
 		t.Fatalf("insert legacy audit error = %v", err)
 	}
-}
-
-func appliedMigrationRecordsThrough(t *testing.T, count int) []store.MigrationRecord {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(seed) error = %v", err)
-	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Fatalf("seed db.Close() error = %v", closeErr)
-		}
-	}()
-	if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:count]); err != nil {
-		t.Fatalf("RunMigrations(seed) error = %v", err)
-	}
-	records, err := store.AppliedMigrations(ctx, db)
-	if err != nil {
-		t.Fatalf("AppliedMigrations(seed) error = %v", err)
-	}
-	return records
 }
 
 func insertThread(t *testing.T, db *sql.DB, channel string, threadID string, rootMessageID string) {

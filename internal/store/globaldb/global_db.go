@@ -679,7 +679,6 @@ var globalSchemaStatements = appendSchemaStatements(
 	);`,
 		`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
 	},
-	networkConversationSchemaStatements,
 	bridgeTaskSubscriptionSchemaStatements(),
 	resources.SchemaStatements(),
 )
