@@ -26,8 +26,8 @@ const categoryByName: Record<string, string[]> = {
 
 export function withStoryAgentCategories(agents: AgentPayload[]): AgentPayload[] {
   return agents.map(agent => {
-    const category_path = categoryByName[agent.name];
-    return category_path ? { ...agent, category_path } : agent;
+    const categoryPath = categoryByName[agent.name];
+    return categoryPath ? { ...agent, category_path: categoryPath } : agent;
   });
 }
 
@@ -43,7 +43,11 @@ const groupedAgents: AgentPayload[] = [
   ...categorizedAgents,
 ];
 
-function Frame({ children }: { children: React.ReactNode }) {
+interface FrameProps {
+  children: React.ReactNode;
+}
+
+function Frame({ children }: FrameProps) {
   return (
     <CenteredSurface>
       <div className="w-full max-w-md">{children}</div>
