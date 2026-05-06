@@ -1662,6 +1662,21 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 	if got := len(contextPayload.ContextBlocks); got != 1 {
 		t.Fatalf("len(contextPayload.ContextBlocks) = %d, want 1", got)
 	}
+
+	unmatchedPayload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{
+		PayloadBase: PayloadBase{Event: HookContextPreCompact},
+		Reason:      "manual",
+		Strategy:    "summarize",
+	})
+	if err != nil {
+		t.Fatalf("DispatchContextPreCompact(unmatched) error = %v, want nil", err)
+	}
+	if unmatchedPayload.Reason != "manual" || unmatchedPayload.Strategy != "summarize" {
+		t.Fatalf("unmatchedPayload = %#v, want unchanged compaction reason/strategy", unmatchedPayload)
+	}
+	if got := len(unmatchedPayload.ContextBlocks); got != 0 {
+		t.Fatalf("len(unmatchedPayload.ContextBlocks) = %d, want 0 for unmatched hook", got)
+	}
 }
 
 func TestHooksDispatchSessionPostCreate(t *testing.T) {

@@ -1080,7 +1080,6 @@ func (m *Manager) recordInboundAudit(result RouteResult, persisted map[string]st
 func (m *Manager) recordSentDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
 	if durable {
 		m.recordSentObserved(sessionID, envelope)
-		return
 	}
 	m.recordAuditSent(ctx, sessionID, envelope)
 }
@@ -1088,7 +1087,6 @@ func (m *Manager) recordSentDelivery(ctx context.Context, sessionID string, enve
 func (m *Manager) recordReceivedDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
 	if durable {
 		m.recordReceivedObserved(sessionID, envelope)
-		return
 	}
 	m.recordAuditReceived(ctx, sessionID, envelope)
 }

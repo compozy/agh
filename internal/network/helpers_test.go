@@ -9,7 +9,7 @@ import (
 func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	t.Parallel()
 
-	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindSay, KindCapability, KindReceipt, KindTrace}
+	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindCapability, KindReceipt, KindTrace}
 	for _, kind := range validKinds {
 		t.Run("ShouldValidateKnownKind"+string(kind), func(t *testing.T) {
 			t.Parallel()
@@ -70,9 +70,6 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	}
 	if got := (WhoisBody{}).Kind(); got != KindWhois {
 		t.Fatalf("WhoisBody.Kind() = %q, want %q", got, KindWhois)
-	}
-	if got := (SayBody{}).Kind(); got != KindSay {
-		t.Fatalf("SayBody.Kind() = %q, want %q", got, KindSay)
 	}
 	if got := (SayBody{}).Kind(); got != KindSay {
 		t.Fatalf("SayBody.Kind() = %q, want %q", got, KindSay)

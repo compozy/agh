@@ -211,6 +211,8 @@ func TestAuditWriterRecordsCapabilityTransfersAsCapabilityAudits(t *testing.T) {
 }
 
 func TestAuditWriterRecordsRepeatedGreetHeartbeatsOnlyAsAuditRows(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should keep greet heartbeat coalescing out of the audit sink", func(t *testing.T) {
 		t.Parallel()
 

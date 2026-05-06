@@ -309,7 +309,7 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		if got, want := messageID, "msg-store-send"; got != want {
 			t.Fatalf("Send() messageID = %q, want %q", got, want)
 		}
-		if got, want := conversations.publishCountAtWrite, 0; got != want {
+		if got, want := conversations.publishCountAtWriteValue(), 0; got != want {
 			t.Fatalf("publish count at conversation write = %d, want %d", got, want)
 		}
 		if got, want := transport.Count(), 1; got != want {
@@ -386,7 +386,7 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 
 		manager.handleInboundMessage(payload)
 		prompter.waitForCalls(t, 1)
-		if got, want := conversations.promptCountAtWrite, 0; got != want {
+		if got, want := conversations.promptCountAtWriteValue(), 0; got != want {
 			t.Fatalf("prompt count at conversation write = %d, want %d", got, want)
 		}
 		entry := conversations.entry(0)
@@ -1633,6 +1633,34 @@ func TestManagerAuditHelpersDelegateToWriter(t *testing.T) {
 	}
 }
 
+func TestManagerDurableConversationDeliveryStillWritesAuditRows(t *testing.T) {
+	t.Parallel()
+
+	auditor := &recordingAuditWriter{}
+	manager := &Manager{
+		auditor: auditor,
+		logger:  discardManagerLogger(),
+	}
+	envelope := withDirectSurface(Envelope{
+		ID:      "msg-durable-audit",
+		Kind:    KindSay,
+		Channel: "builders",
+		From:    "coder.sess-abc",
+		To:      stringPtr("reviewer.sess-xyz"),
+		WorkID:  stringPtr("work_durable_audit"),
+	})
+
+	manager.recordSentDelivery(context.Background(), "sess-a", envelope, true)
+	manager.recordReceivedDelivery(context.Background(), "sess-a", envelope, true)
+
+	if got, want := len(auditor.sent), 1; got != want {
+		t.Fatalf("durable sent audit count = %d, want %d", got, want)
+	}
+	if got, want := len(auditor.received), 1; got != want {
+		t.Fatalf("durable received audit count = %d, want %d", got, want)
+	}
+}
+
 func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing.T) {
 	t.Parallel()
 
@@ -1740,6 +1768,18 @@ func (s *recordingConversationStore) entry(index int) store.NetworkConversationM
 		return store.NetworkConversationMessage{}
 	}
 	return s.entries[index]
+}
+
+func (s *recordingConversationStore) publishCountAtWriteValue() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.publishCountAtWrite
+}
+
+func (s *recordingConversationStore) promptCountAtWriteValue() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.promptCountAtWrite
 }
 
 type recordingAuditWriter struct {

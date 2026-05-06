@@ -848,6 +848,17 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		Ext:         cloneExtensionMap(req.Ext),
 	}
 
+	if isConversationKind(envelope.Kind) &&
+		envelope.Surface != nil &&
+		*envelope.Surface == SurfaceDirect &&
+		envelope.To != nil {
+		directID, _, _, err := DirectRoomIdentity(channel, envelope.From, *envelope.To)
+		if err != nil {
+			return Envelope{}, err
+		}
+		envelope.DirectID = ptrString(directID)
+	}
+
 	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
 		return Envelope{}, err
 	}
@@ -1070,7 +1081,7 @@ func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) (Delivery, bool) {
 }
 
 func localPeerMatchesConversation(peer LocalPeer, envelope Envelope) bool {
-	if envelope.Surface == nil || *envelope.Surface != SurfaceDirect || envelope.IsDirected() {
+	if envelope.Surface == nil || *envelope.Surface != SurfaceDirect {
 		return true
 	}
 	if envelope.DirectID == nil {

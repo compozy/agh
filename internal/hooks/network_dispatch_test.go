@@ -21,12 +21,16 @@ func TestDispatchNetworkHooksUseAsyncObservationPayloads(t *testing.T) {
 	decls := make([]HookDecl, 0, len(events))
 	executors := make(map[string]Executor, len(events))
 	for _, event := range events {
+		matcher := &NetworkMatcher{Channel: "builders", Surface: "thread"}
+		if event == HookNetworkDirectRoomOpened {
+			matcher.Surface = "direct"
+		}
 		name := event.String()
 		decls = append(decls, HookDecl{
 			Name:         name,
 			Event:        event,
 			Mode:         HookModeAsync,
-			Matcher:      HookMatcher{NetworkMatcher: &NetworkMatcher{Channel: "builders", Surface: "thread"}},
+			Matcher:      HookMatcher{NetworkMatcher: matcher},
 			ExecutorKind: HookExecutorNative,
 		})
 		executors[name] = NewTypedNativeExecutor(
@@ -82,7 +86,7 @@ func TestDispatchNetworkHooksUseAsyncObservationPayloads(t *testing.T) {
 }
 
 func networkDispatchTestPayload(event HookEvent) NetworkPayload {
-	return NetworkPayload{
+	payload := NetworkPayload{
 		PayloadBase: PayloadBase{
 			Event:     event,
 			Timestamp: time.Date(2026, time.May, 5, 12, 0, 0, 0, time.UTC),
@@ -101,4 +105,10 @@ func networkDispatchTestPayload(event HookEvent) NetworkPayload {
 		TraceID:     "trace-hooks-01",
 		CausationID: "cause-hooks-01",
 	}
+	if event == HookNetworkDirectRoomOpened {
+		payload.Surface = "direct"
+		payload.ThreadID = ""
+		payload.DirectID = "direct_99401d24bee62651d189e5a561785466"
+	}
+	return payload
 }

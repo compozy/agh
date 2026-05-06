@@ -13,6 +13,8 @@ func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 		ID:          "msg-bench-direct",
 		Kind:        KindSay,
 		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr(testDirectRef().DirectID),
 		From:        "coder.sess-bench",
 		To:          stringPtr("reviewer.sess-bench"),
 		WorkID:      stringPtr("work_bench-direct"),
