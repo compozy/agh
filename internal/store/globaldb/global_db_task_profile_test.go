@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -17,6 +18,9 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)
+		createdAt := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		updatedAt := createdAt.Add(time.Hour)
+		globalDB.now = func() time.Time { return createdAt }
 		if err := globalDB.CreateTask(ctx, taskRecordForTest("task-profile-1")); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
@@ -81,6 +85,7 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 			t.Fatalf("task_profile_agents row count = %d, want %d", got, want)
 		}
 
+		globalDB.now = func() time.Time { return updatedAt }
 		updated, err := globalDB.UpsertExecutionProfile(ctx, &taskpkg.ExecutionProfile{
 			TaskID: "task-profile-1",
 			Worker: taskpkg.WorkerProfile{
@@ -96,8 +101,27 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		if got, want := updated.CreatedAt, created.CreatedAt; !got.Equal(want) {
 			t.Fatalf("updated.CreatedAt = %v, want %v", got, want)
 		}
+		if !updated.UpdatedAt.Equal(updatedAt) {
+			t.Fatalf("updated.UpdatedAt = %v, want %v", updated.UpdatedAt, updatedAt)
+		}
 		assertStringSliceGlobal(t, updated.Worker.AllowedAgentNames, []string{"runner"})
 		assertStringSliceGlobal(t, updated.Review.AllowedAgentNames, nil)
+
+		globalDB.now = func() time.Time { return updatedAt.Add(time.Hour) }
+		reloaded, err := globalDB.GetExecutionProfile(ctx, "task-profile-1")
+		if err != nil {
+			t.Fatalf("GetExecutionProfile(reload) error = %v", err)
+		}
+		reloaded.Worker.AgentName = "runner-reloaded"
+		reloaded.Worker.AllowedAgentNames = []string{"runner-reloaded"}
+		staleUpdatedAt := reloaded.UpdatedAt
+		replayed, err := globalDB.UpsertExecutionProfile(ctx, &reloaded)
+		if err != nil {
+			t.Fatalf("UpsertExecutionProfile(replay) error = %v", err)
+		}
+		if !replayed.UpdatedAt.After(staleUpdatedAt) {
+			t.Fatalf("replayed.UpdatedAt = %v, want later than stale %v", replayed.UpdatedAt, staleUpdatedAt)
+		}
 
 		if err := globalDB.DeleteExecutionProfile(ctx, "task-profile-1"); err != nil {
 			t.Fatalf("DeleteExecutionProfile() error = %v", err)

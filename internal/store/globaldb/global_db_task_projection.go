@@ -71,24 +71,17 @@ func setTaskCurrentRunProjection(
 		return err
 	}
 
-	currentRunID, err := currentRunProjection(ctx, exec, trimmedTaskID)
-	if err != nil {
-		return err
-	}
-	if currentRunID != "" && currentRunID != trimmedRunID {
-		return fmt.Errorf(
-			"%w: task %q already projects active run %q",
-			taskpkg.ErrInvalidStatusTransition,
-			trimmedTaskID,
-			currentRunID,
-		)
-	}
-
 	result, err := exec.ExecContext(
 		ctx,
-		`UPDATE tasks SET current_run_id = ? WHERE id = ?`,
+		`UPDATE tasks
+		    SET current_run_id = ?
+		  WHERE id = ?
+		    AND (
+		    	current_run_id IS NULL OR current_run_id = '' OR current_run_id = ?
+		    )`,
 		trimmedRunID,
 		trimmedTaskID,
+		trimmedRunID,
 	)
 	if err != nil {
 		return fmt.Errorf(
@@ -98,7 +91,39 @@ func setTaskCurrentRunProjection(
 			err,
 		)
 	}
-	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, trimmedTaskID, "task current run projection")
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(
+			"store: read current run projection set result for task %q run %q: %w",
+			trimmedTaskID,
+			trimmedRunID,
+			err,
+		)
+	}
+	if rowsAffected > 0 {
+		return nil
+	}
+
+	currentRunID, err := currentRunProjection(ctx, exec, trimmedTaskID)
+	if err != nil {
+		return err
+	}
+	if currentRunID == trimmedRunID {
+		return nil
+	}
+	if currentRunID == "" {
+		return fmt.Errorf(
+			"store: set current run projection for task %q to %q matched no rows",
+			trimmedTaskID,
+			trimmedRunID,
+		)
+	}
+	return fmt.Errorf(
+		"%w: task %q already projects active run %q",
+		taskpkg.ErrInvalidStatusTransition,
+		trimmedTaskID,
+		currentRunID,
+	)
 }
 
 func clearTaskCurrentRunProjection(
@@ -116,23 +141,6 @@ func clearTaskCurrentRunProjection(
 		return err
 	}
 
-	currentRunID, err := currentRunProjection(ctx, exec, trimmedTaskID)
-	if err != nil {
-		return err
-	}
-	if currentRunID == "" {
-		return nil
-	}
-	if currentRunID != trimmedRunID {
-		return fmt.Errorf(
-			"%w: task %q projects active run %q, not %q",
-			taskpkg.ErrInvalidStatusTransition,
-			trimmedTaskID,
-			currentRunID,
-			trimmedRunID,
-		)
-	}
-
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE tasks SET current_run_id = NULL WHERE id = ? AND current_run_id = ?`,
@@ -147,7 +155,33 @@ func clearTaskCurrentRunProjection(
 			err,
 		)
 	}
-	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, trimmedTaskID, "task current run projection")
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(
+			"store: read current run projection clear result for task %q run %q: %w",
+			trimmedTaskID,
+			trimmedRunID,
+			err,
+		)
+	}
+	if rowsAffected > 0 {
+		return nil
+	}
+
+	currentRunID, err := currentRunProjection(ctx, exec, trimmedTaskID)
+	if err != nil {
+		return err
+	}
+	if currentRunID == "" {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: task %q projects active run %q, not %q",
+		taskpkg.ErrInvalidStatusTransition,
+		trimmedTaskID,
+		currentRunID,
+		trimmedRunID,
+	)
 }
 
 func currentRunProjection(

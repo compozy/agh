@@ -97,7 +97,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		}
 	})
 
-	t.Run("Should accept idempotent replay without moving timestamps", func(t *testing.T) {
+	t.Run("Should refresh idempotent replay diagnostics and updated timestamp", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -115,6 +115,13 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Advance(first) error = %v", err)
 		}
+		if _, err := service.RecordError(ctx, notifications.CursorError{
+			Key:       key,
+			LastError: "bridge delivery failed",
+			Now:       firstTime.Add(30 * time.Minute),
+		}); err != nil {
+			t.Fatalf("RecordError() error = %v", err)
+		}
 		second, err := service.Advance(ctx, notifications.AdvanceCursor{
 			Key:          key,
 			LastSequence: 11,
@@ -125,8 +132,14 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 			t.Fatalf("Advance(replay) error = %v", err)
 		}
 
-		if !second.UpdatedAt.Equal(first.UpdatedAt) || !second.LastDeliveredAt.Equal(first.LastDeliveredAt) {
-			t.Fatalf("idempotent replay cursor = %#v, want original timestamps %#v", second, first)
+		if got, want := second.LastError, ""; got != want {
+			t.Fatalf("idempotent replay LastError = %q, want empty", got)
+		}
+		if !second.UpdatedAt.Equal(firstTime.Add(time.Hour).UTC()) {
+			t.Fatalf("idempotent replay UpdatedAt = %s, want %s", second.UpdatedAt, firstTime.Add(time.Hour).UTC())
+		}
+		if !second.LastDeliveredAt.Equal(first.LastDeliveredAt) {
+			t.Fatalf("idempotent replay LastDeliveredAt = %s, want %s", second.LastDeliveredAt, first.LastDeliveredAt)
 		}
 	})
 

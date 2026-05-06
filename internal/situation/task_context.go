@@ -127,6 +127,15 @@ func (s *Service) TaskRunPromptOverlayByID(ctx context.Context, taskID string, r
 	if err != nil {
 		return "", err
 	}
+	if strings.TrimSpace(run.TaskID) != strings.TrimSpace(taskRecord.ID) {
+		return "", fmt.Errorf(
+			"%w: run %q belongs to task %q, not task %q",
+			taskpkg.ErrValidation,
+			run.ID,
+			run.TaskID,
+			taskRecord.ID,
+		)
+	}
 	return s.TaskRunPromptOverlay(ctx, taskRecord, run, nil)
 }
 
@@ -435,7 +444,11 @@ func (s *Service) enforceTaskContextBudget(
 			)
 			bundle.ReviewContinuation = &continuation
 		default:
-			return bundle, nil
+			return taskpkg.ContextBundle{}, fmt.Errorf(
+				"%w: task context bundle exceeds %d bytes after trimming",
+				taskpkg.ErrPayloadTooLarge,
+				maxBytes,
+			)
 		}
 	}
 }

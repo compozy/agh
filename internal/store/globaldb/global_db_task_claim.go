@@ -560,9 +560,6 @@ func appendProfileClaimFilters(
 		criteria.RequiredCapabilities,
 	)
 	agentName := strings.TrimSpace(criteria.AgentName)
-	if agentName == "" {
-		return where, args
-	}
 	where = append(where, `NOT EXISTS (
 			SELECT 1
 			  FROM task_execution_profiles tep

@@ -127,16 +127,10 @@ func (g *GlobalDB) AdvanceCursor(
 		}
 		if current.LastSequence == normalized.LastSequence &&
 			current.LastDeliveryID == normalized.DeliveryID {
-			if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-				return notifications.Cursor{}, fmt.Errorf(
-					"store: commit idempotent notification cursor advance: %w",
-					err,
-				)
-			}
-			finished = true
-			return current, nil
+			cursor, err = refreshNotificationCursor(ctx, conn, current, normalized)
+		} else {
+			cursor, err = updateNotificationCursor(ctx, conn, normalized)
 		}
-		cursor, err = updateNotificationCursor(ctx, conn, normalized)
 	} else {
 		cursor, err = insertNotificationCursor(ctx, conn, normalized)
 	}
@@ -345,6 +339,47 @@ func updateNotificationCursor(
 	); err != nil {
 		return notifications.Cursor{}, fmt.Errorf(
 			"store: update notification cursor %q/%q/%q: %w",
+			update.Key.ConsumerID,
+			update.Key.StreamName,
+			update.Key.SubjectID,
+			err,
+		)
+	}
+	cursor, found, err := loadNotificationCursor(ctx, exec, update.Key)
+	if err != nil {
+		return notifications.Cursor{}, err
+	}
+	if !found {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	return cursor, nil
+}
+
+func refreshNotificationCursor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current notifications.Cursor,
+	update notifications.AdvanceCursor,
+) (notifications.Cursor, error) {
+	lastDeliveredAt := current.LastDeliveredAt
+	if lastDeliveredAt.IsZero() {
+		lastDeliveredAt = update.LastDeliveredAt
+	}
+	if _, err := exec.ExecContext(
+		ctx,
+		`UPDATE notification_cursors
+		SET last_sequence = ?, last_delivery_id = ?, last_delivered_at = ?, last_error = '', updated_at = ?
+		WHERE consumer_id = ? AND stream_name = ? AND subject_id = ?`,
+		update.LastSequence,
+		update.DeliveryID,
+		store.FormatTimestamp(lastDeliveredAt),
+		store.FormatTimestamp(update.Now),
+		update.Key.ConsumerID,
+		update.Key.StreamName,
+		update.Key.SubjectID,
+	); err != nil {
+		return notifications.Cursor{}, fmt.Errorf(
+			"store: refresh notification cursor %q/%q/%q: %w",
 			update.Key.ConsumerID,
 			update.Key.StreamName,
 			update.Key.SubjectID,

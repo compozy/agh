@@ -402,6 +402,124 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 	})
 }
 
+func TestTaskStoreStubListRunReviewsSortsBeforeApplyingLimit(t *testing.T) {
+	t.Parallel()
+
+	store := taskStoreStub{
+		reviews: map[string]taskpkg.RunReview{
+			"review-older": {
+				ReviewID:  "review-older",
+				TaskID:    "task-1",
+				Status:    taskpkg.RunReviewStatusInReview,
+				UpdatedAt: fixedTime().Add(time.Minute),
+			},
+			"review-newer": {
+				ReviewID:  "review-newer",
+				TaskID:    "task-1",
+				Status:    taskpkg.RunReviewStatusInReview,
+				UpdatedAt: fixedTime().Add(2 * time.Minute),
+			},
+		},
+	}
+
+	reviews, err := store.ListRunReviews(context.Background(), taskpkg.RunReviewQuery{
+		TaskID: "task-1",
+		Limit:  1,
+	})
+	if err != nil {
+		t.Fatalf("ListRunReviews() error = %v", err)
+	}
+	if got, want := len(reviews), 1; got != want {
+		t.Fatalf("len(reviews) = %d, want %d", got, want)
+	}
+	if got, want := reviews[0].ReviewID, "review-newer"; got != want {
+		t.Fatalf("reviews[0].ReviewID = %q, want %q", got, want)
+	}
+}
+
+func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
+	t.Parallel()
+
+	taskRecord := taskpkg.Task{
+		ID:          "task-overlay",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-overlay",
+		Title:       "Overlay task",
+		Status:      taskpkg.TaskStatusInProgress,
+	}
+	mismatchedRun := taskpkg.Run{
+		ID:         "run-other-task",
+		TaskID:     "task-other",
+		Status:     taskpkg.TaskRunStatusRunning,
+		SessionID:  "sess-overlay",
+		QueuedAt:   fixedTime(),
+		ClaimedAt:  fixedTime(),
+		StartedAt:  fixedTime(),
+		LeaseUntil: fixedTime().Add(time.Minute),
+	}
+	cfg := workspaceConfigWithTaskDefaults()
+	service := NewService(Deps{
+		Now: fixedNow,
+		WorkspaceResolver: workspaceResolverFunc(
+			func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "AGH", RootDir: "/work/agh"},
+					Config:    cfg,
+				}, nil
+			},
+		),
+		TaskStore: taskStoreStub{
+			tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+			runs:  []taskpkg.Run{mismatchedRun},
+		},
+	})
+
+	_, err := service.TaskRunPromptOverlayByID(context.Background(), taskRecord.ID, mismatchedRun.ID)
+	if !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("TaskRunPromptOverlayByID() error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+}
+
+func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
+	t.Parallel()
+
+	taskRecord := taskpkg.Task{
+		ID:          "task-oversized-bundle",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-oversized-bundle",
+		Title:       strings.Repeat("x", 256),
+		Status:      taskpkg.TaskStatusReady,
+	}
+	cfg := workspaceConfigWithTaskDefaults()
+	cfg.Task.Orchestration.ContextBodyMaxBytes = 64
+	service := NewService(Deps{
+		Now: fixedNow,
+		WorkspaceResolver: workspaceResolverFunc(
+			func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      taskRecord.WorkspaceID,
+						Name:    "AGH",
+						RootDir: "/work/agh",
+					},
+					Config: cfg,
+				}, nil
+			},
+		),
+		TaskStore: taskStoreStub{
+			tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+		},
+	})
+
+	_, err := service.BundleForOperatorTask(context.Background(), taskpkg.OperatorTaskContextRequest{
+		TaskID: taskRecord.ID,
+		Now:    fixedTime(),
+	})
+	if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+		t.Fatalf("BundleForOperatorTask() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+	}
+}
+
 func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testing.T) {
 	t.Parallel()
 
@@ -1232,8 +1350,18 @@ func (s taskStoreStub) ListRunReviews(_ context.Context, query taskpkg.RunReview
 		}
 		reviews = append(reviews, review)
 	}
+	slices.SortFunc(reviews, func(left, right taskpkg.RunReview) int {
+		switch {
+		case left.UpdatedAt.After(right.UpdatedAt):
+			return -1
+		case left.UpdatedAt.Before(right.UpdatedAt):
+			return 1
+		default:
+			return strings.Compare(right.ReviewID, left.ReviewID)
+		}
+	})
 	if query.Limit > 0 && len(reviews) > query.Limit {
-		reviews = reviews[len(reviews)-query.Limit:]
+		reviews = reviews[:query.Limit]
 	}
 	return reviews, nil
 }

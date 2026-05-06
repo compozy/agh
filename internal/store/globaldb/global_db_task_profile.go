@@ -80,9 +80,7 @@ func (g *GlobalDB) UpsertExecutionProfile(
 		if normalized.CreatedAt.IsZero() {
 			normalized.CreatedAt = now
 		}
-		if normalized.UpdatedAt.IsZero() {
-			normalized.UpdatedAt = now
-		}
+		normalized.UpdatedAt = now
 
 		if err := upsertExecutionProfileRow(ctx, exec, &normalized); err != nil {
 			return err

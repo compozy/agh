@@ -234,6 +234,15 @@ func TestGlobalDBClaimNextRunAppliesExecutionProfileEligibility(t *testing.T) {
 		}
 		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 			Scope:                taskpkg.ScopeGlobal,
+			ClaimerSessionID:     "sess-missing-agent-name",
+			RequiredCapabilities: []string{"golang", "sqlite"},
+			LeaseDuration:        time.Minute,
+			Now:                  now.Add(500 * time.Millisecond),
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(blank agent) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                taskpkg.ScopeGlobal,
 			ClaimerSessionID:     "sess-missing-capability",
 			AgentName:            "codex-worker",
 			RequiredCapabilities: []string{"golang"},
@@ -840,6 +849,82 @@ func TestGlobalDBTaskCurrentRunProjection(t *testing.T) {
 	}
 }
 
+func TestSetTaskCurrentRunProjectionDetectsConcurrentOverwrite(t *testing.T) {
+	t.Parallel()
+
+	globalDB, ctx, taskRecord, run, _ := setupCurrentRunProjectionTest(t, "set-race")
+	otherRun := taskRunForTest("run-current-projection-set-race-other", taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, otherRun); err != nil {
+		t.Fatalf("CreateTaskRun(other) error = %v", err)
+	}
+
+	injected := false
+	exec := projectionRaceExecutor{
+		taskSQLExecutor: globalDB.db,
+		beforeExec: func(ctx context.Context) error {
+			if injected {
+				return nil
+			}
+			injected = true
+			_, err := globalDB.db.ExecContext(
+				ctx,
+				`UPDATE tasks SET current_run_id = ? WHERE id = ?`,
+				otherRun.ID,
+				taskRecord.ID,
+			)
+			return err
+		},
+	}
+
+	err := setTaskCurrentRunProjection(ctx, exec, taskRecord.ID, run.ID)
+	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		t.Fatalf("setTaskCurrentRunProjection() error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+	}
+	assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, otherRun.ID)
+}
+
+func TestClearTaskCurrentRunProjectionDetectsConcurrentProjectionChange(t *testing.T) {
+	t.Parallel()
+
+	globalDB, ctx, taskRecord, run, _ := setupCurrentRunProjectionTest(t, "clear-race")
+	otherRun := taskRunForTest("run-current-projection-clear-race-other", taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, otherRun); err != nil {
+		t.Fatalf("CreateTaskRun(other) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`UPDATE tasks SET current_run_id = ? WHERE id = ?`,
+		run.ID,
+		taskRecord.ID,
+	); err != nil {
+		t.Fatalf("seed current_run_id error = %v", err)
+	}
+
+	injected := false
+	exec := projectionRaceExecutor{
+		taskSQLExecutor: globalDB.db,
+		beforeExec: func(ctx context.Context) error {
+			if injected {
+				return nil
+			}
+			injected = true
+			_, err := globalDB.db.ExecContext(
+				ctx,
+				`UPDATE tasks SET current_run_id = ? WHERE id = ?`,
+				otherRun.ID,
+				taskRecord.ID,
+			)
+			return err
+		},
+	}
+
+	err := clearTaskCurrentRunProjection(ctx, exec, taskRecord.ID, run.ID)
+	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		t.Fatalf("clearTaskCurrentRunProjection() error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+	}
+	assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, otherRun.ID)
+}
+
 func TestGlobalDBClaimNextRunReturnsSafeCoordinationChannelMetadata(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -1132,6 +1217,24 @@ func claimProjectionRunForTest(
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
 	return claim
+}
+
+type projectionRaceExecutor struct {
+	taskSQLExecutor
+	beforeExec func(ctx context.Context) error
+}
+
+func (e projectionRaceExecutor) ExecContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	if e.beforeExec != nil {
+		if err := e.beforeExec(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return e.taskSQLExecutor.ExecContext(ctx, query, args...)
 }
 
 func assertTaskCurrentRunProjection(
