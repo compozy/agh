@@ -120,8 +120,9 @@ command = "/bin/echo"
 }
 
 func TestLoadParsesNetworkHookMatcherFields(t *testing.T) {
-	workspaceRoot, homePaths := prepareHookConfigTestEnv(t)
-	writeFile(t, homePaths.ConfigFile, `
+	t.Run("Should parse network matcher fields", func(t *testing.T) {
+		workspaceRoot, homePaths := prepareHookConfigTestEnv(t)
+		writeFile(t, homePaths.ConfigFile, `
 [[hooks.declarations]]
 name = "network-observer"
 event = "network.message.persisted"
@@ -136,30 +137,74 @@ direction = "received"
 work_state = "completed"
 `)
 
-	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
+		cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
 
-	decls, err := HookDeclarations(cfg.Hooks, nil)
-	if err != nil {
-		t.Fatalf("HookDeclarations() error = %v", err)
-	}
-	if got, want := len(decls), 1; got != want {
-		t.Fatalf("len(HookDeclarations()) = %d, want %d", got, want)
-	}
+		decls, err := HookDeclarations(cfg.Hooks, nil)
+		if err != nil {
+			t.Fatalf("HookDeclarations() error = %v", err)
+		}
+		if got, want := len(decls), 1; got != want {
+			t.Fatalf("len(HookDeclarations()) = %d, want %d", got, want)
+		}
 
-	matcher := decls[0].Matcher.NetworkMatcher
-	if matcher == nil {
-		t.Fatal("NetworkMatcher = nil, want parsed matcher")
-	}
-	if matcher.Channel != "builders" ||
-		matcher.Surface != "direct" ||
-		matcher.Kind != "trace" ||
-		matcher.Direction != "received" ||
-		matcher.WorkState != "completed" {
-		t.Fatalf("NetworkMatcher = %#v, want parsed network fields", matcher)
-	}
+		matcher := decls[0].Matcher.NetworkMatcher
+		if matcher == nil {
+			t.Fatal("NetworkMatcher = nil, want parsed matcher")
+		}
+		if matcher.Channel != "builders" ||
+			matcher.Surface != "direct" ||
+			matcher.Kind != "trace" ||
+			matcher.Direction != "received" ||
+			matcher.WorkState != "completed" {
+			t.Fatalf("NetworkMatcher = %#v, want parsed network fields", matcher)
+		}
+	})
+}
+
+func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clone matcher pointers independently", func(t *testing.T) {
+		t.Parallel()
+
+		toolReadOnly := true
+		decl := hookspkg.HookDecl{
+			Matcher: hookspkg.HookMatcher{
+				ToolReadOnly: &toolReadOnly,
+				NetworkMatcher: &hookspkg.NetworkMatcher{
+					Channel: "builders",
+				},
+				CompactionMatcher: &hookspkg.CompactionMatcher{
+					Reason: "size",
+				},
+				Autonomy: &hookspkg.AutonomyMatcher{
+					TaskID: "task-1",
+				},
+			},
+		}
+
+		cloned := cloneHookDecl(decl)
+		cloned.Matcher.Channel = "ops"
+		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Autonomy.TaskID = "task-2"
+		*cloned.Matcher.ToolReadOnly = false
+
+		if got, want := decl.Matcher.Channel, "builders"; got != want {
+			t.Fatalf("source NetworkMatcher.Channel = %q, want %q", got, want)
+		}
+		if got, want := decl.Matcher.Reason, "size"; got != want {
+			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		}
+		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
+			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)
+		}
+		if got, want := *decl.Matcher.ToolReadOnly, true; got != want {
+			t.Fatalf("source ToolReadOnly = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestLoadRejectsInvalidConfigHookEvent(t *testing.T) {

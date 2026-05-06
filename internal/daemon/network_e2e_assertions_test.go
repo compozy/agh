@@ -168,95 +168,103 @@ func attributeNeedle(name string, value string) string {
 func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) {
 	t.Parallel()
 
-	messages := []transcript.UIMessage{
-		{
-			Role: transcript.UIRoleAssistant,
-			Parts: []transcript.UIMessagePart{
-				{
-					Type:  "text",
-					Text:  `<network-message id="msg_direct_01" kind="say" surface="direct" direct-id="direct_test_01" work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42" causation-id="msg_say_01" trust="untrusted"></network-message>`,
-					State: "done",
+	t.Run("Should use targeted transcript attributes", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []transcript.UIMessage{
+			{
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{
+					{
+						Type:  "text",
+						Text:  `<network-message id="msg_direct_01" kind="say" surface="direct" direct-id="direct_test_01" work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42" causation-id="msg_say_01" trust="untrusted"></network-message>`,
+						State: "done",
+					},
 				},
 			},
-		},
-	}
-	audit := []store.NetworkAuditEntry{
-		{
-			MessageID: "msg_direct_01",
-			Direction: "sent",
-			Kind:      "say",
-			Surface:   "direct",
-			DirectID:  "direct_test_01",
-			WorkID:    "work_patch_42",
-		},
-		{
-			MessageID: "msg_direct_01",
-			Direction: "delivered",
-			Kind:      "say",
-			Surface:   "direct",
-			DirectID:  "direct_test_01",
-			WorkID:    "work_patch_42",
-		},
-	}
+		}
+		audit := []store.NetworkAuditEntry{
+			{
+				MessageID: "msg_direct_01",
+				Direction: "sent",
+				Kind:      "say",
+				Surface:   "direct",
+				DirectID:  "direct_test_01",
+				WorkID:    "work_patch_42",
+			},
+			{
+				MessageID: "msg_direct_01",
+				Direction: "delivered",
+				Kind:      "say",
+				Surface:   "direct",
+				DirectID:  "direct_test_01",
+				WorkID:    "work_patch_42",
+			},
+		}
 
-	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_direct_01",
-		Kind:            "say",
-		Surface:         "direct",
-		DirectID:        "direct_test_01",
-		WorkID:          "work_patch_42",
-		ReplyTo:         "msg_say_01",
-		TraceID:         "trace_ops_patch_42",
-		CausationID:     "msg_say_01",
-		Trust:           "untrusted",
-		AuditDirections: []string{"sent", "delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces() error = %v", err)
-	}
+		if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_direct_01",
+			Kind:            "say",
+			Surface:         "direct",
+			DirectID:        "direct_test_01",
+			WorkID:          "work_patch_42",
+			ReplyTo:         "msg_say_01",
+			TraceID:         "trace_ops_patch_42",
+			CausationID:     "msg_say_01",
+			Trust:           "untrusted",
+			AuditDirections: []string{"sent", "delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces() error = %v", err)
+		}
+	})
 }
 
 func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *testing.T) {
 	t.Parallel()
 
-	messages := []transcript.UIMessage{
-		{
-			Role: transcript.UIRoleAssistant,
-			Parts: []transcript.UIMessagePart{{
-				Type:  "text",
-				Text:  `<network-message id="msg_direct_01" kind="say"></network-message>`,
-				State: "done",
-			}},
-		},
-		{
-			Role: transcript.UIRoleAssistant,
-			Parts: []transcript.UIMessagePart{
-				{
+	t.Run("Should reject split transcript matches", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []transcript.UIMessage{
+			{
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{{
 					Type:  "text",
-					Text:  `<network-message work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					Text:  `<network-message id="msg_direct_01" kind="say"></network-message>`,
 					State: "done",
+				}},
+			},
+			{
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{
+					{
+						Type:  "text",
+						Text:  `<network-message work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+						State: "done",
+					},
 				},
 			},
-		},
-	}
-	audit := []store.NetworkAuditEntry{
-		{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
-		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
-	}
+		}
+		audit := []store.NetworkAuditEntry{
+			{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
+			{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
+		}
 
-	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_direct_01",
-		Kind:            "say",
-		Surface:         "direct",
-		DirectID:        "direct_test_01",
-		WorkID:          "work_patch_42",
-		ReplyTo:         "msg_say_01",
-		TraceID:         "trace_ops_patch_42",
-		CausationID:     "msg_say_01",
-		Trust:           "untrusted",
-		AuditDirections: []string{"sent", "delivered"},
-	}); err == nil {
-		t.Fatal("validateNetworkCorrelationSurfaces() error = nil, want split-message correlation failure")
-	}
+		if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_direct_01",
+			Kind:            "say",
+			Surface:         "direct",
+			DirectID:        "direct_test_01",
+			WorkID:          "work_patch_42",
+			ReplyTo:         "msg_say_01",
+			TraceID:         "trace_ops_patch_42",
+			CausationID:     "msg_say_01",
+			Trust:           "untrusted",
+			AuditDirections: []string{"sent", "delivered"},
+		}); err == nil {
+			t.Fatal("validateNetworkCorrelationSurfaces() error = nil, want split-message correlation failure")
+		}
+	})
 }
 
 func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {

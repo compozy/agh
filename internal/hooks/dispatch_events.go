@@ -138,6 +138,9 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 		if actorID == "" {
 			actorID = strings.TrimSpace(typed.SessionID)
 		}
+		if actorID == "" {
+			return DispatchCorrelation{}
+		}
 		return DispatchCorrelation{
 			ActorKind: "network_peer",
 			ActorID:   actorID,

@@ -13,6 +13,7 @@ import (
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/version"
 )
@@ -148,9 +149,57 @@ work_state = "completed"
 	}
 
 	hookMatcher := hookConfigMatcher(matcher)
-	if hookMatcher.NetworkMatcher == nil || hookMatcher.Channel != "builders" || hookMatcher.WorkState != "completed" {
+	if hookMatcher.NetworkMatcher == nil ||
+		hookMatcher.Channel != "builders" ||
+		hookMatcher.Surface != "thread" ||
+		hookMatcher.Kind != "trace" ||
+		hookMatcher.Direction != "received" ||
+		hookMatcher.WorkState != "completed" {
 		t.Fatalf("hookConfigMatcher() = %#v, want network matcher fields", hookMatcher)
 	}
+}
+
+func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clone matcher pointers independently", func(t *testing.T) {
+		t.Parallel()
+
+		toolReadOnly := true
+		decl := hookspkg.HookDecl{
+			Matcher: hookspkg.HookMatcher{
+				ToolReadOnly: &toolReadOnly,
+				NetworkMatcher: &hookspkg.NetworkMatcher{
+					Channel: "builders",
+				},
+				CompactionMatcher: &hookspkg.CompactionMatcher{
+					Reason: "size",
+				},
+				Autonomy: &hookspkg.AutonomyMatcher{
+					TaskID: "task-1",
+				},
+			},
+		}
+
+		cloned := cloneHookDecl(decl)
+		cloned.Matcher.Channel = "ops"
+		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Autonomy.TaskID = "task-2"
+		*cloned.Matcher.ToolReadOnly = false
+
+		if got, want := decl.Matcher.Channel, "builders"; got != want {
+			t.Fatalf("source NetworkMatcher.Channel = %q, want %q", got, want)
+		}
+		if got, want := decl.Matcher.Reason, "size"; got != want {
+			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		}
+		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
+			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)
+		}
+		if got, want := *decl.Matcher.ToolReadOnly, true; got != want {
+			t.Fatalf("source ToolReadOnly = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestLoadManifestRequiresEnvValidationAndMissingDetection(t *testing.T) {

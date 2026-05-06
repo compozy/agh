@@ -335,6 +335,13 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 	var seen network.SendRequest
 	source := agentChannelEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
 	source.From = "reviewer.sess-peer"
+	directID := "direct_reply_01"
+	source.Surface = ptrNetworkSurface(network.SurfaceDirect)
+	source.DirectID = &directID
+	wantDirectID, _, _, err := network.DirectRoomIdentity("builders", "coder.sess-agent", source.From)
+	if err != nil {
+		t.Fatalf("DirectRoomIdentity() error = %v", err)
+	}
 	handlers := newAgentChannelHandlers(t, stubNetworkService{
 		InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
 			if sessionID != "sess-agent" {
@@ -366,6 +373,7 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 		seen.Surface == nil ||
 		*seen.Surface != network.SurfaceDirect ||
 		seen.DirectID == nil ||
+		*seen.DirectID != wantDirectID ||
 		seen.To == nil ||
 		*seen.To != "reviewer.sess-peer" ||
 		seen.ReplyTo == nil ||
@@ -489,6 +497,10 @@ func agentChannelEnvelopeWithExt(
 		Body:     json.RawMessage(`{"text":"coordination"}`),
 		Ext:      ext,
 	}
+}
+
+func ptrNetworkSurface(value network.Surface) *network.Surface {
+	return &value
 }
 
 func misleadingCoordinationExt() network.ExtensionMap {

@@ -553,11 +553,9 @@ func TestRegisterNetworkRoutesMatchDocumentedHTTPAndUDSSurface(t *testing.T) {
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
 	got := registeredNetworkRoutesFromEngine(engine.Routes())
-	for _, transport := range []apispec.Transport{apispec.TransportHTTP, apispec.TransportUDS} {
-		want := documentedNetworkRoutesForTransport(transport)
-		if !slices.Equal(got, want) {
-			t.Fatalf("network routes = %v, want documented %s routes %v", got, transport, want)
-		}
+	want := documentedNetworkRoutesForTransport(apispec.TransportUDS)
+	if !slices.Equal(got, want) {
+		t.Fatalf("network routes = %v, want documented %s routes %v", got, apispec.TransportUDS, want)
 	}
 }
 

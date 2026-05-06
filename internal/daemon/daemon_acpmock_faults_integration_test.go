@@ -286,7 +286,7 @@ func assertNoFatalBlockedCancelError(t testing.TB, events []aghcontract.AgentEve
 		if event.Type != "error" {
 			continue
 		}
-		if event.Failure == nil || event.Failure.Kind == store.FailureCanceled {
+		if event.Failure != nil && event.Failure.Kind == store.FailureCanceled {
 			continue
 		}
 		t.Fatalf("events = %#v, want no fatal error after explicit blocked prompt cancellation", events)

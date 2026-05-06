@@ -28824,7 +28824,7 @@
                         }
                     },
                     {
-                        "description": "Return messages after the specified message id",
+                        "description": "Return threads after the specified thread id",
                         "in": "query",
                         "name": "after",
                         "schema": {

@@ -64,30 +64,67 @@ func TestTurnIDFromPayloadTrimsSupportedPayloads(t *testing.T) {
 	cases := []struct {
 		name    string
 		payload any
+		want    string
 	}{
-		{name: "input", payload: InputPreSubmitPayload{TurnContext: TurnContext{TurnID: " turn-input "}}},
-		{name: "prompt", payload: PromptPayload{TurnContext: TurnContext{TurnID: " turn-prompt "}}},
-		{name: "event", payload: EventRecordPayload{TurnContext: TurnContext{TurnID: " turn-event "}}},
-		{name: "turn", payload: TurnPayload{TurnContext: TurnContext{TurnID: " turn "}}},
-		{name: "message", payload: MessagePayload{TurnContext: TurnContext{TurnID: " turn-message "}}},
-		{name: "tool pre", payload: ToolPreCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-pre "}}},
-		{name: "tool post", payload: ToolPostCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-post "}}},
-		{name: "tool error", payload: ToolPostErrorPayload{TurnContext: TurnContext{TurnID: " turn-tool-error "}}},
+		{
+			name:    "input",
+			payload: InputPreSubmitPayload{TurnContext: TurnContext{TurnID: " turn-input "}},
+			want:    "turn-input",
+		},
+		{
+			name:    "prompt",
+			payload: PromptPayload{TurnContext: TurnContext{TurnID: " turn-prompt "}},
+			want:    "turn-prompt",
+		},
+		{
+			name:    "event",
+			payload: EventRecordPayload{TurnContext: TurnContext{TurnID: " turn-event "}},
+			want:    "turn-event",
+		},
+		{name: "turn", payload: TurnPayload{TurnContext: TurnContext{TurnID: " turn "}}, want: "turn"},
+		{
+			name:    "message",
+			payload: MessagePayload{TurnContext: TurnContext{TurnID: " turn-message "}},
+			want:    "turn-message",
+		},
+		{
+			name:    "tool pre",
+			payload: ToolPreCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-pre "}},
+			want:    "turn-tool-pre",
+		},
+		{
+			name:    "tool post",
+			payload: ToolPostCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-post "}},
+			want:    "turn-tool-post",
+		},
+		{
+			name:    "tool error",
+			payload: ToolPostErrorPayload{TurnContext: TurnContext{TurnID: " turn-tool-error "}},
+			want:    "turn-tool-error",
+		},
 		{
 			name:    "permission request",
 			payload: PermissionRequestPayload{TurnContext: TurnContext{TurnID: " turn-permission-request "}},
+			want:    "turn-permission-request",
 		},
 		{
 			name:    "permission resolution",
 			payload: PermissionResolutionPayload{TurnContext: TurnContext{TurnID: " turn-permission-resolution "}},
+			want:    "turn-permission-resolution",
 		},
-		{name: "context compact", payload: ContextCompactPayload{TurnContext: TurnContext{TurnID: " turn-compact "}}},
+		{
+			name:    "context compact",
+			payload: ContextCompactPayload{TurnContext: TurnContext{TurnID: " turn-compact "}},
+			want:    "turn-compact",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := TurnIDFromPayload(tc.payload)
-			if got == "" || got[0] == ' ' || got[len(got)-1] == ' ' {
-				t.Fatalf("TurnIDFromPayload() = %q, want non-empty trimmed turn ID", got)
+			if got != tc.want {
+				t.Fatalf("TurnIDFromPayload() = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -350,6 +387,11 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 				ActorKind: "network_peer",
 				ActorID:   "network-session",
 			},
+		},
+		{
+			name:     "network empty",
+			payload:  NetworkPayload{},
+			expected: DispatchCorrelation{},
 		},
 		{
 			name:    "session fallback",

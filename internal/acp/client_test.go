@@ -19,6 +19,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
@@ -458,6 +459,12 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 	}
 	if got, want := payload.Network.MessageID, "msg-meta-1"; got != want {
 		t.Fatalf("payload.Network.MessageID = %q, want %q", got, want)
+	}
+	if got, want := payload.Network.Surface, "direct"; got != want {
+		t.Fatalf("payload.Network.Surface = %q, want %q", got, want)
+	}
+	if got, want := payload.Network.DirectID, "direct_meta_1"; got != want {
+		t.Fatalf("payload.Network.DirectID = %q, want %q", got, want)
 	}
 	if got, want := payload.Network.WorkID, "work-meta-1"; got != want {
 		t.Fatalf("payload.Network.WorkID = %q, want %q", got, want)
@@ -1114,6 +1121,60 @@ func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 		if event.Type == EventTypeError {
 			t.Fatalf("prompt events contain %q after explicit stop: %#v", EventTypeError, event)
 		}
+	}
+}
+
+func TestShouldSuppressPromptErrorOnStop(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "Should suppress context canceled errors",
+			err:  context.Canceled,
+			want: true,
+		},
+		{
+			name: "Should suppress deadline exceeded errors",
+			err:  context.DeadlineExceeded,
+			want: true,
+		},
+		{
+			name: "Should suppress wrapped canceled failures",
+			err:  WrapFailure(store.FailureCanceled, "stopped", context.Canceled),
+			want: true,
+		},
+		{
+			name: "Should suppress request errors carrying canceled details",
+			err: &acpsdk.RequestError{
+				Code:    -32603,
+				Message: "Internal error",
+				Data:    map[string]any{"error": "context canceled"},
+			},
+			want: true,
+		},
+		{
+			name: "Should not suppress generic request failures",
+			err: &acpsdk.RequestError{
+				Code:    -32603,
+				Message: "Internal error",
+				Data:    map[string]any{"details": "Tool invocation failed"},
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := shouldSuppressPromptErrorOnStop(tc.err); got != tc.want {
+				t.Fatalf("shouldSuppressPromptErrorOnStop() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

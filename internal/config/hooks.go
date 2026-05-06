@@ -263,9 +263,27 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned.SecretEnv = mergeStringMaps(nil, src.SecretEnv)
 	cloned.Metadata = mergeStringMaps(nil, src.Metadata)
 	cloned.Enabled = cloneBoolPtr(src.Enabled)
-	if src.Matcher.ToolReadOnly != nil {
-		value := *src.Matcher.ToolReadOnly
-		cloned.Matcher.ToolReadOnly = &value
+	cloned.Matcher = cloneHookMatcher(src.Matcher)
+	return cloned
+}
+
+func cloneHookMatcher(src hookspkg.HookMatcher) hookspkg.HookMatcher {
+	cloned := src
+	if src.NetworkMatcher != nil {
+		value := *src.NetworkMatcher
+		cloned.NetworkMatcher = &value
+	}
+	if src.CompactionMatcher != nil {
+		value := *src.CompactionMatcher
+		cloned.CompactionMatcher = &value
+	}
+	if src.Autonomy != nil {
+		value := *src.Autonomy
+		cloned.Autonomy = &value
+	}
+	if src.ToolReadOnly != nil {
+		value := *src.ToolReadOnly
+		cloned.ToolReadOnly = &value
 	}
 	return cloned
 }

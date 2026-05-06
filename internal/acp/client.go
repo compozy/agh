@@ -847,7 +847,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	close(cancellationDone)
 
 	if err != nil {
-		if proc.stopWasRequested() {
+		if proc.stopWasRequested() && shouldSuppressPromptErrorOnStop(err) {
 			return
 		}
 		failure, _ := FailureFromError(err, store.FailurePrompt)
@@ -876,6 +876,24 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	}
 	d.waitForPromptQuiescence(active)
 	proc.emitPromptEvent(doneEvent)
+}
+
+func shouldSuppressPromptErrorOnStop(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var reqErr *acpsdk.RequestError
+	if errors.As(err, &reqErr) {
+		text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
+		if strings.Contains(text, "context canceled") || strings.Contains(text, "context deadline exceeded") {
+			return true
+		}
+	}
+	failure, ok := FailureFromError(err, store.FailurePrompt)
+	return ok && failure != nil && failure.Kind == store.FailureCanceled
 }
 
 func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() {

@@ -321,9 +321,6 @@ func validateNetworkSendConversation(req contract.NetworkSendRequest) error {
 	}
 
 	if surface == "" {
-		if threadID != "" || directID != "" {
-			return NewNetworkValidationError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
-		}
 		return NewNetworkValidationError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
 	}
 	ref := network.ConversationRef{

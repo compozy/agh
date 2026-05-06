@@ -15784,7 +15784,7 @@ export interface operations {
   listNetworkThreads: {
     parameters: {
       query?: {
-        /** @description Return messages after the specified message id */
+        /** @description Return threads after the specified thread id */
         after?: string;
         /** @description Maximum number of public threads to return */
         limit?: number;

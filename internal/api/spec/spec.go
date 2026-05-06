@@ -1279,7 +1279,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("channel", "Network channel"),
-			queryParam("after", "Return messages after the specified message id", false),
+			queryParam("after", "Return threads after the specified thread id", false),
 			intQueryParam("limit", "Maximum number of public threads to return"),
 		},
 		Responses: []ResponseSpec{
