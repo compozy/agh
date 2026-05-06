@@ -61,6 +61,15 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 		memcontract.TypeProject,
 		"workspace memory",
 	)
+	mustWriteMemory(
+		t,
+		store,
+		memcontract.ScopeGlobal,
+		"",
+		"_system-hidden.md",
+		memcontract.TypeReference,
+		"system memory",
+	)
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
@@ -128,6 +137,23 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 			t.Fatalf("memories len = %d, want 2; memories=%#v", len(payload.Memories), payload.Memories)
 		}
 	})
+
+	t.Run("include_system returns system-managed entries", func(t *testing.T) {
+		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=global&include_system=true", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+
+		var payload memoryListResponse
+		decodeJSONResponse(t, resp, &payload)
+		if len(payload.Memories) != 2 {
+			t.Fatalf(
+				"memories len = %d, want 2 with include_system; memories=%#v",
+				len(payload.Memories),
+				payload.Memories,
+			)
+		}
+	})
 }
 
 func TestMemoryHandlersReadAndNotFound(t *testing.T) {
@@ -135,6 +161,15 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 
 	store, _ := newTestMemoryStore(t)
 	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "readme.md", memcontract.TypeUser, "hello world")
+	mustWriteMemory(
+		t,
+		store,
+		memcontract.ScopeGlobal,
+		"",
+		"_system-hidden.md",
+		memcontract.TypeReference,
+		"system body",
+	)
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
@@ -153,6 +188,37 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 	missing := performRequest(t, engine, http.MethodGet, "/api/memory/missing.md?scope=global", nil)
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d; body=%s", missing.Code, http.StatusNotFound, missing.Body.String())
+	}
+
+	systemHidden := performRequest(t, engine, http.MethodGet, "/api/memory/_system-hidden.md?scope=global", nil)
+	if systemHidden.Code != http.StatusNotFound {
+		t.Fatalf(
+			"status = %d, want %d for hidden system memory; body=%s",
+			systemHidden.Code,
+			http.StatusNotFound,
+			systemHidden.Body.String(),
+		)
+	}
+
+	systemVisible := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/memory/_system-hidden.md?scope=global&include_system=true",
+		nil,
+	)
+	if systemVisible.Code != http.StatusOK {
+		t.Fatalf(
+			"status = %d, want %d for include_system read; body=%s",
+			systemVisible.Code,
+			http.StatusOK,
+			systemVisible.Body.String(),
+		)
+	}
+	var systemPayload memoryEntryResponse
+	decodeJSONResponse(t, systemVisible, &systemPayload)
+	if !strings.Contains(systemPayload.Memory.Content, "system body") {
+		t.Fatalf("system content = %q, want stored body", systemPayload.Memory.Content)
 	}
 }
 
@@ -310,6 +376,27 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 	decodeJSONResponse(t, search, &searchPayload)
 	if len(searchPayload.Results) == 0 || searchPayload.Results[0].Memory.Scope != memcontract.ScopeWorkspace {
 		t.Fatalf("search results = %#v, want workspace hit first", searchPayload.Results)
+	}
+
+	globalOnly := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/memory/search",
+		[]byte(`{"scope":"global","workspace_id":"`+escapeJSON(workspace)+`","query_text":"sessions"}`),
+	)
+	if globalOnly.Code != http.StatusOK {
+		t.Fatalf(
+			"global-only search status = %d, want %d; body=%s",
+			globalOnly.Code,
+			http.StatusOK,
+			globalOnly.Body.String(),
+		)
+	}
+	var globalOnlyPayload memorySearchResponse
+	decodeJSONResponse(t, globalOnly, &globalOnlyPayload)
+	if len(globalOnlyPayload.Results) != 0 {
+		t.Fatalf("global-only search results = %#v, want none for workspace-only content", globalOnlyPayload.Results)
 	}
 
 	reindex := performRequest(

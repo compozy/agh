@@ -439,6 +439,7 @@ func TestMemoryV2ConfigValidationNormalizesAcceptedEnums(t *testing.T) {
 	cfg := DefaultWithHome(homePaths).Memory
 	cfg.Controller.Mode = " Hybrid "
 	cfg.Controller.DefaultOpOnFail = " Reject "
+	cfg.Controller.Policy.AllowOrigins = []string{" CLI ", "Tool"}
 	cfg.Recall.Fusion = " RRF "
 	cfg.Extractor.Mode = " Hybrid "
 	cfg.Session.LedgerFormat = " Jsonl "
@@ -448,6 +449,9 @@ func TestMemoryV2ConfigValidationNormalizesAcceptedEnums(t *testing.T) {
 	}
 	if cfg.Controller.Mode != "hybrid" || cfg.Controller.DefaultOpOnFail != "reject" {
 		t.Fatalf("controller enums = %#v, want canonical lowercase values", cfg.Controller)
+	}
+	if !slices.Equal(cfg.Controller.Policy.AllowOrigins, []string{"cli", "tool"}) {
+		t.Fatalf("controller allow origins = %#v, want canonical lowercase values", cfg.Controller.Policy.AllowOrigins)
 	}
 	if cfg.Recall.Fusion != "rrf" {
 		t.Fatalf("recall fusion = %q, want %q", cfg.Recall.Fusion, "rrf")

@@ -1681,7 +1681,7 @@ func (c MemoryControllerLLMConfig) Validate() error {
 }
 
 // Validate ensures the controller policy configuration is internally consistent.
-func (c MemoryControllerPolicyConfig) Validate() error {
+func (c *MemoryControllerPolicyConfig) Validate() error {
 	if c.MaxContentChars <= 0 {
 		return fmt.Errorf("memory.controller.policy.max_content_chars must be positive: %d", c.MaxContentChars)
 	}
@@ -1702,6 +1702,7 @@ func (c MemoryControllerPolicyConfig) Validate() error {
 		return errors.New("memory.controller.policy.allow_origins must not be empty")
 	}
 	seen := make(map[string]struct{}, len(c.AllowOrigins))
+	canonical := make([]string, len(c.AllowOrigins))
 	for i, origin := range c.AllowOrigins {
 		normalized := strings.ToLower(strings.TrimSpace(origin))
 		if _, ok := allowedOrigins[normalized]; !ok {
@@ -1711,7 +1712,9 @@ func (c MemoryControllerPolicyConfig) Validate() error {
 			return fmt.Errorf("memory.controller.policy.allow_origins[%d] duplicates %q", i, origin)
 		}
 		seen[normalized] = struct{}{}
+		canonical[i] = normalized
 	}
+	c.AllowOrigins = canonical
 	return nil
 }
 

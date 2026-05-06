@@ -64,11 +64,12 @@ type MemoryLocation struct {
 }
 
 type memorySelector struct {
-	Scope       memcontract.Scope
-	Workspace   string
-	WorkspaceID string
-	AgentName   string
-	AgentTier   memcontract.AgentTier
+	Scope         memcontract.Scope
+	Workspace     string
+	WorkspaceID   string
+	AgentName     string
+	AgentTier     memcontract.AgentTier
+	IncludeSystem bool
 }
 
 // ListMemory lists memory headers for the requested scope.
@@ -202,8 +203,14 @@ func (h *BaseHandlers) SearchMemory(c *gin.Context) {
 
 // ReadMemory returns one memory document.
 func (h *BaseHandlers) ReadMemory(c *gin.Context) {
-	location, err := h.resolveMemoryLocation(c.Request.Context(), c.Param("filename"), memorySelectorFromQuery(c))
+	selector := memorySelectorFromQuery(c)
+	location, err := h.resolveMemoryLocation(c.Request.Context(), c.Param("filename"), selector)
 	if err != nil {
+		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
+		return
+	}
+	if !selector.IncludeSystem && memorySystemManaged(location.Filename) {
+		err := fmt.Errorf("%w: memory %q not found", os.ErrNotExist, location.Filename)
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
@@ -1398,7 +1405,12 @@ func (h *BaseHandlers) listMemoryHeaders(ctx context.Context, selector memorySel
 		if err != nil {
 			return nil, err
 		}
-		headers = append(headers, items...)
+		for _, item := range items {
+			if !resolved.IncludeSystem && memorySystemManaged(item.Filename) {
+				continue
+			}
+			headers = append(headers, item)
+		}
 	}
 
 	sort.SliceStable(headers, func(i, j int) bool {
@@ -1558,7 +1570,12 @@ func (h *BaseHandlers) memoryRecallStoreForSelector(
 		return nil, err
 	}
 	store := h.MemoryStore
-	if strings.TrimSpace(resolved.Workspace) != "" {
+	needsWorkspaceStore := strings.TrimSpace(resolved.Workspace) != "" &&
+		(resolved.Scope == "" ||
+			resolved.Scope == memcontract.ScopeWorkspace ||
+			(resolved.Scope == memcontract.ScopeAgent &&
+				resolved.AgentTier.Normalize() == memcontract.AgentTierWorkspace))
+	if needsWorkspaceStore {
 		store = store.ForWorkspace(resolved.Workspace)
 	}
 	if strings.TrimSpace(resolved.AgentName) != "" && resolved.AgentTier.Normalize() != "" {
@@ -1652,10 +1669,11 @@ func (h *BaseHandlers) resolveMemoryWorkspaceRef(ctx context.Context, raw string
 func memorySelectorFromQuery(c *gin.Context) memorySelector {
 	workspaceID := firstNonEmptyString(c.Query("workspace_id"), c.Query("workspace"))
 	return memorySelector{
-		Scope:       memcontract.Scope(c.Query("scope")),
-		WorkspaceID: workspaceID,
-		AgentName:   c.Query("agent_name"),
-		AgentTier:   memcontract.AgentTier(c.Query("agent_tier")),
+		Scope:         memcontract.Scope(c.Query("scope")),
+		WorkspaceID:   workspaceID,
+		AgentName:     c.Query("agent_name"),
+		AgentTier:     memcontract.AgentTier(c.Query("agent_tier")),
+		IncludeSystem: c.Query("include_system") == "true",
 	}
 }
 

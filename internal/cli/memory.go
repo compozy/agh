@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,16 +45,17 @@ type memoryListItem struct {
 }
 
 type memorySearchItem struct {
-	Filename      string            `json:"filename"`
-	Name          string            `json:"name"`
-	Type          memcontract.Type  `json:"type"`
-	Scope         memcontract.Scope `json:"scope"`
-	Score         float64           `json:"score"`
-	Snippet       string            `json:"snippet,omitempty"`
-	WhyRecalled   []string          `json:"why_recalled,omitempty"`
-	ShadowedBy    string            `json:"shadowed_by,omitempty"`
-	AlreadyShown  bool              `json:"already_shown"`
-	StalenessNote string            `json:"staleness_banner,omitempty"`
+	Filename      string                `json:"filename"`
+	Name          string                `json:"name"`
+	Type          memcontract.Type      `json:"type"`
+	Scope         memcontract.Scope     `json:"scope"`
+	AgentTier     memcontract.AgentTier `json:"agent_tier,omitempty"`
+	Score         float64               `json:"score"`
+	Snippet       string                `json:"snippet,omitempty"`
+	WhyRecalled   []string              `json:"why_recalled,omitempty"`
+	ShadowedBy    string                `json:"shadowed_by,omitempty"`
+	AlreadyShown  bool                  `json:"already_shown"`
+	StalenessNote string                `json:"staleness_banner,omitempty"`
 }
 
 type memoryHistoryItem struct {
@@ -1019,12 +1021,17 @@ func newMemoryExtractorDrainCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			timeout := 60 * time.Second
 			if strings.TrimSpace(timeoutRaw) != "" {
-				if _, err := time.ParseDuration(strings.TrimSpace(timeoutRaw)); err != nil {
+				parsed, err := time.ParseDuration(strings.TrimSpace(timeoutRaw))
+				if err != nil {
 					return fmt.Errorf("memory.extractor.timeout_invalid: %w", err)
 				}
+				timeout = parsed
 			}
-			response, err := client.DrainMemoryExtractor(cmd.Context())
+			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+			defer cancel()
+			response, err := client.DrainMemoryExtractor(ctx)
 			if err != nil {
 				return err
 			}
@@ -1505,6 +1512,7 @@ func memorySearchBundle(response MemorySearchRecord) outputBundle {
 			Name:          result.Memory.Name,
 			Type:          result.Memory.Type,
 			Scope:         result.Memory.Scope,
+			AgentTier:     result.Memory.AgentTier,
 			Score:         result.Score,
 			Snippet:       result.Snippet,
 			WhyRecalled:   result.WhyRecalled,
@@ -1524,13 +1532,19 @@ func memorySearchBundle(response MemorySearchRecord) outputBundle {
 			return []string{
 				stringOrDash(item.Filename),
 				stringOrDash(item.Name),
-				stringOrDash(string(item.Scope)),
+				stringOrDash(memoryScopeLabel(item.Scope, item.AgentTier)),
 				fmt.Sprintf("%.2f", item.Score),
 				stringOrDash(item.Snippet),
 			}
 		},
 		func(item memorySearchItem) []string {
-			return []string{item.Filename, item.Name, string(item.Scope), fmt.Sprintf("%.2f", item.Score), item.Snippet}
+			return []string{
+				item.Filename,
+				item.Name,
+				memoryScopeLabel(item.Scope, item.AgentTier),
+				fmt.Sprintf("%.2f", item.Score),
+				item.Snippet,
+			}
 		},
 	)
 	bundle.jsonl = func(cmd *cobra.Command) error {

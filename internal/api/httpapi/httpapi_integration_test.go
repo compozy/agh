@@ -25,6 +25,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	sandboxlocal "github.com/pedronauck/agh/internal/sandbox/local"
@@ -89,7 +90,18 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	if statusResp.StatusCode != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", statusResp.StatusCode, http.StatusOK)
 	}
-	_ = statusResp.Body.Close()
+	var statusPayload contract.DaemonStatusResponse
+	decodeHTTPJSON(t, statusResp, &statusPayload)
+	if statusPayload.Daemon.PID <= 0 ||
+		statusPayload.Daemon.HTTPHost != runtime.host ||
+		statusPayload.Daemon.HTTPPort != runtime.port {
+		t.Fatalf(
+			"daemon status payload = %#v, want populated daemon fields for %s:%d",
+			statusPayload,
+			runtime.host,
+			runtime.port,
+		)
+	}
 
 	origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
 	createResp := mustHTTPRequest(

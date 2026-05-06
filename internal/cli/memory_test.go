@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -122,9 +123,10 @@ func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
 			seenSearch = request
 			return MemorySearchRecord{Results: []contract.MemorySearchResultPayload{{
 				Memory: contract.MemoryEntrySummaryPayload{
-					Filename: "prefs.md",
-					Name:     "Prefs",
-					Scope:    memcontract.ScopeAgent,
+					Filename:  "prefs.md",
+					Name:      "Prefs",
+					Scope:     memcontract.ScopeAgent,
+					AgentTier: memcontract.AgentTierGlobal,
 				},
 				Score:   1,
 				Snippet: "stored memory body",
@@ -221,6 +223,67 @@ func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
 	if !strings.Contains(searchOut, "prefs.md") {
 		t.Fatalf("search output = %q, want result filename", searchOut)
 	}
+	if !strings.Contains(searchOut, "agent:global") {
+		t.Fatalf("search output = %q, want agent tier label", searchOut)
+	}
+}
+
+func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply explicit timeout", func(t *testing.T) {
+		t.Parallel()
+
+		var remaining time.Duration
+		deps := newTestDeps(t, &stubClient{
+			drainMemoryExtractorFn: func(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("DrainMemoryExtractor context deadline missing")
+				}
+				remaining = time.Until(deadline)
+				return MemoryExtractorDrainRecord{}, nil
+			},
+		})
+
+		cmd := newRootCommand(deps)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"memory", "extractor", "drain", "--timeout", "5s"})
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("memory extractor drain error = %v", err)
+		}
+		if remaining < 4*time.Second || remaining > 6*time.Second {
+			t.Fatalf("drain timeout remaining = %s, want about 5s", remaining)
+		}
+	})
+
+	t.Run("Should default timeout to sixty seconds", func(t *testing.T) {
+		t.Parallel()
+
+		var remaining time.Duration
+		deps := newTestDeps(t, &stubClient{
+			drainMemoryExtractorFn: func(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("DrainMemoryExtractor context deadline missing")
+				}
+				remaining = time.Until(deadline)
+				return MemoryExtractorDrainRecord{}, nil
+			},
+		})
+
+		cmd := newRootCommand(deps)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"memory", "extractor", "drain"})
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("memory extractor drain error = %v", err)
+		}
+		if remaining < 55*time.Second || remaining > 65*time.Second {
+			t.Fatalf("drain timeout remaining = %s, want about 60s", remaining)
+		}
+	})
 }
 
 func TestMemoryWriteEditDeleteAndReindexUsePublicPayloads(t *testing.T) {
