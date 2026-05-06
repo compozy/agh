@@ -63,7 +63,10 @@ func (n *daemonNativeTools) taskExecutionProfileSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	profile := input.Profile.profile(taskID)
+	profile, err := input.Profile.profile(taskID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	stored, err := n.deps.Tasks.SetExecutionProfile(ctx, taskID, &profile, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -108,8 +111,17 @@ func decodeTaskExecutionProfileRef(
 	return taskID, actor, nil
 }
 
-func (i *taskExecutionProfileInput) profile(taskID string) taskpkg.ExecutionProfile {
+func (i *taskExecutionProfileInput) profile(taskID string) (taskpkg.ExecutionProfile, error) {
 	profileTaskID := strings.TrimSpace(i.TaskID)
+	if profileTaskID != "" && profileTaskID != taskID {
+		return taskpkg.ExecutionProfile{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolspkg.ToolIDTaskExecutionProfileSet,
+			fmt.Sprintf("profile.task_id must match task_id %q", taskID),
+			fmt.Errorf("%w: profile.task_id must match task_id %q", taskpkg.ErrValidation, taskID),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
 	if profileTaskID == "" {
 		profileTaskID = taskID
 	}
@@ -120,5 +132,5 @@ func (i *taskExecutionProfileInput) profile(taskID string) taskpkg.ExecutionProf
 		Review:       i.Review,
 		Participants: i.Participants,
 		Sandbox:      i.Sandbox,
-	}
+	}, nil
 }

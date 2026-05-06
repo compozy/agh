@@ -1525,6 +1525,35 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			t.Fatalf("task notification subscribe target error = %v", err)
 		}
 	})
+
+	t.Run("Should reject negative notification list limits before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			listTaskBridgeNotificationSubscriptionsFn: func(
+				context.Context,
+				string,
+				TaskBridgeNotificationSubscriptionQuery,
+			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
+				t.Fatal("ListTaskBridgeNotificationSubscriptions should not be called")
+				return nil, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"list",
+			"task-1",
+			"--last",
+			"-1",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--last must be zero or positive") {
+			t.Fatalf("task notification list error = %v", err)
+		}
+	})
 }
 
 func TestTaskReviewCommandsMapRequests(t *testing.T) {
@@ -1732,6 +1761,33 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "choose either --task or --run") {
 			t.Fatalf("task review list ambiguous error = %v", err)
+		}
+	})
+
+	t.Run("Should reject negative review round and attempt before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			requestTaskRunReviewFn: func(context.Context, string, *TaskRunReviewRequest) (TaskRunReviewRequestRecord, error) {
+				t.Fatal("RequestTaskRunReview should not be called")
+				return TaskRunReviewRequestRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"request",
+			"run-1",
+			"--round",
+			"-1",
+			"--attempt",
+			"-2",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--round must be zero or positive") {
+			t.Fatalf("task review request error = %v", err)
 		}
 	})
 }

@@ -93,16 +93,17 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		UpdatedAt:   fixedTime().Add(time.Minute),
 	}
 	run := taskpkg.Run{
-		ID:             "run-1",
-		TaskID:         "task-1",
-		Status:         taskpkg.TaskRunStatusRunning,
-		Attempt:        1,
-		ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
-		SessionID:      "sess-1",
-		NetworkChannel: "coord-channel",
-		Metadata:       jsonRaw(t, `{"coordination_channel_id":"coord-1","workflow_id":"wf-1"}`),
-		QueuedAt:       fixedTime(),
-		StartedAt:      fixedTime().Add(time.Minute),
+		ID:                    "run-1",
+		TaskID:                "task-1",
+		Status:                taskpkg.TaskRunStatusRunning,
+		Attempt:               1,
+		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
+		SessionID:             "sess-1",
+		CoordinationChannelID: "coord-structured",
+		NetworkChannel:        "coord-channel",
+		Metadata:              jsonRaw(t, `{"coordination_channel_id":"coord-1","workflow_id":"wf-1"}`),
+		QueuedAt:              fixedTime(),
+		StartedAt:             fixedTime().Add(time.Minute),
 	}
 	displayName := "Reviewer"
 	service := NewService(Deps{
@@ -139,14 +140,14 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		},
 		Network: networkStub{
 			envelopes: []network.Envelope{
-				coordinationEnvelope(t, "msg-3", "coord-channel", "third", fixedTime().Add(3*time.Minute)),
-				coordinationEnvelope(t, "msg-2", "coord-channel", "second", fixedTime().Add(2*time.Minute)),
-				coordinationEnvelope(t, "msg-1", "coord-channel", "first", fixedTime().Add(time.Minute)),
+				coordinationEnvelope(t, "msg-3", "coord-structured", "third", fixedTime().Add(3*time.Minute)),
+				coordinationEnvelope(t, "msg-2", "coord-structured", "second", fixedTime().Add(2*time.Minute)),
+				coordinationEnvelope(t, "msg-1", "coord-structured", "first", fixedTime().Add(time.Minute)),
 			},
 			peers: []network.PeerInfo{
 				{
 					PeerID:  "peer-c",
-					Channel: "coord-channel",
+					Channel: "coord-structured",
 					PeerCard: network.PeerCard{
 						PeerID:       "peer-c",
 						Capabilities: []string{"test"},
@@ -154,7 +155,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 				},
 				{
 					PeerID:  "peer-a",
-					Channel: "coord-channel",
+					Channel: "coord-structured",
 					PeerCard: network.PeerCard{
 						PeerID:       "peer-a",
 						DisplayName:  &displayName,
@@ -163,7 +164,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 				},
 				{
 					PeerID:  "peer-b",
-					Channel: "coord-channel",
+					Channel: "coord-structured",
 					PeerCard: network.PeerCard{
 						PeerID:       "peer-b",
 						Capabilities: []string{"build"},
@@ -212,8 +213,8 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 	if payload.Task.Task == nil || payload.Task.Task.ID != "task-1" {
 		t.Fatalf("Task section = %#v, want task-1", payload.Task)
 	}
-	if payload.Task.Lease == nil || payload.Task.Lease.CoordinationChannelID != "coord-1" {
-		t.Fatalf("Task lease = %#v, want coord-1", payload.Task.Lease)
+	if payload.Task.Lease == nil || payload.Task.Lease.CoordinationChannelID != "coord-structured" {
+		t.Fatalf("Task lease = %#v, want coord-structured", payload.Task.Lease)
 	}
 	if payload.Task.Bundle == nil ||
 		payload.Task.Bundle.CurrentRun == nil ||
@@ -949,7 +950,7 @@ func coordinationEnvelope(
 	metadata, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
 		TaskID:                "task-1",
 		RunID:                 "run-1",
-		CoordinationChannelID: "coord-1",
+		CoordinationChannelID: channel,
 		MessageKind:           contract.CoordinationMessageStatus,
 		CorrelationID:         id + "-corr",
 	})

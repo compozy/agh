@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
@@ -11,7 +12,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
-const defaultBridgeTerminalNotificationTimeout = 10 * time.Second
+const defaultBridgeTerminalNotificationQueueSize = 32
 
 type taskEventObserverFanout struct {
 	observers []taskpkg.EventObserver
@@ -74,17 +75,31 @@ type bridgeTerminalTaskNotificationObserver struct {
 	notifier *bridgepkg.TerminalTaskNotifier
 	logger   *slog.Logger
 	timeout  time.Duration
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	mu       sync.Mutex
+	pending  map[string]struct{}
+	backlog  []bridgeTerminalTaskNotificationWake
+	queue    chan bridgeTerminalTaskNotificationWake
 }
 
 var _ taskpkg.EventObserver = (*bridgeTerminalTaskNotificationObserver)(nil)
+
+type bridgeTerminalTaskNotificationWake struct {
+	taskID    string
+	eventID   string
+	runID     string
+	eventType string
+}
 
 func (d *Daemon) composeTaskEventObserver(
 	state *bootState,
 	store taskStore,
 	reentry taskpkg.EventObserver,
-) taskpkg.EventObserver {
+) (taskpkg.EventObserver, *bridgeTerminalTaskNotificationObserver) {
 	if state == nil {
-		return reentry
+		return reentry, nil
 	}
 	bridgeEventObserver := newBridgeTerminalTaskNotificationObserver(
 		state.bridges,
@@ -94,8 +109,9 @@ func (d *Daemon) composeTaskEventObserver(
 		state.bridges,
 		state.logger,
 		d.now,
+		state.cfg.Task.Orchestration.BridgeNotificationTimeout,
 	)
-	return newTaskEventObserverFanout(state.logger, reentry, bridgeEventObserver)
+	return newTaskEventObserverFanout(state.logger, reentry, bridgeEventObserver), bridgeEventObserver
 }
 
 func newBridgeTerminalTaskNotificationObserver(
@@ -106,11 +122,16 @@ func newBridgeTerminalTaskNotificationObserver(
 	transport bridgepkg.DeliveryTransport,
 	logger *slog.Logger,
 	now func() time.Time,
-) taskpkg.EventObserver {
+	timeout time.Duration,
+) *bridgeTerminalTaskNotificationObserver {
 	if subscriptions == nil || taskEvents == nil || instances == nil || cursors == nil || transport == nil {
 		return nil
 	}
-	return &bridgeTerminalTaskNotificationObserver{
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	observer := &bridgeTerminalTaskNotificationObserver{
 		notifier: bridgepkg.NewTerminalTaskNotifier(bridgepkg.TerminalTaskNotifierConfig{
 			Subscriptions: subscriptions,
 			TaskEvents:    taskEvents,
@@ -120,28 +141,107 @@ func newBridgeTerminalTaskNotificationObserver(
 			Now:           now,
 		}),
 		logger:  logger,
-		timeout: defaultBridgeTerminalNotificationTimeout,
+		timeout: timeout,
+		ctx:     ctx,
+		cancel:  cancel,
+		pending: make(map[string]struct{}),
+		queue:   make(chan bridgeTerminalTaskNotificationWake, defaultBridgeTerminalNotificationQueueSize),
 	}
+	observer.start()
+	return observer
 }
 
 func (o *bridgeTerminalTaskNotificationObserver) OnTaskEvent(
-	ctx context.Context,
+	_ context.Context,
 	record taskpkg.EventRecord,
 ) {
 	if o == nil || o.notifier == nil || !isBridgeTerminalNotificationWake(record.Event.EventType) {
 		return
 	}
-	if ctx == nil {
-		o.log().Warn(
-			"daemon: skipped bridge terminal task notification wake without context",
-			"event_id", record.Event.ID,
-			"task_id", record.Event.TaskID,
-			"run_id", record.Event.RunID,
-			"event_type", record.Event.EventType,
-		)
+	o.enqueue(record)
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) shutdown() {
+	if o == nil {
 		return
 	}
-	notifyCtx := context.WithoutCancel(ctx)
+	if o.cancel != nil {
+		o.cancel()
+	}
+	o.wg.Wait()
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) start() {
+	if o == nil {
+		return
+	}
+	o.wg.Go(func() {
+		for {
+			select {
+			case <-o.ctx.Done():
+				return
+			case wake := <-o.queue:
+				o.processWake(wake)
+			}
+		}
+	})
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) enqueue(record taskpkg.EventRecord) {
+	if o == nil {
+		return
+	}
+	wake := bridgeTerminalTaskNotificationWake{
+		taskID:    strings.TrimSpace(record.Event.TaskID),
+		eventID:   strings.TrimSpace(record.Event.ID),
+		runID:     strings.TrimSpace(record.Event.RunID),
+		eventType: strings.TrimSpace(record.Event.EventType),
+	}
+	if wake.taskID == "" {
+		return
+	}
+	o.mu.Lock()
+	if _, exists := o.pending[wake.taskID]; exists {
+		o.mu.Unlock()
+		return
+	}
+	o.pending[wake.taskID] = struct{}{}
+	o.backlog = append(o.backlog, wake)
+	o.mu.Unlock()
+	o.drainQueue()
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) drainQueue() {
+	if o == nil {
+		return
+	}
+	for {
+		o.mu.Lock()
+		if len(o.backlog) == 0 {
+			o.mu.Unlock()
+			return
+		}
+		wake := o.backlog[0]
+		select {
+		case o.queue <- wake:
+			o.backlog = o.backlog[1:]
+			o.mu.Unlock()
+		default:
+			o.mu.Unlock()
+			return
+		}
+	}
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) processWake(wake bridgeTerminalTaskNotificationWake) {
+	defer func() {
+		o.mu.Lock()
+		delete(o.pending, wake.taskID)
+		o.mu.Unlock()
+		o.drainQueue()
+	}()
+
+	notifyCtx := context.Background()
 	cancel := func() {}
 	if o.timeout > 0 {
 		notifyCtx, cancel = context.WithTimeout(notifyCtx, o.timeout)
@@ -150,16 +250,16 @@ func (o *bridgeTerminalTaskNotificationObserver) OnTaskEvent(
 
 	sweep, err := o.notifier.DeliverDue(
 		notifyCtx,
-		bridgepkg.BridgeTaskSubscriptionQuery{TaskID: record.Event.TaskID},
+		bridgepkg.BridgeTaskSubscriptionQuery{TaskID: wake.taskID},
 	)
 	if err != nil {
 		o.log().Warn(
 			"daemon: bridge terminal task notification delivery failed",
 			"error", err,
-			"event_id", record.Event.ID,
-			"task_id", record.Event.TaskID,
-			"run_id", record.Event.RunID,
-			"event_type", record.Event.EventType,
+			"event_id", wake.eventID,
+			"task_id", wake.taskID,
+			"run_id", wake.runID,
+			"event_type", wake.eventType,
 			"subscriptions", sweep.Subscriptions,
 			"delivered", sweep.Delivered,
 			"deferred", sweep.Deferred,
@@ -170,10 +270,10 @@ func (o *bridgeTerminalTaskNotificationObserver) OnTaskEvent(
 	if sweep.Delivered > 0 || sweep.Deferred > 0 || sweep.Failed > 0 {
 		o.log().Debug(
 			"daemon: bridge terminal task notification sweep complete",
-			"event_id", record.Event.ID,
-			"task_id", record.Event.TaskID,
-			"run_id", record.Event.RunID,
-			"event_type", record.Event.EventType,
+			"event_id", wake.eventID,
+			"task_id", wake.taskID,
+			"run_id", wake.runID,
+			"event_type", wake.eventType,
 			"subscriptions", sweep.Subscriptions,
 			"delivered", sweep.Delivered,
 			"deferred", sweep.Deferred,

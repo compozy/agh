@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -232,7 +233,9 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 		fixture.Engine,
 		http.MethodPut,
 		"/tasks/task-1/execution-profile",
-		[]byte(`{"worker":{"mode":"select","agent_name":"worker-b"},"sandbox":{"mode":"none"}}`),
+		[]byte(
+			`{"worker":{"mode":"select","agent_name":"worker-b"},"sandbox":{"mode":"none"},"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-02T10:00:00Z"}`,
+		),
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("set profile status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
@@ -240,13 +243,18 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 	if gotSetProfile.TaskID != "task-1" ||
 		gotSetProfile.Worker.Mode != taskpkg.WorkerModeSelect ||
 		gotSetProfile.Worker.AgentName != "worker-b" ||
-		gotSetProfile.Sandbox.Mode != taskpkg.SandboxModeNone {
+		gotSetProfile.Sandbox.Mode != taskpkg.SandboxModeNone ||
+		!gotSetProfile.CreatedAt.IsZero() ||
+		!gotSetProfile.UpdatedAt.IsZero() {
 		t.Fatalf("set profile request = %#v", gotSetProfile)
 	}
 
 	resp = performRequest(t, fixture.Engine, http.MethodDelete, "/tasks/task-1/execution-profile", nil)
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("delete profile status = %d, want %d; body=%s", resp.Code, http.StatusNoContent, resp.Body.String())
+	}
+	if resp.Body.Len() != 0 {
+		t.Fatalf("delete profile body = %q, want empty body", resp.Body.String())
 	}
 	if deletedTaskID != "task-1" {
 		t.Fatalf("deleted task id = %q, want task-1", deletedTaskID)
@@ -266,6 +274,11 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 			http.StatusBadRequest,
 			resp.Body.String(),
 		)
+	}
+	var mismatchPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &mismatchPayload)
+	if !strings.Contains(mismatchPayload.Error, `task_execution_profile.task_id must match task id "task-1"`) {
+		t.Fatalf("set mismatched profile payload = %#v", mismatchPayload)
 	}
 }
 
@@ -306,7 +319,11 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			default:
 				t.Fatalf("GetTask actor origin = %#v", actor.Origin)
 			}
-			return &taskpkg.View{Task: taskpkg.Task{ID: "task-1"}}, nil
+			return &taskpkg.View{Task: taskpkg.Task{
+				ID:          "task-1",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-1",
+			}}, nil
 		},
 	}
 	bridges := testutil.StubBridgeService{
@@ -314,7 +331,11 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			if id != "brg-1" {
 				t.Fatalf("GetInstance id = %q, want brg-1", id)
 			}
-			return &bridgepkg.BridgeInstance{ID: "brg-1"}, nil
+			return &bridgepkg.BridgeInstance{
+				ID:          "brg-1",
+				Scope:       bridgepkg.ScopeWorkspace,
+				WorkspaceID: "ws-1",
+			}, nil
 		},
 		PutTaskSubscriptionFn: func(_ context.Context, item bridgepkg.BridgeTaskSubscription) error {
 			putSubscription = item
@@ -325,16 +346,20 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			query bridgepkg.BridgeTaskSubscriptionQuery,
 		) ([]bridgepkg.BridgeTaskSubscription, error) {
 			listQuery = query
-			return []bridgepkg.BridgeTaskSubscription{subscription}, nil
+			stored := subscription
+			stored.SubscriptionID = putSubscription.SubscriptionID
+			return []bridgepkg.BridgeTaskSubscription{stored}, nil
 		},
 		GetTaskSubscriptionFn: func(_ context.Context, id string) (bridgepkg.BridgeTaskSubscription, error) {
-			if id != "sub-1" {
-				t.Fatalf("GetBridgeTaskSubscription id = %q, want sub-1", id)
+			if id != putSubscription.SubscriptionID {
+				t.Fatalf("GetBridgeTaskSubscription id = %q, want %q", id, putSubscription.SubscriptionID)
 			}
 			if deleted {
 				return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
 			}
-			return subscription, nil
+			stored := subscription
+			stored.SubscriptionID = putSubscription.SubscriptionID
+			return stored, nil
 		},
 		DeleteTaskSubscriptionFn: func(_ context.Context, id string) error {
 			deleteID = id
@@ -342,7 +367,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			return nil
 		},
 		GetCursorFn: func(_ context.Context, key notifications.CursorKey) (notifications.Cursor, error) {
-			if key.ConsumerID != "bridge_task_subscription:sub-1" ||
+			if key.ConsumerID != "bridge_task_subscription:"+putSubscription.SubscriptionID ||
 				key.StreamName != "task_events" ||
 				key.SubjectID != "task-1" {
 				t.Fatalf("GetCursor key = %#v, want subscription cursor", key)
@@ -350,7 +375,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			return notifications.Cursor{
 				Key:             key,
 				LastSequence:    7,
-				LastDeliveryID:  "notif:sub-1:7",
+				LastDeliveryID:  "notif:" + putSubscription.SubscriptionID + ":7",
 				LastDeliveredAt: now.Add(time.Minute),
 				LastError:       "bridge adapter rejected send",
 				UpdatedAt:       now.Add(2 * time.Minute),
@@ -380,20 +405,24 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("create subscription status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
 	}
-	if putSubscription.SubscriptionID != "sub-1" ||
+	if putSubscription.SubscriptionID == "" ||
+		putSubscription.SubscriptionID == "sub-1" ||
 		putSubscription.TaskID != "task-1" ||
 		putSubscription.BridgeInstanceID != "brg-1" ||
+		putSubscription.Scope != bridgepkg.ScopeWorkspace ||
+		putSubscription.WorkspaceID != "ws-1" ||
 		putSubscription.CreatedBy.Kind != taskpkg.ActorKindHuman ||
 		putSubscription.CreatedAt.IsZero() {
 		t.Fatalf("put subscription = %#v", putSubscription)
 	}
 	var createPayload contract.TaskBridgeNotificationSubscriptionResponse
 	testutil.DecodeJSONResponse(t, resp, &createPayload)
-	if createPayload.Subscription.Cursor.ConsumerID != "bridge_task_subscription:sub-1" ||
+	if createPayload.Subscription.SubscriptionID != putSubscription.SubscriptionID ||
+		createPayload.Subscription.Cursor.ConsumerID != "bridge_task_subscription:"+putSubscription.SubscriptionID ||
 		createPayload.Subscription.Cursor.StreamName != "task_events" ||
 		createPayload.Subscription.Cursor.SubjectID != "task-1" ||
 		createPayload.Subscription.Cursor.LastSequence != 7 ||
-		createPayload.Subscription.Cursor.LastDeliveryID != "notif:sub-1:7" ||
+		createPayload.Subscription.Cursor.LastDeliveryID != "notif:"+putSubscription.SubscriptionID+":7" ||
 		createPayload.Subscription.Cursor.LastError != "bridge adapter rejected send" {
 		t.Fatalf("create payload cursor = %#v", createPayload.Subscription.Cursor)
 	}
@@ -417,7 +446,8 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 	}
 	var listPayload contract.TaskBridgeNotificationSubscriptionsResponse
 	testutil.DecodeJSONResponse(t, resp, &listPayload)
-	if len(listPayload.Subscriptions) != 1 || listPayload.Subscriptions[0].SubscriptionID != "sub-1" {
+	if len(listPayload.Subscriptions) != 1 ||
+		listPayload.Subscriptions[0].SubscriptionID != putSubscription.SubscriptionID {
 		t.Fatalf("list payload = %#v", listPayload)
 	}
 	if listPayload.Subscriptions[0].Cursor.LastSequence != 7 ||
@@ -429,7 +459,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/tasks/task-1/notifications/bridges/sub-1",
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
 		nil,
 	)
 	if resp.Code != http.StatusOK {
@@ -437,8 +467,8 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 	}
 	var getPayload contract.TaskBridgeNotificationSubscriptionResponse
 	testutil.DecodeJSONResponse(t, resp, &getPayload)
-	if getPayload.Subscription.SubscriptionID != "sub-1" ||
-		getPayload.Subscription.Cursor.ConsumerID != "bridge_task_subscription:sub-1" ||
+	if getPayload.Subscription.SubscriptionID != putSubscription.SubscriptionID ||
+		getPayload.Subscription.Cursor.ConsumerID != "bridge_task_subscription:"+putSubscription.SubscriptionID ||
 		getPayload.Subscription.Cursor.LastSequence != 7 ||
 		getPayload.Subscription.Cursor.UpdatedAt == nil {
 		t.Fatalf("get payload = %#v", getPayload)
@@ -448,7 +478,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodDelete,
-		"/tasks/task-1/notifications/bridges/sub-1",
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
 		nil,
 	)
 	if resp.Code != http.StatusNoContent {
@@ -459,15 +489,18 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			resp.Body.String(),
 		)
 	}
-	if deleteID != "sub-1" {
-		t.Fatalf("delete id = %q, want sub-1", deleteID)
+	if resp.Body.Len() != 0 {
+		t.Fatalf("delete subscription body = %q, want empty body", resp.Body.String())
+	}
+	if deleteID != putSubscription.SubscriptionID {
+		t.Fatalf("delete id = %q, want %q", deleteID, putSubscription.SubscriptionID)
 	}
 
 	resp = performRequest(
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/tasks/task-1/notifications/bridges/sub-1",
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
 		nil,
 	)
 	if resp.Code != http.StatusNotFound {
@@ -478,12 +511,17 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			resp.Body.String(),
 		)
 	}
+	var deletedGetPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &deletedGetPayload)
+	if deletedGetPayload.Error != bridgepkg.ErrBridgeTaskSubscriptionNotFound.Error() {
+		t.Fatalf("get deleted subscription payload = %#v", deletedGetPayload)
+	}
 
 	resp = performRequest(
 		t,
 		fixture.Engine,
 		http.MethodDelete,
-		"/tasks/task-1/notifications/bridges/sub-1",
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
 		nil,
 	)
 	if resp.Code != http.StatusNotFound {
@@ -493,6 +531,11 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			http.StatusNotFound,
 			resp.Body.String(),
 		)
+	}
+	var deletedDeletePayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &deletedDeletePayload)
+	if deletedDeletePayload.Error != bridgepkg.ErrBridgeTaskSubscriptionNotFound.Error() {
+		t.Fatalf("delete deleted subscription payload = %#v", deletedDeletePayload)
 	}
 
 	resp = performRequest(
@@ -510,6 +553,11 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			resp.Body.String(),
 		)
 	}
+	var invalidSubscriptionPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &invalidSubscriptionPayload)
+	if invalidSubscriptionPayload.Error == "" {
+		t.Fatalf("invalid subscription payload = %#v, want validation error", invalidSubscriptionPayload)
+	}
 }
 
 func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) {
@@ -526,7 +574,11 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 				if actor.Origin.Ref != "tasks.create_bridge_notification_subscription" {
 					t.Fatalf("GetTask actor origin = %#v", actor.Origin)
 				}
-				return &taskpkg.View{Task: taskpkg.Task{ID: "task-1"}}, nil
+				return &taskpkg.View{Task: taskpkg.Task{
+					ID:          "task-1",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}}, nil
 			},
 		}
 		bridges := testutil.StubBridgeService{
@@ -558,7 +610,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 			http.MethodPost,
 			"/tasks/task-1/notifications/bridges",
 			[]byte(
-				`{"subscription_id":"sub-missing","bridge_instance_id":"missing-bridge","scope":"global","peer_id":"peer-1","delivery_mode":"reply"}`,
+				`{"subscription_id":"sub-missing","bridge_instance_id":"missing-bridge","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
 			),
 		)
 		if resp.Code != http.StatusNotFound {
@@ -573,6 +625,77 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 		testutil.DecodeJSONResponse(t, resp, &errorPayload)
 		if errorPayload.Error != bridgepkg.ErrBridgeInstanceNotFound.Error() {
 			t.Fatalf("missing bridge error = %q, want %q", errorPayload.Error, bridgepkg.ErrBridgeInstanceNotFound)
+		}
+	})
+
+	t.Run("Should reject bridge instances outside the task scope before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := testutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+				if id != "task-1" {
+					t.Fatalf("GetTask id = %q, want task-1", id)
+				}
+				if actor.Origin.Ref != "tasks.create_bridge_notification_subscription" {
+					t.Fatalf("GetTask actor origin = %#v", actor.Origin)
+				}
+				return &taskpkg.View{Task: taskpkg.Task{
+					ID:          "task-1",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}}, nil
+			},
+		}
+		bridges := testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if id != "brg-global" {
+					t.Fatalf("GetInstance id = %q, want brg-global", id)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:    "brg-global",
+					Scope: bridgepkg.ScopeGlobal,
+				}, nil
+			},
+			PutTaskSubscriptionFn: func(context.Context, bridgepkg.BridgeTaskSubscription) error {
+				t.Fatal("PutBridgeTaskSubscription should not be called for a scope mismatch")
+				return nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasksAndBridges(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			bridges,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/tasks/task-1/notifications/bridges",
+			[]byte(
+				`{"bridge_instance_id":"brg-global","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
+			),
+		)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"create subscription scope mismatch status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusBadRequest,
+				resp.Body.String(),
+			)
+		}
+		var errorPayload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &errorPayload)
+		if !strings.Contains(
+			errorPayload.Error,
+			`bridge instance scope "global" does not match task scope "workspace"`,
+		) {
+			t.Fatalf("scope mismatch payload = %#v", errorPayload)
 		}
 	})
 }
@@ -774,6 +897,11 @@ func TestBaseHandlersTaskRunReviewEndpoints(t *testing.T) {
 			http.StatusBadRequest,
 			resp.Body.String(),
 		)
+	}
+	var mismatchReviewPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &mismatchReviewPayload)
+	if !strings.Contains(mismatchReviewPayload.Error, `task_run_review.run_id must match run id "run-1"`) {
+		t.Fatalf("mismatched review payload = %#v", mismatchReviewPayload)
 	}
 	if requestCalls != 1 {
 		t.Fatalf("request calls after mismatch = %d, want 1", requestCalls)

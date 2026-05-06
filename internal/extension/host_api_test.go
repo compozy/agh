@@ -4921,7 +4921,7 @@ Review the workspace changes carefully.
 			return
 		}
 		activeSessions := manager.List()
-		if waitForHostAPIPromptsToSettle(t, manager, activeSessions) {
+		if waitForHostAPIPromptsToSettle(ctx, t, manager, activeSessions) {
 			if err := manager.WaitForPromptDrains(ctx); err != nil {
 				t.Errorf("sessions.WaitForPromptDrains() cleanup error = %v", err)
 			}
@@ -4945,6 +4945,7 @@ Review the workspace changes carefully.
 }
 
 func waitForHostAPIPromptsToSettle(
+	ctx context.Context,
 	t testing.TB,
 	manager *session.Manager,
 	sessions []*session.Info,
@@ -4955,7 +4956,6 @@ func waitForHostAPIPromptsToSettle(
 		return true
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
 	for {
 		allSettled := true
 		for _, info := range sessions {
@@ -4967,8 +4967,8 @@ func waitForHostAPIPromptsToSettle(
 		if allSettled {
 			return true
 		}
-		if time.Now().After(deadline) {
-			t.Errorf("timed out waiting for host API prompt cleanup")
+		if ctx != nil && ctx.Err() != nil {
+			t.Errorf("timed out waiting for host API prompt cleanup: %v", ctx.Err())
 			return false
 		}
 		time.Sleep(5 * time.Millisecond)

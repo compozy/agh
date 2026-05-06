@@ -25352,7 +25352,7 @@ export interface operations {
                 | "invalid_output";
               parent_review_id?: string;
               /** @enum {string} */
-              policy: "always" | "on_success" | "on_failure";
+              policy: "none" | "always" | "on_success" | "on_failure";
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -25576,7 +25576,7 @@ export interface operations {
                 | "invalid_output";
               parent_review_id?: string;
               /** @enum {string} */
-              policy: "always" | "on_success" | "on_failure";
+              policy: "none" | "always" | "on_success" | "on_failure";
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -26811,7 +26811,7 @@ export interface operations {
                 | "invalid_output";
               parent_review_id?: string;
               /** @enum {string} */
-              policy: "always" | "on_success" | "on_failure";
+              policy: "none" | "always" | "on_success" | "on_failure";
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -26926,7 +26926,7 @@ export interface operations {
           deadline_at: string;
           parent_review_id?: string;
           /** @enum {string} */
-          policy?: "always" | "on_success" | "on_failure";
+          policy?: "none" | "always" | "on_success" | "on_failure";
           reason?: string;
           review_round?: number;
           run_id: string;
@@ -26964,7 +26964,7 @@ export interface operations {
                 | "invalid_output";
               parent_review_id?: string;
               /** @enum {string} */
-              policy: "always" | "on_success" | "on_failure";
+              policy: "none" | "always" | "on_success" | "on_failure";
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -27037,7 +27037,7 @@ export interface operations {
                 | "invalid_output";
               parent_review_id?: string;
               /** @enum {string} */
-              policy: "always" | "on_success" | "on_failure";
+              policy: "none" | "always" | "on_success" | "on_failure";
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -31975,7 +31975,7 @@ export interface operations {
                 | "invalid_output";
               parent_review_id?: string;
               /** @enum {string} */
-              policy: "always" | "on_success" | "on_failure";
+              policy: "none" | "always" | "on_success" | "on_failure";
               reason?: string;
               /** Format: date-time */
               requested_at: string;

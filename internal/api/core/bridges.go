@@ -360,7 +360,7 @@ func (h *BaseHandlers) CreateTaskBridgeNotificationSubscription(c *gin.Context) 
 		return
 	}
 
-	taskID, actor, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionCreateBridgeSub)
+	taskRecord, actor, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionCreateBridgeSub)
 	if !ok {
 		return
 	}
@@ -375,12 +375,17 @@ func (h *BaseHandlers) CreateTaskBridgeNotificationSubscription(c *gin.Context) 
 		return
 	}
 
-	subscription, err := taskBridgeNotificationSubscriptionFromRequest(taskID, actor.Actor, h.Now(), &req)
+	subscription, err := taskBridgeNotificationSubscriptionFromRequest(taskRecord, actor.Actor, h.Now(), &req)
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
-	if _, err := bridges.GetInstance(c.Request.Context(), subscription.BridgeInstanceID); err != nil {
+	instance, err := bridges.GetInstance(c.Request.Context(), subscription.BridgeInstanceID)
+	if err != nil {
+		h.respondError(c, StatusForBridgeError(err), err)
+		return
+	}
+	if err := validateTaskBridgeNotificationInstanceScope(taskRecord, instance); err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
@@ -416,11 +421,11 @@ func (h *BaseHandlers) ListTaskBridgeNotificationSubscriptions(c *gin.Context) {
 		return
 	}
 
-	taskID, _, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionListBridgeSubs)
+	taskRecord, _, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionListBridgeSubs)
 	if !ok {
 		return
 	}
-	query, err := parseTaskBridgeNotificationSubscriptionQuery(c, taskID)
+	query, err := parseTaskBridgeNotificationSubscriptionQuery(c, strings.TrimSpace(taskRecord.ID))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -454,11 +459,11 @@ func (h *BaseHandlers) GetTaskBridgeNotificationSubscription(c *gin.Context) {
 		return
 	}
 
-	taskID, _, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionGetBridgeSub)
+	taskRecord, _, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionGetBridgeSub)
 	if !ok {
 		return
 	}
-	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(c, bridges, taskID)
+	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(c, bridges, strings.TrimSpace(taskRecord.ID))
 	if !ok {
 		return
 	}
@@ -485,11 +490,11 @@ func (h *BaseHandlers) DeleteTaskBridgeNotificationSubscription(c *gin.Context) 
 		return
 	}
 
-	taskID, _, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionDeleteBridgeSub)
+	taskRecord, _, ok := h.authorizeTaskBridgeNotification(c, manager, taskActionDeleteBridgeSub)
 	if !ok {
 		return
 	}
-	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(c, bridges, taskID)
+	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(c, bridges, strings.TrimSpace(taskRecord.ID))
 	if !ok {
 		return
 	}
@@ -640,26 +645,27 @@ func (h *BaseHandlers) authorizeTaskBridgeNotification(
 	c *gin.Context,
 	manager TaskService,
 	action string,
-) (string, taskpkg.ActorContext, bool) {
+) (taskpkg.Task, taskpkg.ActorContext, bool) {
 	taskID, err := requiredPathID(c.Param("id"), "task id")
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
-		return "", taskpkg.ActorContext{}, false
+		return taskpkg.Task{}, taskpkg.ActorContext{}, false
 	}
 	actor, err := h.taskActorContext(c, action)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
-		return "", taskpkg.ActorContext{}, false
+		return taskpkg.Task{}, taskpkg.ActorContext{}, false
 	}
-	if _, err := manager.GetTask(c.Request.Context(), taskID, actor); err != nil {
+	view, err := manager.GetTask(c.Request.Context(), taskID, actor)
+	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
-		return "", taskpkg.ActorContext{}, false
+		return taskpkg.Task{}, taskpkg.ActorContext{}, false
 	}
-	return taskID, actor, true
+	return view.Task, actor, true
 }
 
 func taskBridgeNotificationSubscriptionFromRequest(
-	taskID string,
+	taskRecord taskpkg.Task,
 	actor taskpkg.ActorIdentity,
 	now time.Time,
 	req *contract.CreateTaskBridgeNotificationSubscriptionRequest,
@@ -670,16 +676,29 @@ func taskBridgeNotificationSubscriptionFromRequest(
 			bridgepkg.ErrInvalidBridgeTaskSubscription,
 		)
 	}
-	subscriptionID := strings.TrimSpace(req.SubscriptionID)
-	if subscriptionID == "" {
-		subscriptionID = store.NewID("bts")
+	taskScope := bridgepkg.Scope(taskRecord.Scope.Normalize())
+	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	requestScope := req.Scope.Normalize()
+	switch {
+	case requestScope != "" && requestScope != taskScope:
+		return bridgepkg.BridgeTaskSubscription{}, fmt.Errorf(
+			"%w: task bridge notification scope must match task scope %q",
+			bridgepkg.ErrInvalidBridgeTaskSubscription,
+			taskScope,
+		)
+	case requestScope == bridgepkg.ScopeWorkspace && strings.TrimSpace(req.WorkspaceID) != taskWorkspaceID:
+		return bridgepkg.BridgeTaskSubscription{}, fmt.Errorf(
+			"%w: task bridge notification workspace must match task workspace %q",
+			bridgepkg.ErrInvalidBridgeTaskSubscription,
+			taskWorkspaceID,
+		)
 	}
 	subscription := bridgepkg.BridgeTaskSubscription{
-		SubscriptionID:   subscriptionID,
-		TaskID:           strings.TrimSpace(taskID),
+		SubscriptionID:   store.NewID("bts"),
+		TaskID:           strings.TrimSpace(taskRecord.ID),
 		BridgeInstanceID: strings.TrimSpace(req.BridgeInstanceID),
-		Scope:            req.Scope,
-		WorkspaceID:      strings.TrimSpace(req.WorkspaceID),
+		Scope:            taskScope,
+		WorkspaceID:      taskWorkspaceID,
 		PeerID:           strings.TrimSpace(req.PeerID),
 		ThreadID:         strings.TrimSpace(req.ThreadID),
 		GroupID:          strings.TrimSpace(req.GroupID),
@@ -692,6 +711,36 @@ func taskBridgeNotificationSubscriptionFromRequest(
 		return bridgepkg.BridgeTaskSubscription{}, err
 	}
 	return subscription.Normalize(), nil
+}
+
+func validateTaskBridgeNotificationInstanceScope(
+	taskRecord taskpkg.Task,
+	instance *bridgepkg.BridgeInstance,
+) error {
+	if instance == nil {
+		return bridgepkg.ErrBridgeInstanceNotFound
+	}
+	taskScope := bridgepkg.Scope(taskRecord.Scope.Normalize())
+	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	instanceScope := instance.Scope.Normalize()
+	instanceWorkspaceID := strings.TrimSpace(instance.WorkspaceID)
+	if taskScope != instanceScope {
+		return fmt.Errorf(
+			"%w: bridge instance scope %q does not match task scope %q",
+			bridgepkg.ErrInvalidBridgeTaskSubscription,
+			instanceScope,
+			taskScope,
+		)
+	}
+	if taskScope == bridgepkg.ScopeWorkspace && taskWorkspaceID != instanceWorkspaceID {
+		return fmt.Errorf(
+			"%w: bridge instance workspace %q does not match task workspace %q",
+			bridgepkg.ErrInvalidBridgeTaskSubscription,
+			instanceWorkspaceID,
+			taskWorkspaceID,
+		)
+	}
+	return nil
 }
 
 func parseTaskBridgeNotificationSubscriptionQuery(

@@ -44,6 +44,9 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if got := orchestration.DefaultMaxRuntime; got != 0 {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.DefaultMaxRuntime = %s, want disabled", got)
 		}
+		if got, want := orchestration.BridgeNotificationTimeout, 10*time.Second; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.BridgeNotificationTimeout = %s, want %s", got, want)
+		}
 		if got, want := orchestration.Profile.DefaultCoordinatorMode, TaskCoordinatorModeInherit; got != want {
 			t.Fatalf("DefaultWithHome() profile DefaultCoordinatorMode = %q, want %q", got, want)
 		}
@@ -147,6 +150,11 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			name:    "Should reject runtime above watchdog maximum",
 			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.DefaultMaxRuntime = 25 * time.Hour },
 			wantErr: "task.orchestration.default_max_runtime",
+		},
+		{
+			name:    "Should reject zero bridge notification timeout",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.BridgeNotificationTimeout = 0 },
+			wantErr: "task.orchestration.bridge_notification_timeout",
 		},
 		{
 			name: "Should reject unknown coordinator default mode",

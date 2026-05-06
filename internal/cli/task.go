@@ -661,6 +661,9 @@ func buildTaskBridgeNotificationSubscriptionListQuery(
 	workspaceID string,
 	last int,
 ) (TaskBridgeNotificationSubscriptionQuery, error) {
+	if last < 0 {
+		return TaskBridgeNotificationSubscriptionQuery{}, errors.New("cli: --last must be zero or positive")
+	}
 	query := TaskBridgeNotificationSubscriptionQuery{
 		BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
 		WorkspaceID:      strings.TrimSpace(workspaceID),
@@ -829,6 +832,12 @@ func buildTaskRunReviewRequest(
 	attempt int,
 	parentID string,
 ) (*TaskRunReviewRequest, error) {
+	if round < 0 {
+		return nil, errors.New("cli: --round must be zero or positive")
+	}
+	if attempt < 0 {
+		return nil, errors.New("cli: --attempt must be zero or positive")
+	}
 	policy, err := parseOptionalReviewPolicy(policyRaw)
 	if err != nil {
 		return nil, err

@@ -87,6 +87,7 @@ type reviewRouterTaskStore interface {
 type reviewRouterSessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
 type reviewRouterAgentResolver interface {
@@ -169,9 +170,7 @@ func (r *reviewRouter) OnRunReviewRequested(
 	if r == nil || notification == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = detachDaemonOwnedContext(ctx)
 	if strings.TrimSpace(notification.Review.ReviewID) == "" {
 		return
 	}
@@ -248,6 +247,9 @@ func (r *reviewRouter) routeRunReview(
 		ReviewerPeerID:    peerID,
 		ReviewerChannelID: info.Channel,
 	}, actor); err != nil {
+		if route.create != nil {
+			err = errors.Join(err, r.cleanupCreatedReviewerSession(ctx, info))
+		}
 		return false, "reviewer session binding failed: " + err.Error(), err
 	}
 	return true, "", nil
@@ -462,15 +464,12 @@ func (r *reviewRouter) createRoute(
 func (r *reviewRouter) selectCreateAgent(
 	ctx context.Context,
 	review *taskpkg.ReviewProfile,
-	original originalWorkerIdentity,
+	_ originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (string, string, error) {
 	candidates := reviewCreateAgentCandidates(review, resolved)
 	for _, candidate := range candidates {
 		if strings.TrimSpace(candidate) == "" {
-			continue
-		}
-		if strings.TrimSpace(candidate) == strings.TrimSpace(original.agentName) {
 			continue
 		}
 		ok, err := r.agentHasCapabilities(ctx, resolved, candidate, review.RequiredCapabilities)
@@ -490,14 +489,13 @@ func (r *reviewRouter) selectCreateAgent(
 	if strings.TrimSpace(review.AgentName) != "" || len(review.AllowedAgentNames) > 0 {
 		return "", "review profile agent selectors exclude all eligible reviewer agents", nil
 	}
-	if strings.TrimSpace(original.agentName) != "" && resolved != nil {
+	if resolved != nil {
 		for _, agent := range sortedResolvedAgents(resolved) {
-			if strings.TrimSpace(agent.Name) == "" || strings.TrimSpace(agent.Name) == original.agentName {
+			if strings.TrimSpace(agent.Name) == "" {
 				continue
 			}
 			return strings.TrimSpace(agent.Name), "", nil
 		}
-		return "", "original worker is the only resolvable reviewer agent", nil
 	}
 	return "", "", nil
 }
@@ -607,8 +605,31 @@ func (r *reviewRouter) isOriginalWorker(info *session.Info, original originalWor
 	if strings.TrimSpace(original.peerID) != "" && reviewRouterPeerID(info) == original.peerID {
 		return true
 	}
-	return strings.TrimSpace(original.agentName) != "" &&
-		strings.TrimSpace(info.AgentName) == strings.TrimSpace(original.agentName)
+	return false
+}
+
+func (r *reviewRouter) cleanupCreatedReviewerSession(ctx context.Context, info *session.Info) error {
+	if info == nil || strings.TrimSpace(info.ID) == "" {
+		return nil
+	}
+	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if ctx != nil {
+		stopCtx = context.WithoutCancel(stopCtx)
+	}
+	return r.sessions.StopWithCause(
+		stopCtx,
+		strings.TrimSpace(info.ID),
+		session.CauseFailed,
+		"review router bind failed",
+	)
+}
+
+func detachDaemonOwnedContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
 }
 
 func (r *reviewRouter) recordNoRouteDiagnostic(

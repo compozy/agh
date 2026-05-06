@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -532,10 +533,12 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			events []store.SessionEvent
 			err    error
 		}
+		started := make(chan struct{})
 		resultCh := make(chan queryResult, 1)
 		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
 		defer cancel()
 		go func() {
+			close(started)
 			got, cleanup, err := h.manager.openQueryRecorder(ctx, session.ID)
 			if err != nil {
 				resultCh <- queryResult{err: err}
@@ -608,10 +611,12 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			events []store.SessionEvent
 			err    error
 		}
+		started := make(chan struct{})
 		resultCh := make(chan queryResult, 1)
 		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
 		defer cancel()
 		go func() {
+			close(started)
 			got, cleanup, err := h.manager.openQueryRecorder(ctx, session.ID)
 			if err != nil {
 				resultCh <- queryResult{err: err}
@@ -624,6 +629,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			resultCh <- queryResult{events: events, err: err}
 		}()
 
+		<-started
 		select {
 		case result := <-resultCh:
 			t.Fatalf(
@@ -631,7 +637,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 				len(result.events),
 				result.err,
 			)
-		case <-time.After(50 * time.Millisecond):
+		default:
 		}
 
 		now := time.Now().UTC()
@@ -651,8 +657,8 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		if result.err != nil {
 			t.Fatalf("openQueryRecorder(finalized active) error = %v", result.err)
 		}
-		if len(result.events) != len(activeEvents) {
-			t.Fatalf("openQueryRecorder(finalized active) events = %d, want %d", len(result.events), len(activeEvents))
+		if err := compareQueriedSessionEvents(activeEvents, result.events); err != nil {
+			t.Fatalf("openQueryRecorder(finalized active) events mismatch: %v", err)
 		}
 	})
 
@@ -824,6 +830,26 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	if got := stringValue(&acpID); got != "acp-123" {
 		t.Fatalf("stringValue(channeld) = %q, want %q", got, "acp-123")
 	}
+}
+
+func compareQueriedSessionEvents(want []store.SessionEvent, got []store.SessionEvent) error {
+	if len(got) != len(want) {
+		return fmt.Errorf("count = %d, want %d", len(got), len(want))
+	}
+	for index := range want {
+		if got[index].ID != want[index].ID {
+			return fmt.Errorf("event[%d].id = %q, want %q", index, got[index].ID, want[index].ID)
+		}
+		if got[index].Sequence != want[index].Sequence {
+			return fmt.Errorf(
+				"event[%d].sequence = %d, want %d",
+				index,
+				got[index].Sequence,
+				want[index].Sequence,
+			)
+		}
+	}
+	return nil
 }
 
 func TestNewAgentProcessDefaultsAndNotifierNoop(t *testing.T) {

@@ -187,50 +187,41 @@ func (n *TerminalTaskNotifier) deliverSubscription(
 
 	deferred := false
 	var mismatchErr error
+	safeSequence := cursor.LastSequence
 	for _, record := range records {
-		if !isTerminalTaskNotificationCandidate(record.Event.EventType) {
-			continue
-		}
-
-		resolution, err := n.resolveTerminalTaskNotification(ctx, normalized, record)
+		outcome, delivered, updatedSequence, err := n.processTaskNotificationRecord(
+			ctx,
+			cursorKey,
+			normalized,
+			record,
+		)
 		if err != nil {
-			if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
-				err = errors.Join(err, recordErr)
-			}
 			return terminalTaskNotificationFailed, err
 		}
-		switch resolution.decision {
+		switch outcome {
 		case terminalTaskNotificationDecisionDeliver:
+			return terminalTaskNotificationDelivered, nil
 		case terminalTaskNotificationDecisionMismatch:
-			mismatchErr = errors.Join(mismatchErr, resolution.diagnostic)
-			continue
+			safeSequence = updatedSequence
+			mismatchErr = errors.Join(mismatchErr, delivered)
 		case terminalTaskNotificationDecisionDefer:
 			deferred = true
-			continue
+			goto finalize
 		default:
-			continue
+			safeSequence = updatedSequence
 		}
-		if err := n.deliverNotification(ctx, normalized, resolution.notification); err != nil {
-			if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
-				err = errors.Join(err, recordErr)
-			}
-			return terminalTaskNotificationFailed, err
-		}
-		if _, err := n.cursors.Advance(ctx, notifications.AdvanceCursor{
-			Key:          cursorKey,
-			LastSequence: record.Sequence,
-			DeliveryID:   resolution.notification.DeliveryID,
-			Now:          n.now(),
-		}); err != nil {
+	}
+
+finalize:
+	if safeSequence > cursor.LastSequence {
+		if _, err := n.advanceTaskNotificationCursor(ctx, cursorKey, safeSequence, ""); err != nil {
 			return terminalTaskNotificationFailed, fmt.Errorf(
 				"bridges: advance task notification cursor for subscription %q: %w",
 				normalized.SubscriptionID,
 				err,
 			)
 		}
-		return terminalTaskNotificationDelivered, nil
 	}
-
 	if mismatchErr != nil {
 		if recordErr := n.recordCursorError(ctx, cursorKey, mismatchErr); recordErr != nil {
 			mismatchErr = errors.Join(mismatchErr, recordErr)
@@ -241,6 +232,68 @@ func (n *TerminalTaskNotifier) deliverSubscription(
 		return terminalTaskNotificationDeferred, nil
 	}
 	return terminalTaskNotificationNoop, nil
+}
+
+func (n *TerminalTaskNotifier) processTaskNotificationRecord(
+	ctx context.Context,
+	cursorKey notifications.CursorKey,
+	subscription BridgeTaskSubscription,
+	record taskpkg.EventRecord,
+) (terminalTaskNotificationDecision, error, int64, error) {
+	if !isTerminalTaskNotificationCandidate(record.Event.EventType) {
+		return terminalTaskNotificationDecisionIgnore, nil, record.Sequence, nil
+	}
+
+	resolution, err := n.resolveTerminalTaskNotification(ctx, subscription, record)
+	if err != nil {
+		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
+			err = errors.Join(err, recordErr)
+		}
+		return terminalTaskNotificationDecisionIgnore, nil, 0, err
+	}
+	switch resolution.decision {
+	case terminalTaskNotificationDecisionMismatch:
+		return resolution.decision, resolution.diagnostic, record.Sequence, nil
+	case terminalTaskNotificationDecisionDefer:
+		return resolution.decision, nil, 0, nil
+	case terminalTaskNotificationDecisionDeliver:
+	default:
+		return terminalTaskNotificationDecisionIgnore, nil, record.Sequence, nil
+	}
+
+	if err := n.deliverNotification(ctx, subscription, resolution.notification); err != nil {
+		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
+			err = errors.Join(err, recordErr)
+		}
+		return terminalTaskNotificationDecisionIgnore, nil, 0, err
+	}
+	if _, err := n.advanceTaskNotificationCursor(
+		ctx,
+		cursorKey,
+		record.Sequence,
+		resolution.notification.DeliveryID,
+	); err != nil {
+		return terminalTaskNotificationDecisionIgnore, nil, 0, fmt.Errorf(
+			"bridges: advance task notification cursor for subscription %q: %w",
+			subscription.SubscriptionID,
+			err,
+		)
+	}
+	return terminalTaskNotificationDecisionDeliver, nil, record.Sequence, nil
+}
+
+func (n *TerminalTaskNotifier) advanceTaskNotificationCursor(
+	ctx context.Context,
+	key notifications.CursorKey,
+	sequence int64,
+	deliveryID string,
+) (notifications.Cursor, error) {
+	return n.cursors.Advance(ctx, notifications.AdvanceCursor{
+		Key:          key,
+		LastSequence: sequence,
+		DeliveryID:   deliveryID,
+		Now:          n.now(),
+	})
 }
 
 func (n *TerminalTaskNotifier) loadTaskNotificationCursor(
@@ -354,7 +407,7 @@ func (n *TerminalTaskNotifier) resolveTerminalTaskNotification(
 			TaskID:         subscription.TaskID,
 			RunID:          strings.TrimSpace(record.Event.RunID),
 			Status:         eventStatus,
-			Error:          strings.TrimSpace(run.Error),
+			Error:          taskpkg.RedactClaimTokens(strings.TrimSpace(run.Error)),
 			Payload:        cloneRawJSON(record.Event.Payload),
 			SubscriptionID: subscription.SubscriptionID,
 		},

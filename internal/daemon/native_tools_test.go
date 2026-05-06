@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -1168,6 +1169,38 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject conflicting nested task execution profile ids before profile writes", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-profile"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskExecutionProfileSet,
+				Input: json.RawMessage(
+					`{"task_id":"task-profile","profile":{"task_id":"other-task","worker":{"mode":"select"}}}`,
+				),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(task_execution_profile_set conflicting ids) error = nil, want invalid input")
+		}
+		if got, ok := toolspkg.ReasonOf(err); !ok || got != toolspkg.ReasonSchemaInvalid {
+			t.Fatalf("ReasonOf(error) = %q/%v, want %q", got, ok, toolspkg.ReasonSchemaInvalid)
+		}
+		if !strings.Contains(err.Error(), `profile.task_id must match task_id "task-profile"`) {
+			t.Fatalf("error = %q, want conflicting task_id detail", err)
+		}
+		if tasks.profileSetCalls != 0 {
+			t.Fatalf("SetExecutionProfile calls = %d, want 0 for conflicting ids", tasks.profileSetCalls)
+		}
+	})
+
 	t.Run("Should route autonomy tools through session-bound lease lookup", func(t *testing.T) {
 		t.Parallel()
 
@@ -1478,6 +1511,25 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonSessionDenied)
 		if tasks.recordReviewCalls != 0 {
 			t.Fatalf("RecordRunReview calls = %d, want 0 for unbound session", tasks.recordReviewCalls)
+		}
+	})
+
+	t.Run("Should map unbound review lookups to denied and redact backend failures", func(t *testing.T) {
+		t.Parallel()
+
+		bindingErr := nativeReviewToolError(toolspkg.ToolIDTaskRunReviewSubmit, taskpkg.ErrRunReviewNotFound)
+		requireToolReason(t, bindingErr, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
+
+		rawErr := errors.New("backend leaked agh_claim_secret-123")
+		wrapped := nativeReviewToolError(toolspkg.ToolIDTaskRunReviewSubmit, rawErr)
+		if !errors.Is(wrapped, toolspkg.ErrToolBackendFailed) {
+			t.Fatalf("wrapped error = %v, want %v", wrapped, toolspkg.ErrToolBackendFailed)
+		}
+		if strings.Contains(wrapped.Error(), "agh_claim_secret-123") {
+			t.Fatalf("wrapped error = %q, want redacted claim token", wrapped.Error())
+		}
+		if !strings.Contains(wrapped.Error(), "agh_claim_[REDACTED]") {
+			t.Fatalf("wrapped error = %q, want redacted token marker", wrapped.Error())
 		}
 	})
 

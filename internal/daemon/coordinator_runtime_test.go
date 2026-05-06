@@ -540,6 +540,14 @@ type coordinatorRuntimeSessions struct {
 	infos       []*session.Info
 	createCalls []session.CreateOpts
 	createErr   error
+	stopCalls   []coordinatorRuntimeStopCall
+	stopErr     error
+}
+
+type coordinatorRuntimeStopCall struct {
+	id     string
+	cause  session.StopCause
+	detail string
 }
 
 func (s *coordinatorRuntimeSessions) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -589,6 +597,21 @@ func (s *coordinatorRuntimeSessions) ListAll(context.Context) ([]*session.Info, 
 	return infos, nil
 }
 
+func (s *coordinatorRuntimeSessions) StopWithCause(
+	_ context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopCalls = append(s.stopCalls, coordinatorRuntimeStopCall{id: id, cause: cause, detail: detail})
+	if s.stopErr != nil {
+		return s.stopErr
+	}
+	return nil
+}
+
 func (s *coordinatorRuntimeSessions) createCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -602,6 +625,21 @@ func (s *coordinatorRuntimeSessions) createCall(index int) session.CreateOpts {
 		return session.CreateOpts{}
 	}
 	return s.createCalls[index]
+}
+
+func (s *coordinatorRuntimeSessions) stopCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.stopCalls)
+}
+
+func (s *coordinatorRuntimeSessions) stopCall(index int) coordinatorRuntimeStopCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.stopCalls) {
+		return coordinatorRuntimeStopCall{}
+	}
+	return s.stopCalls[index]
 }
 
 type recordingCoordinatorHooks struct {

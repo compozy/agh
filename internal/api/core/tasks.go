@@ -1551,8 +1551,11 @@ func taskExecutionProfileFromRequest(
 			trimmedID,
 		))
 	}
-	req.TaskID = trimmedID
-	return req, nil
+	profile := *req
+	profile.TaskID = trimmedID
+	profile.CreatedAt = time.Time{}
+	profile.UpdatedAt = time.Time{}
+	return &profile, nil
 }
 
 func cancelTaskFromRequest(req contract.CancelTaskRequest) (taskpkg.CancelTask, error) {

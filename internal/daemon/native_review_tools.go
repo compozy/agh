@@ -351,6 +351,14 @@ func nativeReviewToolError(id toolspkg.ToolID, err error) error {
 	}
 	message := taskpkg.RedactClaimTokens(err.Error())
 	switch {
+	case isReviewBindingError(err):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonSessionDenied,
+		)
 	case errors.Is(err, taskpkg.ErrValidation),
 		errors.Is(err, taskpkg.ErrPayloadTooLarge),
 		errors.Is(err, taskpkg.ErrImmutableField):
@@ -369,14 +377,6 @@ func nativeReviewToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
 			toolspkg.ReasonToolUnknown,
 		)
-	case isReviewBindingError(err):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeDenied,
-			id,
-			message,
-			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
-			toolspkg.ReasonSessionDenied,
-		)
 	case errors.Is(err, taskpkg.ErrConflict),
 		errors.Is(err, taskpkg.ErrInvalidStatusTransition):
 		return toolspkg.NewToolError(
@@ -387,7 +387,12 @@ func nativeReviewToolError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonPolicyDenied,
 		)
 	default:
-		return err
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeBackendFailed,
+			id,
+			message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, err),
+		)
 	}
 }
 

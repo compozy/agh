@@ -266,6 +266,7 @@ type taskOrchestrationOverlay struct {
 	SchedulerBadTickThreshold *int                            `toml:"scheduler_bad_tick_threshold"`
 	SchedulerBadTickCooldown  *time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
 	DefaultMaxRuntime         *time.Duration                  `toml:"default_max_runtime"`
+	BridgeNotificationTimeout *time.Duration                  `toml:"bridge_notification_timeout"`
 	Profile                   taskOrchestrationProfileOverlay `toml:"profile"`
 	Review                    taskOrchestrationReviewOverlay  `toml:"review"`
 }
@@ -877,6 +878,9 @@ func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {
 	}
 	if o.DefaultMaxRuntime != nil {
 		dst.DefaultMaxRuntime = *o.DefaultMaxRuntime
+	}
+	if o.BridgeNotificationTimeout != nil {
+		dst.BridgeNotificationTimeout = *o.BridgeNotificationTimeout
 	}
 	o.Profile.Apply(&dst.Profile)
 	o.Review.Apply(&dst.Review)

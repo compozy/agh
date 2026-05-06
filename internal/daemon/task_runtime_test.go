@@ -967,6 +967,25 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 	}
 }
 
+func TestBootHarnessReentryBridgeSkipsUnsupportedRegistryWithoutFailing(t *testing.T) {
+	t.Parallel()
+
+	state := &bootState{
+		logger:          discardLogger(),
+		registry:        nil,
+		sessions:        &fakeSessionManager{},
+		harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{SyntheticTurnsEnabled: true}),
+	}
+
+	reentry, err := bootHarnessReentryBridge(testutil.Context(t), state)
+	if err != nil {
+		t.Fatalf("bootHarnessReentryBridge() error = %v, want nil when reentry support is unavailable", err)
+	}
+	if reentry != nil {
+		t.Fatal("bootHarnessReentryBridge() != nil, want feature downgrade")
+	}
+}
+
 func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	t.Parallel()
 

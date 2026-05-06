@@ -37,6 +37,7 @@ type TaskOrchestrationConfig struct {
 	SchedulerBadTickThreshold int                            `toml:"scheduler_bad_tick_threshold"`
 	SchedulerBadTickCooldown  time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
 	DefaultMaxRuntime         time.Duration                  `toml:"default_max_runtime"`
+	BridgeNotificationTimeout time.Duration                  `toml:"bridge_notification_timeout"`
 	Profile                   TaskOrchestrationProfileConfig `toml:"profile"`
 	Review                    TaskOrchestrationReviewConfig  `toml:"review"`
 }
@@ -78,6 +79,7 @@ func DefaultTaskConfig() TaskConfig {
 			SchedulerBadTickThreshold: 6,
 			SchedulerBadTickCooldown:  5 * time.Minute,
 			DefaultMaxRuntime:         0,
+			BridgeNotificationTimeout: 10 * time.Second,
 			Profile: TaskOrchestrationProfileConfig{
 				DefaultCoordinatorMode:    TaskCoordinatorModeInherit,
 				DefaultWorkerMode:         TaskWorkerModeInherit,
@@ -149,6 +151,13 @@ func (c TaskOrchestrationConfig) Validate(path string) error {
 			MaxTaskOrchestrationRuntime,
 			c.DefaultMaxRuntime,
 		)
+	}
+	if err := validateWholeSecondDuration(
+		path+".bridge_notification_timeout",
+		c.BridgeNotificationTimeout,
+		false,
+	); err != nil {
+		return err
 	}
 	if err := c.Profile.Validate(path + ".profile"); err != nil {
 		return err

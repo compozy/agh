@@ -4587,6 +4587,7 @@ func taskSandboxModeValues() []string {
 
 func taskReviewPolicyValues() []string {
 	return []string{
+		string(taskpkg.ReviewPolicyNone),
 		string(taskpkg.ReviewPolicyAlways),
 		string(taskpkg.ReviewPolicyOnSuccess),
 		string(taskpkg.ReviewPolicyOnFailure),

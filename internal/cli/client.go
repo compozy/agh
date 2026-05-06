@@ -2846,6 +2846,9 @@ func (c *unixSocketClient) SetTaskExecutionProfile(
 	id string,
 	request *TaskExecutionProfileRequest,
 ) (TaskExecutionProfileRecord, error) {
+	if request == nil {
+		return TaskExecutionProfileRecord{}, errors.New("cli: task execution profile request is required")
+	}
 	var response contract.TaskExecutionProfileResponse
 	path := taskExecutionProfilePath(id)
 	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
@@ -2867,6 +2870,11 @@ func (c *unixSocketClient) CreateTaskBridgeNotificationSubscription(
 	taskID string,
 	request *TaskBridgeNotificationSubscriptionRequest,
 ) (TaskBridgeNotificationSubscriptionRecord, error) {
+	if request == nil {
+		return TaskBridgeNotificationSubscriptionRecord{}, errors.New(
+			"cli: task bridge notification subscription request is required",
+		)
+	}
 	var response contract.TaskBridgeNotificationSubscriptionResponse
 	path := taskBridgeNotificationSubscriptionsPath(taskID)
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
@@ -2924,6 +2932,9 @@ func (c *unixSocketClient) RequestTaskRunReview(
 	runID string,
 	request *TaskRunReviewRequest,
 ) (TaskRunReviewRequestRecord, error) {
+	if request == nil {
+		return TaskRunReviewRequestRecord{}, errors.New("cli: task run review request is required")
+	}
 	var response contract.TaskRunReviewRequestResponse
 	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/reviews"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
@@ -2964,6 +2975,9 @@ func (c *unixSocketClient) SubmitTaskRunReviewVerdict(
 	reviewID string,
 	request *TaskRunReviewVerdictRequest,
 ) (TaskRunReviewVerdictRecord, error) {
+	if request == nil {
+		return TaskRunReviewVerdictRecord{}, errors.New("cli: task run review verdict request is required")
+	}
 	var response contract.TaskRunReviewVerdictResponse
 	path := "/api/task-reviews/" + url.PathEscape(strings.TrimSpace(reviewID)) + "/verdict"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {

@@ -869,7 +869,7 @@ func taskReferencePayload(taskRecord taskpkg.Task) *contract.TaskReferencePayloa
 
 func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
 	metadata := runMetadata(run.Metadata)
-	channelID := firstTrimmed(metadata["coordination_channel_id"], run.CoordinationChannelID, run.NetworkChannel)
+	channelID := firstTrimmed(run.CoordinationChannelID, metadata["coordination_channel_id"], run.NetworkChannel)
 	channelName := firstTrimmed(run.NetworkChannel, channelID)
 	lastActivity := latestTime(
 		run.QueuedAt,

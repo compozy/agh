@@ -251,12 +251,119 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		if cursorErr != nil {
 			t.Fatalf("GetCursor(after mismatch) error = %v", cursorErr)
 		}
-		if cursor.LastSequence != 0 || cursor.LastDeliveryID != "" {
-			t.Fatalf("cursor = %#v, want no delivery advance after mismatch", cursor)
+		if cursor.LastSequence != 4 || cursor.LastDeliveryID != "" {
+			t.Fatalf("cursor = %#v, want mismatch progress without a delivery id", cursor)
 		}
 		if !strings.Contains(cursor.LastError, "terminal task notification state mismatch") ||
 			!strings.Contains(cursor.LastError, "current task status is \"completed\"") {
 			t.Fatalf("cursor.LastError = %q, want mismatch diagnostic", cursor.LastError)
+		}
+	})
+
+	t.Run("Should page past ignored records to reach a later terminal event", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		cursorStore := newMemoryCursorStore()
+		transport := &fakeDeliveryTransport{}
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+			task: taskpkg.Task{
+				ID:     "task-1",
+				Status: taskpkg.TaskStatusCompleted,
+			},
+			runs: []taskpkg.Run{{
+				ID:     "run-1",
+				TaskID: "task-1",
+				Status: taskpkg.TaskRunStatusCompleted,
+			}},
+			records: []taskpkg.EventRecord{
+				terminalTaskEventRecordForTest(1, "evt-1", "task-1", "run-1", "task.run_started"),
+				terminalTaskEventRecordForTest(2, "evt-2", "task-1", "run-1", "task.run_heartbeat"),
+				terminalTaskEventRecordForTest(3, "evt-3", "task-1", "run-1", terminalTaskEventRunCompleted),
+			},
+		})
+		notifier.eventLimit = 2
+
+		firstSweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		if err != nil {
+			t.Fatalf("DeliverDue(first sweep) error = %v", err)
+		}
+		if firstSweep.Delivered != 0 || firstSweep.Deferred != 0 || firstSweep.Failed != 0 {
+			t.Fatalf("DeliverDue(first sweep) = %#v, want pagination-only progress", firstSweep)
+		}
+
+		cursor, err := cursorStore.GetCursor(ctx, subscription.CursorKey())
+		if err != nil {
+			t.Fatalf("GetCursor(first sweep) error = %v", err)
+		}
+		if cursor.LastSequence != 2 || cursor.LastDeliveryID != "" {
+			t.Fatalf("cursor after first sweep = %#v, want progress through ignored records", cursor)
+		}
+
+		secondSweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		if err != nil {
+			t.Fatalf("DeliverDue(second sweep) error = %v", err)
+		}
+		if secondSweep.Delivered != 1 || secondSweep.Failed != 0 || secondSweep.Deferred != 0 {
+			t.Fatalf("DeliverDue(second sweep) = %#v, want one delivered notification", secondSweep)
+		}
+		if calls := transport.snapshotCalls(); len(calls) != 1 {
+			t.Fatalf("delivery calls = %d, want 1 after second sweep", len(calls))
+		}
+	})
+
+	t.Run("Should redact claim tokens before emitting bridge notification errors", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		cursorStore := newMemoryCursorStore()
+		transport := &fakeDeliveryTransport{}
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+			task: taskpkg.Task{
+				ID:     "task-1",
+				Status: taskpkg.TaskStatusFailed,
+			},
+			runs: []taskpkg.Run{{
+				ID:     "run-1",
+				TaskID: "task-1",
+				Status: taskpkg.TaskRunStatusFailed,
+				Error:  "bridge error agh_claim_secret-123 leaked",
+			}},
+			records: []taskpkg.EventRecord{terminalTaskEventRecordForTest(
+				7,
+				"evt-7",
+				"task-1",
+				"run-1",
+				terminalTaskEventRunFailed,
+			)},
+		})
+
+		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		if err != nil {
+			t.Fatalf("DeliverDue() error = %v", err)
+		}
+		if sweep.Delivered != 1 {
+			t.Fatalf("DeliverDue() sweep = %#v, want one delivered notification", sweep)
+		}
+		calls := transport.snapshotCalls()
+		if len(calls) != 1 {
+			t.Fatalf("delivery calls = %d, want 1", len(calls))
+		}
+
+		var envelope TerminalTaskNotification
+		if err := json.Unmarshal(calls[0].request.Event.ProviderMetadata, &envelope); err != nil {
+			t.Fatalf("Unmarshal(provider metadata) error = %v", err)
+		}
+		if strings.Contains(envelope.Error, "agh_claim_secret-123") {
+			t.Fatalf("envelope error = %q, want redacted claim token", envelope.Error)
+		}
+		if !strings.Contains(envelope.Error, "agh_claim_[REDACTED]") {
+			t.Fatalf("envelope error = %q, want redacted token marker", envelope.Error)
+		}
+		if strings.Contains(calls[0].request.Event.Content.Text, "agh_claim_secret-123") {
+			t.Fatalf("delivery text = %q, want redacted claim token", calls[0].request.Event.Content.Text)
 		}
 	})
 

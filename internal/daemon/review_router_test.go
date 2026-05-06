@@ -148,6 +148,126 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 	})
 
+	t.Run("Should detach routing work from a canceled caller context", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AgentName:            "reviewer",
+					AllowedChannelIDs:    []string{"reviews"},
+					RequiredCapabilities: []string{"review-pr"},
+				},
+			},
+			rejectCanceledContext: true,
+		}
+		store := reviewRouterStoreForTest()
+		store.rejectCanceledContext = true
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				reviewRouterSessionInfo("sess-reviewer", "reviewer", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			store,
+			sessions,
+			reviewRouterAgentResolverStub{
+				"reviewer": reviewRouterAgentDef("reviewer", "review-pr"),
+				"worker":   reviewRouterAgentDef("worker", "build"),
+			},
+		)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		notification := reviewRouterNotificationForTest()
+		router.OnRunReviewRequested(ctx, &notification)
+
+		if got, want := len(tasks.binds), 1; got != want {
+			t.Fatalf("bind calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should stop a created reviewer session when binding fails", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AgentName: "reviewer",
+				},
+			},
+			bindErr: context.DeadlineExceeded,
+		}
+		sessions := &coordinatorRuntimeSessions{}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{"reviewer": reviewRouterAgentDef("reviewer")},
+		)
+
+		notification := reviewRouterNotificationForTest()
+		router.OnRunReviewRequested(context.Background(), &notification)
+
+		if got, want := sessions.createCount(), 1; got != want {
+			t.Fatalf("session create calls = %d, want %d", got, want)
+		}
+		if got, want := sessions.stopCount(), 1; got != want {
+			t.Fatalf("session stop calls = %d, want %d", got, want)
+		}
+		stop := sessions.stopCall(0)
+		if stop.id == "" || stop.cause != session.CauseFailed || !strings.Contains(stop.detail, "bind failed") {
+			t.Fatalf("stop call = %#v, want failed cleanup for created reviewer", stop)
+		}
+		if got, want := len(tasks.records), 1; got != want {
+			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should allow a second reviewer session that shares the worker agent name", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AgentName: "worker",
+				},
+			},
+		}
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{"worker": reviewRouterAgentDef("worker")},
+		)
+
+		notification := reviewRouterNotificationForTest()
+		router.OnRunReviewRequested(context.Background(), &notification)
+
+		if got, want := sessions.createCount(), 1; got != want {
+			t.Fatalf("session create calls = %d, want %d", got, want)
+		}
+		if got, want := len(tasks.binds), 1; got != want {
+			t.Fatalf("bind calls = %d, want %d", got, want)
+		}
+		if got, want := tasks.binds[0].ReviewerAgentName, "worker"; got != want {
+			t.Fatalf("bind reviewer agent = %q, want %q", got, want)
+		}
+	})
+
 	t.Run(
 		"Should record a deterministic no-route diagnostic instead of binding the original worker",
 		func(t *testing.T) {
@@ -157,7 +277,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 				profile: taskpkg.ExecutionProfile{
 					TaskID: "task-1",
 					Review: taskpkg.ReviewProfile{
-						AgentName: "worker",
+						AllowedPeerIDs: []string{"peer-missing"},
 					},
 				},
 			}
@@ -193,7 +313,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 					record.Verdict.DeliveryID,
 				)
 			}
-			if !strings.Contains(record.Verdict.Reason, "review profile agent selectors exclude") {
+			if !strings.Contains(record.Verdict.Reason, "allows only explicit peers") {
 				t.Fatalf("RecordRunReview reason = %q, want deterministic selector diagnostic", record.Verdict.Reason)
 			}
 		},
@@ -288,18 +408,25 @@ func reviewRouterAgentDef(name string, capabilities ...string) aghconfig.AgentDe
 }
 
 type reviewRouterStoreStub struct {
-	taskRecord taskpkg.Task
-	run        taskpkg.Run
+	taskRecord            taskpkg.Task
+	run                   taskpkg.Run
+	rejectCanceledContext bool
 }
 
-func (s *reviewRouterStoreStub) GetTask(_ context.Context, id string) (taskpkg.Task, error) {
+func (s *reviewRouterStoreStub) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
+	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
+		return taskpkg.Task{}, ctx.Err()
+	}
 	if id != s.taskRecord.ID {
 		return taskpkg.Task{}, taskpkg.ErrTaskNotFound
 	}
 	return s.taskRecord, nil
 }
 
-func (s *reviewRouterStoreStub) GetTaskRun(_ context.Context, id string) (taskpkg.Run, error) {
+func (s *reviewRouterStoreStub) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error) {
+	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
+		return taskpkg.Run{}, ctx.Err()
+	}
 	if id != s.run.ID {
 		return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 	}
@@ -307,36 +434,50 @@ func (s *reviewRouterStoreStub) GetTaskRun(_ context.Context, id string) (taskpk
 }
 
 type reviewRouterTasksStub struct {
-	mu      sync.Mutex
-	profile taskpkg.ExecutionProfile
-	binds   []taskpkg.BindRunReviewSessionRequest
-	records []taskpkg.RecordRunReviewRequest
+	mu                    sync.Mutex
+	profile               taskpkg.ExecutionProfile
+	binds                 []taskpkg.BindRunReviewSessionRequest
+	records               []taskpkg.RecordRunReviewRequest
+	bindErr               error
+	rejectCanceledContext bool
 }
 
 func (s *reviewRouterTasksStub) GetExecutionProfile(
-	context.Context,
-	string,
-	taskpkg.ActorContext,
+	ctx context.Context,
+	_ string,
+	_ taskpkg.ActorContext,
 ) (taskpkg.ExecutionProfile, error) {
+	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
+		return taskpkg.ExecutionProfile{}, ctx.Err()
+	}
 	return s.profile, nil
 }
 
 func (s *reviewRouterTasksStub) BindRunReviewSession(
-	_ context.Context,
+	ctx context.Context,
 	req taskpkg.BindRunReviewSessionRequest,
 	_ taskpkg.ActorContext,
 ) (taskpkg.RunReviewBinding, error) {
+	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
+		return taskpkg.RunReviewBinding{}, ctx.Err()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.bindErr != nil {
+		return taskpkg.RunReviewBinding{}, s.bindErr
+	}
 	s.binds = append(s.binds, req)
 	return taskpkg.RunReviewBinding{SessionID: req.SessionID}, nil
 }
 
 func (s *reviewRouterTasksStub) RecordRunReview(
-	_ context.Context,
+	ctx context.Context,
 	req taskpkg.RecordRunReviewRequest,
 	_ taskpkg.ActorContext,
 ) (taskpkg.RunReviewResult, error) {
+	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
+		return taskpkg.RunReviewResult{}, ctx.Err()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.records = append(s.records, req)
