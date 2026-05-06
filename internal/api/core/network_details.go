@@ -1465,7 +1465,13 @@ func isPublicConversationMessage(message store.NetworkMessageEntry) bool {
 }
 
 func isDirectedChannelMessage(message store.NetworkMessageEntry) bool {
-	return strings.TrimSpace(message.PeerTo) != ""
+	if strings.TrimSpace(message.PeerTo) != "" {
+		return true
+	}
+	if strings.TrimSpace(message.DirectID) != "" {
+		return true
+	}
+	return strings.TrimSpace(message.Surface) == string(network.SurfaceDirect)
 }
 
 func filterVisiblePeerMessages(messages []store.NetworkMessageEntry, includePresence bool) []store.NetworkMessageEntry {

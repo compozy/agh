@@ -1650,6 +1650,8 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 	}
 
 	t.Run("Should patch context compaction when a hook matches", func(t *testing.T) {
+		t.Parallel()
+
 		contextPayload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{
 			PayloadBase: PayloadBase{Event: HookContextPreCompact},
 			Reason:      "token_limit",
@@ -1666,6 +1668,8 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 	})
 
 	t.Run("Should leave compaction untouched when no hook matches", func(t *testing.T) {
+		t.Parallel()
+
 		unmatchedPayload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{
 			PayloadBase: PayloadBase{Event: HookContextPreCompact},
 			Reason:      "manual",

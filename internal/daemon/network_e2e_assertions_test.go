@@ -27,12 +27,12 @@ type networkAuditExpectation struct {
 	MessageID string
 	Direction string
 	Kind      string
-	Surface   string
-	ThreadID  string
-	DirectID  string
-	WorkID    string
-	PeerFrom  string
-	PeerTo    string
+	Surface   *string
+	ThreadID  *string
+	DirectID  *string
+	WorkID    *string
+	PeerFrom  *string
+	PeerTo    *string
 	Reason    string
 }
 
@@ -85,10 +85,10 @@ func validateNetworkCorrelationSurfaces(
 			MessageID: expectation.MessageID,
 			Direction: direction,
 			Kind:      expectation.Kind,
-			Surface:   expectation.Surface,
-			ThreadID:  expectation.ThreadID,
-			DirectID:  expectation.DirectID,
-			WorkID:    expectation.WorkID,
+			Surface:   auditFieldValue(expectation.Surface),
+			ThreadID:  auditFieldValue(expectation.ThreadID),
+			DirectID:  auditFieldValue(expectation.DirectID),
+			WorkID:    auditFieldValue(expectation.WorkID),
 		}); err != nil {
 			return err
 		}
@@ -141,20 +141,39 @@ func validateNetworkAuditEntry(
 		expectation.MessageID,
 		expectation.Direction,
 		expectation.Kind,
-		expectation.Surface,
-		expectation.ThreadID,
-		expectation.DirectID,
-		expectation.WorkID,
+		auditExpectationValue(expectation.Surface),
+		auditExpectationValue(expectation.ThreadID),
+		auditExpectationValue(expectation.DirectID),
+		auditExpectationValue(expectation.WorkID),
 		expectation.Reason,
 	)
 }
 
-func optionalAuditFieldMatches(want string, got string) bool {
-	trimmedWant := strings.TrimSpace(want)
-	if trimmedWant == "" {
+func optionalAuditFieldMatches(want *string, got string) bool {
+	if want == nil {
 		return true
 	}
+	trimmedWant := strings.TrimSpace(*want)
+	if trimmedWant == "" {
+		return strings.TrimSpace(got) == ""
+	}
 	return strings.TrimSpace(got) == trimmedWant
+}
+
+func auditFieldValue(value string) *string {
+	cloned := value
+	return &cloned
+}
+
+func auditExpectationValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func emptyAuditField() *string {
+	return auditFieldValue("")
 }
 
 func attributeNeedle(name string, value string) string {
@@ -289,9 +308,10 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 			MessageID: "msg_direct_01",
 			Direction: "rejected",
 			Kind:      "say",
-			Surface:   "direct",
-			DirectID:  "direct_test_01",
-			WorkID:    "work_patch_42",
+			Surface:   auditFieldValue("direct"),
+			ThreadID:  emptyAuditField(),
+			DirectID:  auditFieldValue("direct_test_01"),
+			WorkID:    auditFieldValue("work_patch_42"),
 			Reason:    "duplicate",
 		}); err != nil {
 			t.Fatalf("validateNetworkAuditEntry() error = %v", err)
@@ -320,9 +340,10 @@ func TestValidateNetworkAuditEntryRejectsWrongContainer(t *testing.T) {
 			MessageID: "msg_direct_01",
 			Direction: "delivered",
 			Kind:      "say",
-			Surface:   "direct",
-			DirectID:  "direct_test_01",
-			WorkID:    "work_patch_42",
+			Surface:   auditFieldValue("direct"),
+			ThreadID:  emptyAuditField(),
+			DirectID:  auditFieldValue("direct_test_01"),
+			WorkID:    auditFieldValue("work_patch_42"),
 		}); err == nil {
 			t.Fatal("validateNetworkAuditEntry() error = nil, want direct_id mismatch")
 		}

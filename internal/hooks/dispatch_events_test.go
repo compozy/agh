@@ -513,64 +513,147 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 func TestHookTypeValidationBranches(t *testing.T) {
 	t.Parallel()
 
-	var source HookSource
-	if err := source.UnmarshalText([]byte(" config ")); err != nil {
-		t.Fatalf("UnmarshalText(config) error = %v, want nil", err)
-	}
-	if source != HookSourceConfig {
-		t.Fatalf("source = %v, want HookSourceConfig", source)
-	}
-	if _, err := HookSource(200).MarshalText(); err == nil {
-		t.Fatal("MarshalText(invalid) error = nil, want error")
-	}
-	if err := source.UnmarshalText([]byte("unknown")); err == nil {
-		t.Fatal("UnmarshalText(unknown) error = nil, want error")
-	}
+	t.Run("Should trim config hook source text", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := PriorityFromInt(42); err != nil {
-		t.Fatalf("PriorityFromInt(42) error = %v, want nil", err)
-	}
+		var source HookSource
+		if err := source.UnmarshalText([]byte(" config ")); err != nil {
+			t.Fatalf("UnmarshalText(config) error = %v, want nil", err)
+		}
+		if source != HookSourceConfig {
+			t.Fatalf("source = %v, want HookSourceConfig", source)
+		}
+	})
 
-	hook := RegisteredHook{
-		Name:    "network-observer",
-		Event:   HookNetworkMessagePersisted,
-		Source:  HookSourceConfig,
-		Mode:    HookModeAsync,
-		Timeout: time.Second,
-	}
-	if err := hook.Validate(); err != nil {
-		t.Fatalf("RegisteredHook.Validate() error = %v, want nil", err)
-	}
-	hook.Required = true
-	if err := hook.Validate(); err == nil {
-		t.Fatal("RegisteredHook.Validate(required async) error = nil, want error")
-	}
+	t.Run("Should reject invalid hook source marshal", func(t *testing.T) {
+		t.Parallel()
 
-	resolved := &ResolvedHook{RegisteredHook: RegisteredHook{
-		Name:   "resolved",
-		Event:  HookPromptPostAssemble,
-		Source: HookSourceConfig,
-		Mode:   HookModeAsync,
-		Executor: NewTypedNativeExecutor(
-			func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
-				return PromptPatch{}, nil
-			},
-		),
-	}, Decl: HookDecl{
-		Name:         "resolved",
-		ExecutorKind: HookExecutorNative,
-		SkillSource:  HookSkillSourceWorkspace,
-	}}
-	if err := resolved.Validate(); err != nil {
-		t.Fatalf("ResolvedHook.Validate() error = %v, want nil", err)
-	}
-	resolved.Decl.Name = "other"
-	if err := resolved.Validate(); err == nil {
-		t.Fatal("ResolvedHook.Validate(name mismatch) error = nil, want error")
-	}
-	if err := (*ResolvedHook)(nil).Validate(); err == nil {
-		t.Fatal("ResolvedHook.Validate(nil) error = nil, want error")
-	}
+		_, err := HookSource(200).MarshalText()
+		if err == nil {
+			t.Fatal("MarshalText(invalid) error = nil, want error")
+		}
+		if got, want := err.Error(), `hooks: invalid hook source 200`; got != want {
+			t.Fatalf("MarshalText(invalid) error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject unknown hook source text", func(t *testing.T) {
+		t.Parallel()
+
+		var source HookSource
+		err := source.UnmarshalText([]byte("unknown"))
+		if err == nil {
+			t.Fatal("UnmarshalText(unknown) error = nil, want error")
+		}
+		if got, want := err.Error(), `hooks: invalid hook source "unknown"`; got != want {
+			t.Fatalf("UnmarshalText(unknown) error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should convert in-range priority", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := PriorityFromInt(42); err != nil {
+			t.Fatalf("PriorityFromInt(42) error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should validate registered hook", func(t *testing.T) {
+		t.Parallel()
+
+		hook := RegisteredHook{
+			Name:    "network-observer",
+			Event:   HookNetworkMessagePersisted,
+			Source:  HookSourceConfig,
+			Mode:    HookModeAsync,
+			Timeout: time.Second,
+		}
+		if err := hook.Validate(); err != nil {
+			t.Fatalf("RegisteredHook.Validate() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should reject required async hook", func(t *testing.T) {
+		t.Parallel()
+
+		hook := RegisteredHook{
+			Name:     "network-observer",
+			Event:    HookNetworkMessagePersisted,
+			Source:   HookSourceConfig,
+			Mode:     HookModeAsync,
+			Timeout:  time.Second,
+			Required: true,
+		}
+		err := hook.Validate()
+		if err == nil {
+			t.Fatal("RegisteredHook.Validate(required async) error = nil, want error")
+		}
+		if got, want := err.Error(), `hooks: required hook "network-observer" must use sync mode`; got != want {
+			t.Fatalf("RegisteredHook.Validate(required async) error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should validate resolved hook", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := &ResolvedHook{RegisteredHook: RegisteredHook{
+			Name:   "resolved",
+			Event:  HookPromptPostAssemble,
+			Source: HookSourceConfig,
+			Mode:   HookModeAsync,
+			Executor: NewTypedNativeExecutor(
+				func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
+					return PromptPatch{}, nil
+				},
+			),
+		}, Decl: HookDecl{
+			Name:         "resolved",
+			ExecutorKind: HookExecutorNative,
+			SkillSource:  HookSkillSourceWorkspace,
+		}}
+		if err := resolved.Validate(); err != nil {
+			t.Fatalf("ResolvedHook.Validate() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should reject name mismatch for resolved hook", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := &ResolvedHook{RegisteredHook: RegisteredHook{
+			Name:   "resolved",
+			Event:  HookPromptPostAssemble,
+			Source: HookSourceConfig,
+			Mode:   HookModeAsync,
+			Executor: NewTypedNativeExecutor(
+				func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
+					return PromptPatch{}, nil
+				},
+			),
+		}, Decl: HookDecl{
+			Name:         "other",
+			ExecutorKind: HookExecutorNative,
+			SkillSource:  HookSkillSourceWorkspace,
+		}}
+		err := resolved.Validate()
+		if err == nil {
+			t.Fatal("ResolvedHook.Validate(name mismatch) error = nil, want error")
+		}
+		if got, want := err.Error(), `hooks: resolved hook "resolved" does not match declaration "other"`; got != want {
+			t.Fatalf("ResolvedHook.Validate(name mismatch) error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject nil resolved hook", func(t *testing.T) {
+		t.Parallel()
+
+		err := (*ResolvedHook)(nil).Validate()
+		if err == nil {
+			t.Fatal("ResolvedHook.Validate(nil) error = nil, want error")
+		}
+		if got, want := err.Error(), "hooks: resolved hook is required"; got != want {
+			t.Fatalf("ResolvedHook.Validate(nil) error = %q, want %q", got, want)
+		}
+	})
 }
 
 func taskRunCorrelationContext() TaskRunContext {

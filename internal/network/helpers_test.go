@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -224,6 +225,8 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 		{name: "ShouldAllowNeedsInputToWorking", current: WorkStateNeedsInput, next: WorkStateWorking, want: true},
 		{name: "ShouldAllowNeedsInputToCanceled", current: WorkStateNeedsInput, next: WorkStateCanceled, want: true},
 		{name: "ShouldRejectCompletedToWorking", current: WorkStateCompleted, next: WorkStateWorking, want: false},
+		{name: "ShouldRejectFailedToWorking", current: WorkStateFailed, next: WorkStateWorking, want: false},
+		{name: "ShouldRejectCanceledToWorking", current: WorkStateCanceled, next: WorkStateWorking, want: false},
 	}
 
 	for _, tc := range matrix {
@@ -247,6 +250,44 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject all transitions from terminal states", func(t *testing.T) {
+		t.Parallel()
+
+		terminalStates := []WorkState{
+			WorkStateCompleted,
+			WorkStateFailed,
+			WorkStateCanceled,
+		}
+		nextStates := []WorkState{
+			WorkStateSubmitted,
+			WorkStateWorking,
+			WorkStateNeedsInput,
+			WorkStateCompleted,
+			WorkStateFailed,
+			WorkStateCanceled,
+		}
+
+		for _, current := range terminalStates {
+			for _, next := range nextStates {
+				t.Run(fmt.Sprintf("ShouldReject%sTo%s", current, next), func(t *testing.T) {
+					t.Parallel()
+
+					if got := canApplyTrace(current, next); got {
+						t.Fatalf("canApplyTrace(%q, %q) = %v, want false", current, next, got)
+					}
+					if err := ValidateWorkTransition(current, next); !errors.Is(err, ErrInvalidStateTransition) {
+						t.Fatalf(
+							"ValidateWorkTransition(%q, %q) error = %v, want ErrInvalidStateTransition",
+							current,
+							next,
+							err,
+						)
+					}
+				})
+			}
+		}
+	})
 }
 
 func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {

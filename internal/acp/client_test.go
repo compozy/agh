@@ -1097,7 +1097,11 @@ func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 	t.Run("Should not emit runtime error after explicit stop", func(t *testing.T) {
 		driver := New()
 		proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
+		stopped := false
 		t.Cleanup(func() {
+			if stopped {
+				return
+			}
 			stopProcess(t, driver, proc)
 		})
 
@@ -1121,6 +1125,7 @@ func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 		if err := driver.Stop(testutil.Context(t), proc); err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
+		stopped = true
 		for _, event := range collectEvents(t, eventsCh) {
 			if event.Type == EventTypeError {
 				t.Fatalf("prompt events contain %q after explicit stop: %#v", EventTypeError, event)
