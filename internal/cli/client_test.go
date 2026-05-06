@@ -1438,11 +1438,24 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"results":[{"memory":{"filename":"release.md","scope":"workspace","workspace_id":"/workspace/project","type":"project","name":"Release Plan","description":"plan","mod_time":"2026-04-03T12:00:00Z","injection":true},"score":3.4,"snippet":"Ship phases incrementally"}],"recall":{"blocks":null}}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
+					if got := req.URL.Query().Get("scope"); got != "global" {
+						t.Fatalf("show memory scope query = %q, want %q", got, "global")
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"global","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory":
+					var body contract.MemoryCreateRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode memory create request error = %v", err)
+					}
+					if body.Scope != memcontract.ScopeGlobal ||
+						body.Type != memcontract.TypeUser ||
+						body.Name != "Memory" ||
+						body.Content != "payload" {
+						t.Fatalf("memory create body = %#v", body)
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"global","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
@@ -1451,11 +1464,21 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if got := req.URL.Query().Get("scope"); got != "workspace" {
 						t.Fatalf("delete memory scope query = %q, want %q", got, "workspace")
 					}
+					if got := req.URL.Query().Get("workspace_id"); got != "/workspace/project" {
+						t.Fatalf("delete memory workspace_id query = %q, want %q", got, "/workspace/project")
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"decision":{"id":"dec-delete","candidate_hash":"sha256:test","op":"delete","scope":"workspace","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/dreams/trigger":
+					var body contract.MemoryDreamTriggerRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode memory dream trigger request error = %v", err)
+					}
+					if body.Scope != memcontract.ScopeWorkspace || body.WorkspaceID != "/workspace/project" {
+						t.Fatalf("memory dream trigger body = %#v", body)
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"dream":{"id":"dream-1","status":"running","scope":"workspace","workspace_id":"/workspace/project","candidate_count":0,"promoted_count":0,"started_at":"2026-04-03T12:00:00Z"},"triggered":true}`,

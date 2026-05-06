@@ -1637,16 +1637,20 @@ func (c DreamConfig) Validate() error {
 }
 
 // Validate ensures the controller configuration is internally consistent.
-func (c MemoryControllerConfig) Validate() error {
-	if err := validateEnum("memory.controller.mode", c.Mode, "hybrid", "rules", "llm"); err != nil {
+func (c *MemoryControllerConfig) Validate() error {
+	mode, err := validateEnum("memory.controller.mode", c.Mode, "hybrid", "rules", "llm")
+	if err != nil {
 		return err
 	}
+	c.Mode = mode
 	if c.MaxLatency <= 0 {
 		return fmt.Errorf("memory.controller.max_latency must be positive: %s", c.MaxLatency)
 	}
-	if err := validateEnum("memory.controller.default_op_on_fail", c.DefaultOpOnFail, "noop", "reject"); err != nil {
+	defaultOpOnFail, err := validateEnum("memory.controller.default_op_on_fail", c.DefaultOpOnFail, "noop", "reject")
+	if err != nil {
 		return err
 	}
+	c.DefaultOpOnFail = defaultOpOnFail
 	if err := c.LLM.Validate(); err != nil {
 		return err
 	}
@@ -1712,7 +1716,7 @@ func (c MemoryControllerPolicyConfig) Validate() error {
 }
 
 // Validate ensures the recall configuration is internally consistent.
-func (c MemoryRecallConfig) Validate() error {
+func (c *MemoryRecallConfig) Validate() error {
 	if c.TopK <= 0 {
 		return fmt.Errorf("memory.recall.top_k must be positive: %d", c.TopK)
 	}
@@ -1723,9 +1727,11 @@ func (c MemoryRecallConfig) Validate() error {
 			c.TopK,
 		)
 	}
-	if err := validateEnum("memory.recall.fusion", c.Fusion, "weighted", "rrf"); err != nil {
+	fusion, err := validateEnum("memory.recall.fusion", c.Fusion, "weighted", "rrf")
+	if err != nil {
 		return err
 	}
+	c.Fusion = fusion
 	if err := c.Weights.Validate(); err != nil {
 		return err
 	}
@@ -1782,13 +1788,15 @@ func (c MemoryDecisionsConfig) Validate() error {
 }
 
 // Validate ensures extractor settings are internally consistent.
-func (c MemoryExtractorConfig) Validate() error {
+func (c *MemoryExtractorConfig) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	if err := validateEnum("memory.extractor.mode", c.Mode, "post_message", "compaction_flush", "hybrid"); err != nil {
+	mode, err := validateEnum("memory.extractor.mode", c.Mode, "post_message", "compaction_flush", "hybrid")
+	if err != nil {
 		return err
 	}
+	c.Mode = mode
 	if c.ThrottleTurns <= 0 {
 		return fmt.Errorf("memory.extractor.throttle_turns must be positive: %d", c.ThrottleTurns)
 	}
@@ -1856,10 +1864,12 @@ func (c MemoryDreamScoringWeightsConfig) Validate() error {
 }
 
 // Validate ensures session ledger settings are usable.
-func (c MemorySessionConfig) Validate() error {
-	if err := validateEnum("memory.session.ledger_format", c.LedgerFormat, "jsonl"); err != nil {
+func (c *MemorySessionConfig) Validate() error {
+	ledgerFormat, err := validateEnum("memory.session.ledger_format", c.LedgerFormat, "jsonl")
+	if err != nil {
 		return err
 	}
+	c.LedgerFormat = ledgerFormat
 	if strings.TrimSpace(c.LedgerRoot) == "" {
 		return errors.New("memory.session.ledger_root is required")
 	}
@@ -1946,12 +1956,12 @@ func (c MemoryWorkspaceConfig) Validate() error {
 	return nil
 }
 
-func validateEnum(path string, value string, allowed ...string) error {
+func validateEnum(path string, value string, allowed ...string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	if slices.Contains(allowed, normalized) {
-		return nil
+		return normalized, nil
 	}
-	return fmt.Errorf("%s must be one of %s: %q", path, strings.Join(allowed, ", "), value)
+	return "", fmt.Errorf("%s must be one of %s: %q", path, strings.Join(allowed, ", "), value)
 }
 
 func validateWeight(path string, value float64) error {

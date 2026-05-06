@@ -55,8 +55,10 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 	}
 
 	dreamAgent := ""
-	if strings.TrimSpace(current.Memory.Dream.Agent) == "" ||
-		strings.TrimSpace(current.Memory.Dream.Agent) == legacyDreamAgentName {
+	currentDreamAgent := strings.TrimSpace(current.Memory.Dream.Agent)
+	if currentDreamAgent == "" ||
+		currentDreamAgent == legacyDreamAgentName ||
+		currentDreamAgent == DefaultAgentName {
 		dreamAgent = DefaultMemoryDreamAgentName
 	}
 

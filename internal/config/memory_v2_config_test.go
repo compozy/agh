@@ -427,3 +427,35 @@ func TestMemoryV2ConfigValidationCoversOptionalBranches(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryV2ConfigValidationNormalizesAcceptedEnums(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths).Memory
+	cfg.Controller.Mode = " Hybrid "
+	cfg.Controller.DefaultOpOnFail = " Reject "
+	cfg.Recall.Fusion = " RRF "
+	cfg.Extractor.Mode = " Hybrid "
+	cfg.Session.LedgerFormat = " Jsonl "
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if cfg.Controller.Mode != "hybrid" || cfg.Controller.DefaultOpOnFail != "reject" {
+		t.Fatalf("controller enums = %#v, want canonical lowercase values", cfg.Controller)
+	}
+	if cfg.Recall.Fusion != "rrf" {
+		t.Fatalf("recall fusion = %q, want %q", cfg.Recall.Fusion, "rrf")
+	}
+	if cfg.Extractor.Mode != "hybrid" {
+		t.Fatalf("extractor mode = %q, want %q", cfg.Extractor.Mode, "hybrid")
+	}
+	if cfg.Session.LedgerFormat != "jsonl" {
+		t.Fatalf("session ledger format = %q, want %q", cfg.Session.LedgerFormat, "jsonl")
+	}
+}

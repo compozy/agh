@@ -532,7 +532,6 @@ func newMemoryPromoteCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryResetCommand(deps commandDeps) *cobra.Command {
 	var flags memorySelectorFlags
-	var includeSystem bool
 	var includeDaily bool
 	var dryRun bool
 
@@ -549,7 +548,6 @@ func newMemoryResetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_ = includeSystem
 			response, err := client.ResetMemory(cmd.Context(), MemoryResetRequest{
 				Scope:       selector.Scope,
 				WorkspaceID: selector.WorkspaceID,
@@ -565,7 +563,6 @@ func newMemoryResetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addMemorySelectorFlags(cmd, &flags)
-	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Include _system memory state")
 	cmd.Flags().BoolVar(&includeDaily, "include-daily", false, "Include daily memory artifacts")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show reset work without applying it")
 	return cmd
@@ -983,7 +980,6 @@ func newMemoryExtractorListPendingCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryExtractorReplayCommand(deps commandDeps) *cobra.Command {
 	var sessionID string
-	var fromDLQ bool
 
 	cmd := &cobra.Command{
 		Use:   "replay --session <id>",
@@ -997,7 +993,6 @@ func newMemoryExtractorReplayCommand(deps commandDeps) *cobra.Command {
 			if strings.TrimSpace(sessionID) == "" {
 				return errors.New("memory.extractor.session_required: --session is required")
 			}
-			_ = fromDLQ
 			response, err := client.RetryMemoryExtractor(cmd.Context(), MemoryExtractorRetryRequest{
 				SessionID: strings.TrimSpace(sessionID),
 			})
@@ -1008,7 +1003,6 @@ func newMemoryExtractorReplayCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "", "Session whose extractor work should be replayed")
-	cmd.Flags().BoolVar(&fromDLQ, "from-dlq", false, "Replay from dead-letter queue records")
 	mustMarkFlagRequired(cmd, "session")
 	return cmd
 }
@@ -1097,7 +1091,7 @@ func newMemoryProviderEnableCommand(deps commandDeps) *cobra.Command {
 			response, err := client.EnableMemoryProvider(
 				cmd.Context(),
 				name,
-				MemoryProviderLifecycleRequest{Name: name},
+				MemoryProviderLifecycleRequest{},
 			)
 			if err != nil {
 				return err
@@ -1121,7 +1115,7 @@ func newMemoryProviderDisableCommand(deps commandDeps) *cobra.Command {
 			response, err := client.DisableMemoryProvider(
 				cmd.Context(),
 				name,
-				MemoryProviderLifecycleRequest{Name: name},
+				MemoryProviderLifecycleRequest{},
 			)
 			if err != nil {
 				return err

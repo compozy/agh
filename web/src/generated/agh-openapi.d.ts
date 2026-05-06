@@ -17671,7 +17671,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
           reason?: string;
         };
       };
@@ -17767,7 +17766,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
           reason?: string;
         };
       };

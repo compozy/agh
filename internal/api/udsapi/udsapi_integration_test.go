@@ -2981,12 +2981,20 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
 
+	body, err := json.Marshal(map[string]string{
+		"agent_name":     "coder",
+		"workspace_path": runtime.workspace,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(create session body) error = %v", err)
+	}
+
 	resp := mustUnixRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		"http://unix/api/sessions",
-		[]byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`),
+		body,
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
@@ -3095,12 +3103,17 @@ func udsInboxGroupHasTask(group contract.TaskInboxLaneGroupPayload, taskID strin
 func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, message string) {
 	t.Helper()
 
+	body, err := json.Marshal(map[string]string{"message": message})
+	if err != nil {
+		t.Fatalf("json.Marshal(prompt body) error = %v", err)
+	}
+
 	resp := mustUnixRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		"http://unix/api/sessions/"+sessionID+"/prompt",
-		[]byte(`{"message":"`+message+`"}`),
+		body,
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
@@ -3108,8 +3121,12 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		_ = resp.Body.Close()
 		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
-	_, _ = io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	if _, err := io.ReadAll(resp.Body); err != nil {
+		t.Fatalf("io.ReadAll(prompt response) error = %v", err)
+	}
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("prompt response close error = %v", err)
+	}
 }
 
 func mustIntegrationPrompt(t *testing.T, events <-chan acp.AgentEvent, err error) <-chan acp.AgentEvent {

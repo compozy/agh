@@ -52,6 +52,9 @@ func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
 	}
 
 	failuresResp := performRequest(t, engine, http.MethodGet, "/memory/extractor/failures", nil)
+	if failuresResp.Code != http.StatusOK {
+		t.Fatalf("failures status code = %d, want %d", failuresResp.Code, http.StatusOK)
+	}
 	var failuresPayload contract.MemoryExtractorFailuresResponse
 	decodeJSON(t, failuresResp.Body.Bytes(), &failuresPayload)
 	if len(failuresPayload.Failures) != 1 || failuresPayload.Failures[0].ID != "failure-1" {
@@ -65,6 +68,9 @@ func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
 		"/memory/extractor/retry",
 		[]byte(`{"failure_id":"failure-1"}`),
 	)
+	if retryResp.Code != http.StatusOK {
+		t.Fatalf("retry status code = %d, want %d", retryResp.Code, http.StatusOK)
+	}
 	var retryPayload contract.MemoryExtractorRetryResponse
 	decodeJSON(t, retryResp.Body.Bytes(), &retryPayload)
 	if retryPayload.Retried != 1 || extractor.retryReq.FailureID != "failure-1" {
@@ -72,6 +78,9 @@ func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
 	}
 
 	drainResp := performRequest(t, engine, http.MethodPost, "/memory/extractor/drain", nil)
+	if drainResp.Code != http.StatusOK {
+		t.Fatalf("drain status code = %d, want %d", drainResp.Code, http.StatusOK)
+	}
 	var drainPayload contract.MemoryExtractorDrainResponse
 	decodeJSON(t, drainResp.Body.Bytes(), &drainPayload)
 	if drainPayload.DrainedAt.IsZero() || !extractor.drainCalled {
@@ -93,6 +102,9 @@ func TestMemoryProviderHandlersUseInjectedService(t *testing.T) {
 	engine := newMemoryServiceRouter(t, &core.BaseHandlerConfig{MemoryProviders: providers})
 
 	listResp := performRequest(t, engine, http.MethodGet, "/memory/providers?workspace_id=ws-1", nil)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("provider list status code = %d, want %d", listResp.Code, http.StatusOK)
+	}
 	var listPayload contract.MemoryProviderListResponse
 	decodeJSON(t, listResp.Body.Bytes(), &listPayload)
 	if len(listPayload.Providers) != 1 || listPayload.Providers[0].Name != "local" {
@@ -109,6 +121,9 @@ func TestMemoryProviderHandlersUseInjectedService(t *testing.T) {
 		"/memory/providers/select?workspace_id=ws-2",
 		[]byte(`{"name":"local"}`),
 	)
+	if selectResp.Code != http.StatusOK {
+		t.Fatalf("provider select status code = %d, want %d", selectResp.Code, http.StatusOK)
+	}
 	var selectPayload contract.MemoryProviderResponse
 	decodeJSON(t, selectResp.Body.Bytes(), &selectPayload)
 	if selectPayload.Provider.Name != "local" || providers.selectedName != "local" || providers.workspaceID != "ws-2" {
@@ -117,6 +132,52 @@ func TestMemoryProviderHandlersUseInjectedService(t *testing.T) {
 			selectPayload,
 			providers.selectedName,
 			providers.workspaceID,
+		)
+	}
+
+	enableResp := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/memory/providers/local/enable?workspace_id=ws-3",
+		[]byte(`{"reason":"maintenance"}`),
+	)
+	if enableResp.Code != http.StatusOK {
+		t.Fatalf("provider enable status code = %d, want %d", enableResp.Code, http.StatusOK)
+	}
+	var enablePayload contract.MemoryProviderLifecycleResponse
+	decodeJSON(t, enableResp.Body.Bytes(), &enablePayload)
+	if !enablePayload.Changed || providers.selectedName != "local" || providers.workspaceID != "ws-3" ||
+		providers.reason != "maintenance" {
+		t.Fatalf(
+			"enable payload=%#v selected=%q workspace=%q reason=%q, want local/ws-3/maintenance",
+			enablePayload,
+			providers.selectedName,
+			providers.workspaceID,
+			providers.reason,
+		)
+	}
+
+	disableResp := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/memory/providers/local/disable?workspace_id=ws-4",
+		[]byte(`{"reason":"cooldown"}`),
+	)
+	if disableResp.Code != http.StatusOK {
+		t.Fatalf("provider disable status code = %d, want %d", disableResp.Code, http.StatusOK)
+	}
+	var disablePayload contract.MemoryProviderLifecycleResponse
+	decodeJSON(t, disableResp.Body.Bytes(), &disablePayload)
+	if !disablePayload.Changed || providers.selectedName != "local" || providers.workspaceID != "ws-4" ||
+		providers.reason != "cooldown" {
+		t.Fatalf(
+			"disable payload=%#v selected=%q workspace=%q reason=%q, want local/ws-4/cooldown",
+			disablePayload,
+			providers.selectedName,
+			providers.workspaceID,
+			providers.reason,
 		)
 	}
 }
@@ -150,6 +211,9 @@ func TestMemorySessionLedgerHandlersUseInjectedService(t *testing.T) {
 	engine := newMemoryServiceRouter(t, &core.BaseHandlerConfig{MemorySessionLedger: ledger})
 
 	getResp := performRequest(t, engine, http.MethodGet, "/memory/sessions/sess-1/ledger", nil)
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("ledger status code = %d, want %d", getResp.Code, http.StatusOK)
+	}
 	var getPayload contract.MemorySessionLedgerResponse
 	decodeJSON(t, getResp.Body.Bytes(), &getPayload)
 	if getPayload.Meta.SessionID != "sess-1" || ledger.sessionID != "sess-1" {
@@ -163,6 +227,9 @@ func TestMemorySessionLedgerHandlersUseInjectedService(t *testing.T) {
 		"/memory/sessions/sess-1/replay",
 		[]byte(`{"include_tool_events":true}`),
 	)
+	if replayResp.Code != http.StatusOK {
+		t.Fatalf("replay status code = %d, want %d", replayResp.Code, http.StatusOK)
+	}
 	var replayPayload contract.MemorySessionReplayResponse
 	decodeJSON(t, replayResp.Body.Bytes(), &replayPayload)
 	if replayPayload.SessionID != "sess-1" || !ledger.replayReq.IncludeToolEvents {
@@ -189,6 +256,8 @@ func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engi
 	engine.POST("/memory/extractor/drain", handlers.DrainMemoryExtractor)
 	engine.GET("/memory/providers", handlers.ListMemoryProviders)
 	engine.POST("/memory/providers/select", handlers.SelectMemoryProvider)
+	engine.POST("/memory/providers/:provider_name/enable", handlers.EnableMemoryProvider)
+	engine.POST("/memory/providers/:provider_name/disable", handlers.DisableMemoryProvider)
 	engine.GET("/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
 	engine.POST("/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
 	return engine
@@ -230,6 +299,7 @@ type stubMemoryProviderService struct {
 	provider     contract.MemoryProviderPayload
 	workspaceID  string
 	selectedName string
+	reason       string
 }
 
 func (s *stubMemoryProviderService) List(
@@ -263,10 +333,11 @@ func (s *stubMemoryProviderService) Enable(
 	_ context.Context,
 	workspaceID string,
 	name string,
-	_ string,
+	reason string,
 ) (contract.MemoryProviderLifecycleResponse, error) {
 	s.workspaceID = workspaceID
 	s.selectedName = name
+	s.reason = reason
 	return contract.MemoryProviderLifecycleResponse{Provider: s.provider, Changed: true}, nil
 }
 
@@ -274,10 +345,11 @@ func (s *stubMemoryProviderService) Disable(
 	_ context.Context,
 	workspaceID string,
 	name string,
-	_ string,
+	reason string,
 ) (contract.MemoryProviderLifecycleResponse, error) {
 	s.workspaceID = workspaceID
 	s.selectedName = name
+	s.reason = reason
 	return contract.MemoryProviderLifecycleResponse{Provider: s.provider, Changed: true}, nil
 }
 

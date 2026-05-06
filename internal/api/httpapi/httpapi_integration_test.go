@@ -1256,7 +1256,10 @@ func TestHTTPMemoryDreamTriggerIntegration(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/memory/dreams/trigger"),
-		[]byte(`{"workspace_id":"`+runtime.workspace+`"}`),
+		mustIntegrationJSON(map[string]any{
+			"scope":        "workspace",
+			"workspace_id": runtime.workspace,
+		}),
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
@@ -1267,8 +1270,17 @@ func TestHTTPMemoryDreamTriggerIntegration(t *testing.T) {
 
 	var payload memoryDreamTriggerResponse
 	decodeHTTPJSON(t, resp, &payload)
-	if !payload.Triggered || runtime.dream.calls != 1 {
-		t.Fatalf("payload = %#v dream.calls=%d, want triggered once", payload, runtime.dream.calls)
+	if !payload.Triggered || runtime.dream.calls != 1 || runtime.dream.recordedWorkspace != runtime.workspace {
+		t.Fatalf(
+			"payload = %#v dream.calls=%d workspace=%q, want triggered once for %q",
+			payload,
+			runtime.dream.calls,
+			runtime.dream.recordedWorkspace,
+			runtime.workspace,
+		)
+	}
+	if payload.Dream.Scope != memcontract.ScopeWorkspace || payload.Dream.WorkspaceID != runtime.workspace {
+		t.Fatalf("dream payload = %#v, want workspace-scoped dream for %q", payload.Dream, runtime.workspace)
 	}
 }
 
@@ -1593,7 +1605,11 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = invalidResp.Body.Close()
+	var invalidPayload contract.ErrorPayload
+	decodeHTTPJSON(t, invalidResp, &invalidPayload)
+	if !strings.Contains(strings.ToLower(invalidPayload.Error), "signature") {
+		t.Fatalf("invalid webhook error = %#v, want signature failure detail", invalidPayload)
+	}
 
 	signature, err := automationpkg.SignWebhookPayload("shared-secret", timestamp, payload)
 	if err != nil {
@@ -2647,11 +2663,12 @@ func (*integrationTaskSessionExecutor) ForceTaskStop(context.Context, string, ta
 }
 
 type integrationDreamTrigger struct {
-	enabled   bool
-	triggered bool
-	reason    string
-	last      time.Time
-	calls     int
+	enabled           bool
+	triggered         bool
+	reason            string
+	last              time.Time
+	calls             int
+	recordedWorkspace string
 }
 
 type integrationBridgeSecretStore interface {
@@ -2861,8 +2878,9 @@ func TestIntegrationBridgeServiceLifecycleTransitionsReachReady(t *testing.T) {
 	}
 }
 
-func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
+func (t *integrationDreamTrigger) Trigger(_ context.Context, workspaceID string) (bool, string, error) {
 	t.calls++
+	t.recordedWorkspace = workspaceID
 	return t.triggered, t.reason, nil
 }
 
@@ -3478,7 +3496,10 @@ func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/sessions"),
-		[]byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`),
+		mustIntegrationJSON(map[string]any{
+			"agent_name":     "coder",
+			"workspace_path": runtime.workspace,
+		}),
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
@@ -3599,7 +3620,7 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
-		[]byte(`{"message":"`+message+`"}`),
+		mustIntegrationJSON(map[string]any{"message": message}),
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {

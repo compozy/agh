@@ -958,7 +958,7 @@ func (h *BaseHandlers) EnableMemoryProvider(c *gin.Context) {
 	response, err := h.MemoryProviders.Enable(
 		c.Request.Context(),
 		strings.TrimSpace(c.Query("workspace_id")),
-		firstNonEmptyString(req.Name, c.Param("provider_name")),
+		strings.TrimSpace(c.Param("provider_name")),
 		req.Reason,
 	)
 	if err != nil {
@@ -981,7 +981,7 @@ func (h *BaseHandlers) DisableMemoryProvider(c *gin.Context) {
 	response, err := h.MemoryProviders.Disable(
 		c.Request.Context(),
 		strings.TrimSpace(c.Query("workspace_id")),
-		firstNonEmptyString(req.Name, c.Param("provider_name")),
+		strings.TrimSpace(c.Param("provider_name")),
 		req.Reason,
 	)
 	if err != nil {

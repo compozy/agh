@@ -1,55 +1,24 @@
-# TC-REG-001: Codegen, CLI/API Docs, Runtime Docs, And QA Artifact Guard
+# TC-REG-001: Broad Memory v2 Regression Sweep
 
-**Priority:** P0
-**Type:** Regression
+**Priority:** P1
 **Status:** Not Run
-**Estimated Time:** 45 minutes
-**Created:** 2026-05-05
-**Last Updated:** 2026-05-05
-
-## Objective
-
-Verify generated contracts, generated CLI/API references, runtime docs, manual shell examples, and this QA dossier stay aligned with the final Memory v2 Slice 1 surface.
 
 ## Preconditions
 
-- [ ] Working tree contains the task_25 QA artifacts.
-- [ ] Generated OpenAPI and CLI docs are current from tasks 15 and 24.
-- [ ] Bun dependencies are installed.
+- CLI, HTTP, UDS, native tool, and extension host paths are all reachable.
+- One workspace has seeded memories and session history.
 
-## Test Steps
+## Steps
 
-1. **Run codegen check**
-   - Input: `make codegen-check`
-   - **Expected:** No OpenAPI or generated TypeScript drift.
+1. Run write, show, search, reindex, reset, reload, provider, extractor, and dream flows.
+2. Verify the same behavior through CLI, HTTP, and UDS.
+3. Confirm generated CLI/API docs still describe the exercised routes and fields.
 
-2. **Run CLI docs regeneration**
-   - Input: `make cli-docs`
-   - **Expected:** Generated CLI docs remain aligned with Cobra source. Any table formatting drift is normalized by the lint/format stage before final diff assessment.
+**Expected:** Memory v2 remains coherent across public surfaces, generated CLI/API output, config lifecycle, Knowledge, Memory Settings, Session Inspector, and operator-visible storage artifacts.
 
-3. **Run focused site truth tests**
-   - Input: `cd packages/site && bun run test -- runtime-docs-truth runtime-docs-discovery runtime-manual-cli-examples runtime-manual-api-routes memory-v2-qa-artifacts`
-   - **Expected:** Tests pass and assert Memory v2 docs/reference truth plus QA dossier completeness.
+## Required Evidence
 
-4. **Run site typecheck/build**
-   - Input: `cd packages/site && bun run typecheck` and `cd packages/site && bun run build`
-   - **Expected:** Site compiles and builds runtime docs.
-
-5. **Run final repo gate**
-   - Input: `make verify`
-   - **Expected:** Full monorepo gate passes after all task_26 fixes.
-
-## Evidence To Capture
-
-- `make codegen-check` log.
-- `make cli-docs` log and post-format diff assessment.
-- Focused site test log.
-- Site build log.
-- Final `make verify` log.
-
-## Negative Assertions
-
-- No generated CLI page for `memory/read` or `memory/consolidate`.
-- No current API reference for `GET /api/memory/search` or `PUT /api/memory/{filename}`.
-- No `[memory.v2]` config namespace.
-- QA dossier contains no empty-shell case.
+- Consolidated command/output transcript.
+- Matching HTTP and UDS payloads.
+- Screenshots or notes from Knowledge, Memory Settings, and Session Inspector.
+- Links or snapshots from generated CLI/API docs.

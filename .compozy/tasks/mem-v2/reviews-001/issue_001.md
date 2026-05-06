@@ -1,55 +1,53 @@
 ---
-provider: manual
-pr:
+provider: coderabbit
+pr: "108"
 round: 1
-round_created_at: 2026-05-06T02:21:18Z
+round_created_at: 2026-05-06T04:07:28.010433Z
 status: resolved
-file: internal/memory/recall/recall.go
-line: 530
-severity: high
-author: claude-code
-provider_ref:
+file: internal/api/contract/memory.go
+line: 507
+author: coderabbitai[bot]
+provider_ref: thread:PRRT_kwDOR5y4QM5_2Isb,comment:PRRC_kwDOR5y4QM6-UFVZ
 ---
 
-# Issue 001: Bounded SignalRecorder queue (B2/NB2) not implemented
-
+# Issue 001: _⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
 ## Review Comment
 
-The TechSpec is explicit that recall-signal updates must run through a per-workspace bounded channel with overflow telemetry (peer-review B2/NB2):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
 
-> "After `Recaller.Recall()` returns a non-empty `Packaged`, surfaced chunks are enqueued onto a per-workspace bounded channel (`SignalRecorder`) — capacity `[memory.recall.signals] queue_capacity` (default 256). A worker goroutine drains the queue and updates rows … Queue overflow drops the oldest entry, increments `memory_recall_signal_updates_total{status="dropped"}`, and emits a canonical event `memory.recall.signal_dropped` to `memory_events`. … Recall surface latency is preserved (failures do not bubble to the caller)."
-> (`.compozy/tasks/mem-v2/_techspec.md` §`memory_recall_signals` write path)
+**Use one provider identifier for lifecycle operations.**
 
-The current implementation does the opposite. `Recaller.Recall` calls `r.recordSignals(ctx, query, signalsForRanked(...))` synchronously at `internal/memory/recall/recall.go:191`, and `recordSignals` calls the source directly at line 530:
+`MemoryProviderLifecycleRequest` carries `Name`, but enable/disable already target a provider by path in the new client surface. That lets one request identify two different providers, and behavior then depends on which field the handler trusts. Drop `Name` from this body or make handlers reject mismatches explicitly.
 
-```go
-if err := r.source.RecordRecall(ctx, signals); err != nil {
-    r.warn("memory recall: record recall signal failed", "error", err)
-    if eventErr := r.source.RecordRecallSignalFailed(ctx, query, err); eventErr != nil { ... }
-}
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/api/contract/memory.go` around lines 503 - 507, The
+MemoryProviderLifecycleRequest struct currently contains Name and Reason which
+allows two different identifiers for the same lifecycle call; remove the Name
+field from MemoryProviderLifecycleRequest so lifecycle requests only carry
+Reason (and rely on the provider path/ID from routing/client surface), then
+update all handlers and callers that previously read
+MemoryProviderLifecycleRequest.Name (e.g., your enable/disable provider handlers
+and any client code constructing this request) to use the route/path provider
+identifier instead; also update tests and any JSON serialization expectations
+accordingly.
 ```
 
-`Store.RecordRecall` (`internal/memory/recall_source.go:284`) opens a `withCatalogWriteTx` with a `BEGIN IMMEDIATE` transaction, runs `INSERT … ON CONFLICT DO UPDATE` per signal, and waits for commit before returning. Two consequences:
+</details>
 
-1. **Recall surface latency now includes catalog disk I/O.** Every Recall call blocks on a write transaction against the workspace `agh.db`. Under contention this competes with controller decision writes (`memory_decisions`) and extractor consumer writes, exactly the contention the bounded queue was supposed to absorb.
-2. **The `memory.recall.signal_dropped` event is dead code.** `memoryEventRecallSignalDropped = "memory.recall.signal_dropped"` is declared at `internal/memory/catalog.go:43` and listed in the allowlist at line 138, but no caller ever emits it. The schema CHECK enum (`internal/store/globaldb/global_db.go:1106`) and config keys (`[memory.recall.signals] queue_capacity`, `worker_retry_max`, `metrics_enabled`) all promise observability that never lights up. Operators who alert on `dropped + failed / ok > 0.01` (per Monitoring section) will never see drops, even when the workspace is saturated.
+<!-- fingerprinting:phantom:medusa:grasshopper -->
 
-Suggested fix:
-
-- Introduce a daemon-owned `SignalRecorder` worker keyed by `workspaceID` with a bounded channel sized from `[memory.recall.signals] queue_capacity` (default 256), drained by a single goroutine that calls `Store.RecordRecall` in batches.
-- On overflow, drop the oldest queued signal, increment a `dropped` metric, and call `Store.RecordRecallSignalDropped` (new method) to write a `memory.recall.signal_dropped` event row.
-- In `Recaller.recordSignals`, replace the synchronous `r.source.RecordRecall(...)` call with `recorder.Submit(workspaceID, signals)` (non-blocking; logs and counts on overflow).
-- Surface the queue depth via `memory_recall_signal_queue_depth{workspace_id}` (Monitoring §Metrics promises this gauge but it is also missing).
-- Add tests `TestSignalRecorder_QueueOverflowDropsOldest`, `TestSignalRecorder_FailureEmitsEventAndMetric`, `TestSignalRecorder_SuccessIncrementsOkMetric` (already enumerated in §Test Plan but currently absent — the only related test is `TestStore.RecordRecallSignalFailed` in `internal/memory/recall_test.go:271`).
+<!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
-- Decision: `VALID`
-- Root cause: recall signal persistence was still coupled to the recall request path. `Recaller.recordSignals` synchronously called the catalog-backed `Source.RecordRecall`, so disk writes and write-lock contention could affect recall latency and the configured queue/overflow observability was unreachable.
-- Fix approach: add a per-workspace bounded `SignalRecorder` owned by `memory.Store`, submit recall signals non-blockingly from `Recaller`, emit `memory.recall.signal_dropped` on overflow, close recorders during daemon shutdown, and cover async success, retry failure, and overflow behavior with focused tests.
-
-## Resolution
-
-- Implemented a bounded asynchronous `SignalRecorder` with per-workspace registry ownership in `memory.Store`, non-blocking recall submission, oldest-drop overflow behavior, failure/dropped event emission, stats, and daemon shutdown cleanup.
-- Added focused recorder tests for async success, retry failure telemetry, and oldest-drop overflow.
-- Verification: `go test ./internal/memory/recall ./internal/memory ./internal/memory/extractor -count=1` passed; `go test -race ./internal/memory/recall ./internal/memory ./internal/memory/extractor ./internal/api/core ./internal/daemon ./internal/tools ./internal/cli -count=1` passed; `make verify` passed with Bun 334 files / 2150 tests, Go `DONE 8393 tests in 90.274s`, and boundaries OK.
+- Decision: `valid`
+- Notes:
+  - `internal/api/core/memory.go` still resolves lifecycle targets with `firstNonEmptyString(req.Name, c.Param("provider_name"))`, and `internal/cli/memory.go` still sends `MemoryProviderLifecycleRequest{Name: name}`.
+  - That means the request body can disagree with the route path and the handler will silently choose whichever field is non-empty first, which is the exact ambiguity the review called out.
+  - Fix approach: remove `Name` from `MemoryProviderLifecycleRequest`, make enable/disable use the route param only, and update CLI callers plus route tests/spec expectations accordingly.

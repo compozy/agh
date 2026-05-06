@@ -581,3 +581,42 @@ func TestMemoryErrorsWrapAsExpected(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestMemoryCommandsRejectRemovedLegacyFlags(t *testing.T) {
+	t.Parallel()
+
+	deps := commandDeps{}
+
+	t.Run("Should reject reset include-system flag", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(t, deps, "memory", "reset", "--include-system")
+		if err == nil {
+			t.Fatal("executeRootCommand(memory reset --include-system) error = nil, want unknown flag")
+		}
+		if !strings.Contains(err.Error(), "unknown flag: --include-system") {
+			t.Fatalf("memory reset unknown flag error = %v", err)
+		}
+	})
+
+	t.Run("Should reject extractor replay from-dlq flag", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"memory",
+			"extractor",
+			"replay",
+			"--session",
+			"sess-1",
+			"--from-dlq",
+		)
+		if err == nil {
+			t.Fatal("executeRootCommand(memory extractor replay --from-dlq) error = nil, want unknown flag")
+		}
+		if !strings.Contains(err.Error(), "unknown flag: --from-dlq") {
+			t.Fatalf("memory extractor replay unknown flag error = %v", err)
+		}
+	})
+}

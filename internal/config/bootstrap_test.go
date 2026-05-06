@@ -146,6 +146,36 @@ func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
 	}
 }
 
+func TestSaveBootstrapConfigMigratesPriorBootstrapDreamAgent(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[memory.dream]
+agent = "general"
+`)
+
+	cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("SaveBootstrapConfig() error = %v", err)
+	}
+	if got := cfg.Memory.Dream.Agent; got != DefaultMemoryDreamAgentName {
+		t.Fatalf("SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q", got, DefaultMemoryDreamAgentName)
+	}
+
+	reloaded, err := LoadGlobalConfig(homePaths)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error = %v", err)
+	}
+	if got := reloaded.Memory.Dream.Agent; got != DefaultMemoryDreamAgentName {
+		t.Fatalf("LoadGlobalConfig() Memory.Dream.Agent = %q, want %q", got, DefaultMemoryDreamAgentName)
+	}
+}
+
 func TestSaveBootstrapConfigRequiresModelForPiProviders(t *testing.T) {
 	t.Parallel()
 
