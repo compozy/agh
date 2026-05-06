@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { buttonVariants } from "@agh/ui";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";

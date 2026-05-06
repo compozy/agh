@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 import type { ReactNode } from "react";
 
 interface SectionHeaderProps {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 
 type Background = "canvas" | "surface" | "deep";
 type PadY = "md" | "lg" | "xl";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 import { useReducedMotion } from "./use-reduced-motion";
 
 interface AnimatedDiagramProps {

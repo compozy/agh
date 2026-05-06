@@ -1,5 +1,5 @@
 import { Check, Minus } from "lucide-react";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 import { PROVIDERS } from "./supported-agents";

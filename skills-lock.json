@@ -371,6 +371,18 @@
             "sourceType": "github",
             "computedHash": "abb230e7fb8d08c5ac92536de44fda3cf2b328e5e465e823db8a1a933cf2aa42"
         },
+        "grill-me": {
+            "source": "mattpocock/skills",
+            "sourceType": "github",
+            "skillPath": "skills/productivity/grill-me/SKILL.md",
+            "computedHash": "784f0dbb7403b0f00324bce9a112f715342777a0daee7bbb7385f9c6f0a170ea"
+        },
+        "grill-with-docs": {
+            "source": "mattpocock/skills",
+            "sourceType": "github",
+            "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+            "computedHash": "31a5b1ae116558bf7d3f633f442835f54bd7645923d4f45c7823e52a97317666"
+        },
         "helm-chart-scaffolding": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -399,7 +411,8 @@
         "impeccable": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",
-            "computedHash": "a26b3dd377c4572b1c34c68f82ab9a1cb806f21c7157060327fe60e9b6d2e277"
+            "skillPath": "skill/SKILL.md",
+            "computedHash": "8cdf2e788eaca3af7d02026ef9cec55b506100a00d130f938e3fb1ad669c0ad0"
         },
         "inngest": {
             "source": "pedronauck/skills",
@@ -460,11 +473,6 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "computedHash": "6d36e69adad781f106a2fb4b19ebc22bf0c211babdc0d1ae5822fa65abb48bd8"
-        },
-        "minimalist-ui": {
-            "source": "Leonxlnx/taste-skill",
-            "sourceType": "github",
-            "computedHash": "08873a3131d3be27bef9bf3304b310b16b44ca6e3561aebe532797be3443f6bd"
         },
         "motion": {
             "source": "pedronauck/skills",
