@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI/API Reference and Discoverability Co-Ship
 type: docs
 complexity: high
@@ -35,10 +35,10 @@ Update the generated and semi-generated discoverability surfaces that operators 
 </requirements>
 
 ## Subtasks
-- [ ] 24.1 Regenerate CLI reference pages for the final memory command tree.
-- [ ] 24.2 Update API reference pages and truth guards for the final memory routes/payloads.
-- [ ] 24.3 Refresh docs discovery and manual-example tests that mention memory/config/session surfaces.
-- [ ] 24.4 Confirm all discoverability surfaces reflect the same final runtime truth.
+- [x] 24.1 Regenerate CLI reference pages for the final memory command tree.
+- [x] 24.2 Update API reference pages and truth guards for the final memory routes/payloads.
+- [x] 24.3 Refresh docs discovery and manual-example tests that mention memory/config/session surfaces.
+- [x] 24.4 Confirm all discoverability surfaces reflect the same final runtime truth.
 
 ## Implementation Details
 
@@ -82,12 +82,12 @@ See TechSpec `Web/Docs Impact`, `Agent Manageability Plan`, and `Impact Analysis
 ## Tests
 
 - Unit tests:
-  - [ ] CLI and API reference pages render the final Memory v2 verbs/routes and omit removed ones.
+  - [x] CLI and API reference pages render the final Memory v2 verbs/routes and omit removed ones.
 - Integration tests:
-  - [ ] `make cli-docs` regenerates the CLI memory reference successfully.
-  - [ ] `packages/site/lib/runtime-manual-api-routes.test.ts` passes for the final memory routes.
-  - [ ] `packages/site/lib/runtime-manual-cli-examples.test.ts` passes for the final memory CLI examples.
-  - [ ] `packages/site/lib/runtime-docs-truth.test.ts` and `packages/site/lib/runtime-docs-discovery.test.ts` pass after the updates.
+  - [x] `make cli-docs` regenerates the CLI memory reference successfully.
+  - [x] `packages/site/lib/runtime-manual-api-routes.test.ts` passes for the final memory routes.
+  - [x] `packages/site/lib/runtime-manual-cli-examples.test.ts` passes for the final memory CLI examples.
+  - [x] `packages/site/lib/runtime-docs-truth.test.ts` and `packages/site/lib/runtime-docs-discovery.test.ts` pass after the updates.
 - Test coverage target: all affected site truth/discoverability/reference guards.
 - All tests must pass.
 

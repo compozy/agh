@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Real-Scenario QA Execution
 type: test
 complexity: critical
@@ -31,10 +31,10 @@ Execute the release-grade Memory v2 QA pass against a realistic daemon/workspace
 </requirements>
 
 ## Subtasks
-- [ ] 26.1 Bootstrap the isolated QA environment and run the planned runtime/transport scenarios.
-- [ ] 26.2 Execute web and operator-facing scenarios, including browser-driven checks for the changed UI.
-- [ ] 26.3 File bugs for reproduced defects, fix root causes, and rerun affected scenarios/gates.
-- [ ] 26.4 Produce the final verification report with evidence and outcomes.
+- [x] 26.1 Bootstrap the isolated QA environment and run the planned runtime/transport scenarios.
+- [x] 26.2 Execute web and operator-facing scenarios, including browser-driven checks for the changed UI.
+- [x] 26.3 File bugs for reproduced defects, fix root causes, and rerun affected scenarios/gates.
+- [x] 26.4 Produce the final verification report with evidence and outcomes.
 
 ## Implementation Details
 
@@ -79,13 +79,13 @@ This task consumes the QA plan from `task_25` and is the final gate for the Memo
 ## Tests
 
 - Unit tests:
-  - [ ] N/A — this task executes integrated scenario coverage rather than adding isolated unit cases.
+  - [x] N/A — this task executes integrated scenario coverage rather than adding isolated unit cases.
 - Integration tests:
-  - [ ] `make test-e2e-runtime` passes for the Memory v2 runtime scenarios.
-  - [ ] `make test-e2e-web` passes for the changed UI surfaces.
-  - [ ] CLI/HTTP/UDS parity scenarios pass against the final runtime.
-  - [ ] Docs truth/discoverability checks pass after all changes and fixes.
-  - [ ] `make verify` passes at the end of the QA loop.
+  - [x] `make test-e2e-runtime` passes for the Memory v2 runtime scenarios.
+  - [x] `make test-e2e-web` passes for the changed UI surfaces.
+  - [x] CLI/HTTP/UDS parity scenarios pass against the final runtime.
+  - [x] Docs truth/discoverability checks pass after all changes and fixes.
+  - [x] `make verify` passes at the end of the QA loop.
 - Test coverage target: release-grade cross-surface verification.
 - All tests must pass.
 

@@ -1,0 +1,478 @@
+# Goal (incl. success criteria):
+
+- Implement the entire `.compozy/tasks/mem-v2` workflow under Codex Loop goal mode.
+- Current user instruction: use Claude Code Opus via `compozy exec` and `cy-review-round` instead of CodeRabbit; the manual round exists and is being remediated through the Phase D fix path.
+- Success for this turn: resolve `.compozy/tasks/mem-v2/reviews-001/`, update workflow memory/state through helpers, and leave the detector ready for the next Phase D clean round or Phase E.
+
+# Constraints/Assumptions:
+
+- Must not run destructive git commands (`git restore`, `git checkout`, `git reset`, `git clean`, `git rm`) without explicit permission.
+- Must use `.agents/skills/cy-codex-loop/scripts/*` helpers for loop state changes.
+- `state.yaml` and task frontmatter are authoritative for loop phase/task status.
+- Conversation in Brazilian Portuguese; repository artifacts in English.
+- `make verify` is the blocking project gate, but `cy-codex-loop` requires one phase action per iteration.
+
+# Key decisions:
+
+- Use `cy-codex-loop` for loop orchestration and `cy-workflow-memory` for workflow memory.
+- For task 05, keep low-level file writes available as storage internals/tests, but route runtime HTTP and extension Host API write/delete paths through controller-backed proposal methods so public mutations get a Decision WAL row before file/catalog mutation.
+- For task 06, treat recall signal table changes as SQLite schema work and follow the AGH schema-migration discipline before changing DDL.
+- For task 06, route prompt augmentation through `Store.Recall`/`memcontract.Packaged` so later consumers do not duplicate ranking or packaging.
+- For task 07, keep the local provider package contract-clean by depending on a contract-typed backend seam; adapt concrete `memory.Store` through `internal/memory/provider/local/memstore`.
+- For task 08, route prompt memory through `SnapshotService` and `RenderRecallPromptSection`; future prompt consumers should not reload memory indexes or re-render `memcontract.Packaged` independently.
+- For task 10, extraction triggers must use the durable `session.message_persisted` hook rather than stream deltas or session DB tailing; extracted candidates route through `ProposeCandidate` and failures land under `_system/extractor/failures`.
+- For task 12, keep `ledger.jsonl` forensic-only: session lifecycle calls a thin `LedgerMaterializer` seam after recorder close and stopped metadata persistence; the concrete projector only reads `events.db` and writes idempotent JSONL.
+- For task 15, assert Memory v2 generated consumer health through `web/src/lib/api-contract.ts` type helpers instead of hand-editing generated TypeScript artifacts.
+- For task 17, hard-cut CLI copy and command paths to `show`/`dream trigger`; do not reintroduce `agh memory read` or `agh memory consolidate` in CLI, prompts, bundled skills, or generated CLI docs.
+- For task 18, hard-cut native/builtin memory tools to `agh__memory_list`, `agh__memory_show`, `agh__memory_search`, `agh__memory_propose`, and `agh__memory_note`; route native mutations through controller proposals.
+- For task 18, Host API recall uses the active/default MemoryProvider first and falls back to `Store.Recall`; do not add manual recall scoring in extension host code.
+- For task 19, keep Memory v2 runtime composition in `internal/daemon`: provider registry/local provider, snapshot prompt assembly, extractor hook/runtime, dreaming runtime, and forensic ledger materializer must be boot/shutdown-owned by the daemon, not subordinate packages.
+- For task 25, keep the QA report execution-ready but planning-only: task 26 owns fresh QA bootstrap, live daemon/browser/provider execution, issue filing, and verification-report production.
+- For task 26, treat `workspace_id` as the stable `.agh/workspace.toml` identity on public Memory transports; the workspace resolver must resolve registered workspaces by that stable ULID instead of falling back to workspace-name lookup.
+- For task 26, public `/api/memory/search` filenames must expose curated memory filenames; chunk IDs remain valid inside recall blocks/native keys but are not the public memory filename.
+- For task 26, two meaningful ASCII-token recall queries are valid operator searches; do not pad queries to satisfy the old trivial-query guard.
+- For task 26 web E2E failures, fix the source contract: resource writes must reuse `store.ExecuteWrite` busy retries, ACP fixtures that expect operator approval must use an interactive permission mode, and Playwright selectors must scope modal close buttons to their dialog.
+
+# State:
+
+- Started 2026-05-05 in `/Users/pedronauck/Dev/compozy/agh3`.
+- Detected `phase=0 action=bootstrap` because `.compozy/tasks/mem-v2/state.yaml` was missing.
+- Bootstrapped `state.yaml` with `mode=tasks`, `total_tasks=26`, and `goal_signature="Implement the ENTIRE .compozy/tasks/mem-v2"`.
+- Reconciled `state.yaml` with completed frontmatter for `task_01.md` and `task_02.md` using `update-state.py --task-completed`.
+- Task 04 implementation and verification completed locally: versioned prompt assets, explicit prompt registry, deterministic scan helpers, and focused tests are in the working tree.
+- Task 04 memory and task tracking files are updated before the loop state flip.
+- `state.yaml` now marks tasks 01-04 completed; detector prints `phase=B action=execute_task task=task_05`.
+- Task 05 implementation and verification completed locally: deterministic controller decisions, `memory_decisions` WAL apply/revert/replay material, runtime HTTP/extension write reroutes, and focused tests are in the working tree.
+- Task 05 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-05 completed and detector prints `phase=B action=execute_task task=task_06`.
+- Task 06 implementation and verification completed locally: deterministic recall package, chunk FTS source, live recall signals, scope shadowing, prompt augmentation consumption, migration 008, and focused tests are in the working tree.
+- Task 06 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-06 completed and detector prints `phase=B action=execute_task task=task_07`.
+- Task 07 implementation and pre-tracking verification completed locally: bundled local provider, `memory.Store` adapter, extension provider registry, collision observability, and focused tests are in the working tree.
+- Task 07 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-07 completed and detector prints `phase=B action=execute_task task=task_08`.
+- Task 08 implementation and pre-tracking verification completed locally: frozen snapshot service, next-boot invalidation, provider/store prompt blocks, centralized recall prompt rendering, sub-agent read-only inheritance, and focused tests are in the working tree.
+- Task 08 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-08 completed and detector prints `phase=B action=execute_task task=task_09`.
+- Task 09 implementation and pre-tracking verification completed locally: cross-DB memory event aggregation, health fan-in, observe memory-source merge, shared SSE memory-context scrubber, and focused tests are in the working tree.
+- Task 09 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-09 completed and detector prints `phase=B action=execute_task task=task_10`.
+- Task 10 implementation and verification completed locally: persisted-message hook, `RecordPersisted` recorder seam, extractor runtime queue/coalescing/drop behavior, `_inbox` producer/consumer, `_system` DLQ, `Store.ProposeCandidate`, and extractor telemetry in `memory_events`.
+- Task 10 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-10 completed and detector prints `phase=B action=execute_task task=task_11`.
+- Task 11 implementation and verification completed locally: Dreaming v2 signal gate/scoring, lock-protected promotion, `_system/dreaming` artifacts, `_system/dream/failures` DLQ, `memory_consolidations` rows/events, controller-backed `OriginDreaming` promotions, dedicated `dreaming-curator` default, and idempotent `promoted_at` stamping.
+- Task 11 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-11 completed and detector prints `phase=B action=execute_task task=task_12`.
+- Task 12 implementation completed locally: `store.SessionLedgerRecord`, `session.LedgerMaterializer`, `session.WithLedgerMaterializer`, lifecycle hook after recorder close/stopped metadata, and `internal/sessions/ledger` idempotent workspace/unbound JSONL projection from durable session events.
+- Task 12 memory, task tracking, and loop state are updated; `state.yaml` marks tasks 01-12 completed and detector prints `phase=B action=execute_task task=task_13`.
+- Task 13 implementation completed locally: expanded Memory v2 backend config structs/defaults/validation, overlay merge, settings DTO parse/render, config tool-surface policy, CLI config path coverage, generated contracts, and web settings fixtures/tests.
+- Task 13 memory, task tracking, loop state, and final post-state verification are complete; detector prints `phase=B action=execute_task task=task_14`.
+- Task 14 implementation, memory, task tracking, loop state, and final post-state verification are complete; detector prints `phase=B action=execute_task task=task_15`.
+- Task 15 implementation, memory, task tracking, loop state, and final post-state verification are complete; detector prints `phase=B action=execute_task task=task_16`.
+- Task 16 implementation, memory, task tracking, loop state, and final post-state verification are complete; detector prints `phase=B action=execute_task task=task_17`.
+- Task 17 implementation, workflow memory, task tracking, and loop state are complete; `state.yaml` marks tasks 01-17 completed and should detect `phase=B action=execute_task task=task_18` after final verification.
+- Task 18 implementation, workflow memory, task tracking, loop state, and final post-state verification are complete; `state.yaml` marks tasks 01-18 completed and detector prints `phase=B action=execute_task task=task_19`.
+- Tasks 19-25 implementation, workflow memory, task tracking, loop state, and final post-state verification are complete; `state.yaml` marks tasks 01-25 completed, `qa.report_done=true`, and detector prints `phase=C action=qa_execution`.
+- Task 26 QA execution is in progress. Fresh isolated QA lab exists at `/Users/pedronauck/dev/qa-labs/agh-mem-v2-20260505-221648-724447-lab` with `AGH_HOME=/Users/pedronauck/dev/qa-labs/agh-mem-v2-20260505-221648-724447-lab/.agh/runtime`, HTTP `http://127.0.0.1:60156`, UDS `/Users/pedronauck/dev/qa-labs/agh-mem-v2-20260505-221648-724447-lab/.agh/runtime/aghd.sock`, manifest `/Users/pedronauck/dev/qa-labs/agh-mem-v2-20260505-221648-724447-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+- TC-SCEN-001 reproduced BUG-001: CLI search saw a controller-backed memory write immediately, but HTTP/UDS search using stable workspace ULID `01KQX3HAT21RHVV7MWA104FEJG` failed before the resolver fix; absolute path in the same `workspace_id` field succeeded.
+- BUG-001 production fix is implemented and live-validated in the QA daemon: `internal/workspace` now resolves registered workspaces by stable identity, and post-fix CLI/HTTP/UDS search all return the sentinel memory without reindex.
+- BUG-002 is implemented and focused-verified: `Store.Scan` and `Store.ListTargets` skip `.tmp-*` atomic write files so native controller decisions cannot see transient storage artifacts.
+- BUG-003 is implemented and live-verified: recall packaging now carries curated filename/type/workspace metadata, public CLI/HTTP/UDS search returns `project_qa_search_visibility_postfix.md`, and two-token recall queries are accepted.
+- BUG-004 is implemented and live-verified: `memory.recall.executed` observe payloads now include redaction-safe summaries such as `query="search visibility sentinel postfix" results=1`.
+- Fresh post-fix QA lab exists at `/Users/pedronauck/dev/qa-labs/agh-mem-v2-final-postfix-20260505-225249-638020-lab`; `AGH_HOME=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-2c1957d9ca82/runtime`; HTTP `http://127.0.0.1:50979`; UDS `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-2c1957d9ca82/runtime/aghd.sock`; copied manifest under `.compozy/tasks/mem-v2/qa/logs/final-postfix/bootstrap-manifest.json`.
+- Full runtime E2E passed after previous fixes: `make test-e2e-runtime > .compozy/tasks/mem-v2/qa/logs/final-postfix/final-make-test-e2e-runtime-rerun4.log 2>&1`.
+- Current `make test-e2e-web` failure has four confirmed roots: automation/tasks expose `resources: ... database is locked (SQLITE_BUSY)` during workspace auto-register agent resource sync; browser lifecycle fixture declares `permissions: deny-all` while expecting an `allow-once` interactive approval; bridge test closes a modal with a global `Close` selector that also matches toast close buttons; tasks stale workspace 404 is another symptom of the same resource busy auto-register rollback.
+- Implemented the web E2E root fixes: `internal/resources.Kernel` now uses `store.ExecuteWrite` for `PutRaw`, `DeleteRaw`, and source-session/snapshot writes; `browser_session_lifecycle_fixture.json` now uses `approve-reads`; `web/e2e/bridges.spec.ts` scopes the Close button to the test-delivery dialog.
+
+# Done:
+
+- Goal registered for Codex Loop: `Implement the ENTIRE .compozy/tasks/mem-v2`.
+- Loaded `cy-codex-loop` and `cy-workflow-memory` skill instructions.
+- Loaded `cy-spec-preflight` task-phase context, standing directives, glossary, task lessons, and current task list context.
+- Updated `.compozy/tasks/mem-v2/memory/MEMORY.md` with the bootstrap/reconciliation handoff before the loop iteration state update.
+- Created `.compozy/tasks/mem-v2/state.yaml`.
+- Mirrored existing completion of `task_01` and `task_02` into loop state.
+- Implemented `store.ExecuteWrite`, `store/workspacedb`, `fileutil.AtomicWrite`, memory agent-root support, catalog write transaction plumbing, and `Store.ReplayPendingDecisions`.
+- Added focused tests for atomic writes, workspace DB lifecycle, retry/write helpers, agent root resolution, replay add/delete/noop/reject/error paths, and package coverage helpers.
+- Focused validation passed: `go test ./internal/store ./internal/store/workspacedb ./internal/fileutil ./internal/memory -count=1`.
+- Focused race validation passed: `go test -race ./internal/store ./internal/store/workspacedb ./internal/fileutil ./internal/memory -count=1`.
+- Coverage validation passed target for affected packages after final test adjustment: store 82.3%, workspacedb 91.2%, fileutil 87.3%, memory 80.1%.
+- `scripts/check-test-conventions.py` is missing; `rg --files | rg 'check-test-conventions\.py$'` found no matching file.
+- `make lint` passed with `0 issues`.
+- Full `make verify` passed: Bun tests 329 files / 2088 tests, Go tests `DONE 8137 tests in 120.593s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_03.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_03.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 03 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_03 --action "executed task_03" --outcome completed --memory-written "memory/task_03.md,memory/MEMORY.md" --verify-pass`.
+- Final post-tracking `make verify` also passed: Bun tests 329 files / 2088 tests, Go tests `DONE 8137 tests in 14.148s`, and package boundaries `OK`.
+- Implemented `internal/memory/prompts` with embedded v1 controller tiebreak, extractor, dreaming, and WHAT_NOT_TO_SAVE assets plus explicit registry/template helpers.
+- Implemented `internal/memory/scan` with deterministic lexical pre-write rules for threat payloads, WHAT_NOT_TO_SAVE policy cases, non-blocking annotations, and redaction-safe rule traces.
+- Added focused tests for prompt loading/version selection/invalid assets and scan decisions/redaction/determinism/candidate conversion.
+- Focused validation passed: `go test ./internal/memory/prompts ./internal/memory/scan -count=1`.
+- Focused race validation passed: `go test -race ./internal/memory/prompts ./internal/memory/scan -count=1`.
+- Coverage validation passed: prompts 92.1%, scan 96.9%.
+- Expanded memory validation passed: `go test ./internal/memory/... -count=1`.
+- Full `make verify` initially failed on revive stutter for `scan.ScanContent` / `scan.ScanCandidate`; API renamed to `scan.Content` / `scan.Candidate`.
+- Final code `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8161 tests in 20.107s`, and package boundaries `OK`.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_04 --action "executed task_04" --outcome completed --memory-written "memory/task_04.md,memory/MEMORY.md" --verify-pass`.
+- `git diff --check` passed after task 04 tracking/state updates.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8161 tests in 10.955s`, and package boundaries `OK`.
+- Implemented `internal/memory/controller` with deterministic ADD/UPDATE/DELETE/NOOP/REJECT decisions, conservative ambiguity NOOP fallback, scanner rejection telemetry, stable hashes, and idempotency key helpers.
+- Implemented `Store.ProposeWrite`, `Store.ProposeDelete`, `Store.ApplyDecision`, `Store.RevertDecision`, and controller target listing with WAL-before-mutation persistence in `memory_decisions`.
+- Extracted raw `writeRaw`/`deleteRaw` storage helpers and adjusted pending replay to use raw storage directly.
+- Rerouted HTTP core memory write/delete and extension Host API memory store/forget through controller-backed proposals.
+- Added controller and memory WAL tests covering happy decisions, ambiguous/NOOP/REJECT cases, WAL-before-write failure, replay, revert, workspace/agent identity, runtime reroutes, validation errors, idempotency errors, and coverage edge cases.
+- Focused validation passed: `go test ./internal/memory/controller ./internal/memory -count=1`.
+- Focused API/extension validation passed: `go test ./internal/api/... ./internal/extension -count=1`.
+- Focused race validation passed: `go test -race ./internal/memory/controller ./internal/memory ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/extension -count=1`.
+- Coverage validation passed after error-path test addition: controller 85.4%, memory 80.1%.
+- `make verify` first failed on `funlen` for `Controller.Decide`; helper extraction fixed it.
+- One full `make verify` run later failed on non-reproducing macOS TempDir cleanup in `internal/extension`; isolated `go test -race ./internal/extension -count=1` passed.
+- Full code `make verify` rerun passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8191 tests in 32.086s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_05.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_05.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 05 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_05 --action "executed task_05" --outcome completed --memory-written "memory/task_05.md,memory/MEMORY.md" --verify-pass`.
+- `git diff --check` passed after task 05 tracking/state updates.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8191 tests in 15.782s`, and package boundaries `OK`.
+- Implemented `internal/memory/recall` with deterministic trivial-query skip, weighted lexical/recency/signal ranking, scope-aware shadow-by-id, stable headers, freshness banners, and failure-safe side effects.
+- Implemented `Store.Recall` with `memory_chunks_fts` + `memory_chunks_fts_trigram` retrieval, live `memory_recall_signals` updates, recall/skipped/signal-failure/shadow events, and prompt augmentation consumption.
+- Added migration 008 (`memv2_recall_signals_live_flow`) to backfill chunks and promote recall signals to live scoring/promotion fields.
+- Added recall tests covering ranking, trivial skips, shadow precedence, already-surfaced/system filters, CJK trigram recall, signal writes/failures, packaging determinism, daemon prompt augmentation, and schema upgrade.
+- Focused validation passed: `go test ./internal/memory/recall ./internal/memory -count=1`.
+- Focused race validation passed: `go test -race ./internal/memory/recall ./internal/memory -count=1`.
+- Coverage validation passed: recall 80.1%, memory 80.2%.
+- Expanded memory validation passed: `go test ./internal/memory/... -count=1`.
+- Focused daemon/memory validation passed after fixing the now-trivial prompt fixture: `go test ./internal/memory/recall ./internal/memory ./internal/daemon -count=1`.
+- `git diff --check` passed before task 06 tracking updates.
+- Full code `make verify` passed before task 06 tracking updates: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8208 tests in 122.610s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_06.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_06.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 06 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_06 --action "executed task_06" --outcome completed --memory-written "memory/task_06.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-06 completed and remains in phase B.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8208 tests in 16.483s`, and package boundaries `OK`.
+- Final detector output after state update: `phase=B action=execute_task task=task_07`.
+- Implemented `internal/memory/provider/local` over a contract-typed backend seam and `internal/memory/provider/local/memstore` as the concrete `memory.Store` adapter.
+- Implemented `internal/extension.MemoryProviderRegistry` with registration, default/active selection, deterministic collision rejection, active-selection preservation, and `memory.provider.collision` event summaries.
+- Added Host API injection seam for the provider registry and allowed `memory.provider.collision` as a global `store.EventSummary`.
+- Focused provider/registry validation passed: `go test ./internal/memory/provider/... ./internal/extension ./internal/store -count=1`.
+- Focused race validation passed for new provider and registry surfaces: `go test -race ./internal/memory/provider/... ./internal/store -count=1` and targeted `go test -race ./internal/extension -run 'TestMemoryProviderRegistry|TestHostAPIHandlerMemoryProviderRegistryOption|TestMemoryProviderCollisionEventSummaryValidation' -count=1`.
+- Coverage validation passed: provider/local 88.5%, provider/local/memstore 96.7%, store 82.3%; extension package remains 75.7% overall due existing package breadth while new registry tests are focused.
+- `make lint` passed with `0 issues`.
+- Pre-tracking full `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8245 tests in 116.076s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_07.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_07.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 07 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_07 --action "executed task_07" --outcome completed --memory-written "memory/task_07.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-07 completed and remains in phase B.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8245 tests in 11.221s`, and package boundaries `OK`.
+- Final detector output after task 07 state update: `phase=B action=execute_task task=task_08`.
+- Implemented `internal/memory.SnapshotService` with `FrozenSnapshot`, deterministic block ordering, provider/store snapshot loading, next-boot-only invalidation, prompt caps, freshness warnings, and read-only sub-agent inheritance.
+- Updated `internal/memory.Assembler` with `PromptStartupSection` so daemon composition can pass session/workspace/agent startup metadata into the same snapshot path.
+- Centralized recall prompt rendering in `memory.RenderRecallPromptSection` and routed `NewRecallAugmenter` through that renderer.
+- Added snapshot/assembler tests covering boot freezing, reload boundary behavior, scope precedence, prompt caps/freshness, provider prompt blocks, sub-agent inheritance, and daemon consumer integration.
+- Focused validation passed: `go test ./internal/memory/... -count=1`.
+- Focused race validation passed: `go test -race ./internal/memory/... -count=1`.
+- Coverage validation passed: `go test ./internal/memory -cover -count=1` => `80.4%`.
+- Consumer validation passed: `go test ./internal/daemon -run 'TestComposedAssembler|TestPromptInputComposite|TestHarnessContext' -count=1` and `go test ./internal/situation -count=1`.
+- `make lint` passed with `0 issues`; `git diff --check` passed.
+- Pre-tracking full `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8251 tests in 170.057s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_08.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_08.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 08 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_08 --action "executed task_08" --outcome completed --memory-written "memory/task_08.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-08 completed and remains in phase B.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8251 tests in 13.482s`, and package boundaries `OK`.
+- Detector output after task 08 state update: `phase=B action=execute_task task=task_09`.
+- Implemented `Store.ListMemoryEventSummaries` with global/shared plus existing per-workspace `<workspace>/.agh/agh.db` memory event aggregation, stable source-prefixed IDs, filters, ordering, and limit clamping.
+- Updated `Store.HealthStats` to derive catalog/operation health across the same authorities without creating empty workspace DBs during read-only observe/health calls.
+- Updated `internal/observe.Observer` to accept an optional memory event source and merge memory event summaries with registry summaries for non-session-scoped queries while avoiding duplicate `memory.*` registry rows.
+- Added `internal/sse` memory-context scrubbers for literal and JSON-escaped `<memory-context>` / `<memory_context>` prompt-only payloads.
+- Routed SSE raw writes, observe payload conversion, memory operation payloads, and prompt-stream redaction through the shared scrubber.
+- Threaded `workspace_id` into decision `memory_events` so task 05 events participate in workspace-aware observability.
+- Added focused tests for cross-DB aggregation, health derivation, observer merge/reconnect ordering, and SSE redaction hygiene.
+- Corrected validation findings: workspace fixture roots now exist before identity creation, `memory_events` summary SQL no longer queries nonexistent `actor_id`, subquery aliases are explicit, and `HealthStats` source fan-in is split into low-complexity helpers.
+- Focused validation passed: `go test ./internal/memory ./internal/observe ./internal/daemon -count=1`.
+- SSE/API validation passed: `go test ./internal/sse ./internal/api/core -count=1`.
+- Race validation passed: `go test -race ./internal/memory ./internal/observe ./internal/api/core ./internal/sse -count=1`.
+- Coverage validation passed for task-critical packages: `internal/memory` 80.4%, `internal/sse` 86.4%.
+- `git diff --check` passed.
+- `make lint` passed with `0 issues`.
+- Pre-tracking full `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8271 tests in 120.335s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_09.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_09.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 09 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_09 --action "executed task_09" --outcome completed --memory-written "memory/task_09.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-09 completed and remains in phase B.
+- Detector output after task 09 state update: `phase=B action=execute_task task=task_10`.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8271 tests in 19.625s`, and package boundaries `OK`.
+- Implemented `session.message_persisted` hook taxonomy, payload cloning/matching/introspection, session and daemon dispatch bridges, and durable-boundary dispatch after `SessionDB.RecordPersisted` assigns committed sequence/id.
+- Implemented `internal/memory/extractor` runtime with one in-flight plus one queued turn per session, bounded coalescing, hard-cap drop telemetry, graceful drain/close, JSONL `_inbox` production, FIFO consumption, controller proposal handoff, and `_system/extractor/failures` DLQ.
+- Implemented `Store.ProposeCandidate` and `Store.RecordExtractorEvent` so extractor outputs enter controller/WAL flow and telemetry lands in canonical `memory_events`.
+- Added focused tests for persisted-message dispatch order, root/subagent filtering, queue coalescing/drop, inbox success/failure, DLQ prompt exclusion, controller handoff, cleanup, and coverage.
+- Focused validation passed: `go test ./internal/memory ./internal/memory/extractor ./internal/hooks ./internal/session ./internal/daemon ./internal/store/sessiondb -count=1` except one existing async session timeout under package-load; targeted and full `go test ./internal/session -count=1` reruns passed.
+- Race validation passed: `go test -race ./internal/memory ./internal/memory/extractor -count=1` and earlier `go test -race ./internal/memory/extractor ./internal/hooks ./internal/store/sessiondb -count=1`.
+- Coverage validation passed: `internal/memory` 80.0%, `internal/memory/extractor` 81.3%.
+- `make lint` passed with `0 issues`; `git diff --check` passed.
+- Initial `make verify` failed on stale generated contracts after adding `SessionMessagePersistedPayload`; added the hook payload to the extension SDK codegen root set, ran `make codegen`, and confirmed `make codegen-check` passed.
+- `make bun-typecheck` passed; standalone `make bun-test` passed after an earlier parallel-run mage temp-file conflict.
+- Final full `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8296 tests in 219.351s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_10.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_10.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 10 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_10 --action "executed task_10" --outcome completed --memory-written "memory/task_10.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-10 completed and remains in phase B.
+- `git diff --check` passed after task 10 state update.
+- Detector output after task 10 state update: `phase=B action=execute_task task=task_11`.
+- Implemented Dreaming v2 runtime: `DreamGateConfig`, recall-signal candidate query/scoring, lock-protected signal gate, anti-thrash lock stamp on empty gate, run records in `memory_consolidations`, dream events, `_system/dreaming` artifacts, `_system/dream/failures` DLQ, and idempotent `markDreamPromoted`.
+- Routed dreaming curated writes through `Store.ProposeCandidate` with `OriginDreaming`; fixed controller behavior so dreaming-origin multi-source syntheses bypass regular surface ambiguity without bypassing scanner/exact/filename/entity-slot rules.
+- Updated consolidation runtime to treat `ErrDreamGateNotSatisfied` as a skip and to use dedicated `dreaming-curator` when dream config is blank/generic default.
+- Focused validation passed: `go test ./internal/memory ./internal/memory/consolidation ./internal/memory/controller -count=1`.
+- Race validation passed: `go test -race ./internal/memory ./internal/memory/consolidation ./internal/memory/controller -count=1`.
+- Coverage validation passed: `internal/memory` 80.0%, `internal/memory/consolidation` 87.2%, `internal/memory/controller` 85.4%.
+- `make lint` passed with `0 issues`; `git diff --check` passed.
+- Full `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8312 tests in 73.706s`, and package boundaries `OK`.
+- Updated `.compozy/tasks/mem-v2/memory/task_11.md`, `.compozy/tasks/mem-v2/memory/MEMORY.md`, `.compozy/tasks/mem-v2/task_11.md`, and `.compozy/tasks/mem-v2/_tasks.md` for Task 11 completion.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_11 --action "executed task_11" --outcome completed --memory-written "memory/task_11.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-11 completed and remains in phase B.
+- Detector output after task 11 state update: `phase=B action=execute_task task=task_12`.
+- First post-state `make verify` rerun failed on a transient `@agh/extension-sdk` integration timeout; the failing test passed isolated, standalone `make bun-test` passed, and final full `make verify` rerun passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8312 tests in 13.673s`, and package boundaries `OK`.
+- Implemented task 12 forensic ledger projection with focused coverage: `go test ./internal/sessions/ledger -cover -count=1` passes at 81.7%, targeted session lifecycle test proves a real spawned session writes `ledger.jsonl` containing `session_stopped` and `spawn_parent_id`, and race validation passes for `TestMaterializer|TestManagerSessionLedger`.
+- `make lint` passed with `0 issues` after fixing test helper context parameter order and removing a nil-context test assertion that staticcheck rejected.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_12 --task-current - --action "executed task_12" --outcome completed --memory-written "memory/task_12.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-12 completed and remains in phase B.
+- Final post-tracking `make verify` passed: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8321 tests in 98.464s`, and package boundaries `OK`.
+- Implemented task 13 backend config/settings lifecycle: `DefaultMemoryConfig`, full nested Memory v2 config structs, enum/range/weight/path validation, overlay merge for root/workspace layers, settings payload serialization/parsing, settings diff/apply, agent config tool allow/deny policy, and CLI config setter path typing.
+- Co-shipped generated contract consumers for task 13 with `make codegen`: `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`, and `sdk/typescript/src/generated/contracts.ts`.
+- Updated web settings fixtures/tests to use a full Memory v2 generated payload so web typecheck remains green before the later full web settings task.
+- Focused validation for task 13 passed: config/API/settings/CLI tests, race tests, codegen-check, web lint/typecheck/test, site typecheck/test/build, config coverage at 80.0%, and `git diff --check`.
+- Pre-tracking full `make verify` passed for task 13: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8350 tests in 130.737s`, and package boundaries `OK`.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_13 --task-current - --action "executed task_13" --outcome completed --memory-written "memory/task_13.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-13 completed and remains in phase B.
+- Final post-state full `make verify` passed for task 13: Bun tests 329 files / 2088 tests, Go lint `0 issues`, Go tests `DONE 8350 tests in 11.059s`, and package boundaries `OK`.
+- Implemented task 14 public Memory v2 contract surface: canonical contract DTOs in `internal/api/contract/memory.go`, OpenAPI/spec route shapes, redaction-safe decision/LLM trace payloads, selector semantics, and hard-cut legacy route assertions.
+- Co-shipped generated consumers for task 14 with `make codegen`: `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`, and `sdk/typescript/src/generated/contracts.ts`.
+- Updated web Knowledge adapters/hooks/mocks/tests to consume the generated v2 memory contract and updated site API reference generation to filter unimplemented routes from public docs until task 16 wires HTTP/UDS parity.
+- Focused validation for task 14 passed: contract/spec tests, race tests, coverage checks, `make codegen-check`, `make bun-lint`, `make bun-typecheck`, `make bun-test`, `make lint`, and `git diff --check`.
+- Pre-tracking full `make verify` passed for task 14: Bun tests 329 files / 2087 tests, Go lint `0 issues`, Go tests `DONE 8354 tests in 66.570s`, and package boundaries `OK`.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_14 --task-current - --action "executed task_14" --outcome completed --memory-written "memory/task_14.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-14 completed and remains in phase B.
+- Final post-state full `make verify` passed for task 14: Bun tests 329 files / 2087 tests, Go lint `0 issues`, Go tests `DONE 8354 tests in 11.735s`, and package boundaries `OK`.
+- Implemented task 15 codegen consumer health checks with `web/src/lib/memory-api-contract.test.ts`, covering generated Memory v2 operation IDs, selector/query/request shapes, legacy operation hard-cut, and redaction-safe decision/LLM trace payloads.
+- Confirmed `make codegen` and `make codegen-check` leave generated OpenAPI/TypeScript consumers in sync.
+- Focused task 15 validation passed: `cd web && bunx vitest run src/lib/memory-api-contract.test.ts` returned 1 file / 3 tests passed.
+- Co-ship validation passed sequentially: `make bun-lint`, `make bun-typecheck`, `make bun-test` (330 files / 2090 tests), `cd packages/site && bun run build`, and `git diff --check`.
+- Pre-tracking full `make verify` passed for task 15: Bun tests 330 files / 2090 tests, Go lint `0 issues`, Go tests `DONE 8354 tests in 21.824s`, and package boundaries `OK`.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_15 --task-current - --action "executed task_15" --outcome completed --memory-written "memory/task_15.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-15 completed and remains in phase B.
+- Final post-state full `make verify` passed for task 15: Bun tests 330 files / 2090 tests, Go lint `0 issues`, Go tests `DONE 8354 tests in 11.205s`, and package boundaries `OK`.
+- Implemented task 18 native/host memory surfaces: final builtin IDs/descriptors, daemon native handlers for show/search/propose/note, redaction-safe decision output, root/sub-agent policy projection tests, provider-backed Host API recall, and hard-cut assertions for legacy tool IDs.
+- Focused task 18 validation passed: descriptor/native/host tests, broader tools/daemon/extension/API tests, race tests, `go test -race -parallel=4 ./internal/extension -count=1`, `make lint`, `git diff --check`, and full pre-tracking `make verify`.
+- Ran `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_18 --task-current - --action "executed task_18" --outcome completed --memory-written "memory/task_18.md,memory/MEMORY.md" --verify-pass`; `state.yaml` now marks tasks 01-18 completed and remains in phase B.
+- Final post-state full `make verify` passed for task 18: Bun tests 330 files / 2090 tests, Go lint `0 issues`, Go tests `DONE 8356 tests in 20.167s`, and package boundaries `OK`.
+- Detector output after task 18 state update: `phase=B action=execute_task task=task_19`.
+- Task 19 started after compaction recovery: reread the own ledger, scanned nearby mem-v2 ledgers, confirmed `task_19.md` is pending and workflow memory lists daemon wiring/provider/extractor/dreaming/ledger/boundary risks.
+- Task 19 inspection completed: reread `_techspec.md` required sections plus ADR-001 through ADR-012, confirmed remaining gaps are daemon-owned MemoryProviderRegistry/local provider, extractor runtime/service, session ledger materializer/API service, placeholder API services, and boundary registration.
+- Task 19 daemon/API wiring is implemented locally: daemon boot owns local MemoryProvider, provider registry, snapshot-backed assembler provider, extractor runtime/service, async persisted-message hook, session ledger materializer, HTTP/UDS service injection, Host API provider injection, lifecycle start/close, and boundary registration.
+- Task 19 focused validation already passed before compaction: API/core/httpapi/udsapi/extractor focused tests, targeted daemon hook/boot tests, zero-test compile for daemon and touched packages, and `make boundaries`.
+- Task 19 completed after fixing verification findings: extracted lint helpers, added provider `workspace_root` snapshot flow, fixed extractor close for unstarted consumers, avoided typed-nil provider shutdown, and aligned daemon fakes with the extractor spawn surface.
+- Task 19 tracking/memory/state are updated; `state.yaml` now marks tasks 01-19 completed and detector prints `phase=B action=execute_task task=task_20`.
+- Final post-state `make verify` passed: Bun tests 330 files / 2090 tests, Go lint `0 issues`, Go tests `DONE 8359 tests in 15.520s`, and package boundaries `OK`.
+- Task 20 started after continuation: `detect-phase.py mem-v2` prints `phase=B action=execute_task task=task_20`; task frontmatter is `type: frontend`, so the mandatory frontend/docs delegation lane applies and local Codex remains orchestrator-only.
+- The pre-loop review hook for task 19 returned `Verdict: FIX` only because Claude review was unavailable due a malformed `compozy exec` invocation; next stop must include manual inspection/validation evidence for task 20 before advancing state.
+- Task 20 delegated frontend run `exec-20260505-182233-000000000` completed successfully and reported explicit `cy-final-verify PASS`, updated task 20 tracking/memory, and left `state.yaml` untouched as required.
+- Local orchestration audit found a no-workarounds blocker before state advancement: new task 20 route test code in `web/src/routes/_app/-knowledge.test.tsx` uses an inline `eslint-disable` plus `(Route as any)`. Existing older route tests with the same pattern are out of scope; the task 20 file must be remediated through the frontend delegation lane.
+- Task 20 remediation run `exec-20260505-190445-000000000` completed successfully and reported explicit `cy-final-verify PASS`: exported `KnowledgePage`, imported it directly in the route test, removed the inline lint suppression and `Route as any` cast, updated task/shared memory, and passed `make verify` (`DONE 8359 tests in 64.249s`, boundaries OK).
+- Local post-remediation orchestration checks passed: `rg` found no `as any`/lint suppression/ts-ignore/ts-expect-error/timing workaround matches in task 20 files, `git diff --check` passed, and remaining `catch {}` blocks in `knowledge-detail-panel.tsx` are intentional UI error-handling with inline comments and parent error state.
+- Ran `update-state.py` for task 20; `state.yaml` now marks tasks 01-20 completed and `detect-phase.py mem-v2` prints `phase=B action=execute_task task=task_21`.
+- Final local post-state `make verify` passed: Bun tests 332 files / 2113 tests, Go tests `DONE 8359 tests in 58.698s`, and package boundaries `OK`.
+- Continuation review correctly reported the global goal incomplete because tasks 21-26 are pending. Current loop iteration starts task 21.
+- Task 21 frontmatter is `status: pending`, `type: frontend`; mandatory Compozy/Claude frontend delegation lane applies. Local Codex remains orchestration-only.
+- Pre-delegation inspection found the existing task 21 route test has the same no-workarounds issue as task 20 (`eslint-disable` plus `Route as any`); task 21 delegation prompt requires a truthful named-export/import fix.
+- Task 21 delegation run `exec-20260505-191738-000000000` completed successfully with explicit `cy-final-verify PASS`; it implemented the full Memory v2 settings surface, removed the route-test workaround via named `MemorySettingsPage` export, updated task/memory tracking, and left `state.yaml` untouched for local orchestration.
+- Local task 21 audit passed: `detect-phase.py` still pointed at `task_21` before state update, `rg` found no `as any`/lint suppression/ts-ignore/timing workaround matches in task 21 files plus `web/src/systems/settings`, the generated settings fixture groups are covered by route sections, and `git diff --check` was clean.
+- Local orchestration corrected task 21 memory wording for exact action-message/test-count evidence, then ran `update-state.py`; `state.yaml` now marks tasks 01-21 completed and detector prints `phase=B action=execute_task task=task_22`.
+- Final local post-state `make verify` passed: Bun tests 332 files / 2117 tests, Go tests `DONE 8359 tests in 56.960s`, and package boundaries `OK`.
+- Task 22 frontmatter was `status: pending`, `type: frontend`; mandatory Compozy/Claude frontend delegation lane applied. Local Codex stayed orchestration-only.
+- Task 22 delegated run completed with explicit `cy-final-verify PASS`: it added the generated-contract-backed session ledger fetch/query hook, wired the agent session route to pass `InspectorMemoryState`, replaced `InspectorMemoryDoc[]` with a read-only forensic ledger panel, exported `SessionPage` for tests, updated task/memory tracking, and left `state.yaml` untouched.
+- Local task 22 audit found two truthfulness/lifecycle issues before state update: the events panel labelled full ledger events as "Memory events", and `useSessionLedger` could cache a pre-materialization 404 while the session was still active. A narrow delegated remediation fixed both.
+- Task 22 remediation completed with explicit `cy-final-verify PASS`: the panel now uses "Ledger events", route query enablement is gated on `session.state === "stopped"`, adapter tests cover `fetchSessionLedger`, and task memory records the remediation.
+- Local task 22 audit passed after remediation: `detect-phase.py` still pointed at `task_22` before state update, `git diff --check` passed, no-workarounds scan over task 22 files found no disallowed matches (only a negative test assertion for old "Memory events" wording), and focused local vitest passed with 3 files / 63 tests.
+- Ran `update-state.py` for task 22; `state.yaml` now marks tasks 01-22 completed and detector prints `phase=B action=execute_task task=task_23`.
+- Final local post-state `make verify` passed: Bun tests 333 files / 2135 tests, Go tests `DONE 8359 tests in 56.695s`, and package boundaries `OK`.
+- Task 23 docs closeout run completed with explicit `cy-final-verify PASS`: runtime memory/configuration/session/hooks/extensions docs now describe the Slice 1 Memory v2 model, docs truth/discovery tests were refreshed, task/shared memory and tracking files were updated, and generated CLI/API references were left for task 24.
+- Local task 23 audit passed: focused site docs tests passed with 2 files / 13 tests, `packages/site` build generated 1137 static pages, `git diff --check` was clean, no-workarounds scan over task 23 site docs/tests had no suppression/timing-hack matches, and generated CLI/API/codegen surfaces had no unexpected tracked changes.
+- Ran `update-state.py` for task 23; `state.yaml` now marks tasks 01-23 completed and detector prints `phase=B action=execute_task task=task_24`.
+- Final local post-state `make verify` passed: Bun tests 333 files / 2139 tests, Go tests `DONE 8359 tests in 15.376s`, and package boundaries `OK`.
+- Task 24 generated-reference closeout completed after two delegated Compozy/Claude docs runs (`exec-20260505-211619-000000000`, `exec-20260505-212926-000000000`). The wrappers did not expose usable stdout, so local orchestration supplied the final audit and verification evidence before state advancement.
+- Task 24 changed the CLI write example indentation in `internal/cli/memory.go`, regenerated `packages/site/content/runtime/cli-reference/memory/write.mdx`, and expanded site truth/discovery/manual CLI tests for Slice 1 Memory v2 generated CLI/API references.
+- Local task 24 audit passed: `make cli-docs`, focused site tests with 4 files / 27 tests, `packages/site` typecheck, `packages/site` build with 1137 pages, `make codegen-check`, `git diff --check`, and no-workarounds scan all passed before state update.
+- Task 24 full verification passed: delegated closeout verify log `/tmp/mem-v2-verify.log` had `DONE 8359 tests in 16.332s`, local pre-state `make verify` passed with Bun 333 files / 2146 tests and Go `DONE 8359 tests in 16.091s`, and local post-state `make verify` passed with Go `DONE 8359 tests in 12.597s` plus package boundaries OK.
+- Ran `update-state.py` for task 24; `state.yaml` now marks tasks 01-24 completed and detector prints `phase=B action=execute_task task=task_25`.
+- Task 25 QA report is complete: created the `.compozy/tasks/mem-v2/qa/` dossier with test plans, regression/traceability docs, 11 executable test cases, evidence directories, and a mandatory P0 `TC-SCEN-001` scenario for controller-backed write/search visibility without undocumented reindex.
+- Added `packages/site/lib/memory-v2-qa-artifacts.test.ts` to guard QA artifact completeness, task 01-24 traceability, public surface coverage, risk coverage, and execution-ready case structure.
+- Task 25 validation passed before state update: focused QA artifact test 1 file / 4 tests, focused site docs/reference/QA suite 5 files / 31 tests, site typecheck, site build with 1137 pages, `make codegen-check`, `git diff --check`, and no-workarounds scan over new QA artifacts/test/memory.
+- Task 25 full verification passed: pre-state `make verify` passed with Bun 334 files / 2150 tests, Go `DONE 8359 tests in 11.960s`, and package boundaries OK.
+- Ran `update-state.py` for task 25 and then reconciled `qa.report_done` via `update-state.py --qa-report-done`; `state.yaml` now marks tasks 01-25 completed, `qa.report_done=true`, `pending=["task_26"]`, and detector prints `phase=C action=qa_execution`.
+- Final local post-state `make verify` passed: Bun tests 334 files / 2150 tests, Go tests `DONE 8359 tests in 14.188s`, and package boundaries `OK`; after correcting the shared-memory handoff wording, the final rerun also passed with Go tests `DONE 8359 tests in 18.429s` and package boundaries `OK`; final `git diff --check` passed before the rerun.
+- Task 26 bootstrap complete: created behavior charter/evidence directories, built `/tmp/agh-mem-v2-qa`, started isolated daemon on port 60156, and recorded daemon/CLI/HTTP status evidence.
+- BUG-001 recorded under `.compozy/tasks/mem-v2/qa/issues/BUG-001.md`, fixed in `internal/workspace/resolver_crud.go`, covered by `internal/workspace/resolver_test.go`, and verified with focused workspace tests plus post-fix CLI/HTTP/UDS evidence.
+- Current continuation resumed Phase C at `phase=C action=qa_execution`; task 26 remains pending until final QA report, final `make verify`, and state update.
+- Fixed the final visible UDS observe parity failure by updating `internal/api/udsapi/transport_parity_integration_test.go` to expect all three Memory v2 harness augmenters instead of the pre-Memory-v2 two-augmenter contract.
+- Focused validation passed: `go test -race -tags integration ./internal/api/udsapi -run 'TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP' -count=1`.
+- Focused validation passed after web E2E root fixes:
+  - `go test ./internal/resources -run TestKernelWriteTransactionsRetryBusyLocks -count=1`
+  - `go test -race ./internal/resources -count=1`
+  - `go test ./internal/testutil/acpmock -count=1`
+  - `go test ./internal/testutil/acpmock/cmd/acpmock-driver -count=1`
+  - `cd web && bunx playwright test e2e/automation.spec.ts e2e/tasks.spec.ts e2e/session-onboarding.spec.ts e2e/bridges.spec.ts --grep-invert @nightly` (4 passed)
+- Full web E2E passed after the fixes: `make test-e2e-web > .compozy/tasks/mem-v2/qa/logs/final-postfix/final-make-test-e2e-web-rerun1.log 2>&1` with 19 passed.
+- Runtime E2E passed again after the backend transaction fix: `make test-e2e-runtime > .compozy/tasks/mem-v2/qa/logs/final-postfix/final-make-test-e2e-runtime-rerun5.log 2>&1`.
+- First final `make verify` run failed at Go lint on revive issues; fixed callback/helper parameter names and acpmock `close` parameter names. Focused `go test -race ./internal/resources ./internal/testutil/acpmock -count=1`, `make lint`, and `git diff --check` now pass.
+- Task 26 final QA report is written at `.compozy/tasks/mem-v2/qa/verification-report.md` and mirrored to `/Users/pedronauck/dev/qa-labs/agh-mem-v2-final-postfix-20260505-225249-638020-lab/qa-artifacts/qa/verification-report.md`.
+- Strict QA evidence audit passed with 0 blockers and 0 warnings. Audit outputs are `/Users/pedronauck/dev/qa-labs/agh-mem-v2-final-postfix-20260505-225249-638020-lab/qa-artifacts/qa/qa-audit-report.json` and `/Users/pedronauck/dev/qa-labs/agh-mem-v2-final-postfix-20260505-225249-638020-lab/qa-artifacts/qa/qa-audit-report.md`.
+- Task 26 tracking, workflow memory, report, and `state.yaml` are updated. `detect-phase.py mem-v2` now returns `phase=D action=coderabbit_round round=001`.
+- Final post-state `make verify > .compozy/tasks/mem-v2/qa/logs/final-postfix/final-make-verify-post-state.log 2>&1` passed: Bun 334 files / 2150 tests, Go 8381 tests, Go lint `0 issues`, boundaries OK.
+- Final post-state strict QA audit passed with 0 blockers and 0 warnings using `.compozy/tasks/mem-v2/qa/logs/final-postfix/qa-audit-final-post-state.txt`.
+- Phase D round 001 started but is blocked by CodeRabbit provider rate limiting before full scoped coverage. Captured partial outputs: `internal/resources` clean, `internal/memory` 22 findings, `internal/api` 5 findings, `internal/cli` 4 findings, `internal/daemon` clean, `internal/extension` clean. Latest blocked scope is `internal/session` with `waitTime=12 minutes and 51 seconds`. Remaining scopes are recorded in `.compozy/tasks/mem-v2/memory/reviews-001.md`.
+- User superseded the CodeRabbit lane: use Claude Code Opus via `compozy exec` with `cy-review-round` to create the manual Phase D review round instead of retrying CodeRabbit.
+- Claude Code Opus completed `cy-review-round` via `compozy exec` and opened `.compozy/tasks/mem-v2/reviews-001/` with 5 pending manual issues: 0 critical, 4 high, 1 medium, 0 low. Output is `/tmp/cy-codex-loop-mem-v2-manual-review-001-output.jsonl`.
+- Independent validation passed for the manual round: frontmatter contract, no `_meta.md`, `check-rounds-clean` reports `clean=false critical=0 high=4 total=5`, and `git diff --check` is clean.
+- Ran `update-state.py mem-v2 --phase D --round-started reviews-001 --action "manual review round 001 opened by claude opus" --outcome completed --memory-written "memory/reviews-001.md,memory/MEMORY.md"`; `state.yaml` is at iteration 32 with `coderabbit.current_round_dir="reviews-001"`.
+- Detector now prints `phase=D action=coderabbit_fix round=001`. The script label still says `coderabbit_fix`, but the active round is manual and compatible with `cy-fix-reviews`.
+- Phase D round 001 remediation completed locally: issue_001 through issue_005 are `resolved`.
+- Focused verification passed for round 001 remediation: memory/recall/extractor tests, API/core handler tests, daemon native-tool tests, tools/CLI tests, affected-package `-race`, `make lint`, and `git diff --check`.
+- Full `make verify` passed after remediation: Bun 334 files / 2150 tests, Go `DONE 8393 tests in 90.274s`, lint `0 issues`, package boundaries OK.
+- Post-remediation `check-rounds-clean` reports `clean=true critical=0 high=0 total=5`.
+- Workflow memory files `.compozy/tasks/mem-v2/memory/reviews-001.md` and `.compozy/tasks/mem-v2/memory/MEMORY.md` were updated with round 001 closeout evidence.
+- Ran `update-state.py mem-v2 --phase D --round-complete reviews-001 --critical 0 --high 0 --action "round 001 closed" --outcome completed --memory-written "memory/reviews-001.md,memory/MEMORY.md" --verify-pass`; `state.yaml` is at iteration 33 with `rounds_completed=1`, `rounds_clean_streak=1`, and `current_round_dir=null`.
+- Detector now prints `phase=D action=coderabbit_round round=002`.
+
+# Now:
+
+- Stop this loop iteration after reporting the resolved round 001 closeout.
+
+# Next:
+
+- Next Codex Loop iteration should follow `detect-phase.py mem-v2` output: `phase=D action=coderabbit_round round=002`. Per the user's superseding instruction, use Claude Code Opus via `compozy exec`/`cy-review-round` instead of CodeRabbit if the review lane is still needed.
+
+# Open questions (UNCONFIRMED if needed):
+
+- None.
+
+# Working set (files/ids/commands):
+
+- `.compozy/tasks/mem-v2/`
+- `.compozy/tasks/mem-v2/state.yaml`
+- `.compozy/tasks/mem-v2/memory/MEMORY.md`
+- `.compozy/tasks/mem-v2/memory/task_20.md`
+- `.compozy/tasks/mem-v2/task_20.md`
+- `/tmp/cy-codex-loop-mem-v2-task_20.md`
+- `/tmp/cy-codex-loop-mem-v2-task_20-remediate.md`
+- `/tmp/cy-codex-loop-mem-v2-task_21.md`
+- `/tmp/cy-codex-loop-mem-v2-task_23.md`
+- `/tmp/cy-codex-loop-mem-v2-task_24.md`
+- `/tmp/cy-codex-loop-mem-v2-task_24-closeout.md`
+- `.compozy/tasks/mem-v2/task_25.md`
+- `.compozy/tasks/mem-v2/memory/task_25.md`
+- `.compozy/tasks/mem-v2/task_26.md`
+- `.compozy/tasks/mem-v2/qa/behavioral-scenario-charter.md`
+- `.compozy/tasks/mem-v2/qa/issues/BUG-001.md`
+- `.compozy/tasks/mem-v2/qa/test-plans/`
+- `.compozy/tasks/mem-v2/reviews-001/issue_001.md`
+- `.compozy/tasks/mem-v2/reviews-001/issue_002.md`
+- `.compozy/tasks/mem-v2/reviews-001/issue_003.md`
+- `.compozy/tasks/mem-v2/reviews-001/issue_004.md`
+- `.compozy/tasks/mem-v2/reviews-001/issue_005.md`
+- `/tmp/cy-codex-loop-mem-v2-manual-review-001.md`
+- `/tmp/cy-codex-loop-mem-v2-manual-review-001-output.jsonl`
+- `.compozy/tasks/mem-v2/qa/test-cases/`
+- `.compozy/tasks/mem-v2/qa/logs/TC-SCEN-001/`
+- `internal/workspace/resolver_crud.go`
+- `internal/workspace/resolver_test.go`
+- `.compozy/tasks/mem-v2/qa/issues/.gitkeep`
+- `.compozy/tasks/mem-v2/qa/screenshots/.gitkeep`
+- `.compozy/tasks/mem-v2/qa/logs/.gitkeep`
+- `packages/site/lib/memory-v2-qa-artifacts.test.ts`
+- `/tmp/agh-mem-v2-qa`
+- `/Users/pedronauck/dev/qa-labs/agh-mem-v2-20260505-221648-724447-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- `.codex/ledger/2026-05-05-MEMORY-mem-v2.md`
+- `.agents/skills/cy-codex-loop/scripts/detect-phase.py mem-v2`
+- `.agents/skills/cy-codex-loop/scripts/init-state.py mem-v2 --goal "Implement the ENTIRE .compozy/tasks/mem-v2"`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --action "bootstrap (mode=tasks)" --outcome completed --memory-written "memory/MEMORY.md"`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_01 --action "reconciled task_01 frontmatter" --outcome completed`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_02 --action "reconciled task_02 frontmatter" --outcome completed`
+- `.compozy/tasks/mem-v2/task_15.md`
+- `.compozy/tasks/mem-v2/memory/task_15.md`
+- `web/src/lib/memory-api-contract.test.ts`
+- `.compozy/tasks/mem-v2/task_16.md`
+- `.compozy/tasks/mem-v2/memory/task_16.md`
+- `.compozy/tasks/mem-v2/task_17.md`
+- `.compozy/tasks/mem-v2/memory/task_17.md`
+- `.compozy/tasks/mem-v2/task_18.md`
+- `.compozy/tasks/mem-v2/memory/task_18.md`
+- `internal/cli/memory.go`
+- `internal/cli/client.go`
+- `internal/cli/format.go`
+- `internal/api/contract/memory.go`
+- `internal/api/core/memory.go`
+- `packages/site/content/runtime/cli-reference/memory/**`
+- `internal/api/core/memory.go`
+- `internal/api/httpapi/routes.go`
+- `internal/api/udsapi/routes.go`
+- `internal/api/testutil/memory_routes.go`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_16 --task-current - --action "executed task_16" --outcome completed --memory-written "memory/task_16.md,memory/MEMORY.md" --verify-pass`
+- `.compozy/tasks/mem-v2/task_03.md`
+- `internal/store/write.go`
+- `internal/store/workspacedb/`
+- `internal/fileutil/atomic.go`
+- `internal/memory/replay.go`
+- `internal/memory/store.go`
+- `internal/memory/catalog.go`
+- `.compozy/tasks/mem-v2/task_13.md`
+- `.compozy/tasks/mem-v2/memory/task_13.md`
+- `.compozy/tasks/mem-v2/task_14.md`
+- `.compozy/tasks/mem-v2/memory/task_14.md`
+- `internal/api/contract/memory.go`
+- `internal/api/contract/contract_test.go`
+- `internal/api/spec/spec.go`
+- `internal/api/spec/spec_test.go`
+- `internal/config/config.go`
+- `internal/config/merge.go`
+- `internal/config/tool_surface.go`
+- `internal/api/contract/settings.go`
+- `internal/api/core/settings.go`
+- `internal/settings/sections.go`
+- `openapi/agh.json`
+- `web/src/generated/agh-openapi.d.ts`
+- `sdk/typescript/src/generated/contracts.ts`
+- `.compozy/tasks/mem-v2/task_04.md`
+- `internal/memory/prompts/`
+- `internal/memory/scan/`
+- `.compozy/tasks/mem-v2/task_05.md`
+- `internal/memory/controller/`
+- `internal/memory/decision.go`
+- `internal/api/core/memory.go`
+- `internal/extension/host_api.go`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_05 --action "executed task_05" --outcome completed --memory-written "memory/task_05.md,memory/MEMORY.md" --verify-pass`
+- `.agents/skills/cy-codex-loop/scripts/detect-phase.py mem-v2` => `phase=B action=execute_task task=task_06`
+- `.compozy/tasks/mem-v2/task_06.md`
+- `internal/memory/recall/`
+- `internal/memory/recall_source.go`
+- `internal/memory/recall.go`
+- `internal/memory/catalog.go`
+- `internal/memory/recall_test.go`
+- `internal/memory/store_test.go`
+- `internal/daemon/prompt_input_composite_test.go`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_06 --action "executed task_06" --outcome completed --memory-written "memory/task_06.md,memory/MEMORY.md" --verify-pass`
+- `.compozy/tasks/mem-v2/task_07.md`
+- `internal/memory/provider/local/`
+- `internal/memory/provider/local/memstore/`
+- `internal/extension/memory_provider_registry.go`
+- `internal/extension/memory_provider_registry_test.go`
+- `internal/extension/host_api.go`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_07 --action "executed task_07" --outcome completed --memory-written "memory/task_07.md,memory/MEMORY.md" --verify-pass`
+- `.compozy/tasks/mem-v2/task_08.md`
+- `internal/memory/snapshot.go`
+- `internal/memory/assembler.go`
+- `internal/memory/assembler_test.go`
+- `internal/memory/recall.go`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_08 --action "executed task_08" --outcome completed --memory-written "memory/task_08.md,memory/MEMORY.md" --verify-pass`
+- `.agents/skills/cy-codex-loop/scripts/detect-phase.py mem-v2` => `phase=B action=execute_task task=task_09`
+- `.compozy/tasks/mem-v2/task_09.md`
+- `internal/memory/observability.go`
+- `internal/memory/observability_test.go`
+- `internal/memory/store.go`
+- `internal/memory/decision.go`
+- `internal/observe/observer.go`
+- `internal/observe/query.go`
+- `internal/observe/observer_test.go`
+- `internal/daemon/daemon.go`
+- `internal/sse/scrub.go`
+- `internal/sse/decode_test.go`
+- `internal/api/core/sse.go`
+- `internal/api/core/conversions.go`
+- `internal/api/core/memory.go`
+- `internal/api/core/prompt_stream.go`
+- `internal/api/core/sse_hygiene_test.go`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py mem-v2 --phase B --task-completed task_09 --action "executed task_09" --outcome completed --memory-written "memory/task_09.md,memory/MEMORY.md" --verify-pass`
+- `.agents/skills/cy-codex-loop/scripts/detect-phase.py mem-v2` => `phase=B action=execute_task task=task_10`
+- `.compozy/tasks/mem-v2/task_12.md`
+- `internal/store/types.go`
+- `internal/session/ledger.go`
+- `internal/session/ledger_test.go`
+- `internal/session/interfaces.go`
+- `internal/session/manager.go`
+- `internal/session/manager_lifecycle.go`
+- `internal/sessions/ledger/materializer.go`
+- `internal/sessions/ledger/materializer_test.go`

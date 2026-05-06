@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: QA Plan and Test Coverage
 type: test
 complexity: high
@@ -31,10 +31,10 @@ Produce the release-grade QA plan for the full Memory v2 Slice 1 program. This t
 </requirements>
 
 ## Subtasks
-- [ ] 25.1 Produce the cross-surface QA plan and scenario matrix for Memory v2.
-- [ ] 25.2 Produce detailed test cases covering runtime, transports, UI, docs, and config lifecycle.
-- [ ] 25.3 Define regression hot spots and negative/concurrency/redaction checks.
-- [ ] 25.4 Prepare the execution prerequisites for isolated real-scenario QA.
+- [x] 25.1 Produce the cross-surface QA plan and scenario matrix for Memory v2.
+- [x] 25.2 Produce detailed test cases covering runtime, transports, UI, docs, and config lifecycle.
+- [x] 25.3 Define regression hot spots and negative/concurrency/redaction checks.
+- [x] 25.4 Prepare the execution prerequisites for isolated real-scenario QA.
 
 ## Implementation Details
 
@@ -80,10 +80,10 @@ Use the canonical QA tail pattern for AGH task packs. The output should prepare 
 ## Tests
 
 - Unit tests:
-  - [ ] QA artifacts enumerate every implemented public memory surface and major invariant.
+  - [x] QA artifacts enumerate every implemented public memory surface and major invariant.
 - Integration tests:
-  - [ ] QA plan includes runtime, CLI, HTTP/UDS, native-tool, extension-host, web, docs, and config lifecycle coverage.
-  - [ ] QA plan includes negative, concurrency, redaction, and restart/replay scenarios.
+  - [x] QA plan includes runtime, CLI, HTTP/UDS, native-tool, extension-host, web, docs, and config lifecycle coverage.
+  - [x] QA plan includes negative, concurrency, redaction, and restart/replay scenarios.
 - Test coverage target: complete behavioral coverage planning for tasks 01-24.
 - All tests must pass.
 
@@ -98,3 +98,9 @@ Use the canonical QA tail pattern for AGH task packs. The output should prepare 
 - QA planning artifacts exist and cover every Memory v2 surface implemented in tasks 01-24.
 - The plan is detailed enough for execution without reopening architecture questions.
 
+## Completion Notes
+
+- Added `.compozy/tasks/mem-v2/qa/test-plans/memory-v2-test-plan.md`, `memory-v2-regression.md`, and `memory-v2-traceability.md`.
+- Added twelve executable QA cases under `.compozy/tasks/mem-v2/qa/test-cases/`, including P0 TC-SCEN-001 for controller-backed write/search visibility without undocumented reindex.
+- Added `packages/site/lib/memory-v2-qa-artifacts.test.ts` to guard task-to-scenario coverage, public-surface coverage, search-visibility risk mapping, and execution-ready case structure.
+- Validation passed: focused site QA artifact test, focused site docs/reference/QA artifact tests, site typecheck, site build, `make codegen-check`, `git diff --check`, and no-workarounds scan over task_25 artifacts/test.

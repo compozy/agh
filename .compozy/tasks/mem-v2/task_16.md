@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: HTTP and UDS Route Parity
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Bind the new Memory v2 contract to shared handlers and register it consistently 
 </requirements>
 
 ## Subtasks
-- [ ] 16.1 Update shared memory handlers to consume the finalized Memory v2 services and contract.
-- [ ] 16.2 Register the final route families in both HTTP and UDS transports.
-- [ ] 16.3 Add handler tests for happy path, validation errors, redaction, and unsupported operations.
-- [ ] 16.4 Add or refresh HTTP/UDS parity coverage for the affected routes.
+- [x] 16.1 Update shared memory handlers to consume the finalized Memory v2 services and contract.
+- [x] 16.2 Register the final route families in both HTTP and UDS transports.
+- [x] 16.3 Add handler tests for happy path, validation errors, redaction, and unsupported operations.
+- [x] 16.4 Add or refresh HTTP/UDS parity coverage for the affected routes.
 
 ## Implementation Details
 
@@ -80,11 +80,11 @@ See TechSpec `API Endpoints`, `Agent Manageability Plan`, and `Development Seque
 ## Tests
 
 - Unit tests:
-  - [ ] Shared handlers return the approved success payloads and deterministic errors for memory operations.
-  - [ ] Redacted or forbidden fields do not leak through error or history/health payloads.
+  - [x] Shared handlers return the approved success payloads and deterministic errors for memory operations.
+  - [x] Redacted or forbidden fields do not leak through error or history/health payloads.
 - Integration tests:
-  - [ ] HTTP and UDS routes expose the same memory state and payload structure for the same persisted input.
-  - [ ] `internal/api/httpapi/transport_parity_integration_test.go` and `internal/api/udsapi/transport_parity_integration_test.go` pass with Memory v2 changes.
+  - [x] HTTP and UDS routes expose the same memory state and payload structure for the same persisted input.
+  - [x] `internal/api/httpapi/transport_parity_integration_test.go` and `internal/api/udsapi/transport_parity_integration_test.go` pass with Memory v2 changes.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -100,4 +100,3 @@ See TechSpec `API Endpoints`, `Agent Manageability Plan`, and `Development Seque
 - Test coverage >=80%.
 - HTTP and UDS expose one truthful Memory v2 surface with no legacy route drift.
 - Later CLI/web/docs tasks can target stable memory transport semantics.
-

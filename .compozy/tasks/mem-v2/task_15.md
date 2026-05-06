@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Codegen and Generated Consumer Refresh
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Regenerate the public API artifacts that downstream consumers rely on after the 
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Regenerate OpenAPI and generated TS artifacts from the new public memory contract.
-- [ ] 15.2 Update any thin consumer wrappers that depend on generated-memory route typing.
-- [ ] 15.3 Add or update focused tests/assertions for codegen drift and consumer health.
-- [ ] 15.4 Confirm generated outputs are committed in the same change as the contract updates.
+- [x] 15.1 Regenerate OpenAPI and generated TS artifacts from the new public memory contract.
+- [x] 15.2 Update any thin consumer wrappers that depend on generated-memory route typing.
+- [x] 15.3 Add or update focused tests/assertions for codegen drift and consumer health.
+- [x] 15.4 Confirm generated outputs are committed in the same change as the contract updates.
 
 ## Implementation Details
 
@@ -79,12 +79,12 @@ See TechSpec `Web/Docs Impact`, `Impact Analysis`, and `Development Sequencing` 
 ## Tests
 
 - Unit tests:
-  - [ ] Generated-memory route and payload typings line up with the finalized contract.
-  - [ ] Consumer wrappers compile against the regenerated types without local patches.
+  - [x] Generated-memory route and payload typings line up with the finalized contract.
+  - [x] Consumer wrappers compile against the regenerated types without local patches.
 - Integration tests:
-  - [ ] `make codegen` regenerates cleanly.
-  - [ ] `make codegen-check` passes with no drift after committing the artifacts.
-  - [ ] Downstream web typecheck/build inputs accept the generated memory contract.
+  - [x] `make codegen` regenerates cleanly.
+  - [x] `make codegen-check` passes with no drift after committing the artifacts.
+  - [x] Downstream web typecheck/build inputs accept the generated memory contract.
 - Test coverage target: command/codegen validation for all affected generated surfaces.
 - All tests must pass.
 
@@ -99,4 +99,3 @@ See TechSpec `Web/Docs Impact`, `Impact Analysis`, and `Development Sequencing` 
 - All tests passing.
 - Generated OpenAPI and TypeScript memory artifacts are refreshed and drift-free.
 - Web and docs tasks can consume the new memory contract without handwritten type patches.
-

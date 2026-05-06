@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 title: Web Session Inspector Memory Surface
 type: frontend
 complexity: medium
@@ -32,10 +32,10 @@ Update the session inspector so its memory tab reflects Memory v2’s final pack
 </requirements>
 
 ## Subtasks
-- [ ] 22.1 Update session inspector memory-tab rendering to the final Memory v2 payloads.
-- [ ] 22.2 Surface lineage/ledger/session-memory metadata that the daemon actually exposes.
-- [ ] 22.3 Refresh route and component tests for the inspector memory state.
-- [ ] 22.4 Confirm the inspector remains forensic/read-only where the TechSpec requires it.
+- [x] 22.1 Update session inspector memory-tab rendering to the final Memory v2 payloads.
+- [x] 22.2 Surface lineage/ledger/session-memory metadata that the daemon actually exposes.
+- [x] 22.3 Refresh route and component tests for the inspector memory state.
+- [x] 22.4 Confirm the inspector remains forensic/read-only where the TechSpec requires it.
 
 ## Implementation Details
 
@@ -76,11 +76,11 @@ See TechSpec `Session ledger`, `Web/Docs Impact`, and `System Architecture`. The
 ## Tests
 
 - Unit tests:
-  - [ ] Session inspector renders Memory v2 session-memory rows, lineage, and empty states correctly.
-  - [ ] Read-only/forensic semantics are preserved in the inspector UI.
+  - [x] Session inspector renders Memory v2 session-memory rows, lineage, and empty states correctly.
+  - [x] Read-only/forensic semantics are preserved in the inspector UI.
 - Integration tests:
-  - [ ] Session routes render the updated inspector correctly for success and failure scenarios.
-  - [ ] Generated/session payload updates do not break existing inspector route composition.
+  - [x] Session routes render the updated inspector correctly for success and failure scenarios.
+  - [x] Generated/session payload updates do not break existing inspector route composition.
 - Test coverage target: web coverage for all changed session inspector memory surfaces.
 - All tests must pass.
 

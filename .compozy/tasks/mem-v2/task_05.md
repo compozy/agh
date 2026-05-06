@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Write Controller and Decisions WAL
 type: backend
 complexity: critical
@@ -33,11 +33,11 @@ Implement the single mutation orchestrator for Memory v2 and the durable `memory
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Create the controller package and rule-first decision flow.
-- [ ] 5.2 Add durable `memory_decisions` WAL persistence with replay/revert material.
-- [ ] 5.3 Integrate controller decisions with the new storage runtime and scan assets.
-- [ ] 5.4 Replace direct runtime mutation paths with controller entry points where needed.
-- [ ] 5.5 Add focused controller/WAL tests for happy, failure, replay, and revert flows.
+- [x] 5.1 Create the controller package and rule-first decision flow.
+- [x] 5.2 Add durable `memory_decisions` WAL persistence with replay/revert material.
+- [x] 5.3 Integrate controller decisions with the new storage runtime and scan assets.
+- [x] 5.4 Replace direct runtime mutation paths with controller entry points where needed.
+- [x] 5.5 Add focused controller/WAL tests for happy, failure, replay, and revert flows.
 
 ## Implementation Details
 
@@ -84,13 +84,13 @@ See TechSpec `Write controller`, `Data Models`, and `Development Sequencing` ste
 ## Tests
 
 - Unit tests:
-  - [ ] Exact-match, update-target, delete-target, NOOP, and REJECT decision cases resolve deterministically.
-  - [ ] Ambiguous candidates trigger the approved tiebreak path without introducing vector-only logic.
-  - [ ] WAL rows are written before the curated file mutation and contain deterministic replay material.
+  - [x] Exact-match, update-target, delete-target, NOOP, and REJECT decision cases resolve deterministically.
+  - [x] Ambiguous candidates trigger the approved tiebreak path without introducing vector-only logic.
+  - [x] WAL rows are written before the curated file mutation and contain deterministic replay material.
 - Integration tests:
-  - [ ] Crash or failure between WAL write and final mutation replays safely on restart.
-  - [ ] Revert restores `prior_content` and catalog/event state deterministically.
-  - [ ] Runtime code paths that previously mutated memory directly now go through the controller seam.
+  - [x] Crash or failure between WAL write and final mutation replays safely on restart.
+  - [x] Revert restores `prior_content` and catalog/event state deterministically.
+  - [x] Runtime code paths that previously mutated memory directly now go through the controller seam.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -107,4 +107,3 @@ See TechSpec `Write controller`, `Data Models`, and `Development Sequencing` ste
 - Test coverage >=80%.
 - Every Memory v2 mutation has a controller decision and durable WAL record before persistence.
 - No runtime write path bypasses the controller.
-

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Public Memory Contract Surface
 type: backend
 complexity: critical
@@ -37,10 +37,10 @@ Define the full public request/response contract for Memory v2 before transport-
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Expand memory-related DTOs and payloads in the shared contract package.
-- [ ] 14.2 Update spec/OpenAPI-facing sources to match the new payload shapes.
-- [ ] 14.3 Add focused contract tests for field presence, redaction, and backward hard cuts.
-- [ ] 14.4 Confirm settings, ledger, recall, and provider payloads align to the repaired TechSpec.
+- [x] 14.1 Expand memory-related DTOs and payloads in the shared contract package.
+- [x] 14.2 Update spec/OpenAPI-facing sources to match the new payload shapes.
+- [x] 14.3 Add focused contract tests for field presence, redaction, and backward hard cuts.
+- [x] 14.4 Confirm settings, ledger, recall, and provider payloads align to the repaired TechSpec.
 
 ## Implementation Details
 
@@ -86,12 +86,12 @@ See TechSpec `Public Interfaces / Types`, `API Endpoints`, and `Development Sequ
 ## Tests
 
 - Unit tests:
-  - [ ] Scope/tier, decision, recall, ledger, and provider payloads marshal with the approved field set only.
-  - [ ] Secret or redacted fields remain absent from all public memory payloads.
-  - [ ] Hard-cut legacy payload names or fields are no longer accepted where the TechSpec removes them.
+  - [x] Scope/tier, decision, recall, ledger, and provider payloads marshal with the approved field set only.
+  - [x] Secret or redacted fields remain absent from all public memory payloads.
+  - [x] Hard-cut legacy payload names or fields are no longer accepted where the TechSpec removes them.
 - Integration tests:
-  - [ ] Spec/OpenAPI generation inputs reflect the same shapes as the shared contract package.
-  - [ ] Downstream transport and consumer packages can compile against the new contract without ad-hoc shims.
+  - [x] Spec/OpenAPI generation inputs reflect the same shapes as the shared contract package.
+  - [x] Downstream transport and consumer packages can compile against the new contract without ad-hoc shims.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -108,4 +108,3 @@ See TechSpec `Public Interfaces / Types`, `API Endpoints`, and `Development Sequ
 - Test coverage >=80%.
 - Memory v2 has one canonical public contract for all downstream surfaces.
 - Later codegen, route, CLI, web, and docs tasks can build from this contract without renaming churn.
-

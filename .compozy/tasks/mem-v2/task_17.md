@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI Memory Hard Cut
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Replace the current CLI memory surface with the approved Slice 1 verbs, flags, s
 </requirements>
 
 ## Subtasks
-- [ ] 17.1 Rewrite the memory CLI command tree to the approved Slice 1 verb set and flag model.
-- [ ] 17.2 Update CLI client calls and output shapers for the new memory payloads.
-- [ ] 17.3 Remove deprecated/legacy memory command names and help text.
-- [ ] 17.4 Add focused tests for command paths, structured outputs, and deterministic failure behavior.
+- [x] 17.1 Rewrite the memory CLI command tree to the approved Slice 1 verb set and flag model.
+- [x] 17.2 Update CLI client calls and output shapers for the new memory payloads.
+- [x] 17.3 Remove deprecated/legacy memory command names and help text.
+- [x] 17.4 Add focused tests for command paths, structured outputs, and deterministic failure behavior.
 
 ## Implementation Details
 
@@ -80,12 +80,12 @@ See TechSpec `CLI verbs`, `Agent Manageability Plan`, `Greenfield Delete Targets
 ## Tests
 
 - Unit tests:
-  - [ ] New memory verbs and flags parse correctly, including scope/tier selectors where applicable.
-  - [ ] Removed or renamed legacy verbs fail or disappear according to the hard cut.
-  - [ ] Structured CLI outputs match the finalized public payloads.
+  - [x] New memory verbs and flags parse correctly, including scope/tier selectors where applicable.
+  - [x] Removed or renamed legacy verbs fail or disappear according to the hard cut.
+  - [x] Structured CLI outputs match the finalized public payloads.
 - Integration tests:
-  - [ ] CLI commands succeed against the daemon-backed routes and surface deterministic errors for invalid inputs.
-  - [ ] Command-path coverage tests prove no hidden legacy alias survives.
+  - [x] CLI commands succeed against the daemon-backed routes and surface deterministic errors for invalid inputs.
+  - [x] Command-path coverage tests prove no hidden legacy alias survives.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -102,4 +102,3 @@ See TechSpec `CLI verbs`, `Agent Manageability Plan`, `Greenfield Delete Targets
 - Test coverage >=80%.
 - The CLI exposes the final Slice 1 memory surface with no deprecated behavior left behind.
 - Agent/operator automation can rely on structured CLI output and deterministic errors.
-

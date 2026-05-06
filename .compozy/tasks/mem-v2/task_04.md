@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Scan Policy and Memory Prompt Assets
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Prepare the policy and prompt assets that the controller, extractor, and dreamin
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add versioned prompt assets for controller, extractor, dreaming, and write-policy scans.
-- [ ] 4.2 Implement deterministic content-scan helpers for `WHAT_NOT_TO_SAVE` and related safety rules.
-- [ ] 4.3 Add loader helpers that keep asset lookup/versioning explicit and testable.
-- [ ] 4.4 Add focused tests for asset loading, invalid assets, and content-scan decisions.
+- [x] 4.1 Add versioned prompt assets for controller, extractor, dreaming, and write-policy scans.
+- [x] 4.2 Implement deterministic content-scan helpers for `WHAT_NOT_TO_SAVE` and related safety rules.
+- [x] 4.3 Add loader helpers that keep asset lookup/versioning explicit and testable.
+- [x] 4.4 Add focused tests for asset loading, invalid assets, and content-scan decisions.
 
 ## Implementation Details
 
@@ -79,12 +79,12 @@ See TechSpec `Write controller`, `Extractor`, `MemoryProvider ABC`, and `Develop
 ## Tests
 
 - Unit tests:
-  - [ ] Prompt assets load by explicit version and fail clearly on invalid or missing templates.
-  - [ ] Content-scan helpers flag or reject unsafe persistence inputs according to Slice 1 policy.
-  - [ ] Asset helpers remain deterministic and do not depend on daemon wiring or global mutable state.
+  - [x] Prompt assets load by explicit version and fail clearly on invalid or missing templates.
+  - [x] Content-scan helpers flag or reject unsafe persistence inputs according to Slice 1 policy.
+  - [x] Asset helpers remain deterministic and do not depend on daemon wiring or global mutable state.
 - Integration tests:
-  - [ ] Controller/extractor/dream packages can import and consume the shared assets without duplication.
-  - [ ] `go test` for memory packages passes with asset-loading coverage and no hidden filesystem assumptions.
+  - [x] Controller/extractor/dream packages can import and consume the shared assets without duplication.
+  - [x] `go test` for memory packages passes with asset-loading coverage and no hidden filesystem assumptions.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -101,4 +101,3 @@ See TechSpec `Write controller`, `Extractor`, `MemoryProvider ABC`, and `Develop
 - Test coverage >=80%.
 - Scan policy and memory prompt assets are centralized, versioned, and ready for controller/extractor/dream consumption.
 - No behavior-heavy task needs to embed policy prose inline.
-

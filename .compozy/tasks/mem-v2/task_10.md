@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extractor Hook, Inbox, and Runtime Queue
 type: backend
 complexity: critical
@@ -32,10 +32,10 @@ Implement the Slice 1 extractor execution path: a typed persisted-message hook, 
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Add the persisted-message hook event and dispatch it at the durable session-message boundary.
-- [ ] 10.2 Implement the extractor runtime queue, coalescing, and controller handoff.
-- [ ] 10.3 Add daemon-owned `_inbox/` semantics and DLQ/failure outputs under `_system/`.
-- [ ] 10.4 Add cleanup/backpressure/shutdown tests for the extractor runtime.
+- [x] 10.1 Add the persisted-message hook event and dispatch it at the durable session-message boundary.
+- [x] 10.2 Implement the extractor runtime queue, coalescing, and controller handoff.
+- [x] 10.3 Add daemon-owned `_inbox/` semantics and DLQ/failure outputs under `_system/`.
+- [x] 10.4 Add cleanup/backpressure/shutdown tests for the extractor runtime.
 
 ## Implementation Details
 
@@ -81,13 +81,13 @@ See TechSpec `Extractor`, `Safety Invariants`, and `Development Sequencing` step
 ## Tests
 
 - Unit tests:
-  - [ ] Persisted-message events emit exactly at the durable transcript boundary and not on transient stream deltas.
-  - [ ] Queue coalescing and backpressure behavior respect the approved capacity and drop/merge rules.
-  - [ ] Extractor outputs become controller proposals and never direct writes.
+  - [x] Persisted-message events emit exactly at the durable transcript boundary and not on transient stream deltas.
+  - [x] Queue coalescing and backpressure behavior respect the approved capacity and drop/merge rules.
+  - [x] Extractor outputs become controller proposals and never direct writes.
 - Integration tests:
-  - [ ] Shutdown/join behavior cleans up extractor workers and queue resources without leaks.
-  - [ ] DLQ writes land under `_system/` and stay out of prompt-facing memory packaging.
-  - [ ] A realistic post-response flow produces extracted proposals through the controller seam.
+  - [x] Shutdown/join behavior cleans up extractor workers and queue resources without leaks.
+  - [x] DLQ writes land under `_system/` and stay out of prompt-facing memory packaging.
+  - [x] A realistic post-response flow produces extracted proposals through the controller seam.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -104,4 +104,3 @@ See TechSpec `Extractor`, `Safety Invariants`, and `Development Sequencing` step
 - Test coverage >=80%.
 - Slice 1 extractor behavior runs from the durable message boundary through a daemon-owned inbox/queue path.
 - No parallel or hidden mutation path bypasses the controller.
-

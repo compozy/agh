@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Memory Schema and Workspace DB Identity
 type: backend
 complexity: critical
@@ -30,11 +30,11 @@ Lay down the durable schema and workspace identity foundation for Memory v2. Thi
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Author and register all Slice 1 DDL migrations with the numbered migration framework.
-- [ ] 2.2 Extend workspace resolution to own `.agh/workspace.toml` creation/loading and stable IDs.
-- [ ] 2.3 Add the runtime backfill path that migrates old memory rows from `workspace_root` to `workspace_id`.
-- [ ] 2.4 Remove or de-authorize the legacy path-keyed ownership model once backfill is complete.
-- [ ] 2.5 Add schema and resolver tests for fresh, migrated, and restart scenarios.
+- [x] 2.1 Author and register all Slice 1 DDL migrations with the numbered migration framework.
+- [x] 2.2 Extend workspace resolution to own `.agh/workspace.toml` creation/loading and stable IDs.
+- [x] 2.3 Add the runtime backfill path that migrates old memory rows from `workspace_root` to `workspace_id`.
+- [x] 2.4 Remove or de-authorize the legacy path-keyed ownership model once backfill is complete.
+- [x] 2.5 Add schema and resolver tests for fresh, migrated, and restart scenarios.
 
 ## Implementation Details
 
@@ -81,13 +81,13 @@ See TechSpec `Data Models`, `Migrations`, `Development Sequencing` steps 1, 7, a
 ## Tests
 
 - Unit tests:
-  - [ ] Resolver creates or loads a stable `workspace_id` from `.agh/workspace.toml`.
-  - [ ] Invalid or permission-denied workspace identity resolution fails closed with deterministic errors.
-  - [ ] Migration registration includes every Slice 1 memory table and column expected by the TechSpec.
+  - [x] Resolver creates or loads a stable `workspace_id` from `.agh/workspace.toml`.
+  - [x] Invalid or permission-denied workspace identity resolution fails closed with deterministic errors.
+  - [x] Migration registration includes every Slice 1 memory table and column expected by the TechSpec.
 - Integration tests:
-  - [ ] Fresh database bootstrap reaches head with the new migrations and reopens cleanly after restart.
-  - [ ] Existing path-keyed rows backfill to `workspace_id` idempotently and do not keep dual authority.
-  - [ ] Re-running migrations after backfill is a no-op that preserves data and indexes.
+  - [x] Fresh database bootstrap reaches head with the new migrations and reopens cleanly after restart.
+  - [x] Existing path-keyed rows backfill to `workspace_id` idempotently and do not keep dual authority.
+  - [x] Re-running migrations after backfill is a no-op that preserves data and indexes.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -104,4 +104,3 @@ See TechSpec `Data Models`, `Migrations`, `Development Sequencing` steps 1, 7, a
 - Test coverage >=80%.
 - `workspace_id` is the single durable identity for workspace-scoped memory ownership.
 - All Slice 1 memory DDL is registered through numbered migrations with no schema fallback path.
-

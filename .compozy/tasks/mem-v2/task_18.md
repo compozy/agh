@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Native Tools and Extension Host Memory Surfaces
 type: backend
 complexity: high
@@ -33,10 +33,10 @@ Hard-cut the native-tool and extension-host surfaces to the approved Memory v2 m
 </requirements>
 
 ## Subtasks
-- [ ] 18.1 Replace builtin memory tool descriptors and IDs with the approved Slice 1 set.
-- [ ] 18.2 Update daemon native-tool registration and policy gating for the new memory tool surface.
-- [ ] 18.3 Refactor extension host memory operations onto controller/recall/provider-backed flows.
-- [ ] 18.4 Add focused tests for descriptor hard cuts, policy behavior, and host API parity.
+- [x] 18.1 Replace builtin memory tool descriptors and IDs with the approved Slice 1 set.
+- [x] 18.2 Update daemon native-tool registration and policy gating for the new memory tool surface.
+- [x] 18.3 Refactor extension host memory operations onto controller/recall/provider-backed flows.
+- [x] 18.4 Add focused tests for descriptor hard cuts, policy behavior, and host API parity.
 
 ## Implementation Details
 
@@ -82,12 +82,12 @@ See TechSpec `Native tools`, `Extensibility Integration Plan`, `Agent Manageabil
 ## Tests
 
 - Unit tests:
-  - [ ] Builtin memory tool descriptors expose only the approved IDs, names, and schemas.
-  - [ ] Tool policy correctly distinguishes read-only vs proposal/note write access for root and sub-agents.
-  - [ ] Extension host memory operations call controller/recall/provider seams instead of direct store mutation.
+  - [x] Builtin memory tool descriptors expose only the approved IDs, names, and schemas.
+  - [x] Tool policy correctly distinguishes read-only vs proposal/note write access for root and sub-agents.
+  - [x] Extension host memory operations call controller/recall/provider seams instead of direct store mutation.
 - Integration tests:
-  - [ ] Daemon tool registration exposes the new builtin memory surface and hides removed tools.
-  - [ ] Host API tests prove memory read/write behavior matches the final daemon semantics and deterministic errors.
+  - [x] Daemon tool registration exposes the new builtin memory surface and hides removed tools.
+  - [x] Host API tests prove memory read/write behavior matches the final daemon semantics and deterministic errors.
 - Test coverage target: >=80%.
 - All tests must pass.
 

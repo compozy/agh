@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web Knowledge Surface
 type: frontend
 complexity: high
@@ -32,10 +32,10 @@ Update the dedicated memory browser in the web app so it reflects Memory v2’s 
 </requirements>
 
 ## Subtasks
-- [ ] 20.1 Update knowledge adapters, query options, and hooks to the regenerated Memory v2 contract.
-- [ ] 20.2 Update knowledge list/detail UI for the new scope/tier and decision/recall semantics.
-- [ ] 20.3 Refresh fixtures, MSW handlers, tests, and stories for the final memory payloads.
-- [ ] 20.4 Confirm loading, empty, and failure states remain truthful to the daemon surface.
+- [x] 20.1 Update knowledge adapters, query options, and hooks to the regenerated Memory v2 contract.
+- [x] 20.2 Update knowledge list/detail UI for the new scope/tier and decision/recall semantics.
+- [x] 20.3 Refresh fixtures, MSW handlers, tests, and stories for the final memory payloads.
+- [x] 20.4 Confirm loading, empty, and failure states remain truthful to the daemon surface.
 
 ## Implementation Details
 
@@ -80,12 +80,12 @@ See TechSpec `Web/Docs Impact` and the current knowledge route/system implementa
 ## Tests
 
 - Unit tests:
-  - [ ] Adapters and hooks consume the regenerated memory contract correctly.
-  - [ ] Scope/tier selection and search/list/detail behavior render the correct state.
-  - [ ] Mutation flows surface deterministic success and error states from the daemon contract.
+  - [x] Adapters and hooks consume the regenerated memory contract correctly.
+  - [x] Scope/tier selection and search/list/detail behavior render the correct state.
+  - [x] Mutation flows surface deterministic success and error states from the daemon contract.
 - Integration tests:
-  - [ ] Route-level tests cover loading, empty, success, and failure states.
-  - [ ] MSW fixtures and stories align with the final generated memory payloads.
+  - [x] Route-level tests cover loading, empty, success, and failure states.
+  - [x] MSW fixtures and stories align with the final generated memory payloads.
 - Test coverage target: workspace web coverage for all changed knowledge surfaces.
 - All tests must pass.
 

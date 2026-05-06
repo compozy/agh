@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime Memory and Configuration Docs
 type: docs
 complexity: high
@@ -36,10 +36,10 @@ Rewrite the hand-authored runtime docs that explain how memory works in AGH afte
 </requirements>
 
 ## Subtasks
-- [ ] 23.1 Rewrite the core runtime memory docs for the Slice 1 model.
-- [ ] 23.2 Update runtime configuration, workspace, and session docs affected by Memory v2.
-- [ ] 23.3 Update hooks/extensions docs where Memory v2 changes extensibility or lifecycle behavior.
-- [ ] 23.4 Refresh docs tests/examples that assert memory/runtime truth.
+- [x] 23.1 Rewrite the core runtime memory docs for the Slice 1 model.
+- [x] 23.2 Update runtime configuration, workspace, and session docs affected by Memory v2.
+- [x] 23.3 Update hooks/extensions docs where Memory v2 changes extensibility or lifecycle behavior.
+- [x] 23.4 Refresh docs tests/examples that assert memory/runtime truth.
 
 ## Implementation Details
 
@@ -85,10 +85,10 @@ See TechSpec `Web/Docs Impact`, `Config Lifecycle`, and `Impact Analysis`. Keep 
 ## Tests
 
 - Unit tests:
-  - [ ] Changed MDX pages pass source generation, content validation, and local doc checks.
+  - [x] Changed MDX pages pass source generation, content validation, and local doc checks.
 - Integration tests:
-  - [ ] `packages/site/lib/runtime-docs-truth.test.ts` passes for the updated memory/runtime pages.
-  - [ ] `packages/site/lib/runtime-docs-discovery.test.ts` passes after doc rewrites.
+  - [x] `packages/site/lib/runtime-docs-truth.test.ts` passes for the updated memory/runtime pages.
+  - [x] `packages/site/lib/runtime-docs-discovery.test.ts` passes after doc rewrites.
 - Test coverage target: affected docs-truth/discovery guards for all changed runtime pages.
 - All tests must pass.
 

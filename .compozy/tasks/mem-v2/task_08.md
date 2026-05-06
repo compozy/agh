@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Frozen Snapshot and Prompt Assembly
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Build the frozen snapshot and prompt-assembly layer that turns recall and provid
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Implement frozen-snapshot data structures and refresh invalidation rules.
-- [ ] 8.2 Build prompt-assembly helpers that package recall/provider outputs into prompt-ready sections.
-- [ ] 8.3 Add focused tests for snapshot boot, refresh semantics, size caps, and scope-aware composition.
-- [ ] 8.4 Confirm sub-agent inheritance and read-only semantics remain enforceable through this layer.
+- [x] 8.1 Implement frozen-snapshot data structures and refresh invalidation rules.
+- [x] 8.2 Build prompt-assembly helpers that package recall/provider outputs into prompt-ready sections.
+- [x] 8.3 Add focused tests for snapshot boot, refresh semantics, size caps, and scope-aware composition.
+- [x] 8.4 Confirm sub-agent inheritance and read-only semantics remain enforceable through this layer.
 
 ## Implementation Details
 
@@ -80,12 +80,12 @@ See TechSpec `System Architecture`, `Recall pipeline`, and `Development Sequenci
 ## Tests
 
 - Unit tests:
-  - [ ] Frozen snapshot captures the approved memory state at session boot.
-  - [ ] Snapshot refresh semantics affect the next boot/refresh boundary rather than mutating active prompt state unexpectedly.
-  - [ ] Prompt packaging enforces size/freshness and precedence rules deterministically.
+  - [x] Frozen snapshot captures the approved memory state at session boot.
+  - [x] Snapshot refresh semantics affect the next boot/refresh boundary rather than mutating active prompt state unexpectedly.
+  - [x] Prompt packaging enforces size/freshness and precedence rules deterministically.
 - Integration tests:
-  - [ ] Parent and sub-agent flows observe the approved snapshot inheritance and read-only behavior.
-  - [ ] Daemon-side assembly consumers can use the service without duplicating packaging logic.
+  - [x] Parent and sub-agent flows observe the approved snapshot inheritance and read-only behavior.
+  - [x] Daemon-side assembly consumers can use the service without duplicating packaging logic.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -103,3 +103,11 @@ See TechSpec `System Architecture`, `Recall pipeline`, and `Development Sequenci
 - Memory v2 has one deterministic frozen-snapshot and prompt-assembly layer.
 - Later daemon/UI work can consume packaged memory context without rebuilding recall logic.
 
+## Completion Notes
+
+- Added `SnapshotService`, `FrozenSnapshot`, `SnapshotBlock`, and next-boot-only invalidation semantics in `internal/memory`.
+- Added provider-backed and store-backed snapshot capture with deterministic block order: global, workspace, agent-global, agent-workspace.
+- Centralized recall prompt formatting through `RenderRecallPromptSection` and routed `NewRecallAugmenter` through that renderer.
+- Added `Assembler.PromptStartupSection` so daemon composition can pass session/workspace/agent startup metadata without duplicating snapshot or packaging logic.
+- Enforced sub-agent inheritance by cloning the parent snapshot, preserving the rendered section, setting `ControllerMode=read_only`, and avoiding child-private re-resolution.
+- Added focused tests for frozen boot capture, reload boundary behavior, prompt caps/freshness, scope precedence, provider snapshot blocks, sub-agent inheritance, daemon consumers, race safety, and coverage.

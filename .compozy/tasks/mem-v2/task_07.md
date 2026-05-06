@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Local Provider and Registry Surface
 type: backend
 complexity: high
@@ -34,10 +34,10 @@ Implement the bundled local `MemoryProvider` and the registry surface that will 
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Implement the bundled local provider on top of the new controller/recall/store substrate.
-- [ ] 7.2 Add provider registry behavior for registration, collision handling, and selection.
-- [ ] 7.3 Add focused provider tests for hook lifecycle and import-boundary discipline.
-- [ ] 7.4 Confirm future external providers can target this surface without runtime-private imports.
+- [x] 7.1 Implement the bundled local provider on top of the new controller/recall/store substrate.
+- [x] 7.2 Add provider registry behavior for registration, collision handling, and selection.
+- [x] 7.3 Add focused provider tests for hook lifecycle and import-boundary discipline.
+- [x] 7.4 Confirm future external providers can target this surface without runtime-private imports.
 
 ## Implementation Details
 
@@ -83,12 +83,12 @@ See TechSpec `MemoryProvider ABC`, `Extensibility Integration Plan`, and `Develo
 ## Tests
 
 - Unit tests:
-  - [ ] Local provider uses contract-only types and does not import runtime-private packages.
-  - [ ] Registry rejects provider collisions deterministically and surfaces the correct error path.
-  - [ ] Local provider delegates to controller/recall/store seams correctly for Slice 1 behavior.
+  - [x] Local provider uses contract-only types and does not import runtime-private packages.
+  - [x] Registry rejects provider collisions deterministically and surfaces the correct error path.
+  - [x] Local provider delegates to controller/recall/store seams correctly for Slice 1 behavior.
 - Integration tests:
-  - [ ] The bundled provider initializes and serves memory operations inside a daemon-like runtime harness.
-  - [ ] Collision and fallback behaviors emit the expected observability signals and do not corrupt active provider selection.
+  - [x] The bundled provider initializes and serves memory operations inside a daemon-like runtime harness.
+  - [x] Collision and fallback behaviors emit the expected observability signals and do not corrupt active provider selection.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -106,3 +106,10 @@ See TechSpec `MemoryProvider ABC`, `Extensibility Integration Plan`, and `Develo
 - Memory v2 has a real bundled provider plus registry semantics ready for config and daemon wiring.
 - Provider authors have one stable contract-only integration surface.
 
+## Completion Notes
+
+- Implemented `internal/memory/provider/local` as the bundled 10-hook provider over a contract-typed backend seam, with safe no-op lifecycle hooks, prompt snapshot loading, deterministic recall delegation, and controller-decision write application.
+- Added `internal/memory/provider/local/memstore` to adapt `memory.Store` to the local provider without making the provider package import controller, recall, or concrete store internals.
+- Added `internal/extension.MemoryProviderRegistry` with deterministic registration, default/active selection, provider-name/tool/reserved-tool collision rejection, active-selection preservation, and `memory.provider.collision` event-summary emission.
+- Wired `HostAPIHandler` with an injectable memory provider registry seam for later public Host API/native-tool work, and allowed `memory.provider.collision` as a global observability event.
+- Added focused provider, adapter, registry, Host API option, and event validation tests; provider packages cover `local` 88.5% and `local/memstore` 96.7%.

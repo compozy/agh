@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Memory Contract Extraction and Hard Cut
 type: backend
 complexity: critical
@@ -30,11 +30,11 @@ Create the new `internal/memory/contract` package as the bottom dependency layer
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/memory/contract` and move all shared Memory v2 DTOs and enums into it.
-- [ ] 1.2 Update existing memory, API, CLI, tool, and extension callers to import the new contract surface directly.
-- [ ] 1.3 Delete `internal/memory/types.go` and any tests that exist only to preserve speculative shapes.
-- [ ] 1.4 Add focused tests for serialization, enum normalization, and import-boundary safety.
-- [ ] 1.5 Confirm no compatibility alias or re-export file remains in the old package path.
+- [x] 1.1 Create `internal/memory/contract` and move all shared Memory v2 DTOs and enums into it.
+- [x] 1.2 Update existing memory, API, CLI, tool, and extension callers to import the new contract surface directly.
+- [x] 1.3 Delete `internal/memory/types.go` and any tests that exist only to preserve speculative shapes.
+- [x] 1.4 Add focused tests for serialization, enum normalization, and import-boundary safety.
+- [x] 1.5 Confirm no compatibility alias or re-export file remains in the old package path.
 
 ## Implementation Details
 
@@ -81,12 +81,12 @@ See TechSpec `Architectural Boundaries`, `Public Interfaces / Types`, and `Devel
 ## Tests
 
 - Unit tests:
-  - [ ] Contract enums normalize to the Slice 1 canonical values for scope, agent tier, origin, memory type, and write operations.
-  - [ ] Contract DTOs round-trip through JSON or helper serialization without introducing deprecated fields.
-  - [ ] Package-level tests prove no cycle exists between `contract` and controller/recall/provider packages.
+  - [x] Contract enums normalize to the Slice 1 canonical values for scope, agent tier, origin, memory type, and write operations.
+  - [x] Contract DTOs round-trip through JSON or helper serialization without introducing deprecated fields.
+  - [x] Package-level tests prove no cycle exists between `contract` and controller/recall/provider packages.
 - Integration tests:
-  - [ ] `go test ./internal/memory/... ./internal/api/... ./internal/cli/... ./internal/extension/...` passes after the hard cut.
-  - [ ] Existing memory-related transport packages compile and run against the new contract surface without re-export shims.
+  - [x] `go test ./internal/memory/... ./internal/api/... ./internal/cli/... ./internal/extension/...` passes after the hard cut.
+  - [x] Existing memory-related transport packages compile and run against the new contract surface without re-export shims.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -103,4 +103,3 @@ See TechSpec `Architectural Boundaries`, `Public Interfaces / Types`, and `Devel
 - Test coverage >=80%.
 - `internal/memory/contract` is the only shared Memory v2 DTO surface.
 - `internal/memory/types.go` is gone and no compatibility layer remains.
-

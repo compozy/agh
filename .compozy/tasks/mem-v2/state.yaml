@@ -1,0 +1,266 @@
+# cy-codex-loop state.yaml -- managed by .agents/skills/cy-codex-loop/scripts/update-state.py. Do not hand-edit.
+slug: "mem-v2"
+created_at: "2026-05-05T05:00:04Z"
+last_updated: "2026-05-06T03:41:56Z"
+mode: "tasks"
+iteration: 33
+goal_signature: "Implement the ENTIRE .compozy/tasks/mem-v2"
+
+tasks:
+  total: 26
+  completed: ["task_01", "task_02", "task_03", "task_04", "task_05", "task_06", "task_07", "task_08", "task_09", "task_10", "task_11", "task_12", "task_13", "task_14", "task_15", "task_16", "task_17", "task_18", "task_19", "task_20", "task_21", "task_22", "task_23", "task_24", "task_25", "task_26"]
+  current: null
+  pending: []
+
+progress:
+  deliverables_complete: false
+  checklist: []
+
+qa:
+  report_done: true
+  execution_done: true
+
+coderabbit:
+  rounds_completed: 1
+  rounds_clean_streak: 1
+  rounds_required: 3
+  current_round_dir: null
+  unresolved_critical: 0
+  unresolved_high: 0
+
+verify:
+  last_run: "2026-05-06T03:41:56Z"
+  last_status: "PASS"
+
+iterations:
+  - n: 1
+    timestamp: "2026-05-05T05:00:47Z"
+    phase: "B"
+    action: "bootstrap (mode=tasks)"
+    outcome: "completed"
+    memory_written: ["memory/MEMORY.md"]
+    blockers: []
+  - n: 2
+    timestamp: "2026-05-05T05:03:29Z"
+    phase: "B"
+    action: "reconciled task_01 frontmatter"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 3
+    timestamp: "2026-05-05T05:03:32Z"
+    phase: "B"
+    action: "reconciled task_02 frontmatter"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 4
+    timestamp: "2026-05-05T06:04:49Z"
+    phase: "B"
+    action: "executed task_03"
+    outcome: "completed"
+    memory_written: ["memory/task_03.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 5
+    timestamp: "2026-05-05T06:24:32Z"
+    phase: "B"
+    action: "executed task_04"
+    outcome: "completed"
+    memory_written: ["memory/task_04.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 6
+    timestamp: "2026-05-05T07:20:30Z"
+    phase: "B"
+    action: "executed task_05"
+    outcome: "completed"
+    memory_written: ["memory/task_05.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 7
+    timestamp: "2026-05-05T08:00:46Z"
+    phase: "B"
+    action: "executed task_06"
+    outcome: "completed"
+    memory_written: ["memory/task_06.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 8
+    timestamp: "2026-05-05T08:42:51Z"
+    phase: "B"
+    action: "executed task_07"
+    outcome: "completed"
+    memory_written: ["memory/task_07.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 9
+    timestamp: "2026-05-05T09:16:12Z"
+    phase: "B"
+    action: "executed task_08"
+    outcome: "completed"
+    memory_written: ["memory/task_08.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 10
+    timestamp: "2026-05-05T09:56:28Z"
+    phase: "B"
+    action: "executed task_09"
+    outcome: "completed"
+    memory_written: ["memory/task_09.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 11
+    timestamp: "2026-05-05T10:57:52Z"
+    phase: "B"
+    action: "executed task_10"
+    outcome: "completed"
+    memory_written: ["memory/task_10.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 12
+    timestamp: "2026-05-05T11:30:42Z"
+    phase: "B"
+    action: "executed task_11"
+    outcome: "completed"
+    memory_written: ["memory/task_11.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 13
+    timestamp: "2026-05-05T12:02:29Z"
+    phase: "B"
+    action: "executed task_12"
+    outcome: "completed"
+    memory_written: ["memory/task_12.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 14
+    timestamp: "2026-05-05T12:56:21Z"
+    phase: "B"
+    action: "executed task_13"
+    outcome: "completed"
+    memory_written: ["memory/task_13.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 15
+    timestamp: "2026-05-05T13:38:13Z"
+    phase: "B"
+    action: "executed task_14"
+    outcome: "completed"
+    memory_written: ["memory/task_14.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 16
+    timestamp: "2026-05-05T13:51:13Z"
+    phase: "B"
+    action: "executed task_15"
+    outcome: "completed"
+    memory_written: ["memory/task_15.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 17
+    timestamp: "2026-05-05T14:50:29Z"
+    phase: "B"
+    action: "executed task_16"
+    outcome: "completed"
+    memory_written: ["memory/task_16.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 18
+    timestamp: "2026-05-05T15:38:39Z"
+    phase: "B"
+    action: "executed task_17"
+    outcome: "completed"
+    memory_written: ["memory/task_17.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 19
+    timestamp: "2026-05-05T16:26:12Z"
+    phase: "B"
+    action: "executed task_18"
+    outcome: "completed"
+    memory_written: ["memory/task_18.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 20
+    timestamp: "2026-05-05T18:13:06Z"
+    phase: "B"
+    action: "executed task_19"
+    outcome: "completed"
+    memory_written: ["memory/task_19.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 21
+    timestamp: "2026-05-05T19:11:49Z"
+    phase: "B"
+    action: "executed task_20"
+    outcome: "completed"
+    memory_written: ["memory/task_20.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 22
+    timestamp: "2026-05-05T19:36:55Z"
+    phase: "B"
+    action: "executed task_21"
+    outcome: "completed"
+    memory_written: ["memory/task_21.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 23
+    timestamp: "2026-05-05T20:13:01Z"
+    phase: "B"
+    action: "executed task_22"
+    outcome: "completed"
+    memory_written: ["memory/task_22.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 24
+    timestamp: "2026-05-05T21:09:53Z"
+    phase: "B"
+    action: "executed task_23"
+    outcome: "completed"
+    memory_written: ["memory/task_23.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 25
+    timestamp: "2026-05-05T21:52:39Z"
+    phase: "B"
+    action: "executed task_24"
+    outcome: "completed"
+    memory_written: ["memory/task_24.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 26
+    timestamp: "2026-05-05T22:07:02Z"
+    phase: "B"
+    action: "executed task_25"
+    outcome: "completed"
+    memory_written: ["memory/task_25.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 27
+    timestamp: "2026-05-05T22:07:34Z"
+    phase: "B"
+    action: "marked task_25 qa report done"
+    outcome: "completed"
+    memory_written: ["memory/task_25.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 28
+    timestamp: "2026-05-06T00:50:58Z"
+    phase: "C"
+    action: "qa-execution produced"
+    outcome: "completed"
+    memory_written: ["memory/qa-execution.md", "memory/MEMORY.md", "qa/verification-report.md"]
+    blockers: []
+  - n: 29
+    timestamp: "2026-05-06T01:26:16Z"
+    phase: "D"
+    action: "coderabbit round 001 blocked by provider rate limit"
+    outcome: "blocked"
+    memory_written: ["memory/reviews-001.md", "memory/MEMORY.md"]
+    blockers: ["coderabbit_rate_limit_after_partial_scope_reviews"]
+  - n: 30
+    timestamp: "2026-05-06T01:46:50Z"
+    phase: "D"
+    action: "coderabbit round 001 blocked at internal extension rate limit"
+    outcome: "blocked"
+    memory_written: ["memory/reviews-001.md", "memory/MEMORY.md"]
+    blockers: ["coderabbit_rate_limit_at_internal_extension"]
+  - n: 31
+    timestamp: "2026-05-06T02:08:47Z"
+    phase: "D"
+    action: "coderabbit round 001 blocked at internal session rate limit"
+    outcome: "blocked"
+    memory_written: ["memory/reviews-001.md", "memory/MEMORY.md"]
+    blockers: ["coderabbit_rate_limit_at_internal_session"]
+  - n: 32
+    timestamp: "2026-05-06T02:40:27Z"
+    phase: "D"
+    action: "manual review round 001 opened by claude opus"
+    outcome: "completed"
+    memory_written: ["memory/reviews-001.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 33
+    timestamp: "2026-05-06T03:41:56Z"
+    phase: "D"
+    action: "round 001 closed"
+    outcome: "completed"
+    memory_written: ["memory/reviews-001.md", "memory/MEMORY.md"]
+    blockers: []

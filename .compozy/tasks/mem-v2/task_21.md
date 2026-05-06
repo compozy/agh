@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web Memory Settings Surface
 type: frontend
 complexity: high
@@ -32,10 +32,10 @@ Update the operator-facing memory settings page to reflect the full backend Memo
 </requirements>
 
 ## Subtasks
-- [ ] 21.1 Update memory settings adapters, types, hooks, and route orchestration to the final backend payloads.
-- [ ] 21.2 Update settings UI sections and controls for the approved Memory v2 config surface.
-- [ ] 21.3 Refresh tests, mocks, and stories for load/save/reset/restart/action behavior.
-- [ ] 21.4 Confirm no speculative provider/recall/dream controls appear beyond backend truth.
+- [x] 21.1 Update memory settings adapters, types, hooks, and route orchestration to the final backend payloads.
+- [x] 21.2 Update settings UI sections and controls for the approved Memory v2 config surface.
+- [x] 21.3 Refresh tests, mocks, and stories for load/save/reset/restart/action behavior.
+- [x] 21.4 Confirm no speculative provider/recall/dream controls appear beyond backend truth.
 
 ## Implementation Details
 
@@ -80,12 +80,12 @@ See TechSpec `Config Lifecycle`, `Web/Docs Impact`, and the existing settings me
 ## Tests
 
 - Unit tests:
-  - [ ] Settings adapters and hooks consume the final backend memory settings contract correctly.
-  - [ ] Draft/reset/save/restart flows behave correctly for the approved memory settings fields.
-  - [ ] Validation and error states reflect backend truth rather than guessed frontend rules.
+  - [x] Settings adapters and hooks consume the final backend memory settings contract correctly.
+  - [x] Draft/reset/save/restart flows behave correctly for the approved memory settings fields.
+  - [x] Validation and error states reflect backend truth rather than guessed frontend rules.
 - Integration tests:
-  - [ ] Route-level tests cover loading, success, invalid input, save failure, and restart messaging.
-  - [ ] Fixtures/stories remain aligned with the final generated/backend settings payloads.
+  - [x] Route-level tests cover loading, success, invalid input, save failure, and restart messaging.
+  - [x] Fixtures/stories remain aligned with the final generated/backend settings payloads.
 - Test coverage target: web coverage for all changed settings memory surfaces.
 - All tests must pass.
 

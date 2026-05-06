@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Config and Settings Backend
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Extend the configuration and settings backend so Memory v2 can be operated throu
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Extend backend config structs, defaults, and validation with all approved Slice 1 memory keys.
-- [ ] 13.2 Update backend settings payloads and mutation parsing for the expanded memory model.
-- [ ] 13.3 Extend config tool-surface mutability rules for new memory paths.
-- [ ] 13.4 Add focused tests for defaults, merges, validation, and settings payload parity.
+- [x] 13.1 Extend backend config structs, defaults, and validation with all approved Slice 1 memory keys.
+- [x] 13.2 Update backend settings payloads and mutation parsing for the expanded memory model.
+- [x] 13.3 Extend config tool-surface mutability rules for new memory paths.
+- [x] 13.4 Add focused tests for defaults, merges, validation, and settings payload parity.
 
 ## Implementation Details
 
@@ -82,12 +82,12 @@ See TechSpec `Config Lifecycle`, `Assumptions / Defaults`, and `Development Sequ
 ## Tests
 
 - Unit tests:
-  - [ ] New memory config keys load with the approved defaults.
-  - [ ] Invalid memory config values fail with deterministic validation errors.
-  - [ ] Tool-surface path classification correctly allows or denies new memory config paths.
+  - [x] New memory config keys load with the approved defaults.
+  - [x] Invalid memory config values fail with deterministic validation errors.
+  - [x] Tool-surface path classification correctly allows or denies new memory config paths.
 - Integration tests:
-  - [ ] Settings read/update payloads round-trip cleanly through backend parsing and serialization.
-  - [ ] Merge/overlay behavior preserves memory config semantics across root, workspace, and runtime layers.
+  - [x] Settings read/update payloads round-trip cleanly through backend parsing and serialization.
+  - [x] Merge/overlay behavior preserves memory config semantics across root, workspace, and runtime layers.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -104,4 +104,3 @@ See TechSpec `Config Lifecycle`, `Assumptions / Defaults`, and `Development Sequ
 - Test coverage >=80%.
 - Memory v2 config is fully represented in backend structs, defaults, validation, and settings payloads.
 - Later CLI/web/docs tasks can consume this backend truth without inventing parallel config models.
-

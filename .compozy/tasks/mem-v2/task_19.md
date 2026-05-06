@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Wiring and Boundary Registration
 type: backend
 complexity: critical
@@ -38,10 +38,10 @@ Wire the completed Memory v2 subsystems together at the composition root and reg
 </requirements>
 
 ## Subtasks
-- [ ] 19.1 Wire the new Memory v2 services at `internal/daemon` boot and runtime entry points.
-- [ ] 19.2 Register package-boundary rules for new memory/session/store packages.
-- [ ] 19.3 Add daemon-level tests for startup, shutdown, and cross-slice runtime behavior.
-- [ ] 19.4 Confirm no subordinate package now imports or wires daemon-level collaborators directly.
+- [x] 19.1 Wire the new Memory v2 services at `internal/daemon` boot and runtime entry points.
+- [x] 19.2 Register package-boundary rules for new memory/session/store packages.
+- [x] 19.3 Add daemon-level tests for startup, shutdown, and cross-slice runtime behavior.
+- [x] 19.4 Confirm no subordinate package now imports or wires daemon-level collaborators directly.
 
 ## Implementation Details
 
@@ -87,12 +87,12 @@ See TechSpec `System Architecture`, `Architectural Boundaries`, and `Development
 ## Tests
 
 - Unit tests:
-  - [ ] Composition-root setup builds the final Memory v2 graph without hidden back-pointers.
-  - [ ] Boundary registration includes any new packages introduced by the Memory v2 implementation.
+  - [x] Composition-root setup builds the final Memory v2 graph without hidden back-pointers.
+  - [x] Boundary registration includes any new packages introduced by the Memory v2 implementation.
 - Integration tests:
-  - [ ] Daemon startup serves the final memory runtime, including provider, extractor, dreaming, and ledger components.
-  - [ ] Daemon shutdown joins memory-owned background workers cleanly without leaks.
-  - [ ] `mage Boundaries` and relevant daemon integration tests pass with the new package graph.
+  - [x] Daemon startup serves the final memory runtime, including provider, extractor, dreaming, and ledger components.
+  - [x] Daemon shutdown joins memory-owned background workers cleanly without leaks.
+  - [x] `mage Boundaries` and relevant daemon integration tests pass with the new package graph.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -109,4 +109,3 @@ See TechSpec `System Architecture`, `Architectural Boundaries`, and `Development
 - Test coverage >=80%.
 - Memory v2 runs end-to-end in the daemon with composition-root discipline preserved.
 - Boundary checks and shutdown behavior remain clean after the new wiring lands.
-

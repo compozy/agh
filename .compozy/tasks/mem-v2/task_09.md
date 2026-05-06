@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Memory Observability and SSE Hygiene
 type: backend
 complexity: critical
@@ -33,10 +33,10 @@ Add the observability layer that Memory v2 needs across global and per-workspace
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Implement memory event aggregation over the new DB topology.
-- [ ] 9.2 Update health derivation and operator-facing observability helpers for Slice 1 memory behavior.
-- [ ] 9.3 Add `<memory-context>` scrubber behavior for streaming/log surfaces.
-- [ ] 9.4 Add focused tests for aggregation, redaction, broadcast ordering, and reconnect safety.
+- [x] 9.1 Implement memory event aggregation over the new DB topology.
+- [x] 9.2 Update health derivation and operator-facing observability helpers for Slice 1 memory behavior.
+- [x] 9.3 Add `<memory-context>` scrubber behavior for streaming/log surfaces.
+- [x] 9.4 Add focused tests for aggregation, redaction, broadcast ordering, and reconnect safety.
 
 ## Implementation Details
 
@@ -81,12 +81,12 @@ See TechSpec `Monitoring and Observability`, `Safety Invariants`, and `Developme
 ## Tests
 
 - Unit tests:
-  - [ ] Memory event aggregation merges global/workspace sources without double-counting or authority drift.
-  - [ ] Health derivation reflects disabled, degraded, unavailable, and healthy Slice 1 memory states correctly.
-  - [ ] `<memory-context>` scrubber removes prompt-only content without damaging unrelated streaming payloads.
+  - [x] Memory event aggregation merges global/workspace sources without double-counting or authority drift.
+  - [x] Health derivation reflects disabled, degraded, unavailable, and healthy Slice 1 memory states correctly.
+  - [x] `<memory-context>` scrubber removes prompt-only content without damaging unrelated streaming payloads.
 - Integration tests:
-  - [ ] Observe/health services broadcast only after durable append and remain reconnect-safe.
-  - [ ] Workspace-scoped and global event queries show consistent state across the new DB topology.
+  - [x] Observe/health services broadcast only after durable append and remain reconnect-safe.
+  - [x] Workspace-scoped and global event queries show consistent state across the new DB topology.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -103,4 +103,3 @@ See TechSpec `Monitoring and Observability`, `Safety Invariants`, and `Developme
 - Test coverage >=80%.
 - Memory v2 observability reflects the new authorities and DB topology truthfully.
 - Prompt-only memory context does not leak through SSE/log-facing surfaces.
-

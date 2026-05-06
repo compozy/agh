@@ -127,6 +127,122 @@ class CyCodexLoopScriptTests(unittest.TestCase):
             self.assertEqual(phase.stdout.strip(), "phase=D action=coderabbit_round round=002")
             self.assertTrue(state_path.is_file())
 
+    def test_jsonl_status_stream_with_complete_zero_findings_is_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            review_jsonl = base / "review.jsonl"
+            review_jsonl.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"type": "review_context", "workingDirectory": str(REPO_ROOT)}),
+                        json.dumps({"type": "status", "phase": "analyzing"}),
+                        json.dumps({"type": "complete", "status": "review_completed", "findings": 0}),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            out_dir = base / "reviews-001"
+
+            result = self.run_script(
+                "coderabbit-to-rounds.py",
+                str(review_jsonl),
+                str(out_dir),
+                "--repo-root",
+                str(REPO_ROOT),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "EMPTY")
+            self.assertTrue((out_dir / ".empty").is_file())
+
+    def test_jsonl_finding_events_are_converted_to_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            review_jsonl = base / "review.jsonl"
+            review_jsonl.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"type": "status", "phase": "reviewing"}),
+                        json.dumps(
+                            {
+                                "type": "finding",
+                                "severity": "high",
+                                "file": "internal/memory/store.go",
+                                "line": 42,
+                                "title": "Store skips rollback on write failure",
+                                "comment": "A failed write can leave a partial transaction open.",
+                            }
+                        ),
+                        json.dumps({"type": "complete", "status": "review_completed", "findings": 1}),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            out_dir = base / "reviews-001"
+
+            result = self.run_script(
+                "coderabbit-to-rounds.py",
+                str(review_jsonl),
+                str(out_dir),
+                "--repo-root",
+                str(REPO_ROOT),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("wrote 1 issues", result.stdout)
+            issue = (out_dir / "issue_001.md").read_text(encoding="utf-8")
+            self.assertIn("severity: high", issue)
+            self.assertIn("file: internal/memory/store.go", issue)
+            self.assertIn("Store skips rollback on write failure", issue)
+
+    def test_coderabbit_current_schema_maps_file_name_and_codegen_body(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            review_jsonl = base / "review.jsonl"
+            review_jsonl.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "type": "finding",
+                                "severity": "major",
+                                "fileName": "internal/memory/store.go",
+                                "codegenInstructions": (
+                                    "Verify each finding against current code. "
+                                    "Fix only still-valid issues, skip the rest with a brief reason, "
+                                    "keep changes minimal, and validate.\n\n"
+                                    "In @internal/memory/store.go around lines 580 - 593, "
+                                    "globalHomeFromMemoryDir returns the parent in both branches."
+                                ),
+                                "suggestions": [],
+                            }
+                        ),
+                        json.dumps({"type": "complete", "status": "review_completed", "findings": 1}),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            out_dir = base / "reviews-001"
+
+            result = self.run_script(
+                "coderabbit-to-rounds.py",
+                str(review_jsonl),
+                str(out_dir),
+                "--repo-root",
+                str(REPO_ROOT),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            issue = (out_dir / "issue_001.md").read_text(encoding="utf-8")
+            self.assertIn("severity: high", issue)
+            self.assertIn("file: internal/memory/store.go", issue)
+            self.assertIn("line: 580", issue)
+            self.assertIn("# Issue 001: globalHomeFromMemoryDir returns the parent in both branches.", issue)
+            self.assertIn("Verify each finding against current code", issue)
+
     def test_invalid_status_is_closed_for_round_cleanliness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             round_dir = Path(tmp) / "reviews-001"

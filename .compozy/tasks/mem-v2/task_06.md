@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Deterministic Recall, Signals, and Shadow Rules
 type: backend
 complexity: critical
@@ -32,10 +32,10 @@ Implement the deterministic Slice 1 recall path, including ranked retrieval, liv
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Build the deterministic recall/ranking package on top of the new catalog/chunks substrate.
-- [ ] 6.2 Add recall-signal writes and failure-safe signal update handling.
-- [ ] 6.3 Implement scope-aware shadow-by-id packaging rules and freshness handling.
-- [ ] 6.4 Add focused tests for ranking, trivial skips, shadow precedence, and signal recording.
+- [x] 6.1 Build the deterministic recall/ranking package on top of the new catalog/chunks substrate.
+- [x] 6.2 Add recall-signal writes and failure-safe signal update handling.
+- [x] 6.3 Implement scope-aware shadow-by-id packaging rules and freshness handling.
+- [x] 6.4 Add focused tests for ranking, trivial skips, shadow precedence, and signal recording.
 
 ## Implementation Details
 
@@ -104,3 +104,10 @@ See TechSpec `Recall pipeline`, `Data Models`, and `Development Sequencing` step
 - Test coverage >=80%.
 - Slice 1 has one deterministic recall implementation with live signals and shadow-aware packaging.
 - Later prompt, dreaming, transport, and UI work can consume recall outputs without duplicating ranking logic.
+
+## Completion Notes
+
+- Implemented `internal/memory/recall` as the deterministic Slice 1 recall package with trivial-query skip, weighted lexical/recency/signal ranking, scope-aware shadow-by-id, stable cache headers, freshness banners, and failure-safe signal/event side effects.
+- Wired `Store.Recall` to chunk-backed FTS5 unicode + trigram retrieval, live `memory_recall_signals` updates, recall/skipped/signal-failure/shadow events, and prompt augmentation consumption via `Packaged`.
+- Added catalog chunk maintenance on write/reindex plus migration 008 to backfill chunks and promote `memory_recall_signals` to the live scoring/promotion schema.
+- Added focused coverage for deterministic ranking, trivial skips, shadow precedence, already-surfaced/system filters, CJK trigram recall, signal writes/failures, packaging determinism, schema upgrade, and daemon prompt augmentation.

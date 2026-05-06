@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Dreaming Runtime and Promotion Gates
 type: backend
 complexity: critical
@@ -33,10 +33,10 @@ Extend the existing dreaming runtime to the Slice 1 model: recall-signal-informe
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Extend dreaming gate/scoring behavior with recall-signal-informed promotion logic.
-- [ ] 11.2 Wire dedicated dreaming-agent behavior and controller-backed promotion writes.
-- [ ] 11.3 Add `_system/` failure/retry handling and idempotent promotion markers.
-- [ ] 11.4 Add focused dreaming tests for gate evaluation, promotion, restart safety, and failure handling.
+- [x] 11.1 Extend dreaming gate/scoring behavior with recall-signal-informed promotion logic.
+- [x] 11.2 Wire dedicated dreaming-agent behavior and controller-backed promotion writes.
+- [x] 11.3 Add `_system/` failure/retry handling and idempotent promotion markers.
+- [x] 11.4 Add focused dreaming tests for gate evaluation, promotion, restart safety, and failure handling.
 
 ## Implementation Details
 
@@ -81,12 +81,12 @@ See TechSpec `Dreaming v2`, `Monitoring and Observability`, and `Development Seq
 ## Tests
 
 - Unit tests:
-  - [ ] Time, sessions, lock, and signal-threshold gates evaluate in the approved order.
-  - [ ] Promotion writes route through controller/provider seams and set `promoted_at` idempotently.
-  - [ ] Failure and retry paths write the expected `_system/` outputs without leaking prompt-facing content.
+  - [x] Time, sessions, lock, and signal-threshold gates evaluate in the approved order.
+  - [x] Promotion writes route through controller/provider seams and set `promoted_at` idempotently.
+  - [x] Failure and retry paths write the expected `_system/` outputs without leaking prompt-facing content.
 - Integration tests:
-  - [ ] Dreaming restarts safely after interrupted runs and does not double-promote.
-  - [ ] Recall signals and candidate scoring drive the expected promotion decisions in realistic fixtures.
+  - [x] Dreaming restarts safely after interrupted runs and does not double-promote.
+  - [x] Recall signals and candidate scoring drive the expected promotion decisions in realistic fixtures.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -103,4 +103,3 @@ See TechSpec `Dreaming v2`, `Monitoring and Observability`, and `Development Seq
 - Test coverage >=80%.
 - Slice 1 dreaming runs on the approved gate stack and promotes through the controller/provider seam.
 - Failure/retry behavior stays inside `_system/` and remains restart-safe.
-

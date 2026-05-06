@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Atomic Store, Workspacedb, and Replay Core
 type: backend
 complexity: critical
@@ -32,11 +32,11 @@ Build the storage runtime that Memory v2 needs on top of the new contract and sc
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add per-workspace DB open/migrate helpers and lifecycle tests.
-- [ ] 3.2 Introduce atomic file-write and jittered SQLite write helpers.
-- [ ] 3.3 Extend the memory store for workspace/global/agent roots under the new topology.
-- [ ] 3.4 Implement replay/reindex helpers that operate on the new DB and file layout.
-- [ ] 3.5 Add crash/restart/replay coverage for the new storage runtime.
+- [x] 3.1 Add per-workspace DB open/migrate helpers and lifecycle tests.
+- [x] 3.2 Introduce atomic file-write and jittered SQLite write helpers.
+- [x] 3.3 Extend the memory store for workspace/global/agent roots under the new topology.
+- [x] 3.4 Implement replay/reindex helpers that operate on the new DB and file layout.
+- [x] 3.5 Add crash/restart/replay coverage for the new storage runtime.
 
 ## Implementation Details
 
@@ -83,13 +83,13 @@ See TechSpec `Filesystem layout`, `Data Models`, and `Development Sequencing` st
 ## Tests
 
 - Unit tests:
-  - [ ] Atomic file writes fsync/rename safely and leave no partial target files after simulated failures.
-  - [ ] Workspace DB open helpers resolve the correct path and run migrations once.
-  - [ ] Replay/reindex helpers reconstruct derived state deterministically from authoritative inputs.
+  - [x] Atomic file writes fsync/rename safely and leave no partial target files after simulated failures.
+  - [x] Workspace DB open helpers resolve the correct path and run migrations once.
+  - [x] Replay/reindex helpers reconstruct derived state deterministically from authoritative inputs.
 - Integration tests:
-  - [ ] Restarting after interrupted writes reopens cleanly and replays pending derived-state work.
-  - [ ] Workspace/global DBs coexist without mixing rows across workspaces.
-  - [ ] `go test` coverage proves no direct controller/public transport dependency leaks into the storage layer.
+  - [x] Restarting after interrupted writes reopens cleanly and replays pending derived-state work.
+  - [x] Workspace/global DBs coexist without mixing rows across workspaces.
+  - [x] `go test` coverage proves no direct controller/public transport dependency leaks into the storage layer.
 - Test coverage target: >=80%.
 - All tests must pass.
 
@@ -106,4 +106,3 @@ See TechSpec `Filesystem layout`, `Data Models`, and `Development Sequencing` st
 - Test coverage >=80%.
 - Memory v2 has atomic file/db storage primitives and replay-capable runtime support.
 - The storage layer is ready for controller/recall work without public-surface drift.
-

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Session Lineage and Ledger Materialization
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Add the durable session-lineage and forensic-ledger slice required by Memory v2.
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Add or extend durable lineage fields in session storage.
-- [ ] 12.2 Implement the ledger materializer that emits `ledger.jsonl` at session end.
-- [ ] 12.3 Handle workspace-bound and unbound session layouts correctly.
-- [ ] 12.4 Add focused tests for lineage persistence, ledger output, restart safety, and forensic-only semantics.
+- [x] 12.1 Add or extend durable lineage fields in session storage.
+- [x] 12.2 Implement the ledger materializer that emits `ledger.jsonl` at session end.
+- [x] 12.3 Handle workspace-bound and unbound session layouts correctly.
+- [x] 12.4 Add focused tests for lineage persistence, ledger output, restart safety, and forensic-only semantics.
 
 ## Implementation Details
 

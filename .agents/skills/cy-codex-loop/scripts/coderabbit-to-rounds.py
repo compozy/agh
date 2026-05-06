@@ -79,9 +79,15 @@ def _find_findings(payload: object, *, _depth: int = 0) -> list[dict]:
     if _depth > 8:
         return []
     if isinstance(payload, list):
-        return [x for x in payload if isinstance(x, dict)]
+        findings: list[dict] = []
+        for item in payload:
+            findings.extend(_find_findings(item, _depth=_depth + 1))
+        return findings
     if not isinstance(payload, dict):
         return []
+    payload_type = str(payload.get("type", "")).strip().lower()
+    if payload_type in {"finding", "comment", "issue"}:
+        return [payload]
     for key in ("findings", "comments", "issues", "results", "items"):
         val = payload.get(key)
         if isinstance(val, list):
@@ -95,7 +101,7 @@ def _find_findings(payload: object, *, _depth: int = 0) -> list[dict]:
 
 def _first(d: dict, *keys: str) -> object:
     for k in keys:
-        if k in d and d[k] not in (None, ""):
+        if k in d and d[k] not in (None, "", [], {}):
             return d[k]
     return None
 
@@ -140,6 +146,41 @@ def _truncate_title(text: str, limit: int = 72) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def _title_from_comment(comment: str) -> str:
+    text = " ".join(comment.split())
+    text = re.sub(r"^Verify each finding against current code\.\s*", "", text)
+    text = re.sub(
+        r"^Fix only still-valid issues, skip the rest with a brief reason, "
+        r"keep changes minimal, and validate\.\s*",
+        "",
+        text,
+    )
+    text = re.sub(r"^In @[^,]+,\s*", "", text)
+    sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0] if text else ""
+    return _truncate_title(sentence)
+
+
+def _line_from_comment(comment: str) -> int:
+    match = re.search(r"\baround lines?\s+(\d+)", comment, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"\bat line\s+(\d+)", comment, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return 0
+
+
+def _body_text(value: object) -> str:
+    if value in (None, "", [], {}):
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts = [_body_text(item) for item in value]
+        return "\n\n".join(part for part in parts if part)
+    return json.dumps(value, indent=2)
+
+
 def _yaml_str(value: str) -> str:
     """YAML-friendly string: quote if it contains anything tricky."""
     if value == "":
@@ -165,11 +206,27 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    raw_input = input_path.read_text(encoding="utf-8")
     try:
-        payload = json.loads(input_path.read_text(encoding="utf-8"))
+        payload = json.loads(raw_input)
     except json.JSONDecodeError as exc:
-        print(f"coderabbit-to-rounds: invalid JSON: {exc}", file=sys.stderr)
-        return 3
+        jsonl_payload: list[object] = []
+        for lineno, line in enumerate(raw_input.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                jsonl_payload.append(json.loads(stripped))
+            except json.JSONDecodeError:
+                print(
+                    f"coderabbit-to-rounds: invalid JSON or JSONL at line {lineno}: {exc}",
+                    file=sys.stderr,
+                )
+                return 3
+        if not jsonl_payload:
+            print(f"coderabbit-to-rounds: invalid JSON: {exc}", file=sys.stderr)
+            return 3
+        payload = jsonl_payload
 
     findings = _find_findings(payload)
     out_dir = Path(args.output_dir)
@@ -210,19 +267,17 @@ def main() -> int:
 
     for idx, finding in enumerate(findings, start=1):
         sev, sev_note = _normalize_severity(_first(finding, "severity", "priority", "level"))
-        file_path = _norm_path(_first(finding, "file", "path"), repo_root)
-        line = _norm_line(_first(finding, "line", "line_number", "start_line"))
-        comment = _first(finding, "comment", "description", "body") or ""
-        if not isinstance(comment, str):
-            comment = json.dumps(comment, indent=2)
-        suggestion = _first(finding, "suggestion", "fix", "recommendation") or ""
-        if not isinstance(suggestion, str):
-            suggestion = json.dumps(suggestion, indent=2)
+        file_path = _norm_path(_first(finding, "file", "path", "fileName", "filename"), repo_root)
+        comment = _body_text(_first(finding, "comment", "description", "body", "codegenInstructions"))
+        line = _norm_line(_first(finding, "line", "line_number", "start_line", "startLine"))
+        if line == 0:
+            line = _line_from_comment(comment)
+        suggestion = _body_text(_first(finding, "suggestion", "fix", "recommendation", "suggestions"))
         raw_title = _first(finding, "title", "summary")
         if isinstance(raw_title, str) and raw_title.strip():
             title = _truncate_title(raw_title)
         else:
-            title = _truncate_title(comment.split(".")[0] if comment else "")
+            title = _title_from_comment(comment) if comment else "Untitled coderabbit finding"
         provider_ref = _first(finding, "id", "comment_id", "finding_id") or ""
         if not isinstance(provider_ref, (str, int)):
             provider_ref = ""
