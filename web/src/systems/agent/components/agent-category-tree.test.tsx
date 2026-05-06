@@ -230,7 +230,18 @@ describe("AgentCategoryTree", () => {
       agentsError: true,
       sessions: [],
     });
-    expect(screen.getByTestId("agents-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-error")).toBeInTheDocument();
+  });
+
+  it("Should keep rendering stale agents when a refresh error occurs after data loads", () => {
+    renderTree({
+      agents: [makeAgent({ name: "writer" })],
+      agentsLoading: false,
+      agentsError: true,
+      sessions: [],
+    });
+    expect(screen.getByTestId("agent-row-writer")).toBeInTheDocument();
+    expect(screen.queryByTestId("agents-error")).not.toBeInTheDocument();
   });
 
   it("Should not auto-expand a different category when the active route changes after mount", () => {

@@ -171,6 +171,35 @@ describe("SessionCreateDialog", () => {
     expect(picker).toHaveTextContent("Loading providers…");
   });
 
+  it("disables both pickers until a workspace is selected", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            workspace: undefined,
+            selectedAgentName: "claude-agent",
+            selectedProvider: "claude",
+          })}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("session-create-agent-select")).toBeDisabled();
+    expect(screen.getByTestId("session-create-agent-select")).toHaveTextContent(
+      "Select a workspace first"
+    );
+    expect(screen.queryByTestId("session-create-agent-default")).not.toBeInTheDocument();
+
+    const providerPicker = screen.getByTestId(
+      "session-create-provider-select"
+    ) as HTMLSelectElement;
+    expect(providerPicker).toBeDisabled();
+    expect(providerPicker.value).toBe("");
+    expect(providerPicker).toHaveTextContent("Select a workspace first");
+    expect(screen.queryByTestId("session-create-provider-runtime")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-create-providers-empty")).not.toBeInTheDocument();
+  });
+
   it("blocks backdrop dismissal while submit is in flight", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);

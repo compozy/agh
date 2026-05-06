@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,8 +24,8 @@ func TestAgentPayloadCategoryPath(t *testing.T) {
 			CategoryPath: []string{"Marketing", "Sales"},
 			Prompt:       "hello",
 		})
-		if got, want := strings.Join(payload.CategoryPath, ","), "Marketing,Sales"; got != want {
-			t.Fatalf("payload category_path = %#v, want %q", payload.CategoryPath, want)
+		if got, want := payload.CategoryPath, []string{"Marketing", "Sales"}; !slices.Equal(got, want) {
+			t.Fatalf("payload category_path = %#v, want %#v", got, want)
 		}
 	})
 
@@ -39,8 +40,8 @@ func TestAgentPayloadCategoryPath(t *testing.T) {
 		}
 		payload := core.AgentPayloadFromDef(agent)
 		agent.CategoryPath[0] = "Changed"
-		if got, want := strings.Join(payload.CategoryPath, ","), "Marketing,Sales"; got != want {
-			t.Fatalf("payload category_path = %#v, want %q", payload.CategoryPath, want)
+		if got, want := payload.CategoryPath, []string{"Marketing", "Sales"}; !slices.Equal(got, want) {
+			t.Fatalf("payload category_path = %#v, want %#v", got, want)
 		}
 	})
 

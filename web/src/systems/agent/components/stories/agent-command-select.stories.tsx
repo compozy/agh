@@ -24,10 +24,14 @@ const categoryByName: Record<string, string[]> = {
   [storyAgentNames.compliance]: ["Risk", "Compliance"],
 };
 
-const categorizedAgents: AgentPayload[] = agentFixtures.map(agent => {
-  const category_path = categoryByName[agent.name];
-  return category_path ? { ...agent, category_path } : agent;
-});
+export function withStoryAgentCategories(agents: AgentPayload[]): AgentPayload[] {
+  return agents.map(agent => {
+    const category_path = categoryByName[agent.name];
+    return category_path ? { ...agent, category_path } : agent;
+  });
+}
+
+export const categorizedAgents: AgentPayload[] = withStoryAgentCategories(agentFixtures);
 
 const flatAgents: AgentPayload[] = agentFixtures.slice(0, 4);
 

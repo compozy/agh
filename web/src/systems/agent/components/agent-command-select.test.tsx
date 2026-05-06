@@ -124,4 +124,27 @@ describe("AgentCommandSelect", () => {
     expect(screen.queryByTestId("agent-command-item-writer")).toBeInTheDocument();
     expect(screen.queryByTestId("agent-command-item-coder")).not.toBeInTheDocument();
   });
+
+  it("Should use tokenized metadata classes for provider and category labels in the list", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <AgentCommandSelect
+          agents={[makeAgent({ name: "deals", category_path: ["Marketing", "Sales"] })]}
+          value={null}
+          onChange={() => undefined}
+          triggerTestId="trigger"
+        />
+      </UIProvider>
+    );
+    await user.click(screen.getByTestId("trigger"));
+    expect(screen.getByTestId("agent-command-provider-deals")).toHaveClass(
+      "text-xs",
+      "tracking-wide"
+    );
+    expect(screen.getByTestId("agent-command-category-deals")).toHaveClass(
+      "text-xs",
+      "tracking-wide"
+    );
+  });
 });

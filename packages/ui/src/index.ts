@@ -256,6 +256,12 @@ export {
 } from "./components/item";
 export { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "./components/native-select";
 export { Tree, TreeItem, TreeItemLabel, TreeDragLine } from "./components/reui/tree";
+export type {
+  TreeProps,
+  TreeItemProps,
+  TreeItemLabelProps,
+  TreeDragLineProps,
+} from "./components/reui/tree";
 export { Textarea } from "./components/textarea";
 export { Toaster, toast, type ToasterProps } from "./components/sonner";
 export { DirectionProvider, useDirection } from "./components/direction";

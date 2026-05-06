@@ -2,32 +2,15 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { storyAgentNames, storyWorkspacePaths } from "@/storybook/fintech-scenario";
+import { storyWorkspacePaths } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
-import type { AgentPayload } from "@/systems/agent/types";
+import { withStoryAgentCategories } from "@/systems/agent/components/stories/agent-command-select.stories";
 import { sessionFixtures } from "@/systems/session/mocks";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import { AppSidebar, type AppSidebarProps } from "../app-sidebar";
 
-const sidebarStoryCategoryByName: Record<string, string[]> = {
-  [storyAgentNames.cto]: ["Engineering", "Leadership"],
-  [storyAgentNames.platform]: ["Engineering", "Platform"],
-  [storyAgentNames.frontend]: ["Engineering", "Platform"],
-  [storyAgentNames.release]: ["Engineering", "Platform"],
-  [storyAgentNames.cfo]: ["Finance"],
-  [storyAgentNames.marketing]: ["Marketing", "Campaigns"],
-  [storyAgentNames.copywriter]: ["Marketing", "Campaigns"],
-  [storyAgentNames.product]: ["Product"],
-  [storyAgentNames.support]: ["Support"],
-  [storyAgentNames.fraud]: ["Risk", "Fraud"],
-  [storyAgentNames.compliance]: ["Risk", "Compliance"],
-};
-
-const categorizedAgentFixtures: AgentPayload[] = agentFixtures.map(agent => {
-  const category_path = sidebarStoryCategoryByName[agent.name];
-  return category_path ? { ...agent, category_path } : agent;
-});
+const categorizedAgentFixtures = withStoryAgentCategories(agentFixtures);
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (

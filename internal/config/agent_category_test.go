@@ -194,6 +194,9 @@ Prompt.
 }
 
 func equalStringSlicesForTest(got []string, want []string) bool {
+	if (got == nil) != (want == nil) {
+		return false
+	}
 	if len(got) != len(want) {
 		return false
 	}

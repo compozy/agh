@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ItemInstance } from "@headless-tree/core";
-import { Bot, Loader2 } from "lucide-react";
+import { Bot, Loader2, TriangleAlert } from "lucide-react";
 
 import { cn, Pill, Tree, TreeItem, TreeItemLabel } from "@agh/ui";
 
@@ -32,6 +32,8 @@ export function AgentCategoryTree({
   agentsError,
   sessions,
 }: AgentCategoryTreeProps) {
+  const hasAgents = Array.isArray(agents) && agents.length > 0;
+
   if (agentsLoading) {
     return (
       <div
@@ -44,7 +46,23 @@ export function AgentCategoryTree({
     );
   }
 
-  if (agentsError || !agents || agents.length === 0) {
+  if (hasAgents) {
+    return <AgentCategoryTreeContent agents={agents} sessions={sessions} />;
+  }
+
+  if (agentsError) {
+    return (
+      <div
+        data-testid="agents-error"
+        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+      >
+        <TriangleAlert aria-hidden="true" className="size-3" />
+        <span>Could not load agents. Retry once the daemon is reachable.</span>
+      </div>
+    );
+  }
+
+  if (!agents || agents.length === 0) {
     return (
       <div
         data-testid="agents-empty"
@@ -56,7 +74,7 @@ export function AgentCategoryTree({
     );
   }
 
-  return <AgentCategoryTreeContent agents={agents} sessions={sessions} />;
+  return null;
 }
 
 interface AgentCategoryTreeContentProps {

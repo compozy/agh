@@ -62,10 +62,10 @@ function Tree<T>({
   ...props
 }: TreeProps<T>) {
   const containerProps = tree.getContainerProps();
-  const { style: propStyle, ...otherProps } = { ...props, ...containerProps };
+  const { style: mergedContainerStyle, ...otherProps } = mergeProps<"div">(containerProps, props);
 
   const mergedStyle = {
-    ...propStyle,
+    ...mergedContainerStyle,
     "--tree-indent": `${indent}px`,
   } as React.CSSProperties;
 
@@ -91,10 +91,13 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
   const { indent } = parentContext;
 
   const itemProps = item.getProps();
-  const { style: propStyle, ...otherProps } = { ...props, children, ...itemProps };
+  const { style: mergedItemStyle, ...otherProps } = mergeProps<"button">(itemProps, {
+    ...props,
+    children,
+  });
 
   const mergedStyle = {
-    ...propStyle,
+    ...mergedItemStyle,
     "--tree-padding": `${item.getItemMeta().level * indent}px`,
   } as React.CSSProperties;
 
@@ -108,6 +111,7 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
   const searchMatch = optionalFeatureCall(item, "isMatchingSearch");
   const defaultProps = {
     "data-slot": "tree-item",
+    type: "button" as const,
     style: mergedStyle,
     className: cn(
       "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

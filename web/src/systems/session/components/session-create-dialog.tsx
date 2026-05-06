@@ -54,15 +54,29 @@ function SessionCreateDialog({
 }: SessionCreateDialogProps) {
   const trimmedSelectedAgentName = selectedAgentName.trim();
   const trimmedSelectedProvider = selectedProvider.trim();
-  const activeAgent = agents.find(agent => agent.name === trimmedSelectedAgentName);
+  const workspaceSelected = workspace !== undefined;
+  const activeAgent = workspaceSelected
+    ? agents.find(agent => agent.name === trimmedSelectedAgentName)
+    : undefined;
   const hasAgents = agents.length > 0;
   const hasProviderOptions = providerOptions.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const hasSelectedProvider = providerOptions.some(
     option => option.name === trimmedSelectedProvider
   );
-  const activeProvider = providerOptions.find(option => option.name === trimmedSelectedProvider);
-  const workspaceSelected = workspace !== undefined;
+  const activeProvider = workspaceSelected
+    ? providerOptions.find(option => option.name === trimmedSelectedProvider)
+    : undefined;
+  const agentPlaceholder = !workspaceSelected
+    ? "Select a workspace first"
+    : hasAgents
+      ? "Select an agent"
+      : "No agents available";
+  const providerPlaceholder = !workspaceSelected
+    ? "Select a workspace first"
+    : providersLoading
+      ? "Loading providers…"
+      : "No providers available";
   const canSubmit =
     !isSubmitting &&
     !providersLoading &&
@@ -110,12 +124,12 @@ function SessionCreateDialog({
               </FieldDescription>
               <AgentCommandSelect
                 agents={agents}
-                value={trimmedSelectedAgentName || null}
+                value={workspaceSelected ? trimmedSelectedAgentName || null : null}
                 onChange={next => onAgentChange(next ?? "")}
-                disabled={!hasAgents || isSubmitting}
+                disabled={!workspaceSelected || !hasAgents || isSubmitting}
                 triggerId="session-create-agent"
                 triggerTestId="session-create-agent-select"
-                placeholder={hasAgents ? "Select an agent" : "No agents available"}
+                placeholder={agentPlaceholder}
               />
               {activeAgent ? (
                 <div
@@ -140,15 +154,15 @@ function SessionCreateDialog({
               <NativeSelect
                 className="w-full"
                 data-testid="session-create-provider-select"
-                disabled={providersLoading || !hasProviderOptions || isSubmitting}
+                disabled={
+                  !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
+                }
                 id="session-create-provider"
                 onChange={event => onProviderChange(event.target.value)}
-                value={selectedProvider}
+                value={workspaceSelected ? selectedProvider : ""}
               >
-                {hasProviderOptions ? null : (
-                  <NativeSelectOption value="">
-                    {providersLoading ? "Loading providers…" : "No providers available"}
-                  </NativeSelectOption>
+                {workspaceSelected && hasProviderOptions ? null : (
+                  <NativeSelectOption value="">{providerPlaceholder}</NativeSelectOption>
                 )}
                 {providerOptions.map(option => (
                   <NativeSelectOption key={option.name} value={option.name}>
@@ -179,7 +193,7 @@ function SessionCreateDialog({
                   {providersError}
                 </p>
               ) : null}
-              {!providersLoading && !providersError && !hasProviderOptions ? (
+              {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
                 <p
                   className="mt-1 text-xs text-[color:var(--color-warning)]"
                   data-testid="session-create-providers-empty"

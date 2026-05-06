@@ -1,19 +1,19 @@
 import type { AgentPayload } from "../types";
 
-export type AgentCategoryFolderNode = {
+export interface AgentCategoryFolderNode {
   kind: "folder";
   id: string;
   label: string;
   segments: string[];
   children: AgentCategoryNode[];
-};
+}
 
-export type AgentCategoryLeafNode = {
+export interface AgentCategoryLeafNode {
   kind: "leaf";
   id: string;
   label: string;
   agent: AgentPayload;
-};
+}
 
 export type AgentCategoryNode = AgentCategoryFolderNode | AgentCategoryLeafNode;
 

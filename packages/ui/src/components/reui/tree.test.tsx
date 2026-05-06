@@ -1,9 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import type { HTMLAttributes } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { syncDataLoaderFeature } from "@headless-tree/core";
 import { useTree } from "@headless-tree/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { Tree, TreeItem, TreeItemLabel } from "./tree";
+import type { ItemInstance } from "@headless-tree/core";
+
+import {
+  Tree,
+  TreeItem,
+  TreeItemLabel,
+  type TreeDragLineProps,
+  type TreeItemLabelProps,
+  type TreeItemProps,
+  type TreeProps,
+} from "../../index";
 
 interface TestTreeItem {
   kind: "root" | "folder" | "leaf";
@@ -22,7 +33,13 @@ const testChildren: Record<string, string[]> = {
   leaf: [],
 };
 
-function TreeHarness() {
+function TreeHarness({
+  treeProps,
+  itemProps,
+}: {
+  treeProps?: Partial<TreeProps<TestTreeItem>>;
+  itemProps?: Partial<TreeItemProps<TestTreeItem>>;
+} = {}) {
   const tree = useTree<TestTreeItem>({
     rootItemId: "root",
     getItemName: item => item.getItemData().label,
@@ -36,12 +53,17 @@ function TreeHarness() {
   });
 
   return (
-    <Tree tree={tree} aria-label="Tree test">
+    <Tree tree={tree} aria-label="Tree test" {...treeProps}>
       {tree.getItems().map(item => {
         const data = item.getItemData();
         if (data.kind === "root") return null;
         return (
-          <TreeItem key={item.getId()} item={item} data-testid={`tree-item-${item.getId()}`}>
+          <TreeItem
+            key={item.getId()}
+            item={item}
+            data-testid={`tree-item-${item.getId()}`}
+            {...itemProps}
+          >
             <TreeItemLabel item={item}>{data.label}</TreeItemLabel>
           </TreeItem>
         );
@@ -51,6 +73,17 @@ function TreeHarness() {
 }
 
 describe("Tree", () => {
+  it("Should expose tree prop types from the public entrypoint", () => {
+    expectTypeOf<TreeProps<TestTreeItem>>().toMatchTypeOf<{ tree: object }>();
+    expectTypeOf<TreeItemProps<TestTreeItem>>().toMatchTypeOf<{
+      item: ItemInstance<TestTreeItem>;
+    }>();
+    expectTypeOf<TreeItemLabelProps<TestTreeItem>>().toMatchTypeOf<{
+      item?: ItemInstance<TestTreeItem>;
+    }>();
+    expectTypeOf<TreeDragLineProps<TestTreeItem>>().toMatchTypeOf<HTMLAttributes<HTMLDivElement>>();
+  });
+
   it("Should emit aria-expanded for folders only", () => {
     render(<TreeHarness />);
 
@@ -66,5 +99,19 @@ describe("Tree", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it("Should preserve caller click handlers on tree items", () => {
+    const onClick = vi.fn();
+    render(<TreeHarness itemProps={{ onClick }} />);
+
+    fireEvent.click(screen.getByTestId("tree-item-folder"));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should default tree items to type=button", () => {
+    render(<TreeHarness />);
+
+    expect(screen.getByTestId("tree-item-folder")).toHaveAttribute("type", "button");
   });
 });

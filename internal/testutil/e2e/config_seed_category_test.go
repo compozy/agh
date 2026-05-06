@@ -1,7 +1,7 @@
 package e2e
 
 import (
-	"strings"
+	"slices"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -25,8 +25,8 @@ func TestWriteAgentDefCategoryPath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadAgentDef(builder) error = %v", err)
 		}
-		if got, want := strings.Join(agent.CategoryPath, ","), "Engineering,Tools"; got != want {
-			t.Fatalf("agent.CategoryPath = %#v, want %q", agent.CategoryPath, want)
+		if got, want := agent.CategoryPath, []string{"Engineering", "Tools"}; !slices.Equal(got, want) {
+			t.Fatalf("agent.CategoryPath = %#v, want %#v", got, want)
 		}
 	})
 }
