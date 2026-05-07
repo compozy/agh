@@ -298,6 +298,10 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		r.initializing = false
+		return nil, err
+	}
 	r.session = session
 	r.initializing = false
 	return response, nil

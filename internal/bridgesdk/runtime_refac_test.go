@@ -68,6 +68,7 @@ func TestRuntimeRefacs(t *testing.T) {
 		t.Parallel()
 
 		shutdownCalls := 0
+		shutdownFailure := errors.New("provider shutdown failed")
 		runtime, err := NewRuntime(RuntimeConfig{
 			ExtensionInfo: subprocess.InitializeExtensionInfo{
 				Name:    "telegram-adapter",
@@ -79,7 +80,7 @@ func TestRuntimeRefacs(t *testing.T) {
 			Shutdown: func(context.Context, *Session, subprocess.ShutdownRequest) error {
 				shutdownCalls++
 				if shutdownCalls == 1 {
-					return errors.New("provider shutdown failed")
+					return shutdownFailure
 				}
 				return nil
 			},
@@ -89,8 +90,9 @@ func TestRuntimeRefacs(t *testing.T) {
 		}
 		runtime.session = &Session{}
 
-		if _, err := runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"test"}`)); err == nil {
-			t.Fatal("first handleShutdown() error = nil, want provider failure")
+		_, err = runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"test"}`))
+		if !errors.Is(err, shutdownFailure) {
+			t.Fatalf("first handleShutdown() error = %v, want %v", err, shutdownFailure)
 		}
 
 		response, err := runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"retry"}`))
@@ -106,6 +108,46 @@ func TestRuntimeRefacs(t *testing.T) {
 		}
 		if !shutdown.Acknowledged {
 			t.Fatal("shutdown.Acknowledged = false, want true")
+		}
+	})
+
+	t.Run("Should not publish a session after initialize context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		var cancel context.CancelFunc
+		runtime, err := NewRuntime(RuntimeConfig{
+			ExtensionInfo: subprocess.InitializeExtensionInfo{
+				Name:    "telegram-adapter",
+				Version: "1.0.0",
+			},
+			Initialize: func(context.Context, *Session) error {
+				cancel()
+				return nil
+			},
+			Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
+				return session.AckDelivery(request, "remote-1", "")
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime() error = %v", err)
+		}
+		runtime.peer = NewPeer(io.Reader(nil), io.Discard)
+
+		raw, err := json.Marshal(testInitializeRequest())
+		if err != nil {
+			t.Fatalf("json.Marshal(initialize request) error = %v", err)
+		}
+
+		ctx, runtimeCancel := context.WithCancel(t.Context())
+		cancel = runtimeCancel
+		t.Cleanup(cancel)
+
+		_, err = runtime.handleInitialize(ctx, raw)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("handleInitialize() error = %v, want %v", err, context.Canceled)
+		}
+		if runtime.Session() != nil {
+			t.Fatal("runtime.Session() after canceled initialize != nil, want nil")
 		}
 	})
 

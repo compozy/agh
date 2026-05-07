@@ -190,8 +190,10 @@ func BenchmarkPromptStreamEncoderEmit(b *testing.B) {
 	}
 
 	for b.Loop() {
+		b.StopTimer()
 		writer.Reset()
 		encoder := NewPromptStreamEncoder(now)
+		b.StartTimer()
 		for _, event := range events {
 			if err := encoder.Emit(writer, event); err != nil {
 				b.Fatalf("PromptStreamEncoder.Emit() error: %v", err)

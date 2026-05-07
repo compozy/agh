@@ -207,14 +207,15 @@ func TestErrorOutputConventionsRenderStableJSONAndJSONL(t *testing.T) {
 		if jsonlErr != nil {
 			t.Fatalf("MarshalErrorJSONL() error = %v", jsonlErr)
 		}
-		if strings.Contains(string(jsonlPayload), "\n") {
-			t.Fatalf("JSONL payload contains embedded newline: %q", jsonlPayload)
+		if len(jsonlPayload) == 0 || jsonlPayload[len(jsonlPayload)-1] != '\n' {
+			t.Fatalf("JSONL payload missing trailing newline: %q", jsonlPayload)
 		}
 		var jsonlObject struct {
 			Type  string       `json:"type"`
 			Error ErrorPayload `json:"error"`
 		}
-		if unmarshalErr := json.Unmarshal(jsonlPayload, &jsonlObject); unmarshalErr != nil {
+		jsonlFrame := []byte(strings.TrimSuffix(string(jsonlPayload), "\n"))
+		if unmarshalErr := json.Unmarshal(jsonlFrame, &jsonlObject); unmarshalErr != nil {
 			t.Fatalf("json.Unmarshal(JSONL) error = %v", unmarshalErr)
 		}
 		if jsonlObject.Type != "error" || jsonlObject.Error.Action == "" {

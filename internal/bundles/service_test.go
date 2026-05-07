@@ -817,6 +817,11 @@ func TestFindBundleResourceRecordIndexedNormalizesLookupKeys(t *testing.T) {
 	if got.ID != record.ID {
 		t.Fatalf("findBundleResourceRecordIndexed().ID = %q, want %q", got.ID, record.ID)
 	}
+
+	_, ok = findBundleResourceRecordIndexed(lookup, "", "launch")
+	if ok {
+		t.Fatal("findBundleResourceRecordIndexed() ok = true for empty extension name, want false")
+	}
 }
 
 func TestFindBundleResourceRecordIndexedPreservesFirstNormalizedRecord(t *testing.T) {

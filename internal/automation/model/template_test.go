@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -43,6 +44,10 @@ func TestValidateTriggerPromptTemplateAcceptsSupportedReferences(t *testing.T) {
 		{
 			name:   "Should accept defined templates with root envelope invocation",
 			prompt: `{{ define "body" }}{{ .Source }}{{ end }}{{ template "body" . }}`,
+		},
+		{
+			name:   "Should accept plain text without template delimiters",
+			prompt: "Trigger kind: plain text only",
 		},
 	}
 
@@ -107,6 +112,35 @@ func TestValidateTriggerPromptTemplateRejectsUnsupportedReferences(t *testing.T)
 	}
 }
 
+func TestValidateTriggerPromptTemplateRejectsRequiredInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		prompt string
+	}{
+		{
+			name:   "Should reject empty prompts",
+			prompt: "",
+		},
+		{
+			name:   "Should reject whitespace-only prompts",
+			prompt: "   ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateTriggerPromptTemplate(tt.prompt)
+			if !errors.Is(err, errTriggerPromptTemplateRequired) {
+				t.Fatalf("ValidateTriggerPromptTemplate() error = %v, want %v", err, errTriggerPromptTemplateRequired)
+			}
+		})
+	}
+}
+
 func TestParseTriggerPromptTemplateRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -115,11 +149,6 @@ func TestParseTriggerPromptTemplateRejectsInvalidInput(t *testing.T) {
 		prompt string
 		want   []string
 	}{
-		{
-			name:   "Should reject empty prompts",
-			prompt: "   ",
-			want:   []string{"required"},
-		},
 		{
 			name:   "Should reject template syntax errors",
 			prompt: "{{ if .Kind }}",
@@ -140,6 +169,19 @@ func TestParseTriggerPromptTemplateRejectsInvalidInput(t *testing.T) {
 			requireErrorContains(t, err, tt.want...)
 		})
 	}
+}
+
+func TestParseTriggerPromptTemplateRejectsRequiredInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the required-input sentinel", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ParseTriggerPromptTemplate("   ")
+		if !errors.Is(err, errTriggerPromptTemplateRequired) {
+			t.Fatalf("ParseTriggerPromptTemplate() error = %v, want %v", err, errTriggerPromptTemplateRequired)
+		}
+	})
 }
 
 func requireErrorContains(t *testing.T, err error, want ...string) {

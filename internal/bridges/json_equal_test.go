@@ -15,4 +15,12 @@ func TestSemanticJSONEqualTreatsEquivalentNumbersAsEqual(t *testing.T) {
 			t.Fatal("semanticJSONEqual() = false, want true for equivalent numeric values")
 		}
 	})
+
+	t.Run("Should reject multiple concatenated JSON values", func(t *testing.T) {
+		t.Parallel()
+
+		if semanticJSONEqual([]byte(`{"value":1}{"value":1}`), []byte(`{"value":1}`)) {
+			t.Fatal("semanticJSONEqual() = true, want false for multiple concatenated JSON values")
+		}
+	})
 }

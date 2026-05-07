@@ -320,9 +320,6 @@ func decodeSemanticJSON(data []byte) (any, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	if extra != nil {
-		return nil, errors.New("bridges: JSON payload contains multiple values")
-	}
 	return nil, errors.New("bridges: JSON payload contains multiple values")
 }
 

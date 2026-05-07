@@ -36,6 +36,7 @@ func TestMergedRuntimeContextNilParent(t *testing.T) {
 		t.Parallel()
 
 		runtimeCtx, cancelRuntime := context.WithCancel(testutil.Context(t))
+		t.Cleanup(cancelRuntime)
 		mergedCtx, cancelMerged := mergedRuntimeContext(nilContextForMergedRuntimeTest(), runtimeCtx)
 		t.Cleanup(cancelMerged)
 

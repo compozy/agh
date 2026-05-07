@@ -102,13 +102,17 @@ func MarshalErrorJSON(err error) ([]byte, error) {
 
 // MarshalErrorJSONL renders one stable JSONL error frame for agent CLI streaming commands.
 func MarshalErrorJSONL(err error) ([]byte, error) {
-	return json.Marshal(struct {
+	frame, marshalErr := json.Marshal(struct {
 		Type  string       `json:"type"`
 		Error ErrorPayload `json:"error"`
 	}{
 		Type:  "error",
 		Error: ErrorPayloadFor(err),
 	})
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
+	return append(frame, '\n'), nil
 }
 
 // ExitCodeForError maps agent identity and command errors to deterministic CLI exit codes.

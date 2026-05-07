@@ -17,7 +17,7 @@ func DecodeSSEData(t *testing.T, record SSERecord, dest any) {
 	t.Helper()
 
 	if err := json.Unmarshal(record.Data, dest); err != nil {
-		t.Fatalf("json.Unmarshal(sse data) error = %v; data=%s", err, string(record.Data))
+		t.Fatalf("json.Unmarshal(sse data) error = %v; data_len=%d", err, len(record.Data))
 	}
 }
 

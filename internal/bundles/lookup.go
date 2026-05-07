@@ -44,12 +44,6 @@ func findBundleResourceRecordIndexed(
 	if ok {
 		return lookup.records[idx], true
 	}
-	for _, candidate := range lookup.records {
-		if strings.EqualFold(strings.TrimSpace(candidate.Spec.ExtensionName), key.extensionName) &&
-			strings.EqualFold(strings.TrimSpace(candidate.Spec.Bundle.Name), key.bundleName) {
-			return candidate, true
-		}
-	}
 	return resources.Record[BundleResourceSpec]{}, false
 }
 

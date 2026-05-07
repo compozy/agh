@@ -77,34 +77,47 @@ func TestPerformRequestWithHeaders(t *testing.T) {
 			}
 		})
 
-		withBody := PerformRequestWithHeaders(
-			t,
-			handler,
-			http.MethodPost,
-			"/demo",
-			[]byte(`{"ok":true}`),
-			map[string]string{"X-Trace": "trace-1"},
-		)
-		if withBody.Code != http.StatusCreated {
-			t.Fatalf("with body status = %d, want %d", withBody.Code, http.StatusCreated)
-		}
-		if got, want := withBody.Body.String(), "application/json|trace-1"; got != want {
-			t.Fatalf("with body response = %q, want %q", got, want)
+		tests := []struct {
+			name         string
+			method       string
+			body         []byte
+			headers      map[string]string
+			wantResponse string
+		}{
+			{
+				name:         "Should set JSON content type when body is present",
+				method:       http.MethodPost,
+				body:         []byte(`{"ok":true}`),
+				headers:      map[string]string{"X-Trace": "trace-1"},
+				wantResponse: "application/json|trace-1",
+			},
+			{
+				name:         "Should preserve headers without forcing content type when body is absent",
+				method:       http.MethodGet,
+				headers:      map[string]string{"X-Trace": "trace-2"},
+				wantResponse: "|trace-2",
+			},
 		}
 
-		withoutBody := PerformRequestWithHeaders(
-			t,
-			handler,
-			http.MethodGet,
-			"/demo",
-			nil,
-			map[string]string{"X-Trace": "trace-2"},
-		)
-		if withoutBody.Code != http.StatusCreated {
-			t.Fatalf("without body status = %d, want %d", withoutBody.Code, http.StatusCreated)
-		}
-		if got, want := withoutBody.Body.String(), "|trace-2"; got != want {
-			t.Fatalf("without body response = %q, want %q", got, want)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				response := PerformRequestWithHeaders(
+					t,
+					handler,
+					tt.method,
+					"/demo",
+					tt.body,
+					tt.headers,
+				)
+				if response.Code != http.StatusCreated {
+					t.Fatalf("response status = %d, want %d", response.Code, http.StatusCreated)
+				}
+				if got := response.Body.String(); got != tt.wantResponse {
+					t.Fatalf("response body = %q, want %q", got, tt.wantResponse)
+				}
+			})
 		}
 	})
 }
