@@ -99,6 +99,9 @@ function routePattern(route: string): RegExp {
       if (part.startsWith(":")) {
         return "[^/]+";
       }
+      if (part.startsWith("*")) {
+        return ".*";
+      }
       return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     })
     .join("/");

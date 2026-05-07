@@ -342,7 +342,7 @@ func (s *CatalogService) selectSources(sourceID string) ([]Source, error) {
 	}
 	source, ok := s.sourceByID[trimmed]
 	if !ok {
-		return nil, fmt.Errorf("model catalog source %q is not registered", trimmed)
+		return nil, fmt.Errorf("%w: %q", ErrSourceNotRegistered, trimmed)
 	}
 	return []Source{source}, nil
 }

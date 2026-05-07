@@ -59,7 +59,10 @@ export const API_SECTIONS: CoreSection[] = [
     ids: ["tools", "toolsets", "resources", "bundles", "automation", "bridges"],
   },
   { label: "Network", ids: ["network", "observe", "hooks"] },
-  { label: "Operations", ids: ["daemon", "settings", "extensions", "vault", "agent", "tasks"] },
+  {
+    label: "Operations",
+    ids: ["daemon", "settings", "providers", "extensions", "vault", "agent", "tasks", "openai"],
+  },
 ];
 
 function indexCoreChildren(coreFolder: Folder): Map<string, Node> {

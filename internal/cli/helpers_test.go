@@ -21,6 +21,9 @@ type stubClient struct {
 	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
 	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
 	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	listProviderModelsFn        func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
+	refreshProviderModelsFn     func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
+	providerModelStatusFn       func(context.Context, string) (ProviderModelStatusRecord, error)
 	listVaultSecretsFn          func(context.Context, VaultListQuery) ([]VaultRecord, error)
 	getVaultSecretFn            func(context.Context, string) (VaultRecord, error)
 	putVaultSecretFn            func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
@@ -277,6 +280,37 @@ func (s *stubClient) UpdateSettingsSkills(
 		return s.updateSettingsSkillsFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsSkills call")
+}
+
+func (s *stubClient) ListProviderModels(
+	ctx context.Context,
+	query ProviderModelListQuery,
+) (ProviderModelListRecord, error) {
+	if s.listProviderModelsFn != nil {
+		return s.listProviderModelsFn(ctx, query)
+	}
+	return ProviderModelListRecord{}, errors.New("unexpected ListProviderModels call")
+}
+
+func (s *stubClient) RefreshProviderModels(
+	ctx context.Context,
+	providerID string,
+	request ProviderModelRefreshRequest,
+) (ProviderModelRefreshRecord, error) {
+	if s.refreshProviderModelsFn != nil {
+		return s.refreshProviderModelsFn(ctx, providerID, request)
+	}
+	return ProviderModelRefreshRecord{}, errors.New("unexpected RefreshProviderModels call")
+}
+
+func (s *stubClient) ProviderModelStatus(
+	ctx context.Context,
+	providerID string,
+) (ProviderModelStatusRecord, error) {
+	if s.providerModelStatusFn != nil {
+		return s.providerModelStatusFn(ctx, providerID)
+	}
+	return ProviderModelStatusRecord{}, errors.New("unexpected ProviderModelStatus call")
 }
 
 func (s *stubClient) ListVaultSecrets(

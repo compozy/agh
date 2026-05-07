@@ -10,6 +10,8 @@ var (
 	ErrAllSourcesFailed = errors.New("model catalog: all usable sources failed")
 	// ErrSourceDisabled reports that a source is intentionally disabled.
 	ErrSourceDisabled = errors.New("model catalog: source disabled")
+	// ErrSourceNotRegistered reports that a requested source id is not registered.
+	ErrSourceNotRegistered = errors.New("model catalog: source not registered")
 )
 
 // StaleFallbackError reports a refresh failure that returned stale fallback rows.

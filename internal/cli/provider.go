@@ -82,6 +82,7 @@ func newProviderCommand(deps commandDeps) *cobra.Command {
 		Short: "Inspect and manage provider authentication",
 	}
 	cmd.AddCommand(newProviderAuthCommand(deps))
+	cmd.AddCommand(newProviderModelsCommand(deps))
 	return cmd
 }
 

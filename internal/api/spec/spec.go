@@ -199,6 +199,8 @@ func Document() (*openapi3.T, error) {
 			{Name: "hooks"},
 			{Name: "memory"},
 			{Name: "observe"},
+			{Name: "openai"},
+			{Name: "providers"},
 			{Name: "resources"},
 			{Name: "sessions"},
 			{Name: "settings"},
@@ -4446,6 +4448,7 @@ var operationRegistry = []OperationSpec{
 func Operations() []OperationSpec {
 	ops := append([]OperationSpec(nil), operationRegistry...)
 	ops = append(ops, authoredContextOperations()...)
+	ops = append(ops, modelCatalogOperations()...)
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].Path == ops[j].Path {
 			return ops[i].Method < ops[j].Method

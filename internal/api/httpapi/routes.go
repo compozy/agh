@@ -33,6 +33,8 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
+	registerProviderModelRoutes(api, handlers)
+	registerOpenAIModelRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
@@ -395,6 +397,15 @@ func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {
 	vaultGroup.GET("/secrets/metadata", privileged, handlers.GetVaultSecretMetadata)
 	vaultGroup.PUT("/secrets", privileged, handlers.PutVaultSecret)
 	vaultGroup.DELETE("/secrets", privileged, handlers.DeleteVaultSecret)
+}
+
+func registerProviderModelRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/providers/*catalog_path", handlers.ProviderModelCatalog)
+	api.POST("/providers/*catalog_path", handlers.ProviderModelCatalog)
+}
+
+func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/openai/v1/models", handlers.OpenAIModels)
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
