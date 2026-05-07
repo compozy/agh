@@ -71,7 +71,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if !ok {
 			t.Fatalf("ListSourceStatus(hermes) missing provider_live status: %#v", statuses)
 		}
-		if got, want := status.RefreshState, string(modelcatalog.RefreshStateFailed); got != want {
+		if got, want := status.RefreshState, modelcatalog.RefreshStateFailed; got != want {
 			t.Fatalf("provider_live refresh state = %q, want %q", got, want)
 		}
 		if status.LastError == "" {

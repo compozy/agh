@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/testutil/acpmock/cmd/acpmock-driver/main.go
 line: 39
 author: coderabbitai[bot]
@@ -68,5 +68,8 @@ mockAgent.configOptions so each session keeps its own config.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `mockAgent` still stores `configOptions` at agent scope, `NewSession`/`LoadSession` do not create per-session config state, and `ResumeSession` returns an empty response.
+  - That leaks config changes across sessions even though ACP session config is session-scoped.
+  - Fix plan: move config options into `sessionState`, create/load them per session, and make `SetSessionConfigOption` and resume/load responses use the targeted session’s config state.

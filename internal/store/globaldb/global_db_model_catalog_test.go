@@ -14,7 +14,10 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
-const modelCatalogMigrationVersion = 23
+const (
+	modelCatalogMigrationVersion                 = 23
+	modelCatalogSourceConstraintMigrationVersion = 24
+)
 
 func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 	t.Parallel()
@@ -25,10 +28,10 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 
 		assertModelCatalogSchema(t, globalDB.db)
-		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogMigrationVersion)
+		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogSourceConstraintMigrationVersion)
 	})
 
-	t.Run("Should upgrade previous global schema by appending model catalog migration", func(t *testing.T) {
+	t.Run("Should upgrade previous global schema by appending model catalog migrations", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -70,9 +73,9 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 		if got, want := len(records), len(globalSchemaMigrations); got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
-		if got := records[len(records)-1]; got.Version != modelCatalogMigrationVersion ||
-			got.Name != "add_model_catalog_persistence" {
-			t.Fatalf("tail migration = %#v, want model catalog v23", got)
+		if got := records[len(records)-1]; got.Version != modelCatalogSourceConstraintMigrationVersion ||
+			got.Name != "rebuild_model_catalog_source_constraints" {
+			t.Fatalf("tail migration = %#v, want model catalog source constraint v24", got)
 		}
 		for index, before := range beforeRecords {
 			if !records[index].AppliedAt.Equal(before.AppliedAt) {
@@ -84,6 +87,86 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 				)
 			}
 		}
+	})
+
+	t.Run("Should rebuild v23 model catalog tables into the v24 constrained shape", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		previousDB := openV23ModelCatalogSchemaDB(t, path)
+		if _, err := previousDB.ExecContext(
+			ctx,
+			`INSERT INTO model_catalog_rows (
+				source_id,
+				provider_id,
+				model_id,
+				source_kind,
+				priority,
+				stale,
+				refreshed_at,
+				expires_at,
+				display_name,
+				last_error
+			) VALUES (?, ?, ?, ?, ?, 0, ?, ?, '', '')`,
+			"orphan-source",
+			"codex",
+			"gpt-5.4",
+			string(modelcatalog.SourceKindConfig),
+			120,
+			time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
+			"",
+		); err != nil {
+			t.Fatalf("ExecContext(insert orphan row) error = %v", err)
+		}
+		if err := previousDB.Close(); err != nil {
+			t.Fatalf("previousDB.Close() error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v24 upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(v24 upgrade) error = %v", closeErr)
+			}
+		})
+
+		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogSourceConstraintMigrationVersion)
+
+		var rowCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM model_catalog_rows`).
+			Scan(&rowCount); err != nil {
+			t.Fatalf("QueryRowContext(model_catalog_rows count) error = %v", err)
+		}
+		if got, want := rowCount, 0; got != want {
+			t.Fatalf("model_catalog_rows count = %d, want %d after rebuild", got, want)
+		}
+
+		_, err = globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO model_catalog_rows (
+				source_id,
+				provider_id,
+				model_id,
+				source_kind,
+				priority,
+				stale,
+				refreshed_at,
+				expires_at,
+				display_name,
+				last_error
+			) VALUES (?, ?, ?, ?, ?, 0, ?, ?, '', '')`,
+			"missing-source",
+			"codex",
+			"gpt-5.4",
+			string(modelcatalog.SourceKindConfig),
+			120,
+			time.Date(2026, 5, 7, 12, 1, 0, 0, time.UTC).Format(time.RFC3339Nano),
+			"",
+		)
+		requireSQLiteConstraintError(t, err)
 	})
 
 	t.Run("Should keep model catalog migration record stable after reopen", func(t *testing.T) {
@@ -134,26 +217,26 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 	t.Run("Should keep model catalog migration identity at global registry tail", func(t *testing.T) {
 		t.Parallel()
 
-		if len(globalSchemaMigrations) < modelCatalogMigrationVersion {
+		if len(globalSchemaMigrations) < modelCatalogSourceConstraintMigrationVersion {
 			t.Fatalf(
 				"len(globalSchemaMigrations) = %d, want at least %d",
 				len(globalSchemaMigrations),
-				modelCatalogMigrationVersion,
+				modelCatalogSourceConstraintMigrationVersion,
 			)
 		}
 		tail := globalSchemaMigrations[len(globalSchemaMigrations)-1]
-		if tail.Version != modelCatalogMigrationVersion ||
-			tail.Name != "add_model_catalog_persistence" ||
-			tail.Checksum != "2026-05-07-add-model-catalog-persistence" {
+		if tail.Version != modelCatalogSourceConstraintMigrationVersion ||
+			tail.Name != "rebuild_model_catalog_source_constraints" ||
+			tail.Checksum != "2026-05-07-rebuild-model-catalog-source-constraints" {
 			t.Fatalf(
-				"tail migration = version %d name %q checksum %q, want model catalog v23",
+				"tail migration = version %d name %q checksum %q, want model catalog source constraint v24",
 				tail.Version,
 				tail.Name,
 				tail.Checksum,
 			)
 		}
-		if previous := globalSchemaMigrations[len(globalSchemaMigrations)-2]; previous.Version != modelCatalogMigrationVersion-1 {
-			t.Fatalf("previous migration version = %d, want %d", previous.Version, modelCatalogMigrationVersion-1)
+		if previous := globalSchemaMigrations[len(globalSchemaMigrations)-2]; previous.Version != modelCatalogMigrationVersion {
+			t.Fatalf("previous migration version = %d, want %d", previous.Version, modelCatalogMigrationVersion)
 		}
 	})
 
@@ -563,7 +646,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
-		if len(statuses) != 1 || statuses[0].RefreshState != string(modelcatalog.RefreshStateIdle) {
+		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateIdle {
 			t.Fatalf("statuses = %#v, want default idle refresh state", statuses)
 		}
 		rows, err := globalDB.ListRows(
@@ -604,7 +687,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		)
 
 		failed := modelCatalogStatus("provider_live:codex", "codex", modelcatalog.SourceKindProviderLive, 110)
-		failed.RefreshState = string(modelcatalog.RefreshStateFailed)
+		failed.RefreshState = modelcatalog.RefreshStateFailed
 		failed.LastError = "redacted refresh failed"
 		failed.Stale = true
 		if err := globalDB.ReplaceSourceRows(ctx, "provider_live:codex", "codex", nil, failed); err != nil {
@@ -620,7 +703,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 		status := statuses[0]
 		if status.RowCount != 0 || !status.Stale || status.LastError != "redacted refresh failed" ||
-			status.RefreshState != string(modelcatalog.RefreshStateFailed) {
+			status.RefreshState != modelcatalog.RefreshStateFailed {
 			t.Fatalf("status = %#v, want failed stale status with row_count 0", status)
 		}
 		rows, err := globalDB.ListRows(
@@ -905,6 +988,7 @@ func assertModelCatalogSchema(t *testing.T, db *sql.DB) {
 		"idx_model_catalog_rows_source_provider",
 	)
 	assertIndexesPresent(t, db, "model_catalog_sources", "idx_model_catalog_sources_provider")
+	assertModelCatalogRowSourceForeignKey(t, db)
 }
 
 func openPreviousModelCatalogSchemaDB(t *testing.T, dbPath string) *sql.DB {
@@ -927,6 +1011,24 @@ func previousModelCatalogMigrations() []store.Migration {
 	return migrations
 }
 
+func openV23ModelCatalogSchemaDB(t *testing.T, dbPath string) *sql.DB {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	db, err := store.OpenSQLiteDatabase(ctx, dbPath, nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(v23) error = %v", err)
+	}
+	if err := store.RunMigrations(
+		ctx,
+		db,
+		append([]store.Migration(nil), globalSchemaMigrations[:modelCatalogSourceConstraintMigrationVersion-1]...),
+	); err != nil {
+		t.Fatalf("RunMigrations(v23) error = %v", err)
+	}
+	return db
+}
+
 func schemaStatementsWithoutModelCatalog() []string {
 	blocked := make(map[string]struct{}, len(modelCatalogSchemaStatements()))
 	for _, statement := range modelCatalogSchemaStatements() {
@@ -940,6 +1042,52 @@ func schemaStatementsWithoutModelCatalog() []string {
 		filtered = append(filtered, statement)
 	}
 	return filtered
+}
+
+func assertModelCatalogRowSourceForeignKey(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	rows, err := db.QueryContext(testutil.Context(t), `PRAGMA foreign_key_list(model_catalog_rows)`)
+	if err != nil {
+		t.Fatalf("PRAGMA foreign_key_list(model_catalog_rows) error = %v", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Fatalf("rows.Close(foreign_key_list model_catalog_rows) error = %v", closeErr)
+		}
+	}()
+
+	type foreignKeyRow struct {
+		table string
+		from  string
+		to    string
+	}
+
+	refs := make([]foreignKeyRow, 0)
+	for rows.Next() {
+		var (
+			id       int
+			seq      int
+			ref      foreignKeyRow
+			onUpdate string
+			onDelete string
+			match    string
+		)
+		if err := rows.Scan(&id, &seq, &ref.table, &ref.from, &ref.to, &onUpdate, &onDelete, &match); err != nil {
+			t.Fatalf("Scan(foreign_key_list model_catalog_rows) error = %v", err)
+		}
+		refs = append(refs, ref)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err(foreign_key_list model_catalog_rows) error = %v", err)
+	}
+
+	if !slices.Contains(refs, foreignKeyRow{table: "model_catalog_sources", from: "source_id", to: "source_id"}) {
+		t.Fatalf("model_catalog_rows foreign keys = %#v, want source_id -> model_catalog_sources(source_id)", refs)
+	}
+	if !slices.Contains(refs, foreignKeyRow{table: "model_catalog_sources", from: "provider_id", to: "provider_id"}) {
+		t.Fatalf("model_catalog_rows foreign keys = %#v, want provider_id -> model_catalog_sources(provider_id)", refs)
+	}
 }
 
 func replaceModelCatalogRows(
@@ -1012,7 +1160,7 @@ func modelCatalogStatus(
 		LastRefresh:  now,
 		NextRefresh:  now.Add(24 * time.Hour),
 		LastSuccess:  now,
-		RefreshState: string(modelcatalog.RefreshStateSucceeded),
+		RefreshState: modelcatalog.RefreshStateSucceeded,
 	}
 }
 

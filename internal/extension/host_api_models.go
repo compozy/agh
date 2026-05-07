@@ -192,7 +192,7 @@ func hostAPIProviderModelPayloadFromModel(model modelcatalog.Model) apicontract.
 		DisplayName:            model.DisplayName,
 		Sources:                hostAPISourceRefPayloadsFromRefs(model.Sources),
 		Available:              model.Available,
-		AvailabilityState:      model.AvailabilityState,
+		AvailabilityState:      string(model.AvailabilityState),
 		Stale:                  model.Stale,
 		RefreshedAt:            hostAPIModelCatalogTimeString(model.RefreshedAt),
 		ContextWindow:          model.ContextWindow,
@@ -236,7 +236,7 @@ func hostAPISourceStatusPayloadsFromStatuses(
 			NextRefresh:  hostAPIModelCatalogTimeString(status.NextRefresh),
 			LastSuccess:  hostAPIModelCatalogTimeString(status.LastSuccess),
 			LastError:    modelcatalog.RedactString(status.LastError),
-			RefreshState: status.RefreshState,
+			RefreshState: string(status.RefreshState),
 			RowCount:     status.RowCount,
 			Stale:        status.Stale,
 		})

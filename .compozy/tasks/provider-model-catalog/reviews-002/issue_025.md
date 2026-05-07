@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/session/manager_start.go
 line: 387
 severity: nitpick
@@ -21,5 +21,8 @@ The `validateRuntimeOverrides` method accepts `resolved aghconfig.ResolvedAgent`
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `invalid`
 - Notes:
+  - The reported unused `resolved aghconfig.ResolvedAgent` parameter is no longer present in the current implementation.
+  - `validateRuntimeOverrides()` now has the signature `func (s *sessionStartSpec) validateRuntimeOverrides() error`, so there is nothing left to simplify here.
+  - No code change is needed; this finding is stale.

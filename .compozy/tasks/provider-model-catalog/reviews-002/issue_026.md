@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/settings/collections.go
 line: 1195
 author: coderabbitai[bot]
@@ -138,5 +138,8 @@ population logic for valid models.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `providerModelConfigMaps` still appends an entry even when `model.ID` trims to empty, so malformed curated entries can be serialized into the provider overlay.
+  - Because `putProvider` rewrites the provider block, this can persist invalid config state instead of dropping the malformed item.
+  - Fix plan: skip curated entries whose trimmed `id` is empty before building the serialized map.

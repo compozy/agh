@@ -117,7 +117,7 @@ func (s *CatalogService) Refresh(ctx context.Context, opts RefreshOptions) ([]So
 	}
 	providerKey := strings.TrimSpace(opts.ProviderID)
 	if providerKey == "" {
-		providerKey = "__all__"
+		return s.refreshAllProviders(ctx, sources, opts, now)
 	}
 	scopeKey := refreshFlightScopeKey(providerKey, opts)
 
@@ -166,6 +166,56 @@ func (s *CatalogService) refreshSources(
 	}
 	if successes == 0 && staleFallbacks == 0 && failures > 0 {
 		return statuses, fmt.Errorf("%w (%d failed)", ErrAllSourcesFailed, failures)
+	}
+	return statuses, nil
+}
+
+func (s *CatalogService) refreshAllProviders(
+	ctx context.Context,
+	sources []Source,
+	opts RefreshOptions,
+	now time.Time,
+) ([]SourceStatus, error) {
+	statuses := make([]SourceStatus, 0)
+	var firstErr error
+	successes := 0
+
+	for _, source := range sources {
+		providers := sourceProviders(source)
+		if len(providers) == 0 {
+			sourceStatuses, err := s.refreshSources(ctx, []Source{source}, opts, now)
+			statuses = append(statuses, sourceStatuses...)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+			} else {
+				successes++
+			}
+			continue
+		}
+
+		for _, providerID := range providers {
+			providerOpts := opts
+			providerOpts.ProviderID = providerID
+			providerOpts.SourceID = source.ID()
+			scopeKey := refreshFlightScopeKey(providerID, providerOpts)
+			sourceStatuses, err := s.withRefreshFlight(ctx, providerID, scopeKey, func() ([]SourceStatus, error) {
+				return s.refreshSources(ctx, []Source{source}, providerOpts, now)
+			})
+			statuses = append(statuses, sourceStatuses...)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			successes++
+		}
+	}
+
+	if successes == 0 && firstErr != nil {
+		return statuses, firstErr
 	}
 	return statuses, nil
 }
@@ -398,7 +448,7 @@ func sourceHasFreshStatus(ctx context.Context, store Store, source Source, provi
 		if status.SourceID != source.ID() {
 			continue
 		}
-		return status.RefreshState == string(RefreshStateSucceeded) &&
+		return status.RefreshState == RefreshStateSucceeded &&
 			!status.NextRefresh.IsZero() &&
 			status.NextRefresh.After(now)
 	}
@@ -453,7 +503,7 @@ func sourceStatus(
 		ProviderID:   providerID,
 		Priority:     source.Priority(),
 		LastRefresh:  now,
-		RefreshState: string(state),
+		RefreshState: state,
 		RowCount:     rowCount,
 		Stale:        stale,
 		LastError:    RedactString(lastError),
@@ -518,4 +568,14 @@ func markRowsStale(rows []ModelRow, lastError string) []ModelRow {
 
 func cloneSourceStatuses(statuses []SourceStatus) []SourceStatus {
 	return append([]SourceStatus(nil), statuses...)
+}
+
+func sourceProviders(source Source) []string {
+	lister, ok := source.(sourceProviderLister)
+	if !ok {
+		return nil
+	}
+	providers := lister.ProviderIDs()
+	sort.Strings(providers)
+	return providers
 }

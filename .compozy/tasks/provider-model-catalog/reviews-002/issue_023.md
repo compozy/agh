@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/modelcatalog/sources.go
 line: 160
 severity: nitpick
@@ -23,5 +23,8 @@ Based on learnings: Keep execution paths deterministic and observable in Go back
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `invalid`
 - Notes:
+  - The current implementation already deep-copies provider model config state at construction time.
+  - `cloneProviderModelConfigs` clones the curated slice, pointer fields, and `ReasoningEfforts`, so post-construction caller mutations do not alias into the source snapshot.
+  - No code change is needed; this finding is stale against the current file.

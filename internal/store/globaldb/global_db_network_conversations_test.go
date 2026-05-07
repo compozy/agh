@@ -218,6 +218,9 @@ func TestNetworkConversationMigrationReopenAfterRestart(t *testing.T) {
 				t.Fatalf("AppliedMigrations(second) error = %v", err)
 			}
 			assertAppliedGlobalMigrationOrder(t, secondRecords)
+			if got, want := len(secondRecords), len(firstRecords); got != want {
+				t.Fatalf("len(secondRecords) = %d, want %d", got, want)
+			}
 			for index, firstRecord := range firstRecords {
 				if !secondRecords[index].AppliedAt.Equal(firstRecord.AppliedAt) {
 					t.Fatalf(

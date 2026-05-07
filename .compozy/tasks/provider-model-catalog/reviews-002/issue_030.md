@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/store/globaldb/global_db_test.go
 line: 434
 author: coderabbitai[bot]
@@ -53,5 +53,8 @@ the change).
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `invalid`
 - Notes:
+  - Despite the helper name, `expectedGlobalMigrationPrefix()` currently contains the full shipped migration identity list through the current tail migration.
+  - `assertAppliedGlobalMigrationOrder` also checks the exact record count and every version/name/checksum tuple, so tail drift is already covered.
+  - No code change is needed; the concern no longer matches the current helper behavior.

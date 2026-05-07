@@ -137,7 +137,7 @@ func udsSeedCatalogModel(providerID string, modelID string) modelcatalog.Model {
 		ProviderID:        providerID,
 		ModelID:           modelID,
 		Available:         &available,
-		AvailabilityState: string(modelcatalog.AvailabilityStateAvailableLive),
+		AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
 		Sources: []modelcatalog.SourceRef{
 			{SourceID: modelcatalog.SourceIDConfig, SourceKind: modelcatalog.SourceKindConfig},
 		},

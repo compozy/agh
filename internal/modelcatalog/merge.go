@@ -38,7 +38,7 @@ func mergeModelGroup(rows []ModelRow) Model {
 	model := Model{
 		ProviderID:        first.ProviderID,
 		ModelID:           first.ModelID,
-		AvailabilityState: string(AvailabilityStateUnknown),
+		AvailabilityState: AvailabilityStateUnknown,
 		RefreshedAt:       first.RefreshedAt,
 		Sources:           make([]SourceRef, 0, len(rows)),
 	}
@@ -101,17 +101,17 @@ func applyAvailability(model *Model, rows []ModelRow) {
 		model.Stale = row.Stale
 		switch {
 		case *row.Available && row.Stale:
-			model.AvailabilityState = string(AvailabilityStateAvailableStale)
+			model.AvailabilityState = AvailabilityStateAvailableStale
 		case *row.Available:
-			model.AvailabilityState = string(AvailabilityStateAvailableLive)
+			model.AvailabilityState = AvailabilityStateAvailableLive
 		case row.Stale:
-			model.AvailabilityState = string(AvailabilityStateUnavailableStale)
+			model.AvailabilityState = AvailabilityStateUnavailableStale
 		default:
-			model.AvailabilityState = string(AvailabilityStateUnavailableLive)
+			model.AvailabilityState = AvailabilityStateUnavailableLive
 		}
 		return
 	}
-	model.AvailabilityState = string(AvailabilityStateUnknown)
+	model.AvailabilityState = AvailabilityStateUnknown
 	model.Available = nil
 }
 

@@ -14,6 +14,9 @@ func ValidateSourceID(sourceID string) error {
 	if trimmed == "" {
 		return fmt.Errorf("model catalog source id is required")
 	}
+	if trimmed != sourceID {
+		return fmt.Errorf("model catalog source id %q must not include surrounding whitespace", sourceID)
+	}
 	if staticSourceKind(trimmed) != "" {
 		return nil
 	}
@@ -34,10 +37,10 @@ func ValidateSourceID(sourceID string) error {
 
 // ValidateSourceIdentity checks that a source id and kind describe the same source family.
 func ValidateSourceIdentity(sourceID string, kind SourceKind) error {
-	trimmedID := strings.TrimSpace(sourceID)
-	if err := ValidateSourceID(trimmedID); err != nil {
+	if err := ValidateSourceID(sourceID); err != nil {
 		return err
 	}
+	trimmedID := sourceID
 	trimmedKind := SourceKind(strings.TrimSpace(string(kind)))
 	if trimmedKind == "" {
 		return fmt.Errorf("model catalog source kind is required")

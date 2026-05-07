@@ -291,9 +291,9 @@ func normalizeModelCatalogStatus(
 	if err := modelcatalog.ValidateSourceIdentity(normalized.SourceID, normalized.SourceKind); err != nil {
 		return modelcatalog.SourceStatus{}, fmt.Errorf("store: validate model catalog source identity: %w", err)
 	}
-	normalized.RefreshState = strings.TrimSpace(normalized.RefreshState)
+	normalized.RefreshState = modelcatalog.RefreshState(strings.TrimSpace(string(normalized.RefreshState)))
 	if normalized.RefreshState == "" {
-		normalized.RefreshState = string(modelcatalog.RefreshStateIdle)
+		normalized.RefreshState = modelcatalog.RefreshStateIdle
 	}
 	normalized.LastError = strings.TrimSpace(normalized.LastError)
 	if normalized.RowCount < 0 {
@@ -410,7 +410,7 @@ func upsertModelCatalogSourceStatus(
 		status.ProviderID,
 		string(status.SourceKind),
 		status.Priority,
-		status.RefreshState,
+		string(status.RefreshState),
 		store.FormatNullableTimestamp(status.LastRefresh),
 		store.FormatNullableTimestamp(status.NextRefresh),
 		store.FormatNullableTimestamp(status.LastSuccess),
@@ -653,6 +653,7 @@ func scanModelCatalogSourceStatus(scanner interface{ Scan(dest ...any) error }) 
 	}
 	var err error
 	status.SourceKind = modelcatalog.SourceKind(sourceKind)
+	status.RefreshState = modelcatalog.RefreshState(strings.TrimSpace(string(status.RefreshState)))
 	if status.LastRefresh, err = parseOptionalModelCatalogTimestamp(lastRefreshRaw, "last_refresh_at"); err != nil {
 		return modelcatalog.SourceStatus{}, err
 	}

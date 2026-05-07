@@ -906,6 +906,38 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 			want,
 		)
 	}
+	blankIDResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+			Models: aghconfig.ProviderModelsConfig{
+				Curated: []aghconfig.ProviderModelConfig{
+					{ID: "   ", DisplayName: "Ignored Blank"},
+					{ID: "custom-valid", DisplayName: "Custom Valid"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(blank curated id) error = %v", err)
+	}
+	if got, want := blankIDResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("blank curated id write target = %q, want %q", got, want)
+	}
+	reloadedService = testService(t, homePaths, Dependencies{})
+	providers, err = reloadedService.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	if err != nil {
+		t.Fatalf("ListCollection(providers after blank curated id) error = %v", err)
+	}
+	custom = mustFindProviderItem(t, providers.Providers, "custom")
+	if got, want := len(custom.Settings.Models.Curated), 1; got != want {
+		t.Fatalf("custom curated model count after blank curated id = %d, want %d", got, want)
+	}
+	if got, want := custom.Settings.Models.Curated[0].ID, "custom-valid"; got != want {
+		t.Fatalf("custom curated[0].ID after blank curated id = %q, want %q", got, want)
+	}
 	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
 		Name:              "custom",

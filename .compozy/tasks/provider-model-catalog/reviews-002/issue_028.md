@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/store/globaldb/global_db_model_catalog.go
 line: 143
 author: coderabbitai[bot]
@@ -51,5 +51,8 @@ inside the transaction, then commit/close before returning.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `invalid`
 - Notes:
+  - `GlobalDB.ListRows` already executes through `withModelCatalogReadTransaction`, and `listModelCatalogRows` receives the transaction-scoped executor for both the row scan and the reasoning-effort scan.
+  - The package already has a dedicated regression test asserting snapshot-consistent reads of rows and reasoning efforts from one transaction.
+  - No code change is needed; this finding was already fixed.

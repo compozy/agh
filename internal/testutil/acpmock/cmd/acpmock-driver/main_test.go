@@ -119,7 +119,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		t.Parallel()
 
 		agent := &mockAgent{
-			configOptions: sessionConfigOptionsFromFixture([]acpmock.SessionConfigOptionFixture{
+			configTemplate: sessionConfigOptionsFromFixture([]acpmock.SessionConfigOptionFixture{
 				{
 					ID:      "model",
 					Name:    "Model",
@@ -130,14 +130,20 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 					},
 				},
 			}),
+			sessions: map[string]*sessionState{},
+		}
+		session, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession() error = %v", err)
 		}
 
 		response, err := agent.SetSessionConfigOption(
 			context.Background(),
 			acpsdk.SetSessionConfigOptionRequest{
 				ValueId: &acpsdk.SetSessionConfigOptionValueId{
-					ConfigId: acpsdk.SessionConfigId("model"),
-					Value:    acpsdk.SessionConfigValueId("qa-browser-model-alt"),
+					SessionId: session.SessionId,
+					ConfigId:  acpsdk.SessionConfigId("model"),
+					Value:     acpsdk.SessionConfigValueId("qa-browser-model-alt"),
 				},
 			},
 		)
@@ -154,13 +160,87 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			context.Background(),
 			acpsdk.SetSessionConfigOptionRequest{
 				ValueId: &acpsdk.SetSessionConfigOptionValueId{
-					ConfigId: acpsdk.SessionConfigId("model"),
-					Value:    acpsdk.SessionConfigValueId("missing-model"),
+					SessionId: session.SessionId,
+					ConfigId:  acpsdk.SessionConfigId("model"),
+					Value:     acpsdk.SessionConfigValueId("missing-model"),
 				},
 			},
 		)
 		if err == nil || !strings.Contains(err.Error(), "is not available") {
 			t.Fatalf("SetSessionConfigOption(missing) error = %v, want unavailable value", err)
+		}
+	})
+
+	t.Run("Should keep config options scoped to each session", func(t *testing.T) {
+		t.Parallel()
+
+		agent := &mockAgent{
+			configTemplate: sessionConfigOptionsFromFixture([]acpmock.SessionConfigOptionFixture{
+				{
+					ID:      "model",
+					Name:    "Model",
+					Current: "qa-browser-model",
+					Values: []acpmock.SessionConfigOptionValueFixture{
+						{Value: "qa-browser-model", Label: "QA Browser Model"},
+						{Value: "qa-browser-model-alt", Label: "QA Browser Model Alt"},
+					},
+				},
+			}),
+			sessions: map[string]*sessionState{},
+		}
+
+		first, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession(first) error = %v", err)
+		}
+		second, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession(second) error = %v", err)
+		}
+
+		response, err := agent.SetSessionConfigOption(
+			context.Background(),
+			acpsdk.SetSessionConfigOptionRequest{
+				ValueId: &acpsdk.SetSessionConfigOptionValueId{
+					SessionId: first.SessionId,
+					ConfigId:  acpsdk.SessionConfigId("model"),
+					Value:     acpsdk.SessionConfigValueId("qa-browser-model-alt"),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("SetSessionConfigOption(first) error = %v", err)
+		}
+		if got, want := response.ConfigOptions[0].Select.CurrentValue, acpsdk.SessionConfigValueId(
+			"qa-browser-model-alt",
+		); got != want {
+			t.Fatalf("first CurrentValue = %q, want %q", got, want)
+		}
+
+		resumedFirst, err := agent.ResumeSession(
+			context.Background(),
+			acpsdk.ResumeSessionRequest{SessionId: first.SessionId},
+		)
+		if err != nil {
+			t.Fatalf("ResumeSession(first) error = %v", err)
+		}
+		if got, want := resumedFirst.ConfigOptions[0].Select.CurrentValue, acpsdk.SessionConfigValueId(
+			"qa-browser-model-alt",
+		); got != want {
+			t.Fatalf("resumed first CurrentValue = %q, want %q", got, want)
+		}
+
+		loadedSecond, err := agent.LoadSession(
+			context.Background(),
+			acpsdk.LoadSessionRequest{SessionId: second.SessionId},
+		)
+		if err != nil {
+			t.Fatalf("LoadSession(second) error = %v", err)
+		}
+		if got, want := loadedSecond.ConfigOptions[0].Select.CurrentValue, acpsdk.SessionConfigValueId(
+			"qa-browser-model",
+		); got != want {
+			t.Fatalf("loaded second CurrentValue = %q, want %q", got, want)
 		}
 	})
 }

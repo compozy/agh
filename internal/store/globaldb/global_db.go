@@ -881,6 +881,30 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateModelCatalogPersistence,
 		Checksum: "2026-05-07-add-model-catalog-persistence",
 	},
+	{
+		Version:  24,
+		Name:     "rebuild_model_catalog_source_constraints",
+		Up:       migrateModelCatalogSourceConstraints,
+		Checksum: "2026-05-07-rebuild-model-catalog-source-constraints",
+	},
+}
+
+func migrateModelCatalogSourceConstraints(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`DROP TABLE IF EXISTS model_catalog_reasoning_efforts;`,
+		`DROP TABLE IF EXISTS model_catalog_rows;`,
+		`DROP TABLE IF EXISTS model_catalog_sources;`,
+		modelCatalogSourcesSchemaStatement(),
+		modelCatalogRowsSchemaStatementWithSourceForeignKey(),
+		modelCatalogReasoningEffortsSchemaStatement(),
+	}
+	statements = append(statements, modelCatalogIndexStatements()...)
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: rebuild model catalog source constraints: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateNetworkConversationContainers(ctx context.Context, tx *sql.Tx) error {

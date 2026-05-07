@@ -153,7 +153,7 @@ type Model struct {
 	DisplayName            string
 	Sources                []SourceRef
 	Available              *bool
-	AvailabilityState      string
+	AvailabilityState      AvailabilityState
 	Stale                  bool
 	RefreshedAt            time.Time
 	ContextWindow          *int64
@@ -178,7 +178,7 @@ type SourceStatus struct {
 	NextRefresh  time.Time
 	LastSuccess  time.Time
 	LastError    string
-	RefreshState string
+	RefreshState RefreshState
 	RowCount     int
 	Stale        bool
 }

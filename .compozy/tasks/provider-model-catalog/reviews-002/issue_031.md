@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/store/globaldb/schema_model_catalog.go
 line: 40
 author: coderabbitai[bot]
@@ -65,5 +65,8 @@ constraints.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - The fresh schema for `model_catalog_rows` still lacks a foreign key back to `model_catalog_sources(source_id, provider_id)`.
+  - That leaves the child table structurally capable of holding orphaned rows if parent/source status rows disappear, and the schema should enforce the relationship directly.
+  - Fix plan: add the FK to the fresh schema and append a tail migration that rebuilds the projection tables into the corrected shape without mutating existing migration identities.

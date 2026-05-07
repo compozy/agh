@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/modelcatalog/source_id.go
 line: 12
 severity: minor
@@ -21,5 +21,8 @@ source_review_submitted_at: "2026-05-07T16:46:43Z"
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `ValidateSourceID` trims before validation, and `ValidateSourceIdentity` also trims before delegating, so whitespace-padded IDs still validate.
+  - Source IDs are exact identities used in equality and map lookups, so accepting non-canonical padded input is a real correctness bug.
+  - Fix plan: reject surrounding whitespace instead of silently normalizing it in the validation helpers.

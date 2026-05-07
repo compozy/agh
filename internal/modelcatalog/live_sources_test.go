@@ -117,7 +117,7 @@ func TestLiveProviderSources(t *testing.T) {
 				t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
 			}
 			status := requireStatus(t, statuses, "provider_live:claude")
-			if status.RefreshState != string(RefreshStateFailed) {
+			if status.RefreshState != RefreshStateFailed {
 				t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 			}
 			if strings.Contains(status.LastError, "ambient-secret") {
@@ -301,7 +301,7 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
 		}
 		status := requireStatus(t, statuses, "provider_live:opencode")
-		if status.RefreshState != string(RefreshStateFailed) {
+		if status.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 		}
 		if strings.Contains(status.LastError, "opencode-secret") || !strings.Contains(status.LastError, "[REDACTED]") {
@@ -326,7 +326,7 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
 		}
 		status := requireStatus(t, statuses, "provider_live:openclaw")
-		if status.RefreshState != string(RefreshStateFailed) {
+		if status.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 		}
 		if !strings.Contains(status.LastError, "no configured side-effect-free") {
@@ -362,9 +362,7 @@ func TestLiveProviderSources(t *testing.T) {
 			t,
 			statuses,
 			"provider_live:hermes",
-		); status.RefreshState != string(
-			RefreshStateDisabled,
-		) {
+		); status.RefreshState != RefreshStateDisabled {
 			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
 		}
 
@@ -437,7 +435,7 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Fatalf("elapsed = %s, want timeout before server sleep completes", elapsed)
 		}
 		status := requireStatus(t, statuses, "provider_live:vercel-ai-gateway")
-		if status.RefreshState != string(RefreshStateFailed) {
+		if status.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 		}
 	})

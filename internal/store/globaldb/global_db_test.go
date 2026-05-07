@@ -430,6 +430,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 		},
 		{version: 22, name: "memv2_memory_events", checksum: "2026-05-05-memv2-memory-events"},
 		{version: 23, name: "add_model_catalog_persistence", checksum: "2026-05-07-add-model-catalog-persistence"},
+		{
+			version:  24,
+			name:     "rebuild_model_catalog_source_constraints",
+			checksum: "2026-05-07-rebuild-model-catalog-source-constraints",
+		},
 	}
 }
 

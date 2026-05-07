@@ -45,7 +45,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 			ModelID:                "gpt-5.4",
 			DisplayName:            "GPT-5.4",
 			Available:              nil,
-			AvailabilityState:      string(modelcatalog.AvailabilityStateUnknown),
+			AvailabilityState:      modelcatalog.AvailabilityStateUnknown,
 			Stale:                  true,
 			RefreshedAt:            time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC),
 			SupportsReasoning:      boolPtr(true),
@@ -101,7 +101,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 				SourceID:     modelcatalog.SourceIDModelsDev,
 				SourceKind:   modelcatalog.SourceKindModelsDev,
 				ProviderID:   "codex",
-				RefreshState: string(modelcatalog.RefreshStateFailed),
+				RefreshState: modelcatalog.RefreshStateFailed,
 				LastError:    "models.dev failed with Bearer ya29.api-secret-token",
 			},
 		})
@@ -178,7 +178,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 						SourceID:     modelcatalog.SourceIDConfig,
 						SourceKind:   modelcatalog.SourceKindConfig,
 						ProviderID:   "codex",
-						RefreshState: string(modelcatalog.RefreshStateFailed),
+						RefreshState: modelcatalog.RefreshStateFailed,
 						LastError:    "config source failed with api_key=" + secret,
 						Stale:        true,
 					},
@@ -361,7 +361,7 @@ func seedModelCatalogModel(providerID string, modelID string) modelcatalog.Model
 		ModelID:           modelID,
 		DisplayName:       "GPT-5.4",
 		Available:         &available,
-		AvailabilityState: string(modelcatalog.AvailabilityStateAvailableLive),
+		AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
 		Sources: []modelcatalog.SourceRef{
 			{
 				SourceID:   modelcatalog.SourceIDConfig,

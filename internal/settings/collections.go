@@ -1155,10 +1155,12 @@ func providerModelsSettingsMap(models aghconfig.ProviderModelsConfig) map[string
 func providerModelConfigMaps(models []aghconfig.ProviderModelConfig) []map[string]any {
 	values := make([]map[string]any, 0, len(models))
 	for _, model := range models {
-		entry := make(map[string]any)
-		if strings.TrimSpace(model.ID) != "" {
-			entry["id"] = strings.TrimSpace(model.ID)
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
 		}
+		entry := make(map[string]any)
+		entry["id"] = id
 		if strings.TrimSpace(model.DisplayName) != "" {
 			entry["display_name"] = strings.TrimSpace(model.DisplayName)
 		}

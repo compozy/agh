@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/store/globaldb/global_db.go
 line: 687
 author: coderabbitai[bot]
@@ -76,5 +76,8 @@ globalSchemaStatements and Version 1 migration intact and unmodified.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `invalid`
 - Notes:
+  - `globalSchemaStatements` in the current file already excludes `modelCatalogSchemaStatements()`.
+  - The model-catalog schema is introduced by the appended tail migration (`add_model_catalog_persistence`), which preserves the append-only migration contract the review comment asks for.
+  - No code change is needed; this finding is stale against the current migration registry.

@@ -58,7 +58,7 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		if err != nil {
 			t.Fatalf("Refresh() error = %v, want nil", err)
 		}
-		if len(statuses) != 1 || statuses[0].RefreshState != string(modelcatalog.RefreshStateSucceeded) {
+		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateSucceeded {
 			t.Fatalf("Refresh() statuses = %#v, want succeeded extension status", statuses)
 		}
 
@@ -230,7 +230,7 @@ func TestModelSourceShouldRejectMalformedRowsAndRecordSourceStatus(t *testing.T)
 		if err == nil {
 			t.Fatal("Refresh() error = nil, want malformed row failure")
 		}
-		if len(statuses) != 1 || statuses[0].RefreshState != string(modelcatalog.RefreshStateFailed) {
+		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateFailed {
 			t.Fatalf("Refresh() statuses = %#v, want failed status", statuses)
 		}
 		if statuses[0].LastError == "" {
@@ -411,7 +411,7 @@ func TestModelSourceShouldRecordMalformedSubprocessRows(t *testing.T) {
 		if err == nil {
 			t.Fatal("Refresh() error = nil, want malformed subprocess row failure")
 		}
-		if len(statuses) != 1 || statuses[0].RefreshState != string(modelcatalog.RefreshStateFailed) {
+		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateFailed {
 			t.Fatalf("Refresh() statuses = %#v, want failed subprocess source status", statuses)
 		}
 	})
@@ -554,7 +554,7 @@ func TestModelSourceShouldFailClosedWithoutBlockingCatalogList(t *testing.T) {
 		foundDenied := false
 		for _, status := range statuses {
 			if status.SourceID == deniedSource.ID() {
-				foundDenied = status.RefreshState == string(modelcatalog.RefreshStateFailed) && status.LastError != ""
+				foundDenied = status.RefreshState == modelcatalog.RefreshStateFailed && status.LastError != ""
 			}
 		}
 		if !foundDenied {

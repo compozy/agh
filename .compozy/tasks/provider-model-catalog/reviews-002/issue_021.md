@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 2
 round_created_at: 2026-05-07T18:16:18.885242Z
-status: pending
+status: resolved
 file: internal/modelcatalog/service.go
 line: 127
 author: coderabbitai[bot]
@@ -57,5 +57,8 @@ sourceHasFreshStatus).
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `CatalogService.Refresh` still maps an empty `ProviderID` to the synthetic `__all__` flight key, so global refreshes do not share the same per-provider flight as provider-scoped refreshes.
+  - `refreshSource` only consults `sourceHasFreshStatus` when `opts.ProviderID` is non-empty, so the global path bypasses freshness gating and can re-fetch already-fresh provider/source pairs.
+  - Fix plan: fan global refreshes out into provider-scoped refresh flights so they reuse the same coalescing key and freshness logic as direct provider refreshes.

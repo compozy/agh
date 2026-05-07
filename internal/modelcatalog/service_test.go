@@ -88,7 +88,7 @@ func TestMergeRows(t *testing.T) {
 		if model.Available == nil || !*model.Available {
 			t.Fatalf("Available = %v, want true", model.Available)
 		}
-		if model.AvailabilityState != string(AvailabilityStateAvailableLive) {
+		if model.AvailabilityState != AvailabilityStateAvailableLive {
 			t.Fatalf("AvailabilityState = %q, want available_live", model.AvailabilityState)
 		}
 	})
@@ -199,7 +199,7 @@ func TestMergeRows(t *testing.T) {
 				if model.Available == nil || *model.Available != tc.available {
 					t.Fatalf("Available = %v, want %t", model.Available, tc.available)
 				}
-				if model.AvailabilityState != string(tc.state) {
+				if model.AvailabilityState != tc.state {
 					t.Fatalf("AvailabilityState = %q, want %q", model.AvailabilityState, tc.state)
 				}
 			})
@@ -216,7 +216,7 @@ func TestMergeRows(t *testing.T) {
 		if model.Available != nil {
 			t.Fatalf("Available = %v, want nil", model.Available)
 		}
-		if model.AvailabilityState != string(AvailabilityStateUnknown) {
+		if model.AvailabilityState != AvailabilityStateUnknown {
 			t.Fatalf("AvailabilityState = %q, want unknown", model.AvailabilityState)
 		}
 	})
@@ -338,7 +338,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
 		failed := requireStatus(t, statuses, "models_dev")
-		if failed.RefreshState != string(RefreshStateFailed) {
+		if failed.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", failed.RefreshState)
 		}
 		if strings.Contains(failed.LastError, "super-secret") || !strings.Contains(failed.LastError, "[REDACTED]") {
@@ -422,7 +422,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 			t.Fatalf("ListModels(include stale refresh) error = %v", err)
 		}
 		model := requireSingleModel(t, models)
-		if model.AvailabilityState != string(AvailabilityStateAvailableStale) {
+		if model.AvailabilityState != AvailabilityStateAvailableStale {
 			t.Fatalf("AvailabilityState = %q, want available_stale", model.AvailabilityState)
 		}
 		if !model.Stale {
@@ -453,6 +453,65 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 		if store.replaceCount != 0 {
 			t.Fatalf("replaceCount = %d, want 0", store.replaceCount)
+		}
+	})
+
+	t.Run("Should skip fresh provider-scoped source statuses during global refresh", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "provider_live:shared",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"claude", "codex"},
+			ttl:       time.Hour,
+			rows: []ModelRow{
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"claude",
+					"claude-sonnet-4-6",
+					testTime(40),
+					nil,
+				),
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(40),
+					nil,
+				),
+			},
+		}
+		store := newMemoryStore()
+		store.statuses[sourceProviderKey(source.ID(), "claude")] = SourceStatus{
+			SourceID:     source.ID(),
+			SourceKind:   source.Kind(),
+			ProviderID:   "claude",
+			RefreshState: RefreshStateSucceeded,
+			NextRefresh:  testTime(41),
+		}
+		store.statuses[sourceProviderKey(source.ID(), "codex")] = SourceStatus{
+			SourceID:     source.ID(),
+			SourceKind:   source.Kind(),
+			ProviderID:   "codex",
+			RefreshState: RefreshStateSucceeded,
+			NextRefresh:  testTime(41),
+		}
+		service := newTestService(t, store, []Source{source})
+
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{Now: testTime(40)})
+		if err != nil {
+			t.Fatalf("Refresh(global fresh) error = %v", err)
+		}
+		if got, want := source.calls, 0; got != want {
+			t.Fatalf("source calls = %d, want %d when statuses are still fresh", got, want)
+		}
+		if got, want := len(statuses), 2; got != want {
+			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, statuses)
 		}
 	})
 }
@@ -640,6 +699,70 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 		}
 		if got, want := len(ownerResult.statuses), 1; got != want {
 			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, ownerResult.statuses)
+		}
+	})
+
+	t.Run("Should coalesce provider-scoped refreshes inside a concurrent global refresh", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"codex": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(34),
+					nil,
+				),
+			},
+			"openrouter": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"openrouter",
+					"gpt-5.4",
+					testTime(34),
+					nil,
+				),
+			},
+		})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+
+		results := make(chan refreshTestResult, 2)
+		go func() {
+			statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+				Force: true,
+				Now:   testTime(34),
+			})
+			results <- refreshTestResult{statuses: statuses, err: err}
+		}()
+
+		source.waitForCalls(t, 1)
+		go func() {
+			statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+				ProviderID: "codex",
+				SourceID:   source.ID(),
+				Force:      true,
+				Now:        testTime(34),
+			})
+			results <- refreshTestResult{statuses: statuses, err: err}
+		}()
+
+		source.requireCallCountStable(t, 1, 25*time.Millisecond)
+		source.release()
+
+		for range 2 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("Refresh() error = %v", result.err)
+			}
+		}
+		if got, want := source.callCount(), 2; got != want {
+			t.Fatalf("source calls = %d, want %d shared codex + claude call", got, want)
 		}
 	})
 }

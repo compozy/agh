@@ -124,7 +124,7 @@ func TestModelsDevSource(t *testing.T) {
 			t.Fatalf("Refresh(disabled) error = %v", err)
 		}
 		status := requireStatus(t, statuses, SourceIDModelsDev)
-		if status.RefreshState != string(RefreshStateDisabled) {
+		if status.RefreshState != RefreshStateDisabled {
 			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
 		}
 		if got := requests.Load(); got != 0 {
@@ -274,7 +274,7 @@ func TestModelsDevSource(t *testing.T) {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
 		status := requireStatus(t, statuses, SourceIDModelsDev)
-		if status.RefreshState != string(RefreshStateFailed) || !status.Stale {
+		if status.RefreshState != RefreshStateFailed || !status.Stale {
 			t.Fatalf("status = %#v, want failed stale status", status)
 		}
 		if !status.LastSuccess.Equal(testTime(0)) {
