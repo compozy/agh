@@ -118,6 +118,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, openAISchema, "object", "data")
 				assertResponseStatus(t, openAI, 403)
 				assertResponseStatus(t, openAI, 503)
+				openAIForbidden := jsonResponseSchema(t, openAI, 403)
+				assertRequired(t, openAIForbidden, "error")
+				assertRequired(t, propertySchema(t, openAIForbidden, "error"), "code", "message")
+				openAIUnavailable := jsonResponseSchema(t, openAI, 503)
+				assertRequired(t, openAIUnavailable, "error")
+				assertRequired(t, propertySchema(t, openAIUnavailable, "error"), "code", "message")
 			},
 		},
 		{

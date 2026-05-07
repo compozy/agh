@@ -1027,7 +1027,7 @@ func (p ProviderConfig) SessionMCPEnabled() bool {
 // Validate reports whether the provider model block is usable.
 func (m ProviderModelsConfig) Validate(path string) error {
 	if strings.TrimSpace(m.Default) == "" && m.Default != "" {
-		return fmt.Errorf("%s.default is required", path)
+		return fmt.Errorf("%s.default must not be whitespace-only", path)
 	}
 	seen := make(map[string]struct{}, len(m.Curated))
 	for idx, model := range m.Curated {

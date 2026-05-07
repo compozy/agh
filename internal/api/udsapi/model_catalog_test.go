@@ -12,7 +12,7 @@ import (
 func TestUDSHandlersModelCatalogDependency(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldPassModelCatalogServiceToBaseHandlers", func(t *testing.T) {
+	t.Run("Should pass model catalog service to base handlers", func(t *testing.T) {
 		t.Parallel()
 
 		service := udsModelCatalogServiceStub{}

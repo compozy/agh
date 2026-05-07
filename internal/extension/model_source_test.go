@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -248,9 +249,10 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 	negativeCost := float64(-1)
 	defaultEffort := "medium"
 	tests := []struct {
-		name string
-		row  extensioncontract.ModelSourceRow
-		opts modelcatalog.ListOptions
+		name    string
+		row     extensioncontract.ModelSourceRow
+		opts    modelcatalog.ListOptions
+		wantErr string
 	}{
 		{
 			name: "Should reject provider outside requested filter",
@@ -259,7 +261,8 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				ProviderID: "other",
 				ModelID:    "model",
 			},
-			opts: modelcatalog.ListOptions{ProviderID: "codex"},
+			opts:    modelcatalog.ListOptions{ProviderID: "codex"},
+			wantErr: `provider_id "other" is outside requested provider "codex"`,
 		},
 		{
 			name: "Should reject non-extension priority",
@@ -269,6 +272,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				ModelID:    "model",
 				Priority:   modelcatalog.PriorityConfig,
 			},
+			wantErr: "priority 120 must equal 100",
 		},
 		{
 			name: "Should reject negative token metadata",
@@ -278,6 +282,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				ModelID:       "model",
 				ContextWindow: &negativeInt,
 			},
+			wantErr: "context_window must be non-negative",
 		},
 		{
 			name: "Should reject negative cost metadata",
@@ -289,6 +294,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 					InputPerMillion: &negativeCost,
 				},
 			},
+			wantErr: "cost.input_per_million must be non-negative",
 		},
 		{
 			name: "Should reject negative output cost metadata",
@@ -300,6 +306,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 					OutputPerMillion: &negativeCost,
 				},
 			},
+			wantErr: "cost.output_per_million must be non-negative",
 		},
 		{
 			name: "Should reject unsupported reasoning effort",
@@ -309,6 +316,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				ModelID:          "model",
 				ReasoningEfforts: []string{"turbo"},
 			},
+			wantErr: `reasoning effort "turbo" is not supported`,
 		},
 		{
 			name: "Should reject duplicate reasoning efforts",
@@ -318,6 +326,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				ModelID:          "model",
 				ReasoningEfforts: []string{"high", "high"},
 			},
+			wantErr: `reasoning_efforts contains duplicate "high"`,
 		},
 		{
 			name: "Should reject default effort outside advertised list",
@@ -328,6 +337,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				ReasoningEfforts:       []string{"high"},
 				DefaultReasoningEffort: &defaultEffort,
 			},
+			wantErr: `default_reasoning_effort "medium" is not in reasoning_efforts`,
 		},
 	}
 
@@ -340,6 +350,9 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 			_, err := source.ListModels(testutil.Context(t), tt.opts)
 			if err == nil {
 				t.Fatal("ListModels() error = nil, want row validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("ListModels() error = %v, want containing %q", err, tt.wantErr)
 			}
 		})
 	}

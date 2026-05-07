@@ -149,6 +149,9 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		got.Kind != "select" || len(got.Values) != 2 {
 		t.Fatalf("config option payload = %#v", got)
 	}
+	if got := payload.ACPCaps.ConfigOptions[0].Values; got[0].Value != "low" || got[1].Value != "high" {
+		t.Fatalf("config option values = %#v, want [low high]", got)
+	}
 	if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
 		payload.Sandbox.Backend != "local" ||
 		payload.Sandbox.Profile != "local" ||

@@ -40,7 +40,7 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("validate create session runtime overrides", func(t *testing.T) {
+	t.Run("Should validate create session runtime overrides", func(t *testing.T) {
 		t.Parallel()
 
 		if err := validateCreateSessionRuntimeOverrides("core-test", "", "gpt-5.4", ""); !errors.Is(

@@ -542,11 +542,7 @@ func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, p
 	}
 
 	caps := process.CapsSnapshot()
-	if len(caps.ConfigOptions) > 0 {
-		option, ok := findModelConfigOption(caps.ConfigOptions)
-		if !ok {
-			return fmt.Errorf("acp: model config option is not available for requested model %q", modelID)
-		}
+	if option, ok := findModelConfigOption(caps.ConfigOptions); ok {
 		if !configOptionAllowsValue(option, modelID) {
 			return fmt.Errorf("acp: model %q is not available in config option %q", modelID, option.ID)
 		}

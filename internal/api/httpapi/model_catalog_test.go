@@ -29,6 +29,13 @@ func TestHTTPHandlersModelCatalogDependency(t *testing.T) {
 		if handlers.ModelCatalog != service {
 			t.Fatalf("newHandlers() ModelCatalog = %#v, want %#v", handlers.ModelCatalog, service)
 		}
+		if handlers.ModelCatalog != service {
+			t.Fatalf(
+				"newHandlers() BaseHandlers.ModelCatalog = %#v, want %#v",
+				handlers.ModelCatalog,
+				service,
+			)
+		}
 	})
 }
 

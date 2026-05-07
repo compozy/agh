@@ -24,10 +24,7 @@ func (e *StaleFallbackError) Error() string {
 	if e == nil {
 		return "model catalog: stale fallback"
 	}
-	if e.Err == nil {
-		return fmt.Sprintf("model catalog: source %q returned stale fallback", e.SourceID)
-	}
-	return fmt.Sprintf("model catalog: source %q returned stale fallback: %v", e.SourceID, e.Err)
+	return fmt.Sprintf("model catalog: source %q returned stale fallback", e.SourceID)
 }
 
 func (e *StaleFallbackError) Unwrap() error {

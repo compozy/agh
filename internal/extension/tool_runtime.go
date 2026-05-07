@@ -105,15 +105,18 @@ func (m *Manager) extensionServiceProcess(
 		m.mu.RUnlock()
 		return nil, name, fmt.Errorf("extension: extension %q is not active: %w", name, toolspkg.ErrToolUnavailable)
 	}
-	provides := ext.info.Capabilities.Provides
+	grantedMethods := extensionprotocol.CapabilityServiceMethods(ext.info.Capabilities.Provides)
 	if ext.manifest != nil {
-		provides = ext.manifest.Capabilities.Provides
+		manifestMethods := extensionprotocol.CapabilityServiceMethods(ext.manifest.Capabilities.Provides)
+		if len(manifestMethods) > 0 {
+			grantedMethods = manifestMethods
+		}
 	}
 	process := ext.process
 	initialize := cloneInitializeResponse(ext.initialize)
 	m.mu.RUnlock()
 
-	if !slices.Contains(extensionprotocol.CapabilityServiceMethods(provides), methodName) {
+	if !slices.Contains(grantedMethods, methodName) {
 		return nil, name, fmt.Errorf(
 			"extension: extension %q is not granted service method %q: %w",
 			name,

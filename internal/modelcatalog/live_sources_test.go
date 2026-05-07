@@ -455,10 +455,13 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 		var wg sync.WaitGroup
 		results := make([][]SourceStatus, 2)
 		errs := make([]error, 2)
-		for index := range results {
+		startRefresh := func(index int, started chan<- struct{}) {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
+				if started != nil {
+					close(started)
+				}
 				statuses, err := service.Refresh(ctx, RefreshOptions{
 					ProviderID: "codex",
 					Force:      true,
@@ -468,8 +471,11 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 				errs[i] = err
 			}(index)
 		}
-		<-source.started
-		time.Sleep(50 * time.Millisecond)
+		startRefresh(0, nil)
+		waitForBlockingProviderSourceStart(t, source.started, "first provider refresh")
+		secondRefreshStarted := make(chan struct{})
+		startRefresh(1, secondRefreshStarted)
+		waitForBlockingProviderSourceStart(t, secondRefreshStarted, "second provider refresh launch")
 		source.release()
 		wg.Wait()
 
@@ -509,11 +515,13 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 			firstDone <- statuses
 			firstErr <- err
 		}()
-		<-firstSource.started
+		waitForBlockingProviderSourceStart(t, firstSource.started, "first source refresh")
 
 		secondDone := make(chan []SourceStatus, 1)
 		secondErr := make(chan error, 1)
+		secondRefreshStarted := make(chan struct{})
 		go func() {
+			close(secondRefreshStarted)
 			statuses, err := service.Refresh(ctx, RefreshOptions{
 				ProviderID: "codex",
 				SourceID:   secondSource.ID(),
@@ -523,19 +531,11 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 			secondDone <- statuses
 			secondErr <- err
 		}()
-
-		select {
-		case <-secondSource.started:
-			t.Fatal("second source started before first provider refresh finished")
-		case <-time.After(30 * time.Millisecond):
-		}
+		waitForBlockingProviderSourceStart(t, secondRefreshStarted, "second source refresh launch")
+		assertBlockingProviderSourceNotStarted(t, secondSource.started, "second source before first release")
 
 		firstSource.release()
-		select {
-		case <-secondSource.started:
-		case <-time.After(300 * time.Millisecond):
-			t.Fatal("second source did not start after first provider refresh finished")
-		}
+		waitForBlockingProviderSourceStart(t, secondSource.started, "second source after first release")
 		secondSource.release()
 
 		firstStatuses := <-firstDone
@@ -557,6 +557,24 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 		}
 		if got := secondSource.callCount(); got != 1 {
 			t.Fatalf("second source calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should keep stale fallback error text stable and redact details separately", func(t *testing.T) {
+		t.Parallel()
+
+		err := &StaleFallbackError{
+			SourceID: "provider_live:codex",
+			Err:      errors.New("upstream failure sk-secret-value"),
+		}
+		if got := err.Error(); strings.Contains(got, "sk-secret-value") {
+			t.Fatalf("Error() = %q, want stable redacted context", got)
+		}
+		if got := sourceErrorText(err); strings.Contains(got, "sk-secret-value") {
+			t.Fatalf("sourceErrorText() = %q, want redacted upstream details", got)
+		}
+		if got := sourceErrorText(err); !strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("sourceErrorText() = %q, want redaction marker", got)
 		}
 	})
 }
@@ -880,6 +898,26 @@ func (s *blockingProviderSource) release() {
 
 func (s *blockingProviderSource) callCount() int64 {
 	return s.calls.Load()
+}
+
+func waitForBlockingProviderSourceStart(t *testing.T, started <-chan struct{}, label string) {
+	t.Helper()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for %s", label)
+	}
+}
+
+func assertBlockingProviderSourceNotStarted(t *testing.T, started <-chan struct{}, label string) {
+	t.Helper()
+
+	select {
+	case <-started:
+		t.Fatalf("%s started unexpectedly", label)
+	default:
+	}
 }
 
 func envValue(env []string, key string) string {

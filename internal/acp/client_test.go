@@ -884,6 +884,32 @@ func TestStartDoesNotInventReasoningConfigOptionWhenAbsent(t *testing.T) {
 	}
 }
 
+func TestStartFallsBackToLegacySetModelWhenModelConfigOptionIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-no-model-config.jsonl")
+	proc := startHelperProcess(t, driver, "config_options_no_model", "", StartOpts{
+		PreferredModel: "new-model",
+		Env:            helperEnvWithCapture("config_options_no_model", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	request := decodeCapturedSetSessionModelRequest(
+		t,
+		captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetModel),
+	)
+	if got := request.SessionID; got != "sess-new" {
+		t.Fatalf("set-model session id = %q, want sess-new", got)
+	}
+	if got := request.ModelID; got != "new-model" {
+		t.Fatalf("set-model model id = %q, want new-model", got)
+	}
+	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+		t.Fatal("set_config_option was sent when no model config option was available")
+	}
+}
+
 func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 	t.Parallel()
 
@@ -2018,9 +2044,22 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		}, nil
 	}
 	if a.scenario == "config_options" ||
+		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
 		a.scenario == "config_option_update" {
 		configOptions := helperConfigOptions("new-model", "medium")
+		if a.scenario == "config_options_no_model" {
+			configOptions = []acpsdk.SessionConfigOption{
+				helperSelectConfigOption(
+					"reasoning_effort",
+					"Reasoning effort",
+					"medium",
+					"minimal",
+					"medium",
+					"xhigh",
+				),
+			}
+		}
 		if a.scenario == "config_options_no_reasoning" {
 			configOptions = helperModelConfigOptions("new-model")
 		}

@@ -157,13 +157,12 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("Shutdown(deadline) error = %v, want context.DeadlineExceeded", err)
 		}
+		close(service.release)
+		waitForCatalogTestSignal(t, service.released, "manual refresh release")
 		refreshErr := waitForCatalogTestError(t, refreshErrCh, "manual refresh shutdown cancellation")
 		if !errors.Is(refreshErr, context.Canceled) {
 			t.Fatalf("Refresh(shutdown) error = %v, want context.Canceled", refreshErr)
 		}
-
-		close(service.release)
-		waitForCatalogTestSignal(t, service.released, "manual refresh release")
 	})
 
 	t.Run("Should apply runtime timeout to detached refresh work", func(t *testing.T) {
