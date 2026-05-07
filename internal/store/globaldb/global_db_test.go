@@ -176,75 +176,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if got, want := len(firstRecords), len(globalSchemaMigrations); got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
-	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
-		t.Fatalf("firstRecords[0] = %#v, want create_global_schema v1", firstRecords[0])
-	}
-	if firstRecords[1].Version != 2 || firstRecords[1].Name != "add_session_failure_diagnostics" {
-		t.Fatalf("firstRecords[1] = %#v, want add_session_failure_diagnostics v2", firstRecords[1])
-	}
-	if firstRecords[2].Version != 3 || firstRecords[2].Name != "add_automation_scheduler_state" {
-		t.Fatalf("firstRecords[2] = %#v, want add_automation_scheduler_state v3", firstRecords[2])
-	}
-	if firstRecords[3].Version != 4 || firstRecords[3].Name != "add_mcp_auth_tokens" {
-		t.Fatalf("firstRecords[3] = %#v, want add_mcp_auth_tokens v4", firstRecords[3])
-	}
-	if firstRecords[4].Version != 5 || firstRecords[4].Name != "add_tool_process_records" {
-		t.Fatalf("firstRecords[4] = %#v, want add_tool_process_records v5", firstRecords[4])
-	}
-	if firstRecords[5].Version != 6 || firstRecords[5].Name != "add_memory_operation_scope" {
-		t.Fatalf("firstRecords[5] = %#v, want add_memory_operation_scope v6", firstRecords[5])
-	}
-	if firstRecords[6].Version != 7 || firstRecords[6].Name != "add_task_run_claim_lease_schema" {
-		t.Fatalf("firstRecords[6] = %#v, want add_task_run_claim_lease_schema v7", firstRecords[6])
-	}
-	if firstRecords[7].Version != 8 || firstRecords[7].Name != "add_session_lineage_metadata" {
-		t.Fatalf("firstRecords[7] = %#v, want add_session_lineage_metadata v8", firstRecords[7])
-	}
-	if firstRecords[8].Version != 9 || firstRecords[8].Name != "rename_environment_columns_to_sandbox" {
-		t.Fatalf("firstRecords[8] = %#v, want rename_environment_columns_to_sandbox v9", firstRecords[8])
-	}
-	if firstRecords[9].Version != 10 || firstRecords[9].Name != "add_vault_secrets" {
-		t.Fatalf("firstRecords[9] = %#v, want add_vault_secrets v10", firstRecords[9])
-	}
-	if firstRecords[10].Version != 11 || firstRecords[10].Name != "unify_secret_refs" {
-		t.Fatalf("firstRecords[10] = %#v, want unify_secret_refs v11", firstRecords[10])
-	}
-	if firstRecords[11].Version != 12 || firstRecords[11].Name != "add_agent_soul_snapshots" {
-		t.Fatalf("firstRecords[11] = %#v, want add_agent_soul_snapshots v12", firstRecords[11])
-	}
-	if firstRecords[12].Version != 13 || firstRecords[12].Name != "add_agent_heartbeat_storage" {
-		t.Fatalf("firstRecords[12] = %#v, want add_agent_heartbeat_storage v13", firstRecords[12])
-	}
-	if firstRecords[13].Version != 14 || firstRecords[13].Name != "add_event_summary_lineage" {
-		t.Fatalf("firstRecords[13] = %#v, want add_event_summary_lineage v14", firstRecords[13])
-	}
-	if firstRecords[14].Version != 15 || firstRecords[14].Name != "rebuild_event_summaries_for_global_payloads" {
-		t.Fatalf(
-			"firstRecords[14] = %#v, want rebuild_event_summaries_for_global_payloads v15",
-			firstRecords[14],
-		)
-	}
-	if firstRecords[15].Version != 16 || firstRecords[15].Name != "rename_actor_ref_columns_to_actor_id" {
-		t.Fatalf("firstRecords[15] = %#v, want rename_actor_ref_columns_to_actor_id v16", firstRecords[15])
-	}
-	if firstRecords[16].Version != 17 || firstRecords[16].Name != "rebuild_network_conversation_containers" {
-		t.Fatalf("firstRecords[16] = %#v, want rebuild_network_conversation_containers v17", firstRecords[16])
-	}
-	if firstRecords[17].Version != 18 || firstRecords[17].Name != "add_task_orchestration_profile_schema" {
-		t.Fatalf("firstRecords[17] = %#v, want add_task_orchestration_profile_schema v18", firstRecords[17])
-	}
-	if firstRecords[18].Version != 19 || firstRecords[18].Name != "add_task_review_gate_schema" {
-		t.Fatalf("firstRecords[18] = %#v, want add_task_review_gate_schema v19", firstRecords[18])
-	}
-	if firstRecords[19].Version != 20 || firstRecords[19].Name != "add_notification_cursors" {
-		t.Fatalf("firstRecords[19] = %#v, want add_notification_cursors v20", firstRecords[19])
-	}
-	if firstRecords[20].Version != 21 || firstRecords[20].Name != "add_bridge_task_subscriptions" {
-		t.Fatalf("firstRecords[20] = %#v, want add_bridge_task_subscriptions v21", firstRecords[20])
-	}
-	if firstRecords[21].Version != 22 || firstRecords[21].Name != "memv2_memory_events" {
-		t.Fatalf("firstRecords[21] = %#v, want memv2_memory_events v22", firstRecords[21])
-	}
+	assertAppliedGlobalMigrationOrder(t, firstRecords)
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -307,6 +239,149 @@ func TestOpenGlobalDBFailsOnSchemaMigrationIntegrityMismatch(t *testing.T) {
 	_, err = OpenGlobalDB(ctx, path)
 	if err == nil || !strings.Contains(err.Error(), "migration 1 integrity mismatch") {
 		t.Fatalf("OpenGlobalDB(tampered) error = %v, want integrity mismatch", err)
+	}
+}
+
+func TestGlobalSchemaMigrationsAreAppendOnlyContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep known migration identities stable", func(t *testing.T) {
+		t.Parallel()
+
+		assertGlobalSchemaMigrationDefinitions(t, globalSchemaMigrations)
+	})
+}
+
+type expectedGlobalMigrationIdentity struct {
+	version  int
+	name     string
+	checksum string
+}
+
+func expectedGlobalMigrationIdentities() []expectedGlobalMigrationIdentity {
+	return []expectedGlobalMigrationIdentity{
+		{
+			version:  1,
+			name:     "create_global_schema",
+			checksum: "70e2c16c9d32e692891ab71d075ca823782626e7c9f6ffbbc88c5d662704e089",
+		},
+		{version: 2, name: "add_session_failure_diagnostics", checksum: "2026-04-24-add-session-failure-diagnostics"},
+		{version: 3, name: "add_automation_scheduler_state", checksum: "2026-04-24-add-automation-scheduler-state"},
+		{version: 4, name: "add_mcp_auth_tokens", checksum: "2026-04-25-add-mcp-auth-tokens"},
+		{version: 5, name: "add_tool_process_records", checksum: "2026-04-24-add-tool-process-records"},
+		{version: 6, name: "add_memory_operation_scope", checksum: "2026-04-25-add-memory-operation-scope"},
+		{version: 7, name: "add_task_run_claim_lease_schema", checksum: "2026-04-26-add-task-run-claim-lease-schema"},
+		{version: 8, name: "add_session_lineage_metadata", checksum: "2026-04-26-add-session-lineage-metadata"},
+		{
+			version:  9,
+			name:     "rename_environment_columns_to_sandbox",
+			checksum: "2026-04-28-rename-environment-columns-to-sandbox",
+		},
+		{version: 10, name: "add_vault_secrets", checksum: "2026-05-01-add-vault-secrets"},
+		{version: 11, name: "unify_secret_refs", checksum: "2026-05-01-unify-secret-refs"},
+		{version: 12, name: "add_agent_soul_snapshots", checksum: "2026-05-02-add-agent-soul-snapshots"},
+		{version: 13, name: "add_agent_heartbeat_storage", checksum: "2026-05-02-add-agent-heartbeat-storage"},
+		{version: 14, name: "add_event_summary_lineage", checksum: "2026-05-04-add-event-summary-lineage"},
+		{
+			version:  15,
+			name:     "rebuild_event_summaries_for_global_payloads",
+			checksum: "2026-05-04-rebuild-event-summaries-for-global-payloads",
+		},
+		{
+			version:  16,
+			name:     "rename_actor_ref_columns_to_actor_id",
+			checksum: "2026-05-04-rename-actor-ref-columns-to-actor-id",
+		},
+		{
+			version:  17,
+			name:     "add_task_orchestration_profile_schema",
+			checksum: "2026-05-05-add-task-orchestration-profile-schema",
+		},
+		{version: 18, name: "add_task_review_gate_schema", checksum: "2026-05-05-add-task-review-gate-schema"},
+		{version: 19, name: "add_notification_cursors", checksum: "2026-05-05-add-notification-cursors"},
+		{version: 20, name: "add_bridge_task_subscriptions", checksum: "2026-05-05-add-bridge-task-subscriptions"},
+		{
+			version:  21,
+			name:     "rebuild_network_conversation_containers",
+			checksum: "2026-05-05-rebuild-network-conversation-containers",
+		},
+		{version: 22, name: "memv2_memory_events", checksum: "2026-05-05-memv2-memory-events"},
+	}
+}
+
+func assertGlobalSchemaMigrationDefinitions(t *testing.T, migrations []store.Migration) {
+	t.Helper()
+
+	want := expectedGlobalMigrationIdentities()
+	if got := len(migrations); got != len(want) {
+		t.Fatalf("globalSchemaMigrations length = %d, want %d", got, len(want))
+	}
+	for index, expected := range want {
+		got := migrations[index]
+		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
+			t.Fatalf(
+				"globalSchemaMigrations[%d] = version %d name %q checksum %q, want version %d name %q checksum %q",
+				index,
+				got.Version,
+				got.Name,
+				got.Checksum,
+				expected.version,
+				expected.name,
+				expected.checksum,
+			)
+		}
+	}
+}
+
+func assertAppliedGlobalMigrationOrder(t *testing.T, records []store.MigrationRecord) {
+	t.Helper()
+
+	want := expectedGlobalMigrationIdentities()
+	if got := len(records); got != len(want) {
+		t.Fatalf("schema_migrations length = %d, want %d", got, len(want))
+	}
+	for index, expected := range want {
+		got := records[index]
+		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
+			t.Fatalf(
+				"schema_migrations[%d] = version %d name %q checksum %q, want version %d name %q checksum %q",
+				index,
+				got.Version,
+				got.Name,
+				got.Checksum,
+				expected.version,
+				expected.name,
+				expected.checksum,
+			)
+		}
+	}
+}
+
+func assertAppliedGlobalMigrationPrefix(t *testing.T, records []store.MigrationRecord, length int) {
+	t.Helper()
+
+	want := expectedGlobalMigrationIdentities()
+	if length < 0 || length > len(want) {
+		t.Fatalf("migration prefix length = %d, want 0..%d", length, len(want))
+	}
+	if got := len(records); got != length {
+		t.Fatalf("schema_migrations prefix length = %d, want %d", got, length)
+	}
+	for index := range records {
+		expected := want[index]
+		got := records[index]
+		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
+			t.Fatalf(
+				"schema_migrations[%d] = version %d name %q checksum %q, want version %d name %q checksum %q",
+				index,
+				got.Version,
+				got.Name,
+				got.Checksum,
+				expected.version,
+				expected.name,
+				expected.checksum,
+			)
+		}
 	}
 }
 

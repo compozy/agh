@@ -11,7 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
-const networkConversationMigrationVersion = 17
+const networkConversationMigrationVersion = 21
 
 func TestOpenGlobalDBCreatesNetworkConversationSchema(t *testing.T) {
 	t.Parallel()
@@ -153,6 +153,84 @@ func TestNetworkConversationMigrationRebuildsLegacyTimeline(t *testing.T) {
 func TestNetworkConversationMigrationReopenAfterRestart(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should upgrade observed task and bridge migration history by appending network migration",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			seedLegacyNetworkConversationDatabase(t, path)
+
+			beforeDB, err := store.OpenSQLiteDatabase(ctx, path, nil)
+			if err != nil {
+				t.Fatalf("OpenSQLiteDatabase(before) error = %v", err)
+			}
+			beforeRecords, err := store.AppliedMigrations(ctx, beforeDB)
+			if err != nil {
+				t.Fatalf("AppliedMigrations(before) error = %v", err)
+			}
+			if err := beforeDB.Close(); err != nil {
+				t.Fatalf("beforeDB.Close() error = %v", err)
+			}
+			assertAppliedGlobalMigrationPrefix(t, beforeRecords, networkConversationMigrationVersion-1)
+
+			first, err := OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(first) error = %v", err)
+			}
+			firstRecords, err := store.AppliedMigrations(ctx, first.db)
+			if err != nil {
+				t.Fatalf("AppliedMigrations(first) error = %v", err)
+			}
+			assertAppliedGlobalMigrationOrder(t, firstRecords)
+			for index, before := range beforeRecords {
+				if !firstRecords[index].AppliedAt.Equal(before.AppliedAt) {
+					t.Fatalf(
+						"migration %d applied_at = %s, want unchanged %s",
+						before.Version,
+						firstRecords[index].AppliedAt,
+						before.AppliedAt,
+					)
+				}
+			}
+			assertTaskOrchestrationProfileSchema(t, first.db)
+			assertReviewGateSchema(t, first.db)
+			assertNotificationCursorSchema(t, first.db)
+			assertBridgeTaskSubscriptionSchema(t, first.db)
+			assertTableLacksColumns(t, first.db, "network_timeline_log", "interaction_id")
+			assertTablesPresent(t, first.db, "network_threads", "network_direct_rooms", "network_work", "memory_events")
+			if err := first.Close(ctx); err != nil {
+				t.Fatalf("Close(first) error = %v", err)
+			}
+
+			second, err := OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(second) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := second.Close(ctx); closeErr != nil {
+					t.Fatalf("Close(second) error = %v", closeErr)
+				}
+			})
+			secondRecords, err := store.AppliedMigrations(ctx, second.db)
+			if err != nil {
+				t.Fatalf("AppliedMigrations(second) error = %v", err)
+			}
+			assertAppliedGlobalMigrationOrder(t, secondRecords)
+			for index, firstRecord := range firstRecords {
+				if !secondRecords[index].AppliedAt.Equal(firstRecord.AppliedAt) {
+					t.Fatalf(
+						"second migration %d applied_at = %s, want unchanged %s",
+						firstRecord.Version,
+						secondRecords[index].AppliedAt,
+						firstRecord.AppliedAt,
+					)
+				}
+			}
+		},
+	)
+
 	t.Run("Should record migration version and keep schema stable after reopen", func(t *testing.T) {
 		t.Parallel()
 
@@ -190,7 +268,7 @@ func TestNetworkConversationMigrationReopenAfterRestart(t *testing.T) {
 			t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 		}
 		if !secondRecords[len(secondRecords)-1].AppliedAt.Equal(firstRecords[len(firstRecords)-1].AppliedAt) {
-			t.Fatalf("migration v17 applied_at changed after reopen")
+			t.Fatalf("migration v%d applied_at changed after reopen", networkConversationMigrationVersion)
 		}
 		assertTableLacksColumns(t, second.db, "network_timeline_log", "interaction_id")
 		assertTablesPresent(t, second.db, "network_threads", "network_direct_rooms", "network_work")

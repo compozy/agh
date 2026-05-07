@@ -841,33 +841,33 @@ var globalSchemaMigrations = []store.Migration{
 	},
 	{
 		Version:  17,
-		Name:     "rebuild_network_conversation_containers",
-		Up:       migrateNetworkConversationContainers,
-		Checksum: "2026-05-05-rebuild-network-conversation-containers",
-	},
-	{
-		Version:  18,
 		Name:     "add_task_orchestration_profile_schema",
 		Up:       migrateTaskOrchestrationProfileSchema,
 		Checksum: "2026-05-05-add-task-orchestration-profile-schema",
 	},
 	{
-		Version:  19,
+		Version:  18,
 		Name:     "add_task_review_gate_schema",
 		Up:       migrateTaskReviewGateSchema,
 		Checksum: "2026-05-05-add-task-review-gate-schema",
 	},
 	{
-		Version:  20,
+		Version:  19,
 		Name:     "add_notification_cursors",
 		Up:       migrateNotificationCursors,
 		Checksum: "2026-05-05-add-notification-cursors",
 	},
 	{
-		Version:  21,
+		Version:  20,
 		Name:     "add_bridge_task_subscriptions",
 		Up:       migrateBridgeTaskSubscriptions,
 		Checksum: "2026-05-05-add-bridge-task-subscriptions",
+	},
+	{
+		Version:  21,
+		Name:     "rebuild_network_conversation_containers",
+		Up:       migrateNetworkConversationContainers,
+		Checksum: "2026-05-05-rebuild-network-conversation-containers",
 	},
 	{
 		Version:  22,

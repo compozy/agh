@@ -220,6 +220,8 @@ Backend architecture, autonomy contracts, security invariants, package layout, a
 - **Skill**: `agh-schema-migration`.
 - **When**: any SQLite column, index, or constraint change.
 - **Mandatory**: numbered migration in the registry — `EnsureSchema`-style boot reconciliation is forbidden for column changes.
+- **Append-only identity**: migration `version`, `name`, and `checksum` are persisted data contracts. Never insert, reorder, rename, renumber, or change an existing migration after it may have reached any developer, QA, or release database; append new migrations at the registry tail.
+- **Integrity mismatch response**: stop and investigate the recorded history. Fix the registry order or write an ADR-backed one-pass repair; never weaken mismatch checks and never manually edit a live `schema_migrations` row as the fix.
 - **Covers**: numbered registry, transactional wrap (`BEGIN IMMEDIATE`), `-wal` / `-shm` companion handling on recovery, `ORDER BY 0` pitfall, fresh-DB + reopen-after-restart tests.
 
 ## Vocabulary & Product Strategy
@@ -236,7 +238,7 @@ Repo-wide rules backed by RFC 001 / RFC 002. Runtime implementation details (pre
 
 - **Standing directives** — `docs/_memory/standing_directives.md`. Perpetually-active engineering posture (SD-001..SD-011): long-running session supervision, greenfield-delete, BR-PT/EN, multi-LLM pipeline, real-scenario QA, forensic-first bug fixes, truthful UI, composition-root discipline, detached lifetime, extensible-and-agent-manageable design. Read before opening a TechSpec, defending an architecture pivot, or whenever someone proposes a compat shim.
 - **Spec authoring playbook** — `docs/_memory/spec-authoring-playbook.md`. Mandatory preflight for `cy-create-prd` / `cy-create-techspec` / `cy-create-tasks`, with phase-by-phase MUST / MUST-NOT and evidence references. The `cy-spec-preflight` skill enforces this — always read before producing any `_idea.md` / `_prd.md` / `_techspec.md` / `_tasks.md`.
-- **Lessons learned** — `docs/_memory/lessons/` (`L-001..L-015`, plus `README.md` index). One file per durable lesson with confirmed root cause + fix + evidence (ADR, commit, review issue, or QA bug). Scan the index whenever you hit a class of issue: concurrency / API, testing discipline, autonomy architecture, persistence, spec authoring.
+- **Lessons learned** — `docs/_memory/lessons/` (`L-001..L-021`, plus `README.md` index). One file per durable lesson with confirmed root cause + fix + evidence (ADR, commit, review issue, or QA bug). Scan the index whenever you hit a class of issue: concurrency / API, testing discipline, autonomy architecture, persistence, spec authoring.
 - **Glossary** — `docs/_memory/glossary.md`. Canonical vocabulary (`capability` vs `recipe`, `AGENT.md` vs `AGENTS.md`, Peer Card vs Agent Card, autonomy primitives). Authoritative when older RFCs / ledgers conflict. Read when naming anything new, reviewing a rename PR, or when a term feels overloaded.
 - **Cross-source synthesis** — `docs/_memory/_synthesis.md`. Cross-referenced findings from 8 forensic analyses, ranked by source count — the evidence corpus behind every rule in CLAUDE.md and the standing directives. Read when challenging or evolving a rule.
 - **Forensic analyses** — `docs/_memory/analysis/analysis_*.md`. Per-source raw analyses (codex sessions / plans / ledger, compozy tasks, qmd collections, local / global runs, existing surfaces) feeding `_synthesis.md`. Read when synthesis cites a finding and you need the underlying evidence.
