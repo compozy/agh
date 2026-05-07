@@ -53,10 +53,23 @@ type ModelsDevSource struct {
 
 var _ Source = (*ModelsDevSource)(nil)
 
+// ModelsDevSourceOption customizes models.dev source construction.
+type ModelsDevSourceOption func(*ModelsDevSource)
+
+// WithModelsDevHTTPClient injects the explicit-timeout HTTP client used for models.dev fetches.
+func WithModelsDevHTTPClient(client *http.Client) ModelsDevSourceOption {
+	return func(source *ModelsDevSource) {
+		if source != nil && client != nil {
+			source.client = client
+		}
+	}
+}
+
 // NewModelsDevSource creates a configured models.dev source.
 func NewModelsDevSource(
 	providers map[string]aghconfig.ProviderConfig,
 	cfg aghconfig.ModelsDevSourceConfig,
+	options ...ModelsDevSourceOption,
 ) (*ModelsDevSource, error) {
 	ttl, err := time.ParseDuration(cfg.EffectiveTTL())
 	if err != nil {
@@ -74,6 +87,11 @@ func NewModelsDevSource(
 		client:      &http.Client{Timeout: timeout},
 		providerIDs: knownProviderIDs(providers),
 		providerMap: cloneProviderMapping(defaultModelsDevProviderMapping),
+	}
+	for _, option := range options {
+		if option != nil {
+			option(source)
+		}
 	}
 	return source, nil
 }

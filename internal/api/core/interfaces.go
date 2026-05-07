@@ -13,6 +13,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
@@ -35,6 +36,11 @@ type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.Age
 type AgentCatalog interface {
 	ListAgents(ctx context.Context) ([]aghconfig.AgentDef, error)
 	GetAgent(ctx context.Context, name string) (aghconfig.AgentDef, error)
+}
+
+// ModelCatalogService exposes daemon-owned provider model catalog reads and refreshes.
+type ModelCatalogService interface {
+	modelcatalog.Service
 }
 
 // SessionManager is the runtime session surface exposed by API transports.

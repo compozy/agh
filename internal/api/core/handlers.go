@@ -51,6 +51,7 @@ type BaseHandlerConfig struct {
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
+	ModelCatalog                 ModelCatalogService
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulRefresher                SoulRefresher
@@ -102,6 +103,7 @@ type BaseHandlers struct {
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
+	ModelCatalog                 ModelCatalogService
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulRefresher                SoulRefresher
@@ -161,6 +163,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
+		ModelCatalog:                 cfg.ModelCatalog,
 		AgentContextService:          cfg.AgentContextService,
 		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
