@@ -45,7 +45,7 @@ vi.mock("@/systems/workspace", () => ({
   }),
 }));
 
-import { useAgentDetailPage } from "./use-agent-detail-page";
+import { useAgentDetailPage } from "../use-agent-detail-page";
 
 describe("useAgentDetailPage", () => {
   beforeEach(() => {

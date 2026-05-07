@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentPayload } from "../types";
+import type { AgentPayload } from "../../types";
 
 import {
   buildAgentCategoryTree,
@@ -8,7 +8,7 @@ import {
   getAgentCategoryFolderId,
   getAgentLeafId,
   isAgentRootLevel,
-} from "./agent-category";
+} from "../agent-category";
 
 function makeAgent(overrides: Partial<AgentPayload> & { name: string }): AgentPayload {
   return {

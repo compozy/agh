@@ -1,11 +1,12 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { sessionLifecycleSelectors } from "./fixtures/selectors";
-import { expect, test } from "./fixtures/test";
+import { sessionLifecycleSelectors } from "../fixtures/selectors";
+import { expect, test } from "../fixtures/test";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
+  "..",
   "..",
   "..",
   "internal",

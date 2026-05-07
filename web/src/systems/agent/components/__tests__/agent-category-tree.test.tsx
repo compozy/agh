@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
-import { AgentCategoryTree } from "./agent-category-tree";
-import type { AgentPayload } from "../types";
+import { AgentCategoryTree } from "../agent-category-tree";
+import type { AgentPayload } from "../../types";
 
 type MatchRouteParams = Record<string, string>;
 let matchedRouteExact: Record<string, boolean> = {};

@@ -14,7 +14,7 @@ import {
   type TreeItemLabelProps,
   type TreeItemProps,
   type TreeProps,
-} from "../../index";
+} from "../../../index";
 
 interface TestTreeItem {
   kind: "root" | "folder" | "leaf";

@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
-import { AgentCommandMultiSelect } from "./agent-command-multi-select";
-import type { AgentPayload } from "../types";
+import { AgentCommandMultiSelect } from "../agent-command-multi-select";
+import type { AgentPayload } from "../../types";
 
 function makeAgent(overrides: Partial<AgentPayload> & { name: string }): AgentPayload {
   return {
