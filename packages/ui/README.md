@@ -169,7 +169,7 @@ Every primitive ships with a colocated `<name>.stories.tsx` under [`./src/compon
 - **Interaction-only stories should be explicit.** If a story depends on a `play()` function to reach its interesting state, tag it with `play-fn` so the intent is obvious to reviewers.
 - **Dark background is implicit.** The preview is dark by default (`color-scheme: dark`); do not pass a background override.
 - **Tokens only — no hex/`rgb`/`hsl` literals.** Pull from `--color-*`, `--radius-*`, `--duration-*`, `--ease-*`, `--font-*`. Inventing a value is a review blocker.
-- **Tests colocate with the component.** `<name>.test.tsx` next to `<name>.tsx`. The package's Vitest project discovers `src/**/*.{test,spec}.{ts,tsx}` and `tests/**/*.test.{ts,tsx}` — see [`vitest.config.ts`](./vitest.config.ts).
+- **Tests live in `__tests__/` directories.** Keep `<name>.test.tsx` or `<name>.spec.tsx` under the nearest `__tests__/` folder beside the source surface they verify. The package's Vitest project discovers `src/**/*.{test,spec}.{ts,tsx}` and `tests/**/*.test.{ts,tsx}` — see [`vitest.config.ts`](./vitest.config.ts).
 
 ## Anti-patterns
 

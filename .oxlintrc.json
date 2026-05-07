@@ -3,7 +3,8 @@
     "plugins": ["unicorn", "typescript", "oxc"],
     "jsPlugins": [
         "./lint-plugins/react-component-complexity.mjs",
-        "./lint-plugins/react-hooks-separation.mjs"
+        "./lint-plugins/react-hooks-separation.mjs",
+        "./lint-plugins/test-file-location.mjs"
     ],
     "categories": {},
     "rules": {
@@ -95,7 +96,8 @@
         "unicorn/no-useless-length-check": "warn",
         "unicorn/no-useless-spread": "warn",
         "unicorn/prefer-set-size": "warn",
-        "unicorn/prefer-string-starts-ends-with": "warn"
+        "unicorn/prefer-string-starts-ends-with": "warn",
+        "compozy-testing/tests-in-tests-dir": "error"
     },
     "overrides": [
         {
