@@ -1,0 +1,758 @@
+Goal (incl. success criteria):
+
+- Run the `refacs` Codex Loop across Go packages under `internal/`, one package per iteration.
+- For each iteration: pick one unprocessed Go package, use read-only subagents for refactoring/performance exploration, implement only necessary scoped improvements in that package, validate, and write `.compozy/tasks/refacs/<num>_report_<pkg>.md`.
+
+Constraints/Assumptions:
+
+- Conversation in Brazilian Portuguese; artifacts/reports in English.
+- Must always use `/Users/pedronauck/.codex/RTK.md`: shell commands are prefixed with `rtk`.
+- Do not run destructive git commands (`git restore`, `git checkout`, `git reset`, `git clean`, `git rm`) without explicit user permission.
+- Subagents are read-only; local paired agent owns all edits.
+- Production Go edits require `internal/CLAUDE.md`, `agh-code-guidelines`, and `golang-pro`.
+- Refactoring uses `refactoring-analysis`; performance uses `extreme-software-optimization`; failures use `systematic-debugging` and `no-workarounds`.
+- `make verify` is the repo blocking gate before final completion; per-iteration package validation may be run first.
+
+Key decisions:
+
+- Use deterministic `go list ./internal/...` ordering.
+- First unprocessed package is `github.com/pedronauck/agh/internal/acp` (`internal/acp`), because `.compozy/tasks/refacs/` had no package reports at bootstrap.
+- Store loop memory/state under `.compozy/tasks/refacs/`; report path for this iteration will be `.compozy/tasks/refacs/001_report_internal_acp.md`.
+- Second package is `github.com/pedronauck/agh/internal/agentidentity` (`internal/agentidentity`) from deterministic package order.
+- Third package is `github.com/pedronauck/agh/internal/api/contract` (`internal/api/contract`) from deterministic package order.
+- Fourth package is `github.com/pedronauck/agh/internal/api/core` (`internal/api/core`) from deterministic package order.
+- Fifth package is `github.com/pedronauck/agh/internal/api/httpapi` (`internal/api/httpapi`) from deterministic package order.
+- Sixth package is `github.com/pedronauck/agh/internal/api/spec` (`internal/api/spec`) from deterministic package order.
+- Seventh package is `github.com/pedronauck/agh/internal/api/testutil` (`internal/api/testutil`) from deterministic package order.
+- Next package after iteration 007 is `github.com/pedronauck/agh/internal/api/udsapi` (`internal/api/udsapi`).
+- Eighth package is `github.com/pedronauck/agh/internal/api/udsapi` (`internal/api/udsapi`) from deterministic package order.
+
+State:
+
+- Active iteration: 026.
+- Active package: `github.com/pedronauck/agh/internal/extension/protocol`.
+- Last completed iteration: 025.
+- Last completed package: `internal/extension/contract`.
+- Next package: `github.com/pedronauck/agh/internal/extension/protocol`.
+- Status: iteration 025 complete; stop and let the loop trigger the next package.
+
+Done:
+
+- Loaded RTK, requested skills, `internal/CLAUDE.md`, Go package list, and current git status.
+- Confirmed no existing `.compozy/tasks/refacs` reports were present at bootstrap.
+- Created `.compozy/tasks/refacs/reports/` and `.compozy/tasks/refacs/memory/` directories.
+- Spawned two read-only explorers for `internal/acp` refactoring and performance analysis.
+- Implemented `internal/acp` changes:
+  - extracted terminal lifecycle/process helpers from `handlers.go` to `terminal.go`;
+  - changed inbound JSON-RPC dispatch from per-call map to switch;
+  - added no-gateway fast paths for read/write/terminal tool interception;
+  - simplified `mergeCommandEnv` string assembly;
+  - added `BenchmarkHandleInboundReadTextFile`;
+  - repaired permission integration test setup (`approve_reads` for interactive edit permission);
+  - moved `testWrapperPIDFileEnvKey` to platform-neutral test file for Windows compile.
+- Wrote `.compozy/tasks/refacs/001_report_internal_acp.md`.
+- Wrote `.compozy/tasks/refacs/state.md`.
+- Passing evidence:
+  - `rtk make verify` (second full run passed)
+  - `rtk go test ./internal/acp -count=1`
+  - `rtk go test -tags integration ./internal/acp -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/acp -count=1`
+  - `rtk golangci-lint run ./internal/acp`
+  - `rtk proxy go test -run '^$' -bench . -benchmem ./internal/acp -count=1`
+  - `rtk proxy env GOOS=windows GOARCH=amd64 go test -c -o /tmp/acp-windows.test.exe ./internal/acp`
+  - AGH test-conventions checker for edited test files.
+- Spawned two read-only explorers for `internal/agentidentity` refactoring and performance analysis.
+- Implemented `internal/agentidentity` changes:
+  - split `identity.go` into cohesive package files: `credentials.go`, `errors.go`, `snapshot.go`, and focused `identity.go`;
+  - normalized `identity_test.go` to AGH `Should ...` subtest conventions without changing assertions;
+  - made no performance edits because profiling found no production hotspot and all candidates scored below threshold.
+- Wrote `.compozy/tasks/refacs/002_report_internal_agentidentity.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 002:
+  - `rtk make verify`
+  - `rtk go test ./internal/agentidentity -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/agentidentity -count=1`
+  - `rtk golangci-lint run ./internal/agentidentity`
+  - `rtk proxy go test ./internal/agentidentity -cover -count=1`
+  - `rtk go test ./internal/agentidentity ./internal/api/core ./internal/api/udsapi ./internal/cli -count=1`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/agentidentity/identity_test.go`
+  - `rtk proxy go test -run '^$' -bench . -benchmem ./internal/agentidentity -count=1`
+- Spawned two read-only explorers for `internal/api/contract` refactoring and performance analysis.
+- Implemented `internal/api/contract` changes:
+  - extracted duplicated recursive JSON safety traversal into `json_safety.go`;
+  - kept raw-claim-token and authored-context policy predicates separate;
+  - added JSON safety benchmarks in `json_safety_bench_test.go`;
+  - left DTO fields, JSON tags, enum strings, and OpenAPI output unchanged.
+- Wrote `.compozy/tasks/refacs/003_report_internal_api_contract.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 003:
+  - `rtk make verify`
+  - `rtk go test ./internal/api/contract -count=1`
+  - `rtk go test -tags integration ./internal/api/contract -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/api/contract -count=1`
+  - `rtk golangci-lint run ./internal/api/contract`
+  - `rtk make codegen-check`
+  - `rtk go test ./internal/api/contract ./internal/api/core ./internal/extension ./internal/cli ./internal/daemon -count=1`
+  - `rtk proxy go test ./internal/api/contract -cover -count=1`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/api/contract/json_safety_bench_test.go`
+  - `rtk proxy go test -run '^$' -bench 'Benchmark(ContainsRawClaimTokenFieldNestedPayload|ValidateAuthoredContextRedactedNestedPayload)' -benchmem ./internal/api/contract -count=5`
+- Spawned two read-only explorers for `internal/api/core` refactoring and performance analysis.
+- Implemented `internal/api/core` changes:
+  - removed the `NetworkChannelMessagePayload` compatibility alias from `internal/api/contract`;
+  - renamed core network conversion helpers to `NetworkConversationMessagePayload*`;
+  - updated direct core, daemon integration, and e2e harness uses to the canonical conversation payload type;
+  - optimized `ObserveEventID` with `time.AppendFormat` plus zero-padded integer append;
+  - replaced prompt-stream SSE map envelopes with typed payload structs;
+  - added `BenchmarkPromptStreamEncoderEmit`;
+  - normalized touched tests and benchmarks to AGH test-shape/no-discard conventions.
+- Wrote `.compozy/tasks/refacs/004_report_internal_api_core.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 004:
+  - `rtk make verify`
+  - `rtk go test ./internal/api/core -count=1`
+  - `rtk go test ./internal/api/contract ./internal/api/core ./internal/testutil/e2e -count=1`
+  - `rtk go test -tags integration ./internal/api/core -count=1`
+  - `rtk go test -tags integration ./internal/daemon -run 'TestDaemonE2ENetwork(DirectReplyLifecycleWithMockAgents|WhoisAndCapabilityExchange)' -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/api/core -count=1`
+  - `rtk golangci-lint run ./internal/api/core`
+  - `rtk make codegen-check`
+  - `rtk proxy go test ./internal/api/core -cover -count=1`
+  - AGH test-conventions checker for all touched test files.
+  - `rtk proxy go test -run '^$' -bench 'Benchmark(EmitObserveEvents|PromptStreamEncoderEmit)$' -benchmem ./internal/api/core -count=5`
+- Spawned two read-only explorers for `internal/api/httpapi` refactoring and performance analysis.
+- Implemented `internal/api/httpapi` changes:
+  - registered HTTP agent kernel routes to match the spec and UDS surface;
+  - wired `core.CoordinatorConfigResolver` through HTTP server/handlers and daemon options;
+  - added CORS `PATCH` preflight support;
+  - normalized `host:port` bound-host values for loopback guards and deduplicated guard bodies;
+  - served static assets through `fs.Open` + `io.ReadSeeker` when possible to avoid whole-file `[]byte` copies;
+  - preserved detached stream lifetime via `context.WithoutCancel(ctx)` and handled duplicate listener close errors.
+- Wrote `.compozy/tasks/refacs/005_report_internal_api_httpapi.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 005:
+  - `rtk make verify`
+  - `rtk go test ./internal/api/httpapi -count=1`
+  - `rtk go test -tags integration ./internal/api/httpapi -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/api/httpapi -count=1`
+  - `rtk go test ./internal/daemon -count=1`
+  - `rtk golangci-lint run ./internal/api/httpapi`
+  - `rtk proxy go test ./internal/api/httpapi -cover -count=1`
+  - AGH test-conventions checker for new `httpapi` refac test files.
+- Spawned two read-only explorers for `internal/api/spec` refactoring and performance analysis.
+- Implemented `internal/api/spec` changes:
+  - made `Operations()` and `authoredContextOperations()` return defensive copies of mutable operation metadata;
+  - added `TestOperationsReturnDefensiveCopies` to prove callers cannot mutate global registry state through returned operation specs;
+  - made no OpenAPI-shape changes; `make codegen`/`make codegen-check` produced no generated diff.
+- Wrote `.compozy/tasks/refacs/006_report_internal_api_spec.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 006:
+  - `rtk make verify`
+  - `rtk go test ./internal/api/spec -count=1`
+  - `rtk go test -tags integration ./internal/api/spec -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/api/spec -count=1`
+  - `rtk golangci-lint run ./internal/api/spec`
+  - `rtk make codegen`
+  - `rtk make codegen-check`
+  - `rtk make web-test`
+  - `rtk make web-typecheck`
+  - `rtk proxy go test ./internal/api/spec -cover -count=1`
+  - `rtk go test ./internal/api/spec ./internal/api/httpapi ./internal/api/udsapi ./internal/codegen/openapits ./internal/codegen/sdkts -count=1`
+  - AGH test-conventions checker for `internal/api/spec/operations_refac_test.go`.
+- Spawned two read-only explorers for `internal/api/testutil` refactoring and performance analysis.
+- Implemented `internal/api/testutil` changes:
+  - split the 1,768-line `apitest.go` grab-bag into cohesive helper/stub files while preserving exported names and behavior;
+  - co-located stub type declarations, methods, and compile-time interface assertions;
+  - added `NewDisabledNetworkHomeConfig(t)` to derive a disabled-network config from the same generated test home;
+  - updated four `internal/api/core/tools_test.go` callsites that created duplicate test homes;
+  - expanded package-local test contracts for home/config, HTTP helper headers, SSE parsing, session fixtures, resource stub cloning, workspace stub errors, and session list fallback behavior.
+- Wrote `.compozy/tasks/refacs/007_report_internal_api_testutil.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 007:
+  - `rtk make verify`
+  - `rtk go test ./internal/api/testutil -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/api/testutil -count=1`
+  - `rtk go test -tags integration ./internal/api/testutil -count=1`
+  - `rtk go test ./internal/api/testutil ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi -count=1`
+  - `rtk go test ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/cli ./internal/daemon -count=1`
+  - `rtk go test -tags integration ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/api/testutil -count=1`
+  - `rtk golangci-lint run ./internal/api/testutil ./internal/api/core`
+  - `rtk proxy go test ./internal/api/testutil -cover -count=1`
+  - AGH test-conventions checker for `internal/api/testutil/apitest_test.go` and `internal/api/core/tools_test.go`.
+  - Focused profile: `NewTestHomePaths` in `TestTool -count=20` dropped from 110ms/1.29MB to 60ms/681.78kB after removing duplicate home/config creation.
+- Spawned two read-only explorers for `internal/api/udsapi` refactoring and performance analysis.
+- Implemented `internal/api/udsapi` changes:
+  - replaced boolean server lifecycle with explicit stopped/running/stopping states;
+  - prevented duplicate `Start` and restart-during-shutdown from unlinking or racing the active UDS lifecycle;
+  - handled startup cleanup errors instead of discarding listener/socket cleanup failures;
+  - detached stream lifetime via `context.WithoutCancel(ctx)` and rejected nil shutdown contexts;
+  - quieted Gin debug route/startup output for UDS-owned engine creation and route registration;
+  - mapped `ErrExtensionExists` to UDS `409 Conflict` to match HTTP;
+  - replaced hosted MCP stream error `map[string]any` with a typed payload;
+  - made test socket paths collision-safe with an atomic counter and handled cleanup errors;
+  - removed empty `memory.go` and `workspaces.go`.
+- Wrote `.compozy/tasks/refacs/008_report_internal_api_udsapi.md`.
+- Updated `.compozy/tasks/refacs/state.md`.
+- Passing evidence for iteration 008:
+  - `rtk make verify`
+  - `rtk go test ./internal/api/udsapi -count=1`
+  - `rtk go test -tags integration ./internal/api/udsapi -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/api/udsapi -count=1`
+  - `rtk golangci-lint run ./internal/api/udsapi`
+  - `rtk proxy go test ./internal/api/udsapi -cover -count=1`
+  - `rtk go test ./internal/api/core ./internal/api/httpapi ./internal/api/spec ./internal/api/udsapi ./internal/cli ./internal/daemon -count=1`
+  - `rtk go test -tags integration ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi -count=1`
+  - AGH test-conventions checker for `server_test.go`, `server_env_test.go`, `extensions_additional_test.go`, `hosted_mcp_test.go`, and `helpers_test.go`.
+  - Focused lifecycle tests passed with `-count=20`; post-fix memory profile no longer showed `gin.debugPrintRoute` in top allocation nodes.
+- Spawned two read-only explorers for `internal/automation` refactoring and performance analysis.
+- Implemented `internal/automation` changes:
+  - split trigger filter matching into `trigger_filter.go`;
+  - compiled normalized trigger filters on runtime registration snapshots;
+  - replaced allocation-heavy `strings.Split` data-path matching with a zero-allocation path walker;
+  - skipped the duplicate `registrationMatchesEnvelope` pass for the already matched `Fire` path while preserving webhook filtering;
+  - reused the already cloned trigger snapshot for dispatch requests instead of cloning the filter map again;
+  - changed `mergedRuntimeContext` so a nil parent uses the runtime context directly instead of fabricating `context.Background()`;
+  - added focused refactor tests for filter path behavior, dispatch snapshot isolation, and nil-parent runtime context handling.
+- Passing evidence so far for iteration 009:
+  - `rtk go test ./internal/automation -count=1`
+  - `rtk go test -tags integration ./internal/automation -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/automation -count=1`
+  - `rtk golangci-lint run ./internal/automation`
+  - `rtk proxy go test ./internal/automation -cover -count=1`
+  - `rtk go test ./internal/automation ./internal/bundles ./internal/api/contract ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/cli ./internal/daemon ./internal/extension ./internal/store/globaldb ./internal/testutil/e2e -count=1`
+  - `rtk make verify`
+  - AGH test-conventions checker for `trigger_refac_test.go` and `manager_refac_test.go`.
+  - Focused benchmark now reports nested filter matching at `0 B/op` and `0 allocs/op`, and trigger fire matching at `66816 B/op` / `237 allocs/op` after a baseline of about `76292 B/op` / `397 allocs/op`.
+- Wrote `.compozy/tasks/refacs/009_report_internal_automation.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 009 complete and next package `internal/automation/model`.
+- Spawned two read-only explorers for `internal/automation/model` refactoring and performance analysis.
+- Baseline for iteration 010:
+  - `rtk go test ./internal/automation/model -count=1` reported no package-local tests.
+  - `rtk golangci-lint run ./internal/automation/model` passed with no issues.
+  - Package order rechecked with `rtk go list ./internal/...`; next package after active is `internal/bridges`.
+- Implemented scoped `internal/automation/model` fix:
+  - tightened `ValidateTriggerFilter` to reject empty nested `data.*` path segments so model validation matches runtime filter matching;
+  - added `internal/automation/model/validate_test.go` with package-local coverage for built-in paths, trimmed nested data paths, empty segments, unsupported top-level paths, and empty values.
+  - added package-local prompt-template characterization tests in `template_test.go`;
+  - added a static-prompt fast path in `ValidateTriggerPromptTemplate`, preserving parsing for any prompt containing `{{` or `}}`;
+  - added `BenchmarkValidateTriggerPromptTemplate`;
+  - added package-local scheduler state/claim validation tests to cover durable scheduler model contracts.
+- Passing evidence so far for iteration 010:
+  - `rtk go test ./internal/automation/model -run '^TestValidateTriggerFilter$' -count=1`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/automation/model/validate_test.go`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/automation/model/template_test.go`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/automation/model/template_bench_test.go`
+  - `rtk go test ./internal/automation/model -count=1`
+  - `rtk golangci-lint run ./internal/automation/model`
+  - `rtk proxy go test ./internal/automation/model -cover -count=1` (`5.7%` statements after first focused test file).
+  - `rtk proxy go test ./internal/automation/model -run '^$' -bench 'BenchmarkValidateTriggerPromptTemplate' -benchmem -count=10` reports static validation at about `9 ns/op`, `0 B/op`, `0 allocs/op`; templated validation remains about `3.3 us/op`, `4888 B/op`, `81 allocs/op`.
+  - `rtk go test ./internal/automation -run 'Test(ValidateTriggerFilter|ValidateTriggerPromptTemplate|ParseTriggerPromptTemplate|TriggerPromptTemplate)' -count=1`
+  - `rtk go test ./internal/automation ./internal/automation/model -count=1`
+  - `rtk golangci-lint run ./internal/automation/model ./internal/automation`
+  - `rtk proxy go test ./internal/automation -run '^$' -bench 'BenchmarkRenderTriggerPrompt(Static|Template)|BenchmarkExactFilterMatchNestedData' -benchmem -count=10`
+  - `rtk go test ./internal/automation/model ./internal/automation ./internal/config ./internal/store/globaldb ./internal/settings ./internal/api/core ./internal/api/contract ./internal/cli ./internal/daemon -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/automation/model -count=1`
+  - `rtk go test -tags integration ./internal/automation ./internal/automation/model -count=1`
+  - `rtk proxy go test ./internal/automation ./internal/automation/model -coverpkg=./internal/automation/model -coverprofile=/tmp/automation-model-combined-cover.out -count=1` + `go tool cover` total `84.3%`.
+  - `rtk make verify`
+- Wrote `.compozy/tasks/refacs/010_report_internal_automation_model.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 010 complete and next package `internal/bridges`.
+- Spawned two read-only explorers for `internal/bridges` refactoring and performance analysis.
+- Implemented scoped `internal/bridges` changes:
+  - deleted unused managed bridge sync subsystem and managed-sync-only tests;
+  - deleted unused `DeliveryBroker` interface/assertion;
+  - unified provider config validation so domain/create/update/resource paths require JSON object or null;
+  - made registry readiness respect canceled contexts before store calls;
+  - fixed rollback operation count for newly-created bridge resources;
+  - prevented broker dedupe from collapsing repeated unfingerprinted zero-time delivery chunks;
+  - added valid byte-equality fast path to `semanticJSONEqual`;
+  - reused resource projection lookup maps and added projection/JSON equality benchmarks.
+- Passing evidence for iteration 011:
+  - `rtk make verify`
+  - `rtk go test ./internal/bridges -count=1`
+  - `rtk go test -tags integration ./internal/bridges -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/bridges -count=1`
+  - `rtk golangci-lint run ./internal/bridges`
+  - `rtk proxy go test ./internal/bridges -cover -count=1` (`80.1%` statements)
+  - `rtk go test ./internal/bridges ./internal/bridgesdk ./internal/bundles ./internal/api/contract ./internal/api/core ./internal/api/spec ./internal/api/httpapi ./internal/api/udsapi ./internal/cli ./internal/daemon ./internal/extension ./internal/observe ./internal/store/globaldb ./internal/testutil/e2e -count=1`
+  - `rtk golangci-lint run ./internal/bridges ./internal/bundles ./internal/daemon ./internal/extension ./internal/observe`
+  - AGH test-conventions checker for new `internal/bridges` test/bench files.
+  - Focused benchmarks: canonical `semanticJSONEqual` about `104-107 ns/op`, `0 B/op`, `0 allocs/op`; broker guardrails stable.
+- Investigated broad dependent integration command `rtk go test -tags integration ./internal/bridges ./internal/bundles ./internal/daemon ./internal/extension -count=1`; failures classified outside `internal/bridges`:
+  - Telegram/Teams provider conformance degraded in provider tests while Slack control passed; Telegram launch test injects listener env without `webhook_secret`, triggering provider-local degradation.
+  - Daemon network boot test sends without `Surface`; `internal/network` requires conversation surface.
+  - Daemon bundled-skills prompt assembler failure is `skills: agent not found: "coder"`.
+- Wrote `.compozy/tasks/refacs/011_report_internal_bridges.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 011 complete and next package `internal/bridgesdk`.
+- Spawned two read-only explorers for `internal/bridgesdk` refactoring and performance analysis.
+- Implemented scoped `internal/bridgesdk` changes:
+  - preserved JSON-RPC response `result` as `json.RawMessage` to avoid large-number precision loss and response re-marshaling;
+  - wrote JSON-RPC frames directly as marshaled JSON plus newline under the existing write lock;
+  - rejected nil/canceled Host API contexts before transport calls and replaced bridge Host API string literals with contract constants;
+  - made inbound batch timer callbacks generation-tokened and accounted before `time.AfterFunc`, removing late `WaitGroup.Add` and stale timer flush hazards;
+  - cloned inbound `Conversation` refs before delayed dispatch;
+  - changed inbound batch keys to length-prefixed parts and canonicalized empty message family as `message`;
+  - released runtime initialize lock before provider callback execution and replaced shutdown `sync.Once` with explicit retryable state;
+  - switched runtime param empty/null checks to byte trimming;
+  - preallocated `InstanceCache.Snapshot` and made `BoundSecretValue` read directly under `RLock`;
+  - handled webhook body close errors and rounded positive subsecond `Retry-After` to one second;
+  - hardened `RetryDo` nil context/function guards.
+- Passing evidence for iteration 012:
+  - `rtk make verify`
+  - `rtk go test ./internal/bridgesdk -count=1` (`84 passed`)
+  - `rtk go test -tags integration ./internal/bridgesdk -count=1` (`87 passed`)
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/bridgesdk -count=1`
+  - `rtk golangci-lint run ./internal/bridgesdk`
+  - `rtk proxy go test ./internal/bridgesdk -cover -count=1` (`81.2%` statements)
+  - `rtk go test ./internal/bridgesdk ./internal/extension ./internal/extensiontest -count=1` (`626 passed in 3 packages`)
+  - `rtk go test ./extensions/bridges/... ./sdk/examples/telegram-reference -count=1` equivalent explicit provider/example set (`191 passed in 9 packages`)
+  - provider/example lint set: no issues
+  - AGH test-conventions checker for all new `internal/bridgesdk/*_refac_test.go` files.
+  - Final benchmarks: `InstanceCacheSnapshot` improved to about `949-971 ns/op`, `3280 B/op`, `11 allocs/op`; `PeerCallRoundTrip` at about `8763-8972 ns/op`, `2361-2364 B/op`, `54 allocs/op`; `InboundBatchKey` intentionally rose to about `130-135 ns/op`, `80 B/op`, `1 alloc/op` for collision-safe keys.
+- Wrote `.compozy/tasks/refacs/012_report_internal_bridgesdk.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 012 complete and next package `internal/bundles`.
+- Spawned two read-only explorers for `internal/bundles` refactoring and performance analysis.
+- Implemented scoped `internal/bundles` changes so far:
+  - removed redundant internal bundle/profile deep clones while keeping public preview/catalog defensive copies;
+  - returned `Build` plans from local projection state instead of re-cloning unexported local slices/maps;
+  - pre-sized desired-state aggregate slices and owner maps from activation inventory/profile counts;
+  - changed bundle lookup exact index from large record values to record indexes;
+  - optimized `stableID` to hash a byte buffer directly while preserving golden IDs;
+  - replaced desired-agent conflict validation's quadratic scan with name/scope indexes;
+  - deepened defensive clones for bundle jobs, triggers, bridge presets, automation jobs/triggers, bridge instances, and task ownership pointers;
+  - made `Service.checkReady` return canceled context errors before store access;
+  - added `service_refac_test.go` covering canceled-context readiness, public preview defensive copies, Build plan input isolation, canonical activation IDs, and stable ID golden values.
+- Passing evidence so far for iteration 013:
+  - `rtk go test ./internal/bundles -run 'Test(ServiceRefacs|StableIDGoldenValues|FindBundleResourceRecordIndexedNormalizesLookupKeys|BundleActivationBuildComposesTypedBundleDependency)$' -count=1`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/bundles/service_refac_test.go`
+  - `rtk go test ./internal/bundles -count=1`
+  - `rtk golangci-lint run ./internal/bundles`
+  - `rtk proxy go test ./internal/bundles -run '^$' -bench 'BenchmarkService(ListActivationsLargeCatalog|BuildLargeCatalog)$' -benchmem -count=5`
+  - Bench result after patch: `ListActivationsLargeCatalog` about `0.96-1.08 ms/op`, `1.539 MB/op`, `10642-10643 allocs/op`; `BuildLargeCatalog` about `1.03-1.05 ms/op`, `1.449 MB/op`, `9161-9162 allocs/op`.
+- Completed iteration 013:
+  - split bundle clone/hash, ID, and lookup helpers out of `service.go`;
+  - wrote `.compozy/tasks/refacs/013_report_internal_bundles.md`;
+  - updated `.compozy/tasks/refacs/state.md` with next package `internal/bundles/model`.
+- Final passing evidence for iteration 013:
+  - `rtk make verify`
+  - `rtk go test ./internal/bundles -count=1`
+  - `rtk go test -tags integration ./internal/bundles -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/bundles -count=1`
+  - `rtk golangci-lint run ./internal/bundles`
+  - `rtk proxy go test ./internal/bundles -cover -count=1` (`80.6%` statements)
+  - `rtk go test ./internal/bundles ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon -count=1`
+  - `rtk golangci-lint run ./internal/bundles ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon`
+  - AGH test-conventions checker for `internal/bundles/service_refac_test.go`
+  - Final benchmarks: `ListActivationsLargeCatalog` about `0.93-1.01 ms/op`, `1.539 MB/op`, `10641-10644 allocs/op`; `BuildLargeCatalog` about `1.01-1.08 ms/op`, `1.449 MB/op`, `9160-9162 allocs/op`.
+- Spawned two read-only explorers for `internal/bundles/model` refactoring and performance analysis.
+- Implemented scoped `internal/bundles/model` changes:
+  - added `Activation.Normalize`/`Validated` and `InventoryItem.Normalize`/`Validated`;
+  - made model validators operate on canonical values and return a distinct empty-scope error;
+  - used canonical validated activations in bundle resource store, service resolution, and bundle projection resolution;
+  - normalized automation and bridge scope conversion helpers before comparing scope enums;
+  - added direct package-local model tests plus a parent-package regression test for non-canonical workspace scope materialization.
+- Wrote `.compozy/tasks/refacs/014_report_internal_bundles_model.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 014 complete and next package `internal/cli`.
+- Passing evidence for iteration 014:
+  - `rtk make verify`
+  - `rtk go test ./internal/bundles/model -count=1`
+  - `rtk go test ./internal/bundles/model ./internal/bundles -count=1`
+  - `rtk go test -tags integration ./internal/bundles/model ./internal/bundles -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/bundles/model ./internal/bundles -count=1`
+  - `rtk golangci-lint run ./internal/bundles/model ./internal/bundles`
+  - `rtk proxy go test ./internal/bundles/model -cover -count=1` (`98.1%` statements)
+  - `rtk go test ./internal/bundles ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon -count=1`
+  - AGH test-conventions checker for `internal/bundles/model/model_test.go` and `internal/bundles/service_refac_test.go`
+  - caller benchmark check confirmed no model-specific hotspot and stayed in the iteration-013 range.
+- Spawned two read-only explorers for `internal/cli` refactoring and performance analysis.
+- Implemented scoped `internal/cli` changes:
+  - delegated CLI SSE decoding to the shared `internal/sse.Decode` implementation and removed the local duplicate parser;
+  - replaced allocation-heavy human table row joining with a direct builder-based aligned renderer;
+  - centralized required raw JSON flag parsing for task/network command wrappers;
+  - removed dead session stream `lastEventID` state that did not feed a reconnect/resume loop;
+  - removed the readiness-local blocking `child.Wait()` goroutine from daemon start polling and added a timeout regression test;
+  - changed `TestCLITaskRunLifecycleIntegration` metadata checks from byte-for-byte JSON formatting to semantic JSON assertions.
+- Wrote `.compozy/tasks/refacs/015_report_internal_cli.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 015 complete and next package `internal/cli/docpost`.
+- Passing evidence for iteration 015:
+  - `rtk make verify`
+  - `rtk go test ./internal/cli -count=1`
+  - `rtk golangci-lint run ./internal/cli`
+  - `rtk proxy go test ./internal/cli -cover -count=1` (`74.8%` statements; still below 80% package target)
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/cli -count=1`
+  - `rtk go test ./cmd/agh ./internal/cli -count=1`
+  - `rtk go test -tags integration ./internal/cli -run '^TestCLITaskRunLifecycleIntegration$' -count=1`
+  - AGH test-conventions checker for `internal/cli/json_flags_test.go` and `internal/cli/daemon_wait_refac_test.go`
+  - Final benchmarks: `BenchmarkRenderHumanTableLarge` about `47.8-49.3 us/op`, `127112-127113 B/op`, `22 allocs/op`; `BenchmarkDecodeSSELargeStream` stayed about `112.8-114.9 us/op`, `246408 B/op`, `4099 allocs/op`.
+- Classified `rtk go test -tags integration ./internal/cli -count=1` after fixes: `741 passed, 10 failed`; remaining failures are historical channel/presence read-model failures outside CLI request shaping and documented in report 015.
+- Spawned two read-only explorers for `internal/cli/docpost` refactoring and performance analysis.
+- Implemented scoped `internal/cli/docpost` changes:
+  - rejected ambiguous `agh*` markdown source filenames unless they are exactly `agh.md` or start with `agh_`;
+  - validated command filename segments and rejected empty/invalid segments before reading generated source files;
+  - added planned output path collision detection before writes;
+  - centralized command name, target URL, and output path conversions on `input` helpers;
+  - removed the dead `buildTargetMap` parameter;
+  - preserved markdown links inside fenced code blocks and inline code spans during link rewriting;
+  - regenerated and validated CLI reference docs through `make cli-docs` with no final persistent site diff.
+- Wrote `.compozy/tasks/refacs/016_report_internal_cli_docpost.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 016 complete and next package `internal/codegen/openapits`.
+- Passing evidence for iteration 016:
+  - `rtk make verify`
+  - `rtk go test ./internal/cli/docpost -count=1`
+  - `rtk golangci-lint run ./internal/cli/docpost`
+  - `rtk proxy go test ./internal/cli/docpost -cover -count=1` (`89.5%` statements)
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/cli/docpost -count=1`
+  - `rtk go test -tags integration ./internal/cli/docpost -count=1`
+  - `rtk go test ./internal/cli/docpost ./internal/cli -run 'Test(NewDocCommand|ProcessInputRefacs|LinkRewriteRefacs|BuildTargetMap|RemapLinks|RewriteLinks)' -count=1`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/cli/docpost/docpost_refac_test.go`
+  - `rtk make cli-docs`
+  - `rtk make site-build`
+- Spawned read-only explorers for `internal/codegen/openapits` refactoring and performance analysis.
+- Implemented scoped `internal/codegen/openapits` changes:
+  - made `Generate` transactional by generating and formatting a temporary output before publishing the final file;
+  - added `ErrInvalidArtifact` and `Artifact.validate` for empty paths and spec/output path collisions;
+  - preserved context cancellation in `runCommand` errors;
+  - added a private command runner boundary for package-local failure-path tests while keeping the public API unchanged;
+  - normalized `generate_test.go` subtest names to AGH `Should ...` shape and raised package coverage above 80%.
+- Wrote `.compozy/tasks/refacs/017_report_internal_codegen_openapits.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 017 complete and next package `internal/codegen/sdkts`.
+- Passing evidence for iteration 017:
+  - `rtk go test ./internal/codegen/openapits -count=1`
+  - `rtk golangci-lint run ./internal/codegen/openapits`
+  - `rtk proxy go test ./internal/codegen/openapits -cover -count=1` (`81.4%` statements)
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/codegen/openapits -count=1`
+  - `rtk go test -tags integration ./internal/codegen/openapits -count=1`
+  - `rtk python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/codegen/openapits/generate_test.go`
+  - `rtk make codegen-check`
+  - `rtk go test ./internal/codegen/openapits ./cmd/agh-codegen -count=1`
+  - `rtk golangci-lint run ./internal/codegen/openapits ./cmd/agh-codegen`
+  - `rtk proxy go test -tags mage . -count=1`
+  - `rtk make verify`
+- Spawned read-only explorers for `internal/codegen/sdkts` refactoring and performance analysis.
+- Implemented scoped `internal/codegen/sdkts` changes:
+  - derived `HookEventFamily` values from `hooks.AllHookEvents()` and `HookEvent.Family()` instead of a stale hard-coded list;
+  - regenerated `sdk/typescript/src/generated/contracts.ts` so the SDK includes `sandbox`, `automation`, `coordinator`, `task.run`, `spawn`, and `network`;
+  - added semantic tests comparing generated hook-family unions to runtime taxonomy;
+  - added per-generator `structFields` caching, shared field/type rendering helpers, centralized primitive kind classification, and lower-allocation quoted string/map rendering;
+  - normalized touched `generate_test.go` tests to AGH `Should ...` subtest shape.
+- Wrote `.compozy/tasks/refacs/018_report_internal_codegen_sdkts.md`.
+- Updated `.compozy/tasks/refacs/state.md` with iteration 018 complete and next package `internal/config`.
+- Passing evidence for iteration 018:
+  - `rtk go test ./internal/codegen/sdkts -count=1`
+  - `rtk golangci-lint run ./internal/codegen/sdkts`
+  - `rtk proxy go test ./internal/codegen/sdkts -cover -count=1` (`91.8%` statements)
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/codegen/sdkts -count=1`
+  - `rtk go test -tags integration ./internal/codegen/sdkts -count=1`
+  - AGH test-conventions checker for `generate_test.go` and `perf_bench_test.go`
+  - `rtk go run ./cmd/agh-codegen sdk-contracts`
+  - `rtk make codegen-check`
+  - `rtk go run ./cmd/agh-codegen check`
+  - `rtk go test ./internal/codegen/sdkts ./cmd/agh-codegen -count=1`
+  - `rtk golangci-lint run ./internal/codegen/sdkts ./cmd/agh-codegen`
+  - `rtk make bun-typecheck`
+  - `rtk make bun-test`
+  - `rtk proxy go test -tags mage . -count=1`
+- `rtk make verify`
+- Final `BenchmarkGenerate`: about `590-648 us/op`, `684533-684542 B/op`, `1161 allocs/op`.
+- Final `BenchmarkStructFieldsPromptPayload`: mostly `52-64 us/op`, `134696 B/op`, `58 allocs/op`.
+- Spawned two read-only explorers for `internal/config` refactoring and performance analysis.
+- Implemented `internal/config` changes:
+  - hardened `.env`, `mcp.json`, and capability catalog sidecar reads against symlinks/non-regular paths;
+  - routed `EditAgentDefFile` through the atomic/private persisted-file writer;
+  - normalized TOML MCP overlay collision indexing;
+  - repaired stale MCP benchmark fixtures by moving secret-shaped `TOKEN` to `secret_env`;
+  - removed production cleanup-error discards in config writers;
+  - extracted file I/O helpers to `file_io.go`;
+  - normalized hook declarations directly without an intermediate cloned slice;
+  - merged MCP collisions into already cloned entries instead of deep-cloning again;
+  - added `config_refac_test.go` coverage for sidecar symlink rejection, atomic agent edits, hook/MCP alias isolation, and TOML MCP normalized overlays.
+- Wrote `.compozy/tasks/refacs/019_report_internal_config.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/coordinator`.
+- Passing evidence for iteration 019:
+  - `rtk make verify`
+  - `rtk go test ./internal/config -count=1`
+  - `rtk golangci-lint run ./internal/config`
+  - `rtk proxy go test ./internal/config -cover -count=1` -> `80.7%`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/config -count=1`
+  - `rtk go test -tags integration ./internal/config -count=1`
+  - AGH test-conventions checker for `internal/config/config_refac_test.go` and `internal/config/perf_bench_test.go`
+  - `rtk proxy go test ./internal/config -run '^$' -bench . -benchmem -count=5`
+  - focused final benchmarks: `BenchmarkResolveAgentMergedMCPServers` `89811-89817 B/op`, `486 allocs/op`; `BenchmarkHookDeclarationsNormalization` `57704-57706 B/op`, `337 allocs/op`
+  - `rtk go test ./internal/config ./internal/skills ./internal/daemon ./internal/cli -count=1`
+  - `rtk go test -tags integration ./internal/config ./internal/skills -count=1`
+- Spawned two read-only explorers for `internal/coordinator` refactoring and performance analysis.
+- Implemented `internal/coordinator` changes:
+  - replaced exported mutable `OperationalMessageKinds` and `ToolAllowlist` slices with private arrays and copy-returning accessors;
+  - updated permission/prompt internals to use immutable package storage directly;
+  - removed `fmt.Fprintf` and underscore-discarded return values from prompt line rendering;
+  - normalized touched tests to AGH `Should ...` subtest shape;
+  - added accessor defensive-copy tests for coordinator message/tool allowlists;
+  - added package-local benchmarks for prompt overlay, permission policy, and lineage helpers.
+- Wrote `.compozy/tasks/refacs/020_report_internal_coordinator.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/daemon`.
+- Passing evidence for iteration 020:
+  - `rtk make verify`
+  - `rtk go test ./internal/coordinator -count=1`
+  - `rtk golangci-lint run ./internal/coordinator`
+  - `rtk proxy go test ./internal/coordinator -cover -count=1` -> `88.8%`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/coordinator -count=1`
+  - `rtk go test -tags integration ./internal/coordinator -count=1`
+  - AGH test-conventions checker for `internal/coordinator/coordinator_test.go` and `internal/coordinator/coordinator_bench_test.go`
+  - `rtk proxy go test ./internal/coordinator -run '^$' -bench . -benchmem -count=5`
+  - `rtk go test ./internal/daemon -run 'TestCoordinatorRuntime' -count=1`
+  - `rtk go test -tags integration ./internal/daemon -run 'TestDaemonE2E.*Coordinator|TestCoordinatorRuntime' -count=1`
+  - `rtk go test ./internal/daemon ./internal/task ./internal/session -run 'Coordinator|coordinator|Bootstrap|bootstrap|ExecutableRun|HealthySession' -count=1`
+- Spawned two read-only explorers for `internal/daemon` refactoring and performance/concurrency analysis.
+- Implemented `internal/daemon` changes:
+  - preserved daemon info/lock cleanup errors with named returns and `errors.Join`;
+  - bounded boot cleanup and skills watcher shutdown with caller-derived shutdown contexts;
+  - replaced full-catalog cloning for resource-agent lookup with selected-record cloning;
+  - changed Tool/MCP no-op sync to compare raw managed records instead of decoding typed current records;
+  - repaired stale daemon benchmarks to canonical tool IDs and normalized touched Tool/MCP tests to AGH subtest shape.
+- Wrote `.compozy/tasks/refacs/021_report_internal_daemon.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/diagnostics`.
+- Passing evidence for iteration 021:
+  - `rtk make verify`
+  - `rtk go test ./internal/daemon -count=1` -> `626 passed in 1 packages`
+  - `rtk golangci-lint run ./internal/daemon`
+  - `rtk proxy go test ./internal/daemon -cover -count=1` -> `72.8%`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/daemon -count=1`
+  - focused integration-tag daemon tests -> `14 passed in 1 packages`
+  - AGH test-conventions checker for touched daemon test/benchmark files
+  - focused final benchmarks: resource-agent lookup `5790-5828 ns/op`, `752 B/op`, `8 allocs/op`; Tool/MCP no-op sync `435737-441716 ns/op`, `421308-421330 B/op`, `5667 allocs/op`.
+- Spawned two read-only explorers for `internal/diagnostics` refactoring and performance/concurrency analysis.
+- Implemented `internal/diagnostics` changes:
+  - centralized sensitive-key regex taxonomy and added AGH composite keys including `claim_token`, `lease_token`, `client_secret`, `oauth_client_secret`, `webhook_secret`, and `bot_token`;
+  - made `token:` and `token=` assignments use the same redaction path while preserving already-redacted markers;
+  - changed dynamic secret ordering from per-redaction snapshot/sort to an immutable `atomic.Value` snapshot rebuilt only on register/unregister;
+  - made `RedactAndBound` preserve UTF-8 rune boundaries while staying within the byte budget;
+  - added package-local redaction benchmarks and expanded regression tests.
+- Wrote `.compozy/tasks/refacs/022_report_internal_diagnostics.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/e2elane`.
+- Passing evidence for iteration 022:
+  - `rtk make verify`
+  - `rtk go test ./internal/diagnostics -count=1` -> `28 passed in 1 packages`
+  - `rtk golangci-lint run ./internal/diagnostics`
+  - `rtk proxy go test ./internal/diagnostics -cover -count=1` -> `90.5%`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/diagnostics -count=20`
+  - `rtk go test -tags integration ./internal/diagnostics -count=1` -> `28 passed in 1 packages`
+  - AGH test-conventions checker for `redact_test.go` and `redact_bench_test.go`
+  - caller smoke package set -> `96 passed in 7 packages`
+  - focused final benchmarks: static redaction `9872-9974 ns/op`, `1467-1469 B/op`, `20 allocs/op`; dynamic redaction `10178-10287 ns/op`, `944-946 B/op`, `11 allocs/op`.
+- Spawned two read-only explorers for `internal/e2elane` refactoring and performance/concurrency analysis.
+- Implemented `internal/e2elane` / Mage lane runner changes:
+  - replaced non-hermetic package tests that shell out to Make/Mage with static Makefile recipe parsing and Mage AST target discovery;
+  - made lane matrix expectations explicit literals instead of mirroring production globals;
+  - added representative regex compile/match coverage for all lane run selectors;
+  - added `e2eLaneEnv` cleanup ownership so Mage-built daemon/mock-driver lane temp dirs are removed after E2E runs and on build failure;
+  - added early override validation for `AGH_TEST_DAEMON_BIN` and `AGH_TEST_ACPMOCK_DRIVER_BIN`;
+  - added serial Mage-tagged tests for override validation and temp-dir cleanup.
+- Wrote `.compozy/tasks/refacs/023_report_internal_e2elane.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/extension`.
+- Passing evidence for iteration 023:
+  - `rtk make verify`
+  - `rtk make test-e2e-runtime`
+  - `rtk go test ./internal/e2elane -count=1`
+  - `rtk go test ./internal/e2elane -count=20`
+  - `rtk proxy go test ./internal/e2elane -cover -count=1` -> `91.7%`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/e2elane -count=1`
+  - `rtk go test -tags integration ./internal/e2elane -count=1`
+  - `rtk golangci-lint run ./internal/e2elane`
+  - `rtk proxy go test ./internal/e2elane -run '^$' -bench . -benchmem -count=3`
+  - `rtk go test -tags mage . -count=1`
+  - `rtk env CGO_ENABLED=1 go test -race -tags mage . -count=1`
+  - AGH test-conventions checker for `internal/e2elane/command_wiring_test.go`, `internal/e2elane/lanes_test.go`, `magefile_test.go`, and `magefile_lane_binary_test.go`.
+- Spawned two read-only explorers for `internal/extension` refactoring and performance/concurrency analysis.
+- Implemented `internal/extension` changes:
+  - centralized manager stop cleanup in `stopManagedExtension`;
+  - preserved shutdown errors when process wait succeeds;
+  - reset extension resource source sessions on stop and failure disable;
+  - derived lifecycle/shutdown contexts from caller/lifecycle contexts instead of `context.Background`;
+  - preserved registry row close errors and replaced SQLite error string matching with a `sqlite_master` table-existence check;
+  - joined managed-install staging cleanup errors;
+  - removed the host API drain `_` discard;
+  - tightened host API task DTO builders with fixed-length slices and direct backing-slice pointers;
+  - added a concurrency-safe manifest tool cache behind a registry/manifest fingerprint in `ExtensionToolProvider`;
+  - added manager lifecycle tests and a tool provider list/resolve benchmark.
+- Wrote `.compozy/tasks/refacs/024_report_internal_extension.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/extension/contract`.
+- Passing evidence for iteration 024:
+  - `rtk make verify`
+  - `rtk go test ./internal/extension -count=1`
+  - `rtk go test ./internal/extension -run 'TestManager(StopShutdownErrors|ResourceSourceCleanup|StopKillsHungSubprocessAfterTimeout)$' -count=1`
+  - `rtk go test ./internal/extension -run 'TestExtensionToolProvider' -count=1`
+  - `rtk golangci-lint run ./internal/extension`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/extension -count=1`
+  - `rtk proxy go test ./internal/extension -cover -count=1`
+  - `rtk go test ./internal/extension ./internal/daemon ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/cli ./internal/bundles ./internal/tools -count=1`
+  - AGH test-conventions checker for `internal/extension/manager_refac_test.go` and `internal/extension/perf_bench_test.go`.
+  - Focused final benchmarks: task summaries `44.7-150.7 us/op`, task runs `63.4-111.2 us/op`, tool provider list+resolve `154.1-214.8 us/op`.
+- Known baseline integration issue for iteration 024:
+  - Focused Teams/Telegram provider integration probes failed before and after local changes.
+  - Teams/Telegram provider package-level tests passed; WhatsApp/Slack/Linear focused provider launch probes passed.
+- Spawned two read-only explorers for `internal/extension/contract` refactoring and performance/concurrency analysis.
+- Implemented `internal/extension/contract` and direct codegen callsite changes:
+  - made `SessionEventsParams.Since` and `ObserveEventsParams.Since` optional contract fields with `json:"since,omitzero"` and taught the TypeScript SDK generator to treat `omitzero` as optional;
+  - added `BuildHookContracts() ([]HookContractSpec, error)` and updated `internal/codegen/sdkts` to use it instead of relying on panic;
+  - kept `HookContracts()` as a compatibility wrapper;
+  - normalized package-local tests to AGH subtest shape;
+  - added defensive-copy and registry invariant tests for Host API method specs, SDK root types, hook descriptors, optional event filters, and unknown hook type errors;
+  - regenerated `sdk/typescript/src/generated/contracts.ts` with `rtk make codegen`; `openapi/agh.json` had no final diff.
+- Wrote `.compozy/tasks/refacs/025_report_internal_extension_contract.md`.
+- Updated `.compozy/tasks/refacs/state.md`; next package is `internal/extension/protocol`.
+- Passing evidence for iteration 025:
+  - `rtk make verify`
+  - `rtk go test ./internal/extension/contract -count=1` -> `18 passed in 1 packages`
+  - `rtk env CGO_ENABLED=1 go test -race ./internal/extension/contract -count=1`
+  - `rtk golangci-lint run ./internal/extension/contract`
+  - `rtk proxy go test ./internal/extension/contract -cover -count=1` -> `85.7%`
+  - `rtk go test ./internal/extension/contract ./internal/extension ./internal/codegen/sdkts ./internal/api/spec -count=1` -> `731 passed in 4 packages`
+  - `rtk golangci-lint run ./internal/extension/contract ./internal/codegen/sdkts ./internal/api/spec`
+  - AGH test-conventions checker for `internal/extension/contract/host_api_test.go`, `internal/extension/contract/sdk_test.go`, `internal/codegen/sdkts/generate_test.go`, and `internal/codegen/sdkts/perf_bench_test.go`
+  - `rtk make codegen`, `rtk make codegen-check`, `rtk make bun-typecheck`, `rtk make bun-test`
+  - focused SDK TS benchmarks: `BenchmarkGenerate` about `587.1-609.4 us/op`, `684550-684558 B/op`, `1161 allocs/op`; `BenchmarkStructFieldsPromptPayload` about `52.9-53.3 us/op`, `134696 B/op`, `58 allocs/op`.
+
+Now:
+
+- Stop after completing iteration 025 for `github.com/pedronauck/agh/internal/extension/contract`.
+
+Next:
+
+- Next loop trigger should run iteration 026 for `github.com/pedronauck/agh/internal/extension/protocol`.
+
+Open questions (UNCONFIRMED if needed):
+
+- `internal/api/spec` has a hard-coded hook-event-family enum list similar to the stale SDK list fixed in iteration 018. Revisit before the overall refacs goal is declared complete.
+- `internal/hooks` matcher validation still allocates on the valid hook-declaration path; revisit during the `internal/hooks` package iteration.
+- `internal/daemon` native-extension source error classification still uses string matching; a complete fix needs typed marketplace/source errors from `internal/extension`.
+- Some callsites outside `internal/diagnostics` discard `RegisterDynamicSecret` cleanup functions; revisit per-call MCP registrations and daemon/CLI lifetime semantics during their owning package iterations.
+- `internal/testutil/acpmock.DefaultDriverPath` also builds into a temp directory without a cleanup handle; revisit during the `internal/testutil/acpmock` package iteration.
+- E2E binary env var names are duplicated across Mage, Go testutil, and web E2E fixtures; revisit only as a broader harness-contract cleanup.
+- Teams and Telegram provider integration probes in `internal/extension` fail baseline readiness/degraded-state checks; revisit through the provider/reference-extension harness.
+- `internal/extension.Registry` still needs a context-bearing API redesign instead of the package-local `registryContext()` helper.
+- `internal/extension` typed marketplace/source errors plus the daemon native-extension classifier remain open as a cross-package hard-cut.
+- `HostAPIHandler` domain decomposition remains deferred.
+- Runtime Host API dispatch in `internal/extension` can still drift from `internal/extension/contract.HostAPIMethodSpecs()`; add a cross-package parity test in a later pass.
+- `internal/extension/contract` remains a broad SDK aggregator over internal domain structs; a structural split remains deferred.
+
+Working set (files/ids/commands):
+
+- `internal/acp/**`
+- `internal/agentidentity/**`
+- `internal/api/contract/**`
+- `internal/api/core/**`
+- `internal/api/httpapi/**`
+- `internal/api/spec/**`
+- `internal/api/testutil/**`
+- `internal/api/udsapi/**`
+- `internal/automation/manager.go`
+- `internal/automation/trigger.go`
+- `internal/automation/trigger_filter.go`
+- `internal/automation/trigger_refac_test.go`
+- `internal/automation/manager_refac_test.go`
+- `internal/automation/model/**`
+- `internal/bridges/**`
+- `internal/bridgesdk/**`
+- `internal/bundles/model/**`
+- `internal/cli/client.go`
+- `internal/cli/format.go`
+- `internal/cli/json_flags.go`
+- `internal/cli/json_flags_test.go`
+- `internal/cli/session.go`
+- `internal/cli/task.go`
+- `internal/cli/network.go`
+- `internal/cli/daemon.go`
+- `internal/cli/daemon_wait_refac_test.go`
+- `internal/cli/cli_integration_test.go`
+- `internal/bundles/resource_store.go`
+- `internal/bundles/resource_projection.go`
+- `internal/bundles/service.go`
+- `internal/bundles/service_refac_test.go`
+- `internal/api/core/tools_test.go`
+- `internal/daemon/daemon.go`
+- Iteration 004 implemented so far:
+  - hard-cut `NetworkChannelMessagePayload` compatibility alias in favor of `NetworkConversationMessagePayload`;
+  - renamed core network conversion helpers to the canonical conversation terminology;
+  - optimized `ObserveEventID` to avoid `fmt.Sprintf`/formatted allocation churn;
+  - replaced prompt-stream SSE `map[string]any` envelopes with typed payload structs;
+  - normalized touched tests/benchmarks to AGH test-shape and no-discard conventions.
+- `internal/api/contract/json_safety.go`
+- `internal/api/contract/json_safety_bench_test.go`
+- `.compozy/tasks/refacs/001_report_internal_acp.md`
+- `.compozy/tasks/refacs/002_report_internal_agentidentity.md`
+- `.compozy/tasks/refacs/003_report_internal_api_contract.md`
+- `.compozy/tasks/refacs/004_report_internal_api_core.md`
+- `.compozy/tasks/refacs/005_report_internal_api_httpapi.md`
+- `.compozy/tasks/refacs/006_report_internal_api_spec.md`
+- `.compozy/tasks/refacs/007_report_internal_api_testutil.md`
+- `.compozy/tasks/refacs/008_report_internal_api_udsapi.md`
+- `.compozy/tasks/refacs/009_report_internal_automation.md`
+- `.compozy/tasks/refacs/010_report_internal_automation_model.md`
+- `.compozy/tasks/refacs/011_report_internal_bridges.md`
+- `.compozy/tasks/refacs/012_report_internal_bridgesdk.md`
+- `.compozy/tasks/refacs/013_report_internal_bundles.md`
+- `.compozy/tasks/refacs/014_report_internal_bundles_model.md`
+- `.compozy/tasks/refacs/015_report_internal_cli.md`
+- `.compozy/tasks/refacs/016_report_internal_cli_docpost.md`
+- `.compozy/tasks/refacs/017_report_internal_codegen_openapits.md`
+- `.compozy/tasks/refacs/018_report_internal_codegen_sdkts.md`
+- `.compozy/tasks/refacs/019_report_internal_config.md`
+- `.compozy/tasks/refacs/020_report_internal_coordinator.md`
+- `.compozy/tasks/refacs/021_report_internal_daemon.md`
+- `.compozy/tasks/refacs/022_report_internal_diagnostics.md`
+- `.compozy/tasks/refacs/023_report_internal_e2elane.md`
+- `.compozy/tasks/refacs/state.md`
+- `internal/config/agent_edit.go`
+- `internal/config/automation.go`
+- `internal/config/capabilities.go`
+- `internal/config/config.go`
+- `internal/config/config_refac_test.go`
+- `internal/config/dotenv.go`
+- `internal/config/file_io.go`
+- `internal/config/hooks.go`
+- `internal/config/mcpjson.go`
+- `internal/config/merge.go`
+- `internal/config/perf_bench_test.go`
+- `internal/config/persistence.go`
+- `internal/config/provider.go`
+- `internal/coordinator/coordinator.go`
+- `internal/coordinator/coordinator_test.go`
+- `internal/coordinator/coordinator_bench_test.go`
+- `internal/daemon/agent_skill_resources.go`
+- `internal/daemon/agent_skill_resources_refac_test.go`
+- `internal/daemon/boot.go`
+- `internal/daemon/daemon.go`
+- `internal/daemon/info.go`
+- `internal/daemon/lock.go`
+- `internal/daemon/perf_bench_test.go`
+- `internal/daemon/skills_watcher_refac_test.go`
+- `internal/daemon/tool_mcp_resources.go`
+- `internal/daemon/tool_mcp_resources_integration_test.go`
+- `internal/daemon/tool_mcp_resources_test.go`
+- `internal/diagnostics/redact.go`
+- `internal/diagnostics/redact_test.go`
+- `internal/diagnostics/redact_bench_test.go`
+- `internal/e2elane/command_wiring_test.go`
+- `internal/e2elane/lanes_test.go`
+- `internal/extension/host_api.go`
+- `internal/extension/host_api_tasks.go`
+- `internal/extension/install_managed.go`
+- `internal/extension/manager.go`
+- `internal/extension/manager_refac_test.go`
+- `internal/extension/perf_bench_test.go`
+- `internal/extension/registry.go`
+- `internal/extension/tool_provider.go`
+- `internal/extension/contract/host_api.go`
+- `internal/extension/contract/host_api_test.go`
+- `internal/extension/contract/sdk.go`
+- `internal/extension/contract/sdk_test.go`
+- `internal/codegen/sdkts/generate.go`
+- `internal/codegen/sdkts/generate_test.go`
+- `internal/codegen/sdkts/perf_bench_test.go`
+- `sdk/typescript/src/generated/contracts.ts`
+- `magefile.go`
+- `magefile_test.go`
+- `magefile_lane_binary_test.go`
+- `.codex/ledger/2026-05-06-MEMORY-refacs-loop.md`
+- `.compozy/tasks/refacs/024_report_internal_extension.md`
+- `.compozy/tasks/refacs/025_report_internal_extension_contract.md`
+- Commands: `rtk go list ./internal/...`, `rtk go test ./internal/e2elane -count=20`, `rtk go test -tags mage . -count=1`, `rtk make test-e2e-runtime`, `rtk go test ./internal/extension -count=1`, `rtk env CGO_ENABLED=1 go test -race ./internal/extension -count=1`, `rtk make verify`
