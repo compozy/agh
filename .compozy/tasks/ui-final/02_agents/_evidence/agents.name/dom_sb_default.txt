@@ -1,0 +1,38 @@
+- generic
+  - heading "Couldn't find story matching 'routes-app-agents-detail--default'." [level=1, ref=e1]
+    - generic
+    - StaticText "Couldn't find story matching 'routes-app-agents-detail--default'."
+  - paragraph
+    - StaticText "The component failed to render properly, likely due to a configuration issue in Storybook. Here are some common causes and how you can address them:"
+  - list
+    - listitem [level=1]
+      - strong
+        - StaticText "Missing Context/Providers"
+      - StaticText ": You can use decorators to supply specific contexts or providers, which are sometimes necessary for components to render correctly. For detailed instructions on using decorators, please visit the "
+      - link "Decorators documentation" [ref=e2]
+        - StaticText "Decorators documentation"
+      - StaticText "."
+    - listitem [level=1]
+      - strong
+        - StaticText "Misconfigured Webpack or Vite"
+      - StaticText ": Verify that Storybook picks up all necessary settings for loaders, plugins, and other relevant parameters. You can find step-by-step guides for configuring "
+      - link "Webpack" [ref=e3]
+        - StaticText "Webpack"
+      - StaticText " or "
+      - link "Vite" [ref=e4]
+        - StaticText "Vite"
+      - StaticText " with Storybook."
+    - listitem [level=1]
+      - strong
+        - StaticText "Missing Environment Variables"
+      - StaticText ": Your Storybook may require specific environment variables to function as intended. You can set up custom environment variables as outlined in the "
+      - link "Environment Variables documentation" [ref=e5]
+        - StaticText "Environment Variables documentation"
+      - StaticText "."
+  - generic
+    - code
+      - StaticText "- Are you sure a story with that id exists?
+- Please check your stories field of your main.js config.
+- Also check the browser console and terminal for error messages."
+- generic
+- generic

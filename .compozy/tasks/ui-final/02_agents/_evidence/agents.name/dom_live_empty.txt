@@ -1,0 +1,78 @@
+- generic
+  - complementary
+    - generic
+      - link "Go to dashboard" [ref=e3]
+      - button "Workspace: pedronauck" [ref=e4]
+        - StaticText "P"
+      - button "Add workspace" [ref=e5]
+      - button "Toggle sidebar" [expanded=true, ref=e6]
+    - generic
+      - generic
+        - link "Dashboard" [ref=e10]
+          - StaticText "Dashboard"
+        - generic
+          - StaticText "AGENTS"
+        - tree "Agents"
+          - treeitem "general" [level=1, ref=e20]
+            - StaticText "general"
+        - generic
+          - StaticText "OPERATE"
+        - link "Network" [ref=e11]
+          - StaticText "Network"
+        - link "Tasks" [ref=e12]
+          - StaticText "Tasks"
+        - link "Jobs" [ref=e13]
+          - StaticText "Jobs"
+        - link "Triggers" [ref=e14]
+          - StaticText "Triggers"
+        - generic
+          - StaticText "CATALOG"
+        - link "Knowledge" [ref=e15]
+          - StaticText "Knowledge"
+        - link "Skills" [ref=e16]
+          - StaticText "Skills"
+        - link "Bridges" [ref=e17]
+          - StaticText "Bridges"
+        - generic
+          - StaticText "SYSTEM"
+        - link "Sandbox" [ref=e18]
+          - StaticText "Sandbox"
+        - link "Settings" [ref=e19]
+          - StaticText "Settings"
+      - status
+        - StaticText "CONNECTED"
+      - StaticText "v"
+      - StaticText "bfd54851"
+  - main
+    - sectionheader
+      - StaticText "general"
+      - StaticText "IDLE"
+      - StaticText "0"
+      - button "Refresh" [ref=e7]
+      - button "Configure" [ref=e8]
+      - button "New session" [ref=e9]
+        - StaticText "New session"
+    - StaticText "ACTIVE SESSIONS"
+    - StaticText "0"
+    - StaticText "0 total"
+    - StaticText "TOTAL RUNTIME"
+    - StaticText "—"
+    - StaticText "FAILED"
+    - StaticText "0"
+    - StaticText "LAST ACTIVITY"
+    - StaticText "—"
+    - heading "No sessions yet" [level=3, ref=e2]
+      - StaticText "No sessions yet"
+    - paragraph
+      - StaticText "Start a new session for general from the toolbar above."
+    - complementary "general agent details"
+      - generic
+        - generic
+          - sectionheader
+            - heading "MCP SERVERS" [level=2, ref=e22]
+              - StaticText "MCP SERVERS"
+          - heading "No MCP servers" [level=3, ref=e21]
+            - StaticText "No MCP servers"
+          - paragraph
+            - StaticText "This agent does not declare any MCP servers."
+  - region "Notifications alt+T" [ref=e1]

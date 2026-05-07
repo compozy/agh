@@ -1,0 +1,7 @@
+- heading "Start AGH with a real workspace, not an empty shell." [level=1, ref=e1]
+- heading "GLOBAL" [level=2, ref=e4]
+- button "Use global workspace" [ref=e3]
+- heading "PATH" [level=2, ref=e5]
+- textbox "Workspace path" [ref=e7]
+- button "Register workspace" [ref=e6]
+- region "Notifications alt+T" [ref=e2]

@@ -1,0 +1,60 @@
+- Goal (incl. success criteria):
+  - Incorporate all peer-review blockers and nits into `.compozy/tasks/provider-model-catalog/_techspec.md` and generated task files.
+  - Success = all B-001..B-010 and N-001..N-010 addressed in artifacts, TechSpec marker check passes, and `compozy tasks validate --name provider-model-catalog` passes.
+- Constraints/Assumptions:
+  - User requested no more questions; use prior grill/research as approved input.
+  - Conversation in BR-PT; artifacts in English.
+  - Greenfield hard cut: no old provider model config aliases.
+  - Subagents/research evidence is read-only evidence.
+- Key decisions:
+  - Slug: `provider-model-catalog`.
+  - Spec will separate pre-session model catalog from active ACP session config options.
+  - Config hard cut replaces provider-level `default_model`, `supported_models`, and `supports_reasoning_effort` with nested `models` block.
+- State:
+  - Peer review findings incorporated and structural validation passed.
+- Done:
+  - Read RTK, ledgers, `cy-spec-preflight`, `cy-create-techspec`, root/internal/web/site instructions, glossary, standing directives, spec playbook, and TechSpec lessons.
+  - Confirmed `github.com/coder/acp-go-sdk` latest listed version is `v0.12.2` via `go list -m -versions`.
+  - Persisted exact prior final answer in `.codex/ledger/2026-05-07-MEMORY-model-discovery-research.md`.
+  - Created `.compozy/tasks/provider-model-catalog/_techspec.md`.
+  - Created three ADRs under `.compozy/tasks/provider-model-catalog/adrs/`.
+  - Persisted accepted plan in `.codex/plans/provider-model-catalog.md`.
+  - Ran `python3 .agents/skills/cy-spec-preflight/scripts/check-techspec-markers.py .compozy/tasks/provider-model-catalog/_techspec.md`: passed.
+  - Loaded `cy-create-tasks`, `cy-tasks-tail-qa-pair`, `cy-web-docs-impact`, task template/schema, task preflight checks, TechSpec, ADRs, and task-phase lessons.
+  - Confirmed no `.compozy/config.toml`; use built-in task types.
+  - Spawned/reused read-only explorers for config/store, API/CLI/extension, ACP/sources, and web/docs; responses still pending at latest check.
+  - User approved reduced breakdown: 11 implementation tasks + 2 QA tail tasks.
+  - Created `.compozy/tasks/provider-model-catalog/_tasks.md`.
+  - Created enriched `task_01.md` through `task_13.md`.
+  - Fixed frontmatter title sync issues reported by Compozy validation.
+  - Ran `compozy tasks validate --name provider-model-catalog`: passed with `all tasks valid (13 scanned)`.
+  - Loaded `cy-spec-peer-review` and its quality/prompt references.
+  - Ran `python3 .agents/skills/cy-spec-preflight/scripts/check-techspec-markers.py .compozy/tasks/provider-model-catalog/_techspec.md`: passed.
+  - Ran `compozy tasks validate --name provider-model-catalog`: passed before peer review.
+  - Created `.compozy/tasks/provider-model-catalog/qa/peer-review-prompt-round1.md`.
+  - Ran `compozy exec --ide claude --model opus --reasoning-effort xhigh --format json --prompt-file .compozy/tasks/provider-model-catalog/qa/peer-review-prompt-round1.md`.
+  - Peer review result: `NEEDS_REWORK`, 10 blockers, 10 nits; stderr empty.
+  - Created `.compozy/tasks/provider-model-catalog/qa/peer-review-summary-round1.md`.
+  - User requested incorporating all blockers and nits.
+  - Updated TechSpec to resolve deterministic merge, availability states, provider-scoped source status, models.dev config lifecycle, live discovery config, refresh serialization, `/api/openai/v1/models` auth/transport contract, ACP SDK audit requirement, `refresh_request_id`, `context.WithoutCancel`, and source ID slug validation.
+  - Updated `_tasks.md` and `task_01.md` through `task_13.md` so hard-cut/codegen co-ship happens in Task 01, Task 11 only verifies residue guards, Task 06 owns ACP SDK audit + payload exposure, Task 07 owns OpenAI projection auth/HTTP-only/codegen tests, and QA covers refresh stress/contention.
+  - Updated `adrs/adr-001-daemon-owned-provider-model-catalog.md` for `/api/openai/v1/models` consistency.
+  - Updated `qa/peer-review-summary-round1.md` with incorporation status.
+  - Ran `python3 .agents/skills/cy-spec-preflight/scripts/check-techspec-markers.py .compozy/tasks/provider-model-catalog/_techspec.md`: passed.
+  - Ran `compozy tasks validate --name provider-model-catalog`: passed with `all tasks valid (13 scanned)`.
+- Now:
+  - Reporting incorporation and validation results.
+- Next:
+  - Next user action can be a second peer-review round or executing `task_01`.
+- Open questions (UNCONFIRMED if needed):
+  - None.
+- Working set (files/ids/commands):
+  - `.compozy/tasks/provider-model-catalog/_techspec.md`
+  - `.compozy/tasks/provider-model-catalog/adrs/adr-001-daemon-owned-provider-model-catalog.md`
+  - `.compozy/tasks/provider-model-catalog/adrs/adr-002-provider-model-config-hard-cut.md`
+  - `.compozy/tasks/provider-model-catalog/adrs/adr-003-extension-model-source-contract.md`
+  - `.compozy/tasks/provider-model-catalog/qa/peer-review-prompt-round1.md`
+  - `.compozy/tasks/provider-model-catalog/qa/peer-review-result-round1.json`
+  - `.compozy/tasks/provider-model-catalog/qa/peer-review-result-round1.err`
+  - `.compozy/tasks/provider-model-catalog/qa/peer-review-summary-round1.md`
+  - `.codex/plans/provider-model-catalog.md`

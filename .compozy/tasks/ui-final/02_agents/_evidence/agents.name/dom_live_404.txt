@@ -1,0 +1,4 @@
+- heading "Live forecast overview" [level=1, ref=e1]
+- textbox "City" [ref=e2]: Sao Paulo
+- button "Search" [ref=e3]
+- button "Locate" [ref=e4]

@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AGH — Linear-style Redesign Gallery</title>
+  <link rel="stylesheet" href="shared/fonts.css" />
+  <link rel="stylesheet" href="shared/tokens-base.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .gallery {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 88px 32px 96px;
+      flex: 1;
+      width: 100%;
+    }
+
+    .gallery__eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .gallery__title {
+      margin: 0;
+      font-weight: 700;
+      font-size: clamp(44px, 5.6vw, 84px);
+      line-height: 0.94;
+      letter-spacing: -0.05em;
+      color: var(--color-text-primary);
+      font-feature-settings: "ss01", "cv11";
+    }
+
+    .gallery__lead {
+      margin: 28px 0 0;
+      font-size: 17px;
+      color: var(--color-text-secondary);
+      letter-spacing: -0.012em;
+      line-height: 1.55;
+      max-width: 60ch;
+    }
+
+    .gallery__grid {
+      margin-top: 56px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 920px) {
+      .gallery__grid {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
+
+    .gallery__card {
+      display: flex;
+      flex-direction: column;
+      padding: 28px 24px 24px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-divider);
+      border-radius: 14px;
+      transition: border-color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out);
+      color: inherit;
+      min-height: 360px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    }
+
+    .gallery__card:hover {
+      border-color: var(--color-text-tertiary);
+      background: var(--color-surface-elevated);
+    }
+
+    .gallery__card-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+    }
+
+    .gallery__card-title {
+      margin: 14px 0 0;
+      font-weight: 600;
+      font-size: 22px;
+      letter-spacing: -0.025em;
+      color: var(--color-text-primary);
+      line-height: 1.18;
+    }
+
+    .gallery__card-desc {
+      margin: 12px 0 0;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      letter-spacing: -0.005em;
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    .gallery__card-bullets {
+      margin: 18px 0 0;
+      list-style: none;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      letter-spacing: -0.005em;
+    }
+
+    .gallery__card-bullets li {
+      display: flex;
+      gap: 10px;
+    }
+
+    .gallery__card-bullets li::before {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--color-text-tertiary);
+      margin-top: 7px;
+      flex-shrink: 0;
+    }
+
+    .gallery__card-cta {
+      margin-top: 24px;
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--color-divider);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      color: var(--color-text-primary);
+      background: transparent;
+      transition: border-color var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+    }
+
+    .gallery__card:hover .gallery__card-cta {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+
+    .gallery__card-cta-arrow {
+      width: 12px;
+      height: 12px;
+    }
+
+    .gallery__meta {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--color-divider);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .gallery__meta a {
+      color: var(--color-text-secondary);
+      transition: color var(--duration-base) var(--ease-out);
+      text-decoration: none;
+    }
+
+    .gallery__meta a:hover {
+      color: var(--color-accent);
+    }
+  </style>
+</head>
+<body>
+  <main class="gallery">
+    <p class="gallery__eyebrow">docs / design / redesign-linear</p>
+    <h1 class="gallery__title">Three calmer<br/>AGH operator surfaces.</h1>
+    <p class="gallery__lead">
+      Linear's grammar — surface ladder, hairlines, scarce accent, single-voice typography — translated
+      to AGH's warm-dark palette, applied to the Tasks and Jobs lists. Same content, same data shape,
+      same component anatomy. Different visual register on each card.
+    </p>
+
+    <div class="gallery__grid">
+      <a class="gallery__card" href="v1-linear-calm/">
+        <span class="gallery__card-eyebrow">V1 · Linear Calm</span>
+        <h2 class="gallery__card-title">Direct port. Density preserved.</h2>
+        <p class="gallery__card-desc">
+          Linear's grammar with operator density intact. Tabular row layout, status as ring icons,
+          priority as 3-bar signal, properties strip in the inspector, sticky list headline.
+        </p>
+        <ul class="gallery__card-bullets">
+          <li>Pill-toggles replace solid-accent active fills.</li>
+          <li>Section labels lose the uppercase-mono treatment.</li>
+          <li>Avatars on every row and every activity event.</li>
+        </ul>
+        <span class="gallery__card-cta">
+          Open V1
+          <svg class="gallery__card-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="7 7 17 7 17 17" />
+          </svg>
+        </span>
+      </a>
+
+      <a class="gallery__card" href="v2-linear-panel/">
+        <span class="gallery__card-eyebrow">V2 · Linear Panel</span>
+        <h2 class="gallery__card-title">Workspace inside a product frame.</h2>
+        <p class="gallery__card-desc">
+          The whole UI lifts into a 16px-radius product card on canvas. Sidebar, list, and detail are
+          independent surface-2 sub-panels. Inspector carries sub-issues with progress, full activity
+          feed, comment composer.
+        </p>
+        <ul class="gallery__card-bullets">
+          <li>Top-inner highlight + canvas vignette anchor the lift.</li>
+          <li>Header gradient overlay layers each sub-panel.</li>
+          <li>Selected rows tint accent (4%) with a 2px rail.</li>
+        </ul>
+        <span class="gallery__card-cta">
+          Open V2
+          <svg class="gallery__card-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="7 7 17 7 17 17" />
+          </svg>
+        </span>
+      </a>
+
+      <a class="gallery__card" href="v3-linear-editorial/">
+        <span class="gallery__card-eyebrow">V3 · Linear Editorial</span>
+        <h2 class="gallery__card-title">Type-led. Maximum reduction.</h2>
+        <p class="gallery__card-desc">
+          Heroic 76px masthead. Sidebar without icons; active row carries a 2px accent tick on the
+          gutter. Errors lift out as pull-quotes. Properties become a hairline grid. Empty state is a
+          left-aligned colophon, not an apology.
+        </p>
+        <ul class="gallery__card-bullets">
+          <li>Filter bar text-led with accent-dot prefix; no underlines.</li>
+          <li>Mono uppercase eyebrows + folio section labels.</li>
+          <li>Mono reserved for raw IDs, timestamps, eyebrows.</li>
+        </ul>
+        <span class="gallery__card-cta">
+          Open V3
+          <svg class="gallery__card-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="7 7 17 7 17 17" />
+          </svg>
+        </span>
+      </a>
+    </div>
+
+    <p class="gallery__meta">
+      <span>Palette · warm dark</span>
+      <span>Scope · Tasks + Jobs</span>
+      <span>Budget · zero new tokens</span>
+      <a href="README.md">Read the rationale →</a>
+    </p>
+  </main>
+</body>
+</html>

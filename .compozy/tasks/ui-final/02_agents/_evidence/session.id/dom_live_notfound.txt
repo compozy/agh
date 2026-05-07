@@ -1,0 +1,46 @@
+- generic
+  - complementary
+    - generic
+      - link "Go to dashboard" [ref=e2]
+      - button "Workspace: pedronauck" [ref=e3]
+        - StaticText "P"
+      - button "Add workspace" [ref=e4]
+      - button "Toggle sidebar" [expanded=true, ref=e5]
+    - generic
+      - link "Dashboard" [ref=e6]
+        - StaticText "Dashboard"
+      - generic
+        - StaticText "AGENTS"
+      - tree "Agents"
+        - treeitem "general" [level=1, ref=e16]
+          - StaticText "general"
+      - generic
+        - StaticText "OPERATE"
+      - link "Network" [ref=e7]
+        - StaticText "Network"
+      - link "Tasks" [ref=e8]
+        - StaticText "Tasks"
+      - link "Jobs" [ref=e9]
+        - StaticText "Jobs"
+      - link "Triggers" [ref=e10]
+        - StaticText "Triggers"
+      - generic
+        - StaticText "CATALOG"
+      - link "Knowledge" [ref=e11]
+        - StaticText "Knowledge"
+      - link "Skills" [ref=e12]
+        - StaticText "Skills"
+      - link "Bridges" [ref=e13]
+        - StaticText "Bridges"
+      - generic
+        - StaticText "SYSTEM"
+      - link "Sandbox" [ref=e14]
+        - StaticText "Sandbox"
+      - link "Settings" [ref=e15]
+        - StaticText "Settings"
+      - status
+        - StaticText "CONNECTED"
+      - StaticText "v"
+      - StaticText "bfd54851"
+  - main
+  - region "Notifications alt+T" [ref=e1]

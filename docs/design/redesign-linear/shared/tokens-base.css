@@ -1,0 +1,119 @@
+/*
+ * AGH base tokens — pulled verbatim from packages/ui/src/tokens.css.
+ * Each variation overrides selected derived tokens (typography, surface
+ * usage, density) on top of these. Hex values are NEVER added downstream;
+ * if a variation needs a new value, it composes it from these primitives.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --color-canvas: #141312;
+  --color-canvas-deep: #0e0e0f;
+  --color-surface: #1e1c1b;
+  --color-surface-panel: #181716;
+  --color-surface-elevated: #2e2c2b;
+  --color-divider: #3c3a39;
+  --color-hover: #353332;
+  --color-disabled: #4a4847;
+
+  /* Text */
+  --color-text-primary: #e5e5e7;
+  --color-text-secondary: #8e8e93;
+  --color-text-tertiary: #636366;
+  --color-text-label: #98989d;
+
+  /* Accent & Semantic */
+  --color-accent: #e8572a;
+  --color-accent-ink: #17110f;
+  --color-accent-hover: #d14e25;
+  --color-accent-strong: #f6874f;
+  --color-accent-dim: #e8572a59;
+  --color-success: #30d158;
+  --color-danger: #ff453a;
+  --color-warning: #ffd60a;
+  --color-info: #bf5af2;
+
+  /* Tints (15% opacity) — kept for parity, but variations avoid them by default */
+  --color-accent-tint: #e8572a26;
+  --color-success-tint: #30d15826;
+  --color-danger-tint: #ff453a26;
+  --color-warning-tint: #ffd60a26;
+  --color-info-tint: #bf5af226;
+  --color-neutral-tint: #63636626;
+
+  /* Radii — stay aligned with packages/ui */
+  --radius-chip: 5px;
+  --radius-mono-badge: 6px;
+  --radius-md: 8px;
+  --radius-diagram: 12px;
+  --radius-frame: 16px;
+  --radius-pill: 9999px;
+
+  /* Motion */
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Type primitives — variations override the display ramp */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Courier New", monospace;
+}
+
+/* Global resets used by all variations */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(232, 87, 42, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

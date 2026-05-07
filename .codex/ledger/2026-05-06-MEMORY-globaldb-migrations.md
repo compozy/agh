@@ -1,0 +1,32 @@
+- Goal (incl. success criteria):
+  - Verify inline/outside-diff findings against current code, fix only still-valid globaldb migration issues, keep changes minimal, and validate.
+- Constraints/Assumptions:
+  - Must use RTK for shell commands.
+  - Must not run destructive git commands without explicit permission.
+  - Go/internal changes require internal/CLAUDE.md and relevant skills.
+  - SQLite migration registries are append-only; shipped migration identities must not be reordered, renamed, renumbered, or checksum-changed.
+- Key decisions:
+  - Outside-diff finding requesting `memv2_memory_events` v18 is invalid against current code/history: current local DB and prior ledger record v18 as `add_task_review_gate_schema`, v22 as `memv2_memory_events`.
+  - Keep `globalSchemaMigrations` unchanged; adjust only tests to pin shipped prefix v1-v20 and allow v21+ append.
+- State:
+  - In progress.
+- Done:
+  - Read RTK and internal/CLAUDE.md persistence rules.
+  - Scanned ledger directory for cross-agent awareness.
+  - Read required Go/migration/test/debugging/final-verify skills.
+  - Verified current registry has v18 review gate, v19 notification cursors, v20 bridge subscriptions, v21 network containers, v22 memv2.
+  - Read-only query of `/Users/pedronauck/.agh/agh.db` confirms the same v16-v22 identities.
+  - Patched `internal/store/globaldb/global_db_test.go` to use expected shipped prefix and add fresh DB, reopen, and recorded-prefix upgrade coverage.
+  - Ran `gofmt` on `internal/store/globaldb/global_db_test.go`.
+  - Focused tests passed: `go test ./internal/store/globaldb -run 'TestGlobalSchemaMigrationsAreAppendOnlyContract|TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent|TestNetworkConversationMigrationReopenAfterRestart' -count=1`.
+  - Package race test passed: `go test ./internal/store/globaldb -count=1 -race`.
+  - `scripts/check-test-conventions.py` is absent (`test -f` exit 1), so that optional skill helper could not be run.
+- Now:
+  - Run full `make verify`.
+- Next:
+  - Report valid/invalid findings with verification evidence.
+- Open questions (UNCONFIRMED if needed):
+  - None.
+- Working set (files/ids/commands):
+  - `internal/store/globaldb/global_db.go`
+  - `internal/store/globaldb/global_db_test.go`
