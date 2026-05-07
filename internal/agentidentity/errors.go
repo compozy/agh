@@ -42,6 +42,8 @@ type Error struct {
 	Err     error
 }
 
+var _ = [1]error{(*Error)(nil)}
+
 func (e *Error) Error() string {
 	if e == nil {
 		return ""

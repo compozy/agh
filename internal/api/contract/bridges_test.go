@@ -110,6 +110,48 @@ func TestCreateBridgeRequestPreservesNormalizedFieldsAndDefaults(t *testing.T) {
 	}
 }
 
+func TestCreateBridgeRequestInitialStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		enabled bool
+		want    bridgepkg.BridgeStatus
+	}{
+		{
+			name:    "Should map enabled create requests to starting status",
+			enabled: true,
+			want:    bridgepkg.BridgeStatusStarting,
+		},
+		{
+			name:    "Should map disabled create requests to disabled status",
+			enabled: false,
+			want:    bridgepkg.BridgeStatusDisabled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mapped, err := contract.CreateBridgeRequest{
+				Scope:         bridgepkg.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "ext-telegram",
+				DisplayName:   "Support",
+				Enabled:       tt.enabled,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			}.ToCreateInstanceRequest()
+			if err != nil {
+				t.Fatalf("ToCreateInstanceRequest() error = %v", err)
+			}
+			if mapped.Status != tt.want {
+				t.Fatalf("mapped.Status = %q, want %q", mapped.Status, tt.want)
+			}
+		})
+	}
+}
+
 func TestBridgeRoutesResponseJSONShape(t *testing.T) {
 	t.Parallel()
 

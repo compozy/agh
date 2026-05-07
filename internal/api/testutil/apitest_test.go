@@ -187,8 +187,8 @@ func TestStubNetworkServiceWaitInboxFallback(t *testing.T) {
 		t.Parallel()
 
 		_, err := StubNetworkService{}.WaitInbox(context.Background(), "sess-1", "builders")
-		if !errors.Is(err, errStubNetworkServiceWaitInboxNotImplemented) {
-			t.Fatalf("WaitInbox() error = %v, want %v", err, errStubNetworkServiceWaitInboxNotImplemented)
+		if !errors.Is(err, ErrStubNetworkServiceWaitInboxNotImplemented) {
+			t.Fatalf("WaitInbox() error = %v, want %v", err, ErrStubNetworkServiceWaitInboxNotImplemented)
 		}
 	})
 }

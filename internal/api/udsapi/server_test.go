@@ -348,7 +348,9 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := server.Shutdown(context.Background()); err != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})

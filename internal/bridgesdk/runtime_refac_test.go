@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,7 +57,7 @@ func TestRuntimeRefacs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("handleInitialize() error = %v", err)
 			}
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(runtimeRefacTimeout(t)):
 			t.Fatal("handleInitialize() timed out, likely held runtime lock across callback")
 		}
 		if runtime.Session() == nil {
@@ -110,6 +111,102 @@ func TestRuntimeRefacs(t *testing.T) {
 			t.Fatal("shutdown.Acknowledged = false, want true")
 		}
 	})
+
+	t.Run(
+		"Should reject concurrent shutdown while one call is running and stay idempotent after success",
+		func(t *testing.T) {
+			t.Parallel()
+
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			t.Cleanup(func() {
+				releaseOnce.Do(func() {
+					close(release)
+				})
+			})
+
+			shutdownCalls := 0
+			runtime, err := NewRuntime(RuntimeConfig{
+				ExtensionInfo: subprocess.InitializeExtensionInfo{
+					Name:    "telegram-adapter",
+					Version: "1.0.0",
+				},
+				Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
+					return session.AckDelivery(request, "remote-1", "")
+				},
+				Shutdown: func(ctx context.Context, _ *Session, _ subprocess.ShutdownRequest) error {
+					shutdownCalls++
+					close(entered)
+					select {
+					case <-release:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewRuntime() error = %v", err)
+			}
+			runtime.session = &Session{}
+
+			firstDone := make(chan error, 1)
+			go func() {
+				_, handleErr := runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"first"}`))
+				firstDone <- handleErr
+			}()
+
+			select {
+			case <-entered:
+			case <-time.After(runtimeRefacTimeout(t)):
+				t.Fatal("first handleShutdown() did not enter Shutdown callback")
+			}
+
+			_, err = runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"second"}`))
+			var rpcErr *subprocess.RPCError
+			if !errors.As(err, &rpcErr) {
+				t.Fatalf("second handleShutdown() error = %v, want *subprocess.RPCError", err)
+			}
+			if rpcErr.Code != bridgeSDKRPCCodeShutdownRunning {
+				t.Fatalf("second handleShutdown() code = %d, want %d", rpcErr.Code, bridgeSDKRPCCodeShutdownRunning)
+			}
+			if rpcErr.Message != "Shutdown running" {
+				t.Fatalf("second handleShutdown() message = %q, want %q", rpcErr.Message, "Shutdown running")
+			}
+			if got, want := shutdownCalls, 1; got != want {
+				t.Fatalf("shutdownCalls during concurrent shutdown = %d, want %d", got, want)
+			}
+
+			releaseOnce.Do(func() {
+				close(release)
+			})
+
+			select {
+			case err := <-firstDone:
+				if err != nil {
+					t.Fatalf("first handleShutdown() error = %v", err)
+				}
+			case <-time.After(runtimeRefacTimeout(t)):
+				t.Fatal("first handleShutdown() did not finish after release")
+			}
+
+			response, err := runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"third"}`))
+			if err != nil {
+				t.Fatalf("third handleShutdown() error = %v", err)
+			}
+			if got, want := shutdownCalls, 1; got != want {
+				t.Fatalf("shutdownCalls after successful shutdown = %d, want %d", got, want)
+			}
+			shutdown, ok := response.(subprocess.ShutdownResponse)
+			if !ok {
+				t.Fatalf("response = %T, want subprocess.ShutdownResponse", response)
+			}
+			if !shutdown.Acknowledged {
+				t.Fatal("shutdown.Acknowledged = false, want true")
+			}
+		},
+	)
 
 	t.Run("Should not publish a session after initialize context cancellation", func(t *testing.T) {
 		t.Parallel()
@@ -165,4 +262,28 @@ func TestRuntimeRefacs(t *testing.T) {
 			t.Fatalf("len(target) = %d, want empty decoded object", got)
 		}
 	})
+}
+
+func runtimeRefacTimeout(t *testing.T) time.Duration {
+	t.Helper()
+
+	const (
+		fallback = 2 * time.Second
+		minimum  = time.Second
+		maximum  = 5 * time.Second
+	)
+
+	deadline, ok := t.Deadline()
+	if !ok {
+		return fallback
+	}
+
+	timeout := time.Until(deadline) / 10
+	if timeout < minimum {
+		return minimum
+	}
+	if timeout > maximum {
+		return maximum
+	}
+	return timeout
 }
