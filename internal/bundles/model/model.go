@@ -34,6 +34,8 @@ func (s Scope) Validate(workspaceID string) error {
 			return errors.New("bundles: workspace activation requires workspace id")
 		}
 		return nil
+	case "":
+		return errors.New("bundles: scope is required")
 	default:
 		return fmt.Errorf("bundles: unsupported scope %q", s)
 	}
@@ -52,18 +54,42 @@ type Activation struct {
 	UpdatedAt                   time.Time
 }
 
+func (a Activation) Normalize() Activation {
+	a.ID = strings.TrimSpace(a.ID)
+	a.ExtensionName = strings.TrimSpace(a.ExtensionName)
+	a.BundleName = strings.TrimSpace(a.BundleName)
+	a.ProfileName = strings.TrimSpace(a.ProfileName)
+	a.Scope = a.Scope.Normalize()
+	a.WorkspaceID = strings.TrimSpace(a.WorkspaceID)
+	a.SpecContentHash = strings.TrimSpace(a.SpecContentHash)
+	return a
+}
+
 func (a Activation) Validate() error {
-	if strings.TrimSpace(a.ID) == "" {
-		return errors.New("bundles: activation id is required")
+	a = a.Normalize()
+	return a.validateNormalized()
+}
+
+func (a Activation) Validated() (Activation, error) {
+	a = a.Normalize()
+	if err := a.validateNormalized(); err != nil {
+		return Activation{}, err
 	}
-	if strings.TrimSpace(a.ExtensionName) == "" {
-		return errors.New("bundles: activation extension name is required")
+	return a, nil
+}
+
+func (a Activation) validateNormalized() error {
+	if err := requireNonEmpty(a.ID, "bundles: activation id is required"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(a.BundleName) == "" {
-		return errors.New("bundles: activation bundle name is required")
+	if err := requireNonEmpty(a.ExtensionName, "bundles: activation extension name is required"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(a.ProfileName) == "" {
-		return errors.New("bundles: activation profile name is required")
+	if err := requireNonEmpty(a.BundleName, "bundles: activation bundle name is required"); err != nil {
+		return err
+	}
+	if err := requireNonEmpty(a.ProfileName, "bundles: activation profile name is required"); err != nil {
+		return err
 	}
 	return a.Scope.Validate(a.WorkspaceID)
 }
@@ -76,18 +102,46 @@ type InventoryItem struct {
 	RecordedAtUTC time.Time
 }
 
+func (i InventoryItem) Normalize() InventoryItem {
+	i.ActivationID = strings.TrimSpace(i.ActivationID)
+	i.ResourceKind = strings.TrimSpace(i.ResourceKind)
+	i.ResourceID = strings.TrimSpace(i.ResourceID)
+	i.ResourceName = strings.TrimSpace(i.ResourceName)
+	return i
+}
+
 func (i InventoryItem) Validate() error {
-	if strings.TrimSpace(i.ActivationID) == "" {
-		return errors.New("bundles: inventory activation id is required")
+	i = i.Normalize()
+	return i.validateNormalized()
+}
+
+func (i InventoryItem) Validated() (InventoryItem, error) {
+	i = i.Normalize()
+	if err := i.validateNormalized(); err != nil {
+		return InventoryItem{}, err
 	}
-	if strings.TrimSpace(i.ResourceKind) == "" {
-		return errors.New("bundles: inventory resource kind is required")
+	return i, nil
+}
+
+func (i InventoryItem) validateNormalized() error {
+	if err := requireNonEmpty(i.ActivationID, "bundles: inventory activation id is required"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(i.ResourceID) == "" {
-		return errors.New("bundles: inventory resource id is required")
+	if err := requireNonEmpty(i.ResourceKind, "bundles: inventory resource kind is required"); err != nil {
+		return err
 	}
-	if strings.TrimSpace(i.ResourceName) == "" {
-		return errors.New("bundles: inventory resource name is required")
+	if err := requireNonEmpty(i.ResourceID, "bundles: inventory resource id is required"); err != nil {
+		return err
+	}
+	if err := requireNonEmpty(i.ResourceName, "bundles: inventory resource name is required"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func requireNonEmpty(value string, message string) error {
+	if strings.TrimSpace(value) == "" {
+		return errors.New(message)
 	}
 	return nil
 }

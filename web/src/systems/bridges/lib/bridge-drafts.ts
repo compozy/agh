@@ -171,7 +171,6 @@ export function buildBridgeCreateRequest(
       provider_config: providerConfigResult.value,
       routing_policy: draft.routingPolicy,
       scope,
-      status: "starting",
       workspace_id: scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
     },
     ok: true,

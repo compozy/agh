@@ -554,10 +554,24 @@ func validateTriggerFilterPath(path string) error {
 	case "kind", "scope", "workspace_id", "source":
 		return nil
 	}
-	if strings.HasPrefix(path, "data.") && strings.TrimSpace(strings.TrimPrefix(path, "data.")) != "" {
+	if dataPath, ok := strings.CutPrefix(path, "data."); ok && validTriggerFilterDataPath(dataPath) {
 		return nil
 	}
 	return fmt.Errorf("unsupported filter path %q", path)
+}
+
+func validTriggerFilterDataPath(path string) bool {
+	remaining := path
+	for {
+		segment, rest, found := strings.Cut(remaining, ".")
+		if strings.TrimSpace(segment) == "" {
+			return false
+		}
+		if !found {
+			return true
+		}
+		remaining = rest
+	}
 }
 
 func nestedPath(path string, field string) string {

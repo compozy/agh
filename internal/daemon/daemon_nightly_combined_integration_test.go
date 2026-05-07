@@ -192,6 +192,8 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	sentMessage, err := harness.NetworkSend(ctx, aghcontract.NetworkSendRequest{
 		SessionID: sessionID,
 		Channel:   "ops-nightly",
+		Surface:   "thread",
+		ThreadID:  "thread_ops_nightly",
 		Kind:      "say",
 		ID:        nightlyTaskResumeMessageID,
 		TraceID:   nightlyTaskResumeTraceID,
@@ -343,7 +345,6 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 		ExtensionName: "telegram-reference",
 		DisplayName:   "Nightly Bridge Runtime E2E",
 		Enabled:       false,
-		Status:        bridgepkg.BridgeStatusDisabled,
 		RoutingPolicy: bridgepkg.RoutingPolicy{
 			IncludePeer:   true,
 			IncludeThread: true,

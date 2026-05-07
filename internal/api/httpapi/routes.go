@@ -94,9 +94,23 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	agent := api.Group("/agent")
+	agent.GET("/me", handlers.AgentMe)
 	agent.GET("/context", handlers.AgentContext)
 	agent.GET("/soul", handlers.AgentSoul)
 	agent.POST("/soul/validate", handlers.ValidateAgentSoul)
+	agent.GET("/coordinator/config", handlers.AgentCoordinatorConfig)
+	agent.POST("/spawn", handlers.AgentSpawn)
+	agent.GET("/channels", handlers.AgentChannels)
+	agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)
+	agent.POST("/channels/:channel/send", handlers.AgentChannelSend)
+	agent.POST("/channels/reply", handlers.AgentChannelReply)
+
+	agentTasks := agent.Group("/tasks")
+	agentTasks.POST("/claim-next", handlers.AgentTaskClaimNext)
+	agentTasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
+	agentTasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
+	agentTasks.POST("/:run_id/fail", handlers.AgentTaskFail)
+	agentTasks.POST("/:run_id/release", handlers.AgentTaskRelease)
 
 	agents := api.Group("/agents")
 	agents.GET("", handlers.ListAgents)

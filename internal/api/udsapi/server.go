@@ -37,6 +37,14 @@ var (
 	ErrSocketPathTooLong         = errors.New("udsapi: socket path too long")
 )
 
+type serverState uint8
+
+const (
+	serverStateStopped serverState = iota
+	serverStateRunning
+	serverStateStopping
+)
+
 // Option customizes UDS server construction.
 type Option func(*Server)
 
@@ -106,7 +114,7 @@ type Server struct {
 	serveDone    chan struct{}
 	serveErr     error
 	streamCancel context.CancelFunc
-	started      bool
+	state        serverState
 }
 
 type handlerConfig struct {
@@ -499,7 +507,7 @@ func New(opts ...Option) (*Server, error) {
 
 	server.ensureEngine()
 	server.handlers = newHandlers(server.handlerConfig())
-	RegisterRoutes(server.engine, server.handlers)
+	registerRoutes(server.engine, server.handlers)
 
 	return server, nil
 }
@@ -523,6 +531,25 @@ func applyOptions(server *Server, opts []Option) {
 			opt(server)
 		}
 	}
+}
+
+var ginDebugMu sync.Mutex
+
+func withQuietGinDebug(fn func()) {
+	ginDebugMu.Lock()
+	defer ginDebugMu.Unlock()
+	previousMode := gin.Mode()
+	if previousMode == gin.DebugMode {
+		gin.SetMode(gin.ReleaseMode)
+		defer gin.SetMode(previousMode)
+	}
+	fn()
+}
+
+func registerRoutes(engine *gin.Engine, handlers *Handlers) {
+	withQuietGinDebug(func() {
+		RegisterRoutes(engine, handlers)
+	})
 }
 
 func (s *Server) finalize() error {
@@ -595,7 +622,9 @@ func (s *Server) ensureEngine() {
 		return
 	}
 
-	s.engine = gin.New()
+	withQuietGinDebug(func() {
+		s.engine = gin.New()
+	})
 	s.engine.Use(gin.Recovery())
 }
 
@@ -671,25 +700,38 @@ func (s *Server) Start(ctx context.Context) error {
 	if socketPath == "" {
 		return errors.New("udsapi: socket path is required")
 	}
+
+	s.mu.Lock()
+	if s.state != serverStateStopped {
+		err := errors.New("udsapi: server already started")
+		if s.state == serverStateStopping {
+			err = errors.New("udsapi: server shutdown in progress")
+		}
+		s.mu.Unlock()
+		return err
+	}
 	if err := ensureSocketParentDir(socketPath); err != nil {
+		s.mu.Unlock()
 		return err
 	}
 	if err := removeSocketPath(socketPath); err != nil {
+		s.mu.Unlock()
 		return err
 	}
 
 	var listenConfig net.ListenConfig
 	ln, err := listenConfig.Listen(ctx, "unix", socketPath)
 	if err != nil {
+		s.mu.Unlock()
 		return fmt.Errorf("udsapi: listen on %q: %w", socketPath, err)
 	}
 	if err := os.Chmod(socketPath, 0o600); err != nil {
-		_ = ln.Close()
-		_ = os.Remove(socketPath)
-		return fmt.Errorf("udsapi: chmod socket %q: %w", socketPath, err)
+		cleanupErr := cleanupSocketStartFailure(ln, socketPath)
+		s.mu.Unlock()
+		return errors.Join(fmt.Errorf("udsapi: chmod socket %q: %w", socketPath, err), cleanupErr)
 	}
 
-	streamCtx, streamCancel := context.WithCancel(context.Background())
+	streamCtx, streamCancel := context.WithCancel(context.WithoutCancel(ctx))
 	httpServer := &http.Server{
 		Handler:           s.engine,
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
@@ -701,21 +743,13 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	serveDone := make(chan struct{})
 
-	s.mu.Lock()
-	if s.started {
-		s.mu.Unlock()
-		streamCancel()
-		_ = ln.Close()
-		_ = os.Remove(socketPath)
-		return errors.New("udsapi: server already started")
-	}
 	s.handlers.setStreamDone(streamCtx.Done())
 	s.httpServer = httpServer
 	s.listener = ln
 	s.serveDone = serveDone
 	s.serveErr = nil
 	s.streamCancel = streamCancel
-	s.started = true
+	s.state = serverStateRunning
 	s.mu.Unlock()
 
 	go func() {
@@ -733,57 +767,85 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
+func cleanupSocketStartFailure(ln net.Listener, socketPath string) error {
+	var errs []error
+	if ln != nil {
+		if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			errs = append(errs, fmt.Errorf("udsapi: close startup listener: %w", err))
+		}
+	}
+	if err := removeSocketPath(socketPath); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
 // Shutdown stops accepting new requests, drains active ones, and removes the socket file.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("udsapi: shutdown context is required")
 	}
 
 	s.mu.Lock()
+	if s.state == serverStateStopped {
+		s.mu.Unlock()
+		return nil
+	}
 	httpServer := s.httpServer
 	listener := s.listener
 	serveDone := s.serveDone
 	streamCancel := s.streamCancel
 	socketPath := s.socketPath
-	serveErr := s.serveErr
-	s.httpServer = nil
-	s.listener = nil
-	s.serveDone = nil
-	s.streamCancel = nil
-	s.serveErr = nil
-	s.started = false
+	handlers := s.handlers
+	s.state = serverStateStopping
 	s.mu.Unlock()
 
 	var errs []error
+	drained := true
 	if streamCancel != nil {
 		streamCancel()
 	}
 	if httpServer != nil {
 		if err := httpServer.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("udsapi: shutdown http server: %w", err))
+			drained = false
 		}
 	}
 	if listener != nil {
 		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			errs = append(errs, fmt.Errorf("udsapi: close listener: %w", err))
+			drained = false
 		}
 	}
 	if serveDone != nil {
 		if err := waitForServeDone(ctx, serveDone); err != nil {
 			errs = append(errs, err)
+			drained = false
 		}
 	}
-	if s.handlers != nil {
-		if err := s.handlers.waitForPromptDrains(ctx); err != nil {
+	if handlers != nil {
+		if err := handlers.waitForPromptDrains(ctx); err != nil {
 			errs = append(errs, err)
+			drained = false
 		}
 	}
 	if err := removeSocketPath(socketPath); err != nil {
 		errs = append(errs, err)
 	}
+	s.mu.Lock()
+	serveErr := s.serveErr
+	if drained {
+		s.httpServer = nil
+		s.listener = nil
+		s.serveDone = nil
+		s.streamCancel = nil
+		s.serveErr = nil
+		s.state = serverStateStopped
+	}
+	s.mu.Unlock()
 	if serveErr != nil {
 		errs = append(errs, serveErr)
 	}

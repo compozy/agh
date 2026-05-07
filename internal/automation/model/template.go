@@ -8,10 +8,12 @@ import (
 	"text/template/parse"
 )
 
+var errTriggerPromptTemplateRequired = errors.New("trigger prompt template is required")
+
 // ParseTriggerPromptTemplate parses a trigger prompt template with strict activation-envelope validation.
 func ParseTriggerPromptTemplate(prompt string) (*template.Template, error) {
 	if strings.TrimSpace(prompt) == "" {
-		return nil, errors.New("trigger prompt template is required")
+		return nil, errTriggerPromptTemplateRequired
 	}
 
 	tmpl, err := template.New("trigger_prompt").Option("missingkey=error").Parse(prompt)
@@ -33,6 +35,12 @@ func ParseTriggerPromptTemplate(prompt string) (*template.Template, error) {
 
 // ValidateTriggerPromptTemplate validates a trigger prompt template against the normalized activation-envelope model.
 func ValidateTriggerPromptTemplate(prompt string) error {
+	if strings.TrimSpace(prompt) == "" {
+		return fmt.Errorf("validate trigger prompt template: %w", errTriggerPromptTemplateRequired)
+	}
+	if !strings.Contains(prompt, "{{") && !strings.Contains(prompt, "}}") {
+		return nil
+	}
 	if _, err := ParseTriggerPromptTemplate(prompt); err != nil {
 		return fmt.Errorf("validate trigger prompt template: %w", err)
 	}

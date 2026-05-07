@@ -1786,15 +1786,21 @@ export interface HookDecl {
 
 export type HookEventFamily =
   | "session"
+  | "sandbox"
   | "input"
   | "prompt"
   | "event"
+  | "automation"
   | "agent"
   | "turn"
   | "message"
   | "tool"
   | "permission"
-  | "context";
+  | "context"
+  | "coordinator"
+  | "task.run"
+  | "spawn"
+  | "network";
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
@@ -2603,7 +2609,7 @@ export interface ObserveEventsParams {
   session_id?: string;
   agent_name?: string;
   type?: string;
-  since: ISODateTime;
+  since?: ISODateTime;
   limit?: number;
 }
 
@@ -3338,7 +3344,7 @@ export interface SessionEventsParams {
   turn_id?: string;
   limit?: number;
   offset?: number;
-  since: ISODateTime;
+  since?: ISODateTime;
 }
 
 export interface SessionHealthGetParams {

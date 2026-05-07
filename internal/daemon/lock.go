@@ -172,13 +172,15 @@ func readLockPID(path string) (int, error) {
 	return pid, nil
 }
 
-func writeLockPID(path string, pid int) error {
+func writeLockPID(path string, pid int) (returnErr error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("daemon: open daemon lock %q for write: %w", path, err)
 	}
 	defer func() {
-		_ = file.Close()
+		if err := file.Close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close daemon lock %q after write: %w", path, err))
+		}
 	}()
 
 	if _, err := fmt.Fprintf(file, "%d\n", pid); err != nil {

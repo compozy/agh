@@ -376,6 +376,40 @@ func TestBridgeResourceApplyReturnsReplaceFailure(t *testing.T) {
 	}
 }
 
+func TestBridgeResourceApplyRejectsTypedNilPlanWithoutReplacingInstances(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+	store := &projectionStore{
+		instances: []bridgepkg.BridgeInstance{{
+			ID:            "brg-existing",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "ext-telegram",
+			DisplayName:   "Existing",
+			Source:        bridgepkg.BridgeInstanceSourceDynamic,
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}},
+	}
+	var plan *bridgepkg.ResourceProjectionPlan
+
+	err := bridgepkg.ApplyResourceState(testutil.Context(t), store, plan)
+	if err == nil {
+		t.Fatal("ApplyResourceState(typed nil) error = nil, want plan rejection")
+	}
+	if got := len(store.replacements); got != 0 {
+		t.Fatalf("len(store.replacements) = %d, want no replacement", got)
+	}
+	if got := len(store.instances); got != 1 {
+		t.Fatalf("len(store.instances) = %d, want existing instance preserved", got)
+	}
+}
+
 func TestBridgeResourceProjectionPlanAccessorsAndRollback(t *testing.T) {
 	t.Parallel()
 
@@ -503,6 +537,82 @@ func TestBridgeResourceProjectionIgnoresSemanticallyEquivalentJSON(t *testing.T)
 	}
 }
 
+func TestBridgeResourceProjectionDetectsLargeJSONNumberChanges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		previous []byte
+		next     []byte
+	}{
+		{
+			name:     "Should detect top-level large integer change",
+			previous: []byte(`{"cursor":9007199254740992}`),
+			next:     []byte(`{"cursor":9007199254740993}`),
+		},
+		{
+			name:     "Should detect nested large integer change",
+			previous: []byte(`{"meta":{"cursor":9007199254740992}}`),
+			next:     []byte(`{"meta":{"cursor":9007199254740993}}`),
+		},
+		{
+			name:     "Should distinguish large number from string",
+			previous: []byte(`{"cursor":9007199254740992}`),
+			next:     []byte(`{"cursor":"9007199254740992"}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+			store := &projectionStore{
+				instances: []bridgepkg.BridgeInstance{{
+					ID:             "brg-json-number",
+					Scope:          bridgepkg.ScopeGlobal,
+					Platform:       "telegram",
+					ExtensionName:  "ext-telegram",
+					DisplayName:    "JSON Number Bridge",
+					Source:         bridgepkg.BridgeInstanceSourceDynamic,
+					Enabled:        true,
+					Status:         bridgepkg.BridgeStatusReady,
+					DMPolicy:       bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy:  bridgepkg.RoutingPolicy{IncludePeer: true},
+					ProviderConfig: tt.previous,
+					CreatedAt:      now.Add(-time.Hour),
+					UpdatedAt:      now.Add(-time.Minute),
+				}},
+			}
+			spec := resourceSpec("JSON Number Bridge", true)
+			spec.ProviderConfig = tt.next
+
+			plan, err := bridgepkg.BuildResourceState(
+				testutil.Context(t),
+				store,
+				[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
+					ID:        "brg-json-number",
+					Version:   10,
+					Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					Spec:      spec,
+					CreatedAt: now.Add(-time.Hour),
+					UpdatedAt: now,
+				}},
+				func() time.Time { return now },
+			)
+			if err != nil {
+				t.Fatalf("BuildResourceState() error = %v", err)
+			}
+			if got, want := plan.OperationCount(), 1; got != want {
+				t.Fatalf("plan.OperationCount() = %d, want %d", got, want)
+			}
+			if got, want := strings.Join(plan.ChangedExtensions(), ","), "ext-telegram"; got != want {
+				t.Fatalf("plan.ChangedExtensions() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestBridgeInstanceSpecFromCreateRequestBindsWorkspaceScope(t *testing.T) {
 	t.Parallel()
 
@@ -539,119 +649,6 @@ func TestBridgeInstanceSpecFromCreateRequestBindsWorkspaceScope(t *testing.T) {
 	}
 	if got, want := string(spec.ProviderConfig), `{"tenant":"acme"}`; got != want {
 		t.Fatalf("spec.ProviderConfig = %s, want %s", got, want)
-	}
-}
-
-func TestManagedResourceSyncerReconcilesCanonicalBridgeResources(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
-	keep := managedBridgeInstance("brg-keep", "Keep")
-	stale := managedBridgeInstance("brg-stale", "Stale")
-	store := newManagedResourceStore(
-		managedBridgeResourceRecord(keep.ID, 4, keep),
-		managedBridgeResourceRecord(stale.ID, 5, stale),
-	)
-	triggered := 0
-	service := bridgepkg.NewManagedResourceSyncer(
-		store,
-		resources.MutationActor{Kind: resources.MutationActorKindDaemon},
-		func(_ context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			triggered++
-			if kind != bridgepkg.BridgeInstanceResourceKind {
-				t.Fatalf("trigger kind = %q, want %q", kind, bridgepkg.BridgeInstanceResourceKind)
-			}
-			if reason != resources.ReconcileReasonWrite {
-				t.Fatalf("trigger reason = %q, want %q", reason, resources.ReconcileReasonWrite)
-			}
-			return nil
-		},
-		bridgepkg.WithManagedResourceSyncNow(func() time.Time { return now }),
-	)
-
-	stats, err := service.SyncManagedInstances(
-		testutil.Context(t),
-		bridgepkg.BridgeInstanceSourcePackage,
-		[]bridgepkg.BridgeInstance{
-			keep,
-			managedBridgeInstance("brg-new", "New"),
-		},
-	)
-	if err != nil {
-		t.Fatalf("SyncManagedInstances() error = %v", err)
-	}
-	if stats.InstancesSynced != 2 || stats.InstancesRemoved != 1 || !stats.SyncedAt.Equal(now) {
-		t.Fatalf("stats = %#v, want 2 synced, 1 removed at %s", stats, now)
-	}
-	if got, want := len(store.puts), 1; got != want {
-		t.Fatalf("len(store.puts) = %d, want %d", got, want)
-	}
-	if got, want := store.puts[0].ID, "brg-new"; got != want {
-		t.Fatalf("store.puts[0].ID = %q, want %q", got, want)
-	}
-	if got, want := len(store.deletes), 1; got != want {
-		t.Fatalf("len(store.deletes) = %d, want %d", got, want)
-	}
-	if got, want := store.deletes[0], "brg-stale"; got != want {
-		t.Fatalf("store.deletes[0] = %q, want %q", got, want)
-	}
-	if triggered != 1 {
-		t.Fatalf("triggered = %d, want 1", triggered)
-	}
-
-	saved := store.records["brg-new"]
-	if saved.Source.ID != "bridge.package" || saved.Spec.Source != bridgepkg.BridgeInstanceSourcePackage {
-		t.Fatalf("new record source = %#v spec source = %q, want package source", saved.Source, saved.Spec.Source)
-	}
-}
-
-func TestManagedResourceSyncerReportsInputAndTriggerFailures(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	var nilService *bridgepkg.ManagedResourceSyncService
-	if _, err := nilService.SyncManagedInstances(ctx, bridgepkg.BridgeInstanceSourcePackage, nil); err == nil {
-		t.Fatalf("nil service SyncManagedInstances() error = nil, want failure")
-	}
-
-	noStore := bridgepkg.NewManagedResourceSyncer(nil, resources.MutationActor{}, nil)
-	if _, err := noStore.SyncManagedInstances(ctx, bridgepkg.BridgeInstanceSourcePackage, nil); err == nil {
-		t.Fatalf("missing store SyncManagedInstances() error = nil, want failure")
-	}
-
-	duplicateStore := newManagedResourceStore()
-	duplicateService := bridgepkg.NewManagedResourceSyncer(duplicateStore, resources.MutationActor{}, nil)
-	duplicate := managedBridgeInstance("brg-duplicate", "Duplicate")
-	if _, err := duplicateService.SyncManagedInstances(
-		ctx,
-		bridgepkg.BridgeInstanceSourcePackage,
-		[]bridgepkg.BridgeInstance{
-			duplicate,
-			duplicate,
-		},
-	); err == nil {
-		t.Fatalf("duplicate SyncManagedInstances() error = nil, want failure")
-	}
-
-	wantErr := errors.New("reconcile failed")
-	triggerService := bridgepkg.NewManagedResourceSyncer(
-		newManagedResourceStore(),
-		resources.MutationActor{},
-		func(context.Context, resources.ResourceKind, resources.ReconcileReason) error {
-			return wantErr
-		},
-	)
-	if _, err := triggerService.SyncManagedInstances(
-		ctx,
-		bridgepkg.BridgeInstanceSourcePackage,
-		[]bridgepkg.BridgeInstance{
-			managedBridgeInstance("brg-trigger", "Trigger"),
-		},
-	); !errors.Is(
-		err,
-		wantErr,
-	) {
-		t.Fatalf("trigger SyncManagedInstances() error = %v, want %v", err, wantErr)
 	}
 }
 
@@ -700,126 +697,4 @@ func (s *projectionStore) ReplaceBridgeInstances(_ context.Context, instances []
 	s.replacements = append(s.replacements, next)
 	s.instances = next
 	return nil
-}
-
-type managedResourceStore struct {
-	records   map[string]resources.Record[bridgepkg.BridgeInstanceSpec]
-	puts      []resources.Draft[bridgepkg.BridgeInstanceSpec]
-	deletes   []string
-	listErr   error
-	putErr    error
-	deleteErr error
-}
-
-func newManagedResourceStore(
-	records ...resources.Record[bridgepkg.BridgeInstanceSpec],
-) *managedResourceStore {
-	store := &managedResourceStore{
-		records: make(map[string]resources.Record[bridgepkg.BridgeInstanceSpec], len(records)),
-	}
-	for _, record := range records {
-		store.records[record.ID] = record
-	}
-	return store
-}
-
-func (s *managedResourceStore) Put(
-	_ context.Context,
-	actor resources.MutationActor,
-	draft resources.Draft[bridgepkg.BridgeInstanceSpec],
-) (resources.Record[bridgepkg.BridgeInstanceSpec], error) {
-	if s.putErr != nil {
-		return resources.Record[bridgepkg.BridgeInstanceSpec]{}, s.putErr
-	}
-	version := draft.ExpectedVersion + 1
-	record := resources.Record[bridgepkg.BridgeInstanceSpec]{
-		Kind:    bridgepkg.BridgeInstanceResourceKind,
-		ID:      draft.ID,
-		Version: version,
-		Scope:   draft.Scope,
-		Source:  actor.Source,
-		Spec:    draft.Spec,
-	}
-	s.records[draft.ID] = record
-	s.puts = append(s.puts, draft)
-	return record, nil
-}
-
-func (s *managedResourceStore) Delete(
-	_ context.Context,
-	_ resources.MutationActor,
-	id string,
-	_ int64,
-) error {
-	if s.deleteErr != nil {
-		return s.deleteErr
-	}
-	delete(s.records, id)
-	s.deletes = append(s.deletes, id)
-	return nil
-}
-
-func (s *managedResourceStore) Get(
-	context.Context,
-	resources.MutationActor,
-	string,
-) (resources.Record[bridgepkg.BridgeInstanceSpec], error) {
-	return resources.Record[bridgepkg.BridgeInstanceSpec]{}, errors.New("unexpected Get call")
-}
-
-func (s *managedResourceStore) List(
-	_ context.Context,
-	_ resources.MutationActor,
-	filter resources.ResourceFilter,
-) ([]resources.Record[bridgepkg.BridgeInstanceSpec], error) {
-	if s.listErr != nil {
-		return nil, s.listErr
-	}
-	records := make([]resources.Record[bridgepkg.BridgeInstanceSpec], 0, len(s.records))
-	for _, record := range s.records {
-		if filter.Kind != "" && filter.Kind.Normalize() != record.Kind.Normalize() {
-			continue
-		}
-		if filter.Source != nil && *filter.Source != record.Source {
-			continue
-		}
-		records = append(records, record)
-	}
-	return records, nil
-}
-
-func managedBridgeInstance(id string, displayName string) bridgepkg.BridgeInstance {
-	return bridgepkg.BridgeInstance{
-		ID:               id,
-		Scope:            bridgepkg.ScopeGlobal,
-		Platform:         "telegram",
-		ExtensionName:    "ext-telegram",
-		DisplayName:      displayName,
-		Source:           bridgepkg.BridgeInstanceSourceDynamic,
-		Enabled:          true,
-		Status:           bridgepkg.BridgeStatusReady,
-		DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
-		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
-		ProviderConfig:   []byte(`{"tenant":"acme"}`),
-		DeliveryDefaults: []byte(`{"peer_id":"peer-1","mode":"reply"}`),
-	}
-}
-
-func managedBridgeResourceRecord(
-	id string,
-	version int64,
-	instance bridgepkg.BridgeInstance,
-) resources.Record[bridgepkg.BridgeInstanceSpec] {
-	instance.Source = bridgepkg.BridgeInstanceSourcePackage
-	return resources.Record[bridgepkg.BridgeInstanceSpec]{
-		Kind:    bridgepkg.BridgeInstanceResourceKind,
-		ID:      id,
-		Version: version,
-		Scope:   bridgepkg.ResourceScopeForBridge(instance.Scope, instance.WorkspaceID),
-		Source: resources.ResourceSource{
-			Kind: resources.ResourceSourceKind("daemon"),
-			ID:   "bridge.package",
-		},
-		Spec: bridgepkg.BridgeInstanceSpecFromInstance(instance),
-	}
 }

@@ -170,8 +170,7 @@ func (t AutomationTrigger) Validate(path string) error {
 	return t.validateWithEnv(path, processEnvLookup)
 }
 
-func (t AutomationTrigger) validateWithEnv(path string, lookup envLookup) error {
-	_ = lookup
+func (t AutomationTrigger) validateWithEnv(path string, _ envLookup) error {
 	if strings.TrimSpace(t.Name) == "" {
 		return errors.New(path + ".name is required")
 	}

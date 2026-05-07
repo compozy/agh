@@ -67,9 +67,5 @@ func spawnDetachedLoggedProcess(
 		return nil, fmt.Errorf("procutil: close log handle %q: %w", req.LogPath, err)
 	}
 
-	return &DetachedProcess{
-		process:   process,
-		logPath:   req.LogPath,
-		logOffset: logInfo.Size(),
-	}, nil
+	return newDetachedProcess(process, req.LogPath, logInfo.Size()), nil
 }

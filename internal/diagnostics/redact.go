@@ -5,30 +5,57 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 const redactedValue = "[REDACTED]"
+const protectedRedactionMarker = "__AGH_REDACTED"
+const truncationSuffix = "...[truncated]"
 
-const sensitiveKeyPattern = `api[_-]?key|access[_-]?token|refresh[_-]?token|mcp[_-]?auth[_-]?token|oauth[_-]?code|authorization[_-]?code|code[_-]?verifier|pkce[_-]?verifier|secret[_-]?binding|token|secret|password|authorization`
-
-const assignmentSensitiveKeyPattern = `api[_-]?key|access[_-]?token|refresh[_-]?token|mcp[_-]?auth[_-]?token|oauth[_-]?code|authorization[_-]?code|code[_-]?verifier|pkce[_-]?verifier|secret[_-]?binding|secret|password|authorization`
 const minDynamicSecretLength = 8
 
 var (
+	sensitiveKeyPattern = strings.Join([]string{
+		"api[_-]?key",
+		"access[_-]?token",
+		"refresh[_-]?token",
+		"mcp[_-]?auth[_-]?token",
+		"claim[_-]?token",
+		"lease[_-]?token",
+		"bot[_-]?token",
+		"oauth[_-]?code",
+		"authorization[_-]?code",
+		"oauth[_-]?client[_-]?secret",
+		"client[_-]?secret",
+		"webhook[_-]?secret",
+		"code[_-]?verifier",
+		"pkce[_-]?verifier",
+		"secret[_-]?binding",
+		"token",
+		"secret",
+		"password",
+		"authorization",
+	}, "|")
 	bearerTokenPattern  = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
 	quotedSecretPattern = regexp.MustCompile(
 		`(?i)(["'])(` + sensitiveKeyPattern + `)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,
 	)
 	secretPattern = regexp.MustCompile(
-		`(?i)\b(` + assignmentSensitiveKeyPattern + `)\b\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;]+)`,
+		`(?i)\b(` + sensitiveKeyPattern + `)\b(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`,
 	)
-	tokenAssignmentPattern = regexp.MustCompile(`(?i)\b(token)\b\s*(=)\s*("[^"]*"|'[^']*'|[^\s,;]+)`)
-	dynamicSecrets         = dynamicSecretRegistry{values: make(map[string]int)}
+	dynamicSecrets = newDynamicSecretRegistry()
 )
 
 type dynamicSecretRegistry struct {
-	mu     sync.RWMutex
-	values map[string]int
+	mu       sync.Mutex
+	values   map[string]int
+	snapshot atomic.Value
+}
+
+func newDynamicSecretRegistry() *dynamicSecretRegistry {
+	registry := &dynamicSecretRegistry{values: make(map[string]int)}
+	registry.snapshot.Store([]string(nil))
+	return registry
 }
 
 // RegisterDynamicSecret registers one runtime-resolved secret for diagnostic redaction.
@@ -37,23 +64,46 @@ func RegisterDynamicSecret(value string) func() {
 	if len(secret) < minDynamicSecretLength {
 		return func() {}
 	}
-	dynamicSecrets.mu.Lock()
-	dynamicSecrets.values[secret]++
-	dynamicSecrets.mu.Unlock()
+	dynamicSecrets.register(secret)
 
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			dynamicSecrets.mu.Lock()
-			defer dynamicSecrets.mu.Unlock()
-			count := dynamicSecrets.values[secret]
-			if count <= 1 {
-				delete(dynamicSecrets.values, secret)
-				return
-			}
-			dynamicSecrets.values[secret] = count - 1
+			dynamicSecrets.unregister(secret)
 		})
 	}
+}
+
+func (r *dynamicSecretRegistry) register(secret string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.values[secret] == 0 {
+		r.values[secret] = 1
+		r.storeSnapshotLocked()
+		return
+	}
+	r.values[secret]++
+}
+
+func (r *dynamicSecretRegistry) unregister(secret string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	count := r.values[secret]
+	if count <= 1 {
+		delete(r.values, secret)
+		r.storeSnapshotLocked()
+		return
+	}
+	r.values[secret] = count - 1
+}
+
+func (r *dynamicSecretRegistry) storeSnapshotLocked() {
+	secrets := make([]string, 0, len(r.values))
+	for secret := range r.values {
+		secrets = append(secrets, secret)
+	}
+	sortDynamicSecrets(secrets)
+	r.snapshot.Store(secrets)
 }
 
 // Redact removes common credential shapes from diagnostic text before the text
@@ -64,33 +114,46 @@ func Redact(text string) string {
 	}
 	redacted := bearerTokenPattern.ReplaceAllString(text, "Bearer "+redactedValue)
 	redacted = quotedSecretPattern.ReplaceAllString(redacted, "${1}${2}${3}${4}${5}"+redactedValue+"${6}")
-	redacted = secretPattern.ReplaceAllString(redacted, "${1}${2}"+redactedValue)
-	redacted = tokenAssignmentPattern.ReplaceAllString(redacted, "${1}${2}"+redactedValue)
+	redacted = redactSecretAssignments(redacted)
 	return redactDynamicSecrets(redacted)
 }
 
+func redactSecretAssignments(text string) string {
+	return secretPattern.ReplaceAllStringFunc(text, func(match string) string {
+		parts := secretPattern.FindStringSubmatch(match)
+		if len(parts) != 4 {
+			return match
+		}
+		if strings.Contains(parts[3], redactedValue) || strings.Contains(parts[3], protectedRedactionMarker) {
+			return parts[1] + parts[2] + parts[3]
+		}
+		return parts[1] + parts[2] + redactedValue
+	})
+}
+
 func redactDynamicSecrets(text string) string {
-	secrets := dynamicSecretSnapshot()
+	secrets := dynamicSecrets.snapshotSecrets()
 	for _, secret := range secrets {
 		text = strings.ReplaceAll(text, secret, redactedValue)
 	}
 	return text
 }
 
-func dynamicSecretSnapshot() []string {
-	dynamicSecrets.mu.RLock()
-	defer dynamicSecrets.mu.RUnlock()
-	secrets := make([]string, 0, len(dynamicSecrets.values))
-	for secret := range dynamicSecrets.values {
-		secrets = append(secrets, secret)
+func (r *dynamicSecretRegistry) snapshotSecrets() []string {
+	secrets, ok := r.snapshot.Load().([]string)
+	if !ok {
+		return nil
 	}
+	return secrets
+}
+
+func sortDynamicSecrets(secrets []string) {
 	sort.Slice(secrets, func(i, j int) bool {
 		if len(secrets[i]) == len(secrets[j]) {
 			return secrets[i] < secrets[j]
 		}
 		return len(secrets[i]) > len(secrets[j])
 	})
-	return secrets
 }
 
 // RedactAndBound redacts diagnostic text and caps it to a deterministic byte
@@ -103,8 +166,25 @@ func RedactAndBound(text string, maxBytes int) string {
 	if len(redacted) <= maxBytes {
 		return redacted
 	}
-	if maxBytes <= len("...[truncated]") {
-		return redacted[:maxBytes]
+	if maxBytes <= len(truncationSuffix) {
+		return truncateUTF8WithinBytes(redacted, maxBytes)
 	}
-	return redacted[:maxBytes-len("...[truncated]")] + "...[truncated]"
+	return truncateUTF8WithinBytes(redacted, maxBytes-len(truncationSuffix)) + truncationSuffix
+}
+
+func truncateUTF8WithinBytes(text string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(text) <= maxBytes {
+		return text
+	}
+	boundary := 0
+	for idx := range text {
+		if idx > maxBytes {
+			break
+		}
+		boundary = idx
+	}
+	return text[:boundary]
 }

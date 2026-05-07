@@ -1006,12 +1006,12 @@ func (h *RuntimeHarness) NetworkWork(
 func (h *RuntimeHarness) NetworkChannelMessages(
 	ctx context.Context,
 	channel string,
-) ([]aghcontract.NetworkChannelMessagePayload, error) {
+) ([]aghcontract.NetworkConversationMessagePayload, error) {
 	threads, err := h.NetworkThreads(ctx, channel)
 	if err != nil {
 		return nil, err
 	}
-	messages := make([]aghcontract.NetworkChannelMessagePayload, 0)
+	messages := make([]aghcontract.NetworkConversationMessagePayload, 0)
 	for _, thread := range threads {
 		threadMessages, err := h.NetworkThreadMessages(ctx, channel, thread.ThreadID)
 		if err != nil {

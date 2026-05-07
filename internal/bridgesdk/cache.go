@@ -71,9 +71,10 @@ func (c *InstanceCache) Snapshot() *subprocess.InitializeBridgeRuntime {
 	defer c.mu.RUnlock()
 
 	runtime := &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: c.runtimeVersion,
-		Provider:       c.provider,
-		Platform:       c.platform,
+		RuntimeVersion:   c.runtimeVersion,
+		Provider:         c.provider,
+		Platform:         c.platform,
+		ManagedInstances: make([]subprocess.InitializeBridgeManagedInstance, 0, len(c.managed)),
 	}
 	for _, id := range c.idsLocked() {
 		runtime.ManagedInstances = append(runtime.ManagedInstances, cloneManagedInstance(c.managed[id]))
@@ -116,8 +117,15 @@ func (c *InstanceCache) List() []subprocess.InitializeBridgeManagedInstance {
 
 // BoundSecretValue returns one launch-time bound secret value for the managed instance.
 func (c *InstanceCache) BoundSecretValue(instanceID string, bindingName string) (string, bool) {
-	managed, ok := c.Get(instanceID)
-	if !ok || managed == nil {
+	if c == nil {
+		return "", false
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	managed, ok := c.managed[strings.TrimSpace(instanceID)]
+	if !ok {
 		return "", false
 	}
 	trimmedName := strings.TrimSpace(bindingName)

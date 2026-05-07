@@ -1969,15 +1969,14 @@ func parseRequiredTaskOwnership(kindRaw string, refRaw string) (*taskpkg.Ownersh
 }
 
 func parseJSONFlag(flagName string, raw string) (json.RawMessage, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	payload, err := parseRequiredJSONRawMessage(raw)
+	if errors.Is(err, errEmptyJSONFlag) {
 		return nil, fmt.Errorf("cli: --%s requires valid JSON", flagName)
 	}
-	var decoded any
-	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("cli: invalid --%s JSON: %w", flagName, err)
 	}
-	return json.RawMessage(trimmed), nil
+	return payload, nil
 }
 
 func parseAgentTaskJSONFlag(flagName string, raw string) (json.RawMessage, error) {

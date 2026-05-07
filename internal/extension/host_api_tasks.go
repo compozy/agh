@@ -880,14 +880,18 @@ func mapTaskRPCError(id string, err error) error {
 }
 
 func taskSummaryPayloadsFromSummaries(tasks []taskpkg.Summary) []apicontract.TaskSummaryPayload {
-	payloads := make([]apicontract.TaskSummaryPayload, 0, len(tasks))
-	for _, record := range tasks {
-		payloads = append(payloads, taskSummaryPayloadFromSummary(record))
+	payloads := make([]apicontract.TaskSummaryPayload, len(tasks))
+	for i := range tasks {
+		payloads[i] = taskSummaryPayloadFromSummary(&tasks[i])
 	}
 	return payloads
 }
 
-func taskSummaryPayloadFromSummary(record taskpkg.Summary) apicontract.TaskSummaryPayload {
+func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSummaryPayload {
+	if record == nil {
+		return apicontract.TaskSummaryPayload{}
+	}
+
 	return apicontract.TaskSummaryPayload{
 		ID:              record.ID,
 		Identifier:      record.Identifier,
@@ -946,22 +950,23 @@ func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
 }
 
 func taskDependencyPayloadsFromDependencies(dependencies []taskpkg.Dependency) []apicontract.TaskDependencyPayload {
-	payloads := make([]apicontract.TaskDependencyPayload, 0, len(dependencies))
-	for _, dependency := range dependencies {
-		payloads = append(payloads, apicontract.TaskDependencyPayload{
+	payloads := make([]apicontract.TaskDependencyPayload, len(dependencies))
+	for i := range dependencies {
+		dependency := &dependencies[i]
+		payloads[i] = apicontract.TaskDependencyPayload{
 			TaskID:          dependency.TaskID,
 			DependsOnTaskID: dependency.DependsOnTaskID,
 			Kind:            dependency.Kind,
 			CreatedAt:       dependency.CreatedAt,
-		})
+		}
 	}
 	return payloads
 }
 
 func taskRunPayloadsFromRuns(runs []taskpkg.Run) []apicontract.TaskRunPayload {
-	payloads := make([]apicontract.TaskRunPayload, 0, len(runs))
-	for _, run := range runs {
-		payloads = append(payloads, taskRunPayloadFromRun(&run))
+	payloads := make([]apicontract.TaskRunPayload, len(runs))
+	for i := range runs {
+		payloads[i] = taskRunPayloadFromRun(&runs[i])
 	}
 	return payloads
 }
@@ -1028,23 +1033,25 @@ func taskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *apicontract.
 func taskDependencyReferencePayloadsFromReferences(
 	dependencies []taskpkg.DependencyReference,
 ) []apicontract.TaskDependencyReferencePayload {
-	payloads := make([]apicontract.TaskDependencyReferencePayload, 0, len(dependencies))
-	for _, dependency := range dependencies {
-		payloads = append(payloads, apicontract.TaskDependencyReferencePayload{
+	payloads := make([]apicontract.TaskDependencyReferencePayload, len(dependencies))
+	for i := range dependencies {
+		dependency := &dependencies[i]
+		payloads[i] = apicontract.TaskDependencyReferencePayload{
 			TaskID:          dependency.TaskID,
 			DependsOnTaskID: dependency.DependsOnTaskID,
 			Kind:            dependency.Kind,
 			CreatedAt:       dependency.CreatedAt,
 			DependsOn:       taskReferencePayloadFromReference(dependency.DependsOn),
-		})
+		}
 	}
 	return payloads
 }
 
 func taskEventPayloadsFromEvents(events []taskpkg.Event) []apicontract.TaskEventPayload {
-	payloads := make([]apicontract.TaskEventPayload, 0, len(events))
-	for _, event := range events {
-		payloads = append(payloads, apicontract.TaskEventPayload{
+	payloads := make([]apicontract.TaskEventPayload, len(events))
+	for i := range events {
+		event := &events[i]
+		payloads[i] = apicontract.TaskEventPayload{
 			ID:        event.ID,
 			TaskID:    event.TaskID,
 			RunID:     event.RunID,
@@ -1053,7 +1060,7 @@ func taskEventPayloadsFromEvents(events []taskpkg.Event) []apicontract.TaskEvent
 			Origin:    event.Origin,
 			Payload:   cloneRawMessage(event.Payload),
 			Timestamp: event.Timestamp,
-		})
+		}
 	}
 	return payloads
 }
@@ -1064,7 +1071,7 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 	}
 
 	return apicontract.TaskDetailPayload{
-		Summary:              taskSummaryPayloadFromSummary(view.Summary),
+		Summary:              taskSummaryPayloadFromSummary(&view.Summary),
 		Task:                 taskPayloadFromTask(&view.Task),
 		Children:             taskSummaryPayloadsFromSummaries(view.Children),
 		Dependencies:         taskDependencyPayloadsFromDependencies(view.Dependencies),
@@ -1075,9 +1082,9 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 }
 
 func taskTimelineItemPayloadsFromItems(items []taskpkg.TimelineItem) []apicontract.TaskTimelineItemPayload {
-	payloads := make([]apicontract.TaskTimelineItemPayload, 0, len(items))
-	for _, item := range items {
-		payloads = append(payloads, taskTimelineItemPayloadFromItem(item))
+	payloads := make([]apicontract.TaskTimelineItemPayload, len(items))
+	for i := range items {
+		payloads[i] = taskTimelineItemPayloadFromItem(items[i])
 	}
 	return payloads
 }
@@ -1258,13 +1265,14 @@ func taskDashboardStatusBreakdownPayloads(
 		return nil
 	}
 
-	payloads := make([]apicontract.TaskDashboardStatusBreakdownPayload, 0, len(items))
-	for _, item := range items {
-		payloads = append(payloads, apicontract.TaskDashboardStatusBreakdownPayload{
+	payloads := make([]apicontract.TaskDashboardStatusBreakdownPayload, len(items))
+	for i := range items {
+		item := &items[i]
+		payloads[i] = apicontract.TaskDashboardStatusBreakdownPayload{
 			Status:       item.Status,
 			Count:        item.Count,
 			SharePercent: item.SharePercent,
-		})
+		}
 	}
 	return payloads
 }

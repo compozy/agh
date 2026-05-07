@@ -25,6 +25,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			Sessions:           testutil.StubSessionManager{},
@@ -34,8 +35,8 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			Tools:              registry,
 			Toolsets:           registry,
 			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
-			HomePaths:          testutil.NewTestHomePaths(t),
-			Config:             testutil.ConfigWithDisabledNetwork(testutil.NewTestHomePaths(t)),
+			HomePaths:          homePaths,
+			Config:             cfg,
 			Logger:             testutil.DiscardLogger(),
 			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
 			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
@@ -175,6 +176,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			}),
 		)
 		registry := newAPITestToolRegistry(t, true, approvals)
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "api-core-test",
 			Sessions:      testutil.StubSessionManager{},
@@ -184,8 +186,8 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			Tools:         registry,
 			Toolsets:      registry,
 			ToolApprovals: approvals,
-			HomePaths:     testutil.NewTestHomePaths(t),
-			Config:        testutil.ConfigWithDisabledNetwork(testutil.NewTestHomePaths(t)),
+			HomePaths:     homePaths,
+			Config:        cfg,
 			Logger:        testutil.DiscardLogger(),
 			StartedAt:     time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
 			Now:           func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
@@ -300,6 +302,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			Sessions:           testutil.StubSessionManager{},
@@ -309,8 +312,8 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 			Tools:              registry,
 			Toolsets:           registry,
 			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
-			HomePaths:          testutil.NewTestHomePaths(t),
-			Config:             testutil.ConfigWithDisabledNetwork(testutil.NewTestHomePaths(t)),
+			HomePaths:          homePaths,
+			Config:             cfg,
 			Logger:             testutil.DiscardLogger(),
 			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
 			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
@@ -348,6 +351,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, true)
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			Sessions:           testutil.StubSessionManager{},
@@ -357,8 +361,8 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 			Tools:              registry,
 			Toolsets:           registry,
 			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
-			HomePaths:          testutil.NewTestHomePaths(t),
-			Config:             testutil.ConfigWithDisabledNetwork(testutil.NewTestHomePaths(t)),
+			HomePaths:          homePaths,
+			Config:             cfg,
 			Logger:             testutil.DiscardLogger(),
 			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
 			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },

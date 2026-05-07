@@ -106,7 +106,6 @@ describe("buildBridgeCreateRequest", () => {
           include_thread: true,
         },
         scope: "workspace",
-        status: "starting",
         workspace_id: "ws_test",
       },
       ok: true,

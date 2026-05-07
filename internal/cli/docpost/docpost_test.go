@@ -457,7 +457,7 @@ func TestBuildTargetMap(t *testing.T) {
 		{baseName: "agh_automation_jobs_create", segments: []string{"automation", "jobs", "create"}},
 	}
 
-	targets := buildTargetMap(inputs, nil)
+	targets := buildTargetMap(inputs)
 
 	want := map[string]string{
 		"agh":                        "/runtime/cli-reference/agh",

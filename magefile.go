@@ -50,6 +50,11 @@ var (
 	}
 )
 
+var (
+	errLaneBinaryOverrideDirectory     = errors.New("lane binary override points to directory")
+	errLaneBinaryOverrideNotExecutable = errors.New("lane binary override is not executable")
+)
+
 func Deps() error {
 	return sh.RunV("go", "mod", "tidy")
 }
@@ -428,7 +433,7 @@ func ensureWebBundle() error {
 	return WebBuild()
 }
 
-func runE2ELane(lane e2elane.Lane) error {
+func runE2ELane(lane e2elane.Lane) (runErr error) {
 	ctx := context.Background()
 
 	plan, err := e2elane.PlanForLane(lane)
@@ -446,15 +451,20 @@ func runE2ELane(lane e2elane.Lane) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if cleanupErr := laneEnv.Cleanup(); cleanupErr != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("cleanup e2e lane environment: %w", cleanupErr))
+		}
+	}()
 
 	for _, suite := range plan.GoSuites {
-		if err := runIntegrationSuite(ctx, suite, laneEnv); err != nil {
+		if err := runIntegrationSuite(ctx, suite, laneEnv.Values); err != nil {
 			return err
 		}
 	}
 
 	for _, suite := range plan.ScriptSuites {
-		if err := runCommandInDirWithEnv(ctx, suite.Dir, laneEnv, "bun", "run", suite.Script); err != nil {
+		if err := runCommandInDirWithEnv(ctx, suite.Dir, laneEnv.Values, "bun", "run", suite.Script); err != nil {
 			return err
 		}
 	}
@@ -466,8 +476,21 @@ func shouldEnsureWebBundle(plan e2elane.Plan) bool {
 	return len(plan.GoSuites) > 0 || plan.RequiresDaemonServedBrowser
 }
 
-func prepareE2ELaneEnv() (map[string]string, error) {
-	daemonPath, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
+type e2eLaneEnv struct {
+	Values  map[string]string
+	cleanup func() error
+}
+
+func (env e2eLaneEnv) Cleanup() error {
+	if env.cleanup == nil {
+		return nil
+	}
+	return env.cleanup()
+}
+
+func prepareE2ELaneEnv() (e2eLaneEnv, error) {
+	var cleanups []func() error
+	daemonPath, cleanup, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
 			context.Background(),
 			".",
@@ -481,10 +504,11 @@ func prepareE2ELaneEnv() (map[string]string, error) {
 		)
 	}, cliBinary)
 	if err != nil {
-		return nil, err
+		return e2eLaneEnv{}, err
 	}
+	cleanups = append(cleanups, cleanup)
 
-	driverPath, err := resolveOrBuildLaneBinary(driverBinaryEnvVar, func(outputPath string) error {
+	driverPath, cleanup, err := resolveOrBuildLaneBinary(driverBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
 			context.Background(),
 			".",
@@ -496,12 +520,18 @@ func prepareE2ELaneEnv() (map[string]string, error) {
 		)
 	}, "acpmock-driver")
 	if err != nil {
-		return nil, err
+		return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
 	}
+	cleanups = append(cleanups, cleanup)
 
-	return map[string]string{
-		daemonBinaryEnvVar: daemonPath,
-		driverBinaryEnvVar: driverPath,
+	return e2eLaneEnv{
+		Values: map[string]string{
+			daemonBinaryEnvVar: daemonPath,
+			driverBinaryEnvVar: driverPath,
+		},
+		cleanup: func() error {
+			return runCleanups(cleanups)
+		},
 	}, nil
 }
 
@@ -509,27 +539,78 @@ func resolveOrBuildLaneBinary(
 	envVar string,
 	build func(string) error,
 	name string,
-) (string, error) {
+) (string, func() error, error) {
 	if override := strings.TrimSpace(os.Getenv(envVar)); override != "" {
-		if filepath.IsAbs(override) {
-			return override, nil
-		}
-		absPath, err := filepath.Abs(override)
+		overridePath, err := resolveLaneBinaryOverride(envVar, override)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return absPath, nil
+		return overridePath, noopCleanup, nil
 	}
 
 	buildDir, err := os.MkdirTemp("", "agh-e2e-lane-")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	outputPath := filepath.Join(buildDir, laneBinaryName(name))
 	if err := build(outputPath); err != nil {
-		return "", err
+		return "", nil, errors.Join(
+			fmt.Errorf("build %s e2e lane binary: %w", name, err),
+			cleanupLaneBuildDir(buildDir),
+		)
 	}
-	return outputPath, nil
+	return outputPath, func() error {
+		return cleanupLaneBuildDir(buildDir)
+	}, nil
+}
+
+func resolveLaneBinaryOverride(envVar, override string) (string, error) {
+	overridePath := override
+	if !filepath.IsAbs(overridePath) {
+		absPath, err := filepath.Abs(overridePath)
+		if err != nil {
+			return "", fmt.Errorf("resolve %s override %q: %w", envVar, override, err)
+		}
+		overridePath = absPath
+	}
+
+	info, err := os.Stat(overridePath)
+	if err != nil {
+		return "", fmt.Errorf("%s points to %q: %w", envVar, overridePath, err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("%s points to directory %q: %w", envVar, overridePath, errLaneBinaryOverrideDirectory)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		return "", fmt.Errorf(
+			"%s points to non-executable file %q: %w",
+			envVar,
+			overridePath,
+			errLaneBinaryOverrideNotExecutable,
+		)
+	}
+	return overridePath, nil
+}
+
+func noopCleanup() error {
+	return nil
+}
+
+func runCleanups(cleanups []func() error) error {
+	var joined error
+	for idx := len(cleanups) - 1; idx >= 0; idx-- {
+		if err := cleanups[idx](); err != nil {
+			joined = errors.Join(joined, err)
+		}
+	}
+	return joined
+}
+
+func cleanupLaneBuildDir(path string) error {
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("remove e2e lane build dir %q: %w", path, err)
+	}
+	return nil
 }
 
 func laneBinaryName(name string) string {

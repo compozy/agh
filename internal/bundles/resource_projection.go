@@ -93,13 +93,13 @@ func (s *Service) Build(
 	return &BundleActivationResourcePlan{
 		revision:            revision,
 		operations:          operations,
-		activeActivationIDs: cloneStringSet(state.activeActivationIDs),
-		desiredAgents:       cloneOwnedAgentResources(state.desiredAgents),
-		desiredSouls:        cloneOwnedSoulResources(state.desiredSouls),
-		desiredHeartbeats:   cloneOwnedHeartbeatResources(state.desiredHeartbeats),
-		desiredJobs:         cloneJobsForBundle(state.desiredJobs),
-		desiredTriggers:     cloneTriggersForBundle(state.desiredTriggers),
-		desiredBridges:      cloneBridgeInstancesForBundle(state.desiredBridges),
+		activeActivationIDs: state.activeActivationIDs,
+		desiredAgents:       state.desiredAgents,
+		desiredSouls:        state.desiredSouls,
+		desiredHeartbeats:   state.desiredHeartbeats,
+		desiredJobs:         state.desiredJobs,
+		desiredTriggers:     state.desiredTriggers,
+		desiredBridges:      state.desiredBridges,
 		agentOwners:         owners.agents,
 		soulOwners:          owners.souls,
 		heartbeatOwners:     owners.heartbeats,
@@ -108,7 +108,7 @@ func (s *Service) Build(
 		bridgeOwners:        owners.bridges,
 		effectiveDefault:    strings.TrimSpace(state.effectiveDefault),
 		effectiveSource:     strings.TrimSpace(state.effectiveSource),
-		declaredChannels:    append([]DeclaredChannel(nil), state.declaredChannels...),
+		declaredChannels:    state.declaredChannels,
 	}, nil
 }
 
@@ -122,13 +122,19 @@ type ownedResourceOwnerMaps struct {
 }
 
 func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedResourceOwnerMaps {
+	counts := ownedResourceOwnerCounts{}
+	for _, items := range inventoryByActivation {
+		for _, item := range items {
+			counts.add(resources.ResourceKind(strings.TrimSpace(item.ResourceKind)))
+		}
+	}
 	owners := ownedResourceOwnerMaps{
-		agents:     make(map[string]string),
-		souls:      make(map[string]string),
-		heartbeats: make(map[string]string),
-		jobs:       make(map[string]string),
-		triggers:   make(map[string]string),
-		bridges:    make(map[string]string),
+		agents:     make(map[string]string, counts.agents),
+		souls:      make(map[string]string, counts.souls),
+		heartbeats: make(map[string]string, counts.heartbeats),
+		jobs:       make(map[string]string, counts.jobs),
+		triggers:   make(map[string]string, counts.triggers),
+		bridges:    make(map[string]string, counts.bridges),
 	}
 	for activationID, items := range inventoryByActivation {
 		ownerID := strings.TrimSpace(activationID)
@@ -150,6 +156,32 @@ func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedRe
 		}
 	}
 	return owners
+}
+
+type ownedResourceOwnerCounts struct {
+	agents     int
+	souls      int
+	heartbeats int
+	jobs       int
+	triggers   int
+	bridges    int
+}
+
+func (c *ownedResourceOwnerCounts) add(kind resources.ResourceKind) {
+	switch kind {
+	case aghconfig.AgentResourceKind:
+		c.agents++
+	case soul.ResourceKind:
+		c.souls++
+	case heartbeat.ResourceKind:
+		c.heartbeats++
+	case automationpkg.JobResourceKind:
+		c.jobs++
+	case automationpkg.TriggerResourceKind:
+		c.triggers++
+	case bridgepkg.BridgeInstanceResourceKind:
+		c.bridges++
+	}
 }
 
 // Apply writes owned automation and bridge desired-state records through canonical stores.
@@ -180,16 +212,17 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	bundleRecords []resources.Record[BundleResourceSpec],
 ) (reconcileState, error) {
 	bundleLookup := newBundleRecordLookup(bundleRecords)
+	capacity := estimateDesiredStateCapacity(activations, bundleLookup)
 	state := reconcileState{
 		activeActivationIDs:   make(map[string]struct{}, len(activations)),
-		desiredAgents:         make([]ownedAgentResource, 0),
-		desiredSouls:          make([]ownedSoulResource, 0),
-		desiredHeartbeats:     make([]ownedHeartbeatResource, 0),
-		desiredJobs:           make([]automationpkg.Job, 0),
-		desiredTriggers:       make([]automationpkg.Trigger, 0),
-		desiredBridges:        make([]bridgepkg.BridgeInstance, 0),
+		desiredAgents:         make([]ownedAgentResource, 0, capacity.agents),
+		desiredSouls:          make([]ownedSoulResource, 0, capacity.souls),
+		desiredHeartbeats:     make([]ownedHeartbeatResource, 0, capacity.heartbeats),
+		desiredJobs:           make([]automationpkg.Job, 0, capacity.jobs),
+		desiredTriggers:       make([]automationpkg.Trigger, 0, capacity.triggers),
+		desiredBridges:        make([]bridgepkg.BridgeInstance, 0, capacity.bridges),
 		inventoryByActivation: make(map[string][]InventoryItem, len(activations)),
-		declaredChannels:      make([]DeclaredChannel, 0),
+		declaredChannels:      make([]DeclaredChannel, 0, capacity.channels),
 		effectiveDefault:      strings.TrimSpace(s.configuredDefault),
 		effectiveSource:       "config",
 	}
@@ -236,12 +269,53 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	return state, nil
 }
 
+type desiredStateCapacity struct {
+	agents     int
+	souls      int
+	heartbeats int
+	jobs       int
+	triggers   int
+	bridges    int
+	channels   int
+}
+
+func estimateDesiredStateCapacity(
+	activations []Activation,
+	bundleLookup bundleRecordLookup,
+) desiredStateCapacity {
+	var capacity desiredStateCapacity
+	for _, activation := range activations {
+		bundleRecord, ok := findBundleResourceRecordIndexed(
+			bundleLookup,
+			activation.ExtensionName,
+			activation.BundleName,
+		)
+		if !ok {
+			continue
+		}
+		profile, ok := findProfile(bundleRecord.Spec.Bundle.Profiles, activation.ProfileName)
+		if !ok {
+			continue
+		}
+		agentCount := len(profile.Agents)
+		capacity.agents += agentCount
+		capacity.souls += agentCount
+		capacity.heartbeats += agentCount
+		capacity.jobs += len(profile.Jobs)
+		capacity.triggers += len(profile.Triggers)
+		capacity.bridges += len(profile.Bridges)
+		capacity.channels += len(profile.Channels.Items)
+	}
+	return capacity
+}
+
 func (s *Service) resolveActivationFromBundleLookup(
 	ctx context.Context,
 	activation Activation,
 	bundleLookup bundleRecordLookup,
 ) (resolvedActivation, error) {
-	if err := activation.Validate(); err != nil {
+	activation, err := activation.Validated()
+	if err != nil {
 		return resolvedActivation{}, err
 	}
 	bundleRecord, ok := findBundleResourceRecordIndexed(
@@ -275,8 +349,8 @@ func (s *Service) resolveActivationFromBundleLookup(
 	resolved := resolvedActivation{
 		activation:      activation,
 		bundleRecord:    bundleRecord,
-		bundle:          cloneBundleSpec(bundle),
-		profile:         cloneBundleProfile(profile),
+		bundle:          bundle,
+		profile:         profile,
 		specContentHash: specContentHash,
 	}
 	resolved.channels = declaredChannelsForProfile(activation, bundle, profile)
@@ -356,7 +430,15 @@ func cloneJobsForBundle(values []automationpkg.Job) []automationpkg.Job {
 		return nil
 	}
 	cloned := make([]automationpkg.Job, 0, len(values))
-	cloned = append(cloned, values...)
+	for _, value := range values {
+		next := value
+		if value.Schedule != nil {
+			schedule := *value.Schedule
+			next.Schedule = &schedule
+		}
+		next.Task = cloneTaskConfig(value.Task)
+		cloned = append(cloned, next)
+	}
 	return cloned
 }
 
@@ -365,7 +447,11 @@ func cloneTriggersForBundle(values []automationpkg.Trigger) []automationpkg.Trig
 		return nil
 	}
 	cloned := make([]automationpkg.Trigger, 0, len(values))
-	cloned = append(cloned, values...)
+	for _, value := range values {
+		next := value
+		next.Filter = cloneStringMap(value.Filter)
+		cloned = append(cloned, next)
+	}
 	return cloned
 }
 
@@ -374,6 +460,15 @@ func cloneBridgeInstancesForBundle(values []bridgepkg.BridgeInstance) []bridgepk
 		return nil
 	}
 	cloned := make([]bridgepkg.BridgeInstance, 0, len(values))
-	cloned = append(cloned, values...)
+	for _, value := range values {
+		next := value
+		next.ProviderConfig = cloneRawMessage(value.ProviderConfig)
+		next.DeliveryDefaults = cloneRawMessage(value.DeliveryDefaults)
+		if value.Degradation != nil {
+			degradation := *value.Degradation
+			next.Degradation = &degradation
+		}
+		cloned = append(cloned, next)
+	}
 	return cloned
 }

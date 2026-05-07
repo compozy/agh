@@ -1002,7 +1002,6 @@ export async function seedBrowserBridgeOperatorFlow(
         include_thread: true,
       },
       scope: "workspace",
-      status: "disabled",
       workspace_id: workspace.id,
     }),
   });

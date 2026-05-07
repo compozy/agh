@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 )
@@ -178,49 +179,97 @@ func writeRawCommandOutput(cmd *cobra.Command, text string) error {
 }
 
 func renderHumanSection(title string, rows []keyValue) string {
+	rendered, err := renderHumanSectionResult(title, rows)
+	if err != nil {
+		panic(fmt.Sprintf("cli: render human section: %v", err))
+	}
+	return rendered
+}
+
+func renderHumanSectionResult(title string, rows []keyValue) (string, error) {
 	var buffer bytes.Buffer
 	if title != "" {
-		fmt.Fprintf(&buffer, "%s\n", title)
-		fmt.Fprintf(&buffer, "%s\n", strings.Repeat("=", len(title)))
+		if _, err := fmt.Fprintf(&buffer, "%s\n", title); err != nil {
+			return "", err
+		}
+		if _, err := fmt.Fprintf(&buffer, "%s\n", strings.Repeat("=", len(title))); err != nil {
+			return "", err
+		}
 	}
 
 	writer := tabwriter.NewWriter(&buffer, 0, 0, 2, ' ', 0)
 	for _, row := range rows {
-		_, _ = fmt.Fprintf(writer, "%s:\t%s\n", row.Label, row.Value)
+		if _, err := fmt.Fprintf(writer, "%s:\t%s\n", row.Label, row.Value); err != nil {
+			return "", err
+		}
 	}
-	_ = writer.Flush()
+	if err := writer.Flush(); err != nil {
+		return "", err
+	}
 
-	return strings.TrimRight(buffer.String(), "\n")
+	return strings.TrimRight(buffer.String(), "\n"), nil
 }
 
 func renderHumanTable(title string, headers []string, rows [][]string) string {
-	var buffer bytes.Buffer
+	var builder strings.Builder
 	if title != "" {
-		fmt.Fprintf(&buffer, "%s\n", title)
-		fmt.Fprintf(&buffer, "%s\n", strings.Repeat("=", len(title)))
+		builder.WriteString(title)
+		builder.WriteByte('\n')
+		builder.WriteString(strings.Repeat("=", len(title)))
+		builder.WriteByte('\n')
 	}
 	if len(headers) == 0 {
-		return strings.TrimRight(buffer.String(), "\n")
+		return strings.TrimRight(builder.String(), "\n")
 	}
 
-	writer := tabwriter.NewWriter(&buffer, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(writer, strings.Join(headers, "\t"))
 	separators := make([]string, 0, len(headers))
 	for _, header := range headers {
 		separators = append(separators, strings.Repeat("-", max(3, len(header))))
 	}
-	_, _ = fmt.Fprintln(writer, strings.Join(separators, "\t"))
 
+	tableRows := make([][]string, 0, len(rows)+2)
+	tableRows = append(tableRows, headers, separators)
 	if len(rows) == 0 {
-		_, _ = fmt.Fprintln(writer, "(empty)")
+		tableRows = append(tableRows, []string{"(empty)"})
 	} else {
-		for _, row := range rows {
-			_, _ = fmt.Fprintln(writer, strings.Join(row, "\t"))
+		tableRows = append(tableRows, rows...)
+	}
+	widths := humanTableColumnWidths(tableRows)
+	for _, row := range tableRows {
+		writeHumanTableRow(&builder, row, widths)
+	}
+
+	return strings.TrimRight(builder.String(), "\n")
+}
+
+func humanTableColumnWidths(rows [][]string) []int {
+	var widths []int
+	for _, row := range rows {
+		for column, cell := range row {
+			if column == len(widths) {
+				widths = append(widths, 0)
+			}
+			widths[column] = max(widths[column], humanTableCellWidth(cell))
 		}
 	}
-	_ = writer.Flush()
+	return widths
+}
 
-	return strings.TrimRight(buffer.String(), "\n")
+func writeHumanTableRow(builder *strings.Builder, row []string, widths []int) {
+	for column, cell := range row {
+		if column > 0 {
+			builder.WriteString("  ")
+		}
+		builder.WriteString(cell)
+		if column < len(row)-1 && column < len(widths) {
+			builder.WriteString(strings.Repeat(" ", max(0, widths[column]-humanTableCellWidth(cell))))
+		}
+	}
+	builder.WriteByte('\n')
+}
+
+func humanTableCellWidth(cell string) int {
+	return utf8.RuneCountInString(cell)
 }
 
 func renderHumanBlocks(blocks ...string) string {

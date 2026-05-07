@@ -27,7 +27,7 @@ func PutMCPSidecarServer(
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
 
-	contents, err := readOptionalFile(target.path)
+	contents, _, err := readOptionalRegularFile(target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, err
 	}
@@ -73,7 +73,7 @@ func DeleteMCPSidecarServer(
 		return Config{}, false, errors.New("config: MCP sidecar delete requires a server name")
 	}
 
-	contents, err := readOptionalFile(target.path)
+	contents, _, err := readOptionalRegularFile(target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, false, err
 	}

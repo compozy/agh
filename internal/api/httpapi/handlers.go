@@ -14,51 +14,52 @@ import (
 )
 
 type handlerConfig struct {
-	sessions        core.SessionManager
-	tasks           core.TaskService
-	network         core.NetworkService
-	networkStore    core.NetworkStore
-	observer        core.Observer
-	resources       core.ResourceService
-	automation      core.AutomationManager
-	bridges         core.BridgeService
-	bundles         core.BundleService
-	tools           core.ToolRegistry
-	toolsets        core.ToolsetRegistry
-	toolApprovals   core.ToolApprovalIssuer
-	settings        core.SettingsService
-	settingsRestart core.SettingsRestartController
-	settingsUpdate  core.SettingsUpdateController
-	vault           core.VaultService
-	workspaces      core.WorkspaceService
-	agentCatalog    core.AgentCatalog
-	modelCatalog    core.ModelCatalogService
-	agentContext    core.AgentContextService
-	soulAuthoring   core.SoulAuthoringService
-	soulRefresher   core.SoulRefresher
-	heartbeatAuthor core.HeartbeatAuthoringService
-	heartbeatStatus core.HeartbeatStatusService
-	heartbeatWake   core.HeartbeatWakeService
-	sessionHealth   core.SessionHealthReader
-	wakeEvents      core.HeartbeatWakeEventReader
-	skillsRegistry  core.SkillsRegistry
-	memoryStore     *memory.Store
-	dreamTrigger    core.DreamTrigger
-	memoryExtractor core.MemoryExtractorService
-	memoryProviders core.MemoryProviderService
-	memoryLedger    core.MemorySessionLedgerService
-	staticFS        fs.FS
-	homePaths       aghconfig.HomePaths
-	config          aghconfig.Config
-	boundHost       string
-	logger          *slog.Logger
-	startedAt       time.Time
-	now             func() time.Time
-	pollInterval    time.Duration
-	agentLoader     core.AgentLoader
-	httpPort        int
-	resourceAuth    []gin.HandlerFunc
-	extensions      ExtensionService
+	sessions          core.SessionManager
+	tasks             core.TaskService
+	network           core.NetworkService
+	networkStore      core.NetworkStore
+	observer          core.Observer
+	resources         core.ResourceService
+	automation        core.AutomationManager
+	bridges           core.BridgeService
+	bundles           core.BundleService
+	tools             core.ToolRegistry
+	toolsets          core.ToolsetRegistry
+	toolApprovals     core.ToolApprovalIssuer
+	settings          core.SettingsService
+	settingsRestart   core.SettingsRestartController
+	settingsUpdate    core.SettingsUpdateController
+	vault             core.VaultService
+	workspaces        core.WorkspaceService
+	agentCatalog      core.AgentCatalog
+	modelCatalog      core.ModelCatalogService
+	agentContext      core.AgentContextService
+	coordinatorConfig core.CoordinatorConfigResolver
+	soulAuthoring     core.SoulAuthoringService
+	soulRefresher     core.SoulRefresher
+	heartbeatAuthor   core.HeartbeatAuthoringService
+	heartbeatStatus   core.HeartbeatStatusService
+	heartbeatWake     core.HeartbeatWakeService
+	sessionHealth     core.SessionHealthReader
+	wakeEvents        core.HeartbeatWakeEventReader
+	skillsRegistry    core.SkillsRegistry
+	memoryStore       *memory.Store
+	dreamTrigger      core.DreamTrigger
+	memoryExtractor   core.MemoryExtractorService
+	memoryProviders   core.MemoryProviderService
+	memoryLedger      core.MemorySessionLedgerService
+	staticFS          fs.FS
+	homePaths         aghconfig.HomePaths
+	config            aghconfig.Config
+	boundHost         string
+	logger            *slog.Logger
+	startedAt         time.Time
+	now               func() time.Time
+	pollInterval      time.Duration
+	agentLoader       core.AgentLoader
+	httpPort          int
+	resourceAuth      []gin.HandlerFunc
+	extensions        ExtensionService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -115,6 +116,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			AgentCatalog:                 cfg.agentCatalog,
 			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,
+			CoordinatorConfig:            cfg.coordinatorConfig,
 			SoulAuthoring:                cfg.soulAuthoring,
 			SoulRefresher:                cfg.soulRefresher,
 			HeartbeatAuthoring:           cfg.heartbeatAuthor,

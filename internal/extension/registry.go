@@ -201,7 +201,7 @@ func (r *Registry) Disable(name string) error {
 }
 
 // List returns every installed extension ordered by name.
-func (r *Registry) List() ([]ExtensionInfo, error) {
+func (r *Registry) List() (extensions []ExtensionInfo, err error) {
 	if err := r.checkReady("list extensions"); err != nil {
 		return nil, err
 	}
@@ -215,10 +215,12 @@ func (r *Registry) List() ([]ExtensionInfo, error) {
 		return nil, fmt.Errorf("extension: list extensions: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("extension: close extension list rows: %w", closeErr))
+		}
 	}()
 
-	extensions := make([]ExtensionInfo, 0)
+	extensions = make([]ExtensionInfo, 0)
 	for rows.Next() {
 		info, err := scanExtensionInfo(rows)
 		if err != nil {
@@ -529,20 +531,30 @@ func (r *Registry) checkReady(action string) error {
 	return nil
 }
 
-func (r *Registry) ensureNoActiveBundles(extensionName string) error {
+func (r *Registry) ensureNoActiveBundles(extensionName string) (err error) {
+	recordsTableExists, err := sqliteTableExists(r.db, "resource_records")
+	if err != nil {
+		return fmt.Errorf("extension: inspect active bundle activation table for %q: %w", extensionName, err)
+	}
+	if !recordsTableExists {
+		return nil
+	}
+
 	rows, err := r.db.QueryContext(
 		registryContext(),
 		`SELECT spec_json FROM resource_records WHERE kind = ?`,
 		"bundle.activation",
 	)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
-			return nil
-		}
 		return fmt.Errorf("extension: count active bundle activations for %q: %w", extensionName, err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf("extension: close active bundle activation rows for %q: %w", extensionName, closeErr),
+			)
+		}
 	}()
 
 	count := 0
@@ -569,6 +581,19 @@ func (r *Registry) ensureNoActiveBundles(extensionName string) error {
 		return fmt.Errorf("%w: %q has %d active activation(s)", ErrExtensionHasActiveBundles, extensionName, count)
 	}
 	return nil
+}
+
+func sqliteTableExists(db *sql.DB, tableName string) (bool, error) {
+	var count int
+	err := db.QueryRowContext(
+		registryContext(),
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		strings.TrimSpace(tableName),
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("extension: query sqlite table %q: %w", tableName, err)
+	}
+	return count > 0, nil
 }
 
 func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*ExtensionInfo, error) {

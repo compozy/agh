@@ -871,7 +871,7 @@ func mergeMCPServerLayers(base []MCPServer, overlays ...[]MCPServer) []MCPServer
 		for _, server := range overlay {
 			name := normalizeMCPServerName(server.Name)
 			if idx, ok := index[name]; ok && name != "" {
-				merged[idx] = mergeMCPServer(merged[idx], server)
+				mergeMCPServerInto(&merged[idx], server)
 				continue
 			}
 
@@ -1408,8 +1408,7 @@ func builtinNativeAuthProvider(name string) bool {
 	return ok && builtin.EffectiveAuthMode() == ProviderAuthModeNativeCLI
 }
 
-func mergeMCPServer(base MCPServer, override MCPServer) MCPServer {
-	merged := cloneMCPServer(base)
+func mergeMCPServerInto(merged *MCPServer, override MCPServer) {
 	if strings.TrimSpace(override.Name) != "" {
 		merged.Name = override.Name
 	}
@@ -1434,8 +1433,6 @@ func mergeMCPServer(base MCPServer, override MCPServer) MCPServer {
 	if !override.Auth.IsZero() {
 		merged.Auth = mergeMCPAuthConfig(merged.Auth, override.Auth)
 	}
-
-	return merged
 }
 
 func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfig {

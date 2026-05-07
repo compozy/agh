@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/resources"
@@ -56,7 +57,7 @@ func BenchmarkResourceAgentCatalogResolveAgentWorkspaceHit(b *testing.B) {
 func BenchmarkAgentSkillSourceSyncerSyncNoop(b *testing.B) {
 	b.ReportAllocs()
 
-	ctx := context.Background()
+	ctx := b.Context()
 	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := daemonBenchmarkAgentSkillStores(b)
 	desired := daemonBenchmarkAgentSkillDesiredResources(24)
 	syncer := newAgentSkillSourceSyncer(
@@ -88,10 +89,11 @@ func BenchmarkAgentSkillSourceSyncerSyncNoop(b *testing.B) {
 func BenchmarkToolMCPSourceSyncerSyncNoop(b *testing.B) {
 	b.ReportAllocs()
 
-	ctx := context.Background()
-	toolStore, toolCodec, mcpStore, mcpCodec := daemonBenchmarkToolMCPStores(b)
+	ctx := b.Context()
+	raw, toolStore, toolCodec, mcpStore, mcpCodec := daemonBenchmarkToolMCPStores(b)
 	desired := daemonBenchmarkToolMCPDesiredResources(32)
 	syncer := newToolMCPSourceSyncer(
+		raw,
 		toolStore,
 		toolCodec,
 		mcpStore,
@@ -121,7 +123,7 @@ func daemonBenchmarkAgentRecords(count int, workspaceID string) []resources.Reco
 		global := aghconfig.AgentDef{
 			Name:        name,
 			Prompt:      fmt.Sprintf("global prompt %d", i),
-			Tools:       []string{"lookup", "read"},
+			Tools:       []string{toolspkg.ToolIDToolInfo.String(), toolspkg.ToolIDToolList.String()},
 			Permissions: string(aghconfig.PermissionModeApproveAll),
 			MCPServers: []aghconfig.MCPServer{{
 				Name:    fmt.Sprintf("global-mcp-%03d", i),
@@ -175,7 +177,7 @@ func daemonBenchmarkAgentSkillDesiredResources(count int) agentSkillDesiredResou
 			spec: aghconfig.AgentDef{
 				Name:        fmt.Sprintf("agent-%03d", i),
 				Prompt:      fmt.Sprintf("Agent prompt %d", i),
-				Tools:       []string{"lookup"},
+				Tools:       []string{toolspkg.ToolIDToolInfo.String()},
 				Permissions: string(aghconfig.PermissionModeApproveAll),
 			},
 		})
@@ -287,6 +289,7 @@ func daemonBenchmarkAgentSkillStores(
 func daemonBenchmarkToolMCPStores(
 	b *testing.B,
 ) (
+	resources.RawStore,
 	resources.Store[toolspkg.Tool],
 	resources.KindCodec[toolspkg.Tool],
 	resources.Store[aghconfig.MCPServer],
@@ -311,18 +314,21 @@ func daemonBenchmarkToolMCPStores(
 	if err != nil {
 		b.Fatalf("resources.NewStore(mcp) error = %v", err)
 	}
-	return toolStore, toolCodec, mcpStore, mcpCodec
+	return kernel, toolStore, toolCodec, mcpStore, mcpCodec
 }
 
 func daemonBenchmarkKernel(b *testing.B) *resources.Kernel {
 	b.Helper()
 
-	db, err := globaldb.OpenGlobalDB(context.Background(), filepath.Join(b.TempDir(), store.GlobalDatabaseName))
+	ctx := b.Context()
+	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(b.TempDir(), store.GlobalDatabaseName))
 	if err != nil {
 		b.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	b.Cleanup(func() {
-		if err := db.Close(context.Background()); err != nil {
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+		defer cancel()
+		if err := db.Close(closeCtx); err != nil {
 			b.Fatalf("GlobalDB.Close() error = %v", err)
 		}
 	})

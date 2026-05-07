@@ -80,7 +80,6 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 		extensionName    string
 		displayName      string
 		enabled          bool
-		statusRaw        string
 		includePeer      bool
 		includeThread    bool
 		includeGroup     bool
@@ -103,7 +102,6 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 				extensionName,
 				displayName,
 				enabled,
-				statusRaw,
 				includePeer,
 				includeThread,
 				includeGroup,
@@ -126,8 +124,6 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&extensionName, "extension", "", "Owning extension name")
 	cmd.Flags().StringVar(&displayName, "display-name", "", "Operator-facing bridge display name")
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "Whether the instance starts enabled")
-	cmd.Flags().
-		StringVar(&statusRaw, "status", "", "Lifecycle status (defaults to starting when enabled, disabled otherwise)")
 	cmd.Flags().BoolVar(&includePeer, "include-peer", false, "Include peer identity in routing")
 	cmd.Flags().BoolVar(&includeThread, "include-thread", false, "Include thread identity in routing")
 	cmd.Flags().BoolVar(&includeGroup, "include-group", false, "Include group identity in routing")
@@ -146,7 +142,6 @@ func buildBridgeCreatePayload(
 	extensionName string,
 	displayName string,
 	enabled bool,
-	statusRaw string,
 	includePeer bool,
 	includeThread bool,
 	includeGroup bool,
@@ -159,10 +154,6 @@ func buildBridgeCreatePayload(
 	if scope == bridgepkg.ScopeWorkspace && strings.TrimSpace(workspaceID) == "" {
 		return CreateBridgeRequest{}, errors.New("cli: --workspace-id is required when --scope=workspace")
 	}
-	status, err := resolveBridgeStatus(enabled, statusRaw)
-	if err != nil {
-		return CreateBridgeRequest{}, err
-	}
 
 	payload := CreateBridgeRequest{
 		Scope:         scope,
@@ -171,7 +162,6 @@ func buildBridgeCreatePayload(
 		ExtensionName: strings.TrimSpace(extensionName),
 		DisplayName:   strings.TrimSpace(displayName),
 		Enabled:       enabled,
-		Status:        status,
 		RoutingPolicy: bridgepkg.RoutingPolicy{
 			IncludePeer:   includePeer,
 			IncludeThread: includeThread,
@@ -772,21 +762,6 @@ func parseBridgeScope(raw string) (bridgepkg.Scope, error) {
 		return "", err
 	}
 	return scope, nil
-}
-
-func resolveBridgeStatus(enabled bool, raw string) (bridgepkg.BridgeStatus, error) {
-	if strings.TrimSpace(raw) == "" {
-		if enabled {
-			return bridgepkg.BridgeStatusStarting, nil
-		}
-		return bridgepkg.BridgeStatusDisabled, nil
-	}
-
-	status := bridgepkg.BridgeStatus(strings.TrimSpace(raw)).Normalize()
-	if err := status.Validate(); err != nil {
-		return "", err
-	}
-	return status, nil
 }
 
 func validateBridgeCreatePayload(payload CreateBridgeRequest) error {

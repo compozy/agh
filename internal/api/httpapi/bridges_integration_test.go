@@ -37,7 +37,7 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 
 	runtime := newIntegrationRuntime(t)
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/bridges"), []byte(`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`), nil)
+	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/bridges"), []byte(`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`), nil)
 	if resp.StatusCode != http.StatusCreated {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("create bridge status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, body)

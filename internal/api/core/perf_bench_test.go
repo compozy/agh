@@ -7,8 +7,15 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+)
+
+var (
+	benchmarkObserveCursor     ObserveCursor
+	benchmarkSessionPayloads   []contract.SessionPayload
+	benchmarkAgentEventPayload contract.AgentEventPayload
 )
 
 type benchmarkFlushWriter struct {
@@ -59,7 +66,7 @@ func BenchmarkEmitObserveEvents(b *testing.B) {
 	writer := &benchmarkFlushWriter{}
 	for b.Loop() {
 		writer.Reset()
-		_ = EmitObserveEvents(writer, events, ObserveCursor{})
+		benchmarkObserveCursor = EmitObserveEvents(writer, events, ObserveCursor{})
 	}
 }
 
@@ -83,7 +90,7 @@ func BenchmarkSessionPayloadsFromInfos(b *testing.B) {
 	}
 
 	for b.Loop() {
-		_ = SessionPayloadsFromInfos(infos)
+		benchmarkSessionPayloads = SessionPayloadsFromInfos(infos)
 	}
 }
 
@@ -126,6 +133,69 @@ func BenchmarkAgentEventPayloadFromEvent(b *testing.B) {
 	}
 
 	for b.Loop() {
-		_ = AgentEventPayloadFromEvent(event)
+		benchmarkAgentEventPayload = AgentEventPayloadFromEvent(event)
+	}
+}
+
+func BenchmarkPromptStreamEncoderEmit(b *testing.B) {
+	b.ReportAllocs()
+
+	events := []acp.AgentEvent{
+		{
+			Type:      acp.EventTypeAgentMessage,
+			TurnID:    "turn-1",
+			Text:      "hello from the agent",
+			Timestamp: time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			Type:      acp.EventTypeThought,
+			TurnID:    "turn-1",
+			Text:      "thinking through the request",
+			Timestamp: time.Date(2026, 4, 17, 12, 0, 1, 0, time.UTC),
+		},
+		{
+			Type:       acp.EventTypeToolCall,
+			TurnID:     "turn-1",
+			Title:      "read_file",
+			ToolCallID: "tool-1",
+			Raw:        []byte(`{"tool_name":"read_file","tool_input":{"path":"/tmp/notes.md"}}`),
+			Timestamp:  time.Date(2026, 4, 17, 12, 0, 2, 0, time.UTC),
+		},
+		{
+			Type:       acp.EventTypeToolResult,
+			TurnID:     "turn-1",
+			Title:      "read_file",
+			ToolCallID: "tool-1",
+			Text:       "read complete",
+			Raw:        []byte(`{"result":{"path":"/tmp/notes.md","preview":"hello"},"ok":true}`),
+			Timestamp:  time.Date(2026, 4, 17, 12, 0, 3, 0, time.UTC),
+		},
+		{
+			Type:      acp.EventTypePermission,
+			TurnID:    "turn-1",
+			Action:    "fs/read_text_file",
+			Decision:  "approved",
+			Timestamp: time.Date(2026, 4, 17, 12, 0, 4, 0, time.UTC),
+		},
+		{
+			Type:       acp.EventTypeDone,
+			TurnID:     "turn-1",
+			StopReason: "end_turn",
+			Timestamp:  time.Date(2026, 4, 17, 12, 0, 5, 0, time.UTC),
+		},
+	}
+	writer := &benchmarkFlushWriter{}
+	now := func() time.Time {
+		return time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	}
+
+	for b.Loop() {
+		writer.Reset()
+		encoder := NewPromptStreamEncoder(now)
+		for _, event := range events {
+			if err := encoder.Emit(writer, event); err != nil {
+				b.Fatalf("PromptStreamEncoder.Emit() error: %v", err)
+			}
+		}
 	}
 }

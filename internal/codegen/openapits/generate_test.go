@@ -3,6 +3,7 @@ package openapits
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,7 +14,7 @@ import (
 func TestGenerate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldGenerateFormattedTypeDefinitionsFromTheSpec", func(t *testing.T) {
+	t.Run("Should generate formatted type definitions from the spec", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -43,12 +44,135 @@ func TestGenerate(t *testing.T) {
 			t.Fatalf("generated output missing expected operation id: %s", generated)
 		}
 	})
+
+	t.Run("Should reject invalid artifacts before running generators", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			artifact Artifact
+		}{
+			{
+				name:     "Should reject missing spec path",
+				artifact: Artifact{OutputPath: filepath.Join(t.TempDir(), "types.d.ts")},
+			},
+			{
+				name:     "Should reject missing output path",
+				artifact: Artifact{SpecPath: filepath.Join(t.TempDir(), "spec.json")},
+			},
+			{
+				name: "Should reject matching spec and output paths",
+				artifact: func() Artifact {
+					path := filepath.Join(t.TempDir(), "spec.json")
+					return Artifact{SpecPath: path, OutputPath: path}
+				}(),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := Generate(context.Background(), tc.artifact)
+				if !errors.Is(err, ErrInvalidArtifact) {
+					t.Fatalf("Generate() error = %v, want ErrInvalidArtifact", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should publish output only after formatting succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		artifact := Artifact{
+			SpecPath:   filepath.Join(dir, "spec.json"),
+			OutputPath: filepath.Join(dir, "types.d.ts"),
+		}
+		if err := os.WriteFile(artifact.OutputPath, []byte("stable output\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", artifact.OutputPath, err)
+		}
+		formatErr := errors.New("format failed")
+		runner := commandRunnerFunc(func(_ context.Context, _ string, args ...string) error {
+			switch args[0] {
+			case "openapi-typescript":
+				outputPath := args[len(args)-1]
+				if err := os.WriteFile(outputPath, []byte("generated output\n"), 0o600); err != nil {
+					return fmt.Errorf("write generated output: %w", err)
+				}
+				return nil
+			case "oxfmt":
+				return formatErr
+			default:
+				return fmt.Errorf("unexpected command args: %v", args)
+			}
+		})
+
+		err := generateWithRunner(context.Background(), artifact, runner)
+		if !errors.Is(err, formatErr) {
+			t.Fatalf("generateWithRunner() error = %v, want formatErr", err)
+		}
+		content, err := os.ReadFile(artifact.OutputPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", artifact.OutputPath, err)
+		}
+		if string(content) != "stable output\n" {
+			t.Fatalf("output content = %q, want stable output", string(content))
+		}
+		assertNoTemporaryOutputs(t, dir)
+	})
+
+	t.Run("Should publish formatted output after the pipeline succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		artifact := Artifact{
+			SpecPath:   filepath.Join(dir, "spec.json"),
+			OutputPath: filepath.Join(dir, "types.d.ts"),
+		}
+		runner := commandRunnerFunc(func(_ context.Context, _ string, args ...string) error {
+			outputPath := args[len(args)-1]
+			switch args[0] {
+			case "openapi-typescript":
+				if err := os.WriteFile(outputPath, []byte("generated output\n"), 0o600); err != nil {
+					return fmt.Errorf("write generated output: %w", err)
+				}
+				return nil
+			case "oxfmt":
+				if err := os.WriteFile(outputPath, []byte("formatted output\n"), 0o600); err != nil {
+					return fmt.Errorf("write formatted output: %w", err)
+				}
+				return nil
+			default:
+				return fmt.Errorf("unexpected command args: %v", args)
+			}
+		})
+
+		if err := generateWithRunner(context.Background(), artifact, runner); err != nil {
+			t.Fatalf("generateWithRunner() error = %v", err)
+		}
+		content, err := os.ReadFile(artifact.OutputPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", artifact.OutputPath, err)
+		}
+		if string(content) != "formatted output\n" {
+			t.Fatalf("output content = %q, want formatted output", string(content))
+		}
+		assertNoTemporaryOutputs(t, dir)
+	})
 }
 
 func TestCheck(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldAcceptMatchingGeneratedOutput", func(t *testing.T) {
+	t.Run("Should reject invalid artifacts before regenerating output", func(t *testing.T) {
+		t.Parallel()
+
+		err := Check(context.Background(), Artifact{})
+		if !errors.Is(err, ErrInvalidArtifact) {
+			t.Fatalf("Check() error = %v, want ErrInvalidArtifact", err)
+		}
+	})
+
+	t.Run("Should accept matching generated output", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -67,7 +191,7 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectStaleGeneratedOutput", func(t *testing.T) {
+	t.Run("Should reject stale generated output", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -90,7 +214,7 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectMissingGeneratedOutput", func(t *testing.T) {
+	t.Run("Should reject missing generated output", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -111,7 +235,7 @@ func TestCheck(t *testing.T) {
 }
 
 func TestCheckGeneratedFile(t *testing.T) {
-	t.Run("ShouldAcceptMatchingGeneratedOutput", func(t *testing.T) {
+	t.Run("Should accept matching generated output", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "types.d.ts")
@@ -125,7 +249,7 @@ func TestCheckGeneratedFile(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectStaleGeneratedOutput", func(t *testing.T) {
+	t.Run("Should reject stale generated output", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "types.d.ts")
@@ -139,7 +263,7 @@ func TestCheckGeneratedFile(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectMissingGeneratedOutput", func(t *testing.T) {
+	t.Run("Should reject missing generated output", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "missing.d.ts")
@@ -158,7 +282,7 @@ func TestRunCommand(t *testing.T) {
 		t.Skip("shell-based command tests differ on windows")
 	}
 
-	t.Run("ShouldSucceedForZeroExitStatus", func(t *testing.T) {
+	t.Run("Should succeed for zero exit status", func(t *testing.T) {
 		t.Parallel()
 
 		script := writeExecutableScript(t, "#!/bin/sh\nexit 0\n")
@@ -167,7 +291,7 @@ func TestRunCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldPreferStderrDetails", func(t *testing.T) {
+	t.Run("Should prefer stderr details", func(t *testing.T) {
 		t.Parallel()
 
 		script := writeExecutableScript(t, "#!/bin/sh\necho 'stderr detail' >&2\nexit 1\n")
@@ -180,7 +304,7 @@ func TestRunCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldFallBackToStdoutDetails", func(t *testing.T) {
+	t.Run("Should fall back to stdout details", func(t *testing.T) {
 		t.Parallel()
 
 		script := writeExecutableScript(t, "#!/bin/sh\necho 'stdout detail'\nexit 1\n")
@@ -193,7 +317,7 @@ func TestRunCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldReportRawExecutionErrorsWhenTheCommandCannotStart", func(t *testing.T) {
+	t.Run("Should report raw execution errors when the command cannot start", func(t *testing.T) {
 		t.Parallel()
 
 		err := runCommand(context.Background(), filepath.Join(t.TempDir(), "missing-command"))
@@ -202,6 +326,19 @@ func TestRunCommand(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "missing-command") {
 			t.Fatalf("runCommand() error = %v, want command name in message", err)
+		}
+	})
+
+	t.Run("Should preserve context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		script := writeExecutableScript(t, "#!/bin/sh\nsleep 1\n")
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := runCommand(ctx, script)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("runCommand() error = %v, want context.Canceled", err)
 		}
 	})
 }
@@ -256,4 +393,24 @@ func writeExecutableScript(t *testing.T, content string) string {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
 	return path
+}
+
+type commandRunnerFunc func(context.Context, string, ...string) error
+
+func (fn commandRunnerFunc) Run(ctx context.Context, name string, args ...string) error {
+	return fn(ctx, name, args...)
+}
+
+func assertNoTemporaryOutputs(t *testing.T, dir string) {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("os.ReadDir(%q) error = %v", dir, err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".openapi-types-") {
+			t.Fatalf("temporary output %q was not removed", entry.Name())
+		}
+	}
 }

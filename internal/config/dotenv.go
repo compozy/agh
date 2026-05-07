@@ -80,8 +80,19 @@ func WorkspaceDotEnvFile(workspaceRoot string) string {
 // InspectDotEnvFile parses one .env file and reports whether explicit repair is possible.
 func InspectDotEnvFile(path string) (DotEnvRepairReport, error) {
 	normalizedPath, data, exists, err := readDotEnvFile(path)
-	if err != nil || !exists {
+	if err != nil {
+		var repairErr *DotEnvRepairError
+		if errors.As(err, &repairErr) {
+			return DotEnvRepairReport{
+				Path:        normalizedPath,
+				Status:      DotEnvStatusUnsupported,
+				Diagnostics: append([]DotEnvDiagnostic(nil), repairErr.Diagnostics...),
+			}, err
+		}
 		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, err
+	}
+	if !exists {
+		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, nil
 	}
 
 	parsed := parseDotEnvDocument(string(data))
@@ -165,11 +176,31 @@ func readDotEnvFile(path string) (string, []byte, bool, error) {
 		return "", nil, false, errors.New("config: .env path is required")
 	}
 
-	data, err := os.ReadFile(normalizedPath)
+	info, err := os.Lstat(normalizedPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return normalizedPath, nil, false, nil
 		}
+		return normalizedPath, nil, false, fmt.Errorf("stat .env file %q: %w", normalizedPath, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return normalizedPath, nil, false, dotEnvUnsupportedError(normalizedPath, []DotEnvDiagnostic{{
+			Code:    dotEnvDiagnosticUnsupportedSymlink,
+			Message: ".env load refuses to read symlinks",
+		}})
+	}
+	if info.IsDir() {
+		return normalizedPath, nil, false, dotEnvUnsupportedError(normalizedPath, []DotEnvDiagnostic{{
+			Code:    dotEnvDiagnosticUnsupportedDir,
+			Message: ".env path is a directory",
+		}})
+	}
+	if !info.Mode().IsRegular() {
+		return normalizedPath, nil, false, fmt.Errorf(".env file %q must be a regular file", normalizedPath)
+	}
+
+	data, err := os.ReadFile(normalizedPath)
+	if err != nil {
 		return normalizedPath, nil, false, fmt.Errorf("read .env file %q: %w", normalizedPath, err)
 	}
 	return normalizedPath, data, true, nil
@@ -487,7 +518,9 @@ func replaceDotEnvFile(path string, contents []byte, mode os.FileMode) (err erro
 	cleanup := true
 	defer func() {
 		if cleanup {
-			err = errors.Join(err, os.Remove(tempPath))
+			if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, fmt.Errorf("remove temporary .env repair file %q: %w", tempPath, removeErr))
+			}
 		}
 	}()
 
@@ -495,12 +528,13 @@ func replaceDotEnvFile(path string, contents []byte, mode os.FileMode) (err erro
 		mode = 0o600
 	}
 	if err := temp.Chmod(mode); err != nil {
-		_ = temp.Close()
-		return fmt.Errorf("set temporary .env repair mode %q: %w", tempPath, err)
+		return closeFileAfterError(temp, tempPath, fmt.Errorf("set temporary .env repair mode %q: %w", tempPath, err))
 	}
 	if _, err := temp.Write(contents); err != nil {
-		_ = temp.Close()
-		return fmt.Errorf("write temporary .env repair file %q: %w", tempPath, err)
+		return closeFileAfterError(temp, tempPath, fmt.Errorf("write temporary .env repair file %q: %w", tempPath, err))
+	}
+	if err := temp.Sync(); err != nil {
+		return closeFileAfterError(temp, tempPath, fmt.Errorf("sync temporary .env repair file %q: %w", tempPath, err))
 	}
 	if err := temp.Close(); err != nil {
 		return fmt.Errorf("close temporary .env repair file %q: %w", tempPath, err)
@@ -509,6 +543,9 @@ func replaceDotEnvFile(path string, contents []byte, mode os.FileMode) (err erro
 		return fmt.Errorf("replace .env file %q: %w", path, err)
 	}
 	cleanup = false
+	if err := syncPersistedDir(dir); err != nil {
+		return err
+	}
 	return nil
 }
 

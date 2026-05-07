@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -65,6 +64,10 @@ func (c *resourceCatalog[T]) Snapshot() []resources.Record[T] {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cloneResourceRecords(c.records, c.cloneSpec)
+}
+
+func (c *resourceCatalog[T]) cloneRecord(record resources.Record[T]) resources.Record[T] {
+	return cloneResourceRecord(record, c.cloneSpec)
 }
 
 func (c *resourceCatalog[T]) Revision() int64 {
@@ -204,6 +207,7 @@ type toolMCPDesiredResources struct {
 type toolMCPDeclarationProvider func(context.Context) (toolMCPDesiredResources, error)
 
 type toolMCPSourceSyncer struct {
+	raw       resources.RawStore
 	toolStore resources.Store[toolspkg.Tool]
 	toolCodec resources.KindCodec[toolspkg.Tool]
 	mcpStore  resources.Store[aghconfig.MCPServer]
@@ -215,6 +219,7 @@ type toolMCPSourceSyncer struct {
 }
 
 func newToolMCPSourceSyncer(
+	raw resources.RawStore,
 	toolStore resources.Store[toolspkg.Tool],
 	toolCodec resources.KindCodec[toolspkg.Tool],
 	mcpStore resources.Store[aghconfig.MCPServer],
@@ -224,13 +229,14 @@ func newToolMCPSourceSyncer(
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
 	providers ...toolMCPDeclarationProvider,
 ) toolMCPPublisher {
-	if toolStore == nil || toolCodec == nil || mcpStore == nil || mcpCodec == nil {
+	if raw == nil || toolStore == nil || toolCodec == nil || mcpStore == nil || mcpCodec == nil {
 		return nil
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &toolMCPSourceSyncer{
+		raw:       raw,
 		toolStore: toolStore,
 		toolCodec: toolCodec,
 		mcpStore:  mcpStore,
@@ -359,12 +365,15 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
 
 func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]*desiredToolResource) (bool, error) {
 	source := s.actor.Source
-	current, err := s.toolStore.List(ctx, s.actor, resources.ResourceFilter{Source: &source})
+	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
+		Kind:   toolspkg.ToolResourceKind,
+		Source: &source,
+	})
 	if err != nil {
 		return false, fmt.Errorf("daemon: list managed tools: %w", err)
 	}
 
-	currentByID := make(map[string]resources.Record[toolspkg.Tool], len(current))
+	currentByID := make(map[string]resources.RawRecord, len(current))
 	for _, record := range current {
 		currentByID[record.ID] = record
 	}
@@ -375,7 +384,7 @@ func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]
 			continue
 		}
 		existing, ok := currentByID[id]
-		if ok && s.sameTool(existing, desiredTool.scope, desiredTool.encoded) {
+		if ok && sameManagedRawRecord(existing, desiredTool.scope, desiredTool.encoded) {
 			delete(currentByID, id)
 			continue
 		}
@@ -411,12 +420,15 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 	desired map[string]desiredMCPServerResource,
 ) (bool, error) {
 	source := s.actor.Source
-	current, err := s.mcpStore.List(ctx, s.actor, resources.ResourceFilter{Source: &source})
+	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
+		Kind:   aghconfig.MCPServerResourceKind,
+		Source: &source,
+	})
 	if err != nil {
 		return false, fmt.Errorf("daemon: list managed mcp servers: %w", err)
 	}
 
-	currentByID := make(map[string]resources.Record[aghconfig.MCPServer], len(current))
+	currentByID := make(map[string]resources.RawRecord, len(current))
 	for _, record := range current {
 		currentByID[record.ID] = record
 	}
@@ -424,7 +436,7 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 	changed := false
 	for id, desiredServer := range desired {
 		existing, ok := currentByID[id]
-		if ok && s.sameMCPServer(existing, desiredServer.scope, desiredServer.encoded) {
+		if ok && sameManagedRawRecord(existing, desiredServer.scope, desiredServer.encoded) {
 			delete(currentByID, id)
 			continue
 		}
@@ -453,38 +465,6 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 	}
 
 	return changed, nil
-}
-
-func (s *toolMCPSourceSyncer) sameTool(
-	record resources.Record[toolspkg.Tool],
-	scope resources.ResourceScope,
-	encoded []byte,
-) bool {
-	if record.Scope != scope {
-		return false
-	}
-
-	currentEncoded, err := s.toolCodec.Encode(record.Spec)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(currentEncoded, encoded)
-}
-
-func (s *toolMCPSourceSyncer) sameMCPServer(
-	record resources.Record[aghconfig.MCPServer],
-	scope resources.ResourceScope,
-	encoded []byte,
-) bool {
-	if record.Scope != scope {
-		return false
-	}
-
-	currentEncoded, err := s.mcpCodec.Encode(record.Spec)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(currentEncoded, encoded)
 }
 
 func (d *Daemon) newToolMCPPublisher(
@@ -518,6 +498,7 @@ func (d *Daemon) newToolMCPPublisher(
 	}
 
 	return newToolMCPSourceSyncer(
+		state.resourceKernel,
 		toolStore,
 		toolCodec,
 		mcpStore,
@@ -717,10 +698,16 @@ func cloneResourceRecords[T any](records []resources.Record[T], cloneSpec func(T
 	}
 	cloned := make([]resources.Record[T], len(records))
 	for idx := range records {
-		cloned[idx] = records[idx]
-		cloned[idx].Spec = cloneSpec(records[idx].Spec)
+		cloned[idx] = cloneResourceRecord(records[idx], cloneSpec)
 	}
 	return cloned
+}
+
+func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T) resources.Record[T] {
+	if cloneSpec != nil {
+		record.Spec = cloneSpec(record.Spec)
+	}
+	return record
 }
 
 func cloneToolSpec(src toolspkg.Tool) toolspkg.Tool {

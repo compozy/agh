@@ -2,14 +2,10 @@ package bundles
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -267,20 +263,22 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 
 	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
 		if createNew {
-			rollbackErr := s.store.DeleteBundleActivation(ctx, resolved.activation.ID)
-			return ActivationPreview{}, s.joinRollbackFailure(
+			return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
 				ctx,
 				reconcileErr,
-				rollbackErr,
+				func(rollbackCtx context.Context) error {
+					return s.store.DeleteBundleActivation(rollbackCtx, resolved.activation.ID)
+				},
 				"delete newly-created bundle activation",
 				resolved.activation.ID,
 			)
 		}
-		rollbackErr := s.store.UpdateBundleActivation(ctx, existing)
-		return ActivationPreview{}, s.joinRollbackFailure(
+		return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
 			ctx,
 			reconcileErr,
-			rollbackErr,
+			func(rollbackCtx context.Context) error {
+				return s.store.UpdateBundleActivation(rollbackCtx, existing)
+			},
 			"restore existing bundle activation",
 			existing.ID,
 		)
@@ -386,11 +384,12 @@ func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequ
 		return ActivationPreview{}, err
 	}
 	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
-		rollbackErr := s.store.UpdateBundleActivation(ctx, current)
-		return ActivationPreview{}, s.joinRollbackFailure(
+		return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
 			ctx,
 			reconcileErr,
-			rollbackErr,
+			func(rollbackCtx context.Context) error {
+				return s.store.UpdateBundleActivation(rollbackCtx, current)
+			},
 			"restore bundle activation after update",
 			current.ID,
 		)
@@ -414,11 +413,12 @@ func (s *Service) Deactivate(ctx context.Context, id string) error {
 		return err
 	}
 	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
-		rollbackErr := s.store.CreateBundleActivation(ctx, current)
-		return s.joinRollbackFailure(
+		return s.rollbackActivationAndReconcileLocked(
 			ctx,
 			reconcileErr,
-			rollbackErr,
+			func(rollbackCtx context.Context) error {
+				return s.store.CreateBundleActivation(rollbackCtx, current)
+			},
 			"restore bundle activation after deactivate",
 			current.ID,
 		)
@@ -453,10 +453,24 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	return s.reconcileLocked(ctx)
 }
 
-// reconcileLocked recomputes and syncs bundle-managed resources. If sync fails
-// after mutating automations or bridges, only the activation record can be
-// rolled back by callers; side effects already applied by downstream managers
-// are not compensated here.
+func (s *Service) rollbackActivationAndReconcileLocked(
+	ctx context.Context,
+	reconcileErr error,
+	rollback func(context.Context) error,
+	action string,
+	activationID string,
+) error {
+	rollbackCtx := context.WithoutCancel(ctx)
+	rollbackErr := rollback(rollbackCtx)
+	if rollbackErr == nil {
+		if compensateErr := s.reconcileLocked(rollbackCtx); compensateErr != nil {
+			rollbackErr = fmt.Errorf("compensate bundle activation resources: %w", compensateErr)
+		}
+	}
+	return s.joinRollbackFailure(ctx, reconcileErr, rollbackErr, action, activationID)
+}
+
+// reconcileLocked recomputes and syncs bundle-managed resources.
 func (s *Service) reconcileLocked(ctx context.Context) error {
 	activations, err := s.store.ListBundleActivations(ctx)
 	if err != nil {
@@ -568,12 +582,11 @@ func (s *Service) resolveRequest(ctx context.Context, req ActivateRequest) (reso
 	}
 
 	activation := Activation{
-		ID: stableID(
-			"act",
+		ID: ActivationResourceID(
 			strings.TrimSpace(req.ExtensionName),
 			strings.TrimSpace(req.BundleName),
 			strings.TrimSpace(req.ProfileName),
-			string(scope),
+			scope,
 			workspaceID,
 		),
 		ExtensionName:               strings.TrimSpace(req.ExtensionName),
@@ -592,7 +605,8 @@ func (s *Service) resolveRequest(ctx context.Context, req ActivateRequest) (reso
 }
 
 func (s *Service) resolveActivation(ctx context.Context, activation Activation) (resolvedActivation, error) {
-	if err := activation.Validate(); err != nil {
+	activation, err := activation.Validated()
+	if err != nil {
 		return resolvedActivation{}, err
 	}
 
@@ -603,8 +617,8 @@ func (s *Service) resolveActivation(ctx context.Context, activation Activation) 
 	resolved := resolvedActivation{
 		activation:      activation,
 		bundleRecord:    definition.bundleRecord,
-		bundle:          cloneBundleSpec(definition.bundle),
-		profile:         cloneBundleProfile(definition.profile),
+		bundle:          definition.bundle,
+		profile:         definition.profile,
 		specContentHash: definition.specContentHash,
 	}
 
@@ -714,7 +728,7 @@ func (s *Service) resolveActivationDefinition(
 			activation.BundleName,
 		)
 	}
-	bundle := cloneBundleSpec(bundleRecord.Spec.Bundle)
+	bundle := bundleRecord.Spec.Bundle
 	profile, ok := findProfile(bundle.Profiles, activation.ProfileName)
 	if !ok {
 		return activationDefinition{}, fmt.Errorf(
@@ -763,57 +777,6 @@ func findBundleResourceRecord(
 		}
 	}
 	return resources.Record[BundleResourceSpec]{}, false, nil
-}
-
-type bundleRecordKey struct {
-	extensionName string
-	bundleName    string
-}
-
-type bundleRecordLookup struct {
-	exact   map[bundleRecordKey]resources.Record[BundleResourceSpec]
-	records []resources.Record[BundleResourceSpec]
-}
-
-func newBundleRecordLookup(records []resources.Record[BundleResourceSpec]) bundleRecordLookup {
-	exact := make(map[bundleRecordKey]resources.Record[BundleResourceSpec], len(records))
-	for _, record := range records {
-		key := newBundleRecordKey(record.Spec.ExtensionName, record.Spec.Bundle.Name)
-		if key.extensionName == "" || key.bundleName == "" {
-			continue
-		}
-		exact[key] = record
-	}
-	return bundleRecordLookup{
-		exact:   exact,
-		records: records,
-	}
-}
-
-func findBundleResourceRecordIndexed(
-	lookup bundleRecordLookup,
-	extensionName string,
-	bundleName string,
-) (resources.Record[BundleResourceSpec], bool) {
-	key := newBundleRecordKey(extensionName, bundleName)
-	record, ok := lookup.exact[key]
-	if ok {
-		return record, true
-	}
-	for _, candidate := range lookup.records {
-		if strings.EqualFold(strings.TrimSpace(candidate.Spec.ExtensionName), key.extensionName) &&
-			strings.EqualFold(strings.TrimSpace(candidate.Spec.Bundle.Name), key.bundleName) {
-			return candidate, true
-		}
-	}
-	return resources.Record[BundleResourceSpec]{}, false
-}
-
-func newBundleRecordKey(extensionName string, bundleName string) bundleRecordKey {
-	return bundleRecordKey{
-		extensionName: strings.ToLower(strings.TrimSpace(extensionName)),
-		bundleName:    strings.ToLower(strings.TrimSpace(bundleName)),
-	}
 }
 
 func declaredChannelsForProfile(
@@ -1170,40 +1133,58 @@ func validateAutomationAgentReferences(
 }
 
 func validateDesiredAgentScopeConflicts(agents []ownedAgentResource) error {
-	type desiredAgentKey struct {
-		name  string
-		index int
-	}
-	seen := make([]desiredAgentKey, 0, len(agents))
-	for idx, agent := range agents {
+	seen := make(map[string]desiredAgentScopes)
+	for _, agent := range agents {
 		name := strings.TrimSpace(agent.Spec.Name)
 		if name == "" {
 			continue
 		}
 		scope := agent.Scope.Normalize()
-		for _, existing := range seen {
-			if existing.name != name {
-				continue
-			}
-			if !agentScopesOverlap(scope, agents[existing.index].Scope.Normalize()) {
-				continue
-			}
+		scopes := seen[name]
+		if desiredAgentScopeConflicts(scopes, scope) {
 			return fmt.Errorf("%w: %s", ErrAgentConflict, name)
 		}
-		seen = append(seen, desiredAgentKey{name: name, index: idx})
+		seen[name] = rememberDesiredAgentScope(scopes, scope)
 	}
 	return nil
 }
 
-func agentScopesOverlap(left resources.ResourceScope, right resources.ResourceScope) bool {
-	left = left.Normalize()
-	right = right.Normalize()
-	if left.Kind == resources.ResourceScopeKindGlobal || right.Kind == resources.ResourceScopeKindGlobal {
-		return true
+type desiredAgentScopes struct {
+	count      int
+	global     bool
+	workspaces map[string]struct{}
+}
+
+func desiredAgentScopeConflicts(seen desiredAgentScopes, scope resources.ResourceScope) bool {
+	switch scope.Kind {
+	case resources.ResourceScopeKindGlobal:
+		return seen.count > 0
+	case resources.ResourceScopeKindWorkspace:
+		if seen.global {
+			return true
+		}
+		_, exists := seen.workspaces[strings.TrimSpace(scope.ID)]
+		return exists
+	default:
+		return seen.global
 	}
-	return left.Kind == resources.ResourceScopeKindWorkspace &&
-		right.Kind == resources.ResourceScopeKindWorkspace &&
-		strings.TrimSpace(left.ID) == strings.TrimSpace(right.ID)
+}
+
+func rememberDesiredAgentScope(
+	seen desiredAgentScopes,
+	scope resources.ResourceScope,
+) desiredAgentScopes {
+	seen.count++
+	switch scope.Kind {
+	case resources.ResourceScopeKindGlobal:
+		seen.global = true
+	case resources.ResourceScopeKindWorkspace:
+		if seen.workspaces == nil {
+			seen.workspaces = make(map[string]struct{}, 1)
+		}
+		seen.workspaces[strings.TrimSpace(scope.ID)] = struct{}{}
+	}
+	return seen
 }
 
 func (s *Service) materializeBridge(
@@ -1316,6 +1297,9 @@ func (s *Service) checkReady(ctx context.Context) error {
 	}
 	if s.store == nil {
 		return errors.New("bundles: store is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -1465,149 +1449,17 @@ func replaceActivation(items []Activation, next Activation) []Activation {
 }
 
 func automationScopeFromActivation(scope Scope) automationpkg.Scope {
-	if scope == ScopeWorkspace {
+	if scope.Normalize() == ScopeWorkspace {
 		return automationpkg.AutomationScopeWorkspace
 	}
 	return automationpkg.AutomationScopeGlobal
 }
 
 func bridgeScopeFromActivation(scope Scope) bridgepkg.Scope {
-	if scope == ScopeWorkspace {
+	if scope.Normalize() == ScopeWorkspace {
 		return bridgepkg.ScopeWorkspace
 	}
 	return bridgepkg.ScopeGlobal
-}
-
-func stableID(prefix string, parts ...string) string {
-	normalized := make([]string, 0, len(parts))
-	for _, part := range parts {
-		normalized = append(normalized, strings.TrimSpace(part))
-	}
-	sum := sha256.Sum256([]byte(strings.Join(normalized, "\n")))
-	return prefix + "_" + hex.EncodeToString(sum[:8])
-}
-
-func findProfile(items []extensionpkg.BundleProfile, name string) (extensionpkg.BundleProfile, bool) {
-	for _, item := range items {
-		if strings.EqualFold(strings.TrimSpace(item.Name), strings.TrimSpace(name)) {
-			return item, true
-		}
-	}
-	return extensionpkg.BundleProfile{}, false
-}
-
-func cloneActivation(value Activation) Activation {
-	return value
-}
-
-func cloneBundleSpec(value extensionpkg.BundleSpec) extensionpkg.BundleSpec {
-	cloned := value
-	cloned.Profiles = make([]extensionpkg.BundleProfile, 0, len(value.Profiles))
-	for _, profile := range value.Profiles {
-		cloned.Profiles = append(cloned.Profiles, cloneBundleProfile(profile))
-	}
-	return cloned
-}
-
-func cloneBundleProfile(value extensionpkg.BundleProfile) extensionpkg.BundleProfile {
-	cloned := value
-	cloned.Channels = extensionpkg.BundleChannelsConfig{
-		Primary: strings.TrimSpace(value.Channels.Primary),
-		Items:   append([]extensionpkg.BundleChannel(nil), value.Channels.Items...),
-	}
-	cloned.Agents = cloneBundleAgents(value.Agents)
-	cloned.Jobs = append([]extensionpkg.BundleJob(nil), value.Jobs...)
-	cloned.Triggers = append([]extensionpkg.BundleTrigger(nil), value.Triggers...)
-	cloned.Bridges = append([]extensionpkg.BundleBridgePreset(nil), value.Bridges...)
-	return cloned
-}
-
-func cloneBundleAgents(values []extensionpkg.BundleAgent) []extensionpkg.BundleAgent {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]extensionpkg.BundleAgent, 0, len(values))
-	for _, value := range values {
-		next := extensionpkg.BundleAgent{
-			Path:  strings.TrimSpace(value.Path),
-			Agent: aghconfig.CloneAgentDef(value.Agent),
-		}
-		if value.Soul != nil {
-			next.Soul = &extensionpkg.BundleAgentSidecar{
-				SourcePath: strings.TrimSpace(value.Soul.SourcePath),
-				Body:       value.Soul.Body,
-			}
-		}
-		if value.Heartbeat != nil {
-			next.Heartbeat = &extensionpkg.BundleAgentSidecar{
-				SourcePath: strings.TrimSpace(value.Heartbeat.SourcePath),
-				Body:       value.Heartbeat.Body,
-			}
-		}
-		cloned = append(cloned, next)
-	}
-	return cloned
-}
-
-func cloneInventoryItems(items []InventoryItem) []InventoryItem {
-	return append([]InventoryItem(nil), items...)
-}
-
-func cloneNetworkSettings(value NetworkSettings) NetworkSettings {
-	value.DeclaredChannels = append([]DeclaredChannel(nil), value.DeclaredChannels...)
-	return value
-}
-
-func cloneTaskConfig(value *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
-}
-
-func cloneSchedule(value automationpkg.ScheduleSpec) *automationpkg.ScheduleSpec {
-	cloned := value
-	return &cloned
-}
-
-func cloneRawMessage(value json.RawMessage) json.RawMessage {
-	if len(value) == 0 {
-		return nil
-	}
-	return append(json.RawMessage(nil), value...)
-}
-
-func cloneStringMap(value map[string]string) map[string]string {
-	if len(value) == 0 {
-		return nil
-	}
-	cloned := make(map[string]string, len(value))
-	maps.Copy(cloned, value)
-	return cloned
-}
-
-func bundleProfileSpecContentHash(bundle extensionpkg.BundleSpec, profile extensionpkg.BundleProfile) (string, error) {
-	payload := struct {
-		BundleName        string                     `json:"bundle_name"`
-		BundleDescription string                     `json:"bundle_description,omitempty"`
-		Profile           extensionpkg.BundleProfile `json:"profile"`
-	}{
-		BundleName:        strings.TrimSpace(bundle.Name),
-		BundleDescription: strings.TrimSpace(bundle.Description),
-		Profile:           cloneBundleProfile(profile),
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf(
-			"bundles: compute spec content hash for %s/%s: %w",
-			strings.TrimSpace(bundle.Name),
-			strings.TrimSpace(profile.Name),
-			err,
-		)
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
 }
 
 func (s *Service) warnSpecHashDrift(ctx context.Context, activation Activation, currentHash string) {

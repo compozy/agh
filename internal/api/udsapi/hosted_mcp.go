@@ -131,13 +131,19 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	}
 }
 
+type hostedMCPStreamErrorPayload struct {
+	Error   string `json:"error"`
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+}
+
 // hostedMCPStreamErrorData keeps stream failures stable without exposing backend error text.
-func hostedMCPStreamErrorData(err error) map[string]any {
+func hostedMCPStreamErrorData(err error) hostedMCPStreamErrorPayload {
 	status := hostedMCPStatus(err)
-	return map[string]any{
-		"error":   "hosted_mcp_projection_failed",
-		"status":  status,
-		"message": http.StatusText(status),
+	return hostedMCPStreamErrorPayload{
+		Error:   "hosted_mcp_projection_failed",
+		Status:  status,
+		Message: http.StatusText(status),
 	}
 }
 

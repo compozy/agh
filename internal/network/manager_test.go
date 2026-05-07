@@ -324,6 +324,55 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist greet presence for historical channel projections", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 5, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(time.Minute, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal("sess-a", "builders", mustPeerCard(t, "coder.sess-a"), now); err != nil {
+			t.Fatalf("RegisterLocal() error = %v", err)
+		}
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		conversations := &recordingConversationStore{}
+		manager := &Manager{
+			logger:        discardManagerLogger(),
+			now:           func() time.Time { return now },
+			router:        router,
+			conversations: conversations,
+			auditor:       &recordingAuditWriter{},
+			stats:         newRuntimeStats(),
+		}
+
+		if err := manager.publishGreetWithAudit(context.Background(), "sess-a", "ready"); err != nil {
+			t.Fatalf("publishGreetWithAudit() error = %v", err)
+		}
+
+		entry := conversations.entry(0)
+		if got, want := entry.Kind, string(KindGreet); got != want {
+			t.Fatalf("presence Kind = %q, want %q", got, want)
+		}
+		if got, want := entry.Direction, AuditDirectionSent; got != want {
+			t.Fatalf("presence Direction = %q, want %q", got, want)
+		}
+		if got, want := entry.Channel, "builders"; got != want {
+			t.Fatalf("presence Channel = %q, want %q", got, want)
+		}
+		if got, want := entry.PeerFrom, "coder.sess-a"; got != want {
+			t.Fatalf("presence PeerFrom = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should write inbound conversation before prompt delivery", func(t *testing.T) {
 		t.Parallel()
 

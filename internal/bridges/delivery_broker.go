@@ -107,8 +107,6 @@ type Broker struct {
 	metrics      map[string]*instanceDeliveryMetrics
 }
 
-var _ DeliveryBroker = (*Broker)(nil)
-
 // NewBroker constructs a delivery broker with bounded per-route queues and
 // background workers for negotiated extension delivery.
 func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broker {
@@ -1140,6 +1138,9 @@ func newDeliveryID() string {
 func agentEventFingerprint(event DeliveryProjectionEvent) string {
 	if fingerprint := strings.TrimSpace(event.Fingerprint); fingerprint != "" {
 		return fingerprint
+	}
+	if event.Timestamp.IsZero() {
+		return ""
 	}
 	return strings.TrimSpace(
 		event.Type,

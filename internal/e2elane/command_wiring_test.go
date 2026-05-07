@@ -3,6 +3,9 @@ package e2elane
 import (
 	"context"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,42 +23,105 @@ func TestMakefileE2ETargetsDelegateToLaneSpecificMageTargets(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := repoRoot(t)
+	recipes := makeTargetRecipes(t, filepath.Join(repoRoot, "Makefile"))
 
 	tests := []struct {
+		name        string
 		target      string
 		wantSnippet string
 	}{
-		{target: "test-e2e-runtime", wantSnippet: "testE2ERuntime"},
-		{target: "test-e2e-web", wantSnippet: "testE2EWeb"},
-		{target: "test-e2e", wantSnippet: "testE2E"},
-		{target: "test-e2e-nightly", wantSnippet: "testE2ENightly"},
+		{
+			name:        "Should delegate the runtime make target to the runtime mage lane",
+			target:      "test-e2e-runtime",
+			wantSnippet: "testE2ERuntime",
+		},
+		{
+			name:        "Should delegate the web make target to the web mage lane",
+			target:      "test-e2e-web",
+			wantSnippet: "testE2EWeb",
+		},
+		{
+			name:        "Should delegate the combined make target to the combined mage lane",
+			target:      "test-e2e",
+			wantSnippet: "testE2E",
+		},
+		{
+			name:        "Should delegate the nightly make target to the nightly mage lane",
+			target:      "test-e2e-nightly",
+			wantSnippet: "testE2ENightly",
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.target, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			output := runCommand(t, repoRoot, "make", "-n", tt.target)
-			if !strings.Contains(output, tt.wantSnippet) {
-				t.Fatalf("make -n %s output = %q, want snippet %q", tt.target, output, tt.wantSnippet)
+			recipe := recipes[tt.target]
+			if !strings.Contains(recipe, tt.wantSnippet) {
+				t.Fatalf("Makefile target %s recipe = %q, want snippet %q", tt.target, recipe, tt.wantSnippet)
 			}
-			if strings.Contains(output, "testIntegration") {
-				t.Fatalf("make -n %s output unexpectedly referenced testIntegration: %q", tt.target, output)
+			if strings.Contains(recipe, "testIntegration") {
+				t.Fatalf("Makefile target %s recipe unexpectedly referenced testIntegration: %q", tt.target, recipe)
 			}
 		})
 	}
 }
 
-func TestMakeHelpListsTheE2ELaneTargets(t *testing.T) {
+func TestMagefileExportsTheE2ELaneTargets(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := repoRoot(t)
+	targets := mageTargetNames(t, filepath.Join(repoRoot, "magefile.go"))
 
-	output := runCommand(t, repoRoot, "make", "help")
 	for _, target := range []string{"testE2ERuntime", "testE2EWeb", "testE2E", "testE2ENightly"} {
-		if !strings.Contains(output, target) {
-			t.Fatalf("make help output = %q, want target %q", output, target)
-		}
+		t.Run("Should export "+target+" as a mage target", func(t *testing.T) {
+			t.Parallel()
+
+			if !targets[target] {
+				t.Fatalf("mage targets = %#v, want %q", targets, target)
+			}
+		})
+	}
+}
+
+func TestE2ELaneCommandsAreExecutableSmoke(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "Should dry run runtime make target",
+			args: []string{"make", "-n", "test-e2e-runtime"},
+			want: "testE2ERuntime",
+		},
+		{name: "Should dry run web make target", args: []string{"make", "-n", "test-e2e-web"}, want: "testE2EWeb"},
+		{name: "Should dry run combined make target", args: []string{"make", "-n", "test-e2e"}, want: "testE2E"},
+		{
+			name: "Should dry run nightly make target",
+			args: []string{"make", "-n", "test-e2e-nightly"},
+			want: "testE2ENightly",
+		},
+		{name: "Should list make help through mage", args: []string{"make", "help"}, want: "testE2ERuntime"},
+		{
+			name: "Should list mage targets directly",
+			args: []string{"go", "run", "github.com/magefile/mage@v1.15.0", "-l"},
+			want: "testE2ERuntime",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			output := runRepoCommand(t, repoRoot, tt.args...)
+			if !strings.Contains(output, tt.want) {
+				t.Fatalf("%s output = %q, want snippet %q", strings.Join(tt.args, " "), output, tt.want)
+			}
+		})
 	}
 }
 
@@ -65,17 +131,41 @@ func TestRootPackageScriptsExposeTheRepoLevelE2ELaneEntryPoints(t *testing.T) {
 	repoRoot := repoRoot(t)
 	pkg := readPackageJSON(t, filepath.Join(repoRoot, "package.json"))
 
-	want := map[string]string{
-		"test:e2e:runtime": "make test-e2e-runtime",
-		"test:e2e:web":     "make test-e2e-web",
-		"test:e2e":         "make test-e2e",
-		"test:e2e:nightly": "make test-e2e-nightly",
+	tests := []struct {
+		name    string
+		script  string
+		command string
+	}{
+		{
+			name:    "Should expose the runtime e2e lane entry point",
+			script:  "test:e2e:runtime",
+			command: "make test-e2e-runtime",
+		},
+		{
+			name:    "Should expose the web e2e lane entry point",
+			script:  "test:e2e:web",
+			command: "make test-e2e-web",
+		},
+		{
+			name:    "Should expose the combined e2e lane entry point",
+			script:  "test:e2e",
+			command: "make test-e2e",
+		},
+		{
+			name:    "Should expose the nightly e2e lane entry point",
+			script:  "test:e2e:nightly",
+			command: "make test-e2e-nightly",
+		},
 	}
 
-	for script, command := range want {
-		if got := pkg.Scripts[script]; got != command {
-			t.Fatalf("package.json script %q = %q, want %q", script, got, command)
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pkg.Scripts[tc.script]; got != tc.command {
+				t.Fatalf("package.json script %q = %q, want %q", tc.script, got, tc.command)
+			}
+		})
 	}
 }
 
@@ -90,9 +180,13 @@ func TestRootPackageScriptsExposeSharedCodegenEntryPoints(t *testing.T) {
 		script  string
 		command string
 	}{
-		{name: "ShouldExposeCodegenAsTheRepoLevelCodegenEntryPoint", script: "codegen", command: "make codegen"},
 		{
-			name:    "ShouldExposeCodegenCheckAsTheRepoLevelCodegenCheckEntryPoint",
+			name:    "Should expose codegen as the repo level codegen entry point",
+			script:  "codegen",
+			command: "make codegen",
+		},
+		{
+			name:    "Should expose codegen-check as the repo level codegen check entry point",
 			script:  "codegen-check",
 			command: "make codegen-check",
 		},
@@ -115,20 +209,46 @@ func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) 
 	repoRoot := repoRoot(t)
 	pkg := readPackageJSON(t, filepath.Join(repoRoot, WebDir, "package.json"))
 
-	if got := pkg.Scripts["test:e2e"]; got != "bun run test:e2e:daemon-served" {
-		t.Fatalf("web package test:e2e = %q, want daemon-served wrapper", got)
+	tests := []struct {
+		name    string
+		script  string
+		command string
+	}{
+		{
+			name:    "Should route web e2e through the daemon-served wrapper",
+			script:  "test:e2e",
+			command: "bun run test:e2e:daemon-served",
+		},
+		{
+			name:    "Should run codegen-check before daemon-served browser tests",
+			script:  DaemonServedWebScript,
+			command: "bun run codegen-check && bun run test:e2e:daemon-served:raw",
+		},
+		{
+			name:    "Should keep nightly specs out of daemon-served browser tests",
+			script:  "test:e2e:daemon-served:raw",
+			command: "playwright test --grep-invert @nightly",
+		},
+		{
+			name:    "Should run codegen-check before nightly browser tests",
+			script:  NightlyWebScript,
+			command: "bun run codegen-check && bun run test:e2e:nightly:raw",
+		},
+		{
+			name:    "Should allow nightly browser lane to pass with no tests",
+			script:  "test:e2e:nightly:raw",
+			command: "playwright test --grep @nightly --pass-with-no-tests",
+		},
 	}
-	if got := pkg.Scripts[DaemonServedWebScript]; got != "bun run codegen-check && bun run test:e2e:daemon-served:raw" {
-		t.Fatalf("web package daemon-served script = %q", got)
-	}
-	if got := pkg.Scripts["test:e2e:daemon-served:raw"]; got != "playwright test --grep-invert @nightly" {
-		t.Fatalf("web package daemon-served raw script = %q", got)
-	}
-	if got := pkg.Scripts[NightlyWebScript]; got != "bun run codegen-check && bun run test:e2e:nightly:raw" {
-		t.Fatalf("web package nightly script = %q", got)
-	}
-	if got := pkg.Scripts["test:e2e:nightly:raw"]; got != "playwright test --grep @nightly --pass-with-no-tests" {
-		t.Fatalf("web package nightly raw script = %q", got)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pkg.Scripts[tc.script]; got != tc.command {
+				t.Fatalf("web package script %q = %q, want %q", tc.script, got, tc.command)
+			}
+		})
 	}
 }
 
@@ -144,24 +264,32 @@ func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) 
 		command string
 	}{
 		{
-			name:    "ShouldRouteCodegenThroughTheSharedRepoEntryPoint",
+			name:    "Should route codegen through the shared repo entry point",
 			script:  "codegen",
 			command: "bun run --cwd .. codegen",
 		},
 		{
-			name:    "ShouldRouteCodegenCheckThroughTheSharedRepoEntryPoint",
+			name:    "Should route codegen-check through the shared repo entry point",
 			script:  "codegen-check",
 			command: "bun run --cwd .. codegen-check",
 		},
-		{name: "ShouldRunCodegenBeforeDev", script: "dev", command: "bun run codegen && bun run dev:raw"},
 		{
-			name:    "ShouldRunCodegenCheckBeforeBuild",
+			name:    "Should run codegen before dev",
+			script:  "dev",
+			command: "bun run codegen && bun run dev:raw",
+		},
+		{
+			name:    "Should run codegen-check before build",
 			script:  "build",
 			command: "bun run codegen-check && bun run build:raw",
 		},
-		{name: "ShouldRunCodegenCheckBeforeTest", script: "test", command: "bun run codegen-check && bun run test:raw"},
 		{
-			name:    "ShouldRunCodegenCheckBeforeTypecheck",
+			name:    "Should run codegen-check before test",
+			script:  "test",
+			command: "bun run codegen-check && bun run test:raw",
+		},
+		{
+			name:    "Should run codegen-check before typecheck",
 			script:  "typecheck",
 			command: "bun run codegen-check && bun run typecheck:raw",
 		},
@@ -176,6 +304,111 @@ func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) 
 			}
 		})
 	}
+}
+
+func mageTargetNames(t *testing.T, path string) map[string]bool {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parser.ParseFile(%q) error = %v", path, err)
+	}
+
+	targets := make(map[string]bool)
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || !isMageTargetFunction(fn) {
+			continue
+		}
+		targets[mageTargetName(fn.Name.Name)] = true
+	}
+	return targets
+}
+
+func runRepoCommand(t *testing.T, repoRoot string, args ...string) string {
+	t.Helper()
+	if len(args) == 0 {
+		t.Fatal("runRepoCommand requires a command")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Dir = repoRoot
+	output, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		t.Fatalf("%s timed out: %v\n%s", strings.Join(args, " "), ctx.Err(), string(output))
+	}
+	if err != nil {
+		t.Fatalf("%s error = %v\n%s", strings.Join(args, " "), err, string(output))
+	}
+	return string(output)
+}
+
+func isMageTargetFunction(fn *ast.FuncDecl) bool {
+	if fn.Recv != nil || !fn.Name.IsExported() || fn.Type.Params.NumFields() != 0 {
+		return false
+	}
+	if fn.Type.Results == nil || len(fn.Type.Results.List) != 1 {
+		return false
+	}
+	result, ok := fn.Type.Results.List[0].Type.(*ast.Ident)
+	return ok && result.Name == "error"
+}
+
+func mageTargetName(name string) string {
+	if name == "" {
+		return ""
+	}
+	return strings.ToLower(name[:1]) + name[1:]
+}
+
+func makeTargetRecipes(t *testing.T, path string) map[string]string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+
+	recipes := make(map[string]string)
+	var currentTarget string
+	var currentRecipe strings.Builder
+	flush := func() {
+		if currentTarget == "" {
+			return
+		}
+		recipes[currentTarget] = strings.TrimSpace(currentRecipe.String())
+		currentTarget = ""
+		currentRecipe.Reset()
+	}
+
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if strings.HasPrefix(line, "\t") {
+			if currentTarget != "" {
+				currentRecipe.WriteString(strings.TrimSpace(line))
+				currentRecipe.WriteByte('\n')
+			}
+			continue
+		}
+
+		flush()
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		colon := strings.Index(trimmed, ":")
+		if colon <= 0 {
+			continue
+		}
+		target := trimmed[:colon]
+		if strings.ContainsAny(target, " \t=") {
+			continue
+		}
+		currentTarget = target
+	}
+	flush()
+	return recipes
 }
 
 func repoRoot(t *testing.T) string {
@@ -201,19 +434,4 @@ func readPackageJSON(t *testing.T, path string) packageJSON {
 		t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
 	}
 	return pkg
-}
-
-func runCommand(t *testing.T, dir, name string, args ...string) string {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%s %s failed: %v\n%s", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-	}
-	return string(output)
 }

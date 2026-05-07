@@ -1,6 +1,7 @@
 package bridgesdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -43,12 +44,21 @@ type RuntimeConfig struct {
 type Runtime struct {
 	config RuntimeConfig
 
-	mu      sync.RWMutex
-	peer    *Peer
-	session *Session
+	mu           sync.RWMutex
+	peer         *Peer
+	session      *Session
+	initializing bool
 
-	shutdownOnce sync.Once
+	shutdownState runtimeShutdownState
 }
+
+type runtimeShutdownState uint8
+
+const (
+	runtimeShutdownIdle runtimeShutdownState = iota
+	runtimeShutdownRunning
+	runtimeShutdownSucceeded
+)
 
 // Session captures the negotiated provider runtime session state.
 type Session struct {
@@ -256,15 +266,17 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.session != nil {
+	if r.session != nil || r.initializing {
+		r.mu.Unlock()
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInternal, "Internal error", map[string]string{
 			"error": "provider runtime already initialized",
 		})
 	}
+	peer := r.peer
+	r.initializing = true
+	r.mu.Unlock()
 
-	host := NewHostAPIClient(r.peer)
+	host := NewHostAPIClient(peer)
 	cache := NewInstanceCache(request.Runtime.Bridge)
 	response := r.initializeResponse(request)
 	session := &Session{
@@ -277,11 +289,17 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 
 	if r.config.Initialize != nil {
 		if err := r.config.Initialize(ctx, session); err != nil {
+			r.mu.Lock()
+			r.initializing = false
+			r.mu.Unlock()
 			return nil, err
 		}
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.session = session
+	r.initializing = false
 	return response, nil
 }
 
@@ -333,23 +351,53 @@ func (r *Runtime) handleShutdown(ctx context.Context, raw json.RawMessage) (any,
 	}
 
 	var request subprocess.ShutdownRequest
-	if strings.TrimSpace(string(raw)) != "" && string(raw) != "null" {
+	trimmedRaw := bytes.TrimSpace(raw)
+	if len(trimmedRaw) > 0 && !bytes.Equal(trimmedRaw, []byte("null")) {
 		if err := decodeParams(raw, &request); err != nil {
 			return nil, err
 		}
 	}
 
-	var shutdownErr error
-	r.shutdownOnce.Do(func() {
+	shouldRun, err := r.beginShutdown()
+	if err != nil {
+		return nil, err
+	}
+	if shouldRun {
+		var shutdownErr error
 		if r.config.Shutdown != nil {
 			shutdownErr = r.config.Shutdown(ctx, session, request)
 		}
-	})
-	if shutdownErr != nil {
-		return nil, shutdownErr
+		r.completeShutdown(shutdownErr)
+		if shutdownErr != nil {
+			return nil, shutdownErr
+		}
 	}
 
 	return subprocess.ShutdownResponse{Acknowledged: true}, nil
+}
+
+func (r *Runtime) beginShutdown() (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch r.shutdownState {
+	case runtimeShutdownSucceeded:
+		return false, nil
+	case runtimeShutdownRunning:
+		return false, subprocess.NewRPCError(bridgeSDKRPCCodeShutdownRunning, "Shutdown running", nil)
+	default:
+		r.shutdownState = runtimeShutdownRunning
+		return true, nil
+	}
+}
+
+func (r *Runtime) completeShutdown(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err != nil {
+		r.shutdownState = runtimeShutdownIdle
+		return
+	}
+	r.shutdownState = runtimeShutdownSucceeded
 }
 
 func (r *Runtime) requireSession() (*Session, error) {
@@ -388,7 +436,8 @@ func (r *Runtime) initializeResponse(request subprocess.InitializeRequest) subpr
 }
 
 func decodeParams(raw json.RawMessage, dest any) error {
-	if strings.TrimSpace(string(raw)) == "" || string(raw) == "null" {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		raw = json.RawMessage("{}")
 	}
 	if err := json.Unmarshal(raw, dest); err != nil {

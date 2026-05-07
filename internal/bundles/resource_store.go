@@ -150,7 +150,8 @@ func defaultBundleResourceActor() resources.MutationActor {
 }
 
 func (s *ResourceStore) CreateBundleActivation(ctx context.Context, activation Activation) error {
-	if err := activation.Validate(); err != nil {
+	activation, err := activation.Validated()
+	if err != nil {
 		return err
 	}
 	if activation.CreatedAt.IsZero() {
@@ -159,7 +160,7 @@ func (s *ResourceStore) CreateBundleActivation(ctx context.Context, activation A
 	if activation.UpdatedAt.IsZero() {
 		activation.UpdatedAt = activation.CreatedAt
 	}
-	_, err := s.activations.Put(ctx, s.actor, resources.Draft[ActivationResourceSpec]{
+	_, err = s.activations.Put(ctx, s.actor, resources.Draft[ActivationResourceSpec]{
 		ID:              strings.TrimSpace(activation.ID),
 		Scope:           resourceScopeForActivation(activation),
 		ExpectedVersion: 0,
@@ -172,7 +173,8 @@ func (s *ResourceStore) CreateBundleActivation(ctx context.Context, activation A
 }
 
 func (s *ResourceStore) UpdateBundleActivation(ctx context.Context, activation Activation) error {
-	if err := activation.Validate(); err != nil {
+	activation, err := activation.Validated()
+	if err != nil {
 		return err
 	}
 	current, err := s.activations.Get(ctx, s.actor, strings.TrimSpace(activation.ID))

@@ -127,7 +127,7 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 		http.MethodPost,
 		"/bridges",
 		[]byte(
-			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
 		),
 	)
 	if createResp.Code != http.StatusCreated || !createCalled {
@@ -414,7 +414,7 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 				method: http.MethodPost,
 				path:   "/bridges",
 				body: []byte(
-					`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true}}`,
+					`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"routing_policy":{"include_peer":true}}`,
 				),
 			},
 			{method: http.MethodGet, path: "/bridges/brg-core"},
@@ -533,6 +533,50 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
+	t.Run("create rejects client-owned operational state fields", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			CreateInstanceFn: func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
+				t.Fatal("CreateInstance() should not be called when create payload includes operational state")
+				return nil, nil
+			},
+		})
+
+		tests := []struct {
+			name string
+			body []byte
+		}{
+			{
+				name: "Should reject status",
+				body: []byte(
+					`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true}}`,
+				),
+			},
+			{
+				name: "Should reject degradation",
+				body: []byte(
+					`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"degradation":{"reason":"rate_limited"},"routing_policy":{"include_peer":true}}`,
+				),
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				resp := performRequest(t, engine, http.MethodPost, "/bridges", tt.body)
+				if resp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"create status = %d, want %d body=%s",
+						resp.Code,
+						http.StatusBadRequest,
+						resp.Body.String(),
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("create maps service errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -548,7 +592,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 			http.MethodPost,
 			"/bridges",
 			[]byte(
-				`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true}}`,
+				`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"routing_policy":{"include_peer":true}}`,
 			),
 		)
 		if resp.Code != http.StatusConflict {
@@ -1092,7 +1136,7 @@ func TestBridgeHandlersMutationReturnsBestEffortPayloadWhenHealthLookupFails(t *
 		http.MethodPost,
 		"/bridges",
 		[]byte(
-			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true}}`,
+			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"routing_policy":{"include_peer":true}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {

@@ -245,7 +245,6 @@ describe("createBridge", () => {
         include_thread: true,
       },
       scope: "workspace" as const,
-      status: "starting" as const,
       workspace_id: "ws_test",
     };
 
@@ -274,7 +273,6 @@ describe("createBridge", () => {
           include_thread: true,
         },
         scope: "workspace",
-        status: "starting",
         workspace_id: "ws_test",
       })
     ).rejects.toThrow("Failed to create bridge: 400");

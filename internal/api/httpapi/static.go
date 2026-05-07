@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"io"
 	"io/fs"
 	"net/http"
 	"path"
@@ -59,12 +60,28 @@ func (h *Handlers) resolveStaticAsset(requestPath string) (string, bool) {
 }
 
 func (h *Handlers) serveAsset(c *gin.Context, asset string) {
-	data, err := fs.ReadFile(h.staticFS, strings.TrimPrefix(asset, "/"))
+	cleanAsset := strings.TrimPrefix(asset, "/")
+	file, err := h.staticFS.Open(cleanAsset)
 	if err != nil {
 		respondNotFound(c)
 		return
 	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			h.Logger.Debug("httpapi: close static asset failed", "asset", cleanAsset, "error", err)
+		}
+	}()
 
+	if seeker, ok := file.(io.ReadSeeker); ok {
+		http.ServeContent(c.Writer, c.Request, path.Base(asset), h.StartedAt, seeker)
+		return
+	}
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		respondNotFound(c)
+		return
+	}
 	http.ServeContent(c.Writer, c.Request, path.Base(asset), h.StartedAt, bytes.NewReader(data))
 }
 

@@ -26,7 +26,10 @@ func BenchmarkStructFieldsPromptPayload(b *testing.B) {
 	payloadType := reflect.TypeFor[hooks.PromptPayload]()
 
 	for b.Loop() {
-		gen := newGenerator()
+		gen, err := newGenerator()
+		if err != nil {
+			b.Fatalf("newGenerator() error = %v", err)
+		}
 		gen.prepare()
 
 		fields, err := gen.structFields(payloadType)

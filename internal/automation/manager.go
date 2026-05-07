@@ -2176,7 +2176,10 @@ func (m *Manager) fireMemoryConsolidated(ctx context.Context, event MemoryConsol
 
 func mergedRuntimeContext(parent context.Context, runtimeCtx context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {
-		parent = context.Background()
+		if runtimeCtx == nil {
+			return nil, func() {}
+		}
+		return context.WithCancel(runtimeCtx)
 	}
 	if runtimeCtx == nil {
 		return parent, func() {}

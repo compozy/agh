@@ -18,86 +18,88 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
-const testWrapperPIDFileEnvKey = "AGH_TEST_WRAPPER_PID_FILE"
-
 func TestStopTerminatesWrappedProcessTree(t *testing.T) {
-	t.Parallel()
+	t.Run("Should stop wrapped runtime process trees", func(t *testing.T) {
+		t.Parallel()
 
-	driver := New(WithStopTimeout(100 * time.Millisecond))
-	pidFile := filepath.Join(t.TempDir(), "runtime-child.pid")
+		driver := New(WithStopTimeout(100 * time.Millisecond))
+		pidFile := filepath.Join(t.TempDir(), "runtime-child.pid")
 
-	proc := startHelperProcess(t, driver, "", "", StartOpts{
-		Command: helperWrapperCommand(t),
-		Env: append(
-			helperEnv("stream_updates", ""),
-			testWrapperEnvKey+"=1",
-			testWrapperPIDFileEnvKey+"="+pidFile,
-		),
+		proc := startHelperProcess(t, driver, "", "", StartOpts{
+			Command: helperWrapperCommand(t),
+			Env: append(
+				helperEnv("stream_updates", ""),
+				testWrapperEnvKey+"=1",
+				testWrapperPIDFileEnvKey+"="+pidFile,
+			),
+		})
+
+		childPID := waitForWrapperChildPID(t, pidFile)
+
+		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		startedAt := time.Now()
+		if err := driver.Stop(stopCtx, proc); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if elapsed := time.Since(startedAt); elapsed > time.Second {
+			t.Fatalf("Stop() elapsed = %v, want <= 1s", elapsed)
+		}
+
+		waitForProcessExit(t, childPID, time.Second)
 	})
-
-	childPID := waitForWrapperChildPID(t, pidFile)
-
-	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	startedAt := time.Now()
-	if err := driver.Stop(stopCtx, proc); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if elapsed := time.Since(startedAt); elapsed > time.Second {
-		t.Fatalf("Stop() elapsed = %v, want <= 1s", elapsed)
-	}
-
-	waitForProcessExit(t, childPID, time.Second)
 }
 
 func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
-	t.Parallel()
+	t.Run("Should kill wrapped terminal process trees", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
-	pidFile := filepath.Join(t.TempDir(), "terminal-child.pid")
+		proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+		pidFile := filepath.Join(t.TempDir(), "terminal-child.pid")
 
-	createResult, reqErr := proc.handleInbound(
-		context.Background(),
-		acpsdk.ClientMethodTerminalCreate,
-		mustMarshalJSON(acpsdk.CreateTerminalRequest{
-			SessionId: "sess-direct",
-			Command:   "sh",
-			Args:      wrappedCommandArgs("sleep", "30"),
-			Cwd:       acpsdk.Ptr(proc.Cwd),
-			Env: []acpsdk.EnvVariable{
-				{Name: testWrapperPIDFileEnvKey, Value: pidFile},
-			},
-		}),
-	)
-	if reqErr != nil {
-		t.Fatalf("handleInbound(create wrapped terminal) error = %v", reqErr)
-	}
-	createResponse, ok := createResult.(acpsdk.CreateTerminalResponse)
-	if !ok {
-		t.Fatalf("handleInbound(create wrapped terminal) type = %T, want CreateTerminalResponse", createResult)
-	}
+		createResult, reqErr := proc.handleInbound(
+			context.Background(),
+			acpsdk.ClientMethodTerminalCreate,
+			mustMarshalJSON(acpsdk.CreateTerminalRequest{
+				SessionId: "sess-direct",
+				Command:   "sh",
+				Args:      wrappedCommandArgs("sleep", "30"),
+				Cwd:       acpsdk.Ptr(proc.Cwd),
+				Env: []acpsdk.EnvVariable{
+					{Name: testWrapperPIDFileEnvKey, Value: pidFile},
+				},
+			}),
+		)
+		if reqErr != nil {
+			t.Fatalf("handleInbound(create wrapped terminal) error = %v", reqErr)
+		}
+		createResponse, ok := createResult.(acpsdk.CreateTerminalResponse)
+		if !ok {
+			t.Fatalf("handleInbound(create wrapped terminal) type = %T, want CreateTerminalResponse", createResult)
+		}
 
-	childPID := waitForWrapperChildPID(t, pidFile)
+		childPID := waitForWrapperChildPID(t, pidFile)
 
-	if _, reqErr := proc.handleInbound(
-		context.Background(),
-		acpsdk.ClientMethodTerminalKill,
-		mustMarshalJSON(acpsdk.KillTerminalRequest{
-			SessionId:  "sess-direct",
-			TerminalId: createResponse.TerminalId,
-		}),
-	); reqErr != nil {
-		t.Fatalf("handleInbound(kill wrapped terminal) error = %v", reqErr)
-	}
+		if _, reqErr := proc.handleInbound(
+			context.Background(),
+			acpsdk.ClientMethodTerminalKill,
+			mustMarshalJSON(acpsdk.KillTerminalRequest{
+				SessionId:  "sess-direct",
+				TerminalId: createResponse.TerminalId,
+			}),
+		); reqErr != nil {
+			t.Fatalf("handleInbound(kill wrapped terminal) error = %v", reqErr)
+		}
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if _, err := proc.terminals.wait(waitCtx, createResponse.TerminalId); err != nil {
-		t.Fatalf("terminals.wait() error = %v", err)
-	}
+		waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if _, err := proc.terminals.wait(waitCtx, createResponse.TerminalId); err != nil {
+			t.Fatalf("terminals.wait() error = %v", err)
+		}
 
-	waitForProcessExit(t, childPID, time.Second)
+		waitForProcessExit(t, childPID, time.Second)
+	})
 }
 
 func helperWrapperCommand(t *testing.T) string {

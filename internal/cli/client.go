@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -4061,98 +4059,7 @@ func setAgentIdentityHeaders(req *http.Request, credentials agentidentity.Creden
 }
 
 func decodeSSE(ctx context.Context, body io.Reader, handler SSEHandler) error {
-	if ctx == nil {
-		return fmt.Errorf("sse: context is required")
-	}
-	if cliReaderIsNil(body) {
-		return fmt.Errorf("sse: body is required")
-	}
-	if handler == nil {
-		return fmt.Errorf("sse: handler is required")
-	}
-
-	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-
-	event := SSEEvent{}
-	dataLines := make([]string, 0, 4)
-	emit := func() error {
-		if event.ID == "" && event.Event == "" && len(dataLines) == 0 {
-			return nil
-		}
-		if len(dataLines) > 0 {
-			event.Data = json.RawMessage(strings.Join(dataLines, "\n"))
-		}
-		err := handler(event)
-		event = SSEEvent{}
-		dataLines = dataLines[:0]
-		return err
-	}
-
-	for scanner.Scan() {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		if decodeSSELine(scanner.Text(), &event, &dataLines) {
-			err := emit()
-			if errors.Is(err, errStopSSE) {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("sse: read stream: %w", err)
-	}
-
-	err := emit()
-	if errors.Is(err, errStopSSE) {
-		return nil
-	}
-	return err
-}
-
-func decodeSSELine(line string, event *SSEEvent, dataLines *[]string) bool {
-	if line == "" {
-		return true
-	}
-	if strings.HasPrefix(line, ":") {
-		return false
-	}
-
-	field, value, found := strings.Cut(line, ":")
-	if !found {
-		return false
-	}
-
-	switch field {
-	case "id":
-		event.ID = strings.TrimPrefix(value, " ")
-	case "event":
-		event.Event = strings.TrimPrefix(value, " ")
-	case "data":
-		*dataLines = append(*dataLines, strings.TrimPrefix(value, " "))
-	}
-
-	return false
-}
-
-func cliReaderIsNil(reader io.Reader) bool {
-	if reader == nil {
-		return true
-	}
-
-	value := reflect.ValueOf(reader)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
+	return sse.Decode(ctx, body, handler)
 }
 
 func sessionListValues(query SessionListQuery) url.Values {

@@ -158,7 +158,7 @@ type SessionEventsParams struct {
 	TurnID    string    `json:"turn_id,omitempty"`
 	Limit     int       `json:"limit,omitempty"`
 	Offset    int64     `json:"offset,omitempty"`
-	Since     time.Time `json:"since"`
+	Since     time.Time `json:"since,omitzero"`
 }
 
 // SessionSoulRefreshParams refreshes one session's Soul snapshot through managed CAS.
@@ -219,7 +219,7 @@ type ObserveEventsParams struct {
 	SessionID string    `json:"session_id,omitempty"`
 	AgentName string    `json:"agent_name,omitempty"`
 	Type      string    `json:"type,omitempty"`
-	Since     time.Time `json:"since"`
+	Since     time.Time `json:"since,omitzero"`
 	Limit     int       `json:"limit,omitempty"`
 }
 

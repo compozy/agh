@@ -685,6 +685,9 @@ func (m *Manager) publishGreetWithAudit(ctx context.Context, sessionID string, s
 	if err != nil {
 		return err
 	}
+	if _, _, err := m.writeConversationMessage(ctx, sessionID, AuditDirectionSent, result.Envelope); err != nil {
+		return fmt.Errorf("network: persist greet presence: %w", err)
+	}
 	m.recordAuditSent(ctx, sessionID, result.Envelope)
 	return nil
 }
@@ -995,7 +998,7 @@ func (m *Manager) writeConversationMessage(
 	if ctx == nil {
 		return store.NetworkConversationWriteResult{}, false, errors.New("network: conversation context is required")
 	}
-	if m == nil || m.conversations == nil || !isConversationKind(envelope.Kind) {
+	if m == nil || m.conversations == nil || !isTimelineKind(envelope.Kind) {
 		return store.NetworkConversationWriteResult{}, false, nil
 	}
 	entry, ok, err := normalizeTimelineMessageEntry(sessionID, direction, envelope, envelopeRecordTime(envelope, m.now))
@@ -1013,6 +1016,15 @@ func (m *Manager) writeConversationMessage(
 		m.observeConversationWrite(ctx, entry, result)
 	}
 	return result, true, nil
+}
+
+func isTimelineKind(kind Kind) bool {
+	switch kind {
+	case KindGreet, KindWhois, KindSay, KindCapability, KindReceipt, KindTrace:
+		return true
+	default:
+		return false
+	}
 }
 
 func envelopeRecordTime(envelope Envelope, now func() time.Time) time.Time {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -192,6 +193,92 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
 	}
 	if got, want := servers["beta"].SecretEnv["TOKEN"], "env:BETA_TOKEN"; got != want {
 		t.Fatalf("servers[beta].SecretEnv[TOKEN] = %q, want %q", got, want)
+	}
+}
+
+func TestPutMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink permissions vary on Windows")
+	}
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
+	}
+
+	actualPath := filepath.Join(t.TempDir(), "actual-mcp.json")
+	before := `{"mcpServers":{"leaked":{"command":"secret-command"}}}`
+	if err := os.WriteFile(actualPath, []byte(before), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(actual mcp.json) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(target.path), 0o700); err != nil {
+		t.Fatalf("os.MkdirAll(mcp dir) error = %v", err)
+	}
+	if err := os.Symlink(actualPath, target.path); err != nil {
+		t.Fatalf("os.Symlink(mcp.json) error = %v", err)
+	}
+
+	_, err = PutMCPSidecarServer(homePaths, "", target, MCPServer{Name: "alpha", Command: "alpha"})
+	if err == nil {
+		t.Fatal("PutMCPSidecarServer(symlink) error = nil, want symlink rejection")
+	}
+	if strings.Contains(err.Error(), "secret-command") {
+		t.Fatalf("PutMCPSidecarServer(symlink) error leaked target content: %v", err)
+	}
+	after, err := os.ReadFile(actualPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(actual mcp.json after put) error = %v", err)
+	}
+	if string(after) != before {
+		t.Fatalf("symlink put changed target mcp.json\nbefore:\n%s\nafter:\n%s", before, string(after))
+	}
+}
+
+func TestDeleteMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink permissions vary on Windows")
+	}
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
+	}
+
+	actualPath := filepath.Join(t.TempDir(), "actual-mcp.json")
+	before := `{"mcpServers":{"leaked":{"command":"secret-command"}}}`
+	if err := os.WriteFile(actualPath, []byte(before), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(actual mcp.json) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(target.path), 0o700); err != nil {
+		t.Fatalf("os.MkdirAll(mcp dir) error = %v", err)
+	}
+	if err := os.Symlink(actualPath, target.path); err != nil {
+		t.Fatalf("os.Symlink(mcp.json) error = %v", err)
+	}
+
+	_, _, err = DeleteMCPSidecarServer(homePaths, "", target, "leaked")
+	if err == nil {
+		t.Fatal("DeleteMCPSidecarServer(symlink) error = nil, want symlink rejection")
+	}
+	if strings.Contains(err.Error(), "secret-command") {
+		t.Fatalf("DeleteMCPSidecarServer(symlink) error leaked target content: %v", err)
+	}
+	after, err := os.ReadFile(actualPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(actual mcp.json after delete) error = %v", err)
+	}
+	if string(after) != before {
+		t.Fatalf("symlink delete changed target mcp.json\nbefore:\n%s\nafter:\n%s", before, string(after))
 	}
 }
 

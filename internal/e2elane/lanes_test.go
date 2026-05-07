@@ -18,30 +18,30 @@ func TestPlanForLaneMapsRuntimeWebCombinedAndNightlySlices(t *testing.T) {
 		wantNightly bool
 	}{
 		{
-			name:        "runtime lane keeps daemon and transport parity only",
+			name:        "Should keep daemon and transport parity in the runtime lane",
 			lane:        LaneRuntime,
-			wantGo:      runtimeGoSuites,
+			wantGo:      expectedRuntimeGoSuites(),
 			wantScripts: nil,
 		},
 		{
-			name:        "web lane runs daemon served playwright only",
+			name:        "Should run daemon-served Playwright only in the web lane",
 			lane:        LaneWeb,
 			wantGo:      nil,
-			wantScripts: daemonServedWebSuites,
+			wantScripts: expectedDaemonServedWebSuites(),
 			wantDaemon:  true,
 		},
 		{
-			name:        "combined lane joins runtime and browser lanes",
+			name:        "Should join runtime and browser suites in the combined lane",
 			lane:        LaneCombined,
-			wantGo:      runtimeGoSuites,
-			wantScripts: daemonServedWebSuites,
+			wantGo:      expectedRuntimeGoSuites(),
+			wantScripts: expectedDaemonServedWebSuites(),
 			wantDaemon:  true,
 		},
 		{
-			name:        "nightly lane adds credentialed runtime and nightly browser slice",
+			name:        "Should add credentialed runtime and browser suites in the nightly lane",
 			lane:        LaneNightly,
-			wantGo:      append(append([]GoSuite(nil), runtimeGoSuites...), nightlyGoSuites...),
-			wantScripts: append(append([]ScriptSuite(nil), daemonServedWebSuites...), nightlyWebSuites...),
+			wantGo:      append(expectedRuntimeGoSuites(), expectedNightlyGoSuites()...),
+			wantScripts: append(expectedDaemonServedWebSuites(), expectedNightlyWebSuites()...),
 			wantDaemon:  true,
 			wantNightly: true,
 		},
@@ -87,7 +87,7 @@ func TestPlanForLaneKeepsCredentialedNightlyOutOfPRRequiredEntryPoints(t *testin
 	t.Parallel()
 
 	for _, lane := range []Lane{LaneRuntime, LaneWeb, LaneCombined} {
-		t.Run(string(lane), func(t *testing.T) {
+		t.Run("Should keep credentialed nightly suites out of "+string(lane), func(t *testing.T) {
 			t.Parallel()
 
 			plan, err := PlanForLane(lane)
@@ -113,57 +113,121 @@ func TestPlanForLaneKeepsCredentialedNightlyOutOfPRRequiredEntryPoints(t *testin
 	}
 }
 
-func TestLanePatternsKeepNightlyDaemonScenariosOutOfDefaultRuntimeLane(t *testing.T) {
+func TestLaneRunPatternsCompileAndMatchRepresentativeTests(t *testing.T) {
 	t.Parallel()
 
-	runtimePattern := regexp.MustCompile(RuntimeE2EPattern)
-	nightlyPattern := regexp.MustCompile(NightlyRuntimeE2EPattern)
+	tests := []struct {
+		name    string
+		pattern string
+		matches []string
+		rejects []string
+	}{
+		{
+			name:    "Should match default daemon e2e tests only with the runtime daemon pattern",
+			pattern: RuntimeE2EPattern,
+			matches: []string{"TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun"},
+			rejects: []string{"TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel"},
+		},
+		{
+			name:    "Should match nightly daemon tests only with the nightly daemon pattern",
+			pattern: NightlyRuntimeE2EPattern,
+			matches: []string{"TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel"},
+			rejects: []string{"TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun"},
+		},
+		{
+			name:    "Should match HTTP transport e2e tests with the HTTP transport pattern",
+			pattern: HTTPTransportE2EPattern,
+			matches: []string{"TestHTTPTransportPromptStream"},
+			rejects: []string{"TestUDSTransportPromptStream"},
+		},
+		{
+			name:    "Should match UDS transport e2e tests with the UDS transport pattern",
+			pattern: UDSTransportE2EPattern,
+			matches: []string{"TestUDSTransportPromptStream"},
+			rejects: []string{"TestHTTPTransportPromptStream"},
+		},
+		{
+			name:    "Should match runtime harness tests with the harness pattern",
+			pattern: HarnessRuntimeE2EPattern,
+			matches: []string{"TestStartRuntimeHarnessWithDaemonBinary"},
+			rejects: []string{"TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun"},
+		},
+		{
+			name:    "Should match credentialed Daytona nightly tests with the Daytona pattern",
+			pattern: DaytonaNightlyE2EPattern,
+			matches: []string{
+				"TestDaytonaProviderIntegrationFullLifecycle",
+				"TestDaytonaLauncherTransportValidation",
+				"TestDaytonaSSHNonPTYValidation",
+			},
+			rejects: []string{"TestDaytonaUnlistedScenario"},
+		},
+	}
 
-	if runtimePattern.MatchString("TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel") {
-		t.Fatal("runtime pattern matched nightly daemon test name, want isolation")
-	}
-	if !nightlyPattern.MatchString("TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel") {
-		t.Fatal("nightly pattern did not match nightly daemon test name")
-	}
-	if nightlyPattern.MatchString("TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun") {
-		t.Fatal("nightly pattern matched default daemon E2E test name, want isolation")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			compiled, err := regexp.Compile(tt.pattern)
+			if err != nil {
+				t.Fatalf("regexp.Compile(%q) error = %v", tt.pattern, err)
+			}
+			for _, name := range tt.matches {
+				if !compiled.MatchString(name) {
+					t.Fatalf("pattern %q did not match representative test %q", tt.pattern, name)
+				}
+			}
+			for _, name := range tt.rejects {
+				if compiled.MatchString(name) {
+					t.Fatalf("pattern %q matched excluded test %q", tt.pattern, name)
+				}
+			}
+		})
 	}
 }
 
 func TestPlanForLaneRejectsUnknownLane(t *testing.T) {
 	t.Parallel()
 
-	if _, err := PlanForLane("mystery"); err == nil {
-		t.Fatal("PlanForLane() error = nil, want non-nil")
-	}
+	t.Run("Should reject unknown lanes", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := PlanForLane("mystery"); err == nil {
+			t.Fatal("PlanForLane() error = nil, want non-nil")
+		}
+	})
 }
 
 func TestPlanForLaneReturnsIndependentGoSuitePackageSlices(t *testing.T) {
 	t.Parallel()
 
-	plan, err := PlanForLane(LaneRuntime)
-	if err != nil {
-		t.Fatalf("PlanForLane(%q) error = %v", LaneRuntime, err)
-	}
-	if len(plan.GoSuites) == 0 || len(plan.GoSuites[0].Packages) == 0 {
-		t.Fatalf("plan.GoSuites = %#v, want at least one package entry", plan.GoSuites)
-	}
+	t.Run("Should return independent Go suite package slices", func(t *testing.T) {
+		t.Parallel()
 
-	plan.GoSuites[0].Packages[0] = "./mutated"
+		plan, err := PlanForLane(LaneRuntime)
+		if err != nil {
+			t.Fatalf("PlanForLane(%q) error = %v", LaneRuntime, err)
+		}
+		if len(plan.GoSuites) == 0 || len(plan.GoSuites[0].Packages) == 0 {
+			t.Fatalf("plan.GoSuites = %#v, want at least one package entry", plan.GoSuites)
+		}
 
-	freshPlan, err := PlanForLane(LaneRuntime)
-	if err != nil {
-		t.Fatalf("PlanForLane(%q) fresh error = %v", LaneRuntime, err)
-	}
-	if got, want := freshPlan.GoSuites[0].Packages[0], "./internal/daemon"; got != want {
-		t.Fatalf("freshPlan.GoSuites[0].Packages[0] = %q, want %q", got, want)
-	}
+		plan.GoSuites[0].Packages[0] = "./mutated"
+
+		freshPlan, err := PlanForLane(LaneRuntime)
+		if err != nil {
+			t.Fatalf("PlanForLane(%q) fresh error = %v", LaneRuntime, err)
+		}
+		if got, want := freshPlan.GoSuites[0].Packages[0], "./internal/daemon"; got != want {
+			t.Fatalf("freshPlan.GoSuites[0].Packages[0] = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRuntimeLaneIncludesHarnessPackageCoverage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldIncludeHarnessPackageCoverageInTheRuntimeLane", func(t *testing.T) {
+	t.Run("Should include harness package coverage in the runtime lane", func(t *testing.T) {
 		t.Parallel()
 
 		plan, err := PlanForLane(LaneRuntime)
@@ -184,4 +248,31 @@ func TestRuntimeLaneIncludesHarnessPackageCoverage(t *testing.T) {
 			t.Fatalf("runtime lane suites = %#v, want internal/testutil/e2e coverage", plan.GoSuites)
 		}
 	})
+}
+
+func expectedRuntimeGoSuites() []GoSuite {
+	return []GoSuite{
+		{Packages: []string{"./internal/daemon"}, Run: "^TestDaemonE2E"},
+		{Packages: []string{"./internal/api/httpapi"}, Run: "^TestHTTPTransport"},
+		{Packages: []string{"./internal/api/udsapi"}, Run: "^TestUDSTransport"},
+		{Packages: []string{"./internal/testutil/e2e"}, Run: "^TestStartRuntimeHarness"},
+	}
+}
+
+func expectedNightlyGoSuites() []GoSuite {
+	return []GoSuite{
+		{Packages: []string{"./internal/daemon"}, Run: "^TestDaemonNightlyE2E"},
+		{
+			Packages: []string{"./internal/sandbox/daytona"},
+			Run:      "^TestDaytona(ProviderIntegrationFullLifecycle|LauncherTransportValidation|SSHNonPTYValidation)$",
+		},
+	}
+}
+
+func expectedDaemonServedWebSuites() []ScriptSuite {
+	return []ScriptSuite{{Dir: "web", Script: "test:e2e:daemon-served"}}
+}
+
+func expectedNightlyWebSuites() []ScriptSuite {
+	return []ScriptSuite{{Dir: "web", Script: "test:e2e:nightly"}}
 }

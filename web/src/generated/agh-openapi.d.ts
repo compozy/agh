@@ -12075,16 +12075,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          degradation?: {
-            message?: string;
-            /** @enum {string} */
-            reason:
-              | "auth_failed"
-              | "rate_limited"
-              | "webhook_invalid"
-              | "provider_timeout"
-              | "tenant_config_invalid";
-          } | null;
           delivery_defaults?: {
             group_id?: string;
             /** @enum {string} */
@@ -12108,8 +12098,6 @@ export interface operations {
           };
           /** @enum {string} */
           scope: "global" | "workspace";
-          /** @enum {string} */
-          status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
           workspace_id?: string;
         };
       };

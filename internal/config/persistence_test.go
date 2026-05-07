@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -61,6 +62,51 @@ enabled = true
 		if !strings.Contains(text, want) {
 			t.Fatalf("config contents missing %q\n%s", want, text)
 		}
+	}
+}
+
+func TestEditConfigOverlayRejectsSymlinkWithoutReadingTarget(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink permissions vary on Windows")
+	}
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+	}
+
+	actualPath := filepath.Join(t.TempDir(), "actual-config.toml")
+	before := "[defaults]\nagent = \"leaked-agent\"\nprovider = \"claude\"\n"
+	if err := os.WriteFile(actualPath, []byte(before), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(actual config) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(target.path), 0o700); err != nil {
+		t.Fatalf("os.MkdirAll(config dir) error = %v", err)
+	}
+	if err := os.Symlink(actualPath, target.path); err != nil {
+		t.Fatalf("os.Symlink(config) error = %v", err)
+	}
+
+	_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		return editor.SetValue([]string{"defaults", "agent"}, "general")
+	})
+	if err == nil {
+		t.Fatal("EditConfigOverlay(symlink) error = nil, want symlink rejection")
+	}
+	if strings.Contains(err.Error(), "leaked-agent") {
+		t.Fatalf("EditConfigOverlay(symlink) error leaked target content: %v", err)
+	}
+	after, err := os.ReadFile(actualPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(actual config after edit) error = %v", err)
+	}
+	if string(after) != before {
+		t.Fatalf("symlink edit changed target config\nbefore:\n%s\nafter:\n%s", before, string(after))
 	}
 }
 

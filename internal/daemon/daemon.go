@@ -1054,6 +1054,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithAgentCatalog(deps.AgentCatalog),
 		httpapi.WithModelCatalogService(deps.ModelCatalog),
 		httpapi.WithAgentContext(deps.AgentContext),
+		httpapi.WithCoordinatorConfig(deps.CoordinatorConfig),
 		httpapi.WithSoulAuthoring(deps.SoulAuthoring),
 		httpapi.WithSoulRefresher(deps.SoulRefresher),
 		httpapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
@@ -1218,7 +1219,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if err := d.startObserverRetention(runCtx); err != nil {
 		cancelRun()
 		<-signalDone
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+		shutdownCtx, cancel := daemonShutdownContext(ctx)
 		defer cancel()
 		shutdownErr := d.Shutdown(shutdownCtx)
 		return errors.Join(
@@ -1235,7 +1236,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	cancelRun()
 	<-signalDone
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	shutdownCtx, cancel := daemonShutdownContext(ctx)
 	defer cancel()
 
 	return d.Shutdown(shutdownCtx)
@@ -1244,9 +1245,16 @@ func (d *Daemon) Run(ctx context.Context) error {
 // Shutdown gracefully tears down the daemon in the required order.
 func (d *Daemon) Shutdown(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = context.TODO()
 	}
 	return d.shutdownDetached(ctx, d.detachShutdownTargets())
+}
+
+func daemonShutdownContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.TODO()
+	}
+	return context.WithTimeout(context.WithoutCancel(parent), defaultShutdownTimeout)
 }
 
 func (d *Daemon) detachShutdownTargets() shutdownTargets {
@@ -1346,7 +1354,11 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	if targets.modelCatalog != nil {
 		appendWrappedError(errs, "daemon: shutdown model catalog", targets.modelCatalog.Shutdown(ctx))
 	}
-	stopSkillsWatcher(targets.skillsCancel, targets.skillsDone)
+	appendWrappedError(
+		errs,
+		"daemon: stop skills watcher",
+		stopSkillsWatcher(ctx, targets.skillsCancel, targets.skillsDone),
+	)
 	if targets.resourceReconcile != nil {
 		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))
 	}

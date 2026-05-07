@@ -257,7 +257,9 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 		workspaceFound bool
 	)
 
-	for _, record := range c.catalog.Snapshot() {
+	c.catalog.mu.RLock()
+	defer c.catalog.mu.RUnlock()
+	for _, record := range c.catalog.records {
 		if strings.TrimSpace(record.Spec.Name) != target {
 			continue
 		}
@@ -283,10 +285,10 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	}
 
 	if workspaceFound {
-		return workspaceAgent, true
+		return c.catalog.cloneRecord(workspaceAgent), true
 	}
 	if globalFound {
-		return globalAgent, true
+		return c.catalog.cloneRecord(globalAgent), true
 	}
 	return resources.Record[aghconfig.AgentDef]{}, false
 }

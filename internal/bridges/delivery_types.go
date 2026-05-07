@@ -47,14 +47,6 @@ type DeliveryTransport interface {
 	DeliverBridge(ctx context.Context, extensionName string, req DeliveryRequest) (DeliveryAck, error)
 }
 
-// DeliveryBroker is the daemon-owned outbound delivery surface used by the
-// bridge runtime. Prompt projection registers live deliveries separately and
-// then enqueues projected events through Deliver.
-type DeliveryBroker interface {
-	Deliver(ctx context.Context, evt DeliveryEvent) error
-	Snapshot(ctx context.Context, deliveryID string) (*DeliverySnapshot, error)
-}
-
 // DeliveryProjectionEvent is the reduced session-event shape the broker needs
 // to project prompt output into delivery-oriented bridge events. It remains
 // ACP-agnostic so `internal/bridges` does not depend on runtime transport packages.

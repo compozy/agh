@@ -1268,6 +1268,38 @@ func TestBridgeRuntimeRestartInstance(t *testing.T) {
 }
 
 func TestBridgeRuntimeTransition(t *testing.T) {
+	t.Run("ShouldRejectTypedNilResourceProjectionPlanWithoutReplacingInstances", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		previous := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-typed-nil",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-typed-nil",
+			DisplayName:   "Existing",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		var plan *bridgepkg.ResourceProjectionPlan
+
+		err := runtime.ApplyBridgeResourceState(testutil.Context(t), plan)
+		if err == nil {
+			t.Fatal("ApplyBridgeResourceState(typed nil) error = nil, want plan rejection")
+		}
+		current, err := runtime.GetInstance(testutil.Context(t), previous.ID)
+		if err != nil {
+			t.Fatalf("GetInstance() error = %v", err)
+		}
+		if got, want := current.DisplayName, "Existing"; got != want {
+			t.Fatalf("GetInstance().DisplayName = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("ShouldRollBackResourceProjectionWhenReloadFails", func(t *testing.T) {
 		t.Parallel()
 

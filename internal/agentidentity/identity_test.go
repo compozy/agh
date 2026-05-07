@@ -40,7 +40,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 		wantOrigin        taskpkg.OriginKind
 	}{
 		{
-			name: "missing session id",
+			name: "Should reject missing session id",
 			credentials: Credentials{
 				AgentName: "coder",
 			},
@@ -48,7 +48,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit: ExitIdentityRequired,
 		},
 		{
-			name: "missing agent name",
+			name: "Should reject missing agent name",
 			credentials: Credentials{
 				SessionID: "sess-1",
 			},
@@ -56,7 +56,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit: ExitIdentityRequired,
 		},
 		{
-			name: "unknown session",
+			name: "Should reject unknown session",
 			credentials: Credentials{
 				SessionID: "missing",
 				AgentName: "coder",
@@ -66,7 +66,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit:  ExitIdentityInvalid,
 		},
 		{
-			name: "stopped session",
+			name: "Should reject stopped session",
 			credentials: Credentials{
 				SessionID: "sess-1",
 				AgentName: "coder",
@@ -80,7 +80,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit: ExitIdentityInvalid,
 		},
 		{
-			name: "agent mismatch",
+			name: "Should reject agent mismatch",
 			credentials: Credentials{
 				SessionID: "sess-1",
 				AgentName: "reviewer",
@@ -90,7 +90,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit: ExitIdentityInvalid,
 		},
 		{
-			name: "workspace mismatch",
+			name: "Should reject workspace mismatch",
 			credentials: Credentials{
 				SessionID: "sess-1",
 				AgentName: "coder",
@@ -101,7 +101,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit:          ExitUnauthorized,
 		},
 		{
-			name: "valid cli identity",
+			name: "Should accept valid cli identity",
 			credentials: Credentials{
 				SessionID: " sess-1 ",
 				AgentName: " coder ",
@@ -111,7 +111,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantOrigin: taskpkg.OriginKindCLI,
 		},
 		{
-			name: "valid uds identity",
+			name: "Should accept valid uds identity",
 			credentials: Credentials{
 				SessionID:   "sess-1",
 				AgentName:   "coder",
@@ -182,37 +182,45 @@ func TestErrorOutputConventionsRenderStableJSONAndJSONL(t *testing.T) {
 		Err:     ErrIdentityRequired,
 	}
 
-	jsonPayload, jsonErr := MarshalErrorJSON(err)
-	if jsonErr != nil {
-		t.Fatalf("MarshalErrorJSON() error = %v", jsonErr)
-	}
-	var jsonObject struct {
-		Error ErrorPayload `json:"error"`
-	}
-	if unmarshalErr := json.Unmarshal(jsonPayload, &jsonObject); unmarshalErr != nil {
-		t.Fatalf("json.Unmarshal(JSON) error = %v", unmarshalErr)
-	}
-	if jsonObject.Error.Code != "identity_required" || jsonObject.Error.ExitCode != ExitIdentityRequired {
-		t.Fatalf("JSON error = %#v, want stable identity error payload", jsonObject.Error)
-	}
+	t.Run("Should render stable JSON error payload", func(t *testing.T) {
+		t.Parallel()
 
-	jsonlPayload, jsonlErr := MarshalErrorJSONL(err)
-	if jsonlErr != nil {
-		t.Fatalf("MarshalErrorJSONL() error = %v", jsonlErr)
-	}
-	if strings.Contains(string(jsonlPayload), "\n") {
-		t.Fatalf("JSONL payload contains embedded newline: %q", jsonlPayload)
-	}
-	var jsonlObject struct {
-		Type  string       `json:"type"`
-		Error ErrorPayload `json:"error"`
-	}
-	if unmarshalErr := json.Unmarshal(jsonlPayload, &jsonlObject); unmarshalErr != nil {
-		t.Fatalf("json.Unmarshal(JSONL) error = %v", unmarshalErr)
-	}
-	if jsonlObject.Type != "error" || jsonlObject.Error.Action == "" {
-		t.Fatalf("JSONL object = %#v, want error frame with actionable payload", jsonlObject)
-	}
+		jsonPayload, jsonErr := MarshalErrorJSON(err)
+		if jsonErr != nil {
+			t.Fatalf("MarshalErrorJSON() error = %v", jsonErr)
+		}
+		var jsonObject struct {
+			Error ErrorPayload `json:"error"`
+		}
+		if unmarshalErr := json.Unmarshal(jsonPayload, &jsonObject); unmarshalErr != nil {
+			t.Fatalf("json.Unmarshal(JSON) error = %v", unmarshalErr)
+		}
+		if jsonObject.Error.Code != "identity_required" || jsonObject.Error.ExitCode != ExitIdentityRequired {
+			t.Fatalf("JSON error = %#v, want stable identity error payload", jsonObject.Error)
+		}
+	})
+
+	t.Run("Should render stable JSONL error frame", func(t *testing.T) {
+		t.Parallel()
+
+		jsonlPayload, jsonlErr := MarshalErrorJSONL(err)
+		if jsonlErr != nil {
+			t.Fatalf("MarshalErrorJSONL() error = %v", jsonlErr)
+		}
+		if strings.Contains(string(jsonlPayload), "\n") {
+			t.Fatalf("JSONL payload contains embedded newline: %q", jsonlPayload)
+		}
+		var jsonlObject struct {
+			Type  string       `json:"type"`
+			Error ErrorPayload `json:"error"`
+		}
+		if unmarshalErr := json.Unmarshal(jsonlPayload, &jsonlObject); unmarshalErr != nil {
+			t.Fatalf("json.Unmarshal(JSONL) error = %v", unmarshalErr)
+		}
+		if jsonlObject.Type != "error" || jsonlObject.Error.Action == "" {
+			t.Fatalf("JSONL object = %#v, want error frame with actionable payload", jsonlObject)
+		}
+	})
 }
 
 func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
@@ -230,16 +238,16 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "nil context",
+			name:    "Should reject nil context",
 			wantErr: ErrIdentityLookupUnavailable,
 		},
 		{
-			name:    "nil lookup",
+			name:    "Should reject nil lookup",
 			ctx:     context.Background(),
 			wantErr: ErrIdentityLookupUnavailable,
 		},
 		{
-			name: "empty returned session id",
+			name: "Should reject empty returned session id",
 			ctx:  context.Background(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
@@ -250,7 +258,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			wantErr: ErrIdentityStale,
 		},
 		{
-			name: "different returned session id",
+			name: "Should reject different returned session id",
 			ctx:  context.Background(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
@@ -281,54 +289,66 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 func TestResolveDefaultsAgentSessionOrigin(t *testing.T) {
 	t.Parallel()
 
-	caller, err := Resolve(context.Background(), ResolveOptions{
-		Credentials: Credentials{
-			SessionID: "sess-1",
-			AgentName: "coder",
-		},
-		Lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
-			return SessionSnapshot{
-				ID:        " sess-1 ",
-				AgentName: " coder ",
-				State:     session.StateActive,
-			}, nil
-		},
+	t.Run("Should default to agent session origin", func(t *testing.T) {
+		t.Parallel()
+
+		caller, err := Resolve(context.Background(), ResolveOptions{
+			Credentials: Credentials{
+				SessionID: "sess-1",
+				AgentName: "coder",
+			},
+			Lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
+				return SessionSnapshot{
+					ID:        " sess-1 ",
+					AgentName: " coder ",
+					State:     session.StateActive,
+				}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if caller.Actor.Origin.Kind != taskpkg.OriginKindAgentSession || caller.Actor.Origin.Ref != "agent.session" {
+			t.Fatalf("caller.Actor.Origin = %#v, want default agent_session origin", caller.Actor.Origin)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if caller.Actor.Origin.Kind != taskpkg.OriginKindAgentSession || caller.Actor.Origin.Ref != "agent.session" {
-		t.Fatalf("caller.Actor.Origin = %#v, want default agent_session origin", caller.Actor.Origin)
-	}
 }
 
 func TestSessionSnapshotFromInfo(t *testing.T) {
 	t.Parallel()
 
-	if got := SessionSnapshotFromInfo(nil); got != (SessionSnapshot{}) {
-		t.Fatalf("SessionSnapshotFromInfo(nil) = %#v, want empty snapshot", got)
-	}
+	t.Run("Should return an empty snapshot for nil info", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
-	info := &session.Info{
-		ID:          "sess-1",
-		Name:        "worker",
-		AgentName:   "coder",
-		Provider:    "provider",
-		WorkspaceID: "ws-1",
-		Workspace:   "/workspace",
-		Channel:     "main",
-		Type:        session.SessionTypeUser,
-		State:       session.StateActive,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+		if got := SessionSnapshotFromInfo(nil); got != (SessionSnapshot{}) {
+			t.Fatalf("SessionSnapshotFromInfo(nil) = %#v, want empty snapshot", got)
+		}
+	})
 
-	got := SessionSnapshotFromInfo(info)
-	if got.ID != info.ID || got.WorkspacePath != info.Workspace || got.State != info.State ||
-		!got.CreatedAt.Equal(now) {
-		t.Fatalf("SessionSnapshotFromInfo() = %#v, want fields copied from session.Info", got)
-	}
+	t.Run("Should copy fields from session info", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
+		info := &session.Info{
+			ID:          "sess-1",
+			Name:        "worker",
+			AgentName:   "coder",
+			Provider:    "provider",
+			WorkspaceID: "ws-1",
+			Workspace:   "/workspace",
+			Channel:     "main",
+			Type:        session.SessionTypeUser,
+			State:       session.StateActive,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		got := SessionSnapshotFromInfo(info)
+		if got.ID != info.ID || got.WorkspacePath != info.Workspace || got.State != info.State ||
+			!got.CreatedAt.Equal(now) {
+			t.Fatalf("SessionSnapshotFromInfo() = %#v, want fields copied from session.Info", got)
+		}
+	})
 }
 
 func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {

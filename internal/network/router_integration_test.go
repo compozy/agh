@@ -115,10 +115,10 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 	}
 }
 
-func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
+func TestRoutersExchangeThreadCapabilityTransfers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should exchange broadcast capability transfers", func(t *testing.T) {
+	t.Run("Should exchange thread capability transfers with directed work target", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
 		defer cancel()
 
@@ -187,6 +187,10 @@ func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
 			SessionID: "sess-a",
 			Channel:   "builders",
 			Kind:      KindCapability,
+			Surface:   surfacePtr(SurfaceThread),
+			ThreadID:  stringPtr(testThreadRef().ThreadID),
+			To:        stringPtr(peerB.PeerID),
+			WorkID:    stringPtr("work_capability_broadcast"),
 			Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 				ID:               "review-fix",
 				Summary:          "Review fix flow",
@@ -196,20 +200,20 @@ func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
 				Requirements:     []string{"workspace-write"},
 			}),
 		})); err != nil {
-			t.Fatalf("routerA.Send(capability broadcast) error = %v", err)
+			t.Fatalf("routerA.Send(capability transfer) error = %v", err)
 		}
 
 		resultB := waitForDelivery(t, ctx, resultsB, "sess-b", KindCapability)
 		if got, want := len(resultB.Deliveries), 1; got != want {
-			t.Fatalf("len(capability broadcast deliveries) = %d, want %d", got, want)
+			t.Fatalf("len(capability transfer deliveries) = %d, want %d", got, want)
 		}
 		decoded, err := resultB.Deliveries[0].Envelope.DecodeBody()
 		if err != nil {
-			t.Fatalf("DecodeBody(capability broadcast) error = %v", err)
+			t.Fatalf("DecodeBody(capability transfer) error = %v", err)
 		}
 		body := decoded.(CapabilityBody)
 		if got, want := body.Capability.ID, "review-fix"; got != want {
-			t.Fatalf("capability broadcast id = %q, want %q", got, want)
+			t.Fatalf("capability transfer id = %q, want %q", got, want)
 		}
 
 		select {

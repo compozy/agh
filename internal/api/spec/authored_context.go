@@ -399,5 +399,5 @@ var authoredContextOperationRegistry = []OperationSpec{
 }
 
 func authoredContextOperations() []OperationSpec {
-	return append([]OperationSpec(nil), authoredContextOperationRegistry...)
+	return cloneOperationSpecs(authoredContextOperationRegistry)
 }

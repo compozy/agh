@@ -25,7 +25,6 @@ func TestCreateBridgeRequestValidation(t *testing.T) {
 				ExtensionName: "ext-telegram",
 				DisplayName:   "Support",
 				Enabled:       true,
-				Status:        bridgepkg.BridgeStatusReady,
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 			},
 		},
@@ -38,7 +37,6 @@ func TestCreateBridgeRequestValidation(t *testing.T) {
 				ExtensionName: "ext-telegram",
 				DisplayName:   "Support",
 				Enabled:       true,
-				Status:        bridgepkg.BridgeStatusReady,
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 			},
 		},
@@ -50,7 +48,6 @@ func TestCreateBridgeRequestValidation(t *testing.T) {
 				ExtensionName: "ext-telegram",
 				DisplayName:   "Support",
 				Enabled:       true,
-				Status:        bridgepkg.BridgeStatusReady,
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludeThread: true},
 			},
 		},
@@ -76,15 +73,10 @@ func TestCreateBridgeRequestPreservesNormalizedFieldsAndDefaults(t *testing.T) {
 		ExtensionName:    " ext-telegram ",
 		DisplayName:      " Support ",
 		Enabled:          true,
-		Status:           bridgepkg.BridgeStatusDegraded,
 		DMPolicy:         bridgepkg.BridgeDMPolicyPairing,
 		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
 		ProviderConfig:   contract.BridgeProviderConfigPayload(`{"mode":"bot","tenant":"acme"}`),
 		DeliveryDefaults: contract.BridgeDeliveryDefaultsPayload(`{"mode":"reply","peer_id":"peer-1"}`),
-		Degradation: &bridgepkg.BridgeDegradation{
-			Reason:  bridgepkg.BridgeDegradationReasonRateLimited,
-			Message: "provider throttled",
-		},
 	}
 
 	mapped, err := req.ToCreateInstanceRequest()
@@ -104,21 +96,17 @@ func TestCreateBridgeRequestPreservesNormalizedFieldsAndDefaults(t *testing.T) {
 	if string(mapped.DeliveryDefaults) != `{"mode":"reply","peer_id":"peer-1"}` {
 		t.Fatalf("mapped.DeliveryDefaults = %s", string(mapped.DeliveryDefaults))
 	}
-	if mapped.Degradation == nil || mapped.Degradation.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
-		t.Fatalf("mapped.Degradation = %#v", mapped.Degradation)
+	if mapped.Status != bridgepkg.BridgeStatusStarting {
+		t.Fatalf("mapped.Status = %q, want %q", mapped.Status, bridgepkg.BridgeStatusStarting)
 	}
 
 	req.DeliveryDefaults[0] = '['
 	req.ProviderConfig[0] = '['
-	req.Degradation.Message = "changed"
 	if string(mapped.DeliveryDefaults) != `{"mode":"reply","peer_id":"peer-1"}` {
 		t.Fatalf("mapped.DeliveryDefaults mutated with source slice = %s", string(mapped.DeliveryDefaults))
 	}
 	if string(mapped.ProviderConfig) != `{"mode":"bot","tenant":"acme"}` {
 		t.Fatalf("mapped.ProviderConfig mutated with source slice = %s", string(mapped.ProviderConfig))
-	}
-	if mapped.Degradation.Message != "provider throttled" {
-		t.Fatalf("mapped.Degradation.Message = %q, want %q", mapped.Degradation.Message, "provider throttled")
 	}
 }
 
@@ -320,7 +308,6 @@ func TestBridgeRequestsKeepProviderConfigDistinctFromDeliveryDefaults(t *testing
 		ExtensionName:    "ext-telegram",
 		DisplayName:      "Support",
 		Enabled:          true,
-		Status:           bridgepkg.BridgeStatusReady,
 		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
 		ProviderConfig:   contract.BridgeProviderConfigPayload(`{"mode":"bot","tenant":"acme"}`),
 		DeliveryDefaults: contract.BridgeDeliveryDefaultsPayload(`{"peer_id":"peer-default","mode":"reply"}`),
@@ -366,7 +353,6 @@ func TestBridgeRequestsRejectUnsupportedProviderConfigAndDeliveryDefaultsShapes(
 		ExtensionName:  "ext-telegram",
 		DisplayName:    "Support",
 		Enabled:        true,
-		Status:         bridgepkg.BridgeStatusReady,
 		RoutingPolicy:  bridgepkg.RoutingPolicy{IncludePeer: true},
 		ProviderConfig: contract.BridgeProviderConfigPayload(`"bot"`),
 	}

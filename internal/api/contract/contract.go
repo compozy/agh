@@ -822,9 +822,6 @@ type NetworkConversationMessagePayload struct {
 	Timestamp          time.Time       `json:"timestamp"`
 }
 
-// NetworkChannelMessagePayload is kept as an internal compatibility alias for older helper code.
-type NetworkChannelMessagePayload = NetworkConversationMessagePayload
-
 // NetworkThreadSummaryPayload is the public-thread list/detail projection.
 type NetworkThreadSummaryPayload struct {
 	Channel            string     `json:"channel"`

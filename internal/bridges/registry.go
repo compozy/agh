@@ -117,7 +117,7 @@ func (r UpdateInstanceRequest) validateOptionalFields() error {
 		}
 	}
 	if r.ProviderConfig != nil {
-		if _, err := normalizeRawJSON(*r.ProviderConfig, "bridge instance provider config"); err != nil {
+		if _, err := normalizeProviderConfigJSON(*r.ProviderConfig); err != nil {
 			return err
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 		instance.RoutingPolicy = *req.RoutingPolicy
 	}
 	if req.ProviderConfig != nil {
-		normalized, err := normalizeRawJSON(*req.ProviderConfig, "bridge instance provider config")
+		normalized, err := normalizeProviderConfigJSON(*req.ProviderConfig)
 		if err != nil {
 			return nil, fmt.Errorf("bridges: update bridge instance %q: normalize provider config: %w", trimmedID, err)
 		}
@@ -545,7 +545,7 @@ func (s *Service) checkReady(ctx context.Context, action string) error {
 	if ctx == nil {
 		return fmt.Errorf("bridges: %s context is required", action)
 	}
-	return nil
+	return ctx.Err()
 }
 
 func (s *Service) loadRoutableInstance(ctx context.Context, bridgeInstanceID string) (BridgeInstance, error) {
@@ -620,7 +620,7 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 		instance.UpdatedAt = instance.CreatedAt
 	}
 
-	providerConfig, err := normalizeRawJSON(instance.ProviderConfig, "bridge instance provider config")
+	providerConfig, err := normalizeProviderConfigJSON(instance.ProviderConfig)
 	if err != nil {
 		return BridgeInstance{}, err
 	}

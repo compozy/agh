@@ -82,11 +82,10 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.channelItem(channelName)).toBeVisible({ timeout: 15_000 });
   await ui.channelItem(channelName).getByTestId(`network-channel-link-${channelName}`).click();
 
-  await expect(appPage.getByTestId("network-channel-title")).toContainText(channelName);
-  await expect(appPage.getByTestId("network-channel-meta")).toContainText("2 agents");
-  await expect(appPage.getByTestId("network-channel-meta")).toContainText(
-    "Coordinate browser e2e work"
-  );
+  await expect(ui.channelHeader.getByTestId("network-channel-title")).toContainText(channelName);
+  const channelMeta = ui.channelHeader.getByTestId("network-channel-meta");
+  await expect(channelMeta).toContainText("2 agents");
+  await expect(channelMeta).toContainText("Coordinate browser e2e work");
   await expect(ui.threadTab).toHaveAttribute("aria-selected", "true");
   await expect(ui.threadsTab).toHaveAttribute("aria-label", `Threads in #${channelName}`);
   await expect(ui.threadList).toHaveAttribute("aria-label", `Threads in #${channelName}`);

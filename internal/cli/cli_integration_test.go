@@ -1443,7 +1443,6 @@ func TestBridgeCreateAndGetIntegration(t *testing.T) {
 		"--extension", "ext-telegram",
 		"--display-name", "Support",
 		"--include-peer",
-		"--status", "ready",
 		"-o", "json",
 	)
 
@@ -1451,7 +1450,7 @@ func TestBridgeCreateAndGetIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
 	}
-	if created.ID == "" || created.Platform != "telegram" || created.Status != bridgepkg.BridgeStatusReady {
+	if created.ID == "" || created.Platform != "telegram" || created.Status != bridgepkg.BridgeStatusStarting {
 		t.Fatalf("created bridge = %#v", created)
 	}
 
@@ -1545,7 +1544,6 @@ func TestBridgeRoutesIntegration(t *testing.T) {
 		"--display-name", "Support",
 		"--include-peer",
 		"--include-thread",
-		"--status", "ready",
 		"-o", "json",
 	)
 
@@ -1694,9 +1692,7 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	if enqueued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("enqueued run = %#v, want queued", enqueued)
 	}
-	if got, want := string(enqueued.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
-		t.Fatalf("enqueued metadata = %q, want %q", got, want)
-	}
+	assertDetachedHarnessMetadata(t, "enqueued metadata", enqueued.Metadata)
 
 	claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
 	var claimed TaskRunRecord
@@ -1737,9 +1733,7 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	if len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusCompleted {
 		t.Fatalf("runs = %#v, want completed run history", runs)
 	}
-	if got, want := string(runs[0].Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
-		t.Fatalf("runs[0].Metadata = %q, want %q", got, want)
-	}
+	assertDetachedHarnessMetadata(t, "runs[0].Metadata", runs[0].Metadata)
 
 	getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
 	var detail TaskDetailRecord
@@ -1748,6 +1742,18 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	if detail.Task.Status != taskpkg.TaskStatusCompleted || len(detail.Runs) != 1 || detail.Runs[0].SessionID == "" {
 		t.Fatalf("task detail = %#v, want completed task with persisted run", detail)
+	}
+}
+
+func assertDetachedHarnessMetadata(t *testing.T, label string, metadata json.RawMessage) {
+	t.Helper()
+
+	var decoded map[string]string
+	if err := json.Unmarshal(metadata, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(%s) error = %v; metadata=%s", label, err, string(metadata))
+	}
+	if got, want := decoded["schema"], "agh.harness.detached.v1"; got != want || len(decoded) != 1 {
+		t.Fatalf("%s = %#v, want schema %q only", label, decoded, want)
 	}
 }
 
@@ -2656,8 +2662,9 @@ type integrationDaemon struct {
 }
 
 type integrationDaemonProcess struct {
-	pid  int
-	done <-chan error
+	pid    int
+	done   <-chan struct{}
+	waitCh <-chan error
 }
 
 type integrationExtensionService struct {
@@ -2917,8 +2924,12 @@ func (p *integrationDaemonProcess) PID() int {
 	return p.pid
 }
 
+func (p *integrationDaemonProcess) Done() <-chan struct{} {
+	return p.done
+}
+
 func (p *integrationDaemonProcess) Wait() error {
-	return <-p.done
+	return <-p.waitCh
 }
 
 func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
@@ -2929,14 +2940,16 @@ func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
+	waitCh := make(chan error, 1)
+	done := make(chan struct{})
 	d.running = true
 	d.cancel = cancel
-	d.done = done
+	d.done = waitCh
 
 	go func() {
 		err := d.Run(ctx)
-		done <- err
+		waitCh <- err
+		close(waitCh)
 		close(done)
 		d.mu.Lock()
 		d.running = false
@@ -2945,7 +2958,7 @@ func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 		d.mu.Unlock()
 	}()
 
-	return &integrationDaemonProcess{pid: d.pid, done: done}, nil
+	return &integrationDaemonProcess{pid: d.pid, done: done, waitCh: waitCh}, nil
 }
 
 func (d *integrationDaemon) Run(ctx context.Context) error {

@@ -24,65 +24,69 @@ import (
 func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 	t.Parallel()
 
-	catalog := BundleCatalogPayloads([]bundlepkg.CatalogEntry{{
-		ExtensionName: " ext-bundle ",
-		Bundle: extensionpkg.BundleSpec{
-			Name:        " ops ",
-			Description: " Operations bundle ",
-			Profiles: []extensionpkg.BundleProfile{{
-				Name:        " default ",
-				Description: " Primary profile ",
-				Channels: extensionpkg.BundleChannelsConfig{
-					Primary: "primary",
-					Items: []extensionpkg.BundleChannel{
-						{Name: " primary ", Description: " Main channel "},
-						{Name: " secondary ", Description: " Backup channel "},
+	t.Run("Should build bundle catalog and declared channel payloads", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := BundleCatalogPayloads([]bundlepkg.CatalogEntry{{
+			ExtensionName: " ext-bundle ",
+			Bundle: extensionpkg.BundleSpec{
+				Name:        " ops ",
+				Description: " Operations bundle ",
+				Profiles: []extensionpkg.BundleProfile{{
+					Name:        " default ",
+					Description: " Primary profile ",
+					Channels: extensionpkg.BundleChannelsConfig{
+						Primary: "primary",
+						Items: []extensionpkg.BundleChannel{
+							{Name: " primary ", Description: " Main channel "},
+							{Name: " secondary ", Description: " Backup channel "},
+						},
 					},
-				},
-				Agents: []extensionpkg.BundleAgent{{
-					Path:  "agents/planner",
-					Agent: aghconfig.AgentDef{Name: "planner", Prompt: "Plan work."},
+					Agents: []extensionpkg.BundleAgent{{
+						Path:  "agents/planner",
+						Agent: aghconfig.AgentDef{Name: "planner", Prompt: "Plan work."},
+					}},
+					Jobs:     []extensionpkg.BundleJob{{Name: "job-a"}},
+					Triggers: []extensionpkg.BundleTrigger{{Name: "trigger-a"}},
+					Bridges:  []extensionpkg.BundleBridgePreset{{Name: "bridge-a"}},
 				}},
-				Jobs:     []extensionpkg.BundleJob{{Name: "job-a"}},
-				Triggers: []extensionpkg.BundleTrigger{{Name: "trigger-a"}},
-				Bridges:  []extensionpkg.BundleBridgePreset{{Name: "bridge-a"}},
-			}},
-		},
-	}})
+			},
+		}})
 
-	if got, want := len(catalog), 1; got != want {
-		t.Fatalf("len(catalog) = %d, want %d", got, want)
-	}
-	if catalog[0].ExtensionName != "ext-bundle" || catalog[0].BundleName != "ops" ||
-		catalog[0].Profiles[0].PrimaryChannel != "primary" {
-		t.Fatalf("catalog payload = %#v", catalog[0])
-	}
-	if got, want := len(catalog[0].Profiles[0].Channels), 2; got != want {
-		t.Fatalf("len(profile channels) = %d, want %d", got, want)
-	}
-	if got, want := catalog[0].Profiles[0].AgentCount, 1; got != want {
-		t.Fatalf("profile.AgentCount = %d, want %d", got, want)
-	}
-	if !catalog[0].Profiles[0].Channels[0].Primary || catalog[0].Profiles[0].Channels[1].Primary {
-		t.Fatalf("channel primary flags = %#v", catalog[0].Profiles[0].Channels)
-	}
+		if got, want := len(catalog), 1; got != want {
+			t.Fatalf("len(catalog) = %d, want %d", got, want)
+		}
+		if catalog[0].ExtensionName != "ext-bundle" || catalog[0].BundleName != "ops" ||
+			catalog[0].Profiles[0].PrimaryChannel != "primary" {
+			t.Fatalf("catalog payload = %#v", catalog[0])
+		}
+		if got, want := len(catalog[0].Profiles[0].Channels), 2; got != want {
+			t.Fatalf("len(profile channels) = %d, want %d", got, want)
+		}
+		if got, want := catalog[0].Profiles[0].AgentCount, 1; got != want {
+			t.Fatalf("profile.AgentCount = %d, want %d", got, want)
+		}
+		if !catalog[0].Profiles[0].Channels[0].Primary || catalog[0].Profiles[0].Channels[1].Primary {
+			t.Fatalf("channel primary flags = %#v", catalog[0].Profiles[0].Channels)
+		}
 
-	declared := DeclaredNetworkChannelPayloads([]bundlepkg.DeclaredChannel{{
-		ActivationID:  " act-1 ",
-		ExtensionName: " ext-bundle ",
-		BundleName:    " ops ",
-		ProfileName:   " default ",
-		WorkspaceID:   " ws-1 ",
-		Name:          " builders ",
-		Description:   " Build channel ",
-		Primary:       true,
-	}})
-	if got, want := len(declared), 1; got != want {
-		t.Fatalf("len(declared) = %d, want %d", got, want)
-	}
-	if declared[0].ActivationID != "act-1" || declared[0].Name != "builders" || !declared[0].Primary {
-		t.Fatalf("declared payload = %#v", declared[0])
-	}
+		declared := DeclaredNetworkChannelPayloads([]bundlepkg.DeclaredChannel{{
+			ActivationID:  " act-1 ",
+			ExtensionName: " ext-bundle ",
+			BundleName:    " ops ",
+			ProfileName:   " default ",
+			WorkspaceID:   " ws-1 ",
+			Name:          " builders ",
+			Description:   " Build channel ",
+			Primary:       true,
+		}})
+		if got, want := len(declared), 1; got != want {
+			t.Fatalf("len(declared) = %d, want %d", got, want)
+		}
+		if declared[0].ActivationID != "act-1" || declared[0].Name != "builders" || !declared[0].Primary {
+			t.Fatalf("declared payload = %#v", declared[0])
+		}
+	})
 }
 
 func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
@@ -176,33 +180,37 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t *testing.T) {
 	t.Parallel()
 
-	recordedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
-	metadataAt := recordedAt.Add(10 * time.Minute)
-	aggregates := make(map[string]*networkChannelAggregate)
+	t.Run("Should keep conversation activity separate from metadata", func(t *testing.T) {
+		t.Parallel()
 
-	applyNetworkChannelMetadata(aggregates, []store.NetworkChannelEntry{{
-		Channel:   "builders",
-		UpdatedAt: metadataAt,
-	}})
-	applyNetworkChannelMessages(aggregates, []store.NetworkMessageEntry{{
-		Channel:   "builders",
-		Text:      "hello from text",
-		Timestamp: recordedAt,
-	}})
+		recordedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+		metadataAt := recordedAt.Add(10 * time.Minute)
+		aggregates := make(map[string]*networkChannelAggregate)
 
-	aggregate := aggregates["builders"]
-	if aggregate == nil {
-		t.Fatal("aggregate = nil, want builders aggregate")
-	}
-	if aggregate.lastActivityAt == nil || !aggregate.lastActivityAt.Equal(recordedAt) {
-		t.Fatalf("aggregate.lastActivityAt = %#v, want %s", aggregate.lastActivityAt, recordedAt)
-	}
-	if aggregate.lastMessageAt == nil || !aggregate.lastMessageAt.Equal(recordedAt) {
-		t.Fatalf("aggregate.lastMessageAt = %#v, want %s", aggregate.lastMessageAt, recordedAt)
-	}
-	if got, want := aggregate.lastMessagePreview, "hello from text"; got != want {
-		t.Fatalf("aggregate.lastMessagePreview = %q, want %q", got, want)
-	}
+		applyNetworkChannelMetadata(aggregates, []store.NetworkChannelEntry{{
+			Channel:   "builders",
+			UpdatedAt: metadataAt,
+		}})
+		applyNetworkChannelMessages(aggregates, []store.NetworkMessageEntry{{
+			Channel:   "builders",
+			Text:      "hello from text",
+			Timestamp: recordedAt,
+		}})
+
+		aggregate := aggregates["builders"]
+		if aggregate == nil {
+			t.Fatal("aggregate = nil, want builders aggregate")
+		}
+		if aggregate.lastActivityAt == nil || !aggregate.lastActivityAt.Equal(recordedAt) {
+			t.Fatalf("aggregate.lastActivityAt = %#v, want %s", aggregate.lastActivityAt, recordedAt)
+		}
+		if aggregate.lastMessageAt == nil || !aggregate.lastMessageAt.Equal(recordedAt) {
+			t.Fatalf("aggregate.lastMessageAt = %#v, want %s", aggregate.lastMessageAt, recordedAt)
+		}
+		if got, want := aggregate.lastMessagePreview, "hello from text"; got != want {
+			t.Fatalf("aggregate.lastMessagePreview = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestSortedNetworkChannelPayloads(t *testing.T) {
@@ -374,201 +382,215 @@ func TestSortedNetworkPeerPayloads(t *testing.T) {
 func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 	t.Parallel()
 
-	joinedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
-	lastSeen := joinedAt.Add(5 * time.Minute)
-	expiresAt := joinedAt.Add(10 * time.Minute)
-	displayName := " Support Bot "
-	sessionID := "sess-1"
-	ext := map[string]json.RawMessage{"role": json.RawMessage(`"support"`)}
-	peerPayloads := NetworkPeerPayloadsFromInfos([]network.PeerInfo{{
-		SessionID: &sessionID,
-		PeerID:    "peer-1",
-		Channel:   "builders",
-		Local:     true,
-		PeerCard: network.PeerCard{
-			PeerID:              "peer-1",
-			DisplayName:         &displayName,
-			ProfilesSupported:   []string{"default"},
-			Capabilities:        []string{"chat"},
-			ArtifactsSupported:  []string{"text"},
-			TrustModesSupported: []string{"strict"},
-			Ext:                 ext,
-		},
-		JoinedAt:  &joinedAt,
-		LastSeen:  &lastSeen,
-		ExpiresAt: &expiresAt,
-	}})
+	t.Run("Should clone and normalize network payload helpers", func(t *testing.T) {
+		t.Parallel()
 
-	if got, want := len(peerPayloads), 1; got != want {
-		t.Fatalf("len(peerPayloads) = %d, want %d", got, want)
-	}
-	if peerPayloads[0].DisplayName != "Support Bot" {
-		t.Fatalf("DisplayName = %q, want %q", peerPayloads[0].DisplayName, "Support Bot")
-	}
-	if peerPayloads[0].PeerCard.Ext["role"] == nil {
-		t.Fatalf("PeerCard.Ext = %#v, want copied metadata", peerPayloads[0].PeerCard.Ext)
-	}
+		joinedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+		lastSeen := joinedAt.Add(5 * time.Minute)
+		expiresAt := joinedAt.Add(10 * time.Minute)
+		displayName := " Support Bot "
+		sessionID := "sess-1"
+		ext := map[string]json.RawMessage{"role": json.RawMessage(`"support"`)}
+		peerPayloads := NetworkPeerPayloadsFromInfos([]network.PeerInfo{{
+			SessionID: &sessionID,
+			PeerID:    "peer-1",
+			Channel:   "builders",
+			Local:     true,
+			PeerCard: network.PeerCard{
+				PeerID:              "peer-1",
+				DisplayName:         &displayName,
+				ProfilesSupported:   []string{"default"},
+				Capabilities:        []string{"chat"},
+				ArtifactsSupported:  []string{"text"},
+				TrustModesSupported: []string{"strict"},
+				Ext:                 ext,
+			},
+			JoinedAt:  &joinedAt,
+			LastSeen:  &lastSeen,
+			ExpiresAt: &expiresAt,
+		}})
 
-	displayName = "mutated"
-	ext["role"][0] = '['
-	if peerPayloads[0].DisplayName != "Support Bot" || string(peerPayloads[0].PeerCard.Ext["role"]) != `"support"` {
-		t.Fatalf("peer payload mutated with source data = %#v", peerPayloads[0])
-	}
+		if got, want := len(peerPayloads), 1; got != want {
+			t.Fatalf("len(peerPayloads) = %d, want %d", got, want)
+		}
+		if peerPayloads[0].DisplayName != "Support Bot" {
+			t.Fatalf("DisplayName = %q, want %q", peerPayloads[0].DisplayName, "Support Bot")
+		}
+		if peerPayloads[0].PeerCard.Ext["role"] == nil {
+			t.Fatalf("PeerCard.Ext = %#v, want copied metadata", peerPayloads[0].PeerCard.Ext)
+		}
 
-	channelPayloads := NetworkChannelPayloadsFromInfos([]network.ChannelInfo{{Channel: "builders", PeerCount: 2}})
-	if got, want := len(channelPayloads), 1; got != want {
-		t.Fatalf("len(channelPayloads) = %d, want %d", got, want)
-	}
-	if channelPayloads[0].Channel != "builders" || channelPayloads[0].PeerCount != 2 {
-		t.Fatalf("channel payload = %#v", channelPayloads[0])
-	}
+		displayName = "mutated"
+		ext["role"][0] = '['
+		if peerPayloads[0].DisplayName != "Support Bot" || string(peerPayloads[0].PeerCard.Ext["role"]) != `"support"` {
+			t.Fatalf("peer payload mutated with source data = %#v", peerPayloads[0])
+		}
+
+		channelPayloads := NetworkChannelPayloadsFromInfos([]network.ChannelInfo{{Channel: "builders", PeerCount: 2}})
+		if got, want := len(channelPayloads), 1; got != want {
+			t.Fatalf("len(channelPayloads) = %d, want %d", got, want)
+		}
+		if channelPayloads[0].Channel != "builders" || channelPayloads[0].PeerCount != 2 {
+			t.Fatalf("channel payload = %#v", channelPayloads[0])
+		}
+	})
 }
 
 func TestCoreConversionHelpers(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
-	later := now.Add(5 * time.Minute)
+	t.Run("Should convert core payload helpers", func(t *testing.T) {
+		t.Parallel()
 
-	usage := TokenUsagePayloadFromUsage(&acp.TokenUsage{
-		TurnID:           "turn-1",
-		InputTokens:      int64Ptr(10),
-		OutputTokens:     int64Ptr(20),
-		TotalTokens:      int64Ptr(30),
-		ThoughtTokens:    int64Ptr(3),
-		CacheReadTokens:  int64Ptr(4),
-		CacheWriteTokens: int64Ptr(5),
-		ContextUsed:      int64Ptr(6),
-		ContextSize:      int64Ptr(7),
-		CostAmount:       float64Ptr(1.23),
-		CostCurrency:     stringPtr("USD"),
-		Timestamp:        now,
+		now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+		later := now.Add(5 * time.Minute)
+
+		usage := TokenUsagePayloadFromUsage(&acp.TokenUsage{
+			TurnID:           "turn-1",
+			InputTokens:      int64Ptr(10),
+			OutputTokens:     int64Ptr(20),
+			TotalTokens:      int64Ptr(30),
+			ThoughtTokens:    int64Ptr(3),
+			CacheReadTokens:  int64Ptr(4),
+			CacheWriteTokens: int64Ptr(5),
+			ContextUsed:      int64Ptr(6),
+			ContextSize:      int64Ptr(7),
+			CostAmount:       float64Ptr(1.23),
+			CostCurrency:     stringPtr("USD"),
+			Timestamp:        now,
+		})
+		if usage == nil || usage.TotalTokens == nil || *usage.TotalTokens != 30 || usage.CostCurrency == nil ||
+			*usage.CostCurrency != "USD" {
+			t.Fatalf("TokenUsagePayloadFromUsage() = %#v", usage)
+		}
+		if TokenUsagePayloadFromUsage(nil) != nil {
+			t.Fatal("TokenUsagePayloadFromUsage(nil) != nil")
+		}
+
+		health := BridgeHealthPayloadFromObserve(observepkg.BridgeInstanceHealth{
+			BridgeInstanceID:        "brg-1",
+			Status:                  bridgepkg.BridgeStatusDegraded,
+			RouteCount:              2,
+			DeliveryBacklog:         1,
+			DeliveryDroppedTotal:    3,
+			DeliveryDroppedByReason: map[string]int{"rate_limit": 2},
+			DeliveryFailuresTotal:   4,
+			AuthFailuresTotal:       5,
+			LastSuccessAt:           now,
+			LastError:               "timeout",
+			LastErrorAt:             later,
+		})
+		if health.LastSuccessAt == nil ||
+			health.LastErrorAt == nil ||
+			health.DeliveryDroppedByReason["rate_limit"] != 2 {
+			t.Fatalf("BridgeHealthPayloadFromObserve() = %#v", health)
+		}
+
+		if got := string(PayloadJSON("  ")); got != "null" {
+			t.Fatalf("PayloadJSON(blank) = %s, want null", got)
+		}
+		if got := string(PayloadJSON(`{"ok":true}`)); got != `{"ok":true}` {
+			t.Fatalf("PayloadJSON(valid json) = %s", got)
+		}
+		if got := string(PayloadJSON("not-json")); got != `"not-json"` {
+			t.Fatalf("PayloadJSON(string) = %s, want quoted string", got)
+		}
+
+		if workspaceID, workspace := sessionWorkspaceFromInfo(
+			&session.Info{WorkspaceID: " ws-1 ", Workspace: " /tmp/ws "},
+		); workspaceID != "ws-1" ||
+			workspace != "/tmp/ws" {
+			t.Fatalf("sessionWorkspaceFromInfo() = %q/%q", workspaceID, workspace)
+		}
+		if workspaceID, workspace := sessionWorkspaceFromInfo(nil); workspaceID != "" || workspace != "" {
+			t.Fatalf("sessionWorkspaceFromInfo(nil) = %q/%q", workspaceID, workspace)
+		}
+
+		if got := laterTimePtr(nil, now); got == nil || !got.Equal(now) {
+			t.Fatalf("laterTimePtr(nil, now) = %#v", got)
+		}
+		if got := laterTimePtr(&later, now); got == nil || !got.Equal(later) {
+			t.Fatalf("laterTimePtr(later, earlier) = %#v", got)
+		}
+		if got := laterTimePtr(&later, time.Time{}); got == nil || !got.Equal(later) {
+			t.Fatalf("laterTimePtr(later, zero) = %#v", got)
+		}
+
+		role := json.RawMessage(`"support"`)
+		proof := network.Proof{"role": role}
+		clonedProof := cloneProofPtr(&proof)
+		if clonedProof == nil || string(clonedProof["role"]) != `"support"` {
+			t.Fatalf("cloneProofPtr() = %#v", clonedProof)
+		}
+		proof["role"][0] = '['
+		if string(clonedProof["role"]) != `"support"` {
+			t.Fatalf("cloneProofPtr() mutated with source proof = %#v", clonedProof)
+		}
+		if cloneProofPtr(nil) != nil {
+			t.Fatal("cloneProofPtr(nil) != nil")
+		}
+
+		peerSessionID := "sess-1"
+		peerName := "Peer Display"
+		if got := networkPeerDisplayName(network.PeerInfo{
+			SessionID: &peerSessionID,
+			PeerID:    "peer-1",
+			PeerCard:  network.PeerCard{DisplayName: &peerName},
+		}, nil); got != "Peer Display" {
+			t.Fatalf("networkPeerDisplayName(peer card) = %q", got)
+		}
+
+		if got := networkPeerDisplayName(network.PeerInfo{
+			SessionID: &peerSessionID,
+			PeerID:    "peer-1",
+		}, map[string]*session.Info{
+			"sess-1": {Name: "Session Name", AgentName: "coder"},
+		}); got != "Session Name" {
+			t.Fatalf("networkPeerDisplayName(session name) = %q", got)
+		}
+
+		if got := networkPeerDisplayName(network.PeerInfo{
+			SessionID: &peerSessionID,
+			PeerID:    "peer-1",
+		}, map[string]*session.Info{
+			"sess-1": {AgentName: "coder"},
+		}); got != "coder" {
+			t.Fatalf("networkPeerDisplayName(agent fallback) = %q", got)
+		}
+
+		if got := networkPeerDisplayName(network.PeerInfo{PeerID: " peer-1 "}, nil); got != "peer-1" {
+			t.Fatalf("networkPeerDisplayName(peer id fallback) = %q", got)
+		}
 	})
-	if usage == nil || usage.TotalTokens == nil || *usage.TotalTokens != 30 || usage.CostCurrency == nil ||
-		*usage.CostCurrency != "USD" {
-		t.Fatalf("TokenUsagePayloadFromUsage() = %#v", usage)
-	}
-	if TokenUsagePayloadFromUsage(nil) != nil {
-		t.Fatal("TokenUsagePayloadFromUsage(nil) != nil")
-	}
-
-	health := BridgeHealthPayloadFromObserve(observepkg.BridgeInstanceHealth{
-		BridgeInstanceID:        "brg-1",
-		Status:                  bridgepkg.BridgeStatusDegraded,
-		RouteCount:              2,
-		DeliveryBacklog:         1,
-		DeliveryDroppedTotal:    3,
-		DeliveryDroppedByReason: map[string]int{"rate_limit": 2},
-		DeliveryFailuresTotal:   4,
-		AuthFailuresTotal:       5,
-		LastSuccessAt:           now,
-		LastError:               "timeout",
-		LastErrorAt:             later,
-	})
-	if health.LastSuccessAt == nil || health.LastErrorAt == nil || health.DeliveryDroppedByReason["rate_limit"] != 2 {
-		t.Fatalf("BridgeHealthPayloadFromObserve() = %#v", health)
-	}
-
-	if got := string(PayloadJSON("  ")); got != "null" {
-		t.Fatalf("PayloadJSON(blank) = %s, want null", got)
-	}
-	if got := string(PayloadJSON(`{"ok":true}`)); got != `{"ok":true}` {
-		t.Fatalf("PayloadJSON(valid json) = %s", got)
-	}
-	if got := string(PayloadJSON("not-json")); got != `"not-json"` {
-		t.Fatalf("PayloadJSON(string) = %s, want quoted string", got)
-	}
-
-	if workspaceID, workspace := sessionWorkspaceFromInfo(
-		&session.Info{WorkspaceID: " ws-1 ", Workspace: " /tmp/ws "},
-	); workspaceID != "ws-1" ||
-		workspace != "/tmp/ws" {
-		t.Fatalf("sessionWorkspaceFromInfo() = %q/%q", workspaceID, workspace)
-	}
-	if workspaceID, workspace := sessionWorkspaceFromInfo(nil); workspaceID != "" || workspace != "" {
-		t.Fatalf("sessionWorkspaceFromInfo(nil) = %q/%q", workspaceID, workspace)
-	}
-
-	if got := laterTimePtr(nil, now); got == nil || !got.Equal(now) {
-		t.Fatalf("laterTimePtr(nil, now) = %#v", got)
-	}
-	if got := laterTimePtr(&later, now); got == nil || !got.Equal(later) {
-		t.Fatalf("laterTimePtr(later, earlier) = %#v", got)
-	}
-	if got := laterTimePtr(&later, time.Time{}); got == nil || !got.Equal(later) {
-		t.Fatalf("laterTimePtr(later, zero) = %#v", got)
-	}
-
-	role := json.RawMessage(`"support"`)
-	proof := network.Proof{"role": role}
-	clonedProof := cloneProofPtr(&proof)
-	if clonedProof == nil || string(clonedProof["role"]) != `"support"` {
-		t.Fatalf("cloneProofPtr() = %#v", clonedProof)
-	}
-	proof["role"][0] = '['
-	if string(clonedProof["role"]) != `"support"` {
-		t.Fatalf("cloneProofPtr() mutated with source proof = %#v", clonedProof)
-	}
-	if cloneProofPtr(nil) != nil {
-		t.Fatal("cloneProofPtr(nil) != nil")
-	}
-
-	peerSessionID := "sess-1"
-	peerName := "Peer Display"
-	if got := networkPeerDisplayName(network.PeerInfo{
-		SessionID: &peerSessionID,
-		PeerID:    "peer-1",
-		PeerCard:  network.PeerCard{DisplayName: &peerName},
-	}, nil); got != "Peer Display" {
-		t.Fatalf("networkPeerDisplayName(peer card) = %q", got)
-	}
-
-	if got := networkPeerDisplayName(network.PeerInfo{
-		SessionID: &peerSessionID,
-		PeerID:    "peer-1",
-	}, map[string]*session.Info{
-		"sess-1": {Name: "Session Name", AgentName: "coder"},
-	}); got != "Session Name" {
-		t.Fatalf("networkPeerDisplayName(session name) = %q", got)
-	}
-
-	if got := networkPeerDisplayName(network.PeerInfo{
-		SessionID: &peerSessionID,
-		PeerID:    "peer-1",
-	}, map[string]*session.Info{
-		"sess-1": {AgentName: "coder"},
-	}); got != "coder" {
-		t.Fatalf("networkPeerDisplayName(agent fallback) = %q", got)
-	}
-
-	if got := networkPeerDisplayName(network.PeerInfo{PeerID: " peer-1 "}, nil); got != "peer-1" {
-		t.Fatalf("networkPeerDisplayName(peer id fallback) = %q", got)
-	}
 }
 
 func TestCoreTimeAndSessionHelpers(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.FixedZone("offset", -3*60*60))
-	got := timePointerFromMap(map[string]*time.Time{"sess-1": &now}, "sess-1")
-	if got == nil || !got.Equal(now.UTC()) || got.Location() != time.UTC {
-		t.Fatalf("timePointerFromMap() = %#v, want UTC copy", got)
-	}
-	if timePointerFromMap(nil, "sess-1") != nil {
-		t.Fatal("timePointerFromMap(nil) != nil")
-	}
-	if timePointerFromMap(map[string]*time.Time{"sess-1": nil}, "sess-1") != nil {
-		t.Fatal("timePointerFromMap(nil entry) != nil")
-	}
-	if networkChannelSessionVisible(nil) {
-		t.Fatal("networkChannelSessionVisible(nil) = true, want false")
-	}
-	if networkChannelSessionVisible(&session.Info{State: session.StateStopped, Channel: "builders"}) {
-		t.Fatal("networkChannelSessionVisible(stopped) = true, want false")
-	}
-	if !networkChannelSessionVisible(&session.Info{State: session.StateActive, Channel: " builders "}) {
-		t.Fatal("networkChannelSessionVisible(active) = false, want true")
-	}
+	t.Run("Should normalize time and session helpers", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.FixedZone("offset", -3*60*60))
+		got := timePointerFromMap(map[string]*time.Time{"sess-1": &now}, "sess-1")
+		if got == nil || !got.Equal(now.UTC()) || got.Location() != time.UTC {
+			t.Fatalf("timePointerFromMap() = %#v, want UTC copy", got)
+		}
+		if timePointerFromMap(nil, "sess-1") != nil {
+			t.Fatal("timePointerFromMap(nil) != nil")
+		}
+		if timePointerFromMap(map[string]*time.Time{"sess-1": nil}, "sess-1") != nil {
+			t.Fatal("timePointerFromMap(nil entry) != nil")
+		}
+		if networkChannelSessionVisible(nil) {
+			t.Fatal("networkChannelSessionVisible(nil) = true, want false")
+		}
+		if networkChannelSessionVisible(&session.Info{State: session.StateStopped, Channel: "builders"}) {
+			t.Fatal("networkChannelSessionVisible(stopped) = true, want false")
+		}
+		if !networkChannelSessionVisible(&session.Info{State: session.StateActive, Channel: " builders "}) {
+			t.Fatal("networkChannelSessionVisible(active) = false, want true")
+		}
+	})
 }
 
 func TestSessionAndNetworkMappingHelpers(t *testing.T) {
@@ -622,7 +644,7 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 			t.Fatalf("sessionInfoMapByID() missing trimmed session id: %#v", sessionsByID)
 		}
 
-		payloadMessage := NetworkChannelMessagePayloadFromEntry(
+		payloadMessage := NetworkConversationMessagePayloadFromEntry(
 			store.NetworkMessageEntry{
 				MessageID:   "msg-1",
 				Channel:     "builders",
@@ -639,19 +661,19 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 			map[string]network.PeerInfo{},
 		)
 		if got, want := payloadMessage.Direction, network.AuditDirectionSent; got != want {
-			t.Fatalf("NetworkChannelMessagePayloadFromEntry().Direction = %q, want %q", got, want)
+			t.Fatalf("NetworkConversationMessagePayloadFromEntry().Direction = %q, want %q", got, want)
 		}
 		if got, want := payloadMessage.PeerFrom, "peer-1"; got != want {
-			t.Fatalf("NetworkChannelMessagePayloadFromEntry().PeerFrom = %q, want %q", got, want)
+			t.Fatalf("NetworkConversationMessagePayloadFromEntry().PeerFrom = %q, want %q", got, want)
 		}
 		if got, want := payloadMessage.DisplayName, "Support"; got != want {
-			t.Fatalf("NetworkChannelMessagePayloadFromEntry().DisplayName = %q, want %q", got, want)
+			t.Fatalf("NetworkConversationMessagePayloadFromEntry().DisplayName = %q, want %q", got, want)
 		}
 	})
 }
 
 func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
-	t.Run("ShouldIncludeRuntimeActivity", func(t *testing.T) {
+	t.Run("Should include runtime activity", func(t *testing.T) {
 		t.Parallel()
 
 		lastActivityAt := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)

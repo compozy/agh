@@ -78,6 +78,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			},
 		}
 		syncer := newToolMCPSourceSyncer(
+			kernel,
 			toolStore,
 			toolCodec,
 			mcpStore,
@@ -204,6 +205,7 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		mcpCatalog := newResourceCatalog(cloneDaemonMCPServer)
 		driver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, toolCatalog, mcpCatalog)
 		syncer := newToolMCPSourceSyncer(
+			kernel,
 			toolStore,
 			toolCodec,
 			mcpStore,

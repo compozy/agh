@@ -1666,32 +1666,32 @@ func applySandboxOverlays(dst *Config, overlays map[string]sandboxOverlay) {
 
 func applyMCPServerOverlays(base []MCPServer, overlays []mcpServerOverlay) []MCPServer {
 	merged := cloneMCPServers(base)
-	index := make(map[string]int, len(merged))
-	for i, server := range merged {
-		if server.Name == "" {
-			continue
-		}
-		index[server.Name] = i
-	}
+	index := indexMCPServersByName(merged)
 
 	for _, overlay := range overlays {
 		name := ""
 		if overlay.Name != nil {
-			name = strings.TrimSpace(*overlay.Name)
+			name = normalizeMCPServerName(*overlay.Name)
 		}
 
 		if idx, ok := index[name]; ok && name != "" {
 			server := merged[idx]
 			overlay.Apply(&server)
 			merged[idx] = server
+			if normalized := normalizeMCPServerName(server.Name); normalized != name {
+				delete(index, name)
+				if normalized != "" {
+					index[normalized] = idx
+				}
+			}
 			continue
 		}
 
 		var server MCPServer
 		overlay.Apply(&server)
 		merged = append(merged, server)
-		if server.Name != "" {
-			index[server.Name] = len(merged) - 1
+		if normalized := normalizeMCPServerName(server.Name); normalized != "" {
+			index[normalized] = len(merged) - 1
 		}
 	}
 

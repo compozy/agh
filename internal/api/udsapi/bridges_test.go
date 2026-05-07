@@ -53,7 +53,7 @@ func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
 		newTestHandlersWithBridges(t, stubSessionManager{}, stubObserver{}, bridges, stubWorkspaceService{}, homePaths),
 	)
 	body := []byte(
-		`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+		`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
 	)
 	recorder := performRequest(t, engine, http.MethodPost, "/api/bridges", body)
 	if recorder.Code != http.StatusCreated {

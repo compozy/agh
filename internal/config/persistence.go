@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -309,7 +307,7 @@ func EditConfigOverlay(
 		return Config{}, errors.New("config: config overlay mutation is required")
 	}
 
-	contents, err := readOptionalFile(target.path)
+	contents, _, err := readOptionalRegularFile(target.path, "config overlay")
 	if err != nil {
 		return Config{}, err
 	}
@@ -1414,72 +1412,4 @@ func cloneStringAnyMap(values map[string]any) map[string]any {
 	clone := make(map[string]any, len(values))
 	maps.Copy(clone, values)
 	return clone
-}
-
-func readOptionalFile(path string) ([]byte, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("read config file %q: %w", path, err)
-	}
-	return content, nil
-}
-
-func writePersistedFile(path string, contents []byte) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create config directory %q: %w", dir, err)
-	}
-
-	tmpFile, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temp config file in %q: %w", dir, err)
-	}
-	tmpPath := tmpFile.Name()
-	defer func() {
-		_ = os.Remove(tmpPath)
-	}()
-
-	if err := tmpFile.Chmod(0o600); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("chmod temp config file %q: %w", tmpPath, err)
-	}
-	if _, err := tmpFile.Write(contents); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("write temp config file %q: %w", tmpPath, err)
-	}
-	if err := tmpFile.Sync(); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("sync temp config file %q: %w", tmpPath, err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("close temp config file %q: %w", tmpPath, err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("replace config file %q: %w", path, err)
-	}
-	if err := syncPersistedDir(dir); err != nil {
-		return err
-	}
-	return nil
-}
-
-func samePath(left string, right string) bool {
-	return strings.TrimSpace(left) == strings.TrimSpace(right)
-}
-
-func syncPersistedDir(dir string) error {
-	handle, err := os.Open(dir)
-	if err != nil {
-		return fmt.Errorf("open config directory %q for sync: %w", dir, err)
-	}
-	defer func() {
-		_ = handle.Close()
-	}()
-	if err := handle.Sync(); err != nil {
-		return fmt.Errorf("sync config directory %q: %w", dir, err)
-	}
-	return nil
 }

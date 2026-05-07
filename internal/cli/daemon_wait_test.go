@@ -16,21 +16,32 @@ import (
 )
 
 type stubDaemonProcess struct {
-	waitCh chan error
+	done    chan struct{}
+	waitErr error
 }
 
 func (p *stubDaemonProcess) PID() int {
 	return 42
 }
 
+func (p *stubDaemonProcess) Done() <-chan struct{} {
+	return p.done
+}
+
 func (p *stubDaemonProcess) Wait() error {
-	return <-p.waitCh
+	<-p.done
+	return p.waitErr
+}
+
+func (p *stubDaemonProcess) complete(err error) {
+	p.waitErr = err
+	close(p.done)
 }
 
 func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {
 	t.Parallel()
 
-	child := &stubDaemonProcess{waitCh: make(chan error, 1)}
+	child := &stubDaemonProcess{done: make(chan struct{})}
 	deps := newTestDeps(t, &stubClient{
 		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 			return DaemonStatus{Status: "ready", PID: 42}, nil
@@ -40,7 +51,7 @@ func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {
 	deps.startTimeout = 100 * time.Millisecond
 
 	status, err := waitForDaemonStart(testutil.Context(t), deps, child)
-	child.waitCh <- nil
+	child.complete(nil)
 	if err != nil {
 		t.Fatalf("waitForDaemonStart() error = %v", err)
 	}
@@ -249,7 +260,7 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
 	t.Parallel()
 
-	child := &stubDaemonProcess{waitCh: make(chan error, 1)}
+	child := &stubDaemonProcess{done: make(chan struct{})}
 	deps := newTestDeps(t, &stubClient{
 		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 			return DaemonStatus{Status: "ready", PID: 42}, nil
@@ -265,7 +276,7 @@ func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
 	}
 
 	status, err := runDaemonDetached(testutil.Context(t), deps)
-	child.waitCh <- nil
+	child.complete(nil)
 	if err != nil {
 		t.Fatalf("runDaemonDetached() error = %v", err)
 	}

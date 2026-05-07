@@ -17,6 +17,19 @@ type Artifact struct {
 	OutputPath string
 }
 
+type commandRunner interface {
+	Run(ctx context.Context, name string, args ...string) error
+}
+
+type execRunner struct{}
+
+func (execRunner) Run(ctx context.Context, name string, args ...string) error {
+	return runCommand(ctx, name, args...)
+}
+
+// ErrInvalidArtifact reports an unusable OpenAPI TypeScript generation artifact.
+var ErrInvalidArtifact = errors.New("invalid openapi types artifact")
+
 // ErrStaleGeneratedFile reports that the committed generated file no longer matches the source spec.
 var ErrStaleGeneratedFile = errors.New("generated file is stale")
 
@@ -25,16 +38,41 @@ var ErrMissingGeneratedFile = errors.New("generated file is missing")
 
 // Generate runs openapi-typescript for one artifact and formats the generated output with oxfmt.
 func Generate(ctx context.Context, artifact Artifact) error {
-	if err := os.MkdirAll(filepath.Dir(artifact.OutputPath), 0o755); err != nil {
-		return fmt.Errorf("create output directory %q: %w", filepath.Dir(artifact.OutputPath), err)
+	return generateWithRunner(ctx, artifact, execRunner{})
+}
+
+func generateWithRunner(ctx context.Context, artifact Artifact, runner commandRunner) (err error) {
+	if err := artifact.validate(); err != nil {
+		return err
+	}
+	outputDir := filepath.Dir(artifact.OutputPath)
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("create output directory %q: %w", outputDir, err)
 	}
 
-	if err := runCommand(ctx, "bunx", "openapi-typescript", artifact.SpecPath, "-o", artifact.OutputPath); err != nil {
+	file, err := os.CreateTemp(outputDir, ".openapi-types-*.d.ts")
+	if err != nil {
+		return fmt.Errorf("create temporary output for %q: %w", artifact.OutputPath, err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close temporary output for %q: %w", artifact.OutputPath, err)
+	}
+	defer func() {
+		if removeErr := removeFile(file.Name()); removeErr != nil {
+			err = errors.Join(err, removeErr)
+		}
+	}()
+
+	if err := runner.Run(ctx, "bunx", "openapi-typescript", artifact.SpecPath, "-o", file.Name()); err != nil {
 		return fmt.Errorf("generate %q from %q: %w", artifact.OutputPath, artifact.SpecPath, err)
 	}
 
-	if err := runCommand(ctx, "bunx", "oxfmt", artifact.OutputPath); err != nil {
+	if err := runner.Run(ctx, "bunx", "oxfmt", file.Name()); err != nil {
 		return fmt.Errorf("format %q: %w", artifact.OutputPath, err)
+	}
+
+	if err := os.Rename(file.Name(), artifact.OutputPath); err != nil {
+		return fmt.Errorf("publish %q: %w", artifact.OutputPath, err)
 	}
 
 	return nil
@@ -42,6 +80,9 @@ func Generate(ctx context.Context, artifact Artifact) error {
 
 // Check regenerates one artifact into a temporary file and fails when the checked-in output differs.
 func Check(ctx context.Context, artifact Artifact) (err error) {
+	if err := artifact.validate(); err != nil {
+		return err
+	}
 	file, err := os.CreateTemp("", "openapi-types-*.d.ts")
 	if err != nil {
 		return fmt.Errorf("create temporary output for %q: %w", artifact.OutputPath, err)
@@ -50,11 +91,9 @@ func Check(ctx context.Context, artifact Artifact) (err error) {
 		return fmt.Errorf("close temporary output for %q: %w", artifact.OutputPath, err)
 	}
 	defer func() {
-		removeErr := os.Remove(file.Name())
-		if removeErr == nil || errors.Is(removeErr, os.ErrNotExist) {
-			return
+		if removeErr := removeFile(file.Name()); removeErr != nil {
+			err = errors.Join(err, removeErr)
 		}
-		err = errors.Join(err, fmt.Errorf("remove temporary output %q: %w", file.Name(), removeErr))
 	}()
 
 	if err := Generate(ctx, Artifact{
@@ -70,6 +109,19 @@ func Check(ctx context.Context, artifact Artifact) (err error) {
 	}
 
 	return checkGeneratedFile(artifact.OutputPath, want)
+}
+
+func (artifact Artifact) validate() error {
+	switch {
+	case artifact.SpecPath == "":
+		return fmt.Errorf("%w: spec path is required", ErrInvalidArtifact)
+	case artifact.OutputPath == "":
+		return fmt.Errorf("%w: output path is required", ErrInvalidArtifact)
+	case filepath.Clean(artifact.SpecPath) == filepath.Clean(artifact.OutputPath):
+		return fmt.Errorf("%w: spec path and output path must differ", ErrInvalidArtifact)
+	default:
+		return nil
+	}
 }
 
 func checkGeneratedFile(path string, want []byte) error {
@@ -88,6 +140,14 @@ func checkGeneratedFile(path string, want []byte) error {
 	return nil
 }
 
+func removeFile(path string) error {
+	err := os.Remove(path)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return fmt.Errorf("remove temporary output %q: %w", path, err)
+}
+
 func runCommand(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 
@@ -97,6 +157,9 @@ func runCommand(ctx context.Context, name string, args ...string) error {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), ctxErr)
+		}
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
 			detail = strings.TrimSpace(stdout.String())

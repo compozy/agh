@@ -68,7 +68,10 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 			captured = request
 			record := testBridgeRecord(t)
 			record.Enabled = request.Enabled
-			record.Status = request.Status
+			record.Status = bridgepkg.BridgeStatusStarting
+			if !request.Enabled {
+				record.Status = bridgepkg.BridgeStatusDisabled
+			}
 			record.Scope = request.Scope
 			record.WorkspaceID = request.WorkspaceID
 			record.Platform = request.Platform
@@ -102,8 +105,8 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 	if captured.Scope != bridgepkg.ScopeWorkspace || captured.WorkspaceID != "ws-alpha" {
 		t.Fatalf("captured scope payload = %#v", captured)
 	}
-	if captured.Status != bridgepkg.BridgeStatusDisabled || captured.Enabled {
-		t.Fatalf("captured lifecycle = enabled:%t status:%q, want false/disabled", captured.Enabled, captured.Status)
+	if captured.Enabled {
+		t.Fatalf("captured lifecycle enabled = %t, want false", captured.Enabled)
 	}
 	if !captured.RoutingPolicy.IncludePeer || !captured.RoutingPolicy.IncludeGroup ||
 		captured.RoutingPolicy.IncludeThread {
@@ -146,12 +149,12 @@ func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
 	}
 }
 
-func TestBridgeCreateRejectsInvalidLifecycleCombination(t *testing.T) {
+func TestBridgeCreateRejectsOperationalStatusFlag(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
 		createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
-			t.Fatal("CreateBridge() should not be called when lifecycle flags are invalid")
+			t.Fatal("CreateBridge() should not be called when operational status flag is provided")
 			return BridgeRecord{}, nil
 		},
 	})
@@ -167,12 +170,8 @@ func TestBridgeCreateRejectsInvalidLifecycleCombination(t *testing.T) {
 		"--enabled=false",
 		"--status", "ready",
 	)
-	if err == nil ||
-		!strings.Contains(
-			err.Error(),
-			`cli: invalid bridge create payload: bridges: disabled bridge instance must report status "disabled"`,
-		) {
-		t.Fatalf("bridge create error = %v, want lifecycle validation failure", err)
+	if err == nil || !strings.Contains(err.Error(), "unknown flag: --status") {
+		t.Fatalf("bridge create error = %v, want unknown status flag", err)
 	}
 }
 

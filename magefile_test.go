@@ -21,14 +21,14 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "runtime go suites require the bundle",
+			name: "Should require the bundle for runtime Go suites",
 			plan: e2elane.Plan{
 				GoSuites: []e2elane.GoSuite{{Packages: []string{"./internal/daemon"}}},
 			},
 			want: true,
 		},
 		{
-			name: "daemon served browser suites require the bundle",
+			name: "Should require the bundle for daemon-served browser suites",
 			plan: e2elane.Plan{
 				ScriptSuites:                []e2elane.ScriptSuite{{Dir: "web", Script: "test:e2e:daemon-served"}},
 				RequiresDaemonServedBrowser: true,
@@ -36,7 +36,7 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "non browser script suites alone do not require the bundle",
+			name: "Should skip the bundle for non-browser script suites alone",
 			plan: e2elane.Plan{
 				ScriptSuites: []e2elane.ScriptSuite{{Dir: "scripts", Script: "echo"}},
 			},
@@ -152,7 +152,11 @@ func TestRunRaceEnabledGoCommand(t *testing.T) {
 func TestInstallerCheck(t *testing.T) {
 	t.Parallel()
 
-	if err := InstallerCheck(); err != nil {
-		t.Fatalf("InstallerCheck() error = %v", err)
-	}
+	t.Run("Should validate the installer script in dry-run mode", func(t *testing.T) {
+		t.Parallel()
+
+		if err := InstallerCheck(); err != nil {
+			t.Fatalf("InstallerCheck() error = %v", err)
+		}
+	})
 }

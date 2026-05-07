@@ -1110,20 +1110,20 @@ func networkPeerDisplayName(peer network.PeerInfo, sessionsByID map[string]*sess
 	return strings.TrimSpace(peer.PeerID)
 }
 
-// NetworkChannelMessagePayloadFromEntry converts one persisted timeline row into the shared payload.
-func NetworkChannelMessagePayloadFromEntry(
+// NetworkConversationMessagePayloadFromEntry converts one persisted timeline row into the shared payload.
+func NetworkConversationMessagePayloadFromEntry(
 	entry store.NetworkMessageEntry,
 	sessionsByID map[string]*session.Info,
 	peersByID map[string]network.PeerInfo,
-) contract.NetworkChannelMessagePayload {
-	return NetworkChannelMessagePayloadFromView(networkTimelineMessageView{entry: entry}, sessionsByID, peersByID)
+) contract.NetworkConversationMessagePayload {
+	return NetworkConversationMessagePayloadFromView(networkTimelineMessageView{entry: entry}, sessionsByID, peersByID)
 }
 
-func NetworkChannelMessagePayloadFromView(
+func NetworkConversationMessagePayloadFromView(
 	view networkTimelineMessageView,
 	sessionsByID map[string]*session.Info,
 	peersByID map[string]network.PeerInfo,
-) contract.NetworkChannelMessagePayload {
+) contract.NetworkConversationMessagePayload {
 	entry := view.entry
 	storedSessionID := strings.TrimSpace(entry.SessionID)
 	displayName := strings.TrimSpace(entry.PeerFrom)
@@ -1148,7 +1148,7 @@ func NetworkChannelMessagePayloadFromView(
 		}
 	}
 
-	return contract.NetworkChannelMessagePayload{
+	return contract.NetworkConversationMessagePayload{
 		MessageID:          strings.TrimSpace(entry.MessageID),
 		Channel:            strings.TrimSpace(entry.Channel),
 		Surface:            strings.TrimSpace(entry.Surface),
@@ -1282,15 +1282,15 @@ func networkTimelinePayloads(
 	peerByID map[string]network.PeerInfo,
 	query store.NetworkMessageQuery,
 	presenceWindow time.Duration,
-) ([]contract.NetworkChannelMessagePayload, error) {
+) ([]contract.NetworkConversationMessagePayload, error) {
 	history := summarizeNetworkMessageHistory(messages, presenceWindow)
 	views, err := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
 	if err != nil {
 		return nil, err
 	}
-	payload := make([]contract.NetworkChannelMessagePayload, 0, len(views))
+	payload := make([]contract.NetworkConversationMessagePayload, 0, len(views))
 	for _, view := range views {
-		payload = append(payload, NetworkChannelMessagePayloadFromView(view, sessionByID, peerByID))
+		payload = append(payload, NetworkConversationMessagePayloadFromView(view, sessionByID, peerByID))
 	}
 	return payload, nil
 }

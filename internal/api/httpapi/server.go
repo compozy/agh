@@ -33,51 +33,52 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths       aghconfig.HomePaths
-	config          aghconfig.Config
-	configSet       bool
-	host            string
-	port            int
-	logger          *slog.Logger
-	startedAt       time.Time
-	now             func() time.Time
-	pollInterval    time.Duration
-	sessions        core.SessionManager
-	tasks           core.TaskService
-	network         core.NetworkService
-	networkStore    core.NetworkStore
-	observer        core.Observer
-	automation      core.AutomationManager
-	bridges         core.BridgeService
-	bundles         core.BundleService
-	tools           core.ToolRegistry
-	toolsets        core.ToolsetRegistry
-	toolApprovals   core.ToolApprovalIssuer
-	settings        core.SettingsService
-	settingsRestart core.SettingsRestartController
-	settingsUpdate  core.SettingsUpdateController
-	vault           core.VaultService
-	workspaces      core.WorkspaceService
-	agentCatalog    core.AgentCatalog
-	modelCatalog    core.ModelCatalogService
-	agentContext    core.AgentContextService
-	soulAuthoring   core.SoulAuthoringService
-	soulRefresher   core.SoulRefresher
-	heartbeatAuthor core.HeartbeatAuthoringService
-	heartbeatStatus core.HeartbeatStatusService
-	heartbeatWake   core.HeartbeatWakeService
-	sessionHealth   core.SessionHealthReader
-	wakeEvents      core.HeartbeatWakeEventReader
-	skillsRegistry  core.SkillsRegistry
-	memoryStore     *memory.Store
-	dreamTrigger    core.DreamTrigger
-	memoryExtractor core.MemoryExtractorService
-	memoryProviders core.MemoryProviderService
-	memoryLedger    core.MemorySessionLedgerService
-	agentLoader     core.AgentLoader
-	resources       core.ResourceService
-	resourceAuth    []gin.HandlerFunc
-	extensions      ExtensionService
+	homePaths         aghconfig.HomePaths
+	config            aghconfig.Config
+	configSet         bool
+	host              string
+	port              int
+	logger            *slog.Logger
+	startedAt         time.Time
+	now               func() time.Time
+	pollInterval      time.Duration
+	sessions          core.SessionManager
+	tasks             core.TaskService
+	network           core.NetworkService
+	networkStore      core.NetworkStore
+	observer          core.Observer
+	automation        core.AutomationManager
+	bridges           core.BridgeService
+	bundles           core.BundleService
+	tools             core.ToolRegistry
+	toolsets          core.ToolsetRegistry
+	toolApprovals     core.ToolApprovalIssuer
+	settings          core.SettingsService
+	settingsRestart   core.SettingsRestartController
+	settingsUpdate    core.SettingsUpdateController
+	vault             core.VaultService
+	workspaces        core.WorkspaceService
+	agentCatalog      core.AgentCatalog
+	modelCatalog      core.ModelCatalogService
+	agentContext      core.AgentContextService
+	coordinatorConfig core.CoordinatorConfigResolver
+	soulAuthoring     core.SoulAuthoringService
+	soulRefresher     core.SoulRefresher
+	heartbeatAuthor   core.HeartbeatAuthoringService
+	heartbeatStatus   core.HeartbeatStatusService
+	heartbeatWake     core.HeartbeatWakeService
+	sessionHealth     core.SessionHealthReader
+	wakeEvents        core.HeartbeatWakeEventReader
+	skillsRegistry    core.SkillsRegistry
+	memoryStore       *memory.Store
+	dreamTrigger      core.DreamTrigger
+	memoryExtractor   core.MemoryExtractorService
+	memoryProviders   core.MemoryProviderService
+	memoryLedger      core.MemorySessionLedgerService
+	agentLoader       core.AgentLoader
+	resources         core.ResourceService
+	resourceAuth      []gin.HandlerFunc
+	extensions        ExtensionService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -296,6 +297,13 @@ func WithModelCatalogService(service core.ModelCatalogService) Option {
 func WithAgentContext(service core.AgentContextService) Option {
 	return func(server *Server) {
 		server.agentContext = service
+	}
+}
+
+// WithCoordinatorConfig injects the resolved coordinator policy reader.
+func WithCoordinatorConfig(resolver core.CoordinatorConfigResolver) Option {
+	return func(server *Server) {
+		server.coordinatorConfig = resolver
 	}
 }
 
@@ -532,51 +540,52 @@ func (s *Server) ensureEngine() {
 
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	return &handlerConfig{
-		sessions:        s.sessions,
-		tasks:           s.tasks,
-		network:         s.network,
-		networkStore:    s.networkStore,
-		observer:        s.observer,
-		resources:       s.resources,
-		automation:      s.automation,
-		bridges:         s.bridges,
-		bundles:         s.bundles,
-		tools:           s.tools,
-		toolsets:        s.toolsets,
-		toolApprovals:   s.toolApprovals,
-		settings:        s.settings,
-		settingsRestart: s.settingsRestart,
-		settingsUpdate:  s.settingsUpdate,
-		vault:           s.vault,
-		workspaces:      s.workspaces,
-		agentCatalog:    s.agentCatalog,
-		modelCatalog:    s.modelCatalog,
-		agentContext:    s.agentContext,
-		soulAuthoring:   s.soulAuthoring,
-		soulRefresher:   s.soulRefresher,
-		heartbeatAuthor: s.heartbeatAuthor,
-		heartbeatStatus: s.heartbeatStatus,
-		heartbeatWake:   s.heartbeatWake,
-		sessionHealth:   s.sessionHealth,
-		wakeEvents:      s.wakeEvents,
-		skillsRegistry:  s.skillsRegistry,
-		memoryStore:     s.memoryStore,
-		dreamTrigger:    s.dreamTrigger,
-		memoryExtractor: s.memoryExtractor,
-		memoryProviders: s.memoryProviders,
-		memoryLedger:    s.memoryLedger,
-		staticFS:        staticFS,
-		homePaths:       s.homePaths,
-		config:          s.config,
-		boundHost:       s.host,
-		logger:          s.logger,
-		startedAt:       s.startedAt,
-		now:             s.now,
-		pollInterval:    s.pollInterval,
-		agentLoader:     s.agentLoader,
-		httpPort:        s.port,
-		resourceAuth:    append([]gin.HandlerFunc(nil), s.resourceAuth...),
-		extensions:      s.extensions,
+		sessions:          s.sessions,
+		tasks:             s.tasks,
+		network:           s.network,
+		networkStore:      s.networkStore,
+		observer:          s.observer,
+		resources:         s.resources,
+		automation:        s.automation,
+		bridges:           s.bridges,
+		bundles:           s.bundles,
+		tools:             s.tools,
+		toolsets:          s.toolsets,
+		toolApprovals:     s.toolApprovals,
+		settings:          s.settings,
+		settingsRestart:   s.settingsRestart,
+		settingsUpdate:    s.settingsUpdate,
+		vault:             s.vault,
+		workspaces:        s.workspaces,
+		agentCatalog:      s.agentCatalog,
+		modelCatalog:      s.modelCatalog,
+		agentContext:      s.agentContext,
+		coordinatorConfig: s.coordinatorConfig,
+		soulAuthoring:     s.soulAuthoring,
+		soulRefresher:     s.soulRefresher,
+		heartbeatAuthor:   s.heartbeatAuthor,
+		heartbeatStatus:   s.heartbeatStatus,
+		heartbeatWake:     s.heartbeatWake,
+		sessionHealth:     s.sessionHealth,
+		wakeEvents:        s.wakeEvents,
+		skillsRegistry:    s.skillsRegistry,
+		memoryStore:       s.memoryStore,
+		dreamTrigger:      s.dreamTrigger,
+		memoryExtractor:   s.memoryExtractor,
+		memoryProviders:   s.memoryProviders,
+		memoryLedger:      s.memoryLedger,
+		staticFS:          staticFS,
+		homePaths:         s.homePaths,
+		config:            s.config,
+		boundHost:         s.host,
+		logger:            s.logger,
+		startedAt:         s.startedAt,
+		now:               s.now,
+		pollInterval:      s.pollInterval,
+		agentLoader:       s.agentLoader,
+		httpPort:          s.port,
+		resourceAuth:      append([]gin.HandlerFunc(nil), s.resourceAuth...),
+		extensions:        s.extensions,
 	}
 }
 
@@ -613,7 +622,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("httpapi: listen on %q: %w", address, err)
 	}
 
-	streamCtx, streamCancel := context.WithCancel(context.Background())
+	streamCtx, streamCancel := context.WithCancel(context.WithoutCancel(ctx))
 	httpServer := &http.Server{
 		Handler:           s.engine,
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
@@ -630,8 +639,11 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.started {
 		s.mu.Unlock()
 		streamCancel()
-		_ = ln.Close()
-		return errors.New("httpapi: server already started")
+		startErr := errors.New("httpapi: server already started")
+		if closeErr := ln.Close(); closeErr != nil {
+			return errors.Join(startErr, fmt.Errorf("httpapi: close duplicate listener: %w", closeErr))
+		}
+		return startErr
 	}
 	s.handlers.setStreamDone(streamCtx.Done())
 	s.handlers.setHTTPPort(actualPort)

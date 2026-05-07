@@ -51,7 +51,7 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
 		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept")
-		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream")
 		headers.Set("Vary", "Origin")
 		if origin != "" {
@@ -214,6 +214,8 @@ func canonicalHost(value string) string {
 		if parsed, err := url.Parse(host); err == nil {
 			host = parsed.Hostname()
 		}
+	} else if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
 	}
 	return strings.Trim(strings.TrimSpace(host), "[]")
 }
@@ -266,29 +268,25 @@ func requestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
 }
 
 func loopbackAPIGuard(boundHost string) gin.HandlerFunc {
-	allowed := isLoopbackHost(canonicalHost(boundHost))
-	return func(c *gin.Context) {
-		if allowed {
-			c.Next()
-			return
-		}
-		if isOpenAICompatiblePath(c) {
-			core.RespondOpenAIError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
-		} else {
-			core.RespondError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
-		}
-		c.Abort()
-	}
+	return loopbackGuard(boundHost, errLoopbackAPIRequired, true)
 }
 
 func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
+	return loopbackGuard(boundHost, errLoopbackMutationRequired, false)
+}
+
+func loopbackGuard(boundHost string, guardErr error, openAICompatible bool) gin.HandlerFunc {
 	allowed := isLoopbackHost(canonicalHost(boundHost))
 	return func(c *gin.Context) {
 		if allowed {
 			c.Next()
 			return
 		}
-		core.RespondError(c, http.StatusForbidden, errLoopbackMutationRequired, false)
+		if openAICompatible && isOpenAICompatiblePath(c) {
+			core.RespondOpenAIError(c, http.StatusForbidden, guardErr, false)
+		} else {
+			core.RespondError(c, http.StatusForbidden, guardErr, false)
+		}
 		c.Abort()
 	}
 }

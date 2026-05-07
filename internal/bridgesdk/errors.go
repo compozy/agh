@@ -310,6 +310,13 @@ func (c ClassifiedError) Recovery() RecoveryDecision {
 
 // RetryDo retries the operation according to the shared classification policy.
 func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Context) (T, error)) (T, error) {
+	var zero T
+	if ctx == nil {
+		return zero, errors.New("bridgesdk: retry context is required")
+	}
+	if fn == nil {
+		return zero, errors.New("bridgesdk: retry function is required")
+	}
 	if config.Attempts <= 0 {
 		config.Attempts = 1
 	}
@@ -323,7 +330,6 @@ func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Con
 		config.RandFloat = rand.Float64
 	}
 
-	var zero T
 	for attempt := 1; attempt <= config.Attempts; attempt++ {
 		result, err := fn(ctx)
 		if err == nil {
@@ -346,7 +352,7 @@ func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Con
 		}
 	}
 
-	return zero, nil
+	return zero, errors.New("bridgesdk: retry attempts exhausted")
 }
 
 func retryDelay(config RetryConfig, attempt int, recovery RecoveryDecision) time.Duration {

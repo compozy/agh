@@ -27,12 +27,13 @@ func discardBundleTestLogger() *slog.Logger {
 }
 
 type memoryStore struct {
-	activations map[string]Activation
-	inventory   map[string][]InventoryItem
-	bundles     []resources.Record[BundleResourceSpec]
-	agents      []resources.Record[aghconfig.AgentDef]
-	applied     []BundleActivationResourcePlan
-	applyErr    error
+	activations   map[string]Activation
+	inventory     map[string][]InventoryItem
+	bundles       []resources.Record[BundleResourceSpec]
+	agents        []resources.Record[aghconfig.AgentDef]
+	applied       []BundleActivationResourcePlan
+	applyErr      error
+	applyAfterErr error
 
 	createBundleActivationHook func(Activation) error
 	updateBundleActivationHook func(Activation) error
@@ -221,6 +222,11 @@ func (s *memoryStore) ApplyBundleActivationResources(
 			ResourceID:   instance.ID,
 			ResourceName: instance.DisplayName,
 		})
+	}
+	if s.applyAfterErr != nil {
+		err := s.applyAfterErr
+		s.applyAfterErr = nil
+		return err
 	}
 	return nil
 }
@@ -803,7 +809,6 @@ func TestFindBundleResourceRecordIndexedNormalizesLookupKeys(t *testing.T) {
 		},
 	}
 	lookup := newBundleRecordLookup([]resources.Record[BundleResourceSpec]{record})
-	lookup.records = nil
 
 	got, ok := findBundleResourceRecordIndexed(lookup, "marketing-team", "launch")
 	if !ok {
@@ -967,6 +972,48 @@ func TestServiceUpdateActivationRestoresRecordOnReconcileFailure(t *testing.T) {
 	stored, getErr := store.GetBundleActivation(testutil.Context(t), preview.Activation.ID)
 	if getErr != nil {
 		t.Fatalf("GetBundleActivation() error = %v", getErr)
+	}
+	if stored.BindPrimaryChannelAsDefault {
+		t.Fatal("stored.BindPrimaryChannelAsDefault = true, want rollback to false")
+	}
+}
+
+func TestServiceUpdateActivationCompensatesAppliedResourcesOnReconcileFailure(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	service := newMarketingService(store)
+	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
+		ExtensionName:               "marketing-team",
+		BundleName:                  "marketing",
+		ProfileName:                 "default",
+		Scope:                       ScopeGlobal,
+		BindPrimaryChannelAsDefault: false,
+	})
+	if err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+	beforeApplyCount := len(store.applied)
+
+	syncErr := errors.New("sync failed after apply")
+	store.applyAfterErr = syncErr
+	_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
+		ID:                          preview.Activation.ID,
+		BindPrimaryChannelAsDefault: true,
+	})
+	if !errors.Is(err, syncErr) {
+		t.Fatalf("UpdateActivation() error = %v, want sync failure", err)
+	}
+	if got, want := len(store.applied), beforeApplyCount+2; got != want {
+		t.Fatalf("len(store.applied) = %d, want failed apply plus compensating apply = %d", got, want)
+	}
+	last := store.applied[len(store.applied)-1]
+	if _, ok := last.activeActivationIDs[preview.Activation.ID]; !ok {
+		t.Fatalf("last.activeActivationIDs = %#v, want restored activation", last.activeActivationIDs)
+	}
+	stored, err := store.GetBundleActivation(testutil.Context(t), preview.Activation.ID)
+	if err != nil {
+		t.Fatalf("GetBundleActivation() error = %v", err)
 	}
 	if stored.BindPrimaryChannelAsDefault {
 		t.Fatal("stored.BindPrimaryChannelAsDefault = true, want rollback to false")

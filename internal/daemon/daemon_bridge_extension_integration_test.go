@@ -91,7 +91,6 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		ExtensionName: "telegram-reference",
 		DisplayName:   "Telegram Runtime E2E",
 		Enabled:       false,
-		Status:        bridgepkg.BridgeStatusDisabled,
 		RoutingPolicy: bridgepkg.RoutingPolicy{
 			IncludePeer:   true,
 			IncludeThread: true,

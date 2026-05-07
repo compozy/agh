@@ -3,6 +3,7 @@ package bridgesdk
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ type pendingInboundBatch struct {
 	batch     InboundBatch
 	lastChunk int
 	timer     *time.Timer
+	timerID   uint64
 }
 
 // InboundBatcher coalesces rapid-fire inbound envelopes under one routing identity.
@@ -51,6 +53,7 @@ type InboundBatcher struct {
 	mu      sync.Mutex
 	closed  bool
 	pending map[string]*pendingInboundBatch
+	timerID uint64
 	wg      sync.WaitGroup
 	err     error
 }
@@ -139,18 +142,13 @@ func (b *InboundBatcher) Enqueue(envelope bridgepkg.InboundMessageEnvelope) erro
 		pending.batch.Items = append(pending.batch.Items, itemCopy)
 		pending.batch.UpdatedAt = now
 		pending.lastChunk = len(strings.TrimSpace(envelope.Content.Text))
-		if pending.timer != nil {
-			pending.timer.Stop()
-		}
 	}
 
 	delay := b.delay
 	if b.splitThreshold > 0 && pending.lastChunk >= b.splitThreshold {
 		delay = b.splitDelay
 	}
-	pending.timer = time.AfterFunc(delay, func() {
-		b.flushKey(key)
-	})
+	b.scheduleTimerLocked(key, pending, delay)
 	return nil
 }
 
@@ -171,9 +169,7 @@ func (b *InboundBatcher) FlushAll(ctx context.Context) error {
 	}
 	pending := make([]InboundBatch, 0, len(b.pending))
 	for key, entry := range b.pending {
-		if entry.timer != nil {
-			entry.timer.Stop()
-		}
+		b.stopTimerLocked(entry)
 		pending = append(pending, cloneInboundBatch(entry.batch))
 		delete(b.pending, key)
 	}
@@ -202,9 +198,7 @@ func (b *InboundBatcher) Close() {
 	}
 	b.closed = true
 	for _, entry := range b.pending {
-		if entry.timer != nil {
-			entry.timer.Stop()
-		}
+		b.stopTimerLocked(entry)
 	}
 	b.pending = make(map[string]*pendingInboundBatch)
 	b.mu.Unlock()
@@ -222,38 +216,89 @@ func InboundBatchKey(envelope bridgepkg.InboundMessageEnvelope) string {
 		strings.TrimSpace(envelope.ThreadID),
 		strings.TrimSpace(envelope.GroupID),
 		strings.TrimSpace(envelope.Sender.ID),
-		strings.TrimSpace(string(envelope.EventFamily)),
+		string(inboundBatchEventFamily(envelope)),
 	}
 
-	totalLen := len(parts) - 1
+	totalLen := 0
 	for _, part := range parts {
-		totalLen += len(part)
+		totalLen += decimalLen(len(part)) + 1 + len(part) + 1
 	}
 
 	var builder strings.Builder
 	builder.Grow(totalLen)
 	for idx, part := range parts {
 		if idx > 0 {
-			builder.WriteByte('|')
+			builder.WriteByte(';')
 		}
-		builder.WriteString(part)
+		writeBatchKeyPart(&builder, part)
 	}
 	return builder.String()
 }
 
-func (b *InboundBatcher) flushKey(key string) {
+func inboundBatchEventFamily(envelope bridgepkg.InboundMessageEnvelope) bridgepkg.InboundEventFamily {
+	family := envelope.EventFamily.Normalize()
+	if family == "" && envelope.Command == nil && envelope.Action == nil && envelope.Reaction == nil {
+		return bridgepkg.InboundEventFamilyMessage
+	}
+	return family
+}
+
+func writeBatchKeyPart(builder *strings.Builder, part string) {
+	var digits [20]byte
+	encodedLen := strconv.AppendInt(digits[:0], int64(len(part)), 10)
+	builder.Write(encodedLen)
+	builder.WriteByte(':')
+	builder.WriteString(part)
+}
+
+func decimalLen(value int) int {
+	if value == 0 {
+		return 1
+	}
+	digits := 0
+	for value > 0 {
+		value /= 10
+		digits++
+	}
+	return digits
+}
+
+func (b *InboundBatcher) scheduleTimerLocked(key string, pending *pendingInboundBatch, delay time.Duration) {
+	b.stopTimerLocked(pending)
+	b.timerID++
+	pending.timerID = b.timerID
+	timerID := pending.timerID
+	b.wg.Add(1)
+	pending.timer = time.AfterFunc(delay, func() {
+		defer b.wg.Done()
+		b.flushKey(key, timerID)
+	})
+}
+
+func (b *InboundBatcher) stopTimerLocked(pending *pendingInboundBatch) {
+	if pending.timer == nil {
+		return
+	}
+	if pending.timer.Stop() {
+		b.wg.Done()
+	}
+	pending.timer = nil
+}
+
+func (b *InboundBatcher) flushKey(key string, timerID uint64) {
 	b.mu.Lock()
 	entry, ok := b.pending[key]
-	if ok {
+	if ok && entry.timerID == timerID && !b.closed {
 		delete(b.pending, key)
+		entry.timer = nil
+	} else {
+		ok = false
 	}
 	b.mu.Unlock()
 	if !ok {
 		return
 	}
 
-	b.wg.Add(1)
-	defer b.wg.Done()
 	if err := b.dispatch(b.ctx, cloneInboundBatch(entry.batch)); err != nil && !errors.Is(err, context.Canceled) {
 		b.mu.Lock()
 		if b.err == nil {
@@ -291,6 +336,10 @@ func cloneInboundEnvelope(src bridgepkg.InboundMessageEnvelope) bridgepkg.Inboun
 	if cloned.Reaction != nil {
 		reaction := *cloned.Reaction
 		cloned.Reaction = &reaction
+	}
+	if cloned.Conversation != nil {
+		conversation := *cloned.Conversation
+		cloned.Conversation = &conversation
 	}
 	return cloned
 }

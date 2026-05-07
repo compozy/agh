@@ -72,7 +72,8 @@ type TriggerResult struct {
 
 // TriggerRegistration stores one runtime trigger definition plus write-only webhook auth material.
 type TriggerRegistration struct {
-	Trigger Trigger `json:"trigger"`
+	Trigger        Trigger `json:"trigger"`
+	compiledFilter triggerFilter
 }
 
 // Validate ensures the runtime registration is internally consistent.
@@ -365,7 +366,7 @@ func (e *TriggerEngine) Fire(ctx context.Context, envelope ActivationEnvelope) (
 	if err != nil {
 		return TriggerResult{}, err
 	}
-	return e.dispatchMatches(ctx, envelope, registrations)
+	return e.dispatchPreMatched(ctx, envelope, registrations)
 }
 
 // FireSessionCreated normalizes a session-created lifecycle event and routes it through the shared matching path.
@@ -452,7 +453,7 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	}
 
 	envelope := webhookEnvelope(request, parsed)
-	result, err := e.dispatchMatches(ctx, envelope, []TriggerRegistration{registration})
+	result, err := e.dispatchAfterFilter(ctx, envelope, []TriggerRegistration{registration})
 	if err != nil && len(result.Runs) == 0 {
 		e.releaseWebhookDelivery(registration.Trigger.ID, request.DeliveryID)
 	}
@@ -587,7 +588,7 @@ func (e *TriggerEngine) matchingRegistrations(envelope ActivationEnvelope) ([]Tr
 
 	matches := make([]TriggerRegistration, 0)
 	for _, registration := range e.registrations {
-		if registrationMatchesEnvelope(registration.Trigger, envelope) {
+		if registrationMatchesEnvelope(registration, envelope) {
 			matches = append(matches, cloneTriggerRegistration(registration))
 		}
 	}
@@ -597,10 +598,27 @@ func (e *TriggerEngine) matchingRegistrations(envelope ActivationEnvelope) ([]Tr
 	return matches, nil
 }
 
+func (e *TriggerEngine) dispatchPreMatched(
+	ctx context.Context,
+	envelope ActivationEnvelope,
+	registrations []TriggerRegistration,
+) (TriggerResult, error) {
+	return e.dispatchMatches(ctx, envelope, registrations, false)
+}
+
+func (e *TriggerEngine) dispatchAfterFilter(
+	ctx context.Context,
+	envelope ActivationEnvelope,
+	registrations []TriggerRegistration,
+) (TriggerResult, error) {
+	return e.dispatchMatches(ctx, envelope, registrations, true)
+}
+
 func (e *TriggerEngine) dispatchMatches(
 	ctx context.Context,
 	envelope ActivationEnvelope,
 	registrations []TriggerRegistration,
+	filterRegistrations bool,
 ) (TriggerResult, error) {
 	result := TriggerResult{
 		Runs: make([]Run, 0, len(registrations)),
@@ -611,14 +629,15 @@ func (e *TriggerEngine) dispatchMatches(
 		dispatchKind = DispatchKindExtension
 	}
 	for _, registration := range registrations {
-		if !registrationMatchesEnvelope(registration.Trigger, envelope) {
+		if filterRegistrations && !registrationMatchesEnvelope(registration, envelope) {
 			continue
 		}
 
 		result.Matched++
+		trigger := registration.Trigger
 		run, err := e.dispatcher.Dispatch(ctx, DispatchRequest{
 			Kind:     dispatchKind,
-			Trigger:  pointerToRegisteredTrigger(registration.Trigger),
+			Trigger:  &trigger,
 			Envelope: pointerToActivationEnvelope(envelope),
 		})
 		if run != nil {
@@ -851,10 +870,12 @@ func normalizeTriggerRegistration(registration TriggerRegistration) (TriggerRegi
 	if err := normalized.Validate("trigger_registration"); err != nil {
 		return TriggerRegistration{}, err
 	}
+	normalized.compiledFilter = compileTriggerFilter(normalized.Trigger.Filter)
 	return normalized, nil
 }
 
-func registrationMatchesEnvelope(trigger Trigger, envelope ActivationEnvelope) bool {
+func registrationMatchesEnvelope(registration TriggerRegistration, envelope ActivationEnvelope) bool {
+	trigger := registration.Trigger
 	if !trigger.Enabled {
 		return false
 	}
@@ -867,119 +888,13 @@ func registrationMatchesEnvelope(trigger Trigger, envelope ActivationEnvelope) b
 	if strings.TrimSpace(trigger.WorkspaceID) != strings.TrimSpace(envelope.WorkspaceID) {
 		return false
 	}
+	if len(trigger.Filter) == 0 {
+		return true
+	}
+	if len(registration.compiledFilter.entries) == len(trigger.Filter) {
+		return registration.compiledFilter.matches(envelope)
+	}
 	return exactFilterMatch(trigger.Filter, envelope)
-}
-
-func exactFilterMatch(filter map[string]string, envelope ActivationEnvelope) bool {
-	for rawPath, rawWant := range filter {
-		got, ok := envelopeFilterValue(envelope, rawPath)
-		if !ok {
-			return false
-		}
-		if got != strings.TrimSpace(rawWant) {
-			return false
-		}
-	}
-	return true
-}
-
-func envelopeFilterValue(envelope ActivationEnvelope, path string) (string, bool) {
-	switch strings.TrimSpace(path) {
-	case "kind":
-		return strings.TrimSpace(envelope.Kind), true
-	case "scope":
-		return string(envelope.Scope), true
-	case "workspace_id":
-		return strings.TrimSpace(envelope.WorkspaceID), true
-	case "source":
-		return string(envelope.Source), true
-	}
-
-	trimmedPath := strings.TrimSpace(path)
-	if !strings.HasPrefix(trimmedPath, "data.") {
-		return "", false
-	}
-	value, ok := lookupEnvelopeDataValue(envelope.Data, strings.Split(strings.TrimPrefix(trimmedPath, "data."), "."))
-	if !ok {
-		return "", false
-	}
-	return stringifyEnvelopeValue(value)
-}
-
-func lookupEnvelopeDataValue(data map[string]any, path []string) (any, bool) {
-	if len(path) == 0 {
-		return data, true
-	}
-
-	var current any = data
-	for _, segment := range path {
-		key := strings.TrimSpace(segment)
-		if key == "" {
-			return nil, false
-		}
-
-		switch typed := current.(type) {
-		case map[string]any:
-			next, ok := typed[key]
-			if !ok {
-				return nil, false
-			}
-			current = next
-		case map[string]string:
-			next, ok := typed[key]
-			if !ok {
-				return nil, false
-			}
-			current = next
-		default:
-			return nil, false
-		}
-	}
-
-	return current, true
-}
-
-func stringifyEnvelopeValue(value any) (string, bool) {
-	switch typed := value.(type) {
-	case nil:
-		return "", false
-	case string:
-		return typed, true
-	case []byte:
-		return string(typed), true
-	case bool:
-		return strconv.FormatBool(typed), true
-	case int:
-		return strconv.Itoa(typed), true
-	case int8:
-		return strconv.FormatInt(int64(typed), 10), true
-	case int16:
-		return strconv.FormatInt(int64(typed), 10), true
-	case int32:
-		return strconv.FormatInt(int64(typed), 10), true
-	case int64:
-		return strconv.FormatInt(typed, 10), true
-	case uint:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint8:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint16:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint32:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint64:
-		return strconv.FormatUint(typed, 10), true
-	case float32:
-		return strconv.FormatFloat(float64(typed), 'f', -1, 32), true
-	case float64:
-		return strconv.FormatFloat(typed, 'f', -1, 64), true
-	case time.Time:
-		return typed.UTC().Format(time.RFC3339Nano), true
-	case fmt.Stringer:
-		return typed.String(), true
-	default:
-		return "", false
-	}
 }
 
 func sessionEnvelope(kind string, sess *session.Session) (ActivationEnvelope, error) {
@@ -1112,6 +1027,7 @@ func cloneTriggerRegistration(src TriggerRegistration) TriggerRegistration {
 			CreatedAt:        src.Trigger.CreatedAt,
 			UpdatedAt:        src.Trigger.UpdatedAt,
 		},
+		compiledFilter: cloneTriggerFilter(src.compiledFilter),
 	}
 }
 
@@ -1138,14 +1054,6 @@ func scopeFromWorkspaceID(workspaceID string) Scope {
 		return AutomationScopeGlobal
 	}
 	return AutomationScopeWorkspace
-}
-
-func pointerToRegisteredTrigger(trigger Trigger) *Trigger {
-	cloned := trigger
-	if trigger.Filter != nil {
-		cloned.Filter = cloneStringMap(trigger.Filter)
-	}
-	return &cloned
 }
 
 func pointerToActivationEnvelope(envelope ActivationEnvelope) *ActivationEnvelope {

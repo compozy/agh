@@ -23,6 +23,7 @@ const internalChildFlagName = "internal-child"
 
 type daemonProcess interface {
 	PID() int
+	Done() <-chan struct{}
 	Wait() error
 }
 
@@ -201,6 +202,9 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, err
 }
 
 func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProcess) (DaemonStatus, error) {
+	if child == nil {
+		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
+	}
 	waitCtx := ctx
 	if waitCtx == nil {
 		waitCtx = context.Background()
@@ -216,27 +220,30 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 		return DaemonStatus{}, err
 	}
 
-	childErrCh := make(chan error, 1)
-	go func() {
-		childErrCh <- child.Wait()
-	}()
+	processAlive := deps.processAlive
+	if processAlive == nil {
+		processAlive = procutil.Alive
+	}
 
 	ticker := time.NewTicker(deps.pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-waitCtx.Done():
-			return DaemonStatus{}, errors.New("cli: daemon did not become ready before timeout")
-		case err := <-childErrCh:
-			if err != nil {
+		case <-child.Done():
+			if err := child.Wait(); err != nil {
 				return DaemonStatus{}, fmt.Errorf("cli: detached daemon exited before readiness: %w", err)
 			}
 			return DaemonStatus{}, errors.New("cli: detached daemon exited before readiness")
+		case <-waitCtx.Done():
+			return DaemonStatus{}, errors.New("cli: daemon did not become ready before timeout")
 		case <-ticker.C:
 			status, statusErr := client.DaemonStatus(waitCtx)
 			if statusErr == nil {
 				return status, nil
+			}
+			if pid := child.PID(); pid > 0 && !processAlive(pid) {
+				return DaemonStatus{}, errors.New("cli: detached daemon exited before readiness")
 			}
 		}
 	}

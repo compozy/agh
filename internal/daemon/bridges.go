@@ -566,6 +566,9 @@ func (r *bridgeRuntime) ApplyBridgeResourceState(ctx context.Context, plan resou
 	if !ok {
 		return fmt.Errorf("daemon: bridge resource plan has type %T", plan)
 	}
+	if typed == nil {
+		return errors.New("daemon: bridge resource plan is required")
+	}
 	if err := bridgepkg.ApplyResourceState(ctx, r.store, typed); err != nil {
 		return err
 	}

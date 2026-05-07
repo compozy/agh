@@ -3,13 +3,14 @@ package udsapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ type stubResourceService = testutil.StubResourceService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
 type sseRecord = testutil.SSERecord
+
+var shortSocketPathCounter atomic.Uint64
 
 type stubSettingsService struct {
 	GetSectionFn                func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
@@ -329,9 +332,12 @@ func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Conf
 func shortSocketPath(t *testing.T) string {
 	t.Helper()
 
-	path := filepath.Join(os.TempDir(), "udsapi-"+strconv.FormatInt(time.Now().UTC().UnixNano(), 10)+".sock")
+	id := shortSocketPathCounter.Add(1)
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("udsapi-%d-%d.sock", os.Getpid(), id))
 	t.Cleanup(func() {
-		_ = os.Remove(path)
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("remove socket path %q error = %v", path, err)
+		}
 	})
 	return path
 }
@@ -377,26 +383,30 @@ func parseSSE(t *testing.T, body string) []sseRecord {
 func TestStubWorkspaceServiceDefaultsReportUnconfiguredMethods(t *testing.T) {
 	t.Parallel()
 
-	service := stubWorkspaceService{}
+	t.Run("Should report unconfigured workspace methods", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := service.Register(
-		context.Background(),
-		workspacepkg.RegisterOptions{},
-	); !errors.Is(
-		err,
-		errStubWorkspaceServiceNotImplemented,
-	) {
-		t.Fatalf("Register() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
-	}
-	if _, err := service.ResolveOrRegister(
-		context.Background(),
-		"/workspace",
-	); !errors.Is(
-		err,
-		errStubWorkspaceServiceNotImplemented,
-	) {
-		t.Fatalf("ResolveOrRegister() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
-	}
+		service := stubWorkspaceService{}
+
+		if _, err := service.Register(
+			context.Background(),
+			workspacepkg.RegisterOptions{},
+		); !errors.Is(
+			err,
+			errStubWorkspaceServiceNotImplemented,
+		) {
+			t.Fatalf("Register() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
+		}
+		if _, err := service.ResolveOrRegister(
+			context.Background(),
+			"/workspace",
+		); !errors.Is(
+			err,
+			errStubWorkspaceServiceNotImplemented,
+		) {
+			t.Fatalf("ResolveOrRegister() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
+		}
+	})
 }
 
 func newUnixClient(t *testing.T, socketPath string) *http.Client {

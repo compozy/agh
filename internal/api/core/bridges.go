@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -88,7 +89,7 @@ func (h *BaseHandlers) CreateBridge(c *gin.Context) {
 	}
 
 	var req contract.CreateBridgeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictBridgeJSON(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -109,6 +110,21 @@ func (h *BaseHandlers) CreateBridge(c *gin.Context) {
 		return
 	}
 	h.respondBridge(c, http.StatusCreated, *instance)
+}
+
+func decodeStrictBridgeJSON(c *gin.Context, dest any) error {
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dest); err != nil {
+		return err
+	}
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); errors.Is(err, io.EOF) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return errors.New("request body must contain a single JSON value")
 }
 
 // GetBridge returns one persisted bridge instance.

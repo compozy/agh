@@ -56,7 +56,7 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 	}
 
 	rendered := renderAgentMarkdown(meta, agent.Prompt)
-	if err := os.WriteFile(path, rendered, 0o600); err != nil {
+	if err := writePersistedFile(path, rendered); err != nil {
 		return AgentDef{}, fmt.Errorf("write agent file %q: %w", path, err)
 	}
 

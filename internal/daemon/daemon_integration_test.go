@@ -1672,9 +1672,13 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal(body) error = %v", err)
 	}
+	surface := network.SurfaceThread
+	threadID := "thread_builders"
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
 		SessionID: "sess-sender",
 		Channel:   "builders",
+		Surface:   &surface,
+		ThreadID:  &threadID,
 		Kind:      network.KindSay,
 		Body:      body,
 	}); err != nil {
@@ -1779,9 +1783,13 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal(body) error = %v", err)
 	}
+	surface := network.SurfaceThread
+	threadID := "thread_builders"
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
 		SessionID: "sess-sender",
 		Channel:   "builders",
+		Surface:   &surface,
+		ThreadID:  &threadID,
 		Kind:      network.KindSay,
 		Body:      body,
 	}); err != nil {
@@ -2236,7 +2244,9 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		t.Fatal("skills registry does not contain bundled skill agh-session-guide")
 	}
 
-	workspace := workspacepkg.ResolvedWorkspace{}
+	workspace := workspacepkg.ResolvedWorkspace{
+		Agents: []aghconfig.AgentDef{testPromptAgent("Base prompt.")},
+	}
 	prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), &workspace)
 	if err != nil {
 		t.Fatalf("PromptAssembler.Assemble() error = %v", err)

@@ -26,9 +26,9 @@ func TestHostedMCPStreamErrorData(t *testing.T) {
 		if strings.Contains(string(encoded), "agh_claim_secret") || strings.Contains(string(encoded), "bind failed") {
 			t.Fatalf("hosted MCP stream error payload leaked backend detail: %s", encoded)
 		}
-		if payload["error"] != "hosted_mcp_projection_failed" ||
-			payload["status"] != http.StatusForbidden ||
-			payload["message"] != http.StatusText(http.StatusForbidden) {
+		if payload.Error != "hosted_mcp_projection_failed" ||
+			payload.Status != http.StatusForbidden ||
+			payload.Message != http.StatusText(http.StatusForbidden) {
 			t.Fatalf("hosted MCP stream error payload = %#v, want stable forbidden error", payload)
 		}
 	})

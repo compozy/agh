@@ -79,6 +79,31 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	}
 }
 
+func TestReplaceDotEnvFileUsesDurableWriteProtocol(t *testing.T) {
+	t.Parallel()
+
+	source, err := os.ReadFile("dotenv.go")
+	if err != nil {
+		t.Fatalf("os.ReadFile(dotenv.go) error = %v", err)
+	}
+	body := string(source)
+	start := strings.Index(body, "func replaceDotEnvFile(")
+	if start < 0 {
+		t.Fatal("replaceDotEnvFile function not found")
+	}
+	end := strings.Index(body[start:], "\nfunc dotEnvUnsupportedError(")
+	if end < 0 {
+		t.Fatal("replaceDotEnvFile function end not found")
+	}
+	fn := body[start : start+end]
+	if !strings.Contains(fn, ".Sync()") {
+		t.Fatalf("replaceDotEnvFile missing temp file Sync before rename:\n%s", fn)
+	}
+	if !strings.Contains(fn, "syncPersistedDir(dir)") {
+		t.Fatalf("replaceDotEnvFile missing parent directory sync after rename:\n%s", fn)
+	}
+}
+
 func TestRepairDotEnvFileRejectsUnsupportedContentWithoutWriting(t *testing.T) {
 	t.Parallel()
 

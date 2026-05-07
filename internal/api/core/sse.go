@@ -173,8 +173,29 @@ func ObserveEventAfterCursor(event store.EventSummary, cursor ObserveCursor) boo
 
 // ObserveEventID builds a stable Last-Event-ID value for observe streaming.
 func ObserveEventID(event store.EventSummary) string {
+	buffer := make([]byte, 0, len(time.RFC3339Nano)+1+20)
+	buffer = event.Timestamp.UTC().AppendFormat(buffer, time.RFC3339Nano)
+	buffer = append(buffer, '|')
 	if event.Sequence > 0 {
-		return fmt.Sprintf("%s|%020d", event.Timestamp.UTC().Format(time.RFC3339Nano), event.Sequence)
+		buffer = appendZeroPaddedInt64(buffer, event.Sequence, 20)
+		return string(buffer)
 	}
-	return event.Timestamp.UTC().Format(time.RFC3339Nano) + "|" + event.ID
+	buffer = append(buffer, event.ID...)
+	return string(buffer)
+}
+
+func appendZeroPaddedInt64(buffer []byte, value int64, width int) []byte {
+	for digitCount := decimalDigitCount(value); digitCount < width; digitCount++ {
+		buffer = append(buffer, '0')
+	}
+	return strconv.AppendInt(buffer, value, 10)
+}
+
+func decimalDigitCount(value int64) int {
+	count := 1
+	for value >= 10 {
+		value /= 10
+		count++
+	}
+	return count
 }

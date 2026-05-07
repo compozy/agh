@@ -183,26 +183,35 @@ func detectCapabilityCatalogLayout(agentDir string) (capabilityCatalogLayout, er
 }
 
 func existingCapabilityCatalogFile(path string) (bool, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		return false, fmt.Errorf("config: stat capability catalog file %q: %w", path, err)
 	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("config: capability catalog file %q must be a file, not a symlink", path)
+	}
 	if info.IsDir() {
 		return false, fmt.Errorf("config: capability catalog file %q must be a file", path)
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("config: capability catalog file %q must be a regular file", path)
 	}
 	return true, nil
 }
 
 func existingCapabilityCatalogDir(path string) (bool, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 		return false, fmt.Errorf("config: stat capability catalog directory %q: %w", path, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("config: capability catalog directory %q must be a directory, not a symlink", path)
 	}
 	if !info.IsDir() {
 		return false, fmt.Errorf("config: capability catalog directory %q must be a directory", path)
@@ -211,9 +220,12 @@ func existingCapabilityCatalogDir(path string) (bool, error) {
 }
 
 func loadCapabilityCatalogFile(path string) (*CapabilityCatalog, error) {
-	content, err := os.ReadFile(path)
+	content, exists, err := readOptionalRegularFile(path, "capability catalog")
 	if err != nil {
-		return nil, fmt.Errorf("config: read capability catalog %q: %w", path, err)
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("config: capability catalog %q disappeared before read", path)
 	}
 
 	switch filepath.Ext(path) {
@@ -294,9 +306,12 @@ func loadCapabilityCatalogDirectory(dir string) (*CapabilityCatalog, error) {
 }
 
 func loadCapabilityDefFile(path string) (CapabilityDef, error) {
-	content, err := os.ReadFile(path)
+	content, exists, err := readOptionalRegularFile(path, "capability definition")
 	if err != nil {
-		return CapabilityDef{}, fmt.Errorf("config: read capability definition %q: %w", path, err)
+		return CapabilityDef{}, err
+	}
+	if !exists {
+		return CapabilityDef{}, fmt.Errorf("config: capability definition %q disappeared before read", path)
 	}
 
 	switch filepath.Ext(path) {

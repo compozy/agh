@@ -29,6 +29,7 @@ var (
 	seeAlsoRe    = regexp.MustCompile(`(?ms)^### SEE ALSO\n.*`)
 	crossLinkRe  = regexp.MustCompile(`\[([^\]]+)\]\((agh[A-Za-z0-9_\-]*)\.md\)`)
 	strippedLink = regexp.MustCompile(`\]\((agh[A-Za-z0-9_\-]*)\)`)
+	segmentRe    = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 )
 
 // Process reads all agh*.md files from srcDir, transforms them into
@@ -57,18 +58,20 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 	}
 
 	hasChildren := computeHasChildren(inputs)
-	targets := buildTargetMap(inputs, hasChildren)
+	if err := validateOutputPaths(inputs, hasChildren); err != nil {
+		return err
+	}
+	targets := buildTargetMap(inputs)
 
 	for _, in := range inputs {
 		if err := ensureContext(ctx, fmt.Sprintf("write %s", in.fileName)); err != nil {
 			return err
 		}
-		cmdName := strings.ReplaceAll(in.baseName, "_", " ")
-		body := TransformMarkdown(in.raw, cmdName)
+		body := TransformMarkdown(in.raw, in.commandName())
 		body = remapLinks(body, targets)
 		body = enrichDocument(body, in, inputs, targets)
 
-		outRel := outPath(in, hasChildren)
+		outRel := in.outputPath(hasChildren)
 		dst := filepath.Join(dstDir, filepath.FromSlash(outRel))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return fmt.Errorf("docpost: mkdir %s: %w", dst, err)
@@ -155,6 +158,25 @@ type input struct {
 	raw      string
 }
 
+func (in input) isRoot() bool {
+	return len(in.segments) == 0
+}
+
+func (in input) commandName() string {
+	return baseNameToCommand(in.baseName)
+}
+
+func (in input) targetURL() string {
+	if in.isRoot() {
+		return linkBasePath + "/agh"
+	}
+	return linkBasePath + "/" + strings.Join(in.segments, "/")
+}
+
+func (in input) outputPath(hasChildren map[string]bool) string {
+	return outPath(in, hasChildren)
+}
+
 func readInputs(ctx context.Context, srcDir string) ([]input, error) {
 	if err := ensureContext(ctx, fmt.Sprintf("read source dir %s", srcDir)); err != nil {
 		return nil, err
@@ -166,34 +188,57 @@ func readInputs(ctx context.Context, srcDir string) ([]input, error) {
 
 	var inputs []input
 	for _, entry := range entries {
-		fullPath := filepath.Join(srcDir, entry.Name())
-		if err := ensureContext(ctx, fmt.Sprintf("read %s", fullPath)); err != nil {
+		in, ok, err := readInput(ctx, srcDir, entry)
+		if err != nil {
 			return nil, err
 		}
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+		if !ok {
 			continue
 		}
-		data, err := os.ReadFile(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("docpost: read %s: %w", fullPath, err)
-		}
-		base := strings.TrimSuffix(entry.Name(), ".md")
-		if !strings.HasPrefix(base, "agh") {
-			return nil, fmt.Errorf("docpost: unexpected filename %q (must start with 'agh')", entry.Name())
-		}
-		var segs []string
-		if base != "agh" {
-			parts := strings.Split(base, "_")
-			segs = parts[1:]
-		}
-		inputs = append(inputs, input{
-			fileName: entry.Name(),
-			baseName: base,
-			segments: segs,
-			raw:      string(data),
-		})
+		inputs = append(inputs, in)
 	}
 	return inputs, nil
+}
+
+func readInput(ctx context.Context, srcDir string, entry fs.DirEntry) (input, bool, error) {
+	fullPath := filepath.Join(srcDir, entry.Name())
+	if err := ensureContext(ctx, fmt.Sprintf("read %s", fullPath)); err != nil {
+		return input{}, false, err
+	}
+	if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+		return input{}, false, nil
+	}
+	base := strings.TrimSuffix(entry.Name(), ".md")
+	segments, err := commandSegments(entry.Name(), base)
+	if err != nil {
+		return input{}, false, err
+	}
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return input{}, false, fmt.Errorf("docpost: read %s: %w", fullPath, err)
+	}
+	return input{
+		fileName: entry.Name(),
+		baseName: base,
+		segments: segments,
+		raw:      string(data),
+	}, true, nil
+}
+
+func commandSegments(fileName string, base string) ([]string, error) {
+	if base == "agh" {
+		return nil, nil
+	}
+	if !strings.HasPrefix(base, "agh_") {
+		return nil, fmt.Errorf("docpost: unexpected filename %q (must be 'agh.md' or start with 'agh_')", fileName)
+	}
+	segments := strings.Split(base, "_")[1:]
+	for _, segment := range segments {
+		if !segmentRe.MatchString(segment) {
+			return nil, fmt.Errorf("docpost: unexpected filename %q (invalid command segment %q)", fileName, segment)
+		}
+	}
+	return segments, nil
 }
 
 // computeHasChildren marks a baseName as a "parent" when any other input's
@@ -232,32 +277,42 @@ func outPath(in input, hasChildren map[string]bool) string {
 // buildTargetMap builds a baseName -> absolute URL map used by remapLinks.
 // The root command maps to the generated agh page; every other command maps
 // to linkBasePath + its segment path.
-func buildTargetMap(inputs []input, _ map[string]bool) map[string]string {
+func buildTargetMap(inputs []input) map[string]string {
 	targets := make(map[string]string, len(inputs))
 	for _, in := range inputs {
-		if len(in.segments) == 0 {
-			targets[in.baseName] = linkBasePath + "/agh"
-			continue
-		}
-		targets[in.baseName] = linkBasePath + "/" + strings.Join(in.segments, "/")
+		targets[in.baseName] = in.targetURL()
 	}
 	return targets
+}
+
+func validateOutputPaths(inputs []input, hasChildren map[string]bool) error {
+	seen := make(map[string]string, len(inputs))
+	for _, in := range inputs {
+		outRel := in.outputPath(hasChildren)
+		if previous, ok := seen[outRel]; ok {
+			return fmt.Errorf("docpost: output path collision %q for %s and %s", outRel, previous, in.fileName)
+		}
+		seen[outRel] = in.fileName
+	}
+	return nil
 }
 
 // remapLinks rewrites any `](agh_xxx)` link target in the body to its
 // absolute URL under linkBasePath. Runs after TransformMarkdown has already
 // stripped `.md` extensions via rewriteLinks.
 func remapLinks(body string, targets map[string]string) string {
-	return strippedLink.ReplaceAllStringFunc(body, func(match string) string {
-		m := strippedLink.FindStringSubmatch(match)
-		if m == nil {
-			return match
-		}
-		target, ok := targets[m[1]]
-		if !ok {
-			return match
-		}
-		return "](" + target + ")"
+	return transformMarkdownOutsideCode(body, func(text string) string {
+		return strippedLink.ReplaceAllStringFunc(text, func(match string) string {
+			m := strippedLink.FindStringSubmatch(match)
+			if m == nil {
+				return match
+			}
+			target, ok := targets[m[1]]
+			if !ok {
+				return match
+			}
+			return "](" + target + ")"
+		})
 	})
 }
 
@@ -429,7 +484,7 @@ func enrichDocument(
 // e.g. "agh_session_list.md" → "agh session list"
 func filenameToCommand(filename string) string {
 	name := strings.TrimSuffix(filename, ".md")
-	return strings.ReplaceAll(name, "_", " ")
+	return baseNameToCommand(name)
 }
 
 // extractDescription pulls the short description from Cobra markdown.
@@ -526,7 +581,7 @@ func renderSubcommandsSection(current input, inputs []input, targets map[string]
 	b.WriteString("| Command | Description |\n")
 	b.WriteString("| ------- | ----------- |\n")
 	for _, child := range children {
-		cmd := strings.ReplaceAll(child.baseName, "_", " ")
+		cmd := child.commandName()
 		desc := strings.TrimSpace(extractDescription(child.raw))
 		if desc == "" {
 			desc = "See command reference."
@@ -558,8 +613,7 @@ func directChildren(parent input, inputs []input) []input {
 	}
 
 	sort.Slice(children, func(i, j int) bool {
-		return strings.ReplaceAll(children[i].baseName, "_", " ") <
-			strings.ReplaceAll(children[j].baseName, "_", " ")
+		return children[i].commandName() < children[j].commandName()
 	})
 
 	return children
@@ -705,7 +759,9 @@ func escapeLineJSX(line string) string {
 // links. The stripped form is then remapped to an absolute URL by remapLinks
 // during Process.
 func rewriteLinks(raw string) string {
-	return crossLinkRe.ReplaceAllString(raw, "[$1]($2)")
+	return transformMarkdownOutsideCode(raw, func(text string) string {
+		return crossLinkRe.ReplaceAllString(text, "[$1]($2)")
+	})
 }
 
 func ensureContext(ctx context.Context, action string) error {
@@ -716,4 +772,54 @@ func ensureContext(ctx context.Context, action string) error {
 		return fmt.Errorf("docpost: %s: %w", action, err)
 	}
 	return nil
+}
+
+func baseNameToCommand(baseName string) string {
+	return strings.ReplaceAll(baseName, "_", " ")
+}
+
+func transformMarkdownOutsideCode(raw string, transform func(string) string) string {
+	lines := strings.Split(raw, "\n")
+	inFence := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		lines[i] = transformInlineText(line, transform)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func transformInlineText(line string, transform func(string) string) string {
+	if !strings.Contains(line, "`") {
+		return transform(line)
+	}
+
+	var b strings.Builder
+	inCode := false
+	start := 0
+	for i := 0; i < len(line); i++ {
+		if line[i] != '`' {
+			continue
+		}
+		if inCode {
+			b.WriteString(line[start : i+1])
+		} else {
+			b.WriteString(transform(line[start:i]))
+			b.WriteByte('`')
+		}
+		inCode = !inCode
+		start = i + 1
+	}
+	if inCode {
+		b.WriteString(line[start:])
+	} else {
+		b.WriteString(transform(line[start:]))
+	}
+	return b.String()
 }

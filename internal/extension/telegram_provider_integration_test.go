@@ -51,6 +51,7 @@ func TestTelegramProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludeThread: true, IncludeGroup: true},
 			BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 				{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
+				{BindingName: "webhook_secret", Kind: "token", Value: "top-secret"},
 			},
 		}},
 		ExtraEnv: map[string]string{
@@ -78,7 +79,7 @@ func TestTelegramProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 		ManagedInstances: []extensiontest.ManagedInstanceExpectation{{
 			InstanceID:          harness.Instances[0].ID,
 			ExtensionName:       "telegram",
-			BoundSecretNames:    []string{"bot_token"},
+			BoundSecretNames:    []string{"bot_token", "webhook_secret"},
 			ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
 		}},
 	}); err != nil {

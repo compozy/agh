@@ -108,9 +108,9 @@ func TestUpdateCommandFlows(t *testing.T) {
 			spawnCalls    int
 			aliveChecks   int
 		)
-		recoveryProcess := &stubDaemonProcess{waitCh: make(chan error, 1)}
+		recoveryProcess := &stubDaemonProcess{done: make(chan struct{})}
 		t.Cleanup(func() {
-			recoveryProcess.waitCh <- nil
+			recoveryProcess.complete(nil)
 		})
 
 		deps.processAlive = func(int) bool {

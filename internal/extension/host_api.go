@@ -2546,8 +2546,8 @@ func hostAPIExtensionNameFromContext(ctx context.Context) string {
 }
 
 func drainAgentEvents(events <-chan acp.AgentEvent) {
-	for event := range events {
-		_ = event
+	for range events {
+		continue
 	}
 }
 

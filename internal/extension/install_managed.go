@@ -84,7 +84,7 @@ func InstallLocalManaged(
 	sourceDir string,
 	checksum string,
 	opts ...InstallOption,
-) error {
+) (err error) {
 	normalizedChecksum, err := validateManagedInstallInput(registry, manifest, checksum)
 	if err != nil {
 		return err
@@ -112,8 +112,14 @@ func InstallLocalManaged(
 
 	cleanupStaging := true
 	defer func() {
-		if cleanupStaging {
-			_ = os.RemoveAll(stagingDir)
+		if !cleanupStaging {
+			return
+		}
+		if removeErr := os.RemoveAll(stagingDir); removeErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf("extension: remove managed install staging dir %q: %w", stagingDir, removeErr),
+			)
 		}
 	}()
 

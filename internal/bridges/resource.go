@@ -359,17 +359,7 @@ func sameBridgeProviderConfigSchema(left *BridgeProviderConfigSchema, right *Bri
 }
 
 func normalizeOptionalJSONObject(raw json.RawMessage, label string) (json.RawMessage, error) {
-	normalized, err := normalizeRawJSON(raw, label)
-	if err != nil {
-		return nil, err
-	}
-	if len(normalized) == 0 || bytes.Equal(normalized, []byte("null")) {
-		return nil, nil
-	}
-	if normalized[0] != '{' {
-		return nil, fmt.Errorf("bridges: %s must be a JSON object or null", label)
-	}
-	return normalized, nil
+	return normalizeJSONObject(raw, label)
 }
 
 // NormalizeDeliveryDefaultsJSON validates and canonicalizes bridge delivery default JSON.

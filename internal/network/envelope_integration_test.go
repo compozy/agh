@@ -117,6 +117,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "thread_id": "thread_patch_42",
 			  "from": "curator.sess-123",
 			  "to": null,
+			  "work_id": "work_capability_01",
 			  "ts": 1775822400,
 			  "body": {
 			    "capability": {

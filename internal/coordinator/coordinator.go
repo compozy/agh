@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -32,10 +31,10 @@ const (
 )
 
 var (
-	// OperationalMessageKinds are the coordination-channel message kinds a
+	// operationalMessageKinds are the coordination-channel message kinds a
 	// coordinator may use for worker conversation. Task ownership remains in
 	// the task lease API.
-	OperationalMessageKinds = []string{
+	operationalMessageKinds = [...]string{
 		"status",
 		"request",
 		"blocker",
@@ -44,11 +43,11 @@ var (
 		"review_request",
 	}
 
-	// ToolAllowlist is the orchestration-safe surface granted to coordinator
+	// toolAllowlist is the orchestration-safe surface granted to coordinator
 	// sessions. Operator lifecycle verbs and coordinator-to-coordinator spawn
 	// are intentionally absent. These must stay aligned with canonical builtin
 	// ToolIDs because lineage permission policies validate concrete tool atoms.
-	ToolAllowlist = []string{
+	toolAllowlist = [...]string{
 		toolspkg.ToolIDSessionDescribe.String(),
 		toolspkg.ToolIDNetworkChannels.String(),
 		toolspkg.ToolIDNetworkInbox.String(),
@@ -61,6 +60,18 @@ var (
 		toolspkg.ToolIDTaskCreate.String(),
 	}
 )
+
+// OperationalMessageKinds returns the coordination-channel message kinds a
+// coordinator may use for worker conversation.
+func OperationalMessageKinds() []string {
+	return slices.Clone(operationalMessageKinds[:])
+}
+
+// ToolAllowlist returns the orchestration-safe tool surface granted to
+// coordinator sessions.
+func ToolAllowlist() []string {
+	return slices.Clone(toolAllowlist[:])
+}
 
 // Decision describes whether a task run is eligible to bootstrap a workspace
 // coordinator.
@@ -157,7 +168,7 @@ func ExecutableRunStatuses() []taskpkg.RunStatus {
 // PermissionPolicy returns the restricted coordinator root permission policy.
 func PermissionPolicy(channelIDs ...string) store.SessionPermissionPolicy {
 	policy := store.SessionPermissionPolicy{
-		Tools:           append([]string(nil), ToolAllowlist...),
+		Tools:           ToolAllowlist(),
 		NetworkChannels: nonEmptyAtoms(channelIDs...),
 	}
 	return store.NormalizeSessionPermissionPolicy(policy)
@@ -165,7 +176,7 @@ func PermissionPolicy(channelIDs ...string) store.SessionPermissionPolicy {
 
 // ToolAllowed reports whether a concrete tool/action is coordinator-safe.
 func ToolAllowed(tool string) bool {
-	return slices.Contains(ToolAllowlist, strings.TrimSpace(tool))
+	return slices.Contains(toolAllowlist[:], strings.TrimSpace(tool))
 }
 
 // SpawnRoleAllowed reports whether a coordinator may request the given child
@@ -235,7 +246,7 @@ func PromptOverlay(input PromptInput) string {
 	b.WriteString("- `agh ch list|recv|send|reply` for operational worker communication.\n")
 	b.WriteString("- `agh spawn` for bounded worker delegation.\n")
 	b.WriteString("\nChannel communication is operational only. Use the run coordination channel for ")
-	b.WriteString(strings.Join(OperationalMessageKinds, ", "))
+	b.WriteString(strings.Join(operationalMessageKinds[:], ", "))
 	b.WriteString(" messages when conversation is useful. Do not use channel messages as task ownership state.\n")
 	b.WriteString("Never spawn another coordinator. ")
 	b.WriteString("Worker delegation must stay inside safe-spawn permissions and task approvals.\n")
@@ -247,7 +258,11 @@ func writePromptLine(b *strings.Builder, key string, value string) {
 	if trimmed == "" {
 		return
 	}
-	_, _ = fmt.Fprintf(b, "- %s: %s\n", key, trimmed)
+	b.WriteString("- ")
+	b.WriteString(key)
+	b.WriteString(": ")
+	b.WriteString(trimmed)
+	b.WriteByte('\n')
 }
 
 func nonEmptyAtoms(values ...string) []string {

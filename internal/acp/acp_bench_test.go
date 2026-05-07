@@ -2,6 +2,7 @@ package acp
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,8 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
+
+var benchmarkCommandEnv []string
 
 func BenchmarkHandleSessionUpdateAgentMessage(b *testing.B) {
 	proc := &AgentProcess{}
@@ -36,6 +39,31 @@ func BenchmarkHandleSessionUpdateAgentMessage(b *testing.B) {
 			b.Fatalf("handleSessionUpdate() error = %v", err)
 		}
 		<-active.events
+	}
+}
+
+func BenchmarkHandleInboundReadTextFile(b *testing.B) {
+	proc := &AgentProcess{
+		toolHost: contextAwareToolHost{},
+	}
+	payload := mustMarshalJSON(acpsdk.ReadTextFileRequest{
+		SessionId: "sess-bench",
+		Path:      "notes.txt",
+	})
+	if len(payload) == 0 {
+		b.Fatal("benchmark payload must not be empty")
+	}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if _, reqErr := proc.handleInbound(
+			context.Background(),
+			acpsdk.ClientMethodFsReadTextFile,
+			payload,
+		); reqErr != nil {
+			b.Fatalf("handleInbound() error = %v", reqErr)
+		}
 	}
 }
 
@@ -96,6 +124,6 @@ func BenchmarkMergeCommandEnvWithOverrides(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_ = mergeCommandEnv(base, overrides)
+		benchmarkCommandEnv = mergeCommandEnv(base, overrides)
 	}
 }

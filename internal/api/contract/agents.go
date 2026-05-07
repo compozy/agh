@@ -574,25 +574,7 @@ func containsRawClaimTokenMap(values map[string]json.RawMessage) bool {
 }
 
 func containsRawClaimTokenJSON(data []byte) bool {
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(data, &object); err == nil && object != nil {
-		for key, value := range object {
-			if isRawClaimTokenKey(key) || containsRawClaimTokenJSON(value) {
-				return true
-			}
-		}
-		return false
-	}
-
-	var array []json.RawMessage
-	if err := json.Unmarshal(data, &array); err == nil && array != nil {
-		for _, value := range array {
-			if containsRawClaimTokenJSON(value) {
-				return true
-			}
-		}
-	}
-	return false
+	return containsUnsafeJSON(data, isRawClaimTokenKey, nil)
 }
 
 func isRawClaimTokenKey(key string) bool {

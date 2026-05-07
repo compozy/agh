@@ -3,9 +3,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 )
@@ -81,12 +79,12 @@ func LoadMCPServersJSONFile(path string) ([]MCPServer, error) {
 		return nil, nil
 	}
 
-	content, err := os.ReadFile(trimmed)
+	content, exists, err := readOptionalRegularFile(trimmed, "MCP JSON")
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("config: read MCP JSON %q: %w", trimmed, err)
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
 	}
 
 	return ParseMCPServersJSON(content, trimmed)

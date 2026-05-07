@@ -308,7 +308,6 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		ExtensionName: "telegram-reference",
 		DisplayName:   "Telegram Runtime",
 		Enabled:       false,
-		Status:        bridgepkg.BridgeStatusDisabled,
 	})
 	if err != nil {
 		t.Fatalf("CreateBridge() error = %v", err)
@@ -712,63 +711,68 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/bridges/health/stream":
-			w.Header().Set("Content-Type", "text/event-stream")
-			_, _ = fmt.Fprint(w, "event: bridge_health\ndata: not-json\n\n")
-		default:
-			http.Error(w, "boom", http.StatusInternalServerError)
+	t.Run("Should surface bridge and extension transport errors", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/api/bridges/health/stream":
+				w.Header().Set("Content-Type", "text/event-stream")
+				if _, err := fmt.Fprint(w, "event: bridge_health\ndata: not-json\n\n"); err != nil {
+					t.Errorf("fmt.Fprint(bridge health stream) error = %v", err)
+				}
+			default:
+				http.Error(w, "boom", http.StatusInternalServerError)
+			}
+		}))
+		defer server.Close()
+
+		harness := &RuntimeHarness{
+			Artifacts:   NewArtifactCollector(t),
+			HTTPBaseURL: server.URL,
+			HTTPClient:  server.Client(),
+			UDSBaseURL:  server.URL,
+			UDSClient:   server.Client(),
 		}
-	}))
-	defer server.Close()
 
-	harness := &RuntimeHarness{
-		Artifacts:   NewArtifactCollector(t),
-		HTTPBaseURL: server.URL,
-		HTTPClient:  server.Client(),
-		UDSBaseURL:  server.URL,
-		UDSClient:   server.Client(),
-	}
+		ctx := testContext(t)
 
-	ctx := testContext(t)
-
-	_, err := harness.GetExtension(ctx, "telegram-reference")
-	assertErrorContains(t, err, "/api/extensions/telegram-reference status 500: boom")
-	if _, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
-		Scope:         bridgepkg.ScopeWorkspace,
-		WorkspaceID:   "ws-1",
-		Platform:      "telegram",
-		ExtensionName: "telegram-reference",
-		DisplayName:   "Telegram Runtime",
-		Enabled:       false,
-		Status:        bridgepkg.BridgeStatusDisabled,
-	}); err != nil {
-		assertErrorContains(t, err, "/api/bridges status 500: boom")
-	} else {
-		t.Fatal("CreateBridge() error = nil, want transport error")
-	}
-	if _, err := harness.PutBridgeSecretBinding(
-		ctx,
-		"brg-1",
-		"bot_token",
-		aghcontract.PutBridgeSecretBindingRequest{
-			SecretRef:   "vault:bridges/brg-1/bot_token",
-			SecretValue: stringPtr("telegram-bot-token"),
-			Kind:        "token",
-		},
-	); err != nil {
-		assertErrorContains(t, err, "/api/bridges/brg-1/secret-bindings/bot_token status 500: boom")
-	} else {
-		t.Fatal("PutBridgeSecretBinding() error = nil, want transport error")
-	}
-	assertErrorContains(t, harness.CaptureBridgeRoutes(ctx, "brg-1"), "/api/bridges/brg-1/routes status 500: boom")
-	assertErrorContains(
-		t,
-		harness.CaptureBridgeSecretBindings(ctx, "brg-1"),
-		"/api/bridges/brg-1/secret-bindings status 500: boom",
-	)
-	assertErrorContains(t, harness.CaptureBridgeHealth(ctx), "decode bridge health snapshot")
+		_, err := harness.GetExtension(ctx, "telegram-reference")
+		assertErrorContains(t, err, "/api/extensions/telegram-reference status 500: boom")
+		if _, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
+			Scope:         bridgepkg.ScopeWorkspace,
+			WorkspaceID:   "ws-1",
+			Platform:      "telegram",
+			ExtensionName: "telegram-reference",
+			DisplayName:   "Telegram Runtime",
+			Enabled:       false,
+		}); err != nil {
+			assertErrorContains(t, err, "/api/bridges status 500: boom")
+		} else {
+			t.Fatal("CreateBridge() error = nil, want transport error")
+		}
+		if _, err := harness.PutBridgeSecretBinding(
+			ctx,
+			"brg-1",
+			"bot_token",
+			aghcontract.PutBridgeSecretBindingRequest{
+				SecretRef:   "vault:bridges/brg-1/bot_token",
+				SecretValue: stringPtr("telegram-bot-token"),
+				Kind:        "token",
+			},
+		); err != nil {
+			assertErrorContains(t, err, "/api/bridges/brg-1/secret-bindings/bot_token status 500: boom")
+		} else {
+			t.Fatal("PutBridgeSecretBinding() error = nil, want transport error")
+		}
+		assertErrorContains(t, harness.CaptureBridgeRoutes(ctx, "brg-1"), "/api/bridges/brg-1/routes status 500: boom")
+		assertErrorContains(
+			t,
+			harness.CaptureBridgeSecretBindings(ctx, "brg-1"),
+			"/api/bridges/brg-1/secret-bindings status 500: boom",
+		)
+		assertErrorContains(t, harness.CaptureBridgeHealth(ctx), "decode bridge health snapshot")
+	})
 }
 
 func TestRuntimeHarnessBridgeHelpersRejectBlankBridgeID(t *testing.T) {
@@ -982,13 +986,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	})
 	mux.HandleFunc("/api/sessions/sess-1/prompt", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = fmt.Fprint(
+		if _, err := fmt.Fprint(
 			w,
 			"event: agent_message\n"+
 				"data: {\"type\":\"text-delta\"}\n\n"+
 				"event: done\n"+
 				"data: [DONE]\n\n",
-		)
+		); err != nil {
+			reportHarnessHandlerError(w, handlerErrs, http.StatusInternalServerError, "write prompt stream: %v", err)
+		}
 	})
 	mux.HandleFunc("/api/network/channels/builders/threads", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, aghcontract.NetworkThreadsResponse{
@@ -1034,7 +1040,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		_ *http.Request,
 	) {
 		writeJSON(w, aghcontract.NetworkThreadMessagesResponse{
-			Messages: []aghcontract.NetworkChannelMessagePayload{{
+			Messages: []aghcontract.NetworkConversationMessagePayload{{
 				MessageID:   "msg-1",
 				Channel:     "builders",
 				Surface:     "thread",
@@ -1763,7 +1769,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		_, _ = fmt.Fprintf(w, "event: bridge_health\ndata: %s\n\n", payload)
+		if _, err := fmt.Fprintf(w, "event: bridge_health\ndata: %s\n\n", payload); err != nil {
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusInternalServerError,
+				"write bridge health stream: %v",
+				err,
+			)
+		}
 	})
 
 	server := &harnessTestServer{

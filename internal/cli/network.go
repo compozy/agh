@@ -1164,14 +1164,14 @@ func networkKindMetricRows(metrics []NetworkKindMetricRecord) [][]string {
 }
 
 func parseNetworkJSONValue(flagName string, raw string) (json.RawMessage, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	payload, err := parseRequiredJSONRawMessage(raw)
+	if errors.Is(err, errEmptyJSONFlag) {
 		return nil, fmt.Errorf("cli: %s is required", flagName)
 	}
-	if !json.Valid([]byte(trimmed)) {
-		return nil, fmt.Errorf("cli: %s must be valid JSON", flagName)
+	if err != nil {
+		return nil, fmt.Errorf("cli: %s must be valid JSON: %w", flagName, err)
 	}
-	return json.RawMessage(trimmed), nil
+	return payload, nil
 }
 
 func parseNetworkJSONObjectMap(flagName string, raw string) (map[string]json.RawMessage, error) {

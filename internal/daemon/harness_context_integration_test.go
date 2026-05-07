@@ -16,7 +16,9 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -52,6 +54,23 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	}
 
 	driver := newHarnessIntegrationDriver()
+	workspaceResolver := &harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}
+	composite, err := newPromptInputCompositeAugmenter(
+		discardLogger(),
+		daemonInstance.harnessResolver,
+		nil,
+		defaultPromptInputAugmenterDescriptors(
+			memory.NewRecallAugmenter(daemonInstance.memoryStore),
+			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
+				return workspaceResolver
+			}),
+			daemonInstance.situationContext.Augment,
+		)...,
+	)
+	if err != nil {
+		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+	}
+	capturedDeps.PromptInputAugmenter = composite
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
@@ -65,6 +84,25 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	}
 	t.Cleanup(func() {
 		_ = manager.Stop(testutil.Context(t), created.ID)
+	})
+	waitForCondition(t, "current skills catalog ready", func() bool {
+		info := created.Info()
+		if info == nil || daemonInstance.skillsRegistry == nil {
+			return false
+		}
+		resolved, err := workspaceResolver.Resolve(testutil.Context(t), info.WorkspaceID)
+		if err != nil {
+			return false
+		}
+		projectedSkills, err := daemonInstance.skillsRegistry.ForAgent(
+			testutil.Context(t),
+			&resolved,
+			info.AgentName,
+		)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(skillspkg.BuildCurrentCatalog(projectedSkills), "<current-available-skills>")
 	})
 
 	startupResolved, err := daemonInstance.harnessResolver.ResolveStartup(session.StartupPromptContext{

@@ -347,7 +347,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"extension_name",
 					"display_name",
 					"enabled",
-					"status",
 					"routing_policy",
 				)
 				assertNotRequired(
@@ -357,20 +356,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"dm_policy",
 					"provider_config",
 					"delivery_defaults",
-					"degradation",
 				)
 				assertEnumValues(t, propertySchema(t, createBridgeSchema, "scope"), "global", "workspace")
 				assertEnumValues(t, propertySchema(t, createBridgeSchema, "dm_policy"), "open", "allowlist", "pairing")
-				assertEnumValues(
-					t,
-					propertySchema(t, createBridgeSchema, "status"),
-					"auth_required",
-					"degraded",
-					"disabled",
-					"error",
-					"ready",
-					"starting",
-				)
 
 				providerConfigSchema := propertySchema(t, createBridgeSchema, "provider_config")
 				assertSchemaIncludesType(t, providerConfigSchema, openapi3.TypeObject)
@@ -380,15 +368,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeObject)
 				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, false)
 				assertEnumValues(t, propertySchema(t, deliveryDefaultsSchema, "mode"), "direct-send", "reply")
-
-				degradationSchema := propertySchema(t, createBridgeSchema, "degradation")
-				assertEnumValues(t, propertySchema(t, degradationSchema, "reason"),
-					"auth_failed",
-					"rate_limited",
-					"webhook_invalid",
-					"provider_timeout",
-					"tenant_config_invalid",
-				)
 			},
 		},
 		{

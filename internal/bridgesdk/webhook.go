@@ -254,14 +254,11 @@ func allowedContentType(allowed []string, contentType string) bool {
 
 func readBodyWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) ([]byte, error) {
 	bodyReader := http.MaxBytesReader(w, r.Body, maxBytes)
-	defer func() {
-		_ = bodyReader.Close()
-	}()
 	body, err := io.ReadAll(bodyReader)
-	if err != nil {
-		return nil, err
+	if closeErr := bodyReader.Close(); closeErr != nil {
+		err = errors.Join(err, closeErr)
 	}
-	return body, nil
+	return body, err
 }
 
 func writeWebhookError(w http.ResponseWriter, err error) {
@@ -269,7 +266,8 @@ func writeWebhookError(w http.ResponseWriter, err error) {
 	if errors.As(err, &httpErr) && httpErr.StatusCode > 0 {
 		status := httpErr.StatusCode
 		if httpErr.RetryAfter > 0 {
-			w.Header().Set("Retry-After", strconv.FormatInt(int64(httpErr.RetryAfter/time.Second), 10))
+			retryAfterSeconds := int64((httpErr.RetryAfter + time.Second - 1) / time.Second)
+			w.Header().Set("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
 		}
 		http.Error(w, httpErr.Error(), status)
 		return

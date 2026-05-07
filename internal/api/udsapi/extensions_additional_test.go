@@ -16,7 +16,7 @@ import (
 func TestListExtensionsHandler(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldReturnInstalledExtensions", func(t *testing.T) {
+	t.Run("Should return installed extensions", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
@@ -52,7 +52,7 @@ func TestListExtensionsHandler(t *testing.T) {
 func TestInstallExtensionHandler(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldInstallExtensionsFromValidatedRequests", func(t *testing.T) {
+	t.Run("Should install extensions from validated requests", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
@@ -131,7 +131,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 func TestEnableDisableExtensionHandlers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldEnableAndDisableExtensions", func(t *testing.T) {
+	t.Run("Should enable and disable extensions", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
@@ -167,7 +167,7 @@ func TestEnableDisableExtensionHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectBlankExtensionNames", func(t *testing.T) {
+	t.Run("Should reject blank extension names", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
@@ -207,6 +207,11 @@ func TestExtensionStatusCodeMappings(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
+			name: "ShouldMapExistingExtensionToConflict",
+			err:  extensionpkg.ErrExtensionExists,
+			want: http.StatusConflict,
+		},
+		{
 			name: "ShouldMapInvalidManifestToBadRequest",
 			err:  extensionpkg.ErrManifestInvalid,
 			want: http.StatusBadRequest,
@@ -243,7 +248,7 @@ func TestExtensionStatusCodeMappings(t *testing.T) {
 func TestApproveSessionHandler(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldValidateAndRouteApprovalRequests", func(t *testing.T) {
+	t.Run("Should validate and route approval requests", func(t *testing.T) {
 		t.Parallel()
 
 		var (

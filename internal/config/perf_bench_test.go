@@ -162,7 +162,7 @@ func benchmarkMCPJSONDocument(count int) string {
 		}
 		fmt.Fprintf(
 			&builder,
-			"%q:{\"command\":\"npx\",\"args\":[\"-y\",\"server-%d\"],\"env\":{\"TOKEN\":\"value-%d\",\"SLOT\":\"%d\"}}",
+			"%q:{\"command\":\"npx\",\"args\":[\"-y\",\"server-%d\"],\"env\":{\"SLOT\":\"%d\"},\"secret_env\":{\"TOKEN\":\"env:BENCH_TOKEN_%d\"}}",
 			"server-"+strconv.Itoa(i),
 			i,
 			i,

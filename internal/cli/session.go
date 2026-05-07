@@ -467,14 +467,8 @@ func streamSessionEvents(cmd *cobra.Command, client DaemonClient, id string, que
 
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetEscapeHTML(false)
-	lastEventID := ""
 
 	err = client.StreamSessionEvents(cmd.Context(), id, query, "", func(event SSEEvent) error {
-		if strings.TrimSpace(event.ID) != "" {
-			lastEventID = event.ID
-			_ = lastEventID
-		}
-
 		var payload SessionEventRecord
 		if len(event.Data) > 0 {
 			if err := json.Unmarshal(event.Data, &payload); err != nil {

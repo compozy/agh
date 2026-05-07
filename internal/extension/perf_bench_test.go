@@ -1,12 +1,20 @@
 package extensionpkg
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/testutil"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 func BenchmarkDecodeHostAPIParamsTaskCreate(b *testing.B) {
@@ -64,6 +72,88 @@ func BenchmarkTaskRunPayloadsFromRuns(b *testing.B) {
 			b.Fatal("last payload result is empty")
 		}
 	}
+}
+
+func BenchmarkExtensionToolProviderListAndResolve(b *testing.B) {
+	b.ReportAllocs()
+
+	registry, targetID := extensionBenchmarkToolRegistry(b, 16)
+	provider, err := NewExtensionToolProvider(registry, func() ExtensionToolRuntime {
+		return nil
+	})
+	if err != nil {
+		b.Fatalf("NewExtensionToolProvider() error = %v", err)
+	}
+	ctx := testutil.Context(b)
+	scope := toolspkg.Scope{Operator: true}
+
+	for b.Loop() {
+		descriptors, err := provider.List(ctx, scope)
+		if err != nil {
+			b.Fatalf("List() error = %v", err)
+		}
+		if len(descriptors) != 16 {
+			b.Fatalf("len(descriptors) = %d, want 16", len(descriptors))
+		}
+		if _, found, err := provider.Resolve(ctx, scope, targetID); err != nil || !found {
+			b.Fatalf("Resolve(%q) = found %v, error %v; want found", targetID, found, err)
+		}
+	}
+}
+
+func extensionBenchmarkToolRegistry(b *testing.B, count int) (*Registry, toolspkg.ToolID) {
+	b.Helper()
+
+	dbPath := filepath.Join(b.TempDir(), "agh-extension-tools.db")
+	db, err := store.OpenSQLiteDatabase(testutil.Context(b), dbPath, func(ctx context.Context, db *sql.DB) error {
+		schema := append([]string{registryTestExtensionsTableSchema}, resources.SchemaStatements()...)
+		return store.EnsureSchema(ctx, db, schema)
+	})
+	if err != nil {
+		b.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			b.Fatalf("db.Close() error = %v", err)
+		}
+	})
+
+	registry := NewRegistry(db)
+	var targetID toolspkg.ToolID
+	for i := range count {
+		name := fmt.Sprintf("bench-tool-%02d", i)
+		dir := filepath.Join(b.TempDir(), name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			b.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, manifestJSONFileName),
+			[]byte(extensionToolManifestJSON(name, "fake-extension", nil, nil, true)),
+			0o600,
+		); err != nil {
+			b.Fatalf("os.WriteFile(%q manifest) error = %v", name, err)
+		}
+		manifest, err := LoadManifest(dir)
+		if err != nil {
+			b.Fatalf("LoadManifest(%q) error = %v", dir, err)
+		}
+		checksum, err := ComputeDirectoryChecksum(dir)
+		if err != nil {
+			b.Fatalf("ComputeDirectoryChecksum(%q) error = %v", dir, err)
+		}
+		if err := registry.Install(manifest, dir, checksum); err != nil {
+			b.Fatalf("Install(%q) error = %v", name, err)
+		}
+		descriptors, err := ResolveManifestToolDescriptors(manifest)
+		if err != nil {
+			b.Fatalf("ResolveManifestToolDescriptors(%q) error = %v", name, err)
+		}
+		if len(descriptors) != 1 {
+			b.Fatalf("len(descriptors for %q) = %d, want 1", name, len(descriptors))
+		}
+		targetID = descriptors[0].Tool.ID
+	}
+	return registry, targetID
 }
 
 func extensionBenchmarkTaskSummaries(count int) []taskpkg.Summary {

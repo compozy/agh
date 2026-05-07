@@ -2577,7 +2577,6 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 						payload.ExtensionName != "ext-telegram" ||
 						payload.DisplayName != "Support" ||
 						!payload.Enabled ||
-						payload.Status != bridgepkg.BridgeStatusStarting ||
 						!reflect.DeepEqual(payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true}) ||
 						len(payload.DeliveryDefaults) != 0 {
 						t.Fatalf("create bridge payload = %#v", payload)
@@ -2664,7 +2663,6 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 		ExtensionName: "ext-telegram",
 		DisplayName:   "Support",
 		Enabled:       true,
-		Status:        bridgepkg.BridgeStatusStarting,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	if err != nil || created.ID != "brg-a" {
@@ -3407,7 +3405,6 @@ func TestSharedContractJSONParity(t *testing.T) {
 		ExtensionName: "ext-telegram",
 		DisplayName:   "Support",
 		Enabled:       true,
-		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	}
 	cliBridgeJSON, err := json.Marshal(bridgeRequest)

@@ -40,13 +40,24 @@ func (c *HostAPIClient) Call(ctx context.Context, method string, params any, res
 	if c == nil || c.call == nil {
 		return errors.New("bridgesdk: host api client is required")
 	}
+	if ctx == nil {
+		return errors.New("bridgesdk: host api context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return c.call(ctx, method, params, result)
 }
 
 // ListBridgeInstances returns every bridge instance currently assigned to the provider runtime.
 func (c *HostAPIClient) ListBridgeInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error) {
 	var result []bridgepkg.BridgeInstance
-	if err := c.Call(ctx, "bridges/instances/list", struct{}{}, &result); err != nil {
+	if err := c.Call(
+		ctx,
+		string(extensioncontract.HostAPIMethodBridgesInstancesList),
+		struct{}{},
+		&result,
+	); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -58,9 +69,12 @@ func (c *HostAPIClient) GetBridgeInstance(
 	bridgeInstanceID string,
 ) (*bridgepkg.BridgeInstance, error) {
 	var result bridgepkg.BridgeInstance
-	if err := c.Call(ctx, "bridges/instances/get", extensioncontract.BridgeInstanceTargetParams{
-		BridgeInstanceID: bridgeInstanceID,
-	}, &result); err != nil {
+	if err := c.Call(
+		ctx,
+		string(extensioncontract.HostAPIMethodBridgesInstancesGet),
+		extensioncontract.BridgeInstanceTargetParams{BridgeInstanceID: bridgeInstanceID},
+		&result,
+	); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -72,7 +86,12 @@ func (c *HostAPIClient) ReportBridgeInstanceState(
 	params extensioncontract.BridgesInstancesReportStateParams,
 ) (*bridgepkg.BridgeInstance, error) {
 	var result bridgepkg.BridgeInstance
-	if err := c.Call(ctx, "bridges/instances/report_state", params, &result); err != nil {
+	if err := c.Call(
+		ctx,
+		string(extensioncontract.HostAPIMethodBridgesInstancesReportState),
+		params,
+		&result,
+	); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -84,7 +103,12 @@ func (c *HostAPIClient) IngestBridgeMessage(
 	envelope bridgepkg.InboundMessageEnvelope,
 ) (*extensioncontract.BridgesMessagesIngestResult, error) {
 	var result extensioncontract.BridgesMessagesIngestResult
-	if err := c.Call(ctx, "bridges/messages/ingest", envelope, &result); err != nil {
+	if err := c.Call(
+		ctx,
+		string(extensioncontract.HostAPIMethodBridgesMessagesIngest),
+		envelope,
+		&result,
+	); err != nil {
 		return nil, err
 	}
 	return &result, nil

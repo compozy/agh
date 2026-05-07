@@ -62,12 +62,10 @@ type CreateBridgeRequest struct {
 	ExtensionName    string                        `json:"extension_name"`
 	DisplayName      string                        `json:"display_name"`
 	Enabled          bool                          `json:"enabled"`
-	Status           bridgepkg.BridgeStatus        `json:"status"`
 	DMPolicy         bridgepkg.BridgeDMPolicy      `json:"dm_policy,omitempty"`
 	RoutingPolicy    bridgepkg.RoutingPolicy       `json:"routing_policy"`
 	ProviderConfig   BridgeProviderConfigPayload   `json:"provider_config,omitempty"`
 	DeliveryDefaults BridgeDeliveryDefaultsPayload `json:"delivery_defaults,omitempty"`
-	Degradation      *bridgepkg.BridgeDegradation  `json:"degradation,omitempty"`
 }
 
 // ToCreateInstanceRequest validates and converts the transport payload into the
@@ -97,17 +95,23 @@ func (r CreateBridgeRequest) ToCreateInstanceRequest() (bridgepkg.CreateInstance
 		ExtensionName:    strings.TrimSpace(r.ExtensionName),
 		DisplayName:      strings.TrimSpace(r.DisplayName),
 		Enabled:          r.Enabled,
-		Status:           r.Status,
+		Status:           bridgeCreateInitialStatus(r.Enabled),
 		DMPolicy:         r.DMPolicy,
 		RoutingPolicy:    r.RoutingPolicy,
 		ProviderConfig:   providerConfig,
 		DeliveryDefaults: deliveryDefaults,
-		Degradation:      cloneBridgeDegradation(r.Degradation),
 	}
 	if err := req.Validate(); err != nil {
 		return bridgepkg.CreateInstanceRequest{}, err
 	}
 	return req, nil
+}
+
+func bridgeCreateInitialStatus(enabled bool) bridgepkg.BridgeStatus {
+	if !enabled {
+		return bridgepkg.BridgeStatusDisabled
+	}
+	return bridgepkg.BridgeStatusStarting
 }
 
 // UpdateBridgeRequest is the shared mutable bridge-instance patch payload.

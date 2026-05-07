@@ -145,14 +145,19 @@ func (c *bootCleanup) add(fn func(context.Context) error) {
 	c.fns = append(c.fns, fn)
 }
 
-func (c *bootCleanup) run(err *error) {
+func (c *bootCleanup) run(ctx context.Context, err *error) {
 	if err == nil || *err == nil {
 		return
 	}
+	if ctx == nil {
+		ctx = context.WithoutCancel(context.TODO())
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
+	defer cancel()
 
 	var cleanupErrs []error
 	for i := len(c.fns) - 1; i >= 0; i-- {
-		if cleanupErr := c.fns[i](context.Background()); cleanupErr != nil {
+		if cleanupErr := c.fns[i](cleanupCtx); cleanupErr != nil {
 			cleanupErrs = append(cleanupErrs, cleanupErr)
 		}
 	}
@@ -171,7 +176,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 
 	state := &bootState{}
 	cleanup := &bootCleanup{}
-	defer cleanup.run(&err)
+	defer cleanup.run(ctx, &err)
 
 	if err := d.bootComponents(ctx, state, cleanup); err != nil {
 		return err
@@ -1266,9 +1271,8 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 				return hookBindings.Sync(refreshCtx)
 			},
 		)
-		cleanup.add(func(context.Context) error {
-			stopSkillsWatcher(state.skillsCancel, state.skillsDone)
-			return nil
+		cleanup.add(func(cleanupCtx context.Context) error {
+			return stopSkillsWatcher(cleanupCtx, state.skillsCancel, state.skillsDone)
 		})
 	}
 
@@ -1988,12 +1992,21 @@ func workspaceSkillWatcherRoots(
 	}
 }
 
-func stopSkillsWatcher(cancel context.CancelFunc, done <-chan struct{}) {
+func stopSkillsWatcher(ctx context.Context, cancel context.CancelFunc, done <-chan struct{}) error {
 	if cancel != nil {
 		cancel()
 	}
-	if done != nil {
-		<-done
+	if done == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.TODO()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

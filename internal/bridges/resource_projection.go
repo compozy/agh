@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
+	"io"
 	"slices"
 	"strings"
 	"time"
@@ -81,9 +81,11 @@ func (p *ResourceProjectionPlan) RollbackPlan() *ResourceProjectionPlan {
 	if p == nil {
 		return nil
 	}
+	currentByID := bridgeInstancesByID(p.next)
+	rollbackByID := bridgeInstancesByID(p.previous)
 	return &ResourceProjectionPlan{
 		revision:          p.revision,
-		operations:        len(p.previous),
+		operations:        bridgeProjectionOperationCountByID(currentByID, rollbackByID),
 		previous:          cloneBridgeInstances(p.next),
 		next:              cloneBridgeInstances(p.previous),
 		changedExtensions: append([]string(nil), p.changedExtensions...),
@@ -141,13 +143,14 @@ func BuildResourceState(
 		next = append(next, instance)
 	}
 	sortBridgeInstances(next)
+	nextByID := bridgeInstancesByID(next)
 
 	return &ResourceProjectionPlan{
 		revision:          revision,
-		operations:        bridgeProjectionOperationCount(previous, next),
+		operations:        bridgeProjectionOperationCountByID(previousByID, nextByID),
 		previous:          cloneBridgeInstances(previous),
 		next:              cloneBridgeInstances(next),
-		changedExtensions: changedBridgeProjectionExtensions(previous, next),
+		changedExtensions: changedBridgeProjectionExtensionsByID(previousByID, nextByID),
 	}, nil
 }
 
@@ -167,6 +170,9 @@ func ApplyResourceState(ctx context.Context, store ResourceProjectionStore, plan
 	if !ok {
 		return fmt.Errorf("bridges: bridge resource plan has type %T", plan)
 	}
+	if typed == nil {
+		return errors.New("bridges: bridge resource plan is required")
+	}
 	if err := store.ReplaceBridgeInstances(ctx, typed.NextInstances()); err != nil {
 		return fmt.Errorf("bridges: apply bridge resource state: replace instances: %w", err)
 	}
@@ -181,9 +187,10 @@ func bridgeInstancesByID(instances []BridgeInstance) map[string]BridgeInstance {
 	return byID
 }
 
-func bridgeProjectionOperationCount(previous []BridgeInstance, next []BridgeInstance) int {
-	previousByID := bridgeInstancesByID(previous)
-	nextByID := bridgeInstancesByID(next)
+func bridgeProjectionOperationCountByID(
+	previousByID map[string]BridgeInstance,
+	nextByID map[string]BridgeInstance,
+) int {
 	operations := 0
 	for id, nextInstance := range nextByID {
 		previousInstance, exists := previousByID[id]
@@ -199,9 +206,10 @@ func bridgeProjectionOperationCount(previous []BridgeInstance, next []BridgeInst
 	return operations
 }
 
-func changedBridgeProjectionExtensions(previous []BridgeInstance, next []BridgeInstance) []string {
-	previousByID := bridgeInstancesByID(previous)
-	nextByID := bridgeInstancesByID(next)
+func changedBridgeProjectionExtensionsByID(
+	previousByID map[string]BridgeInstance,
+	nextByID map[string]BridgeInstance,
+) []string {
 	changed := make(map[string]struct{})
 	for id, nextInstance := range nextByID {
 		previousInstance, exists := previousByID[id]
@@ -283,16 +291,71 @@ func semanticJSONEqual(left []byte, right []byte) bool {
 	case len(left) == 0 || len(right) == 0:
 		return false
 	}
+	if bytes.Equal(left, right) {
+		return json.Valid(left)
+	}
 
-	var leftValue any
-	if err := json.Unmarshal(left, &leftValue); err != nil {
+	leftValue, err := decodeSemanticJSON(left)
+	if err != nil {
 		return false
 	}
-	var rightValue any
-	if err := json.Unmarshal(right, &rightValue); err != nil {
+	rightValue, err := decodeSemanticJSON(right)
+	if err != nil {
 		return false
 	}
-	return reflect.DeepEqual(leftValue, rightValue)
+	return semanticJSONValuesEqual(leftValue, rightValue)
+}
+
+func decodeSemanticJSON(data []byte) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); errors.Is(err, io.EOF) {
+		return value, nil
+	} else if err != nil {
+		return nil, err
+	}
+	if extra != nil {
+		return nil, errors.New("bridges: JSON payload contains multiple values")
+	}
+	return nil, errors.New("bridges: JSON payload contains multiple values")
+}
+
+func semanticJSONValuesEqual(left any, right any) bool {
+	switch leftValue := left.(type) {
+	case map[string]any:
+		rightValue, ok := right.(map[string]any)
+		if !ok || len(leftValue) != len(rightValue) {
+			return false
+		}
+		for key, leftItem := range leftValue {
+			rightItem, ok := rightValue[key]
+			if !ok || !semanticJSONValuesEqual(leftItem, rightItem) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		rightValue, ok := right.([]any)
+		if !ok || len(leftValue) != len(rightValue) {
+			return false
+		}
+		for idx, leftItem := range leftValue {
+			if !semanticJSONValuesEqual(leftItem, rightValue[idx]) {
+				return false
+			}
+		}
+		return true
+	case json.Number:
+		rightValue, ok := right.(json.Number)
+		return ok && leftValue.String() == rightValue.String()
+	default:
+		return left == right
+	}
 }
 
 func cloneBridgeInstances(instances []BridgeInstance) []BridgeInstance {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/pedronauck/agh/internal/diagnostics"
 )
@@ -26,6 +27,9 @@ type DetachedProcess struct {
 	process   *os.Process
 	logPath   string
 	logOffset int64
+	waitOnce  sync.Once
+	done      chan struct{}
+	waitErr   error
 }
 
 // PID reports the launched process id.
@@ -41,6 +45,42 @@ func (p *DetachedProcess) Wait() error {
 	if p == nil || p.process == nil {
 		return nil
 	}
+	p.startWait()
+	<-p.done
+	return p.waitErr
+}
+
+// Done closes after the detached child has been reaped.
+func (p *DetachedProcess) Done() <-chan struct{} {
+	if p == nil || p.process == nil {
+		return closedDetachedProcessDone()
+	}
+	p.startWait()
+	return p.done
+}
+
+func newDetachedProcess(process *os.Process, logPath string, logOffset int64) *DetachedProcess {
+	return &DetachedProcess{
+		process:   process,
+		logPath:   logPath,
+		logOffset: logOffset,
+		done:      make(chan struct{}),
+	}
+}
+
+func (p *DetachedProcess) startWait() {
+	p.waitOnce.Do(func() {
+		go func() {
+			p.waitErr = p.waitProcess()
+			close(p.done)
+		}()
+	})
+}
+
+func (p *DetachedProcess) waitProcess() error {
+	if p == nil || p.process == nil {
+		return nil
+	}
 
 	state, err := p.process.Wait()
 	if err == nil {
@@ -50,6 +90,12 @@ func (p *DetachedProcess) Wait() error {
 		err = &exec.ExitError{ProcessState: state}
 	}
 	return attachCommandLog(err, p.logPath, p.logOffset)
+}
+
+func closedDetachedProcessDone() <-chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
 }
 
 // SpawnDetachedLoggedProcess launches one detached child process whose stdout/stderr are appended to req.LogPath.

@@ -969,7 +969,6 @@ describe("browser runtime seed helpers", () => {
             include_thread: true,
           },
           scope: "workspace",
-          status: "disabled",
           workspace_id: "ws_browser_01",
         }),
       })

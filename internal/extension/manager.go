@@ -488,7 +488,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		m.mu.Unlock()
 		return errors.New("extension: manager already started")
 	}
-	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	lifecycleCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	m.lifecycleCtx = lifecycleCtx
 	m.cancel = cancel
 	m.started = true
@@ -561,39 +561,19 @@ func (m *Manager) Stop(ctx context.Context) error {
 	errCh := make(chan error, len(names))
 	var stopWG sync.WaitGroup
 	for _, name := range names {
-		m.mu.RLock()
-		ext := m.extensions[name]
-		if ext == nil {
-			m.mu.RUnlock()
+		ext, ok := m.lookupManaged(name)
+		if !ok {
 			continue
 		}
-		proc := ext.process
-		extensionName := ext.info.Name
-		m.mu.RUnlock()
 
 		stopWG.Add(1)
-		go func(item *managedExtension, itemName string, itemProcess processHandle) {
+		go func(item *managedExtension) {
 			defer stopWG.Done()
 
-			if itemProcess != nil {
-				if err := itemProcess.Shutdown(ctx); err != nil {
-					if waitErr := itemProcess.Wait(); waitErr != nil {
-						errCh <- fmt.Errorf("extension %q stop: %w", itemName, errors.Join(err, waitErr))
-					}
-				}
+			if err := m.stopManagedExtension(ctx, item); err != nil {
+				errCh <- err
 			}
-
-			m.unregisterResources(item)
-
-			m.mu.Lock()
-			item.process = nil
-			item.active = false
-			item.awaitingStability = false
-			item.phase = ExtensionPhaseStop
-			m.mu.Unlock()
-
-			m.logger.Info("extension.lifecycle.shutdown", "extension", itemName)
-		}(ext, extensionName, proc)
+		}(ext)
 	}
 	stopWG.Wait()
 	close(errCh)
@@ -612,6 +592,45 @@ func (m *Manager) Stop(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtension) error {
+	proc := item.process
+	var itemErr error
+	if proc != nil {
+		if err := proc.Shutdown(ctx); err != nil {
+			select {
+			case <-proc.Done():
+				if waitErr := proc.Wait(); waitErr != nil {
+					itemErr = errors.Join(
+						itemErr,
+						fmt.Errorf("extension %q stop: %w", item.info.Name, errors.Join(err, waitErr)),
+					)
+				} else if !errors.Is(err, context.DeadlineExceeded) {
+					itemErr = errors.Join(itemErr, fmt.Errorf("extension %q stop: %w", item.info.Name, err))
+				}
+			case <-ctx.Done():
+				itemErr = errors.Join(
+					itemErr,
+					fmt.Errorf("extension %q stop: %w", item.info.Name, errors.Join(err, ctx.Err())),
+				)
+			}
+		}
+	}
+
+	if err := m.unregisterResources(ctx, item); err != nil {
+		itemErr = errors.Join(itemErr, err)
+	}
+
+	m.mu.Lock()
+	item.process = nil
+	item.active = false
+	item.awaitingStability = false
+	item.phase = ExtensionPhaseStop
+	m.mu.Unlock()
+
+	m.logger.Info("extension.lifecycle.shutdown", "extension", item.info.Name)
+	return itemErr
 }
 
 // Reload restarts the manager from the current registry state.
@@ -1068,6 +1087,7 @@ func (m *Manager) monitorProcess(
 				}
 
 				if shutdownErr := shutdownProcessWithTimeout(
+					m.lifecycleContext(),
 					proc,
 					m.shutdownDeadlineForProcess(name, generation),
 				); shutdownErr != nil {
@@ -1121,7 +1141,11 @@ func (m *Manager) recoverExtension(name string, reason error) (int64, bool) {
 		m.mu.Lock()
 		if m.stopping || ext.generation == 0 && !ext.info.Enabled {
 			m.mu.Unlock()
-			if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
+			if shutdownErr := shutdownProcessWithTimeout(
+				m.lifecycleContext(),
+				process,
+				m.defaultShutdownTimeout,
+			); shutdownErr != nil {
 				m.logger.Warn(
 					"extension.lifecycle.shutdown_failed",
 					"extension", name,
@@ -1174,6 +1198,7 @@ func (m *Manager) launchRuntime(
 	resourceSession, err := m.prepareExtensionResourceSession(ctx, ext)
 	if err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			ctx,
 			process,
 			cleanups,
 			err,
@@ -1181,6 +1206,7 @@ func (m *Manager) launchRuntime(
 	}
 	if err := m.registerRuntimeHostMethods(process, ext, runtime, resourceSession); err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			ctx,
 			process,
 			cleanups,
 			err,
@@ -1190,6 +1216,7 @@ func (m *Manager) launchRuntime(
 	response, err := m.initializeRuntimeProcess(ctx, process, ext, runtime, resourceSession)
 	if err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			ctx,
 			process,
 			cleanups,
 			err,
@@ -1197,6 +1224,7 @@ func (m *Manager) launchRuntime(
 	}
 	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			ctx,
 			process,
 			cleanups,
 			err,
@@ -1209,12 +1237,17 @@ func (m *Manager) launchRuntime(
 	return process, response, runtime, healthInterval, nil
 }
 
-func (m *Manager) cleanupLaunchedProcess(process processHandle, cleanups []func(), err error) error {
+func (m *Manager) cleanupLaunchedProcess(
+	ctx context.Context,
+	process processHandle,
+	cleanups []func(),
+	err error,
+) error {
 	runExtensionRedactionCleanups(cleanups)
 	if process == nil {
 		return err
 	}
-	if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
+	if shutdownErr := shutdownProcessWithTimeout(ctx, process, m.defaultShutdownTimeout); shutdownErr != nil {
 		return errors.Join(err, shutdownErr)
 	}
 	return err
@@ -1396,10 +1429,7 @@ func (m *Manager) newHostAPIResourceSession(ext *managedExtension) (*hostAPIReso
 			Kind:         resources.MutationActorKindExtension,
 			ID:           ext.info.Name,
 			SessionNonce: sessionNonce,
-			Source: resources.ResourceSource{
-				Kind: resources.ResourceSourceKind("extension"),
-				ID:   ext.info.Name,
-			},
+			Source:       extensionResourceSource(ext.info.Name),
 			// Workspace binding is not yet carried on extension sessions, so v1
 			// relies on granted scope kinds for narrowing and keeps the max scope
 			// ceiling global here.
@@ -1421,7 +1451,19 @@ func (m *Manager) activateExtensionSourceSession(ctx context.Context, actor reso
 		return nil
 	}
 
-	if err := m.sourceSessions.ActivateSourceSession(ctx, resources.MutationActor{
+	if err := m.sourceSessions.ActivateSourceSession(
+		ctx,
+		extensionManagerResourceActor(),
+		actor.Source,
+		actor.SessionNonce,
+	); err != nil {
+		return fmt.Errorf("extension: activate source session for %q: %w", actor.Source.ID, err)
+	}
+	return nil
+}
+
+func extensionManagerResourceActor() resources.MutationActor {
+	return resources.MutationActor{
 		Kind: resources.MutationActorKindDaemon,
 		ID:   "extension-manager",
 		Source: resources.ResourceSource{
@@ -1429,10 +1471,14 @@ func (m *Manager) activateExtensionSourceSession(ctx context.Context, actor reso
 			ID:   "extension-manager",
 		},
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-	}, actor.Source, actor.SessionNonce); err != nil {
-		return fmt.Errorf("extension: activate source session for %q: %w", actor.Source.ID, err)
 	}
-	return nil
+}
+
+func extensionResourceSource(extensionName string) resources.ResourceSource {
+	return resources.ResourceSource{
+		Kind: resources.ResourceSourceKind("extension"),
+		ID:   extensionName,
+	}
 }
 
 func newExtensionSessionNonce() (string, error) {
@@ -1841,7 +1887,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.consecutiveFailures++
 	cleanups := ext.redactionCleanups
 	ext.redactionCleanups = nil
-	instanceIDs := bridgeInstanceIDsFromRuntime(ext.runtime)
+	instanceIDs := managedBridgeInstanceIDs(ext)
 	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
@@ -1883,10 +1929,10 @@ func (m *Manager) disableExtension(name string, reason error) {
 	if !ok {
 		return
 	}
-	m.mu.RLock()
-	instanceIDs := bridgeInstanceIDsFromRuntime(ext.runtime)
-	m.mu.RUnlock()
-	m.unregisterResources(ext)
+	instanceIDs := managedBridgeInstanceIDs(ext)
+	if err := m.unregisterResources(m.lifecycleContext(), ext); err != nil {
+		reason = errors.Join(reason, err)
+	}
 
 	if err := m.registry.Disable(name); err != nil {
 		reason = errors.Join(reason, err)
@@ -1907,16 +1953,36 @@ func (m *Manager) disableExtension(name string, reason error) {
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 }
 
-func (m *Manager) unregisterResources(ext *managedExtension) {
+func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension) error {
 	if ext == nil {
-		return
+		return nil
 	}
-	m.mu.Lock()
-	name := ext.info.Name
-	ext.registered = false
-	m.mu.Unlock()
+	m.capChecker.Unregister(ext.info.Name)
 
-	m.capChecker.Unregister(name)
+	if err := m.resetExtensionSource(ctx, ext.info.Name); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	ext.registered = false
+	ext.sessionNonce = ""
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *Manager) resetExtensionSource(ctx context.Context, extensionName string) error {
+	if m == nil || m.sourceSessions == nil {
+		return nil
+	}
+	if ctx == nil {
+		return ErrContextRequired
+	}
+
+	source := extensionResourceSource(extensionName)
+	if err := m.sourceSessions.ResetSource(ctx, extensionManagerResourceActor(), source); err != nil {
+		return fmt.Errorf("extension: reset source session for %q: %w", source.ID, err)
+	}
+	return nil
 }
 
 func (m *Manager) markStable(name string, generation int64) {
@@ -1926,7 +1992,7 @@ func (m *Manager) markStable(name string, generation int64) {
 		m.mu.Unlock()
 		return
 	}
-	instanceIDs := bridgeInstanceIDsFromRuntime(ext.runtime)
+	instanceIDs := managedBridgeInstanceIDs(ext)
 	ext.awaitingStability = false
 	ext.consecutiveFailures = 0
 	ext.restartBackoff = 0
@@ -2075,11 +2141,11 @@ func (m *Manager) clearBridgeRuntimeIssues(bridgeInstanceIDs []string) {
 	}
 }
 
-func bridgeInstanceIDsFromRuntime(runtime subprocess.InitializeRuntime) []string {
-	if runtime.Bridge == nil {
+func managedBridgeInstanceIDs(ext *managedExtension) []string {
+	if ext == nil || ext.runtime.Bridge == nil {
 		return nil
 	}
-	return runtime.Bridge.ManagedBridgeInstanceIDs()
+	return ext.runtime.Bridge.ManagedBridgeInstanceIDs()
 }
 
 func (m *Manager) waitBackoff(delay time.Duration) bool {
@@ -2160,12 +2226,15 @@ func loadManifestAtPath(path string) (*Manifest, error) {
 	}
 }
 
-func shutdownProcessWithTimeout(proc processHandle, timeout time.Duration) error {
+func shutdownProcessWithTimeout(ctx context.Context, proc processHandle, timeout time.Duration) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
 	if proc == nil {
 		return nil
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	shutdownCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return proc.Shutdown(shutdownCtx)
 }

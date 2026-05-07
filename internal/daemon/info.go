@@ -80,7 +80,7 @@ func ReadInfo(path string) (Info, error) {
 }
 
 // WriteInfo writes daemon.json atomically via temp file and rename.
-func WriteInfo(path string, info Info) error {
+func WriteInfo(path string, info Info) (returnErr error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return errors.New("daemon: daemon info path is required")
@@ -103,17 +103,29 @@ func WriteInfo(path string, info Info) error {
 		return fmt.Errorf("daemon: create temp daemon info for %q: %w", cleanPath, err)
 	}
 	tempPath := file.Name()
+	removeTemp := true
 	defer func() {
-		_ = os.Remove(tempPath)
+		if !removeTemp {
+			return
+		}
+		if err := os.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: remove temp daemon info %q: %w", tempPath, err))
+		}
 	}()
 
 	if _, err := file.Write(payload); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("daemon: write temp daemon info %q: %w", tempPath, err)
+		returnErr = fmt.Errorf("daemon: write temp daemon info %q: %w", tempPath, err)
+		if closeErr := file.Close(); closeErr != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close temp daemon info %q: %w", tempPath, closeErr))
+		}
+		return returnErr
 	}
 	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("daemon: sync temp daemon info %q: %w", tempPath, err)
+		returnErr = fmt.Errorf("daemon: sync temp daemon info %q: %w", tempPath, err)
+		if closeErr := file.Close(); closeErr != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close temp daemon info %q: %w", tempPath, closeErr))
+		}
+		return returnErr
 	}
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("daemon: close temp daemon info %q: %w", tempPath, err)
@@ -121,6 +133,7 @@ func WriteInfo(path string, info Info) error {
 	if err := os.Rename(tempPath, cleanPath); err != nil {
 		return fmt.Errorf("daemon: replace daemon info %q: %w", cleanPath, err)
 	}
+	removeTemp = false
 
 	return syncDir(filepath.Dir(cleanPath))
 }
@@ -138,13 +151,15 @@ func RemoveInfo(path string) error {
 	return nil
 }
 
-func syncDir(path string) error {
+func syncDir(path string) (returnErr error) {
 	dir, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("daemon: open directory %q for sync: %w", path, err)
 	}
 	defer func() {
-		_ = dir.Close()
+		if err := dir.Close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close directory %q after sync: %w", path, err))
+		}
 	}()
 
 	if err := dir.Sync(); err != nil {

@@ -34,7 +34,7 @@ type rpcEnvelope struct {
 	ID      json.RawMessage      `json:"id,omitempty"`
 	Method  string               `json:"method,omitempty"`
 	Params  json.RawMessage      `json:"params,omitempty"`
-	Result  any                  `json:"result,omitempty"`
+	Result  json.RawMessage      `json:"result,omitempty"`
 	Error   *subprocess.RPCError `json:"error,omitempty"`
 }
 
@@ -47,7 +47,7 @@ type rpcResult struct {
 // receive daemon requests and issue Host API calls over the same stdio stream.
 type Peer struct {
 	scanner *bufio.Scanner
-	encoder *json.Encoder
+	stdout  io.Writer
 
 	handlersMu sync.RWMutex
 	handlers   map[string]RPCHandler
@@ -68,12 +68,9 @@ func NewPeer(stdin io.Reader, stdout io.Writer) *Peer {
 	scanner := bufio.NewScanner(stdin)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
-	encoder := json.NewEncoder(stdout)
-	encoder.SetEscapeHTML(false)
-
 	return &Peer{
 		scanner:  scanner,
-		encoder:  encoder,
+		stdout:   stdout,
 		handlers: make(map[string]RPCHandler),
 		pending:  make(map[string]chan rpcResult),
 	}
@@ -281,30 +278,22 @@ func (p *Peer) handleResponse(envelope rpcEnvelope) {
 		return
 	}
 
-	payload, err := json.Marshal(envelope.Result)
-	if err != nil {
-		responseCh <- rpcResult{
-			err: subprocess.NewRPCError(
-				bridgeSDKRPCCodeInternal,
-				"Invalid response payload",
-				map[string]string{"error": err.Error()},
-			),
-		}
-		close(responseCh)
-		return
-	}
 	responseCh <- rpcResult{
-		result: payload,
+		result: envelope.Result,
 		err:    envelope.Error,
 	}
 	close(responseCh)
 }
 
 func (p *Peer) sendResult(id json.RawMessage, result any) error {
+	payload, err := marshalParams(result)
+	if err != nil {
+		return fmt.Errorf("bridgesdk: encode rpc result: %w", err)
+	}
 	return p.writeFrame(rpcEnvelope{
 		JSONRPC: bridgeSDKJSONRPCVersion,
 		ID:      id,
-		Result:  result,
+		Result:  payload,
 	})
 }
 
@@ -325,8 +314,15 @@ func (p *Peer) writeFrame(frame rpcEnvelope) error {
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 
-	if err := p.encoder.Encode(json.RawMessage(payload)); err != nil {
+	if written, err := p.stdout.Write(payload); err != nil {
 		return fmt.Errorf("bridgesdk: write rpc frame: %w", err)
+	} else if written != len(payload) {
+		return fmt.Errorf("bridgesdk: write rpc frame: %w", io.ErrShortWrite)
+	}
+	if written, err := p.stdout.Write([]byte{'\n'}); err != nil {
+		return fmt.Errorf("bridgesdk: write rpc frame newline: %w", err)
+	} else if written != 1 {
+		return fmt.Errorf("bridgesdk: write rpc frame newline: %w", io.ErrShortWrite)
 	}
 	return nil
 }

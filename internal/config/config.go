@@ -2095,13 +2095,6 @@ func loadDotEnvLookup(workspaceRoot string) (envLookup, error) {
 	}
 
 	path := WorkspaceDotEnvFile(workspaceRoot)
-	if _, err := os.Stat(path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("stat .env file %q: %w", path, err)
-	}
-
 	_, data, exists, err := readDotEnvFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("load .env file %q: %w", path, err)

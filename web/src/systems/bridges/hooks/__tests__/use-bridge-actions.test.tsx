@@ -103,7 +103,6 @@ describe("useCreateBridge", () => {
         },
         routing_policy: { include_group: true, include_peer: true, include_thread: true },
         scope: "workspace",
-        status: "starting",
         workspace_id: "ws_test",
       });
     });
@@ -123,7 +122,6 @@ describe("useCreateBridge", () => {
       },
       routing_policy: { include_group: true, include_peer: true, include_thread: true },
       scope: "workspace",
-      status: "starting",
       workspace_id: "ws_test",
     });
     expect(invalidateSpy).toHaveBeenCalledWith({

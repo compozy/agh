@@ -30,7 +30,10 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
-const teamsProviderListenAddrEnv = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
+const (
+	teamsProviderListenAddrEnv   = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
+	teamsProviderLoopbackAuthEnv = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
+)
 
 var (
 	buildTeamsProviderOnce sync.Once
@@ -52,7 +55,8 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 			teamsManagedInstanceConfig("brg-teams-b", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", mockAPI, bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true}),
 		},
 		ExtraEnv: map[string]string{
-			teamsProviderListenAddrEnv: listenAddr,
+			teamsProviderListenAddrEnv:   listenAddr,
+			teamsProviderLoopbackAuthEnv: "1",
 		},
 		StartTime: time.Date(2026, 4, 15, 19, 0, 0, 0, time.UTC),
 	})
@@ -71,7 +75,14 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 				t.Fatalf("adapter state for %q missing after wait: %#v", instanceID, states)
 			}
 			if got, want := state.Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
-				t.Fatalf("adapter state for %q = %q (error=%q), want %q", instanceID, got, state.Error, want)
+				t.Fatalf(
+					"adapter state for %q = %q (error=%q, degradation=%#v), want %q",
+					instanceID,
+					got,
+					state.Error,
+					state.Instance.Degradation,
+					want,
+				)
 			}
 		})
 	}
@@ -137,7 +148,8 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 			{Type: acp.EventTypeDone},
 		}),
 		ExtraEnv: map[string]string{
-			teamsProviderListenAddrEnv: listenAddr,
+			teamsProviderListenAddrEnv:   listenAddr,
+			teamsProviderLoopbackAuthEnv: "1",
 		},
 		StartTime: startTime,
 	})
@@ -147,7 +159,13 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 		return len(states) > 0
 	})
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
-		t.Fatalf("last adapter state = %q (error=%q), want %q", got, states[len(states)-1].Error, want)
+		t.Fatalf(
+			"last adapter state = %q (error=%q, degradation=%#v), want %q",
+			got,
+			states[len(states)-1].Error,
+			states[len(states)-1].Instance.Degradation,
+			want,
+		)
 	}
 
 	webhookURL := fmt.Sprintf("http://%s/teams/%s", listenAddr, harness.Instances[0].ID)

@@ -369,7 +369,7 @@ func (i BridgeInstance) Validate() error {
 	if err := normalized.RoutingPolicy.Validate(); err != nil {
 		return err
 	}
-	if _, err := normalizeRawJSON(normalized.ProviderConfig, "bridge instance provider config"); err != nil {
+	if _, err := normalizeProviderConfigJSON(normalized.ProviderConfig); err != nil {
 		return err
 	}
 	if _, err := NormalizeDeliveryDefaultsJSON(normalized.DeliveryDefaults); err != nil {
@@ -1083,6 +1083,24 @@ func normalizeRawJSON(value json.RawMessage, label string) (json.RawMessage, err
 	}
 
 	return compacted.Bytes(), nil
+}
+
+func normalizeJSONObject(value json.RawMessage, label string) (json.RawMessage, error) {
+	normalized, err := normalizeRawJSON(value, label)
+	if err != nil {
+		return nil, err
+	}
+	if len(normalized) == 0 || bytes.Equal(normalized, []byte("null")) {
+		return nil, nil
+	}
+	if normalized[0] != '{' {
+		return nil, fmt.Errorf("bridges: %s must be a JSON object or null", label)
+	}
+	return normalized, nil
+}
+
+func normalizeProviderConfigJSON(value json.RawMessage) (json.RawMessage, error) {
+	return normalizeJSONObject(value, "bridge instance provider config")
 }
 
 func (c InboundCommand) normalize() InboundCommand {

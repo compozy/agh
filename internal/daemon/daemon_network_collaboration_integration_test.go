@@ -21,648 +21,654 @@ import (
 )
 
 func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
-	acpmock.RequireDriver(t)
+	t.Run("Should complete direct reply lifecycle with mock agents", func(t *testing.T) {
+		acpmock.RequireDriver(t)
 
-	fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
-		EnableNetwork: true,
-		MockAgents: []e2etest.MockAgentSpec{
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "ops-coordinator",
-				AgentName:    "mock-ops-coordinator",
+		fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
+		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+			EnableNetwork: true,
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "ops-coordinator",
+					AgentName:    "mock-ops-coordinator",
+				},
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "patch-worker",
+					AgentName:    "mock-patch-worker",
+				},
 			},
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "patch-worker",
-				AgentName:    "mock-patch-worker",
-			},
-		},
-	})
+		})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	channelDetail := mustCreateNetworkChannel(
-		t,
-		ctx,
-		harness,
-		"builders",
-		"mock-ops-coordinator",
-		"mock-patch-worker",
-	)
-	opsSession := requireChannelSession(t, channelDetail, "mock-ops-coordinator")
-	patchSession := requireChannelSession(t, channelDetail, "mock-patch-worker")
+		channelDetail := mustCreateNetworkChannel(
+			t,
+			ctx,
+			harness,
+			"builders",
+			"mock-ops-coordinator",
+			"mock-patch-worker",
+		)
+		opsSession := requireChannelSession(t, channelDetail, "mock-ops-coordinator")
+		patchSession := requireChannelSession(t, channelDetail, "mock-patch-worker")
 
-	regOps, ok := harness.MockAgentRegistration("mock-ops-coordinator")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-ops-coordinator) = missing, want present")
-	}
-	regPatch, ok := harness.MockAgentRegistration("mock-patch-worker")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-patch-worker) = missing, want present")
-	}
-
-	registerNetworkScenarioArtifacts(
-		t,
-		harness,
-		"builders",
-		[]aghcontract.SessionPayload{opsSession, patchSession},
-		[]acpmock.Registration{regOps, regPatch},
-	)
-
-	peers := waitForChannelPeerCount(t, ctx, harness, "builders", 2)
-	opsPeerID := requirePeerIDForSession(t, peers, opsSession.ID)
-	patchPeerID := requirePeerIDForSession(t, peers, patchSession.ID)
-	if opsPeerID == patchPeerID {
-		t.Fatalf("peer IDs = %q and %q, want distinct values", opsPeerID, patchPeerID)
-	}
-	buildersThreadID := "thread_builders_main"
-	patchWorkID := "work_patch_42"
-	patchDirectID := requireDirectResolveRace(
-		t,
-		ctx,
-		harness,
-		"builders",
-		opsSession.ID,
-		opsPeerID,
-		patchSession.ID,
-		patchPeerID,
-	)
-
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", opsSession.ID,
-		"--channel", "builders",
-		"--kind", "say",
-		"--surface", "thread",
-		"--thread", buildersThreadID,
-		"--id", "msg_say_01",
-		"--trace-id", "trace_ops_patch_42",
-		"--body", `{"text":"Who can take the failing migration tests in internal/store/sessiondb?","intent":"request-help","artifacts":[]}`,
-	})
-
-	waitForRuntimeCondition(t, "builders say delivery", 10*time.Second, func() bool {
-		return channelHasMessageID(ctx, harness, "builders", "msg_say_01") &&
-			sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_say_01"))
-	})
-
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", patchSession.ID,
-		"--channel", "builders",
-		"--kind", "say",
-		"--surface", "direct",
-		"--direct", patchDirectID,
-		"--work", patchWorkID,
-		"--to", opsPeerID,
-		"--reply-to", "msg_say_01",
-		"--trace-id", "trace_ops_patch_42",
-		"--causation-id", "msg_say_01",
-		"--id", "msg_direct_01",
-		"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
-	})
-
-	waitForRuntimeCondition(t, "direct delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		regOps, ok := harness.MockAgentRegistration("mock-ops-coordinator")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-ops-coordinator) = missing, want present")
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_direct_01",
-			Direction: "delivered",
-			Kind:      "say",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_direct_01"))
-	})
-
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", opsSession.ID,
-		"--channel", "builders",
-		"--kind", "receipt",
-		"--surface", "direct",
-		"--direct", patchDirectID,
-		"--work", patchWorkID,
-		"--to", patchPeerID,
-		"--reply-to", "msg_direct_01",
-		"--trace-id", "trace_ops_patch_42",
-		"--causation-id", "msg_direct_01",
-		"--id", "msg_receipt_01",
-		"--body", `{"for_id":"msg_direct_01","status":"accepted","detail":"Proceed and report progress with trace messages."}`,
-	})
-
-	waitForRuntimeCondition(t, "receipt delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		regPatch, ok := harness.MockAgentRegistration("mock-patch-worker")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-patch-worker) = missing, want present")
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_receipt_01",
-			Direction: "delivered",
-			Kind:      "receipt",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_receipt_01"))
-	})
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", patchSession.ID,
-		"--channel", "builders",
-		"--kind", "trace",
-		"--surface", "direct",
-		"--direct", patchDirectID,
-		"--work", patchWorkID,
-		"--to", opsPeerID,
-		"--reply-to", "msg_receipt_01",
-		"--trace-id", "trace_ops_patch_42",
-		"--causation-id", "msg_receipt_01",
-		"--id", "msg_trace_02",
-		"--body", `{"state":"completed","message":"Patch prepared and local tests now pass.","result":{"summary":"Fixed migration assertion mismatch in sessiondb tests."},"artifact_refs":[]}`,
-	})
+		registerNetworkScenarioArtifacts(
+			t,
+			harness,
+			"builders",
+			[]aghcontract.SessionPayload{opsSession, patchSession},
+			[]acpmock.Registration{regOps, regPatch},
+		)
 
-	waitForRuntimeCondition(t, "trace delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		peers := waitForChannelPeerCount(t, ctx, harness, "builders", 2)
+		opsPeerID := requirePeerIDForSession(t, peers, opsSession.ID)
+		patchPeerID := requirePeerIDForSession(t, peers, patchSession.ID)
+		if opsPeerID == patchPeerID {
+			t.Fatalf("peer IDs = %q and %q, want distinct values", opsPeerID, patchPeerID)
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_trace_02",
-			Direction: "delivered",
-			Kind:      "trace",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_trace_02"))
-	})
+		buildersThreadID := "thread_builders_main"
+		patchWorkID := "work_patch_42"
+		patchDirectID := requireDirectResolveRace(
+			t,
+			ctx,
+			harness,
+			"builders",
+			opsSession.ID,
+			opsPeerID,
+			patchSession.ID,
+			patchPeerID,
+		)
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", patchSession.ID,
-		"--channel", "builders",
-		"--kind", "say",
-		"--surface", "thread",
-		"--thread", buildersThreadID,
-		"--reply-to", "msg_trace_02",
-		"--trace-id", "trace_ops_patch_42",
-		"--causation-id", "msg_trace_02",
-		"--id", "msg_summary_01",
-		"--body", `{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
-	})
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", opsSession.ID,
+			"--channel", "builders",
+			"--kind", "say",
+			"--surface", "thread",
+			"--thread", buildersThreadID,
+			"--id", "msg_say_01",
+			"--trace-id", "trace_ops_patch_42",
+			"--body", `{"text":"Who can take the failing migration tests in internal/store/sessiondb?","intent":"request-help","artifacts":[]}`,
+		})
 
-	waitForRuntimeCondition(t, "summary back to public thread", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		waitForRuntimeCondition(t, "builders say delivery", 10*time.Second, func() bool {
+			return channelHasMessageID(ctx, harness, "builders", "msg_say_01") &&
+				sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_say_01"))
+		})
+
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", patchSession.ID,
+			"--channel", "builders",
+			"--kind", "say",
+			"--surface", "direct",
+			"--direct", patchDirectID,
+			"--work", patchWorkID,
+			"--to", opsPeerID,
+			"--reply-to", "msg_say_01",
+			"--trace-id", "trace_ops_patch_42",
+			"--causation-id", "msg_say_01",
+			"--id", "msg_direct_01",
+			"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
+		})
+
+		waitForRuntimeCondition(t, "direct delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_direct_01",
+				Direction: "delivered",
+				Kind:      "say",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_direct_01"))
+		})
+
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", opsSession.ID,
+			"--channel", "builders",
+			"--kind", "receipt",
+			"--surface", "direct",
+			"--direct", patchDirectID,
+			"--work", patchWorkID,
+			"--to", patchPeerID,
+			"--reply-to", "msg_direct_01",
+			"--trace-id", "trace_ops_patch_42",
+			"--causation-id", "msg_direct_01",
+			"--id", "msg_receipt_01",
+			"--body", `{"for_id":"msg_direct_01","status":"accepted","detail":"Proceed and report progress with trace messages."}`,
+		})
+
+		waitForRuntimeCondition(t, "receipt delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_receipt_01",
+				Direction: "delivered",
+				Kind:      "receipt",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_receipt_01"))
+		})
+
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", patchSession.ID,
+			"--channel", "builders",
+			"--kind", "trace",
+			"--surface", "direct",
+			"--direct", patchDirectID,
+			"--work", patchWorkID,
+			"--to", opsPeerID,
+			"--reply-to", "msg_receipt_01",
+			"--trace-id", "trace_ops_patch_42",
+			"--causation-id", "msg_receipt_01",
+			"--id", "msg_trace_02",
+			"--body", `{"state":"completed","message":"Patch prepared and local tests now pass.","result":{"summary":"Fixed migration assertion mismatch in sessiondb tests."},"artifact_refs":[]}`,
+		})
+
+		waitForRuntimeCondition(t, "trace delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_trace_02",
+				Direction: "delivered",
+				Kind:      "trace",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_trace_02"))
+		})
+
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", patchSession.ID,
+			"--channel", "builders",
+			"--kind", "say",
+			"--surface", "thread",
+			"--thread", buildersThreadID,
+			"--reply-to", "msg_trace_02",
+			"--trace-id", "trace_ops_patch_42",
+			"--causation-id", "msg_trace_02",
+			"--id", "msg_summary_01",
+			"--body", `{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
+		})
+
+		summarySurface := "thread"
+		summaryThreadID := buildersThreadID
+		waitForRuntimeCondition(t, "summary back to public thread", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_summary_01",
+				Direction: "delivered",
+				Kind:      "say",
+				Surface:   &summarySurface,
+				ThreadID:  &summaryThreadID,
+			}) == nil &&
+				channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
+				sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_summary_01"))
+		})
+
+		postTerminalDirectArgs := []string{
+			"network", "send",
+			"--session", patchSession.ID,
+			"--channel", "builders",
+			"--kind", "say",
+			"--surface", "direct",
+			"--direct", patchDirectID,
+			"--work", patchWorkID,
+			"--to", opsPeerID,
+			"--reply-to", "msg_say_01",
+			"--trace-id", "trace_ops_patch_42",
+			"--causation-id", "msg_say_01",
+			"--id", "msg_direct_after_closed",
+			"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
+			"-o", "json",
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_summary_01",
-			Direction: "delivered",
-			Kind:      "say",
-			Surface:   auditFieldValue("thread"),
-			ThreadID:  auditFieldValue(buildersThreadID),
-		}) == nil &&
-			channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
-			sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_summary_01"))
+		_, stderr, err := harness.CLI.Run(ctx, postTerminalDirectArgs...)
+		if err == nil {
+			t.Fatalf("CLI %v error = nil, want work-closed rejection", postTerminalDirectArgs)
+		}
+		if !strings.Contains(stderr, "work closed") || !strings.Contains(stderr, patchWorkID) {
+			t.Fatalf("CLI %v stderr = %q, want work-closed details", postTerminalDirectArgs, stderr)
+		}
+
+		status := mustHTTPNetworkStatus(t, ctx, harness)
+		if !status.Enabled || status.Status != "running" {
+			t.Fatalf("HTTP network status = %#v, want enabled running", status)
+		}
+		if status.LocalPeers != 2 {
+			t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
+		}
+		if status.MessagesDelivered < 3 {
+			t.Fatalf("HTTP network messages_delivered = %d, want >= 3", status.MessagesDelivered)
+		}
+
+		peers = mustHTTPNetworkPeers(t, ctx, harness, "builders")
+		if len(peers) != 2 {
+			t.Fatalf("HTTP network peers = %#v, want 2 peers", peers)
+		}
+		if requirePeerIDForSession(t, peers, opsSession.ID) != opsPeerID {
+			t.Fatalf("HTTP network peers missing ops peer %q", opsPeerID)
+		}
+		if requirePeerIDForSession(t, peers, patchSession.ID) != patchPeerID {
+			t.Fatalf("HTTP network peers missing patch peer %q", patchPeerID)
+		}
+
+		channels := mustHTTPNetworkChannels(t, ctx, harness)
+		channel, ok := findChannelPayload(channels, "builders")
+		if !ok {
+			t.Fatalf("HTTP network channels = %#v, want builders entry", channels)
+		}
+		if channel.PeerCount != 2 || channel.SessionCount != 2 {
+			t.Fatalf("HTTP builders channel = %#v, want peer_count=2 session_count=2", channel)
+		}
+		if channel.MessageCount < 1 {
+			t.Fatalf("HTTP builders channel message_count = %d, want >= 1", channel.MessageCount)
+		}
+
+		channelDetail = mustHTTPNetworkChannel(t, ctx, harness, "builders")
+		if channelDetail.Channel != "builders" || channelDetail.PeerCount != 2 || len(channelDetail.Sessions) != 2 {
+			t.Fatalf("HTTP channel detail = %#v, want builders with 2 peers and 2 sessions", channelDetail)
+		}
+
+		channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "builders")
+		requireChannelMessage(t, channelMessages, "msg_say_01", "Who can take the failing migration tests in internal/store/sessiondb?")
+		requireChannelMessage(t, channelMessages, "msg_summary_01", "Summary: patch prepared")
+		requireNoChannelMessage(t, channelMessages, "msg_direct_01")
+		requireNoChannelMessage(t, channelMessages, "msg_trace_02")
+
+		threads := mustHTTPNetworkThreads(t, ctx, harness, "builders")
+		requireThreadSummary(t, threads, buildersThreadID, "msg_say_01")
+		thread := mustHTTPNetworkThread(t, ctx, harness, "builders", buildersThreadID)
+		if thread.ThreadID != buildersThreadID || thread.MessageCount < 2 {
+			t.Fatalf("HTTP builders thread = %#v, want summary with >= 2 messages", thread)
+		}
+		threadMessages := mustHTTPNetworkThreadMessages(t, ctx, harness, "builders", buildersThreadID)
+		requireConversationMessage(t, threadMessages, "msg_say_01", "thread", buildersThreadID, "")
+		requireConversationMessage(t, threadMessages, "msg_summary_01", "thread", buildersThreadID, "")
+
+		directs := mustHTTPNetworkDirectRooms(t, ctx, harness, "builders")
+		requireDirectRoomSummary(t, directs, patchDirectID)
+		direct := mustHTTPNetworkDirectRoom(t, ctx, harness, "builders", patchDirectID)
+		if direct.DirectID != patchDirectID || direct.MessageCount < 3 {
+			t.Fatalf("HTTP builders direct = %#v, want direct room with >= 3 messages", direct)
+		}
+		directMessages := mustHTTPNetworkDirectRoomMessages(t, ctx, harness, "builders", patchDirectID)
+		requireConversationMessage(t, directMessages, "msg_direct_01", "direct", "", patchDirectID)
+		requireConversationMessage(t, directMessages, "msg_trace_02", "direct", "", patchDirectID)
+
+		work := mustHTTPNetworkWork(t, ctx, harness, patchWorkID)
+		if work.WorkID != patchWorkID || work.Surface != "direct" || work.DirectID != patchDirectID {
+			t.Fatalf("HTTP network work = %#v, want direct work %q in %q", work, patchWorkID, patchDirectID)
+		}
+
+		opsTranscript := mustSessionTranscript(t, ctx, harness, opsSession.ID)
+		patchTranscript := mustSessionTranscript(t, ctx, harness, patchSession.ID)
+		audit := mustNetworkAuditSnapshot(t, harness)
+
+		if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_direct_01",
+			Kind:            "say",
+			Surface:         "direct",
+			DirectID:        patchDirectID,
+			WorkID:          patchWorkID,
+			ReplyTo:         "msg_say_01",
+			TraceID:         "trace_ops_patch_42",
+			CausationID:     "msg_say_01",
+			Trust:           "untrusted",
+			AuditDirections: []string{"delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces(direct) error = %v", err)
+		}
+		if err := validateNetworkCorrelationSurfaces(patchTranscript.Messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_receipt_01",
+			Kind:            "receipt",
+			Surface:         "direct",
+			DirectID:        patchDirectID,
+			WorkID:          patchWorkID,
+			ReplyTo:         "msg_direct_01",
+			TraceID:         "trace_ops_patch_42",
+			CausationID:     "msg_direct_01",
+			Trust:           "untrusted",
+			AuditDirections: []string{"delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces(receipt) error = %v", err)
+		}
+		if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_trace_02",
+			Kind:            "trace",
+			Surface:         "direct",
+			DirectID:        patchDirectID,
+			WorkID:          patchWorkID,
+			ReplyTo:         "msg_receipt_01",
+			TraceID:         "trace_ops_patch_42",
+			CausationID:     "msg_receipt_01",
+			Trust:           "untrusted",
+			AuditDirections: []string{"delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
+		}
+		if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_summary_01",
+			Kind:            "say",
+			Surface:         "thread",
+			ThreadID:        buildersThreadID,
+			ReplyTo:         "msg_trace_02",
+			TraceID:         "trace_ops_patch_42",
+			CausationID:     "msg_trace_02",
+			Trust:           "untrusted",
+			AuditDirections: []string{"delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces(summary) error = %v", err)
+		}
+		assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 	})
-
-	postTerminalDirectArgs := []string{
-		"network", "send",
-		"--session", patchSession.ID,
-		"--channel", "builders",
-		"--kind", "say",
-		"--surface", "direct",
-		"--direct", patchDirectID,
-		"--work", patchWorkID,
-		"--to", opsPeerID,
-		"--reply-to", "msg_say_01",
-		"--trace-id", "trace_ops_patch_42",
-		"--causation-id", "msg_say_01",
-		"--id", "msg_direct_after_closed",
-		"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
-		"-o", "json",
-	}
-	_, stderr, err := harness.CLI.Run(ctx, postTerminalDirectArgs...)
-	if err == nil {
-		t.Fatalf("CLI %v error = nil, want work-closed rejection", postTerminalDirectArgs)
-	}
-	if !strings.Contains(stderr, "work closed") || !strings.Contains(stderr, patchWorkID) {
-		t.Fatalf("CLI %v stderr = %q, want work-closed details", postTerminalDirectArgs, stderr)
-	}
-
-	status := mustHTTPNetworkStatus(t, ctx, harness)
-	if !status.Enabled || status.Status != "running" {
-		t.Fatalf("HTTP network status = %#v, want enabled running", status)
-	}
-	if status.LocalPeers != 2 {
-		t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
-	}
-	if status.MessagesDelivered < 3 {
-		t.Fatalf("HTTP network messages_delivered = %d, want >= 3", status.MessagesDelivered)
-	}
-
-	peers = mustHTTPNetworkPeers(t, ctx, harness, "builders")
-	if len(peers) != 2 {
-		t.Fatalf("HTTP network peers = %#v, want 2 peers", peers)
-	}
-	if requirePeerIDForSession(t, peers, opsSession.ID) != opsPeerID {
-		t.Fatalf("HTTP network peers missing ops peer %q", opsPeerID)
-	}
-	if requirePeerIDForSession(t, peers, patchSession.ID) != patchPeerID {
-		t.Fatalf("HTTP network peers missing patch peer %q", patchPeerID)
-	}
-
-	channels := mustHTTPNetworkChannels(t, ctx, harness)
-	channel, ok := findChannelPayload(channels, "builders")
-	if !ok {
-		t.Fatalf("HTTP network channels = %#v, want builders entry", channels)
-	}
-	if channel.PeerCount != 2 || channel.SessionCount != 2 {
-		t.Fatalf("HTTP builders channel = %#v, want peer_count=2 session_count=2", channel)
-	}
-	if channel.MessageCount < 1 {
-		t.Fatalf("HTTP builders channel message_count = %d, want >= 1", channel.MessageCount)
-	}
-
-	channelDetail = mustHTTPNetworkChannel(t, ctx, harness, "builders")
-	if channelDetail.Channel != "builders" || channelDetail.PeerCount != 2 || len(channelDetail.Sessions) != 2 {
-		t.Fatalf("HTTP channel detail = %#v, want builders with 2 peers and 2 sessions", channelDetail)
-	}
-
-	channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "builders")
-	requireChannelMessage(t, channelMessages, "msg_say_01", "Who can take the failing migration tests in internal/store/sessiondb?")
-	requireChannelMessage(t, channelMessages, "msg_summary_01", "Summary: patch prepared")
-	requireNoChannelMessage(t, channelMessages, "msg_direct_01")
-	requireNoChannelMessage(t, channelMessages, "msg_trace_02")
-
-	threads := mustHTTPNetworkThreads(t, ctx, harness, "builders")
-	requireThreadSummary(t, threads, buildersThreadID, "msg_say_01")
-	thread := mustHTTPNetworkThread(t, ctx, harness, "builders", buildersThreadID)
-	if thread.ThreadID != buildersThreadID || thread.MessageCount < 2 {
-		t.Fatalf("HTTP builders thread = %#v, want summary with >= 2 messages", thread)
-	}
-	threadMessages := mustHTTPNetworkThreadMessages(t, ctx, harness, "builders", buildersThreadID)
-	requireConversationMessage(t, threadMessages, "msg_say_01", "thread", buildersThreadID, "")
-	requireConversationMessage(t, threadMessages, "msg_summary_01", "thread", buildersThreadID, "")
-
-	directs := mustHTTPNetworkDirectRooms(t, ctx, harness, "builders")
-	requireDirectRoomSummary(t, directs, patchDirectID)
-	direct := mustHTTPNetworkDirectRoom(t, ctx, harness, "builders", patchDirectID)
-	if direct.DirectID != patchDirectID || direct.MessageCount < 3 {
-		t.Fatalf("HTTP builders direct = %#v, want direct room with >= 3 messages", direct)
-	}
-	directMessages := mustHTTPNetworkDirectRoomMessages(t, ctx, harness, "builders", patchDirectID)
-	requireConversationMessage(t, directMessages, "msg_direct_01", "direct", "", patchDirectID)
-	requireConversationMessage(t, directMessages, "msg_trace_02", "direct", "", patchDirectID)
-
-	work := mustHTTPNetworkWork(t, ctx, harness, patchWorkID)
-	if work.WorkID != patchWorkID || work.Surface != "direct" || work.DirectID != patchDirectID {
-		t.Fatalf("HTTP network work = %#v, want direct work %q in %q", work, patchWorkID, patchDirectID)
-	}
-
-	opsTranscript := mustSessionTranscript(t, ctx, harness, opsSession.ID)
-	patchTranscript := mustSessionTranscript(t, ctx, harness, patchSession.ID)
-	audit := mustNetworkAuditSnapshot(t, harness)
-
-	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_direct_01",
-		Kind:            "say",
-		Surface:         "direct",
-		DirectID:        patchDirectID,
-		WorkID:          patchWorkID,
-		ReplyTo:         "msg_say_01",
-		TraceID:         "trace_ops_patch_42",
-		CausationID:     "msg_say_01",
-		Trust:           "untrusted",
-		AuditDirections: []string{"delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(direct) error = %v", err)
-	}
-	if err := validateNetworkCorrelationSurfaces(patchTranscript.Messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_receipt_01",
-		Kind:            "receipt",
-		Surface:         "direct",
-		DirectID:        patchDirectID,
-		WorkID:          patchWorkID,
-		ReplyTo:         "msg_direct_01",
-		TraceID:         "trace_ops_patch_42",
-		CausationID:     "msg_direct_01",
-		Trust:           "untrusted",
-		AuditDirections: []string{"delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(receipt) error = %v", err)
-	}
-	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_trace_02",
-		Kind:            "trace",
-		Surface:         "direct",
-		DirectID:        patchDirectID,
-		WorkID:          patchWorkID,
-		ReplyTo:         "msg_receipt_01",
-		TraceID:         "trace_ops_patch_42",
-		CausationID:     "msg_receipt_01",
-		Trust:           "untrusted",
-		AuditDirections: []string{"delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
-	}
-	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_summary_01",
-		Kind:            "say",
-		Surface:         "thread",
-		ThreadID:        buildersThreadID,
-		ReplyTo:         "msg_trace_02",
-		TraceID:         "trace_ops_patch_42",
-		CausationID:     "msg_trace_02",
-		Trust:           "untrusted",
-		AuditDirections: []string{"delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(summary) error = %v", err)
-	}
-	assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 }
 
 func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
-	acpmock.RequireDriver(t)
+	t.Run("Should complete whois and capability exchange", func(t *testing.T) {
+		acpmock.RequireDriver(t)
 
-	fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
-		EnableNetwork: true,
-		MockAgents: []e2etest.MockAgentSpec{
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "release-bot",
-				AgentName:    "mock-release-bot",
+		fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
+		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+			EnableNetwork: true,
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "release-bot",
+					AgentName:    "mock-release-bot",
+				},
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "capability-curator",
+					AgentName:    "mock-capability-curator",
+				},
 			},
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "capability-curator",
-				AgentName:    "mock-capability-curator",
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		channelDetail := mustCreateNetworkChannel(
+			t,
+			ctx,
+			harness,
+			"capabilities",
+			"mock-release-bot",
+			"mock-capability-curator",
+		)
+		releaseSession := requireChannelSession(t, channelDetail, "mock-release-bot")
+		curatorSession := requireChannelSession(t, channelDetail, "mock-capability-curator")
+
+		regRelease, ok := harness.MockAgentRegistration("mock-release-bot")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-release-bot) = missing, want present")
+		}
+		regCurator, ok := harness.MockAgentRegistration("mock-capability-curator")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-capability-curator) = missing, want present")
+		}
+
+		registerNetworkScenarioArtifacts(
+			t,
+			harness,
+			"capabilities",
+			[]aghcontract.SessionPayload{releaseSession, curatorSession},
+			[]acpmock.Registration{regRelease, regCurator},
+		)
+
+		peers := waitForChannelPeerCount(t, ctx, harness, "capabilities", 2)
+		releasePeerID := requirePeerIDForSession(t, peers, releaseSession.ID)
+		curatorPeerID := requirePeerIDForSession(t, peers, curatorSession.ID)
+		if releasePeerID == curatorPeerID {
+			t.Fatalf("peer IDs = %q and %q, want distinct values", releasePeerID, curatorPeerID)
+		}
+		capabilitiesThreadID := "thread_capabilities_main"
+		capabilityThreadWorkID := "work_capability_catalog_7"
+		capabilityDirectWorkID := "work_capability_apply_7"
+		capabilityDirectID := mustHTTPResolveNetworkDirectRoom(
+			t,
+			ctx,
+			harness,
+			"capabilities",
+			releaseSession.ID,
+			curatorPeerID,
+		)
+
+		capabilityBody := mustCapabilityBodyString(t, aghconfig.CapabilityDef{
+			ID:                "fix-go-migration-tests",
+			Summary:           "Repair failing Go migration test assertions and rerun the package verification lane.",
+			Outcome:           "A patched migration test with passing package verification output.",
+			Version:           "1.0.0",
+			ContextNeeded:     []string{"package path", "failing test output"},
+			ArtifactsExpected: []string{"updated assertion", "passing package tests"},
+			ExecutionOutline: []string{
+				"Re-run the failing migration tests.",
+				"Compare the expected schema with the normalized audit rows.",
+				"Update the migration assertion and rerun the package tests.",
 			},
-		},
-	})
+			Requirements: []string{"go-test", "sessiondb-fixtures"},
+		})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", releaseSession.ID,
+			"--channel", "capabilities",
+			"--kind", "say",
+			"--surface", "thread",
+			"--thread", capabilitiesThreadID,
+			"--id", "msg_capability_say_01",
+			"--trace-id", "trace_capability_apply_7",
+			"--body", `{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
+		})
 
-	channelDetail := mustCreateNetworkChannel(
-		t,
-		ctx,
-		harness,
-		"capabilities",
-		"mock-release-bot",
-		"mock-capability-curator",
-	)
-	releaseSession := requireChannelSession(t, channelDetail, "mock-release-bot")
-	curatorSession := requireChannelSession(t, channelDetail, "mock-capability-curator")
+		waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
+			return channelHasMessageID(ctx, harness, "capabilities", "msg_capability_say_01") &&
+				sessionTranscriptHasNeedle(
+					ctx,
+					harness,
+					curatorSession.ID,
+					attributeNeedle("id", "msg_capability_say_01"),
+				)
+		})
 
-	regRelease, ok := harness.MockAgentRegistration("mock-release-bot")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-release-bot) = missing, want present")
-	}
-	regCurator, ok := harness.MockAgentRegistration("mock-capability-curator")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-capability-curator) = missing, want present")
-	}
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", releaseSession.ID,
+			"--channel", "capabilities",
+			"--kind", "whois",
+			"--to", curatorPeerID,
+			"--id", "msg_whois_01",
+			"--body", `{"type":"request","query":"capability-curator"}`,
+		})
 
-	registerNetworkScenarioArtifacts(
-		t,
-		harness,
-		"capabilities",
-		[]aghcontract.SessionPayload{releaseSession, curatorSession},
-		[]acpmock.Registration{regRelease, regCurator},
-	)
+		waitForRuntimeCondition(t, "whois response delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_whois_01",
+				Direction: "sent",
+				Kind:      "whois",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("reply-to", "msg_whois_01"))
+		})
 
-	peers := waitForChannelPeerCount(t, ctx, harness, "capabilities", 2)
-	releasePeerID := requirePeerIDForSession(t, peers, releaseSession.ID)
-	curatorPeerID := requirePeerIDForSession(t, peers, curatorSession.ID)
-	if releasePeerID == curatorPeerID {
-		t.Fatalf("peer IDs = %q and %q, want distinct values", releasePeerID, curatorPeerID)
-	}
-	capabilitiesThreadID := "thread_capabilities_main"
-	capabilityThreadWorkID := "work_capability_catalog_7"
-	capabilityDirectWorkID := "work_capability_apply_7"
-	capabilityDirectID := mustHTTPResolveNetworkDirectRoom(
-		t,
-		ctx,
-		harness,
-		"capabilities",
-		releaseSession.ID,
-		curatorPeerID,
-	)
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", curatorSession.ID,
+			"--channel", "capabilities",
+			"--kind", "capability",
+			"--surface", "thread",
+			"--thread", capabilitiesThreadID,
+			"--work", capabilityThreadWorkID,
+			"--to", releasePeerID,
+			"--id", "msg_capability_01",
+			"--trace-id", "trace_capability_apply_7",
+			"--body", capabilityBody,
+		})
 
-	capabilityBody := mustCapabilityBodyString(t, aghconfig.CapabilityDef{
-		ID:                "fix-go-migration-tests",
-		Summary:           "Repair failing Go migration test assertions and rerun the package verification lane.",
-		Outcome:           "A patched migration test with passing package verification output.",
-		Version:           "1.0.0",
-		ContextNeeded:     []string{"package path", "failing test output"},
-		ArtifactsExpected: []string{"updated assertion", "passing package tests"},
-		ExecutionOutline: []string{
-			"Re-run the failing migration tests.",
-			"Compare the expected schema with the normalized audit rows.",
-			"Update the migration assertion and rerun the package tests.",
-		},
-		Requirements: []string{"go-test", "sessiondb-fixtures"},
-	})
+		waitForRuntimeCondition(t, "capability delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_capability_01",
+				Direction: "delivered",
+				Kind:      "capability",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_capability_01"))
+		})
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", releaseSession.ID,
-		"--channel", "capabilities",
-		"--kind", "say",
-		"--surface", "thread",
-		"--thread", capabilitiesThreadID,
-		"--id", "msg_capability_say_01",
-		"--trace-id", "trace_capability_apply_7",
-		"--body", `{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
-	})
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", releaseSession.ID,
+			"--channel", "capabilities",
+			"--kind", "say",
+			"--surface", "direct",
+			"--direct", capabilityDirectID,
+			"--work", capabilityDirectWorkID,
+			"--to", curatorPeerID,
+			"--reply-to", "msg_capability_01",
+			"--trace-id", "trace_capability_apply_7",
+			"--causation-id", "msg_capability_01",
+			"--id", "msg_direct_20",
+			"--body", `{"text":"Can you adapt this capability to a failure in internal/store/sessiondb?","intent":"request-guidance","artifacts":[]}`,
+		})
 
-	waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
-		return channelHasMessageID(ctx, harness, "capabilities", "msg_capability_say_01") &&
-			sessionTranscriptHasNeedle(
-				ctx,
-				harness,
-				curatorSession.ID,
-				attributeNeedle("id", "msg_capability_say_01"),
-			)
-	})
+		waitForRuntimeCondition(t, "capability direct delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_direct_20",
+				Direction: "delivered",
+				Kind:      "say",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, curatorSession.ID, attributeNeedle("id", "msg_direct_20"))
+		})
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", releaseSession.ID,
-		"--channel", "capabilities",
-		"--kind", "whois",
-		"--to", curatorPeerID,
-		"--id", "msg_whois_01",
-		"--body", `{"type":"request","query":"capability-curator"}`,
-	})
+		mustSendNetworkCLI(t, ctx, harness, []string{
+			"--session", curatorSession.ID,
+			"--channel", "capabilities",
+			"--kind", "trace",
+			"--surface", "direct",
+			"--direct", capabilityDirectID,
+			"--work", capabilityDirectWorkID,
+			"--to", releasePeerID,
+			"--reply-to", "msg_direct_20",
+			"--trace-id", "trace_capability_apply_7",
+			"--causation-id", "msg_direct_20",
+			"--id", "msg_trace_21",
+			"--body", `{"state":"needs_input","message":"Send the exact package path and failing test output so I can tailor the capability.","result":{"capability_id":"fix-go-migration-tests"},"artifact_refs":[]}`,
+		})
 
-	waitForRuntimeCondition(t, "whois response delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		waitForRuntimeCondition(t, "capability trace delivery", 10*time.Second, func() bool {
+			audit, err := harness.NetworkAuditSnapshot()
+			if err != nil {
+				return false
+			}
+			return validateNetworkAuditEntry(audit, networkAuditExpectation{
+				MessageID: "msg_trace_21",
+				Direction: "delivered",
+				Kind:      "trace",
+			}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_trace_21"))
+		})
+
+		status := mustHTTPNetworkStatus(t, ctx, harness)
+		if !status.Enabled || status.Status != "running" {
+			t.Fatalf("HTTP network status = %#v, want enabled running", status)
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_whois_01",
-			Direction: "sent",
-			Kind:      "whois",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("reply-to", "msg_whois_01"))
-	})
-
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", curatorSession.ID,
-		"--channel", "capabilities",
-		"--kind", "capability",
-		"--surface", "thread",
-		"--thread", capabilitiesThreadID,
-		"--work", capabilityThreadWorkID,
-		"--to", releasePeerID,
-		"--id", "msg_capability_01",
-		"--trace-id", "trace_capability_apply_7",
-		"--body", capabilityBody,
-	})
-
-	waitForRuntimeCondition(t, "capability delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		if status.LocalPeers != 2 {
+			t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_capability_01",
-			Direction: "delivered",
-			Kind:      "capability",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_capability_01"))
-	})
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", releaseSession.ID,
-		"--channel", "capabilities",
-		"--kind", "say",
-		"--surface", "direct",
-		"--direct", capabilityDirectID,
-		"--work", capabilityDirectWorkID,
-		"--to", curatorPeerID,
-		"--reply-to", "msg_capability_01",
-		"--trace-id", "trace_capability_apply_7",
-		"--causation-id", "msg_capability_01",
-		"--id", "msg_direct_20",
-		"--body", `{"text":"Can you adapt this capability to a failure in internal/store/sessiondb?","intent":"request-guidance","artifacts":[]}`,
-	})
-
-	waitForRuntimeCondition(t, "capability direct delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		peers = mustHTTPNetworkPeers(t, ctx, harness, "capabilities")
+		if len(peers) != 2 {
+			t.Fatalf("HTTP network peers = %#v, want 2 peers", peers)
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_direct_20",
-			Direction: "delivered",
-			Kind:      "say",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, curatorSession.ID, attributeNeedle("id", "msg_direct_20"))
-	})
-
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", curatorSession.ID,
-		"--channel", "capabilities",
-		"--kind", "trace",
-		"--surface", "direct",
-		"--direct", capabilityDirectID,
-		"--work", capabilityDirectWorkID,
-		"--to", releasePeerID,
-		"--reply-to", "msg_direct_20",
-		"--trace-id", "trace_capability_apply_7",
-		"--causation-id", "msg_direct_20",
-		"--id", "msg_trace_21",
-		"--body", `{"state":"needs_input","message":"Send the exact package path and failing test output so I can tailor the capability.","result":{"capability_id":"fix-go-migration-tests"},"artifact_refs":[]}`,
-	})
-
-	waitForRuntimeCondition(t, "capability trace delivery", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
+		if requirePeerIDForSession(t, peers, releaseSession.ID) != releasePeerID {
+			t.Fatalf("HTTP network peers missing release peer %q", releasePeerID)
 		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_trace_21",
-			Direction: "delivered",
-			Kind:      "trace",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_trace_21"))
-	})
-
-	status := mustHTTPNetworkStatus(t, ctx, harness)
-	if !status.Enabled || status.Status != "running" {
-		t.Fatalf("HTTP network status = %#v, want enabled running", status)
-	}
-	if status.LocalPeers != 2 {
-		t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
-	}
-
-	peers = mustHTTPNetworkPeers(t, ctx, harness, "capabilities")
-	if len(peers) != 2 {
-		t.Fatalf("HTTP network peers = %#v, want 2 peers", peers)
-	}
-	if requirePeerIDForSession(t, peers, releaseSession.ID) != releasePeerID {
-		t.Fatalf("HTTP network peers missing release peer %q", releasePeerID)
-	}
-	if requirePeerIDForSession(t, peers, curatorSession.ID) != curatorPeerID {
-		t.Fatalf("HTTP network peers missing curator peer %q", curatorPeerID)
-	}
-
-	channels := mustHTTPNetworkChannels(t, ctx, harness)
-	channel, ok := findChannelPayload(channels, "capabilities")
-	if !ok {
-		t.Fatalf("HTTP network channels = %#v, want capabilities entry", channels)
-	}
-	if channel.PeerCount != 2 || channel.SessionCount != 2 {
-		t.Fatalf("HTTP capabilities channel = %#v, want peer_count=2 session_count=2", channel)
-	}
-	if channel.MessageCount < 1 {
-		t.Fatalf("HTTP capabilities channel message_count = %d, want >= 1", channel.MessageCount)
-	}
-
-	channelDetail = mustHTTPNetworkChannel(t, ctx, harness, "capabilities")
-	if channelDetail.Channel != "capabilities" || channelDetail.PeerCount != 2 || len(channelDetail.Sessions) != 2 {
-		t.Fatalf("HTTP channel detail = %#v, want capabilities with 2 peers and 2 sessions", channelDetail)
-	}
-
-	channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "capabilities")
-	requireChannelMessage(t, channelMessages, "msg_capability_say_01", "Does anyone have a reusable migration test repair capability?")
-
-	releaseTranscript := mustSessionTranscript(t, ctx, harness, releaseSession.ID)
-	curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)
-	audit := mustNetworkAuditSnapshot(t, harness)
-
-	releaseContent := joinTranscriptContent(releaseTranscript.Messages)
-	for _, needle := range []string{
-		attributeNeedle("kind", "whois"),
-		attributeNeedle("reply-to", "msg_whois_01"),
-		attributeNeedle("id", "msg_capability_01"),
-		attributeNeedle("kind", "capability"),
-		attributeNeedle("id", "msg_trace_21"),
-		attributeNeedle("trace-id", "trace_capability_apply_7"),
-	} {
-		if !strings.Contains(releaseContent, needle) {
-			t.Fatalf("release transcript missing %q in %s", needle, releaseContent)
+		if requirePeerIDForSession(t, peers, curatorSession.ID) != curatorPeerID {
+			t.Fatalf("HTTP network peers missing curator peer %q", curatorPeerID)
 		}
-	}
-	if err := validateNetworkCorrelationSurfaces(curatorTranscript.Messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_direct_20",
-		Kind:            "say",
-		Surface:         "direct",
-		DirectID:        capabilityDirectID,
-		WorkID:          capabilityDirectWorkID,
-		ReplyTo:         "msg_capability_01",
-		TraceID:         "trace_capability_apply_7",
-		CausationID:     "msg_capability_01",
-		Trust:           "untrusted",
-		AuditDirections: []string{"delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
-	}
-	if err := validateNetworkCorrelationSurfaces(releaseTranscript.Messages, audit, networkCorrelationExpectation{
-		MessageID:       "msg_trace_21",
-		Kind:            "trace",
-		Surface:         "direct",
-		DirectID:        capabilityDirectID,
-		WorkID:          capabilityDirectWorkID,
-		ReplyTo:         "msg_direct_20",
-		TraceID:         "trace_capability_apply_7",
-		CausationID:     "msg_direct_20",
-		Trust:           "untrusted",
-		AuditDirections: []string{"delivered"},
-	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
-	}
 
-	assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
+		channels := mustHTTPNetworkChannels(t, ctx, harness)
+		channel, ok := findChannelPayload(channels, "capabilities")
+		if !ok {
+			t.Fatalf("HTTP network channels = %#v, want capabilities entry", channels)
+		}
+		if channel.PeerCount != 2 || channel.SessionCount != 2 {
+			t.Fatalf("HTTP capabilities channel = %#v, want peer_count=2 session_count=2", channel)
+		}
+		if channel.MessageCount < 1 {
+			t.Fatalf("HTTP capabilities channel message_count = %d, want >= 1", channel.MessageCount)
+		}
+
+		channelDetail = mustHTTPNetworkChannel(t, ctx, harness, "capabilities")
+		if channelDetail.Channel != "capabilities" || channelDetail.PeerCount != 2 || len(channelDetail.Sessions) != 2 {
+			t.Fatalf("HTTP channel detail = %#v, want capabilities with 2 peers and 2 sessions", channelDetail)
+		}
+
+		channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "capabilities")
+		requireChannelMessage(t, channelMessages, "msg_capability_say_01", "Does anyone have a reusable migration test repair capability?")
+
+		releaseTranscript := mustSessionTranscript(t, ctx, harness, releaseSession.ID)
+		curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)
+		audit := mustNetworkAuditSnapshot(t, harness)
+
+		releaseContent := joinTranscriptContent(releaseTranscript.Messages)
+		for _, needle := range []string{
+			attributeNeedle("kind", "whois"),
+			attributeNeedle("reply-to", "msg_whois_01"),
+			attributeNeedle("id", "msg_capability_01"),
+			attributeNeedle("kind", "capability"),
+			attributeNeedle("id", "msg_trace_21"),
+			attributeNeedle("trace-id", "trace_capability_apply_7"),
+		} {
+			if !strings.Contains(releaseContent, needle) {
+				t.Fatalf("release transcript missing %q in %s", needle, releaseContent)
+			}
+		}
+		if err := validateNetworkCorrelationSurfaces(curatorTranscript.Messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_direct_20",
+			Kind:            "say",
+			Surface:         "direct",
+			DirectID:        capabilityDirectID,
+			WorkID:          capabilityDirectWorkID,
+			ReplyTo:         "msg_capability_01",
+			TraceID:         "trace_capability_apply_7",
+			CausationID:     "msg_capability_01",
+			Trust:           "untrusted",
+			AuditDirections: []string{"delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
+		}
+		if err := validateNetworkCorrelationSurfaces(releaseTranscript.Messages, audit, networkCorrelationExpectation{
+			MessageID:       "msg_trace_21",
+			Kind:            "trace",
+			Surface:         "direct",
+			DirectID:        capabilityDirectID,
+			WorkID:          capabilityDirectWorkID,
+			ReplyTo:         "msg_direct_20",
+			TraceID:         "trace_capability_apply_7",
+			CausationID:     "msg_direct_20",
+			Trust:           "untrusted",
+			AuditDirections: []string{"delivered"},
+		}); err != nil {
+			t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
+		}
+
+		assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
+	})
 }
 
 func mustCreateNetworkChannel(
@@ -740,7 +746,7 @@ func requirePeerIDForSession(
 
 func requireChannelMessage(
 	t testing.TB,
-	messages []aghcontract.NetworkChannelMessagePayload,
+	messages []aghcontract.NetworkConversationMessagePayload,
 	messageID string,
 	text string,
 ) {
@@ -760,7 +766,7 @@ func requireChannelMessage(
 
 func requireNoChannelMessage(
 	t testing.TB,
-	messages []aghcontract.NetworkChannelMessagePayload,
+	messages []aghcontract.NetworkConversationMessagePayload,
 	messageID string,
 ) {
 	t.Helper()
@@ -1109,7 +1115,7 @@ func mustHTTPNetworkChannelMessages(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) []aghcontract.NetworkChannelMessagePayload {
+) []aghcontract.NetworkConversationMessagePayload {
 	t.Helper()
 
 	var threadsResponse aghcontract.NetworkThreadsResponse
@@ -1118,7 +1124,7 @@ func mustHTTPNetworkChannelMessages(
 	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", threadsPath, err)
 	}
-	messages := make([]aghcontract.NetworkChannelMessagePayload, 0)
+	messages := make([]aghcontract.NetworkConversationMessagePayload, 0)
 	for _, thread := range threadsResponse.Threads {
 		var response aghcontract.NetworkThreadMessagesResponse
 		messagesPath := "/api/network/channels/" + escapedChannel + "/threads/" + url.PathEscape(thread.ThreadID) + "/messages"

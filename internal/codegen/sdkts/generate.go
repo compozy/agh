@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
@@ -33,7 +35,10 @@ const (
 
 // Generate renders the canonical SDK contracts TypeScript module.
 func Generate() (string, error) {
-	gen := newGenerator()
+	gen, err := newGenerator()
+	if err != nil {
+		return "", err
+	}
 	gen.prepare()
 	if err := gen.emitAllNamedTypes(); err != nil {
 		return "", err
@@ -66,12 +71,16 @@ type generator struct {
 	queued     map[string]reflect.Type
 	emitted    map[string]bool
 	processing map[string]bool
+	fieldSpecs map[reflect.Type][]fieldSpec
 	blocks     []string
 }
 
-func newGenerator() *generator {
+func newGenerator() (*generator, error) {
 	hostSpecs := extensioncontract.HostAPIMethodSpecs()
-	hookSpecs := extensioncontract.HookContracts()
+	hookSpecs, err := extensioncontract.BuildHookContracts()
+	if err != nil {
+		return nil, fmt.Errorf("build hook contracts: %w", err)
+	}
 	sdkRootTypes := extensioncontract.SDKRootTypes()
 
 	rootTypes := make(
@@ -95,8 +104,9 @@ func newGenerator() *generator {
 		queued:     map[string]reflect.Type{},
 		emitted:    map[string]bool{},
 		processing: map[string]bool{},
+		fieldSpecs: map[reflect.Type][]fieldSpec{},
 		blocks:     make([]string, 0, len(rootTypes)+3),
-	}
+	}, nil
 }
 
 func (g *generator) prepare() {
@@ -154,43 +164,25 @@ func (g *generator) ensureNamed(name string, t reflect.Type) error {
 
 	switch {
 	case isEnumType(t):
-		g.blocks = append(
-			g.blocks,
-			fmt.Sprintf("export type %s = %s;\n", name, strings.Join(enumValuesForType(t), " | ")),
-		)
+		g.blocks = append(g.blocks, renderTypeAlias(name, enumUnionForType(t)))
 	case isPrimitiveAliasType(t):
-		g.blocks = append(g.blocks, fmt.Sprintf("export type %s = %s;\n", name, g.primitiveAliasForType(t)))
+		g.blocks = append(g.blocks, renderTypeAlias(name, g.primitiveAliasForType(t)))
 	case t.Kind() == reflect.Struct:
 		fields, err := g.structFields(t)
 		if err != nil {
 			return err
 		}
 		if len(fields) == 0 {
-			g.blocks = append(g.blocks, fmt.Sprintf("export type %s = Record<string, never>;\n", name))
+			g.blocks = append(g.blocks, renderTypeAlias(name, "Record<string, never>"))
 			break
 		}
-		var out strings.Builder
-		out.WriteString("export interface ")
-		out.WriteString(name)
-		out.WriteString(" {\n")
-		for _, field := range fields {
-			out.WriteString("  ")
-			out.WriteString(field.Name)
-			if field.Optional {
-				out.WriteByte('?')
-			}
-			out.WriteString(": ")
-			out.WriteString(field.Type)
-			out.WriteString(";\n")
-		}
-		out.WriteString("}\n")
-		g.blocks = append(g.blocks, out.String())
+		g.blocks = append(g.blocks, renderInterface(name, fields))
 	default:
 		tsType, err := g.tsType(t)
 		if err != nil {
 			return err
 		}
-		g.blocks = append(g.blocks, fmt.Sprintf("export type %s = %s;\n", name, tsType))
+		g.blocks = append(g.blocks, renderTypeAlias(name, tsType))
 	}
 
 	g.emitted[name] = true
@@ -204,6 +196,9 @@ type fieldSpec struct {
 }
 
 func (g *generator) structFields(t reflect.Type) ([]fieldSpec, error) {
+	if cached, ok := g.fieldSpecs[t]; ok {
+		return cached, nil
+	}
 	fields := make([]fieldSpec, 0, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -225,7 +220,7 @@ func (g *generator) structFields(t reflect.Type) ([]fieldSpec, error) {
 			}
 		}
 
-		jsonName, omitempty := jsonFieldName(field)
+		jsonName, optionalJSON := jsonFieldName(field)
 		if jsonName == "" {
 			continue
 		}
@@ -236,9 +231,10 @@ func (g *generator) structFields(t reflect.Type) ([]fieldSpec, error) {
 		fields = append(fields, fieldSpec{
 			Name:     jsonName,
 			Type:     tsType,
-			Optional: omitempty || field.Type.Kind() == reflect.Pointer,
+			Optional: optionalJSON || field.Type.Kind() == reflect.Pointer,
 		})
 	}
+	g.fieldSpecs[t] = fields
 	return fields, nil
 }
 
@@ -254,7 +250,7 @@ func jsonFieldName(field reflect.StructField) (string, bool) {
 	if name == "" {
 		name = field.Name
 	}
-	omitempty := false
+	optional := false
 	for opts != "" {
 		part := opts
 		if next, rest, found := strings.Cut(opts, ","); found {
@@ -263,12 +259,12 @@ func jsonFieldName(field reflect.StructField) (string, bool) {
 		} else {
 			opts = ""
 		}
-		if part == "omitempty" {
-			omitempty = true
+		if part == "omitempty" || part == "omitzero" {
+			optional = true
 			break
 		}
 	}
-	return name, omitempty
+	return name, optional
 }
 
 func (g *generator) tsType(t reflect.Type) (string, error) {
@@ -327,15 +323,10 @@ func (g *generator) resolveNamedTSType(t reflect.Type) (string, bool, error) {
 }
 
 func (g *generator) tsTypeByKind(t reflect.Type) (string, error) {
+	if primitive, ok := primitiveKindTSType(t.Kind()); ok {
+		return primitive, nil
+	}
 	switch t.Kind() {
-	case reflect.Bool:
-		return "boolean", nil
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Float32, reflect.Float64:
-		return numberTypeName, nil
-	case reflect.String:
-		return "string", nil
 	case reflect.Slice, reflect.Array:
 		elemType, err := g.tsType(t.Elem())
 		if err != nil {
@@ -347,7 +338,7 @@ func (g *generator) tsTypeByKind(t reflect.Type) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Record<string, %s>", elemType), nil
+		return "Record<string, " + elemType + ">", nil
 	case reflect.Struct:
 		fields, err := g.structFields(t)
 		if err != nil {
@@ -356,21 +347,7 @@ func (g *generator) tsTypeByKind(t reflect.Type) (string, error) {
 		if len(fields) == 0 {
 			return "Record<string, never>", nil
 		}
-		var out strings.Builder
-		out.WriteString("{ ")
-		for idx, field := range fields {
-			if idx > 0 {
-				out.WriteString("; ")
-			}
-			out.WriteString(field.Name)
-			if field.Optional {
-				out.WriteByte('?')
-			}
-			out.WriteString(": ")
-			out.WriteString(field.Type)
-		}
-		out.WriteString(" }")
-		return out.String(), nil
+		return renderInlineObject(fields), nil
 	default:
 		return jsonValueTypeName, nil
 	}
@@ -385,16 +362,10 @@ func (g *generator) primitiveAliasForType(t reflect.Type) string {
 	case durationType:
 		return "number"
 	}
-	switch t.Kind() {
-	case reflect.Bool:
-		return "boolean"
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Float32, reflect.Float64:
-		return "number"
-	default:
-		return "string"
+	if primitive, ok := primitiveKindTSType(t.Kind()); ok {
+		return primitive
 	}
+	return "string"
 }
 
 func parenthesizeIfNeeded(value string) string {
@@ -408,15 +379,22 @@ func isPrimitiveAliasType(t reflect.Type) bool {
 	if t == rawMessageType || t == timeType || t == durationType {
 		return true
 	}
-	switch t.Kind() {
-	case reflect.Bool,
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+	_, ok := primitiveKindTSType(t.Kind())
+	return ok
+}
+
+func primitiveKindTSType(kind reflect.Kind) (string, bool) {
+	switch kind {
+	case reflect.Bool:
+		return "boolean", true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Float32, reflect.Float64,
-		reflect.String:
-		return true
+		reflect.Float32, reflect.Float64:
+		return numberTypeName, true
+	case reflect.String:
+		return "string", true
 	default:
-		return false
+		return "", false
 	}
 }
 
@@ -452,28 +430,42 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[tools.ToolSource]():                             toolSourceValues(),
 }
 
-func enumValuesForType(t reflect.Type) []string {
+func enumUnionForType(t reflect.Type) string {
 	values := enumValuesRegistry[t]
-	quoted := make([]string, len(values))
+	var out strings.Builder
+	out.Grow(estimatedEnumUnionSize(values))
 	for idx, value := range values {
-		quoted[idx] = fmt.Sprintf("%q", value)
+		if idx > 0 {
+			out.WriteString(" | ")
+		}
+		writeQuotedString(&out, value)
 	}
-	return quoted
+	return out.String()
 }
 
 func (g *generator) emitHookMaps() {
 	var payload strings.Builder
+	payload.Grow(estimatedHookMapSize("export interface HookPayloadByEvent {\n", g.hookSpecs, true))
 	payload.WriteString("export interface HookPayloadByEvent {\n")
 	for _, spec := range g.hookSpecs {
-		fmt.Fprintf(&payload, "  %q: %s;\n", spec.Event, spec.Payload.Name)
+		payload.WriteString("  ")
+		writeQuotedString(&payload, string(spec.Event))
+		payload.WriteString(": ")
+		payload.WriteString(spec.Payload.Name)
+		payload.WriteString(";\n")
 	}
 	payload.WriteString("}\n")
 	g.blocks = append(g.blocks, payload.String())
 
 	var patch strings.Builder
+	patch.Grow(estimatedHookMapSize("export interface HookPatchByEvent {\n", g.hookSpecs, false))
 	patch.WriteString("export interface HookPatchByEvent {\n")
 	for _, spec := range g.hookSpecs {
-		fmt.Fprintf(&patch, "  %q: %s;\n", spec.Event, spec.Patch.Name)
+		patch.WriteString("  ")
+		writeQuotedString(&patch, string(spec.Event))
+		patch.WriteString(": ")
+		patch.WriteString(spec.Patch.Name)
+		patch.WriteString(";\n")
 	}
 	patch.WriteString("}\n")
 	g.blocks = append(g.blocks, patch.String())
@@ -481,6 +473,7 @@ func (g *generator) emitHookMaps() {
 
 func (g *generator) emitHostMethodMap() {
 	var out strings.Builder
+	out.Grow(estimatedHostMethodMapSize(g.hostSpecs))
 	out.WriteString("export interface HostAPIMethodMap {\n")
 	for _, spec := range g.hostSpecs {
 		paramsType := spec.Params.Name
@@ -495,9 +488,15 @@ func (g *generator) emitHostMethodMap() {
 		if resultIsList(spec.Result.Value) {
 			resultType += "[]"
 		}
-		fmt.Fprintf(&out, "  %q: {\n", spec.Method)
-		fmt.Fprintf(&out, "    params: %s;\n", paramsType)
-		fmt.Fprintf(&out, "    result: %s;\n", resultType)
+		out.WriteString("  ")
+		writeQuotedString(&out, string(spec.Method))
+		out.WriteString(": {\n")
+		out.WriteString("    params: ")
+		out.WriteString(paramsType)
+		out.WriteString(";\n")
+		out.WriteString("    result: ")
+		out.WriteString(resultType)
+		out.WriteString(";\n")
 		out.WriteString("  };\n")
 	}
 	out.WriteString("}\n")
@@ -532,18 +531,24 @@ func hookEventValues() []string {
 }
 
 func hookEventFamilyValues() []string {
-	return []string{
-		string(hooks.HookEventFamilySession),
-		string(hooks.HookEventFamilyInput),
-		string(hooks.HookEventFamilyPrompt),
-		string(hooks.HookEventFamilyEvent),
-		string(hooks.HookEventFamilyAgent),
-		string(hooks.HookEventFamilyTurn),
-		string(hooks.HookEventFamilyMessage),
-		string(hooks.HookEventFamilyTool),
-		string(hooks.HookEventFamilyPermission),
-		string(hooks.HookEventFamilyContext),
+	return hookEventFamilyValuesFromEvents(hooks.AllHookEvents())
+}
+
+func hookEventFamilyValuesFromEvents(events []hooks.HookEvent) []string {
+	values := make([]string, 0, len(events))
+	seen := map[hooks.HookEventFamily]struct{}{}
+	for _, event := range events {
+		family := event.Family()
+		if family == "" {
+			continue
+		}
+		if _, ok := seen[family]; ok {
+			continue
+		}
+		seen[family] = struct{}{}
+		values = append(values, string(family))
 	}
+	return values
 }
 
 func hookModeValues() []string {
@@ -644,6 +649,160 @@ func estimatedOutputSize(blocks []string) int {
 		if idx < len(blocks)-1 {
 			size++
 		}
+	}
+	return size
+}
+
+func renderTypeAlias(name string, value string) string {
+	var out strings.Builder
+	out.Grow(len("export type  = ;\n") + len(name) + len(value))
+	out.WriteString("export type ")
+	out.WriteString(name)
+	out.WriteString(" = ")
+	out.WriteString(value)
+	out.WriteString(";\n")
+	return out.String()
+}
+
+func renderInterface(name string, fields []fieldSpec) string {
+	var out strings.Builder
+	out.Grow(estimatedInterfaceSize(name, fields))
+	out.WriteString("export interface ")
+	out.WriteString(name)
+	out.WriteString(" {\n")
+	for _, field := range fields {
+		writeFieldSpec(&out, "  ", field, ";\n")
+	}
+	out.WriteString("}\n")
+	return out.String()
+}
+
+func renderInlineObject(fields []fieldSpec) string {
+	var out strings.Builder
+	out.Grow(estimatedInlineObjectSize(fields))
+	out.WriteString("{ ")
+	for idx, field := range fields {
+		if idx > 0 {
+			out.WriteString("; ")
+		}
+		writeFieldSpec(&out, "", field, "")
+	}
+	out.WriteString(" }")
+	return out.String()
+}
+
+func writeFieldSpec(out *strings.Builder, prefix string, field fieldSpec, suffix string) {
+	out.WriteString(prefix)
+	out.WriteString(field.Name)
+	if field.Optional {
+		out.WriteByte('?')
+	}
+	out.WriteString(": ")
+	out.WriteString(field.Type)
+	out.WriteString(suffix)
+}
+
+func writeQuotedString(out *strings.Builder, value string) {
+	if isSimpleQuotedString(value) {
+		out.WriteByte('"')
+		out.WriteString(value)
+		out.WriteByte('"')
+		return
+	}
+	out.WriteString(strconv.Quote(value))
+}
+
+func isSimpleQuotedString(value string) bool {
+	if !utf8.ValidString(value) {
+		return false
+	}
+	for _, char := range value {
+		if char < ' ' || char == '"' || char == '\\' {
+			return false
+		}
+	}
+	return true
+}
+
+func estimatedInterfaceSize(name string, fields []fieldSpec) int {
+	size := len("export interface  {\n}\n") + len(name)
+	for _, field := range fields {
+		size += fieldSpecSize("  ", field, ";\n")
+	}
+	return size
+}
+
+func estimatedInlineObjectSize(fields []fieldSpec) int {
+	size := len("{  }")
+	for idx, field := range fields {
+		if idx > 0 {
+			size += len("; ")
+		}
+		size += fieldSpecSize("", field, "")
+	}
+	return size
+}
+
+func fieldSpecSize(prefix string, field fieldSpec, suffix string) int {
+	size := len(prefix) + len(field.Name) + len(": ") + len(field.Type) + len(suffix)
+	if field.Optional {
+		size++
+	}
+	return size
+}
+
+func estimatedEnumUnionSize(values []string) int {
+	size := 0
+	for idx, value := range values {
+		if idx > 0 {
+			size += len(" | ")
+		}
+		size += estimatedQuotedStringSize(value)
+	}
+	return size
+}
+
+func estimatedHookMapSize(header string, specs []extensioncontract.HookContractSpec, payload bool) int {
+	size := len(header) + len("}\n")
+	for _, spec := range specs {
+		typeName := spec.Patch.Name
+		if payload {
+			typeName = spec.Payload.Name
+		}
+		size += len("  : ;\n") + estimatedQuotedStringSize(string(spec.Event)) + len(typeName)
+	}
+	return size
+}
+
+func estimatedHostMethodMapSize(specs []extensioncontract.HostAPIMethodSpec) int {
+	size := len("export interface HostAPIMethodMap {\n}\n")
+	for _, spec := range specs {
+		size += len("  : {\n    params: ;\n    result: ;\n  };\n") +
+			estimatedQuotedStringSize(string(spec.Method)) +
+			estimatedHostParamsTypeSize(spec) +
+			estimatedHostResultTypeSize(spec)
+	}
+	return size
+}
+
+func estimatedQuotedStringSize(value string) int {
+	return len(value) + len(`""`)
+}
+
+func estimatedHostParamsTypeSize(spec extensioncontract.HostAPIMethodSpec) int {
+	if !spec.OptionalParams {
+		return len(spec.Params.Name)
+	}
+	if spec.Params.Name == "EmptyResult" {
+		return len("undefined")
+	}
+	return len(spec.Params.Name) + len(" | undefined")
+}
+
+func estimatedHostResultTypeSize(spec extensioncontract.HostAPIMethodSpec) int {
+	size := len(spec.Result.Name)
+	if resultIsList(spec.Result.Value) {
+		size += len("[]")
 	}
 	return size
 }

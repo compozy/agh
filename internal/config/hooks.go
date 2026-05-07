@@ -83,34 +83,48 @@ func HookDeclarations(hooksCfg HooksConfig, agents []AgentDef) ([]hookspkg.HookD
 	for _, agent := range agents {
 		capacity += len(agent.Hooks)
 	}
-	raw := make([]hookspkg.HookDecl, 0, capacity)
-	raw = append(raw, cloneHookDecls(hooksCfg.Declarations)...)
-	for _, agent := range agents {
-		raw = append(raw, cloneHookDecls(agent.Hooks)...)
-	}
-
-	if len(raw) == 0 {
+	if capacity == 0 {
 		return []hookspkg.HookDecl{}, nil
 	}
 
-	normalized := make([]hookspkg.HookDecl, 0, len(raw))
-	for idx, decl := range raw {
-		if !decl.EnabledValue() {
-			continue
-		}
-		resolved, err := hookspkg.NormalizeHookDecl(decl, hookDeclarationResolver)
+	normalized := make([]hookspkg.HookDecl, 0, capacity)
+	idx := 0
+	for _, decl := range hooksCfg.Declarations {
+		var err error
+		normalized, err = appendNormalizedHookDecl(normalized, idx, decl)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"config: normalize hook declaration %d (%q): %w",
-				idx,
-				strings.TrimSpace(decl.Name),
-				err,
-			)
+			return nil, err
 		}
-		normalized = append(normalized, resolved.Decl)
+		idx++
+	}
+	for _, agent := range agents {
+		for _, decl := range agent.Hooks {
+			var err error
+			normalized, err = appendNormalizedHookDecl(normalized, idx, decl)
+			if err != nil {
+				return nil, err
+			}
+			idx++
+		}
 	}
 
 	return normalized, nil
+}
+
+func appendNormalizedHookDecl(dst []hookspkg.HookDecl, idx int, decl hookspkg.HookDecl) ([]hookspkg.HookDecl, error) {
+	if !decl.EnabledValue() {
+		return dst, nil
+	}
+	resolved, err := hookspkg.NormalizeHookDecl(decl, hookDeclarationResolver)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"config: normalize hook declaration %d (%q): %w",
+			idx,
+			strings.TrimSpace(decl.Name),
+			err,
+		)
+	}
+	return append(dst, resolved.Decl), nil
 }
 
 // Validate ensures the hook declarations are internally consistent.
