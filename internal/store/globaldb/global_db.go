@@ -684,6 +684,7 @@ var globalSchemaStatements = appendSchemaStatements(
 	},
 	bridgeTaskSubscriptionSchemaStatements(),
 	resources.SchemaStatements(),
+	modelCatalogSchemaStatements(),
 )
 
 func appendSchemaStatements(groups ...[]string) []string {
@@ -874,6 +875,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "memv2_memory_events",
 		Up:       migrateMemoryV2Events,
 		Checksum: "2026-05-05-memv2-memory-events",
+	},
+	{
+		Version:  23,
+		Name:     "add_model_catalog_persistence",
+		Up:       migrateModelCatalogPersistence,
+		Checksum: "2026-05-07-add-model-catalog-persistence",
 	},
 }
 
