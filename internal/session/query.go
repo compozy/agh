@@ -309,6 +309,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		AgentName:        meta.AgentName,
 		Provider:         meta.Provider,
 		Model:            strings.TrimSpace(meta.Model),
+		ReasoningEffort:  strings.TrimSpace(meta.ReasoningEffort),
 		WorkspaceID:      meta.WorkspaceID,
 		Channel:          meta.Channel,
 		Type:             normalizeSessionType(Type(meta.SessionType)),

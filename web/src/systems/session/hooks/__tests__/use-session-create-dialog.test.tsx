@@ -172,4 +172,31 @@ describe("useSessionCreateDialog", () => {
     expect(result.current.selectedAgentName).toBe("codex-agent");
     expect(result.current.selectedProvider).toBe("codex");
   });
+
+  it("submits selected model and reasoning overrides only when populated", async () => {
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }));
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+    expect(result.current.modelOptions).toEqual([]);
+    expect(result.current.reasoningSupported).toBe(true);
+
+    act(() => {
+      result.current.onModelChange("gpt-5.4-mini");
+      result.current.onReasoningChange("high");
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "codex-agent",
+      workspace: "ws_alpha",
+      provider: "codex",
+      model: "gpt-5.4-mini",
+      reasoning_effort: "high",
+    });
+  });
 });

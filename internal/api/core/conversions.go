@@ -43,22 +43,24 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		ID:            info.ID,
-		Name:          info.Name,
-		AgentName:     info.AgentName,
-		Provider:      info.Provider,
-		WorkspaceID:   ref.WorkspaceID,
-		WorkspacePath: ref.WorkspacePath,
-		Channel:       info.Channel,
-		Type:          info.Type,
-		State:         info.State,
-		StopReason:    info.StopReason,
-		StopDetail:    info.StopDetail,
-		Failure:       SessionFailurePayloadFromStore(info.Failure),
-		ACPSessionID:  info.ACPSessionID,
-		Lineage:       contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt:     info.CreatedAt,
-		UpdatedAt:     info.UpdatedAt,
+		ID:              info.ID,
+		Name:            info.Name,
+		AgentName:       info.AgentName,
+		Provider:        info.Provider,
+		Model:           strings.TrimSpace(info.Model),
+		ReasoningEffort: strings.TrimSpace(info.ReasoningEffort),
+		WorkspaceID:     ref.WorkspaceID,
+		WorkspacePath:   ref.WorkspacePath,
+		Channel:         info.Channel,
+		Type:            info.Type,
+		State:           info.State,
+		StopReason:      info.StopReason,
+		StopDetail:      info.StopDetail,
+		Failure:         SessionFailurePayloadFromStore(info.Failure),
+		ACPSessionID:    info.ACPSessionID,
+		Lineage:         contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:       info.CreatedAt,
+		UpdatedAt:       info.UpdatedAt,
 	}
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps
@@ -1031,7 +1033,6 @@ func sessionProviderOptionPayloadFromConfig(
 		DisplayName:     strings.TrimSpace(resolved.DisplayName),
 		Harness:         string(resolved.EffectiveHarness()),
 		RuntimeProvider: strings.TrimSpace(resolved.RuntimeProviderName(providerName)),
-		DefaultModel:    strings.TrimSpace(resolved.DefaultModel),
 		AuthMode:        string(resolved.EffectiveAuthMode()),
 		EnvPolicy:       string(resolved.EffectiveEnvPolicy()),
 		HomePolicy:      string(resolved.EffectiveHomePolicy()),
@@ -1922,13 +1923,16 @@ func settingsProviderItemPayloads(values []settingspkg.ProviderItem) []contract.
 		return nil
 	}
 	payloads := make([]contract.SettingsProviderItemPayload, 0, len(values))
-	for _, value := range values {
-		payloads = append(payloads, settingsProviderItemPayload(value))
+	for idx := range values {
+		payloads = append(payloads, settingsProviderItemPayload(&values[idx]))
 	}
 	return payloads
 }
 
-func settingsProviderItemPayload(value settingspkg.ProviderItem) contract.SettingsProviderItemPayload {
+func settingsProviderItemPayload(value *settingspkg.ProviderItem) contract.SettingsProviderItemPayload {
+	if value == nil {
+		return contract.SettingsProviderItemPayload{}
+	}
 	payload := contract.SettingsProviderItemPayload{
 		Name:             strings.TrimSpace(value.Name),
 		Settings:         settingsProviderSettingsPayload(value.Settings),
@@ -1951,7 +1955,7 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 	return contract.SettingsProviderSettingsPayload{
 		Command:         strings.TrimSpace(value.Command),
 		DisplayName:     strings.TrimSpace(value.DisplayName),
-		DefaultModel:    strings.TrimSpace(value.DefaultModel),
+		Models:          settingsProviderModelsPayload(value.Models),
 		Harness:         string(value.Harness),
 		RuntimeProvider: strings.TrimSpace(value.RuntimeProvider),
 		Transport:       strings.TrimSpace(value.Transport),
@@ -1963,6 +1967,70 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 		AuthLoginCmd:    strings.TrimSpace(value.AuthLoginCmd),
 		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}
+}
+
+func settingsProviderModelsPayload(
+	value aghconfig.ProviderModelsConfig,
+) *contract.SettingsProviderModelsPayload {
+	if providerModelsConfigIsEmpty(value) {
+		return nil
+	}
+	return &contract.SettingsProviderModelsPayload{
+		Default:   strings.TrimSpace(value.Default),
+		Curated:   settingsProviderModelPayloads(value.Curated),
+		Discovery: settingsProviderModelsDiscoveryPayload(value.Discovery),
+	}
+}
+
+func settingsProviderModelsDiscoveryPayload(
+	value aghconfig.ProviderModelsDiscoveryConfig,
+) *contract.SettingsProviderModelsDiscoveryPayload {
+	if value.Enabled == nil &&
+		strings.TrimSpace(value.Command) == "" &&
+		strings.TrimSpace(value.Endpoint) == "" &&
+		strings.TrimSpace(value.Timeout) == "" {
+		return nil
+	}
+	return &contract.SettingsProviderModelsDiscoveryPayload{
+		Enabled:  cloneBoolPtr(value.Enabled),
+		Command:  strings.TrimSpace(value.Command),
+		Endpoint: strings.TrimSpace(value.Endpoint),
+		Timeout:  strings.TrimSpace(value.Timeout),
+	}
+}
+
+func settingsProviderModelPayloads(
+	values []aghconfig.ProviderModelConfig,
+) []contract.SettingsProviderModelPayload {
+	if values == nil {
+		return nil
+	}
+	payloads := make([]contract.SettingsProviderModelPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsProviderModelPayload{
+			ID:                     strings.TrimSpace(value.ID),
+			DisplayName:            strings.TrimSpace(value.DisplayName),
+			ContextWindow:          cloneInt64Ptr(value.ContextWindow),
+			MaxInputTokens:         cloneInt64Ptr(value.MaxInputTokens),
+			MaxOutputTokens:        cloneInt64Ptr(value.MaxOutputTokens),
+			SupportsTools:          cloneBoolPtr(value.SupportsTools),
+			SupportsReasoning:      cloneBoolPtr(value.SupportsReasoning),
+			ReasoningEfforts:       cloneStrings(value.ReasoningEfforts),
+			DefaultReasoningEffort: strings.TrimSpace(value.DefaultReasoningEffort),
+			CostInputPerMillion:    cloneFloat64Ptr(value.CostInputPerMillion),
+			CostOutputPerMillion:   cloneFloat64Ptr(value.CostOutputPerMillion),
+		})
+	}
+	return payloads
+}
+
+func providerModelsConfigIsEmpty(value aghconfig.ProviderModelsConfig) bool {
+	return strings.TrimSpace(value.Default) == "" &&
+		value.Curated == nil &&
+		value.Discovery.Enabled == nil &&
+		strings.TrimSpace(value.Discovery.Command) == "" &&
+		strings.TrimSpace(value.Discovery.Endpoint) == "" &&
+		strings.TrimSpace(value.Discovery.Timeout) == ""
 }
 
 func settingsProviderCredentialSlotPayloads(
@@ -2246,6 +2314,14 @@ func cloneStrings(src []string) []string {
 		return nil
 	}
 	return append([]string(nil), src...)
+}
+
+func cloneBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	value := *src
+	return &value
 }
 
 func resourceKindsToStrings(values []resources.ResourceKind) []string {

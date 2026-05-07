@@ -37,9 +37,9 @@ func BenchmarkResolveAgentMergedMCPServers(b *testing.B) {
 		MCPServers: benchmarkMCPServers("global", 24, 0),
 		Providers: map[string]ProviderConfig{
 			"claude": {
-				Command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
-				DefaultModel: "claude-sonnet-4-6",
-				MCPServers:   benchmarkMCPServers("provider", 24, 8),
+				Command:    "npx -y @agentclientprotocol/claude-agent-acp@latest",
+				Models:     ProviderModelsConfig{Default: "claude-sonnet-4-6"},
+				MCPServers: benchmarkMCPServers("provider", 24, 8),
 			},
 		},
 	}

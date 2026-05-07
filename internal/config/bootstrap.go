@@ -80,7 +80,7 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 		if selectedModel == "" {
 			return nil
 		}
-		return editor.SetValue([]string{"providers", selectedProvider, "default_model"}, selectedModel)
+		return editor.SetValue([]string{"providers", selectedProvider, "models", "default"}, selectedModel)
 	})
 }
 

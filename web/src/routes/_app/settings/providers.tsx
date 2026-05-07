@@ -10,6 +10,7 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  Textarea,
 } from "@agh/ui";
 
 import {
@@ -296,10 +297,27 @@ function ProviderEditor({
             <Input
               className="w-56 font-mono"
               data-testid="settings-providers-editor-model-input"
-              value={draft.default_model}
+              value={draft.model_default}
               placeholder="gpt-5-turbo"
               onChange={event =>
-                onChange(current => ({ ...current, default_model: event.target.value }))
+                onChange(current => ({ ...current, model_default: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-curated-models"
+          label="Curated models"
+          description="Provider-scoped model IDs stored under models.curated."
+          hint="OPTIONAL"
+          control={
+            <Textarea
+              className="min-h-24 w-72 font-mono text-xs"
+              data-testid="settings-providers-editor-curated-models-input"
+              value={draft.curated_models}
+              placeholder={"gpt-5.4\ngpt-5.4-mini"}
+              onChange={event =>
+                onChange(current => ({ ...current, curated_models: event.target.value }))
               }
             />
           }

@@ -1372,6 +1372,7 @@ type SessionMeta struct {
 	AgentName        string               `json:"agent_name"`
 	Provider         string               `json:"provider,omitempty"`
 	Model            string               `json:"model,omitempty"`
+	ReasoningEffort  string               `json:"reasoning_effort,omitempty"`
 	WorkspaceID      string               `json:"workspace_id,omitempty"`
 	Channel          string               `json:"channel,omitempty"`
 	SessionType      string               `json:"session_type,omitempty"`

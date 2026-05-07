@@ -14,12 +14,14 @@ import (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName     string `json:"agent_name,omitempty"`
-	Provider      string `json:"provider,omitempty"`
-	Name          string `json:"name,omitempty"`
-	Workspace     string `json:"workspace,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
-	Channel       string `json:"channel,omitempty"`
+	AgentName       string `json:"agent_name,omitempty"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Workspace       string `json:"workspace,omitempty"`
+	WorkspacePath   string `json:"workspace_path,omitempty"`
+	Channel         string `json:"channel,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -31,15 +33,17 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID            string        `json:"id"`
-	Name          string        `json:"name,omitempty"`
-	AgentName     string        `json:"agent_name"`
-	Provider      string        `json:"provider"`
-	WorkspaceID   string        `json:"workspace_id,omitempty"`
-	WorkspacePath string        `json:"workspace_path,omitempty"`
-	Channel       string        `json:"channel,omitempty"`
-	Type          session.Type  `json:"type,omitempty"`
-	State         session.State `json:"state"`
+	ID              string        `json:"id"`
+	Name            string        `json:"name,omitempty"`
+	AgentName       string        `json:"agent_name"`
+	Provider        string        `json:"provider"`
+	Model           string        `json:"model,omitempty"`
+	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
+	WorkspaceID     string        `json:"workspace_id,omitempty"`
+	WorkspacePath   string        `json:"workspace_path,omitempty"`
+	Channel         string        `json:"channel,omitempty"`
+	Type            session.Type  `json:"type,omitempty"`
+	State           session.State `json:"state"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
@@ -914,7 +918,6 @@ type SessionProviderOptionPayload struct {
 	DisplayName     string `json:"display_name,omitempty"`
 	Harness         string `json:"harness,omitempty"`
 	RuntimeProvider string `json:"runtime_provider,omitempty"`
-	DefaultModel    string `json:"default_model,omitempty"`
 	AuthMode        string `json:"auth_mode,omitempty"`
 	EnvPolicy       string `json:"env_policy,omitempty"`
 	HomePolicy      string `json:"home_policy,omitempty"`

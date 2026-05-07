@@ -3548,6 +3548,8 @@ export interface SessionsCreateParams {
   agent: string;
   prompt?: string;
   provider?: string;
+  model?: string;
+  reasoning_effort?: string;
   workspace?: string;
 }
 

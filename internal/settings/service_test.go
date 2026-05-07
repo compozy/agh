@@ -666,11 +666,19 @@ func TestListCollectionBuildsProvidersSandboxesAndHooks(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
 [providers.codex]
-default_model = "gpt-5"
+[providers.codex.models]
+default = "gpt-5"
+[[providers.codex.models.curated]]
+id = "gpt-5"
+display_name = "GPT-5"
+[[providers.codex.models.curated]]
+id = "gpt-5-mini"
+display_name = "GPT-5 Mini"
 
 	[providers.custom]
 	command = "custom-acp --stdio"
-	default_model = "custom-model"
+	[providers.custom.models]
+	default = "custom-model"
 	[[providers.custom.credential_slots]]
 	name = "api_key"
 	target_env = "CUSTOM_API_KEY"
@@ -715,8 +723,17 @@ command = "/bin/ship"
 		t.Fatalf("ListCollection(providers) error = %v", err)
 	}
 	codex := mustFindProviderItem(t, providers.Providers, "codex")
-	if got, want := codex.Settings.DefaultModel, "gpt-5"; got != want {
+	if got, want := codex.Settings.Models.Default, "gpt-5"; got != want {
 		t.Fatalf("codex default model = %q, want %q", got, want)
+	}
+	if got, want := len(codex.Settings.Models.Curated), 2; got != want {
+		t.Fatalf("codex curated model count = %d, want %d", got, want)
+	}
+	if got, want := codex.Settings.Models.Curated[0].ID, "gpt-5"; got != want {
+		t.Fatalf("codex curated[0].ID = %q, want %q", got, want)
+	}
+	if got, want := codex.Settings.Models.Curated[1].ID, "gpt-5-mini"; got != want {
+		t.Fatalf("codex curated[1].ID = %q, want %q", got, want)
 	}
 	if !codex.Default {
 		t.Fatal("codex default = false, want true")
@@ -782,8 +799,21 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
 		Name:              "custom",
 		Provider: &ProviderSettings{
-			Command:      "custom-acp --stdio",
-			DefaultModel: "custom-model",
+			Command: "custom-acp --stdio",
+			Models: aghconfig.ProviderModelsConfig{
+				Default: "custom-model",
+				Curated: []aghconfig.ProviderModelConfig{
+					{
+						ID:                     "custom-model",
+						DisplayName:            "Custom Model",
+						SupportsReasoning:      boolPtr(true),
+						ReasoningEfforts:       []string{"low", "high"},
+						DefaultReasoningEffort: "high",
+						SupportsTools:          boolPtr(true),
+					},
+					{ID: "custom-fast", DisplayName: "Custom Fast"},
+				},
+			},
 			CredentialSlots: []aghconfig.ProviderCredentialSlot{
 				{
 					Name:      "api_key",
@@ -806,8 +836,31 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	}
 	configPayload := readFile(t, homePaths.ConfigFile)
 	if !strings.Contains(configPayload, "[providers.custom]") ||
-		!strings.Contains(configPayload, `default_model = "custom-model"`) {
+		!strings.Contains(configPayload, "[providers.custom.models]") ||
+		!strings.Contains(configPayload, `default = "custom-model"`) ||
+		!strings.Contains(configPayload, `[[providers.custom.models.curated]]`) ||
+		!strings.Contains(configPayload, `id = "custom-model"`) ||
+		!strings.Contains(configPayload, `reasoning_efforts = ["low", "high"]`) {
 		t.Fatalf("config payload missing provider overlay:\n%s", configPayload)
+	}
+	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(clear provider models) error = %v", err)
+	}
+	if got, want := clearModelsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("clear provider models write target = %q, want %q", got, want)
+	}
+	configPayload = readFile(t, homePaths.ConfigFile)
+	if strings.Contains(configPayload, `default = "custom-model"`) ||
+		strings.Contains(configPayload, `[[providers.custom.models.curated]]`) {
+		t.Fatalf("config payload still contains provider model overlay after clear:\n%s", configPayload)
 	}
 	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -2014,9 +2067,10 @@ command = "/bin/echo"
 
 func mustFindProviderItem(t *testing.T, items []ProviderItem, name string) ProviderItem {
 	t.Helper()
-	for _, item := range items {
+	for idx := range items {
+		item := &items[idx]
 		if item.Name == name {
-			return item
+			return *item
 		}
 	}
 	t.Fatalf("Provider item %q not found in %#v", name, items)

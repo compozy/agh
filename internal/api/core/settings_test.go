@@ -623,8 +623,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				{
 					Name: "openai",
 					Settings: settingspkg.ProviderSettings{
-						Command:      "codex",
-						DefaultModel: "gpt-5.4",
+						Command: "codex",
+						Models: aghconfig.ProviderModelsConfig{
+							Default: "gpt-5.4",
+						},
 						CredentialSlots: []aghconfig.ProviderCredentialSlot{
 							{
 								Name:      "api_key",
@@ -663,8 +665,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 							Scope: settingspkg.ScopeGlobal,
 						},
 						Settings: settingspkg.ProviderSettings{
-							Command:      "codex",
-							DefaultModel: "gpt-5.4",
+							Command: "codex",
+							Models: aghconfig.ProviderModelsConfig{
+								Default: "gpt-5.4",
+							},
 						},
 					},
 				},
@@ -1258,8 +1262,20 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			path:   "/api/settings/providers/openai",
 			body: contract.PutSettingsProviderRequest{
 				Settings: contract.SettingsProviderSettingsPayload{
-					Command:      "codex",
-					DefaultModel: "gpt-5.4",
+					Command: "codex",
+					Models: &contract.SettingsProviderModelsPayload{
+						Default: "gpt-5.4",
+						Curated: []contract.SettingsProviderModelPayload{
+							{
+								ID:                     "gpt-5.4",
+								DisplayName:            "GPT-5.4",
+								SupportsReasoning:      boolPointer(true),
+								ReasoningEfforts:       []string{"low", "high"},
+								DefaultReasoningEffort: "high",
+							},
+							{ID: "gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"},
+						},
+					},
 					CredentialSlots: []contract.SettingsProviderCredentialSlotPayload{
 						{
 							Name:      "api_key",
@@ -1274,8 +1290,23 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			assert: func(t *testing.T, service *stubSettingsService) {
 				t.Helper()
 				if service.LastPutCollectionRequest.Provider == nil ||
-					service.LastPutCollectionRequest.Provider.DefaultModel != "gpt-5.4" {
+					service.LastPutCollectionRequest.Provider.Models.Default != "gpt-5.4" {
 					t.Fatalf("LastPutCollectionRequest.Provider = %#v", service.LastPutCollectionRequest.Provider)
+				}
+				if got := service.LastPutCollectionRequest.Provider.Models.Curated; len(got) != 2 ||
+					got[0].ID != "gpt-5.4" ||
+					got[1].ID != "gpt-5.4-mini" {
+					t.Fatalf("Provider.Models.Curated = %#v", got)
+				}
+				model := service.LastPutCollectionRequest.Provider.Models.Curated[0]
+				if model.SupportsReasoning == nil || !*model.SupportsReasoning {
+					t.Fatalf(
+						"Provider.Models.Curated[0].SupportsReasoning = %#v, want true",
+						model.SupportsReasoning,
+					)
+				}
+				if got, want := model.DefaultReasoningEffort, "high"; got != want {
+					t.Fatalf("Provider.Models.Curated[0].DefaultReasoningEffort = %q, want %q", got, want)
 				}
 			},
 			assertResponse: assertAppliedSettingsMutation,
@@ -1347,8 +1378,10 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							{
 								Name: "openai",
 								Settings: settingspkg.ProviderSettings{
-									Command:      "codex",
-									DefaultModel: "gpt-5.4",
+									Command: "codex",
+									Models: aghconfig.ProviderModelsConfig{
+										Default: "gpt-5.4",
+									},
 									CredentialSlots: []aghconfig.ProviderCredentialSlot{
 										{
 											Name:      "api_key",
@@ -2177,6 +2210,10 @@ func decodeJSON(t *testing.T, body []byte, dest any) {
 	if err := json.Unmarshal(body, dest); err != nil {
 		t.Fatalf("json.Unmarshal(%s) error = %v", string(body), err)
 	}
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func appendLine(t *testing.T, path string, line string) {

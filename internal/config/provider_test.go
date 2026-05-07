@@ -218,11 +218,19 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 					firstNonEmpty(tc.runtimeProvider, tc.name),
 				)
 			}
-			if got.DefaultModel != tc.defaultModel {
+			if got.Models.Default != tc.defaultModel {
 				t.Fatalf(
-					"BuiltinProviders()[%q].DefaultModel = %q, want %q",
+					"BuiltinProviders()[%q].Models.Default = %q, want %q",
 					tc.name,
-					got.DefaultModel,
+					got.Models.Default,
+					tc.defaultModel,
+				)
+			}
+			if tc.defaultModel != "" && !providerCuratedModelsContain(got.Models.Curated, tc.defaultModel) {
+				t.Fatalf(
+					"BuiltinProviders()[%q].Models.Curated = %#v, want default model %q",
+					tc.name,
+					got.Models.Curated,
 					tc.defaultModel,
 				)
 			}
@@ -266,6 +274,15 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 	}
 }
 
+func providerCuratedModelsContain(models []ProviderModelConfig, id string) bool {
+	for _, model := range models {
+		if model.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func TestRepoRootConfigProviderDefaultsMatchBuiltinRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -277,15 +294,15 @@ func TestRepoRootConfigProviderDefaultsMatchBuiltinRegistry(t *testing.T) {
 
 	builtins := BuiltinProviders()
 	for name, provider := range overlay.Providers {
-		if provider.DefaultModel == "" {
+		if provider.Models.Default == "" {
 			continue
 		}
 		builtin, ok := builtins[name]
 		if !ok {
 			t.Fatalf("repo config provider %q is not in the builtin registry", name)
 		}
-		if got, want := provider.DefaultModel, builtin.DefaultModel; got != want {
-			t.Fatalf("repo config provider %q default_model = %q, want builtin %q", name, got, want)
+		if got, want := provider.Models.Default, builtin.Models.Default; got != want {
+			t.Fatalf("repo config provider %q models.default = %q, want builtin %q", name, got, want)
 		}
 	}
 }
@@ -387,7 +404,7 @@ func TestProviderConfigOverrideMergesWithBuiltins(t *testing.T) {
 	cfg := Config{
 		Providers: map[string]ProviderConfig{
 			"claude": {
-				DefaultModel: "claude-opus-override",
+				Models: ProviderModelsConfig{Default: "claude-opus-override"},
 			},
 		},
 	}
@@ -399,8 +416,8 @@ func TestProviderConfigOverrideMergesWithBuiltins(t *testing.T) {
 	if provider.Command == "" {
 		t.Fatal("ResolveProvider() Command = empty, want builtin command")
 	}
-	if provider.DefaultModel != "claude-opus-override" {
-		t.Fatalf("ResolveProvider() DefaultModel = %q, want %q", provider.DefaultModel, "claude-opus-override")
+	if provider.Models.Default != "claude-opus-override" {
+		t.Fatalf("ResolveProvider() Models.Default = %q, want %q", provider.Models.Default, "claude-opus-override")
 	}
 	if provider.EffectiveAuthMode() != ProviderAuthModeNativeCLI {
 		t.Fatalf("ResolveProvider() AuthMode = %q, want native_cli", provider.EffectiveAuthMode())
@@ -1046,6 +1063,378 @@ func TestResolveProviderRejectsUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestResolveProviderMergesRuntimeOverrideHints(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Providers["codex"] = ProviderConfig{
+		Models: ProviderModelsConfig{
+			Default: "gpt-manual",
+			Curated: []ProviderModelConfig{
+				{ID: "gpt-custom", DisplayName: "Custom GPT"},
+				{ID: "gpt-mini", DisplayName: "Mini GPT"},
+			},
+		},
+	}
+
+	provider, err := cfg.ResolveProvider("codex")
+	if err != nil {
+		t.Fatalf("ResolveProvider(codex) error = %v", err)
+	}
+	if got, want := provider.Models.Default, "gpt-manual"; got != want {
+		t.Fatalf("ResolveProvider(codex) Models.Default = %q, want %q", got, want)
+	}
+	wantModels := []ProviderModelConfig{
+		{ID: "gpt-custom", DisplayName: "Custom GPT"},
+		{ID: "gpt-mini", DisplayName: "Mini GPT"},
+	}
+	if !reflect.DeepEqual(provider.Models.Curated, wantModels) {
+		t.Fatalf("ResolveProvider(codex) Models.Curated = %#v, want %#v", provider.Models.Curated, wantModels)
+	}
+}
+
+func TestResolveProviderPreservesExplicitEmptyCuratedModels(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Providers["codex"] = ProviderConfig{
+		Models: ProviderModelsConfig{
+			Curated: []ProviderModelConfig{},
+		},
+	}
+
+	provider, err := cfg.ResolveProvider("codex")
+	if err != nil {
+		t.Fatalf("ResolveProvider(codex) error = %v", err)
+	}
+	if got := len(provider.Models.Curated); got != 0 {
+		t.Fatalf("ResolveProvider(codex) Models.Curated len = %d, want 0", got)
+	}
+}
+
+func TestLoadProviderRuntimeOverrideHintsFromTOML(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, `
+[providers.codex.models]
+default = "gpt-manual"
+
+[[providers.codex.models.curated]]
+id = "gpt-custom"
+display_name = "Custom GPT"
+
+[[providers.codex.models.curated]]
+id = "gpt-mini"
+display_name = "Mini GPT"
+`)
+
+	cfg, err := LoadForHome(homePaths, withoutDotEnv())
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	provider, err := cfg.ResolveProvider("codex")
+	if err != nil {
+		t.Fatalf("ResolveProvider(codex) error = %v", err)
+	}
+	if got, want := provider.Models.Default, "gpt-manual"; got != want {
+		t.Fatalf("ResolveProvider(codex) Models.Default = %q, want %q", got, want)
+	}
+	wantModels := []ProviderModelConfig{
+		{ID: "gpt-custom", DisplayName: "Custom GPT"},
+		{ID: "gpt-mini", DisplayName: "Mini GPT"},
+	}
+	if !reflect.DeepEqual(provider.Models.Curated, wantModels) {
+		t.Fatalf("ResolveProvider(codex) Models.Curated = %#v, want %#v", provider.Models.Curated, wantModels)
+	}
+}
+
+func TestLoadRejectsBlankProviderCuratedModelID(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, `
+[[providers.codex.models.curated]]
+id = "gpt-custom"
+
+[[providers.codex.models.curated]]
+id = " "
+`)
+
+	_, err = LoadForHome(homePaths, withoutDotEnv())
+	if err == nil {
+		t.Fatal("LoadForHome() error = nil, want blank curated id validation")
+	}
+	if !strings.Contains(err.Error(), `providers.codex.models.curated[1].id is required`) {
+		t.Fatalf("LoadForHome() error = %v, want curated id index detail", err)
+	}
+}
+
+func TestLoadRejectsInvalidProviderModelsConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		config  string
+		wantErr string
+	}{
+		{
+			name: "Should reject duplicate curated model IDs",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+`,
+			wantErr: `providers.codex.models.curated[1].id duplicates "gpt-5.4"`,
+		},
+		{
+			name: "Should reject default reasoning effort outside allowed efforts",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+reasoning_efforts = ["low", "medium"]
+default_reasoning_effort = "high"
+`,
+			wantErr: `providers.codex.models.curated[0].default_reasoning_effort must be listed in reasoning_efforts`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			if err := EnsureHomeLayout(homePaths); err != nil {
+				t.Fatalf("EnsureHomeLayout() error = %v", err)
+			}
+			writeFile(t, homePaths.ConfigFile, tc.config)
+
+			_, err = LoadForHome(homePaths, withoutDotEnv())
+			if err == nil {
+				t.Fatal("LoadForHome() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("LoadForHome() error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsRemovedProviderModelKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		config      string
+		removedPath string
+		replacement string
+	}{
+		{
+			name: "Should reject old default_model key",
+			config: `
+[providers.codex]
+default_model = "gpt-5.4"
+`,
+			removedPath: `providers.codex.default_model`,
+			replacement: `providers.codex.models.default`,
+		},
+		{
+			name: "Should reject old supported_models key",
+			config: `
+[providers.codex]
+supported_models = ["gpt-5.4"]
+`,
+			removedPath: `providers.codex.supported_models`,
+			replacement: `providers.codex.models.curated`,
+		},
+		{
+			name: "Should reject old supports_reasoning_effort key",
+			config: `
+[providers.codex]
+supports_reasoning_effort = true
+`,
+			removedPath: `providers.codex.supports_reasoning_effort`,
+			replacement: `providers.codex.models.curated[].reasoning_efforts`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			if err := EnsureHomeLayout(homePaths); err != nil {
+				t.Fatalf("EnsureHomeLayout() error = %v", err)
+			}
+			writeFile(t, homePaths.ConfigFile, tc.config)
+
+			_, err = LoadForHome(homePaths, withoutDotEnv())
+			if err == nil {
+				t.Fatal("LoadForHome() error = nil, want removed key error")
+			}
+			message := err.Error()
+			if !strings.Contains(message, `removed config key "`+tc.removedPath+`"`) ||
+				!strings.Contains(message, `use "`+tc.replacement+`"`) {
+				t.Fatalf(
+					"LoadForHome() error = %v, want removed path %q and replacement %q",
+					err,
+					tc.removedPath,
+					tc.replacement,
+				)
+			}
+		})
+	}
+}
+
+func TestModelCatalogModelsDevConfigValidatesDefaultsAndOverrides(t *testing.T) {
+	t.Parallel()
+
+	defaults := DefaultModelCatalogConfig().Sources.ModelsDev
+	if !defaults.EffectiveEnabled() {
+		t.Fatal("DefaultModelCatalogConfig().ModelsDev enabled = false, want true")
+	}
+	if got, want := defaults.EffectiveEndpoint(), defaultModelsDevEndpoint; got != want {
+		t.Fatalf("ModelsDev EffectiveEndpoint() = %q, want %q", got, want)
+	}
+	if got, want := defaults.EffectiveTTL(), defaultModelsDevTTL; got != want {
+		t.Fatalf("ModelsDev EffectiveTTL() = %q, want %q", got, want)
+	}
+	if got, want := defaults.EffectiveTimeout(), defaultModelsDevTimeout; got != want {
+		t.Fatalf("ModelsDev EffectiveTimeout() = %q, want %q", got, want)
+	}
+
+	enabled := false
+	override := ModelsDevSourceConfig{
+		Enabled:  &enabled,
+		Endpoint: "https://models.example.test/api.json",
+		TTL:      "2h",
+		Timeout:  "5s",
+	}
+	if err := override.Validate("model_catalog.sources.models_dev"); err != nil {
+		t.Fatalf("ModelsDev Validate(valid override) error = %v", err)
+	}
+	if override.EffectiveEnabled() {
+		t.Fatal("ModelsDev EffectiveEnabled() = true, want explicit false")
+	}
+	if got, want := override.EffectiveEndpoint(), "https://models.example.test/api.json"; got != want {
+		t.Fatalf("ModelsDev EffectiveEndpoint() = %q, want %q", got, want)
+	}
+
+	tests := []struct {
+		name    string
+		value   ModelsDevSourceConfig
+		wantErr string
+	}{
+		{
+			name:    "Should reject invalid endpoint",
+			value:   ModelsDevSourceConfig{Endpoint: "file:///tmp/models.json"},
+			wantErr: "model_catalog.sources.models_dev.endpoint must be an absolute HTTP(S) URL",
+		},
+		{
+			name:    "Should reject invalid TTL",
+			value:   ModelsDevSourceConfig{TTL: "soon"},
+			wantErr: "model_catalog.sources.models_dev.ttl must be a positive duration",
+		},
+		{
+			name:    "Should reject invalid timeout",
+			value:   ModelsDevSourceConfig{Timeout: "0s"},
+			wantErr: "model_catalog.sources.models_dev.timeout must be a positive duration",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.value.Validate("model_catalog.sources.models_dev")
+			if err == nil {
+				t.Fatal("ModelsDev Validate() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("ModelsDev Validate() error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestProviderModelsDiscoveryConfigRejectsUnsafeConfiguration(t *testing.T) {
+	t.Parallel()
+
+	enabled := true
+	tests := []struct {
+		name    string
+		value   ProviderModelsDiscoveryConfig
+		wantErr string
+	}{
+		{
+			name:    "Should reject multiline command",
+			value:   ProviderModelsDiscoveryConfig{Command: "models\nlist"},
+			wantErr: "providers.codex.models.discovery.command must be a single-line command",
+		},
+		{
+			name: "Should reject ambiguous command and endpoint",
+			value: ProviderModelsDiscoveryConfig{
+				Command:  "models list",
+				Endpoint: "https://models.example.test",
+			},
+			wantErr: "providers.codex.models.discovery.command and providers.codex.models.discovery.endpoint are mutually exclusive",
+		},
+		{
+			name:    "Should reject invalid endpoint",
+			value:   ProviderModelsDiscoveryConfig{Endpoint: "ftp://models.example.test"},
+			wantErr: "providers.codex.models.discovery.endpoint must be an absolute HTTP(S) URL",
+		},
+		{
+			name:    "Should reject enabled discovery without source",
+			value:   ProviderModelsDiscoveryConfig{Enabled: &enabled},
+			wantErr: "providers.codex.models.discovery requires command or endpoint when enabled",
+		},
+		{
+			name:    "Should reject invalid timeout",
+			value:   ProviderModelsDiscoveryConfig{Command: "models list", Timeout: "-1s"},
+			wantErr: "providers.codex.models.discovery.timeout must be a positive duration",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.value.Validate("providers.codex.models.discovery")
+			if err == nil {
+				t.Fatal("Discovery Validate() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("Discovery Validate() error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestResolveAgentDefaultsToolsAndPermissions(t *testing.T) {
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
@@ -1149,8 +1538,8 @@ func TestResolveSessionAgent(t *testing.T) {
 
 		cfg := DefaultWithHome(homePaths)
 		cfg.Providers["claude"] = ProviderConfig{
-			Command:      "provider-claude-command",
-			DefaultModel: "provider-claude-model",
+			Command: "provider-claude-command",
+			Models:  ProviderModelsConfig{Default: "provider-claude-model"},
 		}
 
 		agent := AgentDef{
@@ -1184,8 +1573,8 @@ func TestResolveSessionAgent(t *testing.T) {
 		cfg := DefaultWithHome(homePaths)
 		cfg.Defaults.Provider = "claude"
 		cfg.Providers["claude"] = ProviderConfig{
-			Command:      "provider-claude-command",
-			DefaultModel: "provider-claude-model",
+			Command: "provider-claude-command",
+			Models:  ProviderModelsConfig{Default: "provider-claude-model"},
 		}
 
 		agent := AgentDef{
@@ -1220,15 +1609,15 @@ func TestResolveSessionAgent(t *testing.T) {
 			{Name: "global", Command: "global-command"},
 		}
 		cfg.Providers["claude"] = ProviderConfig{
-			Command:      "workspace-claude-command",
-			DefaultModel: "workspace-claude-model",
+			Command: "workspace-claude-command",
+			Models:  ProviderModelsConfig{Default: "workspace-claude-model"},
 			MCPServers: []MCPServer{
 				{Name: "provider-claude", Command: "provider-claude-command"},
 			},
 		}
 		cfg.Providers["codex"] = ProviderConfig{
-			Command:      "workspace-codex-command",
-			DefaultModel: "workspace-codex-model",
+			Command: "workspace-codex-command",
+			Models:  ProviderModelsConfig{Default: "workspace-codex-model"},
 			MCPServers: []MCPServer{
 				{Name: "provider-codex", Command: "provider-codex-command"},
 				{Name: "shared-provider", Command: "shared-provider-codex", Args: []string{"--codex"}},
@@ -1320,8 +1709,8 @@ func TestResolveSessionAgent(t *testing.T) {
 
 		cfg := DefaultWithHome(homePaths)
 		cfg.Providers["codex"] = ProviderConfig{
-			Command:      "workspace-codex-command",
-			DefaultModel: "workspace-codex-model",
+			Command: "workspace-codex-command",
+			Models:  ProviderModelsConfig{Default: "workspace-codex-model"},
 		}
 
 		agent := AgentDef{

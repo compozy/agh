@@ -16,6 +16,8 @@ interface SessionCreateDialogContext {
 export interface SessionCreateDialogDraft {
   agentName: string;
   providerOverride: string;
+  modelOverride: string;
+  reasoningEffort: string;
 }
 
 export interface SessionCreateDialogState {
@@ -27,6 +29,11 @@ export interface SessionCreateDialogState {
   providersError: string | null;
   selectedAgentName: string;
   selectedProvider: string;
+  selectedProviderOption: SessionProviderOption | undefined;
+  selectedModel: string;
+  selectedReasoning: string;
+  modelOptions: string[];
+  reasoningSupported: boolean;
   isSubmitting: boolean;
   submitError: string | null;
   pendingAgentName: string | null;
@@ -38,6 +45,8 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   setOpen: (open: boolean) => void;
   onAgentChange: (agentName: string) => void;
   onProviderChange: (provider: string) => void;
+  onModelChange: (model: string) => void;
+  onReasoningChange: (effort: string) => void;
   submit: () => Promise<void>;
 }
 
@@ -105,6 +114,8 @@ export function useSessionCreateDialog({
   const [draft, setDraft] = useState<SessionCreateDialogDraft>({
     agentName: "",
     providerOverride: "",
+    modelOverride: "",
+    reasoningEffort: "",
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
@@ -126,6 +137,25 @@ export function useSessionCreateDialog({
     [draft.agentName, draft.providerOverride, providerOptions, selectedAgent]
   );
 
+  const selectedProviderOption = useMemo(
+    () => providerOptions.find(option => option.name === selectedProvider),
+    [providerOptions, selectedProvider]
+  );
+
+  const modelOptions = useMemo(() => [], []);
+
+  const reasoningSupported = selectedProviderOption != null;
+
+  const selectedModel = useMemo(() => {
+    const trimmed = draft.modelOverride.trim();
+    return trimmed.length === 0 ? "" : trimmed;
+  }, [draft.modelOverride]);
+
+  const selectedReasoning = useMemo(() => {
+    if (!reasoningSupported) return "";
+    return draft.reasoningEffort.trim();
+  }, [draft.reasoningEffort, reasoningSupported]);
+
   const openForAgent = useCallback(
     (agentName: string) => {
       if (!activeWorkspace) {
@@ -136,7 +166,12 @@ export function useSessionCreateDialog({
       const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
       const nextAgentName = matched?.name ?? agentName;
 
-      setDraft({ agentName: nextAgentName, providerOverride: "" });
+      setDraft({
+        agentName: nextAgentName,
+        providerOverride: "",
+        modelOverride: "",
+        reasoningEffort: "",
+      });
       setSubmitError(null);
       setOpenState(true);
     },
@@ -151,11 +186,29 @@ export function useSessionCreateDialog({
   }, []);
 
   const onAgentChange = useCallback((agentName: string) => {
-    setDraft({ agentName, providerOverride: "" });
+    setDraft({
+      agentName,
+      providerOverride: "",
+      modelOverride: "",
+      reasoningEffort: "",
+    });
   }, []);
 
   const onProviderChange = useCallback((provider: string) => {
-    setDraft(current => ({ ...current, providerOverride: provider }));
+    setDraft(current => ({
+      ...current,
+      providerOverride: provider,
+      modelOverride: "",
+      reasoningEffort: "",
+    }));
+  }, []);
+
+  const onModelChange = useCallback((model: string) => {
+    setDraft(current => ({ ...current, modelOverride: model }));
+  }, []);
+
+  const onReasoningChange = useCallback((effort: string) => {
+    setDraft(current => ({ ...current, reasoningEffort: effort }));
   }, []);
 
   const submit = useCallback(async () => {
@@ -168,11 +221,16 @@ export function useSessionCreateDialog({
     setPendingAgentName(agentName);
     setPendingWorkspaceId(activeWorkspace.id);
 
+    const trimmedModel = selectedModel.trim();
+    const trimmedReasoning = selectedReasoning.trim();
+
     try {
       const session = await createSession.mutateAsync({
         agent_name: agentName,
         workspace: activeWorkspace.id,
         provider,
+        ...(trimmedModel.length > 0 ? { model: trimmedModel } : {}),
+        ...(trimmedReasoning.length > 0 ? { reasoning_effort: trimmedReasoning } : {}),
       });
       setOpenState(false);
       await navigate({
@@ -187,7 +245,15 @@ export function useSessionCreateDialog({
       setPendingAgentName(null);
       setPendingWorkspaceId(null);
     }
-  }, [activeWorkspace, createSession, draft.agentName, navigate, selectedProvider]);
+  }, [
+    activeWorkspace,
+    createSession,
+    draft.agentName,
+    navigate,
+    selectedProvider,
+    selectedModel,
+    selectedReasoning,
+  ]);
 
   const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;
 
@@ -200,6 +266,11 @@ export function useSessionCreateDialog({
     providersError,
     selectedAgentName: draft.agentName,
     selectedProvider,
+    selectedProviderOption,
+    selectedModel,
+    selectedReasoning,
+    modelOptions,
+    reasoningSupported,
     isSubmitting: createSession.isPending,
     submitError,
     pendingAgentName,
@@ -208,6 +279,8 @@ export function useSessionCreateDialog({
     setOpen,
     onAgentChange,
     onProviderChange,
+    onModelChange,
+    onReasoningChange,
     submit,
   };
 }

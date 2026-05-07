@@ -67,16 +67,23 @@ function AppLayout() {
       <SessionCreateDialog
         agents={page.sessionCreate.agents}
         isSubmitting={page.sessionCreate.isSubmitting}
+        modelOptions={page.sessionCreate.modelOptions}
         onAgentChange={page.sessionCreate.onAgentChange}
+        onModelChange={page.sessionCreate.onModelChange}
         onOpenChange={page.sessionCreate.setOpen}
         onProviderChange={page.sessionCreate.onProviderChange}
+        onReasoningChange={page.sessionCreate.onReasoningChange}
         onSubmit={page.sessionCreate.submit}
         open={page.sessionCreate.open}
         providerOptions={page.sessionCreate.providerOptions}
         providersError={page.sessionCreate.providersError}
         providersLoading={page.sessionCreate.providersLoading}
+        reasoningSupported={page.sessionCreate.reasoningSupported}
         selectedAgentName={page.sessionCreate.selectedAgentName}
+        selectedModel={page.sessionCreate.selectedModel}
         selectedProvider={page.sessionCreate.selectedProvider}
+        selectedProviderOption={page.sessionCreate.selectedProviderOption}
+        selectedReasoning={page.sessionCreate.selectedReasoning}
         submitError={page.sessionCreate.submitError}
         workspace={page.sessionCreate.workspace}
       />

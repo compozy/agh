@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -1096,7 +1097,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 		t.Fatalf("len(providers) = %d, want %d (%#v)", len(response.Providers), len(expectedProviders), response)
 	}
 	for i, want := range expectedProviders {
-		if got := response.Providers[i]; got != want {
+		if got := response.Providers[i]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("providers[%d] = %#v, want %#v", i, got, want)
 		}
 	}

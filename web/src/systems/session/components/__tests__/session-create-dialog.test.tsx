@@ -28,9 +28,11 @@ const providerOptions: SessionProviderOption[] = [
     display_name: "Claude Code",
     harness: "acp",
     runtime_provider: "claude",
-    default_model: "claude-sonnet-4-6",
   },
-  { name: "codex" },
+  {
+    name: "codex",
+    display_name: "Codex",
+  },
   {
     name: "openrouter",
     display_name: "OpenRouter",
@@ -48,18 +50,29 @@ function getDialogBackdrop(): HTMLElement {
 }
 
 function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCreateDialogProps {
+  const selectedProvider = overrides.selectedProvider ?? "claude";
+  const fallbackProviderOption =
+    overrides.providerOptions?.find(option => option.name === selectedProvider) ??
+    providerOptions.find(option => option.name === selectedProvider);
   return {
     open: true,
     onOpenChange: vi.fn(),
     agents,
     workspace,
     selectedAgentName: "claude-agent",
-    selectedProvider: "claude",
+    selectedProvider,
+    selectedProviderOption: fallbackProviderOption,
+    selectedModel: "",
+    selectedReasoning: "",
+    modelOptions: [],
+    reasoningSupported: false,
     providerOptions,
     providersLoading: false,
     providersError: null,
     onAgentChange: vi.fn(),
     onProviderChange: vi.fn(),
+    onModelChange: vi.fn(),
+    onReasoningChange: vi.fn(),
     onSubmit: vi.fn(),
     isSubmitting: false,
     submitError: null,
@@ -68,18 +81,19 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
 }
 
 describe("SessionCreateDialog", () => {
-  it("renders the provider picker with every workspace provider option", () => {
-    render(<SessionCreateDialog {...makeProps()} />);
+  it("renders the provider picker with the selected provider in the trigger", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog {...makeProps()} />
+      </UIProvider>
+    );
 
-    expect(screen.getByTestId("session-create-dialog").className).toContain("sm:max-w-lg");
+    expect(screen.getByTestId("session-create-dialog").className).toContain("sm:max-w-xl");
     expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-[30rem]");
 
-    const picker = screen.getByTestId("session-create-provider-select") as HTMLSelectElement;
-    expect(picker).toBeEnabled();
-    expect(picker.value).toBe("claude");
-    const values = Array.from(picker.options).map(option => option.value);
-    expect(values).toEqual(["claude", "codex", "openrouter"]);
-    expect(picker).toHaveTextContent("Claude Code · claude-sonnet-4-6");
+    const trigger = screen.getByTestId("session-create-provider-select");
+    expect(trigger).toBeEnabled();
+    expect(trigger).toHaveTextContent("Claude Code");
     expect(screen.getByTestId("session-create-provider-runtime")).toHaveTextContent("acp");
   });
 
@@ -108,14 +122,46 @@ describe("SessionCreateDialog", () => {
     expect(onAgentChange).toHaveBeenCalledWith("codex-agent");
   });
 
-  it("calls onProviderChange when the operator picks a different provider", () => {
+  it("calls onProviderChange when the operator picks a different provider", async () => {
+    const user = userEvent.setup();
     const onProviderChange = vi.fn();
-    render(<SessionCreateDialog {...makeProps({ onProviderChange })} />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog {...makeProps({ onProviderChange })} />
+      </UIProvider>
+    );
 
-    fireEvent.change(screen.getByTestId("session-create-provider-select"), {
-      target: { value: "codex" },
-    });
+    await user.click(screen.getByTestId("session-create-provider-select"));
+    await user.click(screen.getByTestId("provider-command-item-codex"));
     expect(onProviderChange).toHaveBeenCalledWith("codex");
+  });
+
+  it("lets the operator select a model and reasoning effort", async () => {
+    const user = userEvent.setup();
+    const onModelChange = vi.fn();
+    const onReasoningChange = vi.fn();
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            selectedAgentName: "codex-agent",
+            selectedProvider: "codex",
+            modelOptions: ["gpt-5.4", "gpt-5.4-mini"],
+            onModelChange,
+            onReasoningChange,
+            reasoningSupported: true,
+          })}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("session-create-model-select"));
+    await user.click(screen.getByTestId("model-command-item-gpt-5.4-mini"));
+    expect(onModelChange).toHaveBeenCalledWith("gpt-5.4-mini");
+
+    await user.click(screen.getByTestId("session-create-reasoning-select"));
+    await user.click(screen.getByTestId("reasoning-command-item-high"));
+    expect(onReasoningChange).toHaveBeenCalledWith("high");
   });
 
   it("calls onSubmit only once when the form is submitted with a valid draft", () => {
@@ -127,7 +173,17 @@ describe("SessionCreateDialog", () => {
   });
 
   it("disables submit when no providers are available and surfaces an empty-state note", () => {
-    render(<SessionCreateDialog {...makeProps({ providerOptions: [], selectedProvider: "" })} />);
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            providerOptions: [],
+            selectedProvider: "",
+            selectedProviderOption: undefined,
+          })}
+        />
+      </UIProvider>
+    );
 
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
     expect(screen.getByTestId("session-create-providers-empty")).toBeInTheDocument();
@@ -148,12 +204,15 @@ describe("SessionCreateDialog", () => {
 
   it("disables submit when the current selections are no longer available", () => {
     render(
-      <SessionCreateDialog
-        {...makeProps({
-          selectedAgentName: "missing-agent",
-          selectedProvider: "missing-provider",
-        })}
-      />
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            selectedAgentName: "missing-agent",
+            selectedProvider: "missing-provider",
+            selectedProviderOption: undefined,
+          })}
+        />
+      </UIProvider>
     );
 
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
@@ -161,12 +220,19 @@ describe("SessionCreateDialog", () => {
 
   it("shows provider-loading state and disables the picker while loading", () => {
     render(
-      <SessionCreateDialog
-        {...makeProps({ providerOptions: [], providersLoading: true, selectedProvider: "" })}
-      />
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            providerOptions: [],
+            providersLoading: true,
+            selectedProvider: "",
+            selectedProviderOption: undefined,
+          })}
+        />
+      </UIProvider>
     );
 
-    const picker = screen.getByTestId("session-create-provider-select") as HTMLSelectElement;
+    const picker = screen.getByTestId("session-create-provider-select");
     expect(picker).toBeDisabled();
     expect(picker).toHaveTextContent("Loading providers…");
   });
@@ -179,6 +245,7 @@ describe("SessionCreateDialog", () => {
             workspace: undefined,
             selectedAgentName: "claude-agent",
             selectedProvider: "claude",
+            selectedProviderOption: undefined,
           })}
         />
       </UIProvider>
@@ -190,11 +257,8 @@ describe("SessionCreateDialog", () => {
     );
     expect(screen.queryByTestId("session-create-agent-default")).not.toBeInTheDocument();
 
-    const providerPicker = screen.getByTestId(
-      "session-create-provider-select"
-    ) as HTMLSelectElement;
+    const providerPicker = screen.getByTestId("session-create-provider-select");
     expect(providerPicker).toBeDisabled();
-    expect(providerPicker.value).toBe("");
     expect(providerPicker).toHaveTextContent("Select a workspace first");
     expect(screen.queryByTestId("session-create-provider-runtime")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-providers-empty")).not.toBeInTheDocument();

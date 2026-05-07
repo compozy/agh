@@ -1118,7 +1118,7 @@ describe("browser runtime seed helpers", () => {
             name: "browser-provider",
             settings: {
               command: "browser-provider",
-              default_model: "gpt-5.4",
+              models: { default: "gpt-5.4", curated: [{ id: "gpt-5.4" }] },
             },
           },
         ],

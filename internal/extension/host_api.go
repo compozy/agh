@@ -883,10 +883,12 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	sess, err := h.sessions.Create(ctx, session.CreateOpts{
-		AgentName: strings.TrimSpace(params.Agent),
-		Provider:  strings.TrimSpace(params.Provider),
-		Workspace: strings.TrimSpace(params.Workspace),
-		Type:      session.SessionTypeSystem,
+		AgentName:       strings.TrimSpace(params.Agent),
+		Provider:        strings.TrimSpace(params.Provider),
+		Model:           strings.TrimSpace(params.Model),
+		ReasoningEffort: strings.TrimSpace(params.ReasoningEffort),
+		Workspace:       strings.TrimSpace(params.Workspace),
+		Type:            session.SessionTypeSystem,
 	})
 	if err != nil {
 		return nil, err

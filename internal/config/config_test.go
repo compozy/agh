@@ -88,8 +88,9 @@ approval_timeout_seconds = 90
 trusted_sources = ["mcp:linear", "extension:linear"]
 
 	[providers.claude]
-	default_model = "claude-opus"
 	auth_mode = "bound_secret"
+	[providers.claude.models]
+	default = "claude-opus"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "ANTHROPIC_KEY"
@@ -344,7 +345,7 @@ max_queue_depth = 250
 	if err != nil {
 		t.Fatalf("ResolveProvider() error = %v", err)
 	}
-	if claude.Command == "" || claude.DefaultModel != "claude-opus" {
+	if claude.Command == "" || claude.Models.Default != "claude-opus" {
 		t.Fatalf("ResolveProvider() = %#v", claude)
 	}
 	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||
@@ -831,8 +832,12 @@ host = "localhost"
 port = 2123
 
 	[providers.claude]
-	default_model = "global-model"
 	auth_mode = "bound_secret"
+	[providers.claude.models]
+	default = "global-model"
+	[[providers.claude.models.curated]]
+	id = "global-model"
+	display_name = "Global Model"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "GLOBAL_KEY"
@@ -859,7 +864,13 @@ base_url = "https://global.example.test/api/v1"
 port = 4242
 
 [providers.claude]
-default_model = "workspace-model"
+[providers.claude.models]
+default = "workspace-model"
+[[providers.claude.models.curated]]
+id = "workspace-model"
+display_name = "Workspace Model"
+reasoning_efforts = ["low", "high"]
+default_reasoning_effort = "high"
 
 [session.limits]
 timeout = "45m"
@@ -892,8 +903,20 @@ base_url = "https://workspace.example.test/api/v1"
 	if err != nil {
 		t.Fatalf("ResolveProvider() error = %v", err)
 	}
-	if claude.DefaultModel != "workspace-model" {
-		t.Fatalf("ResolveProvider() DefaultModel = %q, want %q", claude.DefaultModel, "workspace-model")
+	if claude.Models.Default != "workspace-model" {
+		t.Fatalf("ResolveProvider() Models.Default = %q, want %q", claude.Models.Default, "workspace-model")
+	}
+	if len(claude.Models.Curated) != 1 {
+		t.Fatalf("ResolveProvider() Models.Curated = %#v, want one workspace model", claude.Models.Curated)
+	}
+	if got, want := claude.Models.Curated[0].ID, "workspace-model"; got != want {
+		t.Fatalf("ResolveProvider() Models.Curated[0].ID = %q, want %q", got, want)
+	}
+	if got, want := claude.Models.Curated[0].DisplayName, "Workspace Model"; got != want {
+		t.Fatalf("ResolveProvider() Models.Curated[0].DisplayName = %q, want %q", got, want)
+	}
+	if got, want := claude.Models.Curated[0].DefaultReasoningEffort, "high"; got != want {
+		t.Fatalf("ResolveProvider() Models.Curated[0].DefaultReasoningEffort = %q, want %q", got, want)
 	}
 	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||
 		slots[0].TargetEnv != "GLOBAL_KEY" ||
@@ -1355,8 +1378,9 @@ segment_bytes = 128
 max_bytes_per_session = 2048
 
 [providers.claude]
-default_model = "global-model"
 auth_mode = "bound_secret"
+[providers.claude.models]
+default = "global-model"
 `)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [observability.transcripts]
@@ -1389,7 +1413,7 @@ segment_bytes = 256
 	if err != nil {
 		t.Fatalf("ResolveProvider() error = %v", err)
 	}
-	if claude.DefaultModel != "global-model" {
+	if claude.Models.Default != "global-model" {
 		t.Fatalf("ResolveProvider() = %#v", claude)
 	}
 	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||

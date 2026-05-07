@@ -27,14 +27,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	ttl := now.Add(time.Hour)
 	payload := core.SessionPayloadFromInfo(&session.Info{
-		ID:          "sess-1",
-		Name:        "demo",
-		AgentName:   "coder",
-		Provider:    "fake",
-		WorkspaceID: "ws_alpha",
-		Workspace:   "/workspace",
-		Channel:     "builders",
-		Type:        session.SessionTypeDream,
+		ID:              "sess-1",
+		Name:            "demo",
+		AgentName:       "coder",
+		Provider:        "fake",
+		Model:           "gpt-test",
+		ReasoningEffort: "high",
+		WorkspaceID:     "ws_alpha",
+		Workspace:       "/workspace",
+		Channel:         "builders",
+		Type:            session.SessionTypeDream,
 		Lineage: &store.SessionLineage{
 			ParentSessionID:  "sess-root",
 			RootSessionID:    "sess-root",
@@ -91,6 +93,12 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.Provider != "fake" {
 		t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
+	}
+	if payload.Model != "gpt-test" {
+		t.Fatalf("payload.Model = %q, want %q", payload.Model, "gpt-test")
+	}
+	if payload.ReasoningEffort != "high" {
+		t.Fatalf("payload.ReasoningEffort = %q, want %q", payload.ReasoningEffort, "high")
 	}
 	if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
 		t.Fatalf("payload session fields = %#v", payload)

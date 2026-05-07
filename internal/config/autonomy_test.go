@@ -192,7 +192,7 @@ max_active_per_workspace = 2
 	}
 }
 
-func TestLoadAllowsDirectACPAutonomyProviderWithoutDefaultModel(t *testing.T) {
+func TestLoadAllowsDirectACPAutonomyProviderWithoutModelDefault(t *testing.T) {
 	t.Run("Should accept provider-managed model for direct ACP provider", func(t *testing.T) {
 		workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 		writeFile(t, homePaths.ConfigFile, `
@@ -325,8 +325,9 @@ func TestLoadAutonomyOverlayPreservesOtherConfigSections(t *testing.T) {
 
 	writeFile(t, homePaths.ConfigFile, `
 	[providers.claude]
-	default_model = "global-model"
 	auth_mode = "bound_secret"
+	[providers.claude.models]
+	default = "global-model"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "GLOBAL_KEY"
@@ -423,7 +424,7 @@ max_children = 2
 	if err != nil {
 		t.Fatalf("ResolveProvider(claude) error = %v", err)
 	}
-	if claude.DefaultModel != "global-model" {
+	if claude.Models.Default != "global-model" {
 		t.Fatalf("ResolveProvider(claude) = %#v, want merged provider fields", claude)
 	}
 	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||

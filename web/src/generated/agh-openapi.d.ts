@@ -5482,8 +5482,10 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
+                model?: string;
                 name?: string;
                 provider: string;
+                reasoning_effort?: string;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -19446,8 +19448,10 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
+                model?: string;
                 name?: string;
                 provider: string;
+                reasoning_effort?: string;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -19696,8 +19700,10 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
+                model?: string;
                 name?: string;
                 provider: string;
+                reasoning_effort?: string;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -22572,8 +22578,10 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
+              model?: string;
               name?: string;
               provider: string;
+              reasoning_effort?: string;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -22650,8 +22658,10 @@ export interface operations {
         "application/json": {
           agent_name?: string;
           channel?: string;
+          model?: string;
           name?: string;
           provider?: string;
+          reasoning_effort?: string;
           workspace?: string;
           workspace_path?: string;
         };
@@ -22758,8 +22768,10 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
+              model?: string;
               name?: string;
               provider: string;
+              reasoning_effort?: string;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -22960,8 +22972,10 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
+              model?: string;
               name?: string;
               provider: string;
+              reasoning_effort?: string;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -23597,8 +23611,10 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
+              model?: string;
               name?: string;
               provider: string;
+              reasoning_effort?: string;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -27779,11 +27795,37 @@ export interface operations {
                     secret_ref: string;
                     target_env: string;
                   }[];
-                  default_model?: string;
                   display_name?: string;
                   env_policy?: string;
                   harness?: string;
                   home_policy?: string;
+                  models?: {
+                    curated?: {
+                      /** Format: int64 */
+                      context_window?: number | null;
+                      /** Format: double */
+                      cost_input_per_million?: number | null;
+                      /** Format: double */
+                      cost_output_per_million?: number | null;
+                      default_reasoning_effort?: string;
+                      display_name?: string;
+                      id: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number | null;
+                      /** Format: int64 */
+                      max_output_tokens?: number | null;
+                      reasoning_efforts?: string[];
+                      supports_reasoning?: boolean | null;
+                      supports_tools?: boolean | null;
+                    }[];
+                    default?: string;
+                    discovery?: {
+                      command?: string;
+                      enabled?: boolean | null;
+                      endpoint?: string;
+                      timeout?: string;
+                    } | null;
+                  } | null;
                   runtime_provider?: string;
                   transport?: string;
                 };
@@ -27817,11 +27859,37 @@ export interface operations {
                   secret_ref: string;
                   target_env: string;
                 }[];
-                default_model?: string;
                 display_name?: string;
                 env_policy?: string;
                 harness?: string;
                 home_policy?: string;
+                models?: {
+                  curated?: {
+                    /** Format: int64 */
+                    context_window?: number | null;
+                    /** Format: double */
+                    cost_input_per_million?: number | null;
+                    /** Format: double */
+                    cost_output_per_million?: number | null;
+                    default_reasoning_effort?: string;
+                    display_name?: string;
+                    id: string;
+                    /** Format: int64 */
+                    max_input_tokens?: number | null;
+                    /** Format: int64 */
+                    max_output_tokens?: number | null;
+                    reasoning_efforts?: string[];
+                    supports_reasoning?: boolean | null;
+                    supports_tools?: boolean | null;
+                  }[];
+                  default?: string;
+                  discovery?: {
+                    command?: string;
+                    enabled?: boolean | null;
+                    endpoint?: string;
+                    timeout?: string;
+                  } | null;
+                } | null;
                 runtime_provider?: string;
                 transport?: string;
               };
@@ -27944,11 +28012,37 @@ export interface operations {
                     secret_ref: string;
                     target_env: string;
                   }[];
-                  default_model?: string;
                   display_name?: string;
                   env_policy?: string;
                   harness?: string;
                   home_policy?: string;
+                  models?: {
+                    curated?: {
+                      /** Format: int64 */
+                      context_window?: number | null;
+                      /** Format: double */
+                      cost_input_per_million?: number | null;
+                      /** Format: double */
+                      cost_output_per_million?: number | null;
+                      default_reasoning_effort?: string;
+                      display_name?: string;
+                      id: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number | null;
+                      /** Format: int64 */
+                      max_output_tokens?: number | null;
+                      reasoning_efforts?: string[];
+                      supports_reasoning?: boolean | null;
+                      supports_tools?: boolean | null;
+                    }[];
+                    default?: string;
+                    discovery?: {
+                      command?: string;
+                      enabled?: boolean | null;
+                      endpoint?: string;
+                      timeout?: string;
+                    } | null;
+                  } | null;
                   runtime_provider?: string;
                   transport?: string;
                 };
@@ -27982,11 +28076,37 @@ export interface operations {
                   secret_ref: string;
                   target_env: string;
                 }[];
-                default_model?: string;
                 display_name?: string;
                 env_policy?: string;
                 harness?: string;
                 home_policy?: string;
+                models?: {
+                  curated?: {
+                    /** Format: int64 */
+                    context_window?: number | null;
+                    /** Format: double */
+                    cost_input_per_million?: number | null;
+                    /** Format: double */
+                    cost_output_per_million?: number | null;
+                    default_reasoning_effort?: string;
+                    display_name?: string;
+                    id: string;
+                    /** Format: int64 */
+                    max_input_tokens?: number | null;
+                    /** Format: int64 */
+                    max_output_tokens?: number | null;
+                    reasoning_efforts?: string[];
+                    supports_reasoning?: boolean | null;
+                    supports_tools?: boolean | null;
+                  }[];
+                  default?: string;
+                  discovery?: {
+                    command?: string;
+                    enabled?: boolean | null;
+                    endpoint?: string;
+                    timeout?: string;
+                  } | null;
+                } | null;
                 runtime_provider?: string;
                 transport?: string;
               };
@@ -28097,11 +28217,37 @@ export interface operations {
               secret_ref: string;
               target_env: string;
             }[];
-            default_model?: string;
             display_name?: string;
             env_policy?: string;
             harness?: string;
             home_policy?: string;
+            models?: {
+              curated?: {
+                /** Format: int64 */
+                context_window?: number | null;
+                /** Format: double */
+                cost_input_per_million?: number | null;
+                /** Format: double */
+                cost_output_per_million?: number | null;
+                default_reasoning_effort?: string;
+                display_name?: string;
+                id: string;
+                /** Format: int64 */
+                max_input_tokens?: number | null;
+                /** Format: int64 */
+                max_output_tokens?: number | null;
+                reasoning_efforts?: string[];
+                supports_reasoning?: boolean | null;
+                supports_tools?: boolean | null;
+              }[];
+              default?: string;
+              discovery?: {
+                command?: string;
+                enabled?: boolean | null;
+                endpoint?: string;
+                timeout?: string;
+              } | null;
+            } | null;
             runtime_provider?: string;
             transport?: string;
           };
@@ -41509,7 +41655,6 @@ export interface operations {
             }[];
             providers?: {
               auth_mode?: string;
-              default_model?: string;
               display_name?: string;
               env_policy?: string;
               harness?: string;
@@ -41610,8 +41755,10 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
+              model?: string;
               name?: string;
               provider: string;
+              reasoning_effort?: string;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;

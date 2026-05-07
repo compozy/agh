@@ -283,7 +283,8 @@ async function writeWorkspaceConfig(input: {
     lines.push(
       `[providers.${overrideProvider}]`,
       `command = "${escapeTomlString(input.overrideCommand)}"`,
-      `default_model = "qa-browser-model"`,
+      `[providers.${overrideProvider}.models]`,
+      `default = "qa-browser-model"`,
       `[[providers.${overrideProvider}.credential_slots]]`,
       `name = "api_key"`,
       `target_env = "QA_BROWSER_API_KEY"`,

@@ -27,7 +27,10 @@ const claudeEntry: SettingsProviderEntry = {
   command_available: true,
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-    default_model: "claude-sonnet-4-6",
+    models: {
+      default: "claude-sonnet-4-6",
+      curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+    },
     auth_mode: "native_cli",
     env_policy: "filtered",
     home_policy: "operator",
@@ -60,7 +63,17 @@ const builtinEntry: SettingsProviderEntry = {
   command_available: true,
   settings: {
     command: "npx -y @zed-industries/codex-acp@latest",
-    default_model: "gpt-5.4",
+    models: {
+      default: "gpt-5.4",
+      curated: [
+        {
+          id: "gpt-5.4",
+          supports_reasoning: true,
+          reasoning_efforts: ["low", "medium", "high"],
+        },
+        { id: "gpt-5.4-mini" },
+      ],
+    },
     auth_mode: "bound_secret",
     env_policy: "filtered",
     home_policy: "operator",
@@ -244,6 +257,12 @@ describe("ProvidersSettingsPage", () => {
     expect(screen.getByTestId("settings-page-providers-card-claude-auth-mode")).toHaveTextContent(
       "native_cli"
     );
+    expect(
+      screen.getByTestId("settings-page-providers-card-claude-curated-models")
+    ).toHaveTextContent("claude-sonnet-4-6");
+    expect(screen.getByTestId("settings-page-providers-card-codex-reasoning")).toHaveTextContent(
+      "Per model"
+    );
     expect(screen.getByTestId("settings-page-providers-card-claude-auth-status")).toHaveTextContent(
       "native_cli"
     );
@@ -326,7 +345,8 @@ describe("ProvidersSettingsPage", () => {
           name: "claude",
           command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
           display_name: "Claude",
-          default_model: "claude-sonnet-4-6",
+          model_default: "claude-sonnet-4-6",
+          curated_models: "claude-sonnet-4-6\nclaude-haiku-4-5",
           target_env: "",
           harness: "acp",
           runtime_provider: "",
@@ -354,6 +374,9 @@ describe("ProvidersSettingsPage", () => {
     expect(screen.getByTestId("settings-providers-editor-command-input")).toHaveValue(
       "npx -y @agentclientprotocol/claude-agent-acp@latest"
     );
+    expect(screen.getByTestId("settings-providers-editor-curated-models-input")).toHaveValue(
+      "claude-sonnet-4-6\nclaude-haiku-4-5"
+    );
     expect(screen.getByTestId("settings-providers-editor-source-effective")).toHaveTextContent(
       "CONFIG"
     );
@@ -368,7 +391,8 @@ describe("ProvidersSettingsPage", () => {
           name: "claude",
           command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
           display_name: "",
-          default_model: "",
+          model_default: "",
+          curated_models: "",
           target_env: "ANTHROPIC_API_KEY",
           harness: "acp",
           runtime_provider: "",

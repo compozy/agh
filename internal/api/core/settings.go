@@ -469,7 +469,7 @@ func (h *BaseHandlers) getSettingsCollectionItem(c *gin.Context, collection sett
 			h.respondError(c, StatusForSettingsError(notFound), notFound)
 			return
 		}
-		c.JSON(http.StatusOK, contract.SettingsProviderResponse{Provider: settingsProviderItemPayload(item)})
+		c.JSON(http.StatusOK, contract.SettingsProviderResponse{Provider: settingsProviderItemPayload(&item)})
 	case settingspkg.CollectionSandboxes:
 		item, found := findSettingsSandbox(envelope.Sandboxes, name)
 		if !found {
@@ -797,7 +797,8 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 	settings := settingspkg.ProviderSettings{
 		Command:         strings.TrimSpace(body.Settings.Command),
 		DisplayName:     strings.TrimSpace(body.Settings.DisplayName),
-		DefaultModel:    strings.TrimSpace(body.Settings.DefaultModel),
+		Models:          providerModelsFromPayload(body.Settings.Models),
+		ModelsSet:       body.Settings.Models != nil,
 		Harness:         aghconfig.ProviderHarness(strings.TrimSpace(body.Settings.Harness)),
 		RuntimeProvider: strings.TrimSpace(body.Settings.RuntimeProvider),
 		Transport:       strings.TrimSpace(body.Settings.Transport),
@@ -820,7 +821,7 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPayload) bool {
 	return strings.TrimSpace(payload.Command) == "" &&
 		strings.TrimSpace(payload.DisplayName) == "" &&
-		strings.TrimSpace(payload.DefaultModel) == "" &&
+		payload.Models == nil &&
 		strings.TrimSpace(payload.Harness) == "" &&
 		strings.TrimSpace(payload.RuntimeProvider) == "" &&
 		strings.TrimSpace(payload.Transport) == "" &&
@@ -850,6 +851,64 @@ func providerCredentialSlotsFromPayload(
 		})
 	}
 	return slots
+}
+
+func providerModelsFromPayload(payload *contract.SettingsProviderModelsPayload) aghconfig.ProviderModelsConfig {
+	if payload == nil {
+		return aghconfig.ProviderModelsConfig{}
+	}
+	return aghconfig.ProviderModelsConfig{
+		Default:   strings.TrimSpace(payload.Default),
+		Curated:   providerModelConfigsFromPayload(payload.Curated),
+		Discovery: providerModelsDiscoveryFromPayload(payload.Discovery),
+	}
+}
+
+func providerModelsDiscoveryFromPayload(
+	payload *contract.SettingsProviderModelsDiscoveryPayload,
+) aghconfig.ProviderModelsDiscoveryConfig {
+	if payload == nil {
+		return aghconfig.ProviderModelsDiscoveryConfig{}
+	}
+	return aghconfig.ProviderModelsDiscoveryConfig{
+		Enabled:  cloneBoolPtr(payload.Enabled),
+		Command:  strings.TrimSpace(payload.Command),
+		Endpoint: strings.TrimSpace(payload.Endpoint),
+		Timeout:  strings.TrimSpace(payload.Timeout),
+	}
+}
+
+func providerModelConfigsFromPayload(
+	payloads []contract.SettingsProviderModelPayload,
+) []aghconfig.ProviderModelConfig {
+	if payloads == nil {
+		return nil
+	}
+	models := make([]aghconfig.ProviderModelConfig, 0, len(payloads))
+	for _, payload := range payloads {
+		models = append(models, aghconfig.ProviderModelConfig{
+			ID:                     strings.TrimSpace(payload.ID),
+			DisplayName:            strings.TrimSpace(payload.DisplayName),
+			ContextWindow:          cloneInt64Ptr(payload.ContextWindow),
+			MaxInputTokens:         cloneInt64Ptr(payload.MaxInputTokens),
+			MaxOutputTokens:        cloneInt64Ptr(payload.MaxOutputTokens),
+			SupportsTools:          cloneBoolPtr(payload.SupportsTools),
+			SupportsReasoning:      cloneBoolPtr(payload.SupportsReasoning),
+			ReasoningEfforts:       trimStringSliceInternal(payload.ReasoningEfforts),
+			DefaultReasoningEffort: strings.TrimSpace(payload.DefaultReasoningEffort),
+			CostInputPerMillion:    cloneFloat64Ptr(payload.CostInputPerMillion),
+			CostOutputPerMillion:   cloneFloat64Ptr(payload.CostOutputPerMillion),
+		})
+	}
+	return models
+}
+
+func cloneFloat64Ptr(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func providerSecretWritesFromPayload(
@@ -1658,9 +1717,10 @@ func (h *BaseHandlers) drainSettingsLogTail(
 }
 
 func findSettingsProvider(values []settingspkg.ProviderItem, name string) (settingspkg.ProviderItem, bool) {
-	for _, value := range values {
+	for idx := range values {
+		value := &values[idx]
 		if strings.TrimSpace(value.Name) == name {
-			return value, true
+			return *value, true
 		}
 	}
 	return settingspkg.ProviderItem{}, false

@@ -377,7 +377,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: {
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
       display_name: "Claude Code",
-      default_model: "claude-sonnet-4-6",
+      models: {
+        default: "claude-sonnet-4-6",
+        curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+      },
       harness: "acp",
       auth_mode: "native_cli",
       env_policy: "filtered",
@@ -402,7 +405,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     fallback: {
       settings: {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-        default_model: "claude-sonnet-4-6",
+        models: {
+          default: "claude-sonnet-4-6",
+          curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+        },
         auth_mode: "native_cli",
         env_policy: "filtered",
         home_policy: "operator",
@@ -416,7 +422,18 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     command_available: true,
     settings: {
       command: "npx -y @zed-industries/codex-acp@latest",
-      default_model: "gpt-5.4",
+      models: {
+        default: "gpt-5.4",
+        curated: [
+          {
+            id: "gpt-5.4",
+            supports_reasoning: true,
+            reasoning_efforts: ["low", "medium", "high"],
+            default_reasoning_effort: "medium",
+          },
+          { id: "gpt-5.4-mini" },
+        ],
+      },
       harness: "acp",
       auth_mode: "native_cli",
       env_policy: "filtered",
@@ -445,7 +462,13 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: {
       command: "npx -y pi-acp@latest",
       display_name: "OpenRouter",
-      default_model: "openai/gpt-5.4",
+      models: {
+        default: "openai/gpt-5.4",
+        curated: [
+          { id: "openai/gpt-5.4", supports_reasoning: true },
+          { id: "anthropic/claude-sonnet-4-6" },
+        ],
+      },
       harness: "pi_acp",
       runtime_provider: "openrouter",
       auth_mode: "bound_secret",
@@ -627,7 +650,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: {
       command: "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
       display_name: "Qwen Code",
-      default_model: "qwen3.6-plus",
+      models: { default: "qwen3.6-plus", curated: [{ id: "qwen3.6-plus" }] },
       harness: "acp",
     },
     source_metadata: {

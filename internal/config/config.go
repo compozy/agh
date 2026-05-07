@@ -28,6 +28,7 @@ const (
 	ConfigName = "config.toml"
 	// marketplaceSchemeHTTP is the accepted plaintext marketplace URL scheme.
 	marketplaceSchemeHTTP = "http"
+	urlSchemeHTTPS        = "https"
 	// skillsMarketplaceRegistryClawhub is the currently supported skills marketplace registry.
 	skillsMarketplaceRegistryClawhub = "clawhub"
 )
@@ -442,6 +443,7 @@ type Config struct {
 	Permissions   PermissionsConfig         `toml:"permissions"`
 	MCPServers    []MCPServer               `toml:"mcp_servers,omitempty"`
 	Providers     map[string]ProviderConfig `toml:"providers"`
+	ModelCatalog  ModelCatalogConfig        `toml:"model_catalog"`
 	Sandboxes     map[string]SandboxProfile `toml:"sandboxes"`
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
@@ -630,8 +632,9 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
 		},
-		Providers: map[string]ProviderConfig{},
-		Sandboxes: map[string]SandboxProfile{},
+		Providers:    map[string]ProviderConfig{},
+		ModelCatalog: DefaultModelCatalogConfig(),
+		Sandboxes:    map[string]SandboxProfile{},
 		Observability: ObservabilityConfig{
 			Enabled:           true,
 			RetentionDays:     7,
@@ -884,6 +887,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 		return err
 	}
 	if err := c.Tools.Validate(c.MCPServers, c.Providers); err != nil {
+		return err
+	}
+	if err := c.ModelCatalog.Validate(); err != nil {
 		return err
 	}
 	if err := c.Automation.validateWithEnv(lookup); err != nil {
@@ -1555,7 +1561,7 @@ func (c MarketplaceConfig) Validate() error {
 		if err != nil {
 			return fmt.Errorf("skills.marketplace.base_url is invalid: %w", err)
 		}
-		if parsed.Scheme != marketplaceSchemeHTTP && parsed.Scheme != "https" {
+		if parsed.Scheme != marketplaceSchemeHTTP && parsed.Scheme != urlSchemeHTTPS {
 			return fmt.Errorf("skills.marketplace.base_url must use http or https: %q", c.BaseURL)
 		}
 		if strings.TrimSpace(parsed.Host) == "" {
@@ -1588,7 +1594,7 @@ func (c ExtensionsMarketplaceConfig) Validate() error {
 		if err != nil {
 			return fmt.Errorf("extensions.marketplace.base_url is invalid: %w", err)
 		}
-		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		if parsed.Scheme != "http" && parsed.Scheme != urlSchemeHTTPS {
 			return fmt.Errorf("extensions.marketplace.base_url must use http or https: %q", c.BaseURL)
 		}
 		if strings.TrimSpace(parsed.Host) == "" {

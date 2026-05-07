@@ -35,6 +35,8 @@ var (
 	ErrPendingPermissionNotFound = errors.New("session: pending permission not found")
 	// ErrPendingPermissionConflict reports that the approval request matched multiple pending permissions.
 	ErrPendingPermissionConflict = errors.New("session: pending permission lookup is ambiguous")
+	// ErrInvalidRuntimeOverride reports that a session runtime override is invalid.
+	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
 )
 
 // CreateOpts defines the inputs required to create a new session.
@@ -42,6 +44,7 @@ type CreateOpts struct {
 	AgentName        string
 	Provider         string
 	Model            string
+	ReasoningEffort  string
 	SandboxRef       string
 	DisableSandbox   bool
 	Name             string

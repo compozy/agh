@@ -815,6 +815,18 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: true,
 			},
 			{
+				name:        "Should allow provider model default",
+				path:        "providers.codex.models.default",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow provider model discovery enabled",
+				path:        "providers.codex.models.discovery.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should redact sandbox env values",
 				path:        "sandboxes.dev.env.API_TOKEN",
 				wantKind:    configSetString,

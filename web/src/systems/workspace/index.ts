@@ -20,4 +20,8 @@ export { useActiveWorkspace } from "./hooks/use-active-workspace";
 export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-workspaces";
 
 // Components
+export { ProviderCommandList } from "./components/provider-command-list";
+export type { ProviderCommandListProps } from "./components/provider-command-list";
+export { ProviderCommandSelect } from "./components/provider-command-select";
+export type { ProviderCommandSelectProps } from "./components/provider-command-select";
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";

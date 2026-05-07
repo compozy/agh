@@ -39,7 +39,10 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   command_available: true,
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-    default_model: "claude-sonnet-4-6",
+    models: {
+      default: "claude-sonnet-4-6",
+      curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+    },
     auth_mode: "native_cli",
     env_policy: "filtered",
     home_policy: "operator",
@@ -54,7 +57,7 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   fallback: {
     settings: {
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-      default_model: "claude-sonnet-4-6",
+      models: { default: "claude-sonnet-4-6" },
     },
     source: { kind: "builtin-provider", scope: "global" },
   },
@@ -66,7 +69,17 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
   command_available: true,
   settings: {
     command: "npx -y @zed-industries/codex-acp@latest",
-    default_model: "gpt-5.4",
+    models: {
+      default: "gpt-5.4",
+      curated: [
+        {
+          id: "gpt-5.4",
+          supports_reasoning: true,
+          reasoning_efforts: ["low", "medium", "high"],
+        },
+        { id: "gpt-5.4-mini" },
+      ],
+    },
     auth_mode: "bound_secret",
     env_policy: "filtered",
     home_policy: "operator",
@@ -160,7 +173,14 @@ describe("useSettingsProvidersPage", () => {
 
     expect(result.current.editor).toMatchObject({
       mode: "create",
-      draft: { name: "", command: "", default_model: "", target_env: "", auth_mode: "native_cli" },
+      draft: {
+        name: "",
+        command: "",
+        model_default: "",
+        curated_models: "",
+        target_env: "",
+        auth_mode: "native_cli",
+      },
     });
   });
 
@@ -193,7 +213,8 @@ describe("useSettingsProvidersPage", () => {
       name: "claude",
       draft: expect.objectContaining({
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-        default_model: "claude-sonnet-4-6",
+        model_default: "claude-sonnet-4-6",
+        curated_models: "claude-sonnet-4-6\nclaude-haiku-4-5",
         target_env: "",
         auth_mode: "native_cli",
         env_policy: "filtered",
@@ -223,7 +244,11 @@ describe("useSettingsProvidersPage", () => {
       result.current.openEdit(claudeEntry);
     });
     act(() => {
-      result.current.updateDraft(draft => ({ ...draft, default_model: "claude-haiku" }));
+      result.current.updateDraft(draft => ({
+        ...draft,
+        model_default: "claude-haiku",
+        curated_models: "claude-haiku\nclaude-sonnet-4-6",
+      }));
     });
     act(() => {
       result.current.saveEditor();
@@ -236,7 +261,10 @@ describe("useSettingsProvidersPage", () => {
     expect(putSettingsProvider).toHaveBeenCalledWith("claude", {
       settings: {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-        default_model: "claude-haiku",
+        models: {
+          default: "claude-haiku",
+          curated: [{ id: "claude-haiku" }, { id: "claude-sonnet-4-6" }],
+        },
         harness: "acp",
         auth_mode: "native_cli",
         env_policy: "filtered",
@@ -262,7 +290,10 @@ describe("useSettingsProvidersPage", () => {
       name: "openrouter",
       settings: {
         command: "npx -y pi-acp@latest",
-        default_model: "openai/gpt-5.4",
+        models: {
+          default: "openai/gpt-5.4",
+          curated: [{ id: "openai/gpt-5.4", supports_reasoning: true }],
+        },
         harness: "pi_acp",
         runtime_provider: "openrouter",
         auth_mode: "bound_secret",
@@ -318,7 +349,7 @@ describe("useSettingsProvidersPage", () => {
     act(() => {
       result.current.updateDraft(draft => ({
         ...draft,
-        default_model: "anthropic/claude-sonnet",
+        model_default: "anthropic/claude-sonnet",
         credential_slots: draft.credential_slots.map((slot, index) =>
           index === 1 ? { ...slot, secret_ref: "vault:providers/openrouter/organization" } : slot
         ),
@@ -336,7 +367,10 @@ describe("useSettingsProvidersPage", () => {
     expect(putSettingsProvider).toHaveBeenCalledWith("openrouter", {
       settings: {
         command: "npx -y pi-acp@latest",
-        default_model: "anthropic/claude-sonnet",
+        models: {
+          default: "anthropic/claude-sonnet",
+          curated: [{ id: "openai/gpt-5.4" }],
+        },
         harness: "pi_acp",
         runtime_provider: "openrouter",
         auth_mode: "bound_secret",
@@ -391,7 +425,7 @@ describe("useSettingsProvidersPage", () => {
         ...draft,
         name: "openrouter",
         command: "npx -y pi-acp@latest",
-        default_model: "openai/gpt-5.4",
+        model_default: "openai/gpt-5.4",
         target_env: "OPENROUTER_API_KEY",
         harness: "pi_acp",
         runtime_provider: "openrouter",
@@ -411,7 +445,10 @@ describe("useSettingsProvidersPage", () => {
     expect(putSettingsProvider).toHaveBeenCalledWith("openrouter", {
       settings: {
         command: "npx -y pi-acp@latest",
-        default_model: "openai/gpt-5.4",
+        models: {
+          default: "openai/gpt-5.4",
+          curated: [],
+        },
         harness: "pi_acp",
         runtime_provider: "openrouter",
         auth_mode: "bound_secret",

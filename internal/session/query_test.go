@@ -762,18 +762,19 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	info := sessionInfoFromMeta(store.SessionMeta{
-		ID:           "sess-1",
-		Name:         "stored",
-		AgentName:    "coder",
-		Provider:     "codex",
-		Model:        "  gpt-4o  ",
-		WorkspaceID:  "ws-1",
-		State:        string(StateStopped),
-		StopReason:   &stopReason,
-		StopDetail:   "deadline exceeded",
-		ACPSessionID: &acpID,
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
+		ID:              "sess-1",
+		Name:            "stored",
+		AgentName:       "coder",
+		Provider:        "codex",
+		Model:           "  gpt-4o  ",
+		ReasoningEffort: "  high  ",
+		WorkspaceID:     "ws-1",
+		State:           string(StateStopped),
+		StopReason:      &stopReason,
+		StopDetail:      "deadline exceeded",
+		ACPSessionID:    &acpID,
+		CreatedAt:       createdAt,
+		UpdatedAt:       updatedAt,
 	})
 	if got := info.ACPSessionID; got != "acp-123" {
 		t.Fatalf("sessionInfoFromMeta().ACPSessionID = %q, want %q", got, "acp-123")
@@ -783,6 +784,9 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	}
 	if got := info.Model; got != "gpt-4o" {
 		t.Fatalf("sessionInfoFromMeta().Model = %q, want %q", got, "gpt-4o")
+	}
+	if got := info.ReasoningEffort; got != "high" {
+		t.Fatalf("sessionInfoFromMeta().ReasoningEffort = %q, want %q", got, "high")
 	}
 	if got := info.State; got != StateStopped {
 		t.Fatalf("sessionInfoFromMeta().State = %q, want %q", got, StateStopped)

@@ -12,12 +12,17 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  NativeSelect,
-  NativeSelectOption,
 } from "@agh/ui";
 
 import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
-import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
+import {
+  ProviderCommandSelect,
+  type SessionProviderOption,
+  type WorkspacePayload,
+} from "@/systems/workspace";
+
+import { ModelCommandSelect } from "./model-command-select";
+import { ReasoningCommandSelect } from "./reasoning-command-select";
 
 export interface SessionCreateDialogProps {
   open: boolean;
@@ -26,11 +31,18 @@ export interface SessionCreateDialogProps {
   workspace: WorkspacePayload | undefined;
   selectedAgentName: string;
   selectedProvider: string;
+  selectedProviderOption: SessionProviderOption | undefined;
+  selectedModel: string;
+  selectedReasoning: string;
+  modelOptions: string[];
+  reasoningSupported: boolean;
   providerOptions: SessionProviderOption[];
   providersLoading: boolean;
   providersError: string | null;
   onAgentChange: (agentName: string) => void;
   onProviderChange: (provider: string) => void;
+  onModelChange: (model: string) => void;
+  onReasoningChange: (effort: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   submitError: string | null;
@@ -43,11 +55,18 @@ function SessionCreateDialog({
   workspace,
   selectedAgentName,
   selectedProvider,
+  selectedProviderOption,
+  selectedModel,
+  selectedReasoning,
+  modelOptions,
+  reasoningSupported,
   providerOptions,
   providersLoading,
   providersError,
   onAgentChange,
   onProviderChange,
+  onModelChange,
+  onReasoningChange,
   onSubmit,
   isSubmitting,
   submitError,
@@ -64,9 +83,7 @@ function SessionCreateDialog({
   const hasSelectedProvider = providerOptions.some(
     option => option.name === trimmedSelectedProvider
   );
-  const activeProvider = workspaceSelected
-    ? providerOptions.find(option => option.name === trimmedSelectedProvider)
-    : undefined;
+  const activeProvider = selectedProviderOption ?? undefined;
   const agentPlaceholder = !workspaceSelected
     ? "Select a workspace first"
     : hasAgents
@@ -76,7 +93,9 @@ function SessionCreateDialog({
     ? "Select a workspace first"
     : providersLoading
       ? "Loading providers…"
-      : "No providers available";
+      : hasProviderOptions
+        ? "Select a provider"
+        : "No providers available";
   const canSubmit =
     !isSubmitting &&
     !providersLoading &&
@@ -102,7 +121,7 @@ function SessionCreateDialog({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-lg"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-xl"
         data-testid="session-create-dialog"
         showCloseButton={!isSubmitting}
       >
@@ -151,25 +170,17 @@ function SessionCreateDialog({
                 Override the runtime for this session only. The agent default is preselected when it
                 matches a provider visible in this workspace.
               </FieldDescription>
-              <NativeSelect
-                className="w-full"
-                data-testid="session-create-provider-select"
+              <ProviderCommandSelect
+                options={providerOptions}
+                value={workspaceSelected ? trimmedSelectedProvider || null : null}
+                onChange={next => onProviderChange(next ?? "")}
                 disabled={
                   !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
                 }
-                id="session-create-provider"
-                onChange={event => onProviderChange(event.target.value)}
-                value={workspaceSelected ? selectedProvider : ""}
-              >
-                {workspaceSelected && hasProviderOptions ? null : (
-                  <NativeSelectOption value="">{providerPlaceholder}</NativeSelectOption>
-                )}
-                {providerOptions.map(option => (
-                  <NativeSelectOption key={option.name} value={option.name}>
-                    {providerOptionLabel(option)}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                triggerId="session-create-provider"
+                triggerTestId="session-create-provider-select"
+                placeholder={providerPlaceholder}
+              />
               {activeProvider ? (
                 <div
                   className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
@@ -178,9 +189,6 @@ function SessionCreateDialog({
                   <span>{activeProvider.harness ?? "acp"}</span>
                   {activeProvider.runtime_provider ? (
                     <span>{activeProvider.runtime_provider}</span>
-                  ) : null}
-                  {activeProvider.default_model ? (
-                    <span>{activeProvider.default_model}</span>
                   ) : null}
                 </div>
               ) : null}
@@ -203,6 +211,48 @@ function SessionCreateDialog({
               ) : null}
             </Field>
 
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="session-create-model">Model</FieldLabel>
+                <FieldDescription>
+                  Override the model for this session, or inherit the provider default.
+                </FieldDescription>
+                <ModelCommandSelect
+                  options={modelOptions}
+                  defaultModel={null}
+                  value={selectedModel}
+                  onChange={onModelChange}
+                  disabled={!workspaceSelected || !hasSelectedProvider || isSubmitting}
+                  triggerId="session-create-model"
+                  triggerTestId="session-create-model-select"
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="session-create-reasoning">Reasoning effort</FieldLabel>
+                <FieldDescription>
+                  Hint reasoning depth when the selected provider supports it.
+                </FieldDescription>
+                <ReasoningCommandSelect
+                  value={selectedReasoning}
+                  onChange={onReasoningChange}
+                  disabled={
+                    !workspaceSelected ||
+                    !hasSelectedProvider ||
+                    !reasoningSupported ||
+                    isSubmitting
+                  }
+                  disabledHint={
+                    hasSelectedProvider && !reasoningSupported
+                      ? "Provider does not support reasoning effort"
+                      : undefined
+                  }
+                  triggerId="session-create-reasoning"
+                  triggerTestId="session-create-reasoning-select"
+                />
+              </Field>
+            </div>
+
             {submitError ? (
               <p
                 className="text-xs text-[color:var(--color-danger)]"
@@ -214,7 +264,7 @@ function SessionCreateDialog({
             ) : null}
           </div>
 
-          <DialogFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+          <DialogFooter className="mx-0 mb-0 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
             <Button
               data-testid="session-create-dialog-cancel"
               disabled={isSubmitting}
@@ -233,14 +283,6 @@ function SessionCreateDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function providerOptionLabel(option: SessionProviderOption): string {
-  const label = option.display_name?.trim() || option.name;
-  if (!option.default_model?.trim()) {
-    return label;
-  }
-  return `${label} · ${option.default_model}`;
 }
 
 export { SessionCreateDialog };

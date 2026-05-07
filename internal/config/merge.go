@@ -13,6 +13,8 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 )
 
+const providersConfigKey = "providers"
+
 type configOverlay struct {
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
@@ -23,6 +25,7 @@ type configOverlay struct {
 	Permissions   permissionsOverlay         `toml:"permissions"`
 	MCPServers    []mcpServerOverlay         `toml:"mcp_servers"`
 	Providers     map[string]providerOverlay `toml:"providers"`
+	ModelCatalog  modelCatalogOverlay        `toml:"model_catalog"`
 	Sandboxes     map[string]sandboxOverlay  `toml:"sandboxes"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
@@ -123,7 +126,7 @@ type permissionsOverlay struct {
 type providerOverlay struct {
 	Command         *string                     `toml:"command"`
 	DisplayName     *string                     `toml:"display_name"`
-	DefaultModel    *string                     `toml:"default_model"`
+	Models          *providerModelsOverlay      `toml:"models"`
 	Harness         *ProviderHarness            `toml:"harness"`
 	RuntimeProvider *string                     `toml:"runtime_provider"`
 	Transport       *string                     `toml:"transport"`
@@ -137,6 +140,34 @@ type providerOverlay struct {
 	Aliases         *[]string                   `toml:"aliases"`
 	CredentialSlots []providerCredentialOverlay `toml:"credential_slots"`
 	MCPServers      []mcpServerOverlay          `toml:"mcp_servers"`
+}
+
+type providerModelsOverlay struct {
+	Default   *string                        `toml:"default"`
+	Curated   []ProviderModelConfig          `toml:"curated"`
+	Discovery providerModelsDiscoveryOverlay `toml:"discovery"`
+}
+
+type providerModelsDiscoveryOverlay struct {
+	Enabled  *bool   `toml:"enabled"`
+	Command  *string `toml:"command"`
+	Endpoint *string `toml:"endpoint"`
+	Timeout  *string `toml:"timeout"`
+}
+
+type modelCatalogOverlay struct {
+	Sources modelCatalogSourcesOverlay `toml:"sources"`
+}
+
+type modelCatalogSourcesOverlay struct {
+	ModelsDev modelsDevSourceOverlay `toml:"models_dev"`
+}
+
+type modelsDevSourceOverlay struct {
+	Enabled  *bool   `toml:"enabled"`
+	Endpoint *string `toml:"endpoint"`
+	TTL      *string `toml:"ttl"`
+	Timeout  *string `toml:"timeout"`
 }
 
 type providerCredentialOverlay struct {
@@ -534,10 +565,39 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+		if err := rejectRemovedProviderModelKeys(source, undecoded); err != nil {
+			return overlay, err
+		}
 		return overlay, fmt.Errorf("unknown config keys in %q: %s", source, joinTOMLKeys(undecoded))
 	}
 
 	return overlay, nil
+}
+
+func rejectRemovedProviderModelKeys(source string, keys []burnttoml.Key) error {
+	for _, key := range sortedTOMLKeys(keys) {
+		if len(key) != 3 || key[0] != providersConfigKey {
+			continue
+		}
+		replacement := ""
+		switch key[2] {
+		case "default_model":
+			replacement = fmt.Sprintf("providers.%s.models.default", key[1])
+		case "supported_models":
+			replacement = fmt.Sprintf("providers.%s.models.curated", key[1])
+		case "supports_reasoning_effort":
+			replacement = fmt.Sprintf("providers.%s.models.curated[].reasoning_efforts", key[1])
+		}
+		if replacement != "" {
+			return fmt.Errorf(
+				"removed config key %q in %q: use %q",
+				key.String(),
+				source,
+				replacement,
+			)
+		}
+	}
+	return nil
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
@@ -552,6 +612,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
 	}
 	applyProviderOverlays(dst, o.Providers)
+	o.ModelCatalog.Apply(&dst.ModelCatalog)
 	applySandboxOverlays(dst, o.Sandboxes)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
@@ -705,8 +766,8 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.DisplayName != nil {
 		dst.DisplayName = *o.DisplayName
 	}
-	if o.DefaultModel != nil {
-		dst.DefaultModel = *o.DefaultModel
+	if o.Models != nil {
+		o.Models.Apply(&dst.Models)
 	}
 	if o.Harness != nil {
 		dst.Harness = *o.Harness
@@ -746,6 +807,54 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	}
 	if len(o.MCPServers) > 0 {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
+	}
+}
+
+func (o providerModelsOverlay) Apply(dst *ProviderModelsConfig) {
+	if o.Default != nil {
+		dst.Default = *o.Default
+	}
+	if o.Curated != nil {
+		dst.Curated = cloneProviderModelConfigs(o.Curated)
+	}
+	o.Discovery.Apply(&dst.Discovery)
+}
+
+func (o providerModelsDiscoveryOverlay) Apply(dst *ProviderModelsDiscoveryConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = boolRef(*o.Enabled)
+	}
+	if o.Command != nil {
+		dst.Command = *o.Command
+	}
+	if o.Endpoint != nil {
+		dst.Endpoint = *o.Endpoint
+	}
+	if o.Timeout != nil {
+		dst.Timeout = *o.Timeout
+	}
+}
+
+func (o modelCatalogOverlay) Apply(dst *ModelCatalogConfig) {
+	o.Sources.Apply(&dst.Sources)
+}
+
+func (o modelCatalogSourcesOverlay) Apply(dst *ModelCatalogSourcesConfig) {
+	o.ModelsDev.Apply(&dst.ModelsDev)
+}
+
+func (o modelsDevSourceOverlay) Apply(dst *ModelsDevSourceConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = boolRef(*o.Enabled)
+	}
+	if o.Endpoint != nil {
+		dst.Endpoint = *o.Endpoint
+	}
+	if o.TTL != nil {
+		dst.TTL = *o.TTL
+	}
+	if o.Timeout != nil {
+		dst.Timeout = *o.Timeout
 	}
 }
 
@@ -1594,11 +1703,19 @@ func joinTOMLKeys(keys []burnttoml.Key) string {
 		return ""
 	}
 
-	values := make([]string, 0, len(keys))
-	for _, key := range keys {
+	sorted := sortedTOMLKeys(keys)
+	values := make([]string, 0, len(sorted))
+	for _, key := range sorted {
 		values = append(values, key.String())
 	}
-	sort.Strings(values)
 
 	return strings.Join(values, ", ")
+}
+
+func sortedTOMLKeys(keys []burnttoml.Key) []burnttoml.Key {
+	sorted := append([]burnttoml.Key(nil), keys...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].String() < sorted[j].String()
+	})
+	return sorted
 }

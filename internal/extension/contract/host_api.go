@@ -128,10 +128,12 @@ type SessionsListParams struct {
 
 // SessionsCreateParams starts a new session.
 type SessionsCreateParams struct {
-	Agent     string `json:"agent"`
-	Prompt    string `json:"prompt,omitempty"`
-	Provider  string `json:"provider,omitempty"`
-	Workspace string `json:"workspace,omitempty"`
+	Agent           string `json:"agent"`
+	Prompt          string `json:"prompt,omitempty"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Workspace       string `json:"workspace,omitempty"`
 }
 
 // SessionsPromptParams submits one prompt to an existing session.

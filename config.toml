@@ -29,14 +29,14 @@ external_default = "disabled"
 approval_timeout_seconds = 120
 trusted_sources = []
 
-[providers.claude]
-default_model = "claude-sonnet-4-6"
+[providers.claude.models]
+default = "claude-sonnet-4-6"
 
-[providers.codex]
-default_model = "gpt-5.4"
+[providers.codex.models]
+default = "gpt-5.4"
 
-[providers.gemini]
-default_model = "gemini-3.1-pro-preview"
+[providers.gemini.models]
+default = "gemini-3.1-pro-preview"
 
 [observability]
 enabled = true

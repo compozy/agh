@@ -56,6 +56,12 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 		t.Fatal("findSettingsSandbox() = false, want true")
 	}
 
+	if providerSettingsPayloadEmpty(contract.SettingsProviderSettingsPayload{
+		Models: &contract.SettingsProviderModelsPayload{},
+	}) {
+		t.Fatal("providerSettingsPayloadEmpty(empty models payload) = true, want false")
+	}
+
 	fireLimit := automationFireLimitFromPayload(automationmodel.FireLimitConfig{Max: 5, Window: "1m"})
 	if fireLimit.Max != 5 || fireLimit.Window != "1m" {
 		t.Fatalf("automationFireLimitFromPayload() = %#v", fireLimit)

@@ -102,6 +102,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		h := newHarness(t)
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
+			Provider:  "codex",
 			Model:     "task-profile-model",
 			Name:      "profiled-worker",
 			Workspace: h.workspaceID,
@@ -120,6 +121,76 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 		if meta := readMeta(t, session.MetaPath()); meta.Model != "task-profile-model" {
 			t.Fatalf("meta.Model = %q, want task-profile-model", meta.Model)
+		}
+	})
+
+	t.Run("Should reject model override without provider override", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Model:     "task-profile-model",
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+	})
+
+	t.Run("Should persist supported reasoning effort override", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:       "coder",
+			Provider:        "codex",
+			ReasoningEffort: "high",
+			Name:            "reasoned-worker",
+			Workspace:       h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		})
+
+		if got := session.Info().ReasoningEffort; got != "high" {
+			t.Fatalf("session.Info().ReasoningEffort = %q, want high", got)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.ReasoningEffort != "high" {
+			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
+		}
+	})
+
+	t.Run("Should persist reasoning effort without provider-level support flag", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:       "coder",
+			Provider:        "claude",
+			ReasoningEffort: "high",
+			Name:            "reasoned-claude-worker",
+			Workspace:       h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		})
+
+		if got := session.Info().ReasoningEffort; got != "high" {
+			t.Fatalf("session.Info().ReasoningEffort = %q, want high", got)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.ReasoningEffort != "high" {
+			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
 		}
 	})
 }

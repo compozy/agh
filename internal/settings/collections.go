@@ -241,7 +241,7 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 			}
 		}
 
-		items = append(items, cloneProviderItem(item))
+		items = append(items, cloneProviderItem(&item))
 	}
 	return items, nil
 }
@@ -250,7 +250,7 @@ func providerSettingsFromConfig(name string, provider aghconfig.ProviderConfig) 
 	return ProviderSettings{
 		Command:         provider.Command,
 		DisplayName:     provider.DisplayName,
-		DefaultModel:    provider.DefaultModel,
+		Models:          cloneProviderModelsConfig(provider.Models),
 		Harness:         provider.EffectiveHarness(),
 		RuntimeProvider: provider.RuntimeProviderName(name),
 		Transport:       strings.TrimSpace(provider.Transport),
@@ -498,7 +498,11 @@ func (s *service) putProvider(
 	}
 
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		return editor.SetTable([]string{"providers", name}, values)
+		path := []string{"providers", name}
+		if err := editor.Delete(path); err != nil {
+			return err
+		}
+		return editor.SetTable(path, values)
 	}); err != nil {
 		return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 	}
@@ -1098,8 +1102,8 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	if strings.TrimSpace(settings.DisplayName) != "" {
 		values["display_name"] = strings.TrimSpace(settings.DisplayName)
 	}
-	if strings.TrimSpace(settings.DefaultModel) != "" {
-		values["default_model"] = strings.TrimSpace(settings.DefaultModel)
+	if models := providerModelsSettingsMap(settings.Models); len(models) > 0 {
+		values["models"] = models
 	}
 	if settings.Harness != "" {
 		values["harness"] = string(settings.Harness)
@@ -1132,6 +1136,83 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 		values["credential_slots"] = providerCredentialSlotMaps(settings.CredentialSlots)
 	}
 	return values
+}
+
+func providerModelsSettingsMap(models aghconfig.ProviderModelsConfig) map[string]any {
+	values := make(map[string]any)
+	if strings.TrimSpace(models.Default) != "" {
+		values["default"] = strings.TrimSpace(models.Default)
+	}
+	if len(models.Curated) > 0 {
+		values["curated"] = providerModelConfigMaps(models.Curated)
+	}
+	if discovery := providerModelsDiscoveryMap(models.Discovery); len(discovery) > 0 {
+		values["discovery"] = discovery
+	}
+	return values
+}
+
+func providerModelConfigMaps(models []aghconfig.ProviderModelConfig) []map[string]any {
+	values := make([]map[string]any, 0, len(models))
+	for _, model := range models {
+		entry := make(map[string]any)
+		if strings.TrimSpace(model.ID) != "" {
+			entry["id"] = strings.TrimSpace(model.ID)
+		}
+		if strings.TrimSpace(model.DisplayName) != "" {
+			entry["display_name"] = strings.TrimSpace(model.DisplayName)
+		}
+		if model.ContextWindow != nil {
+			entry["context_window"] = *model.ContextWindow
+		}
+		if model.MaxInputTokens != nil {
+			entry["max_input_tokens"] = *model.MaxInputTokens
+		}
+		if model.MaxOutputTokens != nil {
+			entry["max_output_tokens"] = *model.MaxOutputTokens
+		}
+		if model.SupportsTools != nil {
+			entry["supports_tools"] = *model.SupportsTools
+		}
+		if model.SupportsReasoning != nil {
+			entry["supports_reasoning"] = *model.SupportsReasoning
+		}
+		if len(model.ReasoningEfforts) > 0 {
+			entry["reasoning_efforts"] = cloneStringSlicePreserveNil(model.ReasoningEfforts)
+		}
+		if strings.TrimSpace(model.DefaultReasoningEffort) != "" {
+			entry["default_reasoning_effort"] = strings.TrimSpace(model.DefaultReasoningEffort)
+		}
+		if model.CostInputPerMillion != nil {
+			entry["cost_input_per_million"] = *model.CostInputPerMillion
+		}
+		if model.CostOutputPerMillion != nil {
+			entry["cost_output_per_million"] = *model.CostOutputPerMillion
+		}
+		values = append(values, entry)
+	}
+	return values
+}
+
+func providerModelsDiscoveryMap(discovery aghconfig.ProviderModelsDiscoveryConfig) map[string]any {
+	values := make(map[string]any)
+	if discovery.Enabled != nil {
+		values["enabled"] = *discovery.Enabled
+	}
+	if strings.TrimSpace(discovery.Command) != "" {
+		values["command"] = strings.TrimSpace(discovery.Command)
+	}
+	if strings.TrimSpace(discovery.Endpoint) != "" {
+		values["endpoint"] = strings.TrimSpace(discovery.Endpoint)
+	}
+	if strings.TrimSpace(discovery.Timeout) != "" {
+		values["timeout"] = strings.TrimSpace(discovery.Timeout)
+	}
+	return values
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func providerCredentialSlotMaps(slots []aghconfig.ProviderCredentialSlot) []map[string]any {
