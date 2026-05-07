@@ -269,6 +269,9 @@ func normalizeModelCatalogStatus(
 	if normalized.SourceKind == "" {
 		return modelcatalog.SourceStatus{}, fmt.Errorf("store: model catalog status source kind is required")
 	}
+	if err := modelcatalog.ValidateSourceIdentity(normalized.SourceID, normalized.SourceKind); err != nil {
+		return modelcatalog.SourceStatus{}, fmt.Errorf("store: validate model catalog source identity: %w", err)
+	}
 	normalized.RefreshState = strings.TrimSpace(normalized.RefreshState)
 	if normalized.RefreshState == "" {
 		normalized.RefreshState = string(modelcatalog.RefreshStateIdle)

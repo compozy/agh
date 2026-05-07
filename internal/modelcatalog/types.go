@@ -23,6 +23,28 @@ const (
 	SourceKindACPSession SourceKind = "acp_session"
 )
 
+const (
+	// SourceIDBuiltin is AGH's offline bootstrap catalog source.
+	SourceIDBuiltin = "builtin"
+	// SourceIDConfig is the operator-authored provider config source.
+	SourceIDConfig = "config"
+	// SourceIDModelsDev is the models.dev catalog source.
+	SourceIDModelsDev = "models_dev"
+)
+
+const (
+	// PriorityConfig lets explicit operator config win source conflicts.
+	PriorityConfig = 120
+	// PriorityProviderLive ranks live provider data above extension rows.
+	PriorityProviderLive = 110
+	// PriorityExtension ranks extension-provided rows above catalog enrichment.
+	PriorityExtension = 100
+	// PriorityModelsDev ranks models.dev as catalog enrichment.
+	PriorityModelsDev = 50
+	// PriorityBuiltin ranks offline bootstrap rows last.
+	PriorityBuiltin = 10
+)
+
 // ReasoningEffort identifies one normalized model reasoning level.
 type ReasoningEffort string
 
@@ -51,6 +73,24 @@ const (
 	RefreshStateSucceeded RefreshState = "succeeded"
 	// RefreshStateFailed indicates the last source refresh failed.
 	RefreshStateFailed RefreshState = "failed"
+	// RefreshStateDisabled indicates a configured source is disabled.
+	RefreshStateDisabled RefreshState = "disabled"
+)
+
+// AvailabilityState identifies how reliable the merged availability signal is.
+type AvailabilityState string
+
+const (
+	// AvailabilityStateAvailableLive means a fresh live source reports availability.
+	AvailabilityStateAvailableLive AvailabilityState = "available_live"
+	// AvailabilityStateAvailableStale means a stale live source reports availability.
+	AvailabilityStateAvailableStale AvailabilityState = "available_stale"
+	// AvailabilityStateUnavailableLive means a fresh live source reports unavailability.
+	AvailabilityStateUnavailableLive AvailabilityState = "unavailable_live"
+	// AvailabilityStateUnavailableStale means a stale live source reports unavailability.
+	AvailabilityStateUnavailableStale AvailabilityState = "unavailable_stale"
+	// AvailabilityStateUnknown means no live or extension source reported availability.
+	AvailabilityStateUnknown AvailabilityState = "unknown"
 )
 
 // ListOptions filters persisted catalog source rows.

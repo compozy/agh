@@ -633,14 +633,14 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)
 		refreshedAt := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
-		zulu := modelCatalogRow("z_source", "codex", "gpt-5.4", modelcatalog.SourceKindExtension, 100)
+		zulu := modelCatalogRow("extension:z_source", "codex", "gpt-5.4", modelcatalog.SourceKindExtension, 100)
 		zulu.RefreshedAt = refreshedAt
-		alpha := modelCatalogRow("a_source", "codex", "gpt-5.4", modelcatalog.SourceKindExtension, 100)
+		alpha := modelCatalogRow("extension:a_source", "codex", "gpt-5.4", modelcatalog.SourceKindExtension, 100)
 		alpha.RefreshedAt = refreshedAt
 		replaceModelCatalogRows(
 			t,
 			globalDB,
-			"z_source",
+			"extension:z_source",
 			"codex",
 			modelcatalog.SourceKindExtension,
 			100,
@@ -649,7 +649,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		replaceModelCatalogRows(
 			t,
 			globalDB,
-			"a_source",
+			"extension:a_source",
 			"codex",
 			modelcatalog.SourceKindExtension,
 			100,
@@ -664,8 +664,8 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			t.Fatalf("len(rows) = %d, want %d: %#v", got, want, rows)
 		}
 		gotSources := []string{rows[0].SourceID, rows[1].SourceID}
-		if !slices.Equal(gotSources, []string{"a_source", "z_source"}) {
-			t.Fatalf("source order = %#v, want a_source before z_source", gotSources)
+		if !slices.Equal(gotSources, []string{"extension:a_source", "extension:z_source"}) {
+			t.Fatalf("source order = %#v, want extension:a_source before extension:z_source", gotSources)
 		}
 	})
 

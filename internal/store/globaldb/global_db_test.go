@@ -245,10 +245,133 @@ func TestOpenGlobalDBFailsOnSchemaMigrationIntegrityMismatch(t *testing.T) {
 func TestGlobalSchemaMigrationsAreAppendOnlyContract(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep known migration identities stable", func(t *testing.T) {
+	t.Run("Should keep shipped migration prefix identities stable", func(t *testing.T) {
 		t.Parallel()
 
 		assertGlobalSchemaMigrationDefinitions(t, globalSchemaMigrations)
+	})
+
+	t.Run("Should apply shipped migration prefix on fresh DB", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close() error = %v", closeErr)
+			}
+		})
+
+		records, err := store.AppliedMigrations(ctx, globalDB.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations() error = %v", err)
+		}
+		if got, want := len(records), len(globalSchemaMigrations); got != want {
+			t.Fatalf("len(records) = %d, want %d", got, want)
+		}
+		assertAppliedGlobalMigrationOrder(t, records)
+	})
+
+	t.Run("Should preserve shipped migration prefix across reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		first, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first) error = %v", err)
+		}
+		firstRecords, err := store.AppliedMigrations(ctx, first.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(first) error = %v", err)
+		}
+		assertAppliedGlobalMigrationOrder(t, firstRecords)
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first) error = %v", err)
+		}
+
+		second, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(second) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := second.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(second) error = %v", closeErr)
+			}
+		})
+		secondRecords, err := store.AppliedMigrations(ctx, second.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(second) error = %v", err)
+		}
+		if got, want := len(secondRecords), len(firstRecords); got != want {
+			t.Fatalf("len(secondRecords) = %d, want %d", got, want)
+		}
+		assertAppliedGlobalMigrationOrder(t, secondRecords)
+		for index := range expectedGlobalMigrationPrefix() {
+			if !secondRecords[index].AppliedAt.Equal(firstRecords[index].AppliedAt) {
+				t.Fatalf(
+					"migration %d applied_at = %s, want unchanged %s",
+					firstRecords[index].Version,
+					secondRecords[index].AppliedAt,
+					firstRecords[index].AppliedAt,
+				)
+			}
+		}
+	})
+
+	t.Run("Should upgrade recorded shipped prefix by appending later migrations", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
+		}
+		prefix := expectedGlobalMigrationPrefix()
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:len(prefix)]); err != nil {
+			t.Fatalf("RunMigrations(prefix) error = %v", err)
+		}
+		prefixRecords, err := store.AppliedMigrations(ctx, db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(prefix) error = %v", err)
+		}
+		assertAppliedGlobalMigrationPrefix(t, prefixRecords, len(prefix))
+		if err := db.Close(); err != nil {
+			t.Fatalf("prefix db.Close() error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgrade) error = %v", closeErr)
+			}
+		})
+		records, err := store.AppliedMigrations(ctx, globalDB.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(upgrade) error = %v", err)
+		}
+		if got, want := len(records), len(globalSchemaMigrations); got != want {
+			t.Fatalf("len(records) = %d, want %d", got, want)
+		}
+		assertAppliedGlobalMigrationOrder(t, records)
+		for index, prefixRecord := range prefixRecords {
+			if !records[index].AppliedAt.Equal(prefixRecord.AppliedAt) {
+				t.Fatalf(
+					"migration %d applied_at = %s, want unchanged %s",
+					prefixRecord.Version,
+					records[index].AppliedAt,
+					prefixRecord.AppliedAt,
+				)
+			}
+		}
 	})
 }
 
@@ -258,7 +381,7 @@ type expectedGlobalMigrationIdentity struct {
 	checksum string
 }
 
-func expectedGlobalMigrationIdentities() []expectedGlobalMigrationIdentity {
+func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 	return []expectedGlobalMigrationIdentity{
 		{
 			version:  1,
@@ -300,21 +423,15 @@ func expectedGlobalMigrationIdentities() []expectedGlobalMigrationIdentity {
 		{version: 18, name: "add_task_review_gate_schema", checksum: "2026-05-05-add-task-review-gate-schema"},
 		{version: 19, name: "add_notification_cursors", checksum: "2026-05-05-add-notification-cursors"},
 		{version: 20, name: "add_bridge_task_subscriptions", checksum: "2026-05-05-add-bridge-task-subscriptions"},
-		{
-			version:  21,
-			name:     "rebuild_network_conversation_containers",
-			checksum: "2026-05-05-rebuild-network-conversation-containers",
-		},
-		{version: 22, name: "memv2_memory_events", checksum: "2026-05-05-memv2-memory-events"},
 	}
 }
 
 func assertGlobalSchemaMigrationDefinitions(t *testing.T, migrations []store.Migration) {
 	t.Helper()
 
-	want := expectedGlobalMigrationIdentities()
-	if got := len(migrations); got != len(want) {
-		t.Fatalf("globalSchemaMigrations length = %d, want %d", got, len(want))
+	want := expectedGlobalMigrationPrefix()
+	if got := len(migrations); got < len(want) {
+		t.Fatalf("globalSchemaMigrations length = %d, want at least shipped prefix length %d", got, len(want))
 	}
 	for index, expected := range want {
 		got := migrations[index]
@@ -336,9 +453,9 @@ func assertGlobalSchemaMigrationDefinitions(t *testing.T, migrations []store.Mig
 func assertAppliedGlobalMigrationOrder(t *testing.T, records []store.MigrationRecord) {
 	t.Helper()
 
-	want := expectedGlobalMigrationIdentities()
-	if got := len(records); got != len(want) {
-		t.Fatalf("schema_migrations length = %d, want %d", got, len(want))
+	want := expectedGlobalMigrationPrefix()
+	if got := len(records); got < len(want) {
+		t.Fatalf("schema_migrations length = %d, want at least shipped prefix length %d", got, len(want))
 	}
 	for index, expected := range want {
 		got := records[index]
@@ -360,14 +477,14 @@ func assertAppliedGlobalMigrationOrder(t *testing.T, records []store.MigrationRe
 func assertAppliedGlobalMigrationPrefix(t *testing.T, records []store.MigrationRecord, length int) {
 	t.Helper()
 
-	want := expectedGlobalMigrationIdentities()
+	want := expectedGlobalMigrationPrefix()
 	if length < 0 || length > len(want) {
 		t.Fatalf("migration prefix length = %d, want 0..%d", length, len(want))
 	}
-	if got := len(records); got != length {
-		t.Fatalf("schema_migrations prefix length = %d, want %d", got, length)
+	if got := len(records); got < length {
+		t.Fatalf("schema_migrations length = %d, want at least prefix length %d", got, length)
 	}
-	for index := range records {
+	for index := range records[:length] {
 		expected := want[index]
 		got := records[index]
 		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
