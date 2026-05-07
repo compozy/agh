@@ -12,15 +12,24 @@ type HubPage = {
   content: string;
 };
 
-function runtimeCoreHubPages(): HubPage[] {
-  return readdirSync(coreRoot)
-    .map(entry => resolve(coreRoot, entry, "index.mdx"))
+type CoreDirectoryEntry = {
+  isDirectory(): boolean;
+  name: string;
+};
+
+function runtimeCoreHubIndexPaths(entries: CoreDirectoryEntry[]): string[] {
+  return entries
+    .filter(entry => entry.isDirectory())
+    .map(entry => resolve(coreRoot, entry.name, "index.mdx"))
     .filter(path => statSync(path, { throwIfNoEntry: false })?.isFile() === true)
-    .map(path => ({
-      path: relative(siteRoot, path),
-      content: readFileSync(path, "utf8"),
-    }))
-    .sort((left, right) => left.path.localeCompare(right.path));
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function runtimeCoreHubPages(): HubPage[] {
+  return runtimeCoreHubIndexPaths(readdirSync(coreRoot, { withFileTypes: true })).map(path => ({
+    path: relative(siteRoot, path),
+    content: readFileSync(path, "utf8"),
+  }));
 }
 
 function bodyText(content: string): string {
@@ -35,6 +44,15 @@ function wordCount(content: string): number {
 }
 
 describe("runtime core hub quality", () => {
+  it("ignores top-level metadata files when finding section hubs", () => {
+    const paths = runtimeCoreHubIndexPaths([
+      { isDirectory: () => false, name: "meta.json" },
+      { isDirectory: () => true, name: "agents" },
+    ]).map(path => relative(siteRoot, path));
+
+    expect(paths).toEqual(["content/runtime/core/agents/index.mdx"]);
+  });
+
   it("keeps section hubs above a useful orientation floor", () => {
     const thinPages = runtimeCoreHubPages()
       .map(page => ({ ...page, words: wordCount(page.content) }))
