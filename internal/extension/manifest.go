@@ -17,6 +17,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/extension/surfaces"
+	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/resources"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/vault"
@@ -313,6 +314,9 @@ func (m *Manifest) Validate() error {
 	if err := validateDottedIdentifiers("capabilities.provides", m.Capabilities.Provides, false); err != nil {
 		return err
 	}
+	if err := m.validateModelSourceCapability(); err != nil {
+		return err
+	}
 	if err := validateSlashIdentifiers("actions.requires", m.Actions.Requires); err != nil {
 		return err
 	}
@@ -328,6 +332,20 @@ func (m *Manifest) Validate() error {
 	); err != nil {
 		return &ManifestValidationError{
 			Field:   "resources.publish",
+			Message: err.Error(),
+		}
+	}
+	return nil
+}
+
+func (m *Manifest) validateModelSourceCapability() error {
+	if !providesCapability(m.Capabilities.Provides, extensionprotocol.CapabilityProvideModelSource) {
+		return nil
+	}
+	if _, err := modelcatalog.SourceKindExtensionID(m.Name); err != nil {
+		return &ManifestValidationError{
+			Field:   "name",
+			Value:   m.Name,
 			Message: err.Error(),
 		}
 	}

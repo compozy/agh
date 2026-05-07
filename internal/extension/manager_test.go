@@ -16,8 +16,10 @@ import (
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -1894,6 +1896,37 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
 		}
 		return h.sendResult(req.ID, ack)
+	case "models/list":
+		var params extensioncontract.ModelSourceListParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		if h.scenario == "model_source_error" {
+			return h.sendError(req.ID, -32020, "Model source unavailable", map[string]string{
+				"error": "model source unavailable",
+			})
+		}
+		sourceID, err := modelcatalog.SourceKindExtensionID(h.extensionName())
+		if err != nil {
+			return err
+		}
+		providerID := strings.TrimSpace(params.ProviderID)
+		if providerID == "" {
+			providerID = "codex"
+		}
+		row := extensioncontract.ModelSourceRow{
+			SourceID:    sourceID,
+			ProviderID:  providerID,
+			ModelID:     "subprocess-model",
+			DisplayName: "Subprocess Model",
+			Priority:    modelcatalog.PriorityExtension,
+		}
+		if h.scenario == "model_source_malformed" {
+			row.ModelID = ""
+		}
+		return h.sendResult(req.ID, extensioncontract.ModelSourceListResponse{
+			Rows: []extensioncontract.ModelSourceRow{row},
+		})
 	case "provide_tools":
 		return h.sendResult(req.ID, h.toolRuntimeDescriptors())
 	case "tools/call":

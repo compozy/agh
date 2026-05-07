@@ -77,6 +77,7 @@ type HostAPIHandler struct {
 	memory           *memory.Store
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
+	modelCatalog     hostAPIModelCatalogService
 	workspaces       workspacepkg.RuntimeResolver
 	bridges          hostAPIBridgeRegistry
 	dedupStore       hostAPIBridgeDedupStore
@@ -562,6 +563,9 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"memory/store":                                                 handler.handleMemoryStore,
 		"observe/events":                                               handler.handleObserveEvents,
 		"observe/health":                                               handler.handleObserveHealth,
+		string(extensioncontract.HostAPIMethodModelsList):              handler.handleModelsList,
+		string(extensioncontract.HostAPIMethodModelsRefresh):           handler.handleModelsRefresh,
+		string(extensioncontract.HostAPIMethodModelsStatus):            handler.handleModelsStatus,
 		string(extensioncontract.HostAPIMethodAgentsSoulGet):           handler.handleAgentsSoulGet,
 		string(extensioncontract.HostAPIMethodAgentsSoulValidate):      handler.handleAgentsSoulValidate,
 		string(extensioncontract.HostAPIMethodAgentsSoulPut):           handler.handleAgentsSoulPut,

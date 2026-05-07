@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/modelcatalog"
 )
 
@@ -283,6 +284,30 @@ func (d *Daemon) modelCatalogSources(
 		return nil, fmt.Errorf("daemon: create live provider model catalog sources: %w", err)
 	}
 	sources = append(sources, liveSources...)
+	extensionSources, err := d.modelCatalogExtensionSources(state)
+	if err != nil {
+		return nil, err
+	}
+	sources = append(sources, extensionSources...)
+	return sources, nil
+}
+
+func (d *Daemon) modelCatalogExtensionSources(state *bootState) ([]modelcatalog.Source, error) {
+	dbSource, ok := state.registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		return nil, nil
+	}
+	registry := extensionpkg.NewRegistry(dbSource.DB())
+	sources, err := extensionpkg.NewExtensionModelSources(registry, func() extensionpkg.ModelSourceRuntime {
+		runtime, ok := state.currentExtensionRuntime().(extensionpkg.ModelSourceRuntime)
+		if !ok {
+			return nil
+		}
+		return runtime
+	})
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create extension model catalog sources: %w", err)
+	}
 	return sources, nil
 }
 

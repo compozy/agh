@@ -295,6 +295,7 @@ type extensionManagerDeps struct {
 	Tasks                  taskpkg.Manager
 	Network                core.NetworkService
 	NetworkStore           store.NetworkConversationStore
+	ModelCatalog           core.ModelCatalogService
 	MemoryStore            *memory.Store
 	MemoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	Observer               Observer
@@ -696,18 +697,18 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
-			buildHostAPIOptions(deps, capChecker, deps.ResourceStore)...,
+			buildHostAPIOptions(&deps, capChecker, deps.ResourceStore)...,
 		)
 
 		return extensionpkg.NewManager(
 			deps.Registry,
-			buildExtensionManagerOptions(deps, capChecker, hostAPI, deps.SourceSessions)...,
+			buildExtensionManagerOptions(&deps, capChecker, hostAPI, deps.SourceSessions)...,
 		)
 	}
 }
 
 func buildHostAPIOptions(
-	deps extensionManagerDeps,
+	deps *extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
 	resourceStore resources.RawStore,
 ) []extensionpkg.HostAPIOption {
@@ -716,6 +717,7 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
 		extensionpkg.WithHostAPINetworkService(deps.Network),
 		extensionpkg.WithHostAPINetworkStore(deps.NetworkStore),
+		extensionpkg.WithHostAPIModelCatalogService(deps.ModelCatalog),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 		extensionpkg.WithHostAPIResourceStore(resourceStore),
@@ -743,7 +745,7 @@ func buildHostAPIOptions(
 }
 
 func buildExtensionManagerOptions(
-	deps extensionManagerDeps,
+	deps *extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
 	hostAPI *extensionpkg.HostAPIHandler,
 	sourceSessions resources.SourceSessionManager,

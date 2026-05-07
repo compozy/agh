@@ -1592,6 +1592,7 @@ func (d *Daemon) extensionManagerDeps(
 		Tasks:                  state.deps.Tasks,
 		Network:                state.deps.Network,
 		NetworkStore:           state.registry,
+		ModelCatalog:           state.modelCatalog,
 		MemoryStore:            state.memoryStore,
 		MemoryProviderRegistry: state.memoryProviderRegistry,
 		Observer:               state.observer,

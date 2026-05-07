@@ -55,6 +55,53 @@ func ValidateSourceIdentity(sourceID string, kind SourceKind) error {
 	return nil
 }
 
+// SourceKindExtensionID returns the stable source id for an extension model source.
+func SourceKindExtensionID(extensionName string) (string, error) {
+	slug, err := NormalizeExtensionSourceSlug(extensionName)
+	if err != nil {
+		return "", err
+	}
+	return string(SourceKindExtension) + ":" + slug, nil
+}
+
+// NormalizeExtensionSourceSlug converts an extension name into the dynamic source-id slug.
+func NormalizeExtensionSourceSlug(extensionName string) (string, error) {
+	trimmed := strings.TrimSpace(extensionName)
+	if trimmed == "" {
+		return "", fmt.Errorf("model catalog extension source name is required")
+	}
+	var builder strings.Builder
+	lastSeparator := false
+	for _, r := range trimmed {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			builder.WriteRune(r + ('a' - 'A'))
+			lastSeparator = false
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+			lastSeparator = false
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			lastSeparator = false
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+			lastSeparator = true
+		case r == ' ' || r == '\t' || r == '\n' || r == '\r':
+			if !lastSeparator {
+				builder.WriteRune('-')
+				lastSeparator = true
+			}
+		default:
+			return "", fmt.Errorf("model catalog extension source slug cannot include %q", string(r))
+		}
+	}
+	slug := builder.String()
+	if !sourceSlugPattern.MatchString(slug) {
+		return "", fmt.Errorf("model catalog extension source slug %q must match ^[a-z0-9][a-z0-9_-]*$", slug)
+	}
+	return slug, nil
+}
+
 func staticSourceKind(sourceID string) SourceKind {
 	switch sourceID {
 	case SourceIDBuiltin:
