@@ -8,9 +8,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/core"
 	apispec "github.com/pedronauck/agh/internal/api/spec"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
+
+var _ core.CoordinatorConfigResolver = httpapiCoordinatorConfigResolverFunc(nil)
 
 func TestHTTPAgentKernelRoutesMatchDocumentedSpecOperations(t *testing.T) {
 	t.Run("Should register every HTTP agent operation in the spec", func(t *testing.T) {

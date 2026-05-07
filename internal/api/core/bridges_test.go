@@ -28,6 +28,9 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			if req.Scope != bridgepkg.ScopeGlobal || req.Platform != "telegram" || req.DisplayName != "Support" {
 				t.Fatalf("CreateInstance() req = %#v", req)
 			}
+			if req.Status != bridgepkg.BridgeStatusStarting {
+				t.Fatalf("CreateInstance().Status = %q, want %q", req.Status, bridgepkg.BridgeStatusStarting)
+			}
 			if req.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
 				t.Fatalf("CreateInstance().DMPolicy = %q, want %q", req.DMPolicy, bridgepkg.BridgeDMPolicyPairing)
 			}
@@ -533,7 +536,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("create rejects client-owned operational state fields", func(t *testing.T) {
+	t.Run("Should reject client-owned operational state fields", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{

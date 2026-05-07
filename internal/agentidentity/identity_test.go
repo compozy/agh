@@ -239,7 +239,14 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "Should reject nil context",
+			name: "Should reject nil context",
+			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
+				return SessionSnapshot{
+					ID:        "sess-1",
+					AgentName: "coder",
+					State:     session.StateActive,
+				}, nil
+			},
 			wantErr: ErrIdentityLookupUnavailable,
 		},
 		{

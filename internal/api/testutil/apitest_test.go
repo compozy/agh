@@ -69,14 +69,6 @@ func TestPerformRequestWithHeaders(t *testing.T) {
 	t.Run("Should set JSON content type only when body is present and preserve headers", func(t *testing.T) {
 		t.Parallel()
 
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusCreated)
-			_, err := w.Write([]byte(r.Header.Get("Content-Type") + "|" + r.Header.Get("X-Trace")))
-			if err != nil {
-				t.Fatalf("ResponseWriter.Write() error = %v", err)
-			}
-		})
-
 		tests := []struct {
 			name         string
 			method       string
@@ -102,6 +94,14 @@ func TestPerformRequestWithHeaders(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
+
+				handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusCreated)
+					_, err := w.Write([]byte(r.Header.Get("Content-Type") + "|" + r.Header.Get("X-Trace")))
+					if err != nil {
+						t.Fatalf("ResponseWriter.Write() error = %v", err)
+					}
+				})
 
 				response := PerformRequestWithHeaders(
 					t,

@@ -406,6 +406,9 @@ func TestBridgeResourceApplyRejectsTypedNilPlanWithoutReplacingInstances(t *test
 		var plan *bridgepkg.ResourceProjectionPlan
 
 		err := bridgepkg.ApplyResourceState(testutil.Context(t), store, plan)
+		if err == nil {
+			t.Fatal("ApplyResourceState(typed nil) error = nil, want validation failure")
+		}
 		if got, want := err.Error(), "bridges: bridge resource plan is required"; got != want {
 			t.Fatalf("ApplyResourceState(typed nil) error = %q, want %q", got, want)
 		}
@@ -424,6 +427,9 @@ func TestBridgeResourceApplyRejectsTypedNilPlanWithoutReplacingInstances(t *test
 		var plan resources.ProjectionPlan
 
 		err := bridgepkg.ApplyResourceState(testutil.Context(t), store, plan)
+		if err == nil {
+			t.Fatal("ApplyResourceState(untyped nil) error = nil, want validation failure")
+		}
 		if got, want := err.Error(), "bridges: bridge resource plan has type <nil>"; got != want {
 			t.Fatalf("ApplyResourceState(untyped nil) error = %q, want %q", got, want)
 		}
