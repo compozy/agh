@@ -29,7 +29,7 @@ provider = "claude"
 
 The built-in registry lives in `internal/config/provider.go`.
 
-| Provider ID         | Harness  | Runtime provider    | Command                                                          | Default model               | Auth mode      | Credential target    |
+| Provider ID         | Harness  | Runtime provider    | Command                                                          | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | ---------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
 | `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-4-6`         | `native_cli`   | provider login       |
 | `codex`             | `acp`    | `codex`             | `npx -y @zed-industries/codex-acp@latest`                        | `gpt-5.4`                   | `native_cli`   | provider login       |
@@ -94,7 +94,7 @@ Provider overrides and custom providers are configured in `config.toml`.
 | --------------------- | ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                 |
 | `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                 |
-| `default_model`       | string | no                       | Used when an `AGENT.md` omits `model`. Native `pi` receives it through ACP model selection.                   |
+| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".    |
 | `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`. |
 | `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the AGH provider id.                         |
 | `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                              |
@@ -110,6 +110,51 @@ Provider overrides and custom providers are configured in `config.toml`.
 AGH overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
 
+The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
+accepted. Config that still sets them is rejected at load time with a deterministic hard-cut error
+that names the exact path. Move every value into the nested `[providers.<id>.models]` block below.
+
+## Provider models
+
+Each provider declares pre-session model defaults and curated metadata under `[providers.<id>.models]`.
+Pre-session model selection is served by the daemon-owned model catalog. The catalog merges builtin
+defaults, the operator config, the optional `models.dev` enrichment source, live provider discovery
+sources, and extension model sources, then projects them through HTTP, UDS, CLI, the OpenAI-compatible
+projection, the Host API, and the web. Active ACP `configOptions` continue to govern model and
+reasoning controls inside a running session.
+
+| Field                                       | Type    | Required                    | Runtime behavior                                                                                                                  |
+| ------------------------------------------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `models.default`                            | string  | no                          | Default model when an `AGENT.md` omits `model`. Free-form: it does not need to appear in `models.curated`.                        |
+| `models.curated`                            | array   | no                          | Curated entries shown in pickers and projected as `config` rows in the catalog. Not an allowlist.                                 |
+| `models.curated[].id`                       | string  | yes per entry               | Provider model identifier sent to the runtime. Must be unique inside the provider.                                                |
+| `models.curated[].display_name`             | string  | no                          | Optional human label.                                                                                                             |
+| `models.curated[].context_window`           | integer | no                          | Context window in tokens.                                                                                                         |
+| `models.curated[].max_input_tokens`         | integer | no                          | Maximum input tokens.                                                                                                             |
+| `models.curated[].max_output_tokens`        | integer | no                          | Maximum output tokens.                                                                                                            |
+| `models.curated[].supports_tools`           | bool    | no                          | Whether the model supports tool calls.                                                                                            |
+| `models.curated[].supports_reasoning`       | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
+| `models.curated[].reasoning_efforts`        | array   | no                          | Allowed reasoning levels (`minimal`, `low`, `medium`, `high`, `xhigh`). Blank entries are rejected.                               |
+| `models.curated[].default_reasoning_effort` | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
+| `models.curated[].cost_input_per_million`   | number  | no                          | Display-only input cost per million tokens.                                                                                       |
+| `models.curated[].cost_output_per_million`  | number  | no                          | Display-only output cost per million tokens.                                                                                      |
+| `models.discovery.enabled`                  | bool    | no                          | Enables the side-effect-free discovery adapter for this provider. Defaults to `false` for providers without a built-in safe path. |
+| `models.discovery.command`                  | string  | required for some providers | Side-effect-free discovery command (mutually exclusive with `endpoint` unless the adapter documents both).                        |
+| `models.discovery.endpoint`                 | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
+| `models.discovery.timeout`                  | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
+
+Discovery uses the resolved provider auth, env, and home policy and never creates an ACP session.
+When a discovery path is unavailable or fails, the model catalog records a source status and falls
+back to stale or lower-priority rows; session creation never depends on a successful discovery.
+
+Session creation can override `provider`, `model`, and `reasoning_effort` for one launch. `model` is
+free-form: `models.curated` is operator metadata, not an allowlist, so a manual model ID outside the
+curated list is accepted. Reasoning effort is validated against `minimal`, `low`, `medium`, `high`,
+and `xhigh`, and AGH only forwards it when the resolved curated entry advertises it through
+`supports_reasoning` and `reasoning_efforts`. After the session starts, AGH switches to active ACP
+`configOptions` (or legacy `session/set_model` when the agent does not advertise config options) and
+the catalog metadata stops governing the live session.
+
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through
 a configured `auth_login_command`. The built-in `pi` provider exposes
@@ -124,10 +169,20 @@ agents that omit `model`.
 
 ```toml
 [providers.claude]
-default_model = "claude-sonnet-4-6"
 auth_mode = "native_cli"
 auth_status_command = "claude auth status"
 auth_login_command = "claude auth login"
+
+[providers.claude.models]
+default = "claude-sonnet-4-6"
+
+[[providers.claude.models.curated]]
+id = "claude-sonnet-4-6"
+display_name = "Claude Sonnet 4.6"
+
+[[providers.claude.models.curated]]
+id = "claude-haiku-4-5"
+display_name = "Claude Haiku 4.5"
 
 [[providers.claude.mcp_servers]]
 name = "github"
@@ -153,7 +208,13 @@ harness = "pi_acp"
 auth_mode = "bound_secret"
 runtime_provider = "openrouter"
 command = "npx -y pi-acp@latest"
-default_model = "openai/gpt-5.4"
+
+[providers.openrouter.models]
+default = "openai/gpt-5.4"
+
+[[providers.openrouter.models.curated]]
+id = "openai/gpt-5.4"
+display_name = "OpenAI GPT-5.4"
 
 [[providers.openrouter.credential_slots]]
 name = "api_key"
@@ -188,10 +249,16 @@ built-ins.
 ```toml
 [providers.local-agent]
 command = "local-agent --acp --stdio"
-default_model = "local-default"
 auth_mode = "native_cli"
 auth_status_command = "local-agent auth status"
 auth_login_command = "local-agent auth login"
+
+[providers.local-agent.models]
+default = "local-default"
+
+[[providers.local-agent.models.curated]]
+id = "local-default"
+display_name = "Local Default"
 
 [[providers.local-agent.mcp_servers]]
 name = "filesystem-index"
@@ -254,7 +321,7 @@ Set environment variables before starting the daemon instead.
 
 ## Models and authentication
 
-`model` and `default_model` are resolved and exposed as runtime metadata. Direct `acp` providers
+`model` and `models.default` are resolved and exposed as runtime metadata. Direct `acp` providers
 receive the normal ACP startup flow. Native `pi` sessions receive the resolved
 `runtime_provider/model` through ACP model selection. Wrapped Pi-backed API-key providers receive
 session-local Pi `settings.json` and `models.json` so Pi can run with the AGH-selected provider,
@@ -327,4 +394,6 @@ agent's role, permissions, MCP servers, and startup prompt in `AGENT.md`.
 
 - [Agent Definitions](/runtime/core/agents/definitions) explains the `AGENT.md` fields that reference providers.
 - [Spawning](/runtime/core/agents/spawning) shows exactly how the resolved provider command becomes a running ACP process.
+- [Provider Model Catalog](/runtime/core/agents/model-catalog) covers the daemon-owned catalog, sources, refresh lifecycle, OpenAI-compatible projection, and extension `model.source`.
 - [CLI agent reference](/runtime/cli-reference/agent) lists the current `agh agent` inspection commands.
+- [`agh provider models` CLI](/runtime/cli-reference/provider/models) inspects and refreshes the catalog without a UI.

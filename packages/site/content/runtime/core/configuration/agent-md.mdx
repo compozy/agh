@@ -27,7 +27,7 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `name`          | string                      | required                                    | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
 | `provider`      | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
 | `command`       | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
-| `model`         | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                            |
+| `model`         | string                      | Provider `models.default`                   | Any string.                                                         | Agent-specific model metadata.                                            |
 | `tools`         | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
 | `toolsets`      | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
 | `deny_tools`    | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
@@ -80,7 +80,7 @@ name: reviewer
 # Optional if [defaults].provider is set in config.toml.
 provider: claude
 
-# Optional. Defaults to the provider default_model.
+# Optional. Defaults to the provider models.default.
 model: claude-sonnet-4-6
 
 # Optional. Add only extra ToolIDs beyond default discovery.
@@ -163,7 +163,7 @@ Put blocking findings first and cite the relevant file or symbol.
 | Attribute    | Value                                                        |
 | ------------ | ------------------------------------------------------------ |
 | Type         | string                                                       |
-| Default      | Selected provider `default_model`                            |
+| Default      | Selected provider `models.default`                           |
 | Required     | no                                                           |
 | Valid values | Any string. Empty is allowed if the provider has no default. |
 | Description  | Agent-specific model metadata.                               |
@@ -453,7 +453,7 @@ Sidecar behavior:
 | Agent name    | explicit CLI/API agent name, then `[defaults].agent` | Fails if empty.                                                           |
 | Provider      | `AGENT.md` `provider`, then `[defaults].provider`    | Fails if still empty.                                                     |
 | Command       | `AGENT.md` `command`, then provider `command`        | Fails if empty after provider resolution.                                 |
-| Model         | `AGENT.md` `model`, then provider `default_model`    | Empty is allowed.                                                         |
+| Model         | `AGENT.md` `model`, then provider `models.default`   | Empty is allowed.                                                         |
 | Tools         | `AGENT.md` `tools`                                   | Must be exact canonical ToolIDs or approved namespace-prefix wildcards.   |
 | Toolsets      | `AGENT.md` `toolsets`                                | Must be canonical ToolsetIDs.                                             |
 | Deny tools    | `AGENT.md` `deny_tools`                              | Same grammar as `tools`; denies narrow later policy evaluation.           |
