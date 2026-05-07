@@ -4,6 +4,7 @@ export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
 export { ProviderCard, providerStateTone } from "./provider-card";
 export { ProviderLogo } from "./provider-logo";
+export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { ProvidersGrid } from "./providers-grid";
 export { SettingsPageActions } from "./settings-page-actions";
 export { SettingsDecimalInput } from "./settings-decimal-input";

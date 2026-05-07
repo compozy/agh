@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 import type { AgentPayload } from "@/systems/agent";
+import type { ModelOption } from "@/systems/model-catalog";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateDialog, type SessionCreateDialogProps } from "../session-create-dialog";
@@ -41,6 +42,27 @@ const providerOptions: SessionProviderOption[] = [
   },
 ];
 
+const codexModelOptions: ModelOption[] = [
+  {
+    id: "gpt-5.4",
+    displayName: "GPT-5.4",
+    availabilityState: "available_live",
+    available: true,
+    stale: false,
+    refreshedAt: "2026-05-07T10:00:00Z",
+    source: "catalog",
+  },
+  {
+    id: "gpt-5.4-mini",
+    displayName: "GPT-5.4 Mini",
+    availabilityState: "available_stale",
+    available: true,
+    stale: true,
+    refreshedAt: "2026-05-06T10:00:00Z",
+    source: "catalog",
+  },
+];
+
 function getDialogBackdrop(): HTMLElement {
   const backdrop = document.querySelector('[data-slot="dialog-overlay"]');
   if (!(backdrop instanceof HTMLElement)) {
@@ -65,7 +87,14 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     selectedModel: "",
     selectedReasoning: "",
     modelOptions: [],
+    reasoningOptions: [],
     reasoningSupported: false,
+    catalogStale: false,
+    catalogLoading: false,
+    catalogError: null,
+    catalogRefreshing: false,
+    catalogRefreshError: null,
+    defaultReasoning: null,
     providerOptions,
     providersLoading: false,
     providersError: null,
@@ -73,6 +102,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     onProviderChange: vi.fn(),
     onModelChange: vi.fn(),
     onReasoningChange: vi.fn(),
+    onCatalogRefresh: vi.fn(),
     onSubmit: vi.fn(),
     isSubmitting: false,
     submitError: null,
@@ -81,7 +111,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
 }
 
 describe("SessionCreateDialog", () => {
-  it("renders the provider picker with the selected provider in the trigger", () => {
+  it("Should render the provider picker with the selected provider in the trigger", () => {
     render(
       <UIProvider reducedMotion="always">
         <SessionCreateDialog {...makeProps()} />
@@ -97,7 +127,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-provider-runtime")).toHaveTextContent("acp");
   });
 
-  it("preselects the incoming agent name in the agent picker trigger", () => {
+  it("Should preselect the incoming agent name in the agent picker trigger", () => {
     render(
       <UIProvider reducedMotion="always">
         <SessionCreateDialog {...makeProps({ selectedAgentName: "codex-agent" })} />
@@ -108,7 +138,7 @@ describe("SessionCreateDialog", () => {
     expect(trigger).toHaveTextContent("codex-agent");
   });
 
-  it("calls onAgentChange when the operator picks a different agent", async () => {
+  it("Should call onAgentChange when the operator picks a different agent", async () => {
     const user = userEvent.setup();
     const onAgentChange = vi.fn();
     render(
@@ -122,7 +152,7 @@ describe("SessionCreateDialog", () => {
     expect(onAgentChange).toHaveBeenCalledWith("codex-agent");
   });
 
-  it("calls onProviderChange when the operator picks a different provider", async () => {
+  it("Should call onProviderChange when the operator picks a different provider", async () => {
     const user = userEvent.setup();
     const onProviderChange = vi.fn();
     render(
@@ -136,7 +166,7 @@ describe("SessionCreateDialog", () => {
     expect(onProviderChange).toHaveBeenCalledWith("codex");
   });
 
-  it("lets the operator select a model and reasoning effort", async () => {
+  it("Should let the operator select a catalog model and reasoning effort", async () => {
     const user = userEvent.setup();
     const onModelChange = vi.fn();
     const onReasoningChange = vi.fn();
@@ -146,10 +176,15 @@ describe("SessionCreateDialog", () => {
           {...makeProps({
             selectedAgentName: "codex-agent",
             selectedProvider: "codex",
-            modelOptions: ["gpt-5.4", "gpt-5.4-mini"],
+            modelOptions: codexModelOptions,
             onModelChange,
             onReasoningChange,
             reasoningSupported: true,
+            reasoningOptions: [
+              { value: "low", label: "Low", source: "catalog" },
+              { value: "medium", label: "Medium", source: "catalog" },
+              { value: "high", label: "High", source: "catalog" },
+            ],
           })}
         />
       </UIProvider>
@@ -164,7 +199,139 @@ describe("SessionCreateDialog", () => {
     expect(onReasoningChange).toHaveBeenCalledWith("high");
   });
 
-  it("calls onSubmit only once when the form is submitted with a valid draft", () => {
+  it("Should render distinct availability badges for each catalog state", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            selectedAgentName: "codex-agent",
+            selectedProvider: "codex",
+            modelOptions: [
+              {
+                id: "gpt-live",
+                displayName: "GPT live",
+                availabilityState: "available_live",
+                available: true,
+                stale: false,
+                source: "catalog",
+              },
+              {
+                id: "gpt-stale",
+                displayName: "GPT stale",
+                availabilityState: "available_stale",
+                available: true,
+                stale: true,
+                source: "catalog",
+              },
+              {
+                id: "gpt-down",
+                displayName: "GPT down",
+                availabilityState: "unavailable_live",
+                available: false,
+                stale: false,
+                source: "catalog",
+              },
+              {
+                id: "gpt-down-stale",
+                displayName: "GPT down stale",
+                availabilityState: "unavailable_stale",
+                available: false,
+                stale: true,
+                source: "catalog",
+              },
+              {
+                id: "gpt-unknown",
+                displayName: "GPT unknown",
+                availabilityState: "unknown",
+                available: null,
+                stale: false,
+                source: "catalog",
+              },
+            ],
+          })}
+        />
+      </UIProvider>
+    );
+
+    fireEvent.click(screen.getByTestId("session-create-model-select"));
+    expect(screen.getByTestId("model-command-item-gpt-live-availability")).toHaveTextContent(
+      "live"
+    );
+    expect(screen.getByTestId("model-command-item-gpt-stale-availability")).toHaveTextContent(
+      "stale"
+    );
+    expect(screen.getByTestId("model-command-item-gpt-down-availability")).toHaveTextContent(
+      "unavailable"
+    );
+    expect(screen.getByTestId("model-command-item-gpt-down-stale-availability")).toHaveTextContent(
+      "stale · unavailable"
+    );
+    expect(screen.getByTestId("model-command-item-gpt-unknown-availability")).toHaveTextContent(
+      "unknown"
+    );
+  });
+
+  it("Should surface stale catalog state without blocking submit", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            selectedAgentName: "codex-agent",
+            selectedProvider: "codex",
+            modelOptions: codexModelOptions,
+            catalogStale: true,
+          })}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("session-create-catalog-stale")).toHaveTextContent(
+      "Some models are stale"
+    );
+    expect(screen.getByTestId("session-create-dialog-submit")).toBeEnabled();
+  });
+
+  it("Should surface catalog source errors without hiding manual entry", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            selectedAgentName: "codex-agent",
+            selectedProvider: "codex",
+            modelOptions: [],
+            catalogError: "catalog upstream failed",
+          })}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("session-create-catalog-error")).toHaveTextContent(
+      "catalog upstream failed"
+    );
+    expect(screen.getByTestId("session-create-model-select")).toBeEnabled();
+  });
+
+  it("Should expose a refresh control that triggers onCatalogRefresh", async () => {
+    const onCatalogRefresh = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            selectedAgentName: "codex-agent",
+            selectedProvider: "codex",
+            modelOptions: codexModelOptions,
+            onCatalogRefresh,
+          })}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("session-create-catalog-refresh"));
+    expect(onCatalogRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should call onSubmit only once when the form is submitted with a valid draft", () => {
     const onSubmit = vi.fn();
     render(<SessionCreateDialog {...makeProps({ onSubmit })} />);
 
@@ -172,7 +339,7 @@ describe("SessionCreateDialog", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it("disables submit when no providers are available and surfaces an empty-state note", () => {
+  it("Should disable submit when no providers are available and surface an empty-state note", () => {
     render(
       <UIProvider reducedMotion="always">
         <SessionCreateDialog
@@ -190,7 +357,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-providers-empty").className).toContain("text-xs");
   });
 
-  it("surfaces submitError when creation fails", () => {
+  it("Should surface submitError when creation fails", () => {
     render(
       <SessionCreateDialog
         {...makeProps({ submitError: "Server rejected the session", isSubmitting: false })}
@@ -202,7 +369,7 @@ describe("SessionCreateDialog", () => {
     );
   });
 
-  it("disables submit when the current selections are no longer available", () => {
+  it("Should disable submit when the current selections are no longer available", () => {
     render(
       <UIProvider reducedMotion="always">
         <SessionCreateDialog
@@ -218,7 +385,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
   });
 
-  it("shows provider-loading state and disables the picker while loading", () => {
+  it("Should show provider-loading state and disable the picker while loading", () => {
     render(
       <UIProvider reducedMotion="always">
         <SessionCreateDialog
@@ -237,7 +404,7 @@ describe("SessionCreateDialog", () => {
     expect(picker).toHaveTextContent("Loading providers…");
   });
 
-  it("disables both pickers until a workspace is selected", () => {
+  it("Should disable both pickers until a workspace is selected", () => {
     render(
       <UIProvider reducedMotion="always">
         <SessionCreateDialog
@@ -264,7 +431,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.queryByTestId("session-create-providers-empty")).not.toBeInTheDocument();
   });
 
-  it("blocks backdrop dismissal while submit is in flight", () => {
+  it("Should block backdrop dismissal while submit is in flight", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);
 
@@ -272,7 +439,7 @@ describe("SessionCreateDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("allows backdrop dismissal when submit is idle", () => {
+  it("Should allow backdrop dismissal when submit is idle", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ onOpenChange })} />);
 
@@ -280,7 +447,7 @@ describe("SessionCreateDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("closes via cancel button", () => {
+  it("Should close via cancel button", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ onOpenChange })} />);
 

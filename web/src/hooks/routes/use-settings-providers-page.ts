@@ -25,6 +25,7 @@ export type ProviderDraft = {
   display_name: string;
   model_default: string;
   curated_models: string;
+  curated_snapshot: ProviderModelPayload[];
   target_env: string;
   harness: string;
   runtime_provider: string;
@@ -56,6 +57,7 @@ function emptyDraft(): ProviderDraft {
     display_name: "",
     model_default: "",
     curated_models: "",
+    curated_snapshot: [],
     target_env: "",
     harness: "acp",
     runtime_provider: "",
@@ -76,12 +78,14 @@ function emptyDraft(): ProviderDraft {
 function toDraft(entry: SettingsProviderEntry): ProviderDraft {
   const credentialSlots = credentialSlotsForDraft(entry.settings.credential_slots ?? []);
   const credentialSlot = credentialSlots[0];
+  const curatedSnapshot = (entry.settings.models?.curated ?? []).map(model => ({ ...model }));
   return {
     name: entry.name,
     command: entry.settings.command ?? "",
     display_name: entry.settings.display_name ?? "",
     model_default: entry.settings.models?.default ?? "",
-    curated_models: joinCuratedModels(entry.settings.models?.curated ?? []),
+    curated_models: joinCuratedModels(curatedSnapshot),
+    curated_snapshot: curatedSnapshot,
     target_env: credentialSlot?.target_env ?? "",
     harness: entry.settings.harness ?? "acp",
     runtime_provider: entry.settings.runtime_provider ?? "",
@@ -105,7 +109,7 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   if (draft.display_name.trim()) settings.display_name = draft.display_name.trim();
   settings.models = {
     ...(draft.model_default.trim() ? { default: draft.model_default.trim() } : {}),
-    curated: parseCuratedModels(draft.curated_models),
+    curated: parseCuratedModels(draft.curated_models, draft.curated_snapshot),
   };
   if (draft.harness.trim()) settings.harness = draft.harness.trim();
   if (draft.runtime_provider.trim()) settings.runtime_provider = draft.runtime_provider.trim();
@@ -154,14 +158,22 @@ function joinCuratedModels(models: ProviderModelPayload[]): string {
     .join("\n");
 }
 
-function parseCuratedModels(raw: string): ProviderModelPayload[] {
+function parseCuratedModels(raw: string, snapshot: ProviderModelPayload[]): ProviderModelPayload[] {
   const seen = new Set<string>();
   const models: ProviderModelPayload[] = [];
+  const snapshotById = new Map(
+    snapshot.filter(entry => entry.id.trim().length > 0).map(entry => [entry.id.trim(), entry])
+  );
   for (const part of raw.split(/[\n,]/u)) {
-    const model = part.trim();
-    if (!model || seen.has(model)) continue;
-    seen.add(model);
-    models.push({ id: model });
+    const id = part.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const enrichment = snapshotById.get(id);
+    if (enrichment) {
+      models.push({ ...enrichment, id });
+    } else {
+      models.push({ id });
+    }
   }
   return models;
 }

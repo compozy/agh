@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import type { SettingsProviderEntry } from "@/systems/settings";
 
 import { ProviderLogo } from "./provider-logo";
+import { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 interface ProviderCardProps {
@@ -111,6 +112,12 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             shadowed={shadowed}
           />
         </MetaRow>
+        <div className="grid grid-cols-[7.5rem_1fr] items-start gap-3 pt-1">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+            Catalog
+          </span>
+          <ProviderModelCatalogStatus providerId={provider.name} testId={`${testId}-catalog`} />
+        </div>
       </CardContent>
 
       <CardFooter className="justify-between">

@@ -3,6 +3,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import type { AgentPayload } from "@/systems/agent";
+import {
+  deriveActiveSessionOptions,
+  useProviderModels,
+  useRefreshProviderModels,
+  type ModelOption,
+  type ProviderModelPayload,
+  type ReasoningOption,
+} from "@/systems/model-catalog";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 import { useWorkspace } from "@/systems/workspace";
 
@@ -32,8 +40,15 @@ export interface SessionCreateDialogState {
   selectedProviderOption: SessionProviderOption | undefined;
   selectedModel: string;
   selectedReasoning: string;
-  modelOptions: string[];
+  modelOptions: ModelOption[];
+  reasoningOptions: ReasoningOption[];
   reasoningSupported: boolean;
+  catalogStale: boolean;
+  catalogLoading: boolean;
+  catalogError: string | null;
+  catalogRefreshing: boolean;
+  catalogRefreshError: string | null;
+  defaultReasoning: string | null;
   isSubmitting: boolean;
   submitError: string | null;
   pendingAgentName: string | null;
@@ -47,6 +62,7 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onProviderChange: (provider: string) => void;
   onModelChange: (model: string) => void;
   onReasoningChange: (effort: string) => void;
+  refreshCatalog: () => void;
   submit: () => Promise<void>;
 }
 
@@ -85,11 +101,11 @@ function describeWorkspaceError(error: unknown): string {
   return "Unable to load provider options for this workspace.";
 }
 
-function describeSubmitError(error: unknown): string {
+function describeError(fallback: string, error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
-  return "Failed to create session.";
+  return fallback;
 }
 
 export function useSessionCreateDialog({
@@ -142,14 +158,40 @@ export function useSessionCreateDialog({
     [providerOptions, selectedProvider]
   );
 
-  const modelOptions = useMemo(() => [], []);
+  const catalogQuery = useProviderModels({
+    providerId: selectedProvider,
+    includeStale: true,
+    enabled: open && selectedProvider.length > 0,
+  });
 
-  const reasoningSupported = selectedProviderOption != null;
+  const refreshMutation = useRefreshProviderModels();
 
-  const selectedModel = useMemo(() => {
-    const trimmed = draft.modelOverride.trim();
-    return trimmed.length === 0 ? "" : trimmed;
-  }, [draft.modelOverride]);
+  const catalogModels = useMemo<ProviderModelPayload[]>(
+    () => catalogQuery.data?.models ?? [],
+    [catalogQuery.data?.models]
+  );
+
+  const trimmedSelectedModel = useMemo(() => draft.modelOverride.trim(), [draft.modelOverride]);
+
+  const derived = useMemo(
+    () =>
+      deriveActiveSessionOptions({
+        catalog: catalogModels,
+        selectedModel: trimmedSelectedModel.length > 0 ? trimmedSelectedModel : null,
+      }),
+    [catalogModels, trimmedSelectedModel]
+  );
+
+  const catalogStale = useMemo(() => catalogModels.some(model => model.stale), [catalogModels]);
+  const catalogLoading = catalogQuery.isLoading || catalogQuery.isFetching;
+  const catalogError = catalogQuery.error
+    ? describeError("Failed to load provider models.", catalogQuery.error)
+    : null;
+  const catalogRefreshError = refreshMutation.error
+    ? describeError("Failed to refresh provider models.", refreshMutation.error)
+    : null;
+
+  const reasoningSupported = derived.reasoningSupported;
 
   const selectedReasoning = useMemo(() => {
     if (!reasoningSupported) return "";
@@ -204,12 +246,19 @@ export function useSessionCreateDialog({
   }, []);
 
   const onModelChange = useCallback((model: string) => {
-    setDraft(current => ({ ...current, modelOverride: model }));
+    setDraft(current => ({ ...current, modelOverride: model, reasoningEffort: "" }));
   }, []);
 
   const onReasoningChange = useCallback((effort: string) => {
     setDraft(current => ({ ...current, reasoningEffort: effort }));
   }, []);
+
+  const refreshCatalog = useCallback(() => {
+    if (selectedProvider.length === 0) {
+      return;
+    }
+    refreshMutation.mutate({ providerId: selectedProvider, force: true });
+  }, [refreshMutation, selectedProvider]);
 
   const submit = useCallback(async () => {
     if (!activeWorkspace) return;
@@ -221,7 +270,7 @@ export function useSessionCreateDialog({
     setPendingAgentName(agentName);
     setPendingWorkspaceId(activeWorkspace.id);
 
-    const trimmedModel = selectedModel.trim();
+    const trimmedModel = trimmedSelectedModel;
     const trimmedReasoning = selectedReasoning.trim();
 
     try {
@@ -238,7 +287,7 @@ export function useSessionCreateDialog({
         params: { name: session.agent_name, id: session.id },
       });
     } catch (error) {
-      const message = describeSubmitError(error);
+      const message = describeError("Failed to create session.", error);
       setSubmitError(message);
       toast.error(message);
     } finally {
@@ -251,8 +300,8 @@ export function useSessionCreateDialog({
     draft.agentName,
     navigate,
     selectedProvider,
-    selectedModel,
     selectedReasoning,
+    trimmedSelectedModel,
   ]);
 
   const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;
@@ -267,10 +316,17 @@ export function useSessionCreateDialog({
     selectedAgentName: draft.agentName,
     selectedProvider,
     selectedProviderOption,
-    selectedModel,
+    selectedModel: trimmedSelectedModel,
     selectedReasoning,
-    modelOptions,
+    modelOptions: derived.modelOptions,
+    reasoningOptions: derived.reasoningOptions,
     reasoningSupported,
+    catalogStale,
+    catalogLoading,
+    catalogError,
+    catalogRefreshing: refreshMutation.isPending,
+    catalogRefreshError,
+    defaultReasoning: derived.defaultReasoning,
     isSubmitting: createSession.isPending,
     submitError,
     pendingAgentName,
@@ -281,6 +337,7 @@ export function useSessionCreateDialog({
     onProviderChange,
     onModelChange,
     onReasoningChange,
+    refreshCatalog,
     submit,
   };
 }

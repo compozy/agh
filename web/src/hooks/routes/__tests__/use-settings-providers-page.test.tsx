@@ -369,7 +369,7 @@ describe("useSettingsProvidersPage", () => {
         command: "npx -y pi-acp@latest",
         models: {
           default: "anthropic/claude-sonnet",
-          curated: [{ id: "openai/gpt-5.4" }],
+          curated: [{ id: "openai/gpt-5.4", supports_reasoning: true }],
         },
         harness: "pi_acp",
         runtime_provider: "openrouter",
@@ -472,6 +472,63 @@ describe("useSettingsProvidersPage", () => {
           value: "sk-live",
         },
       ],
+    });
+  });
+
+  it("Should preserve curated metadata when re-saving with the same model ids", async () => {
+    vi.mocked(putSettingsProvider).mockResolvedValue({
+      section: "general",
+      scope: "global",
+      behavior: "applied_now",
+      applied: true,
+      restart_required: false,
+      write_target: "global-config",
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openEdit(codexEntry);
+    });
+    act(() => {
+      result.current.saveEditor();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("saved");
+    });
+
+    expect(putSettingsProvider).toHaveBeenCalledWith("codex", {
+      settings: {
+        command: "npx -y @zed-industries/codex-acp@latest",
+        models: {
+          default: "gpt-5.4",
+          curated: [
+            {
+              id: "gpt-5.4",
+              supports_reasoning: true,
+              reasoning_efforts: ["low", "medium", "high"],
+            },
+            { id: "gpt-5.4-mini" },
+          ],
+        },
+        harness: "acp",
+        auth_mode: "bound_secret",
+        env_policy: "filtered",
+        home_policy: "operator",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENAI_API_KEY",
+            secret_ref: "env:OPENAI_API_KEY",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+      },
     });
   });
 

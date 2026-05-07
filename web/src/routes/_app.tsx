@@ -66,9 +66,16 @@ function AppLayout() {
       />
       <SessionCreateDialog
         agents={page.sessionCreate.agents}
+        catalogError={page.sessionCreate.catalogError}
+        catalogLoading={page.sessionCreate.catalogLoading}
+        catalogRefreshError={page.sessionCreate.catalogRefreshError}
+        catalogRefreshing={page.sessionCreate.catalogRefreshing}
+        catalogStale={page.sessionCreate.catalogStale}
+        defaultReasoning={page.sessionCreate.defaultReasoning}
         isSubmitting={page.sessionCreate.isSubmitting}
         modelOptions={page.sessionCreate.modelOptions}
         onAgentChange={page.sessionCreate.onAgentChange}
+        onCatalogRefresh={page.sessionCreate.refreshCatalog}
         onModelChange={page.sessionCreate.onModelChange}
         onOpenChange={page.sessionCreate.setOpen}
         onProviderChange={page.sessionCreate.onProviderChange}
@@ -78,6 +85,7 @@ function AppLayout() {
         providerOptions={page.sessionCreate.providerOptions}
         providersError={page.sessionCreate.providersError}
         providersLoading={page.sessionCreate.providersLoading}
+        reasoningOptions={page.sessionCreate.reasoningOptions}
         reasoningSupported={page.sessionCreate.reasoningSupported}
         selectedAgentName={page.sessionCreate.selectedAgentName}
         selectedModel={page.sessionCreate.selectedModel}

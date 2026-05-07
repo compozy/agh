@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 
 import {
   Button,
@@ -15,6 +15,7 @@ import {
 } from "@agh/ui";
 
 import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
+import type { ModelOption, ReasoningOption } from "@/systems/model-catalog";
 import {
   ProviderCommandSelect,
   type SessionProviderOption,
@@ -34,8 +35,15 @@ export interface SessionCreateDialogProps {
   selectedProviderOption: SessionProviderOption | undefined;
   selectedModel: string;
   selectedReasoning: string;
-  modelOptions: string[];
+  modelOptions: ModelOption[];
+  reasoningOptions: ReasoningOption[];
   reasoningSupported: boolean;
+  catalogStale: boolean;
+  catalogLoading: boolean;
+  catalogError: string | null;
+  catalogRefreshing: boolean;
+  catalogRefreshError: string | null;
+  defaultReasoning: string | null;
   providerOptions: SessionProviderOption[];
   providersLoading: boolean;
   providersError: string | null;
@@ -43,6 +51,7 @@ export interface SessionCreateDialogProps {
   onProviderChange: (provider: string) => void;
   onModelChange: (model: string) => void;
   onReasoningChange: (effort: string) => void;
+  onCatalogRefresh: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   submitError: string | null;
@@ -59,7 +68,14 @@ function SessionCreateDialog({
   selectedModel,
   selectedReasoning,
   modelOptions,
+  reasoningOptions,
   reasoningSupported,
+  catalogStale,
+  catalogLoading,
+  catalogError,
+  catalogRefreshing,
+  catalogRefreshError,
+  defaultReasoning,
   providerOptions,
   providersLoading,
   providersError,
@@ -67,6 +83,7 @@ function SessionCreateDialog({
   onProviderChange,
   onModelChange,
   onReasoningChange,
+  onCatalogRefresh,
   onSubmit,
   isSubmitting,
   submitError,
@@ -117,6 +134,9 @@ function SessionCreateDialog({
     }
     onOpenChange(nextOpen);
   };
+
+  const refreshDisabled =
+    !hasSelectedProvider || isSubmitting || catalogRefreshing || catalogLoading;
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -226,6 +246,32 @@ function SessionCreateDialog({
                   triggerId="session-create-model"
                   triggerTestId="session-create-model-select"
                 />
+                <CatalogStatusLine
+                  loading={catalogLoading}
+                  refreshing={catalogRefreshing}
+                  stale={catalogStale}
+                  error={catalogError}
+                  refreshError={catalogRefreshError}
+                  optionCount={modelOptions.length}
+                />
+                {hasSelectedProvider ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCatalogRefresh}
+                    disabled={refreshDisabled}
+                    data-testid="session-create-catalog-refresh"
+                    aria-label="Refresh provider model catalog"
+                    className="mt-1 w-fit"
+                  >
+                    <RefreshCw
+                      aria-hidden="true"
+                      className={catalogRefreshing ? "size-3.5 animate-spin" : "size-3.5"}
+                    />
+                    Refresh catalog
+                  </Button>
+                ) : null}
               </Field>
 
               <Field>
@@ -234,6 +280,7 @@ function SessionCreateDialog({
                   Hint reasoning depth when the selected provider supports it.
                 </FieldDescription>
                 <ReasoningCommandSelect
+                  options={reasoningOptions}
                   value={selectedReasoning}
                   onChange={onReasoningChange}
                   disabled={
@@ -244,12 +291,20 @@ function SessionCreateDialog({
                   }
                   disabledHint={
                     hasSelectedProvider && !reasoningSupported
-                      ? "Provider does not support reasoning effort"
+                      ? "Selected model does not advertise reasoning effort"
                       : undefined
                   }
                   triggerId="session-create-reasoning"
                   triggerTestId="session-create-reasoning-select"
                 />
+                {defaultReasoning ? (
+                  <p
+                    className="mt-1 text-xs text-[color:var(--color-text-tertiary)]"
+                    data-testid="session-create-reasoning-default"
+                  >
+                    Default reasoning: {defaultReasoning}
+                  </p>
+                ) : null}
               </Field>
             </div>
 
@@ -283,6 +338,88 @@ function SessionCreateDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+interface CatalogStatusLineProps {
+  loading: boolean;
+  refreshing: boolean;
+  stale: boolean;
+  error: string | null;
+  refreshError: string | null;
+  optionCount: number;
+}
+
+function CatalogStatusLine({
+  loading,
+  refreshing,
+  stale,
+  error,
+  refreshError,
+  optionCount,
+}: CatalogStatusLineProps) {
+  if (refreshError) {
+    return (
+      <p
+        className="mt-1 text-xs text-[color:var(--color-danger)]"
+        data-testid="session-create-catalog-refresh-error"
+        role="alert"
+      >
+        {refreshError}
+      </p>
+    );
+  }
+  if (error) {
+    return (
+      <p
+        className="mt-1 text-xs text-[color:var(--color-danger)]"
+        data-testid="session-create-catalog-error"
+        role="alert"
+      >
+        {error}. Type a model name to continue.
+      </p>
+    );
+  }
+  if (refreshing) {
+    return (
+      <p
+        className="mt-1 text-xs text-[color:var(--color-text-tertiary)]"
+        data-testid="session-create-catalog-refreshing"
+      >
+        Refreshing model catalog…
+      </p>
+    );
+  }
+  if (loading) {
+    return (
+      <p
+        className="mt-1 text-xs text-[color:var(--color-text-tertiary)]"
+        data-testid="session-create-catalog-loading"
+      >
+        Loading provider models…
+      </p>
+    );
+  }
+  if (stale) {
+    return (
+      <p
+        className="mt-1 text-xs text-[color:var(--color-warning)]"
+        data-testid="session-create-catalog-stale"
+      >
+        Some models are stale — refresh to confirm availability.
+      </p>
+    );
+  }
+  if (optionCount === 0) {
+    return (
+      <p
+        className="mt-1 text-xs text-[color:var(--color-text-tertiary)]"
+        data-testid="session-create-catalog-empty"
+      >
+        No catalog models — type a model name to continue.
+      </p>
+    );
+  }
+  return null;
 }
 
 export { SessionCreateDialog };

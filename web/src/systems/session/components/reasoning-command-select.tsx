@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronsUpDown, Gauge } from "lucide-react";
 
 import {
@@ -13,6 +13,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@agh/ui";
+
+import type { ReasoningOption } from "@/systems/model-catalog";
 
 const TRIGGER_BASE =
   "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none outline-none transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/50";
@@ -29,6 +31,7 @@ const REASONING_LABELS: Record<ReasoningEffort, string> = {
 };
 
 export interface ReasoningCommandSelectProps {
+  options: ReasoningOption[];
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
@@ -40,6 +43,7 @@ export interface ReasoningCommandSelectProps {
 }
 
 export function ReasoningCommandSelect({
+  options,
   value,
   onChange,
   placeholder = "Use provider default",
@@ -51,6 +55,17 @@ export function ReasoningCommandSelect({
 }: ReasoningCommandSelectProps) {
   const [open, setOpen] = useState(false);
   const trimmedValue = value.trim();
+  const knownOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const result: ReasoningOption[] = [];
+    for (const option of options) {
+      const candidate = option.value.trim();
+      if (!candidate || seen.has(candidate)) continue;
+      seen.add(candidate);
+      result.push({ ...option, value: candidate });
+    }
+    return result;
+  }, [options]);
 
   const handleSelect = (next: string) => {
     onChange(next);
@@ -58,7 +73,7 @@ export function ReasoningCommandSelect({
   };
 
   const triggerLabel = trimmedValue
-    ? (REASONING_LABELS[trimmedValue as ReasoningEffort] ?? trimmedValue)
+    ? labelFor(trimmedValue)
     : disabled && disabledHint
       ? disabledHint
       : placeholder;
@@ -102,20 +117,21 @@ export function ReasoningCommandSelect({
               >
                 <span className="truncate text-sm text-foreground">Use provider default</span>
               </CommandItem>
-              {REASONING_EFFORTS.map(effort => (
+              {knownOptions.map(option => (
                 <CommandItem
-                  key={effort}
-                  value={effort}
-                  onSelect={() => handleSelect(effort)}
-                  data-checked={trimmedValue === effort ? "true" : "false"}
-                  data-testid={`reasoning-command-item-${effort}`}
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => handleSelect(option.value)}
+                  data-checked={trimmedValue === option.value ? "true" : "false"}
+                  data-testid={`reasoning-command-item-${option.value}`}
+                  data-source={option.source}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="truncate text-sm text-foreground">
-                      {REASONING_LABELS[effort]}
+                      {option.label || labelFor(option.value)}
                     </span>
                     <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      {effort}
+                      {option.value}
                     </span>
                   </div>
                 </CommandItem>
@@ -126,4 +142,15 @@ export function ReasoningCommandSelect({
       </PopoverContent>
     </Popover>
   );
+}
+
+function labelFor(value: string): string {
+  if (isReasoningEffort(value)) {
+    return REASONING_LABELS[value];
+  }
+  return value;
+}
+
+function isReasoningEffort(value: string): value is ReasoningEffort {
+  return (REASONING_EFFORTS as readonly string[]).includes(value);
 }

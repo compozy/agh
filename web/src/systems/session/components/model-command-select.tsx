@@ -9,16 +9,36 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  Pill,
+  type PillTone,
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@agh/ui";
 
+import type { ModelOption } from "@/systems/model-catalog";
+
 const TRIGGER_BASE =
   "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none outline-none transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/50";
 
+const AVAILABILITY_LABELS: Record<string, string> = {
+  available_live: "live",
+  available_stale: "stale",
+  unavailable_live: "unavailable",
+  unavailable_stale: "stale · unavailable",
+  unknown: "unknown",
+};
+
+const AVAILABILITY_TONES: Record<string, PillTone> = {
+  available_live: "success",
+  available_stale: "warning",
+  unavailable_live: "danger",
+  unavailable_stale: "warning",
+  unknown: "neutral",
+};
+
 export interface ModelCommandSelectProps {
-  options: string[];
+  options: ModelOption[];
   defaultModel: string | null;
   value: string;
   onChange: (next: string) => void;
@@ -46,18 +66,18 @@ export function ModelCommandSelect({
   const trimmedDefault = defaultModel?.trim() ?? "";
   const knownOptions = useMemo(() => {
     const seen = new Set<string>();
-    const result: string[] = [];
+    const result: ModelOption[] = [];
     for (const option of options) {
-      const trimmed = option.trim();
-      if (!trimmed || seen.has(trimmed)) continue;
-      seen.add(trimmed);
-      result.push(trimmed);
+      const id = option.id.trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      result.push({ ...option, id });
     }
     return result;
   }, [options]);
   const trimmedQuery = query.trim();
   const showCustomItem =
-    trimmedQuery !== "" && !knownOptions.some(option => option === trimmedQuery);
+    trimmedQuery !== "" && !knownOptions.some(option => option.id === trimmedQuery);
 
   const handleSelect = (next: string) => {
     onChange(next);
@@ -139,13 +159,24 @@ export function ModelCommandSelect({
               <CommandGroup heading="Available models" data-testid="model-command-available-group">
                 {knownOptions.map(option => (
                   <CommandItem
-                    key={option}
-                    value={option}
-                    onSelect={() => handleSelect(option)}
-                    data-checked={trimmedValue === option ? "true" : "false"}
-                    data-testid={`model-command-item-${option}`}
+                    key={option.id}
+                    value={option.id}
+                    onSelect={() => handleSelect(option.id)}
+                    data-checked={trimmedValue === option.id ? "true" : "false"}
+                    data-testid={`model-command-item-${option.id}`}
+                    data-availability={option.availabilityState}
                   >
-                    <span className="truncate text-sm text-foreground">{option}</span>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="truncate text-sm text-foreground">{option.displayName}</span>
+                      <Pill
+                        mono
+                        tone={AVAILABILITY_TONES[option.availabilityState] ?? "neutral"}
+                        className="ml-auto"
+                        data-testid={`model-command-item-${option.id}-availability`}
+                      >
+                        {AVAILABILITY_LABELS[option.availabilityState] ?? option.availabilityState}
+                      </Pill>
+                    </div>
                   </CommandItem>
                 ))}
               </CommandGroup>
