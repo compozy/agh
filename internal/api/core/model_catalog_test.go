@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +19,7 @@ import (
 func TestBaseHandlersModelCatalogDependency(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldCarryModelCatalogServiceFromConfig", func(t *testing.T) {
+	t.Run("Should carry model catalog service from config", func(t *testing.T) {
 		t.Parallel()
 
 		service := coreModelCatalogServiceStub{}
@@ -80,6 +81,35 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 			t.Fatalf("payload JSON = %s, want nullable available field", encoded)
 		}
 	})
+
+	t.Run("Should redact source errors in native and OpenAI projections", func(t *testing.T) {
+		t.Parallel()
+
+		model := seedModelCatalogModel("codex", "gpt-5.4")
+		model.LastError = "provider failed with api_key=sk-native-secret-token"
+		model.Sources[0].LastError = "source failed with OAUTH_TOKEN=oauth-secret-token"
+
+		nativePayload := ProviderModelPayloadFromModel(model)
+		assertRedactedModelCatalogPayload(t, nativePayload.LastError, "sk-native-secret-token")
+		assertRedactedModelCatalogPayload(t, nativePayload.Sources[0].LastError, "oauth-secret-token")
+
+		openAIPayload := OpenAIModelPayloadFromModel(model)
+		assertRedactedModelCatalogPayload(t, openAIPayload.AGH.LastError, "sk-native-secret-token")
+
+		statusPayloads := SourceStatusPayloadsFromStatuses([]modelcatalog.SourceStatus{
+			{
+				SourceID:     modelcatalog.SourceIDModelsDev,
+				SourceKind:   modelcatalog.SourceKindModelsDev,
+				ProviderID:   "codex",
+				RefreshState: string(modelcatalog.RefreshStateFailed),
+				LastError:    "models.dev failed with Bearer ya29.api-secret-token",
+			},
+		})
+		if got, want := len(statusPayloads), 1; got != want {
+			t.Fatalf("len(statusPayloads) = %d, want %d", got, want)
+		}
+		assertRedactedModelCatalogPayload(t, statusPayloads[0].LastError, "ya29.api-secret-token")
+	})
 }
 
 func TestProviderModelCatalogHandlers(t *testing.T) {
@@ -140,6 +170,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 	t.Run("Should return source statuses when refresh fails", func(t *testing.T) {
 		t.Parallel()
 
+		secret := "sk-refresh-secret-token"
 		service := &modelCatalogServiceSpy{
 			refreshFn: func(_ context.Context, _ modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error) {
 				return []modelcatalog.SourceStatus{
@@ -148,10 +179,10 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 						SourceKind:   modelcatalog.SourceKindConfig,
 						ProviderID:   "codex",
 						RefreshState: string(modelcatalog.RefreshStateFailed),
-						LastError:    "config source failed",
+						LastError:    "config source failed with api_key=" + secret,
 						Stale:        true,
 					},
-				}, modelcatalog.ErrAllSourcesFailed
+				}, fmt.Errorf("%w: api_key=%s", modelcatalog.ErrAllSourcesFailed, secret)
 			},
 		}
 		engine := newModelCatalogCoreEngine(t, service)
@@ -168,6 +199,8 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 		if payload.Error == "" {
 			t.Fatalf("payload.Error = empty, want refresh error")
 		}
+		assertRedactedModelCatalogPayload(t, payload.Error, secret)
+		assertRedactedModelCatalogPayload(t, payload.Sources[0].LastError, secret)
 	})
 }
 
@@ -336,6 +369,17 @@ func seedModelCatalogModel(providerID string, modelID string) modelcatalog.Model
 				Priority:   modelcatalog.PriorityConfig,
 			},
 		},
+	}
+}
+
+func assertRedactedModelCatalogPayload(t *testing.T, value string, secret string) {
+	t.Helper()
+
+	if strings.Contains(value, secret) {
+		t.Fatalf("payload value = %q, want secret redacted", value)
+	}
+	if !strings.Contains(value, "[REDACTED]") {
+		t.Fatalf("payload value = %q, want redaction marker", value)
 	}
 }
 

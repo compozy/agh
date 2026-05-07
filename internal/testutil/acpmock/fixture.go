@@ -49,12 +49,27 @@ type Fixture struct {
 
 // AgentFixture describes one named ACP mock agent inside a fixture file.
 type AgentFixture struct {
-	Name        string        `json:"name"`
-	Provider    string        `json:"provider"`
-	Model       string        `json:"model,omitempty"`
-	Permissions string        `json:"permissions,omitempty"`
-	Prompt      string        `json:"prompt,omitempty"`
-	Turns       []TurnFixture `json:"turns"`
+	Name          string                       `json:"name"`
+	Provider      string                       `json:"provider"`
+	Model         string                       `json:"model,omitempty"`
+	Permissions   string                       `json:"permissions,omitempty"`
+	Prompt        string                       `json:"prompt,omitempty"`
+	ConfigOptions []SessionConfigOptionFixture `json:"config_options,omitempty"`
+	Turns         []TurnFixture                `json:"turns"`
+}
+
+// SessionConfigOptionFixture describes one deterministic ACP session config select option.
+type SessionConfigOptionFixture struct {
+	ID      string                            `json:"id"`
+	Name    string                            `json:"name"`
+	Current string                            `json:"current"`
+	Values  []SessionConfigOptionValueFixture `json:"values"`
+}
+
+// SessionConfigOptionValueFixture describes one selectable ACP config option value.
+type SessionConfigOptionValueFixture struct {
+	Value string `json:"value"`
+	Label string `json:"label,omitempty"`
 }
 
 // TurnFixture describes one deterministic prompt turn for an agent.
@@ -252,10 +267,53 @@ func (a AgentFixture) Validate(path string) error {
 	if len(a.Turns) == 0 {
 		return fmt.Errorf("acpmock: %s.turns must contain at least one turn", path)
 	}
+	for idx, option := range a.ConfigOptions {
+		if err := option.Validate(fmt.Sprintf("%s.config_options[%d]", path, idx)); err != nil {
+			return err
+		}
+	}
 	for idx, turn := range a.Turns {
 		if err := turn.Validate(fmt.Sprintf("%s.turns[%d]", path, idx)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// Validate ensures one session config option is deterministic and selectable.
+func (o SessionConfigOptionFixture) Validate(path string) error {
+	id := strings.TrimSpace(o.ID)
+	if id == "" {
+		return fmt.Errorf("acpmock: %s.id is required", path)
+	}
+	name := strings.TrimSpace(o.Name)
+	if name == "" {
+		return fmt.Errorf("acpmock: %s.name is required", path)
+	}
+	current := strings.TrimSpace(o.Current)
+	if current == "" {
+		return fmt.Errorf("acpmock: %s.current is required", path)
+	}
+	if len(o.Values) == 0 {
+		return fmt.Errorf("acpmock: %s.values must contain at least one value", path)
+	}
+	seen := make(map[string]struct{}, len(o.Values))
+	currentFound := false
+	for idx, value := range o.Values {
+		trimmed := strings.TrimSpace(value.Value)
+		if trimmed == "" {
+			return fmt.Errorf("acpmock: %s.values[%d].value is required", path, idx)
+		}
+		if _, exists := seen[trimmed]; exists {
+			return fmt.Errorf("acpmock: %s.values[%d].value duplicates %q", path, idx, trimmed)
+		}
+		seen[trimmed] = struct{}{}
+		if trimmed == current {
+			currentFound = true
+		}
+	}
+	if !currentFound {
+		return fmt.Errorf("acpmock: %s.current %q must be listed in values", path, current)
 	}
 	return nil
 }

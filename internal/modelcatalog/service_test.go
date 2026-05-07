@@ -403,6 +403,130 @@ func TestCatalogServiceRefresh(t *testing.T) {
 	})
 }
 
+func TestCatalogServiceRefreshConcurrency(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should coalesce concurrent refreshes for the same provider scope", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"codex": {
+				testRow(
+					"provider_live:codex",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(30),
+					nil,
+				),
+			},
+		})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		ctx := testutil.Context(t)
+
+		results := make(chan refreshTestResult, 2)
+		for range 2 {
+			go func() {
+				statuses, err := service.Refresh(ctx, RefreshOptions{
+					ProviderID: "codex",
+					SourceID:   source.ID(),
+					Force:      true,
+					Now:        testTime(30),
+				})
+				results <- refreshTestResult{statuses: statuses, err: err}
+			}()
+		}
+		source.waitForCalls(t, 1)
+		source.requireCallCountStable(t, 1, 25*time.Millisecond)
+		source.release()
+
+		for range 2 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("Refresh() error = %v", result.err)
+			}
+			if got, want := len(result.statuses), 1; got != want {
+				t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, result.statuses)
+			}
+		}
+	})
+
+	t.Run("Should let concurrent refreshes across providers replace rows deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"claude": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"claude",
+					"claude-sonnet-4-6",
+					testTime(31),
+					nil,
+				),
+			},
+			"codex": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(31),
+					nil,
+				),
+			},
+		})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		ctx := testutil.Context(t)
+
+		results := make(chan refreshTestResult, 2)
+		for _, providerID := range []string{"codex", "claude"} {
+			go func(providerID string) {
+				statuses, err := service.Refresh(ctx, RefreshOptions{
+					ProviderID: providerID,
+					SourceID:   source.ID(),
+					Force:      true,
+					Now:        testTime(31),
+				})
+				results <- refreshTestResult{statuses: statuses, err: err}
+			}(providerID)
+		}
+		source.waitForCalls(t, 2)
+		source.release()
+
+		for range 2 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("Refresh() error = %v", result.err)
+			}
+			if got, want := len(result.statuses), 1; got != want {
+				t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, result.statuses)
+			}
+		}
+		models, err := service.ListModels(
+			ctx,
+			ListOptions{IncludeStale: true, Now: testTime(32)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got, want := modelKeys(models), []string{"claude/claude-sonnet-4-6", "codex/gpt-5.4"}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("model keys = %#v, want %#v", got, want)
+		}
+		if got, want := source.callCount(), 2; got != want {
+			t.Fatalf("source calls = %d, want %d cross-provider calls", got, want)
+		}
+	})
+}
+
 type fakeSource struct {
 	id        string
 	kind      SourceKind
@@ -443,6 +567,122 @@ func (s *fakeSource) ListModels(_ context.Context, opts ListOptions) ([]ModelRow
 		}
 	}
 	return rows, s.err
+}
+
+type refreshTestResult struct {
+	statuses []SourceStatus
+	err      error
+}
+
+type blockingRefreshSource struct {
+	mu             sync.Mutex
+	rowsByProvider map[string][]ModelRow
+	calls          int
+	callsCh        chan int
+	releaseCh      chan struct{}
+	releaseOnce    sync.Once
+}
+
+func newBlockingRefreshSource(rowsByProvider map[string][]ModelRow) *blockingRefreshSource {
+	return &blockingRefreshSource{
+		rowsByProvider: rowsByProvider,
+		callsCh:        make(chan int, 16),
+		releaseCh:      make(chan struct{}),
+	}
+}
+
+func (s *blockingRefreshSource) ID() string {
+	return "provider_live:shared"
+}
+
+func (s *blockingRefreshSource) Kind() SourceKind {
+	return SourceKindProviderLive
+}
+
+func (s *blockingRefreshSource) Priority() int {
+	return PriorityProviderLive
+}
+
+func (s *blockingRefreshSource) ProviderIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	providers := make([]string, 0, len(s.rowsByProvider))
+	for providerID := range s.rowsByProvider {
+		providers = append(providers, providerID)
+	}
+	slices.Sort(providers)
+	return providers
+}
+
+func (s *blockingRefreshSource) TTL() time.Duration {
+	return 0
+}
+
+func (s *blockingRefreshSource) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
+	s.mu.Lock()
+	s.calls++
+	calls := s.calls
+	s.mu.Unlock()
+	select {
+	case s.callsCh <- calls:
+	default:
+	}
+
+	select {
+	case <-s.releaseCh:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	s.mu.Lock()
+	rows := cloneModelRows(s.rowsByProvider[opts.ProviderID])
+	s.mu.Unlock()
+	return rows, nil
+}
+
+func (s *blockingRefreshSource) waitForCalls(t *testing.T, want int) {
+	t.Helper()
+
+	deadline := time.After(time.Second)
+	for {
+		if s.callCount() >= want {
+			return
+		}
+		select {
+		case <-s.callsCh:
+		case <-deadline:
+			t.Fatalf("source calls = %d, want at least %d", s.callCount(), want)
+		}
+	}
+}
+
+func (s *blockingRefreshSource) requireCallCountStable(t *testing.T, want int, duration time.Duration) {
+	t.Helper()
+
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	for {
+		select {
+		case <-s.callsCh:
+			if got := s.callCount(); got > want {
+				t.Fatalf("source calls = %d while first refresh was blocked, want at most %d", got, want)
+			}
+		case <-timer.C:
+			return
+		}
+	}
+}
+
+func (s *blockingRefreshSource) release() {
+	s.releaseOnce.Do(func() {
+		close(s.releaseCh)
+	})
+}
+
+func (s *blockingRefreshSource) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }
 
 type memoryStore struct {

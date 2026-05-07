@@ -131,7 +131,7 @@ func (r *modelCatalogRuntime) Refresh(
 	}
 
 	refreshCtx := context.WithoutCancel(ctx)
-	refreshCtx, cancel := context.WithDeadline(refreshCtx, runtimeNow.Add(r.timeout))
+	refreshCtx, cancel := context.WithTimeout(refreshCtx, r.timeout)
 	resultCh := make(chan modelCatalogRefreshResult, 1)
 
 	r.wg.Go(func() {

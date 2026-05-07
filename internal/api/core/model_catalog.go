@@ -129,7 +129,7 @@ func (h *BaseHandlers) refreshProviderModels(c *gin.Context, providerParam strin
 	if err != nil {
 		status := StatusForModelCatalogError(err)
 		if len(payload.Sources) > 0 {
-			payload.Error = err.Error()
+			payload.Error = modelcatalog.RedactString(err.Error())
 			c.JSON(status, payload)
 			return
 		}

@@ -34,7 +34,7 @@ func ProviderModelPayloadFromModel(model modelcatalog.Model) contract.ProviderMo
 		SupportsReasoning:      model.SupportsReasoning,
 		ReasoningEfforts:       reasoningEffortStrings(model.ReasoningEfforts),
 		DefaultReasoningEffort: reasoningEffortStringPtr(model.DefaultReasoningEffort),
-		LastError:              model.LastError,
+		LastError:              modelcatalog.RedactString(model.LastError),
 	}
 	if model.CostInputPerMillion != nil || model.CostOutputPerMillion != nil {
 		payload.Cost = &contract.ModelCatalogCostPayload{
@@ -54,7 +54,7 @@ func SourceRefPayloadsFromRefs(refs []modelcatalog.SourceRef) []contract.ModelCa
 			Priority:    ref.Priority,
 			RefreshedAt: modelCatalogTimeString(ref.RefreshedAt),
 			Stale:       ref.Stale,
-			LastError:   ref.LastError,
+			LastError:   modelcatalog.RedactString(ref.LastError),
 		})
 	}
 	return payloads
@@ -73,7 +73,7 @@ func SourceStatusPayloadsFromStatuses(
 			LastRefresh:  modelCatalogTimeString(status.LastRefresh),
 			NextRefresh:  modelCatalogTimeString(status.NextRefresh),
 			LastSuccess:  modelCatalogTimeString(status.LastSuccess),
-			LastError:    status.LastError,
+			LastError:    modelcatalog.RedactString(status.LastError),
 			RefreshState: status.RefreshState,
 			RowCount:     status.RowCount,
 			Stale:        status.Stale,
@@ -116,7 +116,7 @@ func OpenAIModelPayloadFromModel(model modelcatalog.Model) contract.OpenAIModelP
 			ReasoningEfforts:       reasoningEffortStrings(model.ReasoningEfforts),
 			DefaultReasoningEffort: reasoningEffortStringPtr(model.DefaultReasoningEffort),
 			Cost:                   costPayloadFromModel(model),
-			LastError:              model.LastError,
+			LastError:              modelcatalog.RedactString(model.LastError),
 		},
 	}
 }

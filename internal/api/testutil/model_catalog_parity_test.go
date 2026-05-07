@@ -2,6 +2,7 @@ package testutil_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,9 +12,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/httpapi"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	"github.com/pedronauck/agh/internal/api/udsapi"
+	"github.com/pedronauck/agh/internal/cli"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/modelcatalog"
 )
@@ -43,6 +46,42 @@ func TestModelCatalogTransportParity(t *testing.T) {
 		}
 		if got, want := httpResp.Body.String(), udsResp.Body.String(); got != want {
 			t.Fatalf("HTTP body = %s, want UDS body %s", got, want)
+		}
+		var cliRecord cli.ProviderModelListRecord
+		if err := json.Unmarshal(httpResp.Body.Bytes(), &cliRecord); err != nil {
+			t.Fatalf("json.Unmarshal(HTTP body as CLI record) error = %v", err)
+		}
+		cliJSON, err := json.Marshal(cliRecord)
+		if err != nil {
+			t.Fatalf("json.Marshal(CLI record) error = %v", err)
+		}
+		if got, want := string(cliJSON), httpResp.Body.String(); got != want {
+			t.Fatalf("CLI JSON = %s, want canonical native body %s", got, want)
+		}
+
+		openAIResp := performParityRequest(
+			t,
+			httpEngine,
+			http.MethodGet,
+			"/api/openai/v1/models?provider_id=codex",
+		)
+		if openAIResp.Code != http.StatusOK {
+			t.Fatalf("OpenAI status = %d, want 200; body=%s", openAIResp.Code, openAIResp.Body.String())
+		}
+		var openAIPayload contract.OpenAIModelListResponse
+		if err := json.Unmarshal(openAIResp.Body.Bytes(), &openAIPayload); err != nil {
+			t.Fatalf("json.Unmarshal(OpenAI body) error = %v", err)
+		}
+		if len(openAIPayload.Data) != 1 {
+			t.Fatalf("OpenAI data = %#v, want one model", openAIPayload.Data)
+		}
+		openAIModel := openAIPayload.Data[0]
+		nativeModel := cliRecord.Models[0]
+		if openAIModel.ID != nativeModel.ModelID ||
+			openAIModel.OwnedBy != nativeModel.ProviderID ||
+			openAIModel.AGH.ProviderID != nativeModel.ProviderID ||
+			openAIModel.AGH.ModelID != nativeModel.ModelID {
+			t.Fatalf("OpenAI model = %#v, want native catalog identity %#v", openAIModel, nativeModel)
 		}
 	})
 }

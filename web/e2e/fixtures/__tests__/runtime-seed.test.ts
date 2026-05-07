@@ -1118,7 +1118,17 @@ describe("browser runtime seed helpers", () => {
             name: "browser-provider",
             settings: {
               command: "browser-provider",
-              models: { default: "gpt-5.4", curated: [{ id: "gpt-5.4" }] },
+              models: {
+                default: "gpt-5.4",
+                curated: [
+                  {
+                    id: "gpt-5.4",
+                    supports_reasoning: true,
+                    reasoning_efforts: ["low", "medium", "high"],
+                    default_reasoning_effort: "medium",
+                  },
+                ],
+              },
             },
           },
         ],
@@ -1167,6 +1177,28 @@ describe("browser runtime seed helpers", () => {
       "/api/settings/providers/browser-provider",
       expect.objectContaining({ method: "PUT" })
     );
+    const providerRequest = requestJSON.mock.calls.find(
+      ([pathname]) => pathname === "/api/settings/providers/browser-provider"
+    );
+    if (!providerRequest) {
+      throw new Error("settings provider seed did not issue provider PUT request");
+    }
+    const providerInit = providerRequest[1] as RequestInit;
+    const providerBody = JSON.parse(String(providerInit.body));
+    expect(providerBody.settings.models).toMatchObject({
+      default: "gpt-5.4",
+      curated: [
+        {
+          id: "gpt-5.4",
+          supports_reasoning: true,
+          reasoning_efforts: ["low", "medium", "high"],
+          default_reasoning_effort: "medium",
+        },
+      ],
+    });
+    expect(JSON.stringify(providerBody)).not.toContain("default_model");
+    expect(JSON.stringify(providerBody)).not.toContain("supported_models");
+    expect(JSON.stringify(providerBody)).not.toContain("supports_reasoning_effort");
     expect(requestJSON).toHaveBeenCalledWith(
       "/api/settings/hooks/browser-turn-end",
       expect.objectContaining({ method: "PUT" })

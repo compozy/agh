@@ -91,7 +91,7 @@ func (h *HostAPIHandler) handleModelsRefresh(
 	}
 	if err != nil {
 		if len(payload.Sources) > 0 {
-			payload.Error = err.Error()
+			payload.Error = modelcatalog.RedactString(err.Error())
 			return payload, nil
 		}
 		return nil, hostAPIModelCatalogRPCError(err)
@@ -172,7 +172,7 @@ func hostAPIModelCatalogRPCError(err error) error {
 	if errors.Is(err, modelcatalog.ErrSourceNotRegistered) {
 		return invalidParamsRPCError(err)
 	}
-	return unavailableRPCError(err)
+	return unavailableRPCError(errors.New(modelcatalog.RedactString(err.Error())))
 }
 
 func hostAPIProviderModelListPayloadFromModels(models []modelcatalog.Model) apicontract.ProviderModelListResponse {
@@ -203,7 +203,7 @@ func hostAPIProviderModelPayloadFromModel(model modelcatalog.Model) apicontract.
 		ReasoningEfforts:       hostAPIReasoningEffortStrings(model.ReasoningEfforts),
 		DefaultReasoningEffort: hostAPIReasoningEffortStringPtr(model.DefaultReasoningEffort),
 		Cost:                   hostAPICostPayloadFromModel(model),
-		LastError:              model.LastError,
+		LastError:              modelcatalog.RedactString(model.LastError),
 	}
 }
 
@@ -216,7 +216,7 @@ func hostAPISourceRefPayloadsFromRefs(refs []modelcatalog.SourceRef) []apicontra
 			Priority:    ref.Priority,
 			RefreshedAt: hostAPIModelCatalogTimeString(ref.RefreshedAt),
 			Stale:       ref.Stale,
-			LastError:   ref.LastError,
+			LastError:   modelcatalog.RedactString(ref.LastError),
 		})
 	}
 	return payloads
@@ -235,7 +235,7 @@ func hostAPISourceStatusPayloadsFromStatuses(
 			LastRefresh:  hostAPIModelCatalogTimeString(status.LastRefresh),
 			NextRefresh:  hostAPIModelCatalogTimeString(status.NextRefresh),
 			LastSuccess:  hostAPIModelCatalogTimeString(status.LastSuccess),
-			LastError:    status.LastError,
+			LastError:    modelcatalog.RedactString(status.LastError),
 			RefreshState: status.RefreshState,
 			RowCount:     status.RowCount,
 			Stale:        status.Stale,

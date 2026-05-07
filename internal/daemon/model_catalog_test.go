@@ -1,8 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,7 +18,7 @@ import (
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldComposeCatalogServiceWhenGlobalDBAndConfigAreAvailable", func(t *testing.T) {
+	t.Run("Should compose catalog service when global DB and config are available", func(t *testing.T) {
 		t.Parallel()
 
 		daemonInstance, httpDeps, udsDeps := bootModelCatalogTestDaemon(t, nil)
@@ -46,7 +49,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRecordLiveSourceStatusWhenOptionalDependencyIsMissing", func(t *testing.T) {
+	t.Run("Should record live source status when optional dependency is missing", func(t *testing.T) {
 		t.Parallel()
 
 		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, nil)
@@ -76,7 +79,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldCancelAndJoinRefreshWorkOnShutdown", func(t *testing.T) {
+	t.Run("Should cancel and join refresh work on shutdown", func(t *testing.T) {
 		t.Parallel()
 
 		service := newBlockingModelCatalogService()
@@ -124,7 +127,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		waitForCatalogTestSignal(t, service.released, "refresh release")
 	})
 
-	t.Run("ShouldReturnShutdownDeadlineWhenRefreshWorkerDoesNotStopInTime", func(t *testing.T) {
+	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
 
 		service := newManuallyReleasedModelCatalogService()
@@ -163,7 +166,59 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		waitForCatalogTestSignal(t, service.released, "manual refresh release")
 	})
 
-	t.Run("ShouldRefreshBeforeListingWhenListRequestsRefresh", func(t *testing.T) {
+	t.Run("Should apply runtime timeout to detached refresh work", func(t *testing.T) {
+		t.Parallel()
+
+		service := newBlockingModelCatalogService()
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			func() time.Time {
+				return time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+			},
+			20*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+
+		_, err = runtime.Refresh(testutil.Context(t), modelcatalog.RefreshOptions{
+			ProviderID: "codex",
+			SourceID:   modelcatalog.SourceIDBuiltin,
+			Force:      true,
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Refresh(timeout) error = %v, want context.DeadlineExceeded", err)
+		}
+		waitForCatalogTestSignal(t, service.released, "timed refresh release")
+	})
+
+	t.Run("Should redact source errors in refresh logs", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		runtime := &modelCatalogRuntime{
+			logger: slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		runtime.logRefreshFailure(
+			modelcatalog.RefreshOptions{
+				ProviderID: "codex",
+				SourceID:   modelcatalog.SourceIDModelsDev,
+				RequestID:  "req-redaction",
+			},
+			errors.New("source failed with api_key=sk-super-secret-token-123"),
+		)
+		output := logs.String()
+		if strings.Contains(output, "sk-super-secret-token-123") {
+			t.Fatalf("log output = %q, want secret redacted", output)
+		}
+		if !strings.Contains(output, "[REDACTED]") {
+			t.Fatalf("log output = %q, want redaction marker", output)
+		}
+	})
+
+	t.Run("Should refresh before listing when list requests refresh", func(t *testing.T) {
 		t.Parallel()
 
 		service := &recordingModelCatalogService{
@@ -206,7 +261,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldValidateRuntimeDependencies", func(t *testing.T) {
+	t.Run("Should validate runtime dependencies", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := newModelCatalogRuntime(testutil.Context(t), nil, nil, nil, 0); err == nil {
@@ -244,7 +299,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldDisableCatalogWhenRegistryDoesNotExposeStore", func(t *testing.T) {
+	t.Run("Should disable catalog when registry does not expose store", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -263,7 +318,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectInvalidTimeoutsDuringCatalogBoot", func(t *testing.T) {
+	t.Run("Should reject invalid timeouts during catalog boot", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -288,7 +343,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldUseEnvSecretResolverWhenVaultUnavailable", func(t *testing.T) {
+	t.Run("Should use env secret resolver when vault is unavailable", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)

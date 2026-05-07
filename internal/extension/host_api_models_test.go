@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,12 +40,14 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 							SourceKind:  modelcatalog.SourceKindConfig,
 							Priority:    modelcatalog.PriorityConfig,
 							RefreshedAt: now,
+							LastError:   "source failed with OAUTH_TOKEN=oauth-host-secret-token",
 						},
 					},
 					ReasoningEfforts:       []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
 					DefaultReasoningEffort: &defaultEffort,
 					CostInputPerMillion:    &cost,
 					CostOutputPerMillion:   &cost,
+					LastError:              "model failed with api_key=sk-host-secret-token",
 				},
 			},
 		}
@@ -85,6 +89,8 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		if model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != "high" {
 			t.Fatalf("models/list default reasoning effort = %#v, want high", model.DefaultReasoningEffort)
 		}
+		assertRedactedHostAPIModelPayload(t, model.LastError, "sk-host-secret-token")
+		assertRedactedHostAPIModelPayload(t, model.Sources[0].LastError, "oauth-host-secret-token")
 		if len(service.listOpts) != 1 {
 			t.Fatalf("len(service.listOpts) = %d, want 1", len(service.listOpts))
 		}
@@ -102,6 +108,7 @@ func TestHostAPIModelsRefreshShouldReturnStatusPayloadOnSourceFailure(t *testing
 		t.Parallel()
 
 		now := time.Date(2026, 5, 7, 12, 15, 0, 0, time.UTC)
+		secret := "sk-host-refresh-secret-token"
 		service := &fakeHostAPIModelCatalogService{
 			statuses: []modelcatalog.SourceStatus{
 				{
@@ -110,12 +117,12 @@ func TestHostAPIModelsRefreshShouldReturnStatusPayloadOnSourceFailure(t *testing
 					ProviderID:   "codex",
 					Priority:     modelcatalog.PriorityExtension,
 					LastRefresh:  now,
-					LastError:    "extension unavailable",
+					LastError:    "extension unavailable api_key=" + secret,
 					RefreshState: string(modelcatalog.RefreshStateFailed),
 					Stale:        true,
 				},
 			},
-			refreshErr: modelcatalog.ErrAllSourcesFailed,
+			refreshErr: fmt.Errorf("%w: api_key=%s", modelcatalog.ErrAllSourcesFailed, secret),
 		}
 		handler := NewHostAPIHandler(
 			nil,
@@ -148,6 +155,8 @@ func TestHostAPIModelsRefreshShouldReturnStatusPayloadOnSourceFailure(t *testing
 		if payload.Error == "" || len(payload.Sources) != 1 || payload.Sources[0].RefreshState != "failed" {
 			t.Fatalf("models/refresh payload = %#v, want failed source status and error", payload)
 		}
+		assertRedactedHostAPIModelPayload(t, payload.Error, secret)
+		assertRedactedHostAPIModelPayload(t, payload.Sources[0].LastError, secret)
 		if len(service.refreshOpts) != 1 || !service.refreshOpts[0].Force {
 			t.Fatalf("Refresh opts = %#v, want force refresh recorded", service.refreshOpts)
 		}
@@ -390,6 +399,46 @@ func TestHostAPIModelsShouldMapValidationAndAvailabilityErrors(t *testing.T) {
 	}
 }
 
+func TestHostAPIModelsShouldRedactUnavailableRPCErrorData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should redact unavailable RPC error data", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "oauth-rpc-secret-token"
+		handler := NewHostAPIHandler(
+			nil,
+			nil,
+			nil,
+			nil,
+			WithHostAPIModelCatalogService(&fakeHostAPIModelCatalogService{
+				listErr: errors.New("catalog unavailable OAUTH_TOKEN=" + secret),
+			}),
+			WithHostAPICapabilityChecker(newTestCapabilityChecker(
+				"ext",
+				SourceUser,
+				[]string{"models/list"},
+				[]string{"model.read"},
+			)),
+		)
+		_, err := handler.Handle(testutil.Context(t), "ext", "models/list", json.RawMessage(`{}`))
+		if err == nil {
+			t.Fatal("Handle(models/list) error = nil, want RPC error")
+		}
+		var rpcErr *subprocess.RPCError
+		if !errors.As(err, &rpcErr) {
+			t.Fatalf("Handle(models/list) error = %T, want *RPCError", err)
+		}
+		data := string(rpcErr.Data)
+		if strings.Contains(data, secret) {
+			t.Fatalf("RPC error data = %s, want secret redacted", data)
+		}
+		if !strings.Contains(data, "[REDACTED]") {
+			t.Fatalf("RPC error data = %s, want redaction marker", data)
+		}
+	})
+}
+
 func TestHostAPIModelHelpersShouldHandleEmptyValues(t *testing.T) {
 	t.Parallel()
 
@@ -442,4 +491,15 @@ func (s *fakeHostAPIModelCatalogService) ListSourceStatus(
 ) ([]modelcatalog.SourceStatus, error) {
 	s.statusProviderIDs = append(s.statusProviderIDs, providerID)
 	return append([]modelcatalog.SourceStatus(nil), s.statuses...), s.statusErr
+}
+
+func assertRedactedHostAPIModelPayload(t *testing.T, value string, secret string) {
+	t.Helper()
+
+	if strings.Contains(value, secret) {
+		t.Fatalf("Host API payload value = %q, want secret redacted", value)
+	}
+	if !strings.Contains(value, "[REDACTED]") {
+		t.Fatalf("Host API payload value = %q, want redaction marker", value)
+	}
 }

@@ -61,7 +61,7 @@ test.use({
   },
 });
 
-test("operator can create a provider-override session and gets an inline resume failure when that provider disappears", async ({
+test("operator can create a provider/model override session and gets an inline resume failure when that provider disappears", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -114,6 +114,16 @@ test("operator can create a provider-override session and gets an inline resume 
   await appPage.setViewportSize({ width: 1280, height: 800 });
 
   await appPage.getByTestId("session-create-provider-select").selectOption(overrideProvider);
+  await appPage.getByTestId("session-create-model-select").click();
+  await expect(appPage.getByTestId("model-command-item-qa-browser-model")).toBeVisible();
+  await appPage.getByTestId("model-command-item-qa-browser-model").click();
+  await expect(appPage.getByTestId("session-create-model-select")).toContainText(
+    "qa-browser-model"
+  );
+  await expect(appPage.getByTestId("session-create-reasoning-default")).toContainText("medium");
+  await appPage.getByTestId("session-create-reasoning-select").click();
+  await expect(appPage.getByTestId("reasoning-command-item-high")).toBeVisible();
+  await appPage.getByTestId("reasoning-command-item-high").click();
 
   const createRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
@@ -128,12 +138,16 @@ test("operator can create a provider-override session and gets an inline resume 
   const createResponse = await createResponsePromise;
   const createRequestBody = createRequest.postDataJSON() as {
     agent_name?: string;
+    model?: string;
     provider?: string;
+    reasoning_effort?: string;
     workspace?: string;
   };
   expect(createRequestBody).toMatchObject({
     agent_name: browserLifecycleAgent,
+    model: "qa-browser-model",
     provider: overrideProvider,
+    reasoning_effort: "high",
     workspace: workspace.id,
   });
   expect(createResponse.ok()).toBeTruthy();
@@ -285,6 +299,12 @@ async function writeWorkspaceConfig(input: {
       `command = "${escapeTomlString(input.overrideCommand)}"`,
       `[providers.${overrideProvider}.models]`,
       `default = "qa-browser-model"`,
+      `[[providers.${overrideProvider}.models.curated]]`,
+      `id = "qa-browser-model"`,
+      `display_name = "QA Browser Model"`,
+      `supports_reasoning = true`,
+      `reasoning_efforts = ["low", "medium", "high"]`,
+      `default_reasoning_effort = "medium"`,
       `[[providers.${overrideProvider}.credential_slots]]`,
       `name = "api_key"`,
       `target_env = "QA_BROWSER_API_KEY"`,
