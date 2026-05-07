@@ -31,29 +31,49 @@ func ParseSSE(t *testing.T, body string) []SSERecord {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
-			records = append(records, current)
+			if !isEmptySSERecord(current) {
+				records = append(records, current)
+			}
 			current = SSERecord{}
 			continue
 		}
 
-		switch {
-		case strings.HasPrefix(line, "id: "):
-			current.ID = strings.TrimPrefix(line, "id: ")
-		case strings.HasPrefix(line, "event: "):
-			current.Event = strings.TrimPrefix(line, "event: ")
-		case strings.HasPrefix(line, "data: "):
+		field, value, ok := parseSSEFieldLine(line)
+		if !ok {
+			continue
+		}
+
+		switch field {
+		case "id":
+			current.ID = value
+		case "event":
+			current.Event = value
+		case "data":
 			if len(current.Data) > 0 {
 				current.Data = append(current.Data, '\n')
 			}
-			current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
+			current.Data = append(current.Data, []byte(value)...)
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		t.Fatalf("scanner.Err() = %v", err)
 	}
-	if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
+	if !isEmptySSERecord(current) {
 		records = append(records, current)
 	}
 
 	return records
+}
+
+func parseSSEFieldLine(line string) (string, string, bool) {
+	index := strings.IndexByte(line, ':')
+	if index <= 0 {
+		return "", "", false
+	}
+	value := strings.TrimPrefix(line[index+1:], " ")
+	return line[:index], value, true
+}
+
+func isEmptySSERecord(record SSERecord) bool {
+	return record.ID == "" && record.Event == "" && len(record.Data) == 0
 }

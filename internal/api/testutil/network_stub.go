@@ -19,6 +19,8 @@ type StubNetworkService struct {
 	WaitInboxFn    func(context.Context, string, string) ([]network.Envelope, error)
 }
 
+var errStubNetworkServiceWaitInboxNotImplemented = errors.New("stub network service WaitInbox not implemented")
+
 type StubNetworkStore struct {
 	ResolveDirectRoomFn        func(context.Context, store.NetworkDirectRoomEntry) (store.NetworkDirectRoomSummary, error)
 	WriteConversationMessageFn func(
@@ -94,7 +96,7 @@ func (s StubNetworkService) WaitInbox(
 	if s.WaitInboxFn != nil {
 		return s.WaitInboxFn(ctx, sessionID, channel)
 	}
-	return nil, errors.New("stub network service WaitInbox not implemented")
+	return nil, errStubNetworkServiceWaitInboxNotImplemented
 }
 
 func (s StubNetworkStore) ListNetworkAudit(

@@ -544,17 +544,20 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		})
 
 		tests := []struct {
-			name string
-			body []byte
+			name      string
+			body      []byte
+			wantField string
 		}{
 			{
-				name: "Should reject status",
+				name:      "Should reject status",
+				wantField: "status",
 				body: []byte(
 					`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true}}`,
 				),
 			},
 			{
-				name: "Should reject degradation",
+				name:      "Should reject degradation",
+				wantField: "degradation",
 				body: []byte(
 					`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"degradation":{"reason":"rate_limited"},"routing_policy":{"include_peer":true}}`,
 				),
@@ -572,6 +575,11 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 						http.StatusBadRequest,
 						resp.Body.String(),
 					)
+				}
+				var payload contract.ErrorPayload
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if !strings.Contains(payload.Error, tt.wantField) {
+					t.Fatalf("error payload = %#v, want detail mentioning %q", payload, tt.wantField)
 				}
 			})
 		}

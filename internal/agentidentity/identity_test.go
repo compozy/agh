@@ -330,22 +330,39 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 
 		now := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
 		info := &session.Info{
-			ID:          "sess-1",
-			Name:        "worker",
-			AgentName:   "coder",
-			Provider:    "provider",
-			WorkspaceID: "ws-1",
-			Workspace:   "/workspace",
-			Channel:     "main",
-			Type:        session.SessionTypeUser,
-			State:       session.StateActive,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:               "sess-1",
+			Name:             "worker",
+			AgentName:        "coder",
+			Provider:         "provider",
+			Model:            "gpt-5.4",
+			WorkspaceID:      "ws-1",
+			Workspace:        "/workspace",
+			Channel:          "main",
+			Type:             session.SessionTypeUser,
+			State:            session.StateActive,
+			SoulSnapshotID:   "soul-1",
+			SoulDigest:       "digest-1",
+			ParentSoulDigest: "digest-parent",
+			CreatedAt:        now,
+			UpdatedAt:        now,
 		}
 
 		got := SessionSnapshotFromInfo(info)
-		if got.ID != info.ID || got.WorkspacePath != info.Workspace || got.State != info.State ||
-			!got.CreatedAt.Equal(now) {
+		if got.ID != info.ID ||
+			got.Name != info.Name ||
+			got.AgentName != info.AgentName ||
+			got.Provider != info.Provider ||
+			got.Model != info.Model ||
+			got.WorkspaceID != info.WorkspaceID ||
+			got.WorkspacePath != info.Workspace ||
+			got.Channel != info.Channel ||
+			got.Type != info.Type ||
+			got.State != info.State ||
+			got.SoulSnapshotID != info.SoulSnapshotID ||
+			got.SoulDigest != info.SoulDigest ||
+			got.ParentSoulDigest != info.ParentSoulDigest ||
+			!got.CreatedAt.Equal(now) ||
+			!got.UpdatedAt.Equal(now) {
 			t.Fatalf("SessionSnapshotFromInfo() = %#v, want fields copied from session.Info", got)
 		}
 	})
@@ -373,7 +390,7 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 			name:       "Should return generic unavailable payload for ordinary errors",
 			err:        errors.New("daemon unavailable"),
 			wantCode:   "agent_error",
-			wantMsg:    "daemon unavailable",
+			wantMsg:    agentCommandFailedMessage,
 			wantAction: "inspect the daemon error and retry",
 			wantExit:   ExitUnavailable,
 		},

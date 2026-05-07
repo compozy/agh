@@ -71,7 +71,7 @@ type ErrorPayload struct {
 func ErrorPayloadFor(err error) ErrorPayload {
 	payload := ErrorPayload{
 		Code:     "agent_error",
-		Message:  strings.TrimSpace(errorString(err)),
+		Message:  agentCommandFailedMessage,
 		Action:   "inspect the daemon error and retry",
 		ExitCode: ExitCodeForError(err),
 	}
@@ -136,11 +136,4 @@ func identityError(err error, code string, message string, action string) error 
 		Action:  strings.TrimSpace(action),
 		Err:     err,
 	}
-}
-
-func errorString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }

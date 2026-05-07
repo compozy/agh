@@ -395,7 +395,7 @@ func (s StubTaskManager) EnqueueRun(
 	if s.EnqueueRunFn != nil {
 		return s.EnqueueRunFn(ctx, spec, actor)
 	}
-	return nil, taskpkg.ErrTaskRunNotFound
+	return nil, taskpkg.ErrTaskNotFound
 }
 
 func (s StubTaskManager) ClaimNextRun(

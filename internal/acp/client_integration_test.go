@@ -14,6 +14,8 @@ import (
 
 func TestACPIntegrationRoundTrip(t *testing.T) {
 	t.Run("Should return prompt events through helper ACP process", func(t *testing.T) {
+		t.Parallel()
+
 		driver := New()
 		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{})
 		defer stopProcess(t, driver, proc)
@@ -38,6 +40,8 @@ func TestACPIntegrationRoundTrip(t *testing.T) {
 
 func TestACPIntegrationReadTextFileRequest(t *testing.T) {
 	t.Run("Should read file content through ACP file callback", func(t *testing.T) {
+		t.Parallel()
+
 		driver := New()
 
 		root := t.TempDir()
@@ -69,6 +73,8 @@ func TestACPIntegrationReadTextFileRequest(t *testing.T) {
 
 func TestACPIntegrationToolHostFileWriteReadAndTerminal(t *testing.T) {
 	t.Run("Should write read and run terminal commands through the local tool host", func(t *testing.T) {
+		t.Parallel()
+
 		driver := New()
 
 		root := t.TempDir()
@@ -106,6 +112,8 @@ func TestACPIntegrationToolHostFileWriteReadAndTerminal(t *testing.T) {
 
 func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 	t.Run("Should allow an interactive edit permission request", func(t *testing.T) {
+		t.Parallel()
+
 		driver := New()
 
 		root := t.TempDir()
@@ -181,6 +189,8 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 
 func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
 	t.Run("Should reject an interactive edit permission request after timeout", func(t *testing.T) {
+		t.Parallel()
+
 		driver := New(WithPermissionTimeout(25 * time.Millisecond))
 
 		root := t.TempDir()

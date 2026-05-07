@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"slices"
 	"strings"
 	"time"
@@ -352,10 +353,22 @@ func semanticJSONValuesEqual(left any, right any) bool {
 		return true
 	case json.Number:
 		rightValue, ok := right.(json.Number)
-		return ok && leftValue.String() == rightValue.String()
+		return ok && semanticJSONNumbersEqual(leftValue, rightValue)
 	default:
 		return left == right
 	}
+}
+
+func semanticJSONNumbersEqual(left json.Number, right json.Number) bool {
+	leftValue, ok := new(big.Rat).SetString(left.String())
+	if !ok {
+		return false
+	}
+	rightValue, ok := new(big.Rat).SetString(right.String())
+	if !ok {
+		return false
+	}
+	return leftValue.Cmp(rightValue) == 0
 }
 
 func cloneBridgeInstances(instances []BridgeInstance) []BridgeInstance {

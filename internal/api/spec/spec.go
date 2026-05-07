@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -4511,7 +4510,15 @@ func cloneSpecValue(value any) any {
 	switch typed := value.(type) {
 	case map[string]any:
 		cloned := make(map[string]any, len(typed))
-		maps.Copy(cloned, typed)
+		for key, item := range typed {
+			cloned[key] = cloneSpecValue(item)
+		}
+		return cloned
+	case []any:
+		cloned := make([]any, len(typed))
+		for index, item := range typed {
+			cloned[index] = cloneSpecValue(item)
+		}
 		return cloned
 	default:
 		return value

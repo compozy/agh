@@ -22,24 +22,28 @@ func TestCanonicalHostNormalizesBoundHostPorts(t *testing.T) {
 			loopback bool
 			wildcard bool
 		}{
-			{name: "loopback IPv4", raw: "127.0.0.1:2123", want: "127.0.0.1", loopback: true},
-			{name: "loopback name", raw: "localhost:2123", want: "localhost", loopback: true},
-			{name: "loopback IPv6", raw: "[::1]:2123", want: "::1", loopback: true},
-			{name: "loopback URL", raw: "http://127.0.0.1:2123", want: "127.0.0.1", loopback: true},
-			{name: "wildcard IPv4", raw: "0.0.0.0:2123", want: "0.0.0.0", wildcard: true},
+			{name: "Should normalize loopback IPv4", raw: "127.0.0.1:2123", want: "127.0.0.1", loopback: true},
+			{name: "Should normalize loopback name", raw: "localhost:2123", want: "localhost", loopback: true},
+			{name: "Should normalize loopback IPv6", raw: "[::1]:2123", want: "::1", loopback: true},
+			{name: "Should normalize loopback URL", raw: "http://127.0.0.1:2123", want: "127.0.0.1", loopback: true},
+			{name: "Should normalize wildcard IPv4", raw: "0.0.0.0:2123", want: "0.0.0.0", wildcard: true},
 		}
 
 		for _, tt := range tests {
-			got := canonicalHost(tt.raw)
-			if got != tt.want {
-				t.Fatalf("%s: canonicalHost(%q) = %q, want %q", tt.name, tt.raw, got, tt.want)
-			}
-			if isLoopbackHost(got) != tt.loopback {
-				t.Fatalf("%s: isLoopbackHost(%q) = %v, want %v", tt.name, got, isLoopbackHost(got), tt.loopback)
-			}
-			if isWildcardHost(got) != tt.wildcard {
-				t.Fatalf("%s: isWildcardHost(%q) = %v, want %v", tt.name, got, isWildcardHost(got), tt.wildcard)
-			}
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				got := canonicalHost(tt.raw)
+				if got != tt.want {
+					t.Fatalf("canonicalHost(%q) = %q, want %q", tt.raw, got, tt.want)
+				}
+				if isLoopbackHost(got) != tt.loopback {
+					t.Fatalf("isLoopbackHost(%q) = %v, want %v", got, isLoopbackHost(got), tt.loopback)
+				}
+				if isWildcardHost(got) != tt.wildcard {
+					t.Fatalf("isWildcardHost(%q) = %v, want %v", got, isWildcardHost(got), tt.wildcard)
+				}
+			})
 		}
 	})
 }
@@ -75,6 +79,9 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 		}
 		if got, want := recorder.Header().Get("Access-Control-Allow-Origin"), "http://127.0.0.1:2123"; got != want {
 			t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, want)
+		}
+		if got := recorder.Body.String(); got != "" {
+			t.Fatalf("body = %q, want empty body", got)
 		}
 	})
 }
@@ -116,6 +123,9 @@ func TestLoopbackGuardsHandleBoundHostPorts(t *testing.T) {
 				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tt.wantStatus, recorder.Body.String())
 			}
 			if tt.wantError == "" {
+				if got := recorder.Body.String(); got != "" {
+					t.Fatalf("body = %q, want empty body", got)
+				}
 				return
 			}
 

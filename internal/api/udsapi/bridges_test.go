@@ -13,61 +13,78 @@ import (
 func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
 	t.Parallel()
 
-	homePaths := newTestHomePaths(t)
-	bridges := stubBridgeService{
-		CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-			if req.Scope != bridgepkg.ScopeGlobal || req.Platform != "telegram" ||
-				req.ExtensionName != "ext-telegram" ||
-				req.DisplayName != "Support" {
-				t.Fatalf("CreateInstance() req = %#v", req)
-			}
-			if req.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
-				t.Fatalf("CreateInstance().DMPolicy = %q, want %q", req.DMPolicy, bridgepkg.BridgeDMPolicyPairing)
-			}
-			if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
-				t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
-			}
-			if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
-				t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
-			}
-			return &bridgepkg.BridgeInstance{
-				ID:               "brg-uds",
-				Scope:            req.Scope,
-				Platform:         req.Platform,
-				ExtensionName:    req.ExtensionName,
-				DisplayName:      req.DisplayName,
-				Enabled:          req.Enabled,
-				Status:           req.Status,
-				DMPolicy:         req.DMPolicy,
-				RoutingPolicy:    req.RoutingPolicy,
-				ProviderConfig:   req.ProviderConfig,
-				DeliveryDefaults: req.DeliveryDefaults,
-				CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-				UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-			}, nil
-		},
-	}
+	t.Run("Should return persisted payload with derived starting status", func(t *testing.T) {
+		t.Parallel()
 
-	engine := newTestRouter(
-		t,
-		newTestHandlersWithBridges(t, stubSessionManager{}, stubObserver{}, bridges, stubWorkspaceService{}, homePaths),
-	)
-	body := []byte(
-		`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
-	)
-	recorder := performRequest(t, engine, http.MethodPost, "/api/bridges", body)
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
-	}
+		homePaths := newTestHomePaths(t)
+		bridges := stubBridgeService{
+			CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
+				if req.Scope != bridgepkg.ScopeGlobal || req.Platform != "telegram" ||
+					req.ExtensionName != "ext-telegram" ||
+					req.DisplayName != "Support" {
+					t.Fatalf("CreateInstance() req = %#v", req)
+				}
+				if req.Status != bridgepkg.BridgeStatusStarting {
+					t.Fatalf("CreateInstance().Status = %q, want %q", req.Status, bridgepkg.BridgeStatusStarting)
+				}
+				if req.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
+					t.Fatalf("CreateInstance().DMPolicy = %q, want %q", req.DMPolicy, bridgepkg.BridgeDMPolicyPairing)
+				}
+				if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
+					t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
+				}
+				if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+					t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               "brg-uds",
+					Scope:            req.Scope,
+					Platform:         req.Platform,
+					ExtensionName:    req.ExtensionName,
+					DisplayName:      req.DisplayName,
+					Enabled:          req.Enabled,
+					Status:           req.Status,
+					DMPolicy:         req.DMPolicy,
+					RoutingPolicy:    req.RoutingPolicy,
+					ProviderConfig:   req.ProviderConfig,
+					DeliveryDefaults: req.DeliveryDefaults,
+					CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+					UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+				}, nil
+			},
+		}
 
-	var response contract.BridgeResponse
-	decodeJSONResponse(t, recorder, &response)
-	if response.Bridge.ID != "brg-uds" || response.Bridge.Scope != bridgepkg.ScopeGlobal {
-		t.Fatalf("response.Bridge = %#v", response.Bridge)
-	}
-	if got, want := string(response.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
-		t.Fatalf("response.Bridge.ProviderConfig = %s, want %s", got, want)
-	}
+		engine := newTestRouter(
+			t,
+			newTestHandlersWithBridges(
+				t,
+				stubSessionManager{},
+				stubObserver{},
+				bridges,
+				stubWorkspaceService{},
+				homePaths,
+			),
+		)
+		body := []byte(
+			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+		)
+		recorder := performRequest(t, engine, http.MethodPost, "/api/bridges", body)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
+		}
+
+		var response contract.BridgeResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Bridge.ID != "brg-uds" || response.Bridge.Scope != bridgepkg.ScopeGlobal {
+			t.Fatalf("response.Bridge = %#v", response.Bridge)
+		}
+		if response.Bridge.Status != bridgepkg.BridgeStatusStarting {
+			t.Fatalf("response.Bridge.Status = %q, want %q", response.Bridge.Status, bridgepkg.BridgeStatusStarting)
+		}
+		if got, want := string(response.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
+			t.Fatalf("response.Bridge.ProviderConfig = %s, want %s", got, want)
+		}
+	})
 }
 
 func TestGetBridgeHandlerReturnsPersistedPayload(t *testing.T) {

@@ -68,6 +68,34 @@ func TestOperationsReturnDefensiveCopies(t *testing.T) {
 			t.Fatalf("fresh RequestBody contains %q after mutating returned copy", mutatedKey)
 		}
 	})
+
+	t.Run("Should deep clone nested map and slice values", func(t *testing.T) {
+		t.Parallel()
+
+		original := map[string]any{
+			"nested": map[string]any{
+				"name": "stable",
+			},
+			"items": []any{
+				map[string]any{"id": "item-1"},
+			},
+		}
+
+		cloned, ok := cloneSpecValue(original).(map[string]any)
+		if !ok {
+			t.Fatalf("cloneSpecValue() = %T, want map[string]any", cloneSpecValue(original))
+		}
+
+		cloned["nested"].(map[string]any)["name"] = "mutated"
+		cloned["items"].([]any)[0].(map[string]any)["id"] = "item-2"
+
+		if got, want := original["nested"].(map[string]any)["name"], "stable"; got != want {
+			t.Fatalf("original nested name = %v, want %v", got, want)
+		}
+		if got, want := original["items"].([]any)[0].(map[string]any)["id"], "item-1"; got != want {
+			t.Fatalf("original nested slice item = %v, want %v", got, want)
+		}
+	})
 }
 
 func operationSpecFor(t *testing.T, operations []OperationSpec, path string, method string) OperationSpec {

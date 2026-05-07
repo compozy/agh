@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/skills"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -87,3 +88,5 @@ func (s StubSkillsRegistry) SetEnabledForAgent(
 	}
 	return nil
 }
+
+var _ core.SkillsRegistry = (*StubSkillsRegistry)(nil)

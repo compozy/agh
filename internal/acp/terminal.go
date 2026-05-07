@@ -42,6 +42,7 @@ type managedTerminal struct {
 
 	cmd           *exec.Cmd
 	processRecord *toolruntime.Handle
+	outputLimit   int
 
 	networkOwned   bool
 	ownerSessionID string
@@ -102,6 +103,7 @@ func (p *AgentProcess) handleCreateTerminal(
 	}
 	p.recordTerminalOwnership(response.TerminalId, ownership)
 	if err := p.registerExternalTerminalProcess(ctx, host, response.TerminalId, request, ownership); err != nil {
+		p.deleteTerminalOwnership(response.TerminalId)
 		if killErr := host.KillTerminal(response.TerminalId); killErr != nil {
 			slog.Default().Warn(
 				"acp: cleanup unregistered terminal",
@@ -127,6 +129,19 @@ func (p *AgentProcess) recordTerminalOwnership(id string, ownership terminalOwne
 	p.terminalOwnership[id] = ownership
 }
 
+func (p *AgentProcess) deleteTerminalOwnership(id string) {
+	if strings.TrimSpace(id) == "" {
+		return
+	}
+
+	p.terminalOwnershipMu.Lock()
+	defer p.terminalOwnershipMu.Unlock()
+	if p.terminalOwnership == nil {
+		return
+	}
+	delete(p.terminalOwnership, id)
+}
+
 func (p *AgentProcess) registerExternalTerminalProcess(
 	ctx context.Context,
 	host ToolHost,
@@ -141,10 +156,8 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 	if err != nil {
 		return err
 	}
-	registerCtx := ctx
-	if registerCtx == nil {
-		registerCtx = context.Background()
-	}
+	registerCtx, cancel := withoutCancelPreservingDeadline(ctx)
+	defer cancel()
 	cwd := p.Cwd
 	if request.Cwd != nil {
 		cwd = *request.Cwd
@@ -226,6 +239,7 @@ func (p *AgentProcess) handleKillTerminal(
 	if err := p.toolHostOrDefault().KillTerminal(request.TerminalId); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
+	p.deleteTerminalOwnership(request.TerminalId)
 	p.completeExternalTerminalProcess(
 		context.Background(),
 		request.TerminalId,
@@ -305,6 +319,7 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err := p.toolHostOrDefault().ReleaseTerminal(request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
+	p.deleteTerminalOwnership(request.TerminalId)
 	p.completeExternalTerminalProcess(
 		context.Background(),
 		request.TerminalId,
@@ -382,10 +397,15 @@ func (m *terminalManager) create(
 		requestEnv = nil
 	}
 	cmd.Env = mergeCommandEnv(procutil.FilteredDaemonEnv(os.Environ()), requestEnv)
+	outputLimit := defaultTerminalOutputLimit
+	if request.OutputByteLimit != nil {
+		outputLimit = max(*request.OutputByteLimit, 0)
+	}
 
 	term := &managedTerminal{
 		id:             fmt.Sprintf("term-%d", m.nextID.Add(1)),
 		cmd:            cmd,
+		outputLimit:    outputLimit,
 		networkOwned:   ownership.networkOwned,
 		ownerSessionID: strings.TrimSpace(ownership.ownerSessionID),
 		ownerTurnID:    strings.TrimSpace(ownership.ownerTurnID),
@@ -453,10 +473,9 @@ func (m *terminalManager) registerTerminalProcess(
 	if m.registry == nil || term == nil || term.cmd == nil || term.cmd.Process == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	handle, err := m.registry.Register(ctx, toolruntime.RegisterConfig{
+	registerCtx, cancel := withoutCancelPreservingDeadline(ctx)
+	defer cancel()
+	handle, err := m.registry.Register(registerCtx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceACPTerminal,
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  term.ownerSessionID,
@@ -590,10 +609,23 @@ func (t *managedTerminal) appendOutput(p []byte) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var truncated bool
-	t.output, truncated = appendTerminalOutputWindow(t.output, p, defaultTerminalOutputLimit)
+	t.output, truncated = appendTerminalOutputWindow(t.output, p, t.outputLimit)
 	if truncated {
 		t.truncated = true
 	}
+}
+
+func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.Background(), func() {}
+	}
+
+	detached := context.WithoutCancel(ctx)
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return detached, func() {}
+	}
+	return context.WithDeadline(detached, deadline)
 }
 
 func (t *managedTerminal) wait(ctx context.Context) {

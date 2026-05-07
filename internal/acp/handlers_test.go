@@ -17,6 +17,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 func TestDriverOptionsAndNormalization(t *testing.T) {
@@ -1215,7 +1216,8 @@ func TestManagedTerminalAppendOutputOverflowPreservesTrailingPartialRune(t *test
 	t.Parallel()
 
 	term := &managedTerminal{
-		output: bytes.Repeat([]byte("a"), defaultTerminalOutputLimit),
+		output:      bytes.Repeat([]byte("a"), defaultTerminalOutputLimit),
+		outputLimit: defaultTerminalOutputLimit,
 	}
 
 	term.appendOutput([]byte{0xE2})
@@ -1234,6 +1236,134 @@ func TestManagedTerminalAppendOutputOverflowPreservesTrailingPartialRune(t *test
 	}
 	if term.output[0] != 'a' {
 		t.Fatalf("first output byte = 0x%x, want 'a'", term.output[0])
+	}
+}
+
+func TestManagedTerminalAppendOutputUsesConfiguredLimit(t *testing.T) {
+	t.Parallel()
+
+	term := &managedTerminal{
+		outputLimit: 4,
+	}
+
+	term.appendOutput([]byte("abcdef"))
+
+	if got, want := string(term.output), "cdef"; got != want {
+		t.Fatalf("string(term.output) = %q, want %q", got, want)
+	}
+	if !term.truncated {
+		t.Fatal("appendOutput() truncated = false, want true")
+	}
+}
+
+func TestWithoutCancelPreservingDeadline(t *testing.T) {
+	t.Parallel()
+
+	parent, cancelParent := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
+	child, cancelChild := withoutCancelPreservingDeadline(parent)
+	defer cancelParent()
+	defer cancelChild()
+
+	parentDeadline, ok := parent.Deadline()
+	if !ok {
+		t.Fatal("parent.Deadline() = missing, want deadline")
+	}
+	childDeadline, ok := child.Deadline()
+	if !ok {
+		t.Fatal("child.Deadline() = missing, want preserved deadline")
+	}
+	if !childDeadline.Equal(parentDeadline) {
+		t.Fatalf("child deadline = %v, want %v", childDeadline, parentDeadline)
+	}
+
+	cancelParent()
+
+	select {
+	case <-child.Done():
+		t.Fatalf("child context canceled by parent: %v", child.Err())
+	default:
+	}
+}
+
+func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc.processRegistry = toolruntime.NewRegistry(failingProcessStore{upsertErr: errors.New("boom")})
+	proc.SetTurnSourceProvider(func() string { return "network" })
+
+	var killedTerminalID string
+	proc.toolHost = contextAwareToolHost{
+		createTerminalFn: func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
+			return acpsdk.CreateTerminalResponse{TerminalId: "term-external"}, nil
+		},
+		killTerminalFn: func(id string) error {
+			killedTerminalID = id
+			return nil
+		},
+	}
+
+	active, err := proc.beginPrompt("turn-network-create-failure", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	if _, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+		SessionId: "sess-direct",
+		Command:   "agh",
+		Args:      []string{"network", "status"},
+	}); err == nil {
+		t.Fatal("handleCreateTerminal() error = nil, want registration failure")
+	}
+
+	if killedTerminalID != "term-external" {
+		t.Fatalf("cleanup killed terminal = %q, want %q", killedTerminalID, "term-external")
+	}
+	if _, ok := proc.terminalOwnership["term-external"]; ok {
+		t.Fatalf("terminalOwnership = %#v, want failed terminal removed", proc.terminalOwnership)
+	}
+}
+
+func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc.SetTurnSourceProvider(func() string { return "network" })
+	proc.terminalOwnership = map[string]terminalOwnership{
+		"term-external": {
+			networkOwned:   true,
+			ownerSessionID: "sess-direct",
+			ownerTurnID:    "turn-network-release",
+		},
+	}
+
+	var releasedTerminalID string
+	proc.toolHost = contextAwareToolHost{
+		releaseTerminalFn: func(id string) error {
+			releasedTerminalID = id
+			return nil
+		},
+	}
+
+	active, err := proc.beginPrompt("turn-network-release", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	if _, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+		SessionId:  "sess-direct",
+		TerminalId: "term-external",
+	}); err != nil {
+		t.Fatalf("handleReleaseTerminal() error = %v", err)
+	}
+
+	if releasedTerminalID != "term-external" {
+		t.Fatalf("released terminal = %q, want %q", releasedTerminalID, "term-external")
+	}
+	if _, ok := proc.terminalOwnership["term-external"]; ok {
+		t.Fatalf("terminalOwnership = %#v, want released terminal removed", proc.terminalOwnership)
 	}
 }
 
@@ -1605,7 +1735,9 @@ func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess
 }
 
 type contextAwareToolHost struct {
-	createTerminalFn func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error)
+	createTerminalFn  func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error)
+	killTerminalFn    func(string) error
+	releaseTerminalFn func(string) error
 }
 
 type toolExecutionGatewayFunc func(context.Context, ToolExecutionRequest) (ToolExecutionRequest, error)
@@ -1647,7 +1779,10 @@ func (h contextAwareToolHost) CreateTerminal(
 	return h.createTerminalFn(ctx, req)
 }
 
-func (h contextAwareToolHost) KillTerminal(string) error {
+func (h contextAwareToolHost) KillTerminal(id string) error {
+	if h.killTerminalFn != nil {
+		return h.killTerminalFn(id)
+	}
 	return nil
 }
 
@@ -1659,8 +1794,30 @@ func (h contextAwareToolHost) WaitForTerminalExit(context.Context, string) (int,
 	return 0, nil
 }
 
-func (h contextAwareToolHost) ReleaseTerminal(string) error {
+func (h contextAwareToolHost) ReleaseTerminal(id string) error {
+	if h.releaseTerminalFn != nil {
+		return h.releaseTerminalFn(id)
+	}
 	return nil
+}
+
+type failingProcessStore struct {
+	upsertErr error
+}
+
+func (s failingProcessStore) UpsertProcessRecord(context.Context, toolruntime.ProcessRecord) error {
+	return s.upsertErr
+}
+
+func (failingProcessStore) UpdateProcessRecordState(context.Context, toolruntime.ProcessStateUpdate) error {
+	return nil
+}
+
+func (failingProcessStore) ListProcessRecords(
+	context.Context,
+	toolruntime.ProcessQuery,
+) ([]toolruntime.ProcessRecord, error) {
+	return nil, nil
 }
 
 func writeFakeAGHBinary(t *testing.T, dir string, body string) {

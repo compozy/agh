@@ -10,6 +10,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -136,6 +137,62 @@ func TestParseSSE(t *testing.T) {
 		}
 		if records[1].ID != "2" || records[1].Event != "done" || string(records[1].Data) != `{"ok":true}` {
 			t.Fatalf("final record = %#v, want done record", records[1])
+		}
+	})
+
+	t.Run("Should ignore empty frames and accept field lines without a space", func(t *testing.T) {
+		t.Parallel()
+
+		records := ParseSSE(t, strings.Join([]string{
+			"",
+			"id:3",
+			"event:chunk",
+			`data:{"delta":"a"}`,
+			"",
+			"",
+			"id: 4",
+			"event: done",
+			`data: {"ok":true}`,
+		}, "\n"))
+
+		if got, want := len(records), 2; got != want {
+			t.Fatalf("len(records) = %d, want %d", got, want)
+		}
+		if records[0].ID != "3" || records[0].Event != "chunk" || string(records[0].Data) != `{"delta":"a"}` {
+			t.Fatalf("first record = %#v, want compact-field frame", records[0])
+		}
+		if records[1].ID != "4" || records[1].Event != "done" || string(records[1].Data) != `{"ok":true}` {
+			t.Fatalf("second record = %#v, want spaced-field frame", records[1])
+		}
+	})
+}
+
+func TestStubNetworkServiceWaitInboxFallback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the sentinel wait-inbox error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := StubNetworkService{}.WaitInbox(context.Background(), "sess-1", "builders")
+		if !errors.Is(err, errStubNetworkServiceWaitInboxNotImplemented) {
+			t.Fatalf("WaitInbox() error = %v, want %v", err, errStubNetworkServiceWaitInboxNotImplemented)
+		}
+	})
+}
+
+func TestStubTaskManagerEnqueueRunFallback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report a missing task before any run exists", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := StubTaskManager{}.EnqueueRun(
+			context.Background(),
+			taskpkg.EnqueueRun{},
+			taskpkg.ActorContext{},
+		)
+		if !errors.Is(err, taskpkg.ErrTaskNotFound) {
+			t.Fatalf("EnqueueRun() error = %v, want %v", err, taskpkg.ErrTaskNotFound)
 		}
 	})
 }
