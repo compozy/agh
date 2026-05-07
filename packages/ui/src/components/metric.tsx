@@ -55,14 +55,14 @@ function Metric({
     >
       <span
         data-slot="metric-label"
-        className="font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="block truncate font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
       >
         {label}
       </span>
-      <div data-slot="metric-value-row" className="flex items-baseline gap-2">
+      <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"
-          className="text-[24px] font-bold leading-[30px] tracking-[-0.02em]"
+          className="min-w-0 truncate text-[24px] font-bold leading-[30px] tracking-[-0.02em]"
           style={{ color: VALUE_COLOR[tone] }}
         >
           {value}
@@ -70,7 +70,7 @@ function Metric({
         {detail !== undefined ? (
           <span
             data-slot="metric-detail"
-            className="font-mono text-[11px] leading-4 text-[color:var(--color-text-tertiary)]"
+            className="shrink-0 truncate font-mono text-[11px] leading-4 text-[color:var(--color-text-tertiary)]"
           >
             {detail}
           </span>
@@ -79,7 +79,7 @@ function Metric({
       {subtext !== undefined ? (
         <p
           data-slot="metric-subtext"
-          className="text-[13px] leading-5 text-[color:var(--color-text-secondary)]"
+          className="truncate text-[13px] leading-5 text-[color:var(--color-text-secondary)]"
         >
           {subtext}
         </p>

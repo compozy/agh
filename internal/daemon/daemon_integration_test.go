@@ -3975,8 +3975,36 @@ func (daemonSessionStopACPAgent) Cancel(context.Context, acpsdk.CancelNotificati
 	return nil
 }
 
+func (daemonSessionStopACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (daemonSessionStopACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{Sessions: []acpsdk.SessionInfo{}}, nil
+}
+
 func (daemonSessionStopACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{SessionId: "daemon-stop-helper"}, nil
+}
+
+func (daemonSessionStopACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
+}
+
+func (daemonSessionStopACPAgent) SetSessionConfigOption(
+	context.Context,
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
 }
 
 func (daemonSessionStopACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {

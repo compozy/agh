@@ -112,7 +112,7 @@ function KnowledgeEditDialog({
             {error}
           </div>
         ) : null}
-        <DialogFooter className="border-t border-[color:var(--color-divider)] bg-transparent px-5 py-3">
+        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-[color:var(--color-divider)] bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-edit-memory-btn"
             onClick={() => onOpenChange(false)}

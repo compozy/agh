@@ -99,31 +99,47 @@ test("operator can create a provider/model override session and gets an inline r
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
-  await expect(appPage.getByTestId("session-create-provider-select")).toHaveValue("claude");
+  const providerSelect = appPage.getByTestId("session-create-provider-select");
+  await expect(providerSelect).toContainText("Claude Code");
+  await expect(appPage.getByTestId("session-create-provider-runtime")).toContainText("claude");
 
+  await providerSelect.click();
   const dialogOptions = await appPage
-    .getByTestId("session-create-provider-select")
-    .locator("option")
-    .evaluateAll(options => options.map(option => (option as HTMLOptionElement).value));
-  expect(dialogOptions).toEqual(workspaceDetail.providers.map(provider => provider.name));
+    .locator('[data-testid^="provider-command-item-"]')
+    .evaluateAll(items =>
+      items
+        .map(item => item.getAttribute("data-testid")?.replace("provider-command-item-", ""))
+        .filter((value): value is string => Boolean(value))
+        .sort()
+    );
+  expect(dialogOptions).toEqual(workspaceDetail.providers.map(provider => provider.name).sort());
 
   await browserArtifacts.captureScreenshot("session-provider-dialog-desktop", appPage);
   await appPage.setViewportSize({ width: 375, height: 812 });
-  await expect(appPage.getByTestId("session-create-provider-select")).toBeVisible();
+  await expect(providerSelect).toBeVisible();
   await browserArtifacts.captureScreenshot("session-provider-dialog-mobile", appPage);
   await appPage.setViewportSize({ width: 1280, height: 800 });
 
-  await appPage.getByTestId("session-create-provider-select").selectOption(overrideProvider);
+  await appPage.getByTestId(`provider-command-item-${overrideProvider}`).click();
+  const catalogRefreshResponse = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/providers/${overrideProvider}/models/refresh`)
+  );
+  const refreshCatalog = appPage.getByTestId("session-create-catalog-refresh");
+  await expect(refreshCatalog).toBeEnabled();
+  await refreshCatalog.click();
+  expect((await catalogRefreshResponse).ok()).toBe(true);
+  await expect(appPage.getByTestId("session-create-catalog-empty")).toBeVisible();
+
   await appPage.getByTestId("session-create-model-select").click();
-  await expect(appPage.getByTestId("model-command-item-qa-browser-model")).toBeVisible();
-  await appPage.getByTestId("model-command-item-qa-browser-model").click();
+  await appPage.getByTestId("model-command-input").fill("qa-browser-model");
+  await expect(appPage.getByTestId("model-command-item-custom")).toBeVisible();
+  await appPage.getByTestId("model-command-item-custom").click();
   await expect(appPage.getByTestId("session-create-model-select")).toContainText(
     "qa-browser-model"
   );
-  await expect(appPage.getByTestId("session-create-reasoning-default")).toContainText("medium");
-  await appPage.getByTestId("session-create-reasoning-select").click();
-  await expect(appPage.getByTestId("reasoning-command-item-high")).toBeVisible();
-  await appPage.getByTestId("reasoning-command-item-high").click();
+  await expect(appPage.getByTestId("session-create-reasoning-select")).toBeDisabled();
 
   const createRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
@@ -147,9 +163,9 @@ test("operator can create a provider/model override session and gets an inline r
     agent_name: browserLifecycleAgent,
     model: "qa-browser-model",
     provider: overrideProvider,
-    reasoning_effort: "high",
     workspace: workspace.id,
   });
+  expect(createRequestBody).not.toHaveProperty("reasoning_effort");
   expect(createResponse.ok()).toBeTruthy();
 
   const createdSession = (await createResponse.json()) as SessionEnvelope;

@@ -27,6 +27,7 @@ const (
 	configProvidersKey  = "providers"
 	configModelsKey     = "models"
 	configDiscoveryKey  = "discovery"
+	configDefaultKey    = "default"
 	configSessionMCPKey = "session_mcp"
 )
 
@@ -1465,7 +1466,7 @@ func isProviderMutationPath(path []string) bool {
 		}
 	}
 	if len(path) == 4 && path[0] == configProvidersKey && path[2] == configModelsKey {
-		if path[3] == "default" {
+		if path[3] == configDefaultKey {
 			return true
 		}
 	}

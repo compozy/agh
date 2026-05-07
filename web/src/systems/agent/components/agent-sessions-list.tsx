@@ -36,25 +36,29 @@ export function AgentSessionsList({
 
   if (isError) {
     return (
-      <Empty
-        icon={MessageSquare}
-        title="Couldn't load sessions"
-        description="The session list failed to load. Try refreshing the page."
-        data-testid="agent-sessions-error"
-        fill={false}
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          icon={MessageSquare}
+          title="Couldn't load sessions"
+          description="The session list failed to load. Try refreshing the page."
+          data-testid="agent-sessions-error"
+          fill={false}
+        />
+      </div>
     );
   }
 
   if (sessions.length === 0) {
     return (
-      <Empty
-        icon={MessageSquare}
-        title="No sessions yet"
-        description={`Start a new session for ${agentName} from the toolbar above.`}
-        data-testid="agent-sessions-empty"
-        fill={false}
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          icon={MessageSquare}
+          title="No sessions yet"
+          description={`Start a new session for ${agentName} from the toolbar above.`}
+          data-testid="agent-sessions-empty"
+          fill={false}
+        />
+      </div>
     );
   }
 
