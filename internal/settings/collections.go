@@ -1143,7 +1143,7 @@ func providerModelsSettingsMap(models aghconfig.ProviderModelsConfig) map[string
 	if strings.TrimSpace(models.Default) != "" {
 		values["default"] = strings.TrimSpace(models.Default)
 	}
-	if len(models.Curated) > 0 {
+	if models.Curated != nil {
 		values["curated"] = providerModelConfigMaps(models.Curated)
 	}
 	if discovery := providerModelsDiscoveryMap(models.Discovery); len(discovery) > 0 {
@@ -1177,7 +1177,7 @@ func providerModelConfigMaps(models []aghconfig.ProviderModelConfig) []map[strin
 		if model.SupportsReasoning != nil {
 			entry["supports_reasoning"] = *model.SupportsReasoning
 		}
-		if len(model.ReasoningEfforts) > 0 {
+		if model.ReasoningEfforts != nil {
 			entry["reasoning_efforts"] = cloneStringSlicePreserveNil(model.ReasoningEfforts)
 		}
 		if strings.TrimSpace(model.DefaultReasoningEffort) != "" {

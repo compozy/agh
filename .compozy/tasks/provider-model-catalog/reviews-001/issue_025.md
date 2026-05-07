@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/session/manager_start.go
 line: 387
 severity: nitpick
@@ -21,5 +21,9 @@ The `aghconfig.ResolvedAgent` parameter is accepted but explicitly ignored (name
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `validateRuntimeOverrides` still accepts `aghconfig.ResolvedAgent` as `_` and does not use it.
+  - The unused parameter adds noise to the signature and caller without contributing to validation.
+  - Fix approach: remove the dead parameter from the function and update the call site.
+  - Resolved in `internal/session/manager_start.go`; verified with focused package tests and full `make verify`.

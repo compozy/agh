@@ -156,6 +156,14 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 			t.Fatalf("previous migration version = %d, want %d", previous.Version, modelCatalogMigrationVersion-1)
 		}
 	})
+
+	t.Run("Should keep model catalog schema out of migration v1 statements", func(t *testing.T) {
+		t.Parallel()
+
+		if !slices.Equal(globalSchemaStatements, schemaStatementsWithoutModelCatalog()) {
+			t.Fatalf("globalSchemaStatements unexpectedly include model catalog schema statements")
+		}
+	})
 }
 
 func TestGlobalDBModelCatalogStore(t *testing.T) {
@@ -751,6 +759,95 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if _, err := globalDB.ListSourceStatus(ctx, "codex"); err == nil ||
 			!strings.Contains(err.Error(), "last_refresh_at") {
 			t.Fatalf("ListSourceStatus(corrupt timestamp) error = %v, want last_refresh_at parse error", err)
+		}
+	})
+
+	t.Run("Should read rows and reasoning efforts from one transaction snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+
+		first := modelCatalogRow("config", "codex", "gpt-5.4", modelcatalog.SourceKindConfig, 120)
+		first.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortLow}
+		replaceModelCatalogRows(
+			t,
+			globalDB,
+			"config",
+			"codex",
+			modelcatalog.SourceKindConfig,
+			120,
+			[]modelcatalog.ModelRow{first},
+		)
+
+		conn, err := globalDB.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("db.Conn() error = %v", err)
+		}
+		defer func() {
+			if closeErr := conn.Close(); closeErr != nil {
+				t.Errorf("conn.Close() error = %v", closeErr)
+			}
+		}()
+
+		tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatalf("BeginTx() error = %v", err)
+		}
+		defer func() {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+				t.Errorf("tx.Rollback() error = %v", rollbackErr)
+			}
+		}()
+
+		var rowCount int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM model_catalog_rows`).Scan(&rowCount); err != nil {
+			t.Fatalf("QueryRowContext(count) error = %v", err)
+		}
+		if got, want := rowCount, 1; got != want {
+			t.Fatalf("rowCount = %d, want %d", got, want)
+		}
+
+		second := modelCatalogRow("config", "codex", "gpt-5.4", modelcatalog.SourceKindConfig, 120)
+		second.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh}
+		replaceModelCatalogRows(
+			t,
+			globalDB,
+			"config",
+			"codex",
+			modelcatalog.SourceKindConfig,
+			120,
+			[]modelcatalog.ModelRow{second},
+		)
+
+		rows, err := listModelCatalogRows(ctx, tx, modelcatalog.ListOptions{
+			ProviderID:   "codex",
+			SourceID:     "config",
+			IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("listModelCatalogRows(snapshot) error = %v", err)
+		}
+		if got, want := len(rows), 1; got != want {
+			t.Fatalf("len(rows) = %d, want %d: %#v", got, want, rows)
+		}
+		if !slices.Equal(rows[0].ReasoningEfforts, first.ReasoningEfforts) {
+			t.Fatalf("snapshot ReasoningEfforts = %#v, want %#v", rows[0].ReasoningEfforts, first.ReasoningEfforts)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("tx.Commit() error = %v", err)
+		}
+
+		freshRows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID:   "codex",
+			SourceID:     "config",
+			IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(fresh) error = %v", err)
+		}
+		if !slices.Equal(freshRows[0].ReasoningEfforts, second.ReasoningEfforts) {
+			t.Fatalf("fresh ReasoningEfforts = %#v, want %#v", freshRows[0].ReasoningEfforts, second.ReasoningEfforts)
 		}
 	})
 }

@@ -122,7 +122,7 @@ func (s *CatalogService) Refresh(ctx context.Context, opts RefreshOptions) ([]So
 	}
 	scopeKey := refreshFlightScopeKey(providerKey, opts)
 
-	return s.withRefreshFlight(providerKey, scopeKey, func() ([]SourceStatus, error) {
+	return s.withRefreshFlight(ctx, providerKey, scopeKey, func() ([]SourceStatus, error) {
 		return s.refreshSources(ctx, sources, opts, now)
 	})
 }
@@ -348,6 +348,7 @@ func (s *CatalogService) selectSources(sourceID string) ([]Source, error) {
 }
 
 func (s *CatalogService) withRefreshFlight(
+	ctx context.Context,
 	providerID string,
 	scopeKey string,
 	fn func() ([]SourceStatus, error),
@@ -365,13 +366,17 @@ func (s *CatalogService) withRefreshFlight(
 
 			flight.statuses, flight.err = fn()
 			s.lockMu.Lock()
+			close(flight.done)
 			delete(s.refreshFlights, providerID)
 			s.lockMu.Unlock()
-			close(flight.done)
 			return cloneSourceStatuses(flight.statuses), flight.err
 		}
 		s.lockMu.Unlock()
-		<-flight.done
+		select {
+		case <-flight.done:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 		if flight.scopeKey == scopeKey {
 			return cloneSourceStatuses(flight.statuses), flight.err
 		}

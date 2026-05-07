@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/settings/collections.go
 line: 1194
 author: coderabbitai[bot]
@@ -143,5 +143,10 @@ instead of len()>0 so explicit empty slices are serialized.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `providerModelsSettingsMap` only emits `curated` when `len(models.Curated) > 0`, and `providerModelConfigMaps` only emits `reasoning_efforts` when `len(model.ReasoningEfforts) > 0`.
+  - That conflates `nil` with an explicit empty slice and makes it impossible for a settings overlay to clear inherited model arrays on writeback.
+  - Fix approach: preserve explicit empty overrides by checking for `nil` instead of non-zero length when serializing those slice fields.
+  - Scope expansion was required: `internal/config/persistence.go` and `internal/config/persistence_test.go` now preserve empty array-of-table values as explicit `key = []`, which is necessary for the `curated` override to survive reload.
+  - Resolved in `internal/settings/collections.go`, `internal/config/persistence.go`, `internal/settings/service_test.go`, and `internal/config/persistence_test.go`; verified with focused package tests and full `make verify`.

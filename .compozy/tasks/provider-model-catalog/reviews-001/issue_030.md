@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/store/globaldb/global_db_test.go
 line: 426
 author: coderabbitai[bot]
@@ -53,5 +53,9 @@ pinned end-to-end.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `expectedGlobalMigrationPrefix()` still stops at v20 and the shared assertions only require the applied/shipped sequence to be at least that long.
+  - That leaves migrations 21-23, including the new model-catalog tail, unpinned against reorder/rename/checksum drift.
+  - Fix approach: extend the expected migration identities through the current tail and require exact sequence equality wherever the full shipped registry is being asserted.
+  - Resolved in `internal/store/globaldb/global_db_test.go`; verified with focused package tests and full `make verify`.

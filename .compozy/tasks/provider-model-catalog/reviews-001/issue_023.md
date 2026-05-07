@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/modelcatalog/service_integration_test.go
 line: 21
 author: coderabbitai[bot]
@@ -97,5 +97,9 @@ requires legacy tags) to match the project's build/tagging conventions.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `internal/modelcatalog/service_integration_test.go` is an integration test file by name but currently has no `//go:build integration` constraint.
+  - That violates the repo test-tag convention and causes the file to compile in the default unit-test build.
+  - Fix approach: add the build tag at the top of the file and keep the rest of the test unchanged.
+  - Resolved in `internal/modelcatalog/service_integration_test.go`; verified with focused package tests and full `make verify`.

@@ -843,6 +843,69 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		!strings.Contains(configPayload, `reasoning_efforts = ["low", "high"]`) {
 		t.Fatalf("config payload missing provider overlay:\n%s", configPayload)
 	}
+	emptyCuratedResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "codex",
+		Provider: &ProviderSettings{
+			ModelsSet: true,
+			Models: aghconfig.ProviderModelsConfig{
+				Curated: []aghconfig.ProviderModelConfig{},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(explicit empty curated) error = %v", err)
+	}
+	if got, want := emptyCuratedResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("empty curated write target = %q, want %q", got, want)
+	}
+	reloadedService := testService(t, homePaths, Dependencies{})
+	providers, err := reloadedService.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	if err != nil {
+		t.Fatalf("ListCollection(providers after empty curated) error = %v", err)
+	}
+	codex := mustFindProviderItem(t, providers.Providers, "codex")
+	if got, want := len(codex.Settings.Models.Curated), 0; got != want {
+		t.Fatalf("codex curated model count after explicit empty override = %d, want %d", got, want)
+	}
+	emptyEffortsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "custom",
+		Provider: &ProviderSettings{
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
+			Models: aghconfig.ProviderModelsConfig{
+				Curated: []aghconfig.ProviderModelConfig{
+					{
+						ID:               "custom-model",
+						ReasoningEfforts: []string{},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(explicit empty reasoning efforts) error = %v", err)
+	}
+	if got, want := emptyEffortsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("empty reasoning efforts write target = %q, want %q", got, want)
+	}
+	reloadedService = testService(t, homePaths, Dependencies{})
+	providers, err = reloadedService.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	if err != nil {
+		t.Fatalf("ListCollection(providers after empty reasoning efforts) error = %v", err)
+	}
+	custom := mustFindProviderItem(t, providers.Providers, "custom")
+	if got, want := len(custom.Settings.Models.Curated), 1; got != want {
+		t.Fatalf("custom curated model count after empty reasoning efforts = %d, want %d", got, want)
+	}
+	if got, want := len(custom.Settings.Models.Curated[0].ReasoningEfforts), 0; got != want {
+		t.Fatalf(
+			"custom reasoning effort count after explicit empty override = %d, want %d",
+			got,
+			want,
+		)
+	}
 	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
 		Name:              "custom",
@@ -858,7 +921,8 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		t.Fatalf("clear provider models write target = %q, want %q", got, want)
 	}
 	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, `default = "custom-model"`) ||
+	if strings.Contains(configPayload, "[providers.custom.models]") ||
+		strings.Contains(configPayload, `default = "custom-model"`) ||
 		strings.Contains(configPayload, `[[providers.custom.models.curated]]`) {
 		t.Fatalf("config payload still contains provider model overlay after clear:\n%s", configPayload)
 	}

@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/store/globaldb/global_db_model_catalog.go
 line: 142
 author: coderabbitai[bot]
@@ -49,5 +49,9 @@ committed/rolled back properly so both reads are consistent.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `GlobalDB.ListRows` queries `model_catalog_rows` through `g.db.QueryContext(...)` and then loads reasoning efforts with a second independent read against `g.db`.
+  - A concurrent `ReplaceSourceRows` can commit between those reads, which makes mixed-revision row/effort results possible.
+  - Fix approach: execute both reads on the same connection snapshot, keeping the row query and reasoning-effort lookup inside one transaction/connection path.
+  - Resolved in `internal/store/globaldb/global_db_model_catalog.go` with a transaction-snapshot regression test in `internal/store/globaldb/global_db_model_catalog_test.go`; verified with focused package tests and full `make verify`.

@@ -525,6 +525,69 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 			t.Fatalf("source calls = %d, want %d cross-provider calls", got, want)
 		}
 	})
+
+	t.Run("Should cancel waiters blocked on an in-flight refresh", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"codex": {
+				testRow(
+					"provider_live:shared",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(33),
+					nil,
+				),
+			},
+		})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+
+		results := make(chan refreshTestResult, 2)
+		go func() {
+			statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+				ProviderID: "codex",
+				SourceID:   source.ID(),
+				Force:      true,
+				Now:        testTime(33),
+			})
+			results <- refreshTestResult{statuses: statuses, err: err}
+		}()
+
+		source.waitForCalls(t, 1)
+
+		waiterCtx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
+		go func() {
+			statuses, err := service.Refresh(waiterCtx, RefreshOptions{
+				ProviderID: "codex",
+				SourceID:   source.ID(),
+				Force:      true,
+				Now:        testTime(33),
+			})
+			results <- refreshTestResult{statuses: statuses, err: err}
+		}()
+
+		source.requireCallCountStable(t, 1, 25*time.Millisecond)
+		cancel()
+
+		waiterResult := <-results
+		if !errors.Is(waiterResult.err, context.Canceled) {
+			t.Fatalf("waiter Refresh() error = %v, want context.Canceled", waiterResult.err)
+		}
+
+		source.release()
+
+		ownerResult := <-results
+		if ownerResult.err != nil {
+			t.Fatalf("owner Refresh() error = %v", ownerResult.err)
+		}
+		if got, want := len(ownerResult.statuses), 1; got != want {
+			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, ownerResult.statuses)
+		}
+	})
 }
 
 type fakeSource struct {

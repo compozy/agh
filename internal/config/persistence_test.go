@@ -518,6 +518,36 @@ default = "gpt-4o"
 			t.Fatalf("editor.SetTable() error = %q, want path context", err.Error())
 		}
 	})
+
+	t.Run("render explicit empty array-of-tables values", func(t *testing.T) {
+		t.Parallel()
+
+		editor, err := newOverlayEditor(ConfigName, []byte{})
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
+
+		err = editor.SetTable([]string{"providers", "openai", "models"}, map[string]any{
+			"curated": []map[string]any{},
+		})
+		if err != nil {
+			t.Fatalf("editor.SetTable() error = %v", err)
+		}
+
+		rendered, err := editor.Bytes()
+		if err != nil {
+			t.Fatalf("editor.Bytes() error = %v", err)
+		}
+		text := string(rendered)
+		for _, want := range []string{
+			"[providers.openai.models]",
+			`curated = []`,
+		} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("rendered config missing %q\n%s", want, text)
+			}
+		}
+	})
 }
 
 func TestOverlayEditorArrayTableMutations(t *testing.T) {

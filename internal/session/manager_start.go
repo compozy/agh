@@ -368,7 +368,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
-	if err := spec.validateRuntimeOverrides(resolved); err != nil {
+	if err := spec.validateRuntimeOverrides(); err != nil {
 		return sessionStartRuntime{}, err
 	}
 
@@ -384,7 +384,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	}, nil
 }
 
-func (s *sessionStartSpec) validateRuntimeOverrides(_ aghconfig.ResolvedAgent) error {
+func (s *sessionStartSpec) validateRuntimeOverrides() error {
 	providerOverride := strings.TrimSpace(s.provider)
 	modelOverride := strings.TrimSpace(s.model)
 	reasoningEffort := strings.TrimSpace(s.reasoningEffort)

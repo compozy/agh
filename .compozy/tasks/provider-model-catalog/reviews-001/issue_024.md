@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/modelcatalog/sources.go
 line: 166
 author: coderabbitai[bot]
@@ -49,5 +49,9 @@ original configs cannot affect the cloned snapshot used by ListModels.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `cloneConfigProviders` currently uses `maps.Copy`, which copies only the map header and leaves nested slices/maps in `aghconfig.ProviderConfig` aliased.
+  - A caller mutating provider config after `NewConfigSource(...)` can therefore change later `ListModels` output and create nondeterministic behavior.
+  - Fix approach: replace the shallow map copy with a deep snapshot of nested provider-model and provider-config slice/map fields used by the source.
+  - Resolved in `internal/modelcatalog/sources.go` with a construction-snapshot regression test in `internal/modelcatalog/sources_test.go`; verified with focused package tests and full `make verify`.

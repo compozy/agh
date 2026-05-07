@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/store/globaldb/global_db.go
 line: 687
 author: coderabbitai[bot]
@@ -77,5 +77,9 @@ rather than modifying Version: 1.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `globalSchemaStatements` still appends `modelCatalogSchemaStatements()`, while `globalSchemaMigrations` also ships a dedicated tail migration `add_model_catalog_persistence` at v23.
+  - That mutates the historical v1 payload and breaks the append-only migration identity contract even though the new schema already has its own migration.
+  - Fix approach: remove model-catalog DDL from the v1 statement bundle and rely solely on the appended v23 migration.
+  - Resolved in `internal/store/globaldb/global_db.go` with v1-registry protection in `internal/store/globaldb/global_db_model_catalog_test.go`; verified with focused package tests and full `make verify`.

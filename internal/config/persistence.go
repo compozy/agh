@@ -472,6 +472,9 @@ func normalizeTreeEntry(key string, value any) (any, error) {
 	case map[string]string:
 		return normalizeTreeValue(stringMapToAny(typed))
 	case []map[string]any:
+		if len(typed) == 0 {
+			return []any{}, nil
+		}
 		items := make([]map[string]any, 0, len(typed))
 		for idx := range typed {
 			normalized, err := normalizeTreeValue(typed[idx])
@@ -482,6 +485,9 @@ func normalizeTreeEntry(key string, value any) (any, error) {
 		}
 		return items, nil
 	case []map[string]string:
+		if len(typed) == 0 {
+			return []any{}, nil
+		}
 		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
 			items = append(items, stringMapToAny(item))

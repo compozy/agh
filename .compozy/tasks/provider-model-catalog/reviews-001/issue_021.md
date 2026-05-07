@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/modelcatalog/redact_test.go
 line: 30
 author: coderabbitai[bot]
@@ -95,5 +95,9 @@ redaction function (e.g., Redact or redactString) for both checks.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `internal/modelcatalog/redact_test.go` currently stores only one `secret` per case and the multi-secret env-value case asserts removal of `env-secret-value` but not `client-secret-value`.
+  - That leaves a real regression gap: partial redaction would still pass the test if only one secret were stripped.
+  - Fix approach: switch the table to `secrets []string` and assert that every listed secret is absent while the redaction marker remains present.
+  - Resolved in `internal/modelcatalog/redact_test.go`; verified with focused package tests and full `make verify`.

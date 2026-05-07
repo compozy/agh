@@ -84,6 +84,58 @@ func TestProviderConfigSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should snapshot provider configs at construction", func(t *testing.T) {
+		t.Parallel()
+
+		contextWindow := int64(128000)
+		supportsTools := true
+		providers := map[string]aghconfig.ProviderConfig{
+			"codex": {
+				Models: aghconfig.ProviderModelsConfig{
+					Curated: []aghconfig.ProviderModelConfig{
+						{
+							ID:               "gpt-5.4",
+							DisplayName:      "GPT-5.4",
+							ContextWindow:    &contextWindow,
+							SupportsTools:    &supportsTools,
+							ReasoningEfforts: []string{"low", "high"},
+						},
+					},
+				},
+			},
+		}
+
+		source := NewConfigSource(providers)
+
+		cfg := providers["codex"]
+		cfg.Models.Curated[0].DisplayName = "Mutated"
+		cfg.Models.Curated[0].ReasoningEfforts[0] = "xhigh"
+		providers["codex"] = cfg
+		contextWindow = 1
+		supportsTools = false
+
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "codex", Now: testTime(0)})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("len(rows) = %d, want 1: %#v", len(rows), rows)
+		}
+		row := rows[0]
+		if row.DisplayName != "GPT-5.4" {
+			t.Fatalf("DisplayName = %q, want GPT-5.4 snapshot", row.DisplayName)
+		}
+		if row.ContextWindow == nil || *row.ContextWindow != 128000 {
+			t.Fatalf("ContextWindow = %v, want 128000 snapshot", row.ContextWindow)
+		}
+		if row.SupportsTools == nil || !*row.SupportsTools {
+			t.Fatalf("SupportsTools = %v, want true snapshot", row.SupportsTools)
+		}
+		if !slices.Equal(row.ReasoningEfforts, []ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh}) {
+			t.Fatalf("ReasoningEfforts = %#v, want low/high snapshot", row.ReasoningEfforts)
+		}
+	})
+
 	t.Run("Should expose builtin provider model defaults", func(t *testing.T) {
 		t.Parallel()
 

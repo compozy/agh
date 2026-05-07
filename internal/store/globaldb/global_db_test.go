@@ -423,6 +423,13 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 		{version: 18, name: "add_task_review_gate_schema", checksum: "2026-05-05-add-task-review-gate-schema"},
 		{version: 19, name: "add_notification_cursors", checksum: "2026-05-05-add-notification-cursors"},
 		{version: 20, name: "add_bridge_task_subscriptions", checksum: "2026-05-05-add-bridge-task-subscriptions"},
+		{
+			version:  21,
+			name:     "rebuild_network_conversation_containers",
+			checksum: "2026-05-05-rebuild-network-conversation-containers",
+		},
+		{version: 22, name: "memv2_memory_events", checksum: "2026-05-05-memv2-memory-events"},
+		{version: 23, name: "add_model_catalog_persistence", checksum: "2026-05-07-add-model-catalog-persistence"},
 	}
 }
 
@@ -430,8 +437,8 @@ func assertGlobalSchemaMigrationDefinitions(t *testing.T, migrations []store.Mig
 	t.Helper()
 
 	want := expectedGlobalMigrationPrefix()
-	if got := len(migrations); got < len(want) {
-		t.Fatalf("globalSchemaMigrations length = %d, want at least shipped prefix length %d", got, len(want))
+	if got, wantLen := len(migrations), len(want); got != wantLen {
+		t.Fatalf("globalSchemaMigrations length = %d, want exact shipped length %d", got, wantLen)
 	}
 	for index, expected := range want {
 		got := migrations[index]
@@ -454,8 +461,8 @@ func assertAppliedGlobalMigrationOrder(t *testing.T, records []store.MigrationRe
 	t.Helper()
 
 	want := expectedGlobalMigrationPrefix()
-	if got := len(records); got < len(want) {
-		t.Fatalf("schema_migrations length = %d, want at least shipped prefix length %d", got, len(want))
+	if got, wantLen := len(records), len(want); got != wantLen {
+		t.Fatalf("schema_migrations length = %d, want exact shipped length %d", got, wantLen)
 	}
 	for index, expected := range want {
 		got := records[index]

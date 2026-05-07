@@ -85,6 +85,25 @@ func (g *GlobalDB) ListRows(
 	if err := g.checkReady(ctx, "list model catalog rows"); err != nil {
 		return nil, err
 	}
+	if err := g.withModelCatalogReadTransaction(
+		ctx,
+		"list model catalog rows",
+		func(exec modelCatalogSQLExecutor) error {
+			var listErr error
+			catalogRows, listErr = listModelCatalogRows(ctx, exec, opts)
+			return listErr
+		},
+	); err != nil {
+		return nil, err
+	}
+	return catalogRows, nil
+}
+
+func listModelCatalogRows(
+	ctx context.Context,
+	exec modelCatalogSQLExecutor,
+	opts modelcatalog.ListOptions,
+) (catalogRows []modelcatalog.ModelRow, err error) {
 	sqlQuery := `SELECT
 			source_id,
 			provider_id,
@@ -110,7 +129,7 @@ func (g *GlobalDB) ListRows(
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += ` ORDER BY provider_id ASC, model_id ASC, priority DESC, refreshed_at DESC, source_id ASC`
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := exec.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query model catalog rows: %w", err)
 	}
@@ -132,7 +151,7 @@ func (g *GlobalDB) ListRows(
 		return nil, fmt.Errorf("store: iterate model catalog rows: %w", err)
 	}
 
-	efforts, err := listModelCatalogReasoningEfforts(ctx, g.db, opts)
+	efforts, err := listModelCatalogReasoningEfforts(ctx, exec, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -702,6 +721,45 @@ func (g *GlobalDB) withModelCatalogImmediateTransaction(
 		return err
 	}
 	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return fmt.Errorf("store: commit %s transaction: %w", action, err)
+	}
+	finished = true
+	return nil
+}
+
+func (g *GlobalDB) withModelCatalogReadTransaction(
+	ctx context.Context,
+	action string,
+	run func(exec modelCatalogSQLExecutor) error,
+) (err error) {
+	conn, err := g.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: open connection for %s: %w", action, err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("store: close %s transaction connection: %w", action, closeErr)
+		}
+	}()
+
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return fmt.Errorf("store: begin %s transaction: %w", action, err)
+	}
+
+	finished := false
+	defer func() {
+		if !finished {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone && err == nil {
+				err = fmt.Errorf("store: rollback %s transaction: %w", action, rollbackErr)
+			}
+		}
+	}()
+
+	if err := run(tx); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("store: commit %s transaction: %w", action, err)
 	}
 	finished = true

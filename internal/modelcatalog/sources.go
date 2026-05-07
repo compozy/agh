@@ -162,6 +162,89 @@ func cloneConfigProviders(src map[string]aghconfig.ProviderConfig) map[string]ag
 		return map[string]aghconfig.ProviderConfig{}
 	}
 	cloned := make(map[string]aghconfig.ProviderConfig, len(src))
+	for providerID, cfg := range src {
+		cloned[providerID] = cloneProviderConfig(cfg)
+	}
+	return cloned
+}
+
+func cloneProviderConfig(src aghconfig.ProviderConfig) aghconfig.ProviderConfig {
+	cloned := src
+	cloned.Models = cloneProviderModelsConfig(src.Models)
+	cloned.SessionMCP = clonePtr(src.SessionMCP)
+	cloned.Aliases = cloneStrings(src.Aliases)
+	cloned.CredentialSlots = cloneProviderCredentialSlots(src.CredentialSlots)
+	cloned.MCPServers = cloneMCPServers(src.MCPServers)
+	return cloned
+}
+
+func cloneProviderModelsConfig(src aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
+	cloned := src
+	cloned.Curated = cloneProviderModelConfigs(src.Curated)
+	return cloned
+}
+
+func cloneProviderModelConfigs(src []aghconfig.ProviderModelConfig) []aghconfig.ProviderModelConfig {
+	if src == nil {
+		return nil
+	}
+	cloned := make([]aghconfig.ProviderModelConfig, len(src))
+	for index, cfg := range src {
+		cloned[index] = cfg
+		cloned[index].ContextWindow = clonePtr(cfg.ContextWindow)
+		cloned[index].MaxInputTokens = clonePtr(cfg.MaxInputTokens)
+		cloned[index].MaxOutputTokens = clonePtr(cfg.MaxOutputTokens)
+		cloned[index].SupportsTools = clonePtr(cfg.SupportsTools)
+		cloned[index].SupportsReasoning = clonePtr(cfg.SupportsReasoning)
+		cloned[index].ReasoningEfforts = cloneStrings(cfg.ReasoningEfforts)
+		cloned[index].CostInputPerMillion = clonePtr(cfg.CostInputPerMillion)
+		cloned[index].CostOutputPerMillion = clonePtr(cfg.CostOutputPerMillion)
+	}
+	return cloned
+}
+
+func cloneProviderCredentialSlots(src []aghconfig.ProviderCredentialSlot) []aghconfig.ProviderCredentialSlot {
+	if src == nil {
+		return nil
+	}
+	return append([]aghconfig.ProviderCredentialSlot(nil), src...)
+}
+
+func cloneMCPServers(src []aghconfig.MCPServer) []aghconfig.MCPServer {
+	if src == nil {
+		return nil
+	}
+	cloned := make([]aghconfig.MCPServer, len(src))
+	for index, server := range src {
+		cloned[index] = server
+		cloned[index].Args = cloneStrings(server.Args)
+		cloned[index].Env = cloneStringMap(server.Env)
+		cloned[index].SecretEnv = cloneStringMap(server.SecretEnv)
+		cloned[index].Auth.Scopes = cloneStrings(server.Auth.Scopes)
+	}
+	return cloned
+}
+
+func cloneStrings(src []string) []string {
+	if src == nil {
+		return nil
+	}
+	return append([]string(nil), src...)
+}
+
+func cloneStringMap(src map[string]string) map[string]string {
+	if src == nil {
+		return nil
+	}
+	cloned := make(map[string]string, len(src))
 	maps.Copy(cloned, src)
 	return cloned
+}
+
+func clonePtr[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

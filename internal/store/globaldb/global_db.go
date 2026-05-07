@@ -684,7 +684,6 @@ var globalSchemaStatements = appendSchemaStatements(
 	},
 	bridgeTaskSubscriptionSchemaStatements(),
 	resources.SchemaStatements(),
-	modelCatalogSchemaStatements(),
 )
 
 func appendSchemaStatements(groups ...[]string) []string {

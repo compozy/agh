@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "118"
 round: 1
 round_created_at: 2026-05-07T16:19:53.268066Z
-status: pending
+status: resolved
 file: internal/modelcatalog/service.go
 line: 127
 author: coderabbitai[bot]
@@ -103,5 +103,9 @@ all waiters are released.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  - `CatalogService.Refresh` still calls `withRefreshFlight` without `ctx`, and `withRefreshFlight` waits with a bare `<-flight.done`.
+  - The owner path also deletes `refreshFlights[providerID]` before `close(flight.done)`, which can admit a duplicate refresh while prior waiters are still blocked on the first flight.
+  - Fix approach: pass `ctx` through, make waiters select on `ctx.Done()` and `flight.done`, and keep the map entry alive until `done` is closed.
+  - Resolved in `internal/modelcatalog/service.go` with a waiter-cancellation regression test in `internal/modelcatalog/service_test.go`; verified with focused package tests and full `make verify`.
