@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -217,23 +216,25 @@ func TestRetryDoStopsOnPermanentErrorAndHonorsContextCancellation(t *testing.T) 
 		}
 	})
 
-	t.Run("Should preserve context cancellation while waiting to retry", func(t *testing.T) {
+	t.Run("Should reject pre-canceled context before the first retry attempt", func(t *testing.T) {
 		t.Parallel()
 
 		canceled, cancel := context.WithCancel(context.Background())
 		cancel()
+		attempts := 0
 		_, err := RetryDo(canceled, RetryConfig{
 			Attempts: 3,
 			MinDelay: time.Millisecond,
 			MaxDelay: time.Millisecond,
 		}, func(context.Context) (string, error) {
+			attempts++
 			return "", &RateLimitError{Err: errors.New("slow down"), RetryAfter: time.Millisecond}
 		})
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("RetryDo(canceled) error = %v, want context.Canceled", err)
 		}
-		if !strings.Contains(err.Error(), "wait before retry") {
-			t.Fatalf("RetryDo(canceled) error = %v, want retry wait context", err)
+		if attempts != 0 {
+			t.Fatalf("attempts = %d, want 0", attempts)
 		}
 	})
 }

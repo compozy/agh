@@ -152,27 +152,31 @@ func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
 func TestBridgeCreateRejectsOperationalStatusFlag(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
-			t.Fatal("CreateBridge() should not be called when operational status flag is provided")
-			return BridgeRecord{}, nil
-		},
-	})
+	t.Run("Should reject operational status flag", func(t *testing.T) {
+		t.Parallel()
 
-	_, _, err := executeRootCommand(
-		t,
-		deps,
-		"bridge", "create",
-		"--scope", "global",
-		"--platform", "telegram",
-		"--extension", "ext-telegram",
-		"--display-name", "Support",
-		"--enabled=false",
-		"--status", "ready",
-	)
-	if err == nil || !strings.Contains(err.Error(), "unknown flag: --status") {
-		t.Fatalf("bridge create error = %v, want unknown status flag", err)
-	}
+		deps := newTestDeps(t, &stubClient{
+			createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
+				t.Fatal("CreateBridge() should not be called when operational status flag is provided")
+				return BridgeRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "create",
+			"--scope", "global",
+			"--platform", "telegram",
+			"--extension", "ext-telegram",
+			"--display-name", "Support",
+			"--enabled=false",
+			"--status", "ready",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown flag: --status") {
+			t.Fatalf("bridge create error = %v, want unknown status flag", err)
+		}
+	})
 }
 
 func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing.T) {

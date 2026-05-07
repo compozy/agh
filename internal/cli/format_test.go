@@ -106,3 +106,40 @@ func TestAgentCategoryLabel(t *testing.T) {
 		}
 	})
 }
+
+func TestHumanFormattingUsesRuneWidths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should size human section underlines with rune widths", func(t *testing.T) {
+		t.Parallel()
+
+		rendered, err := renderHumanSectionResult("Agênts", []keyValue{{Label: "Status", Value: "ready"}})
+		if err != nil {
+			t.Fatalf("renderHumanSectionResult() error = %v", err)
+		}
+
+		lines := strings.Split(rendered, "\n")
+		if len(lines) < 2 {
+			t.Fatalf("renderHumanSectionResult() lines = %#v, want title and underline", lines)
+		}
+		if got, want := lines[1], strings.Repeat("=", humanTableCellWidth("Agênts")); got != want {
+			t.Fatalf("section underline = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should size human table title and separators with rune widths", func(t *testing.T) {
+		t.Parallel()
+
+		rendered := renderHumanTable("Agênts", []string{"Náme", "Status"}, [][]string{{"bot", "ready"}})
+		lines := strings.Split(rendered, "\n")
+		if len(lines) < 4 {
+			t.Fatalf("renderHumanTable() lines = %#v, want title, underline, header, and separator", lines)
+		}
+		if got, want := lines[1], strings.Repeat("=", humanTableCellWidth("Agênts")); got != want {
+			t.Fatalf("table underline = %q, want %q", got, want)
+		}
+		if got, want := lines[3], "----  ------"; got != want {
+			t.Fatalf("table separator = %q, want %q", got, want)
+		}
+	})
+}

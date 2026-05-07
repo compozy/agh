@@ -24,7 +24,9 @@ func newBundleRecordLookup(records []resources.Record[BundleResourceSpec]) bundl
 		if key.extensionName == "" || key.bundleName == "" {
 			continue
 		}
-		exact[key] = idx
+		if _, exists := exact[key]; !exists {
+			exact[key] = idx
+		}
 	}
 	return bundleRecordLookup{
 		exact:   exact,

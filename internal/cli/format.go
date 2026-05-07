@@ -190,21 +190,21 @@ func renderHumanSectionResult(title string, rows []keyValue) (string, error) {
 	var buffer bytes.Buffer
 	if title != "" {
 		if _, err := fmt.Fprintf(&buffer, "%s\n", title); err != nil {
-			return "", err
+			return "", fmt.Errorf("cli: write human section title: %w", err)
 		}
-		if _, err := fmt.Fprintf(&buffer, "%s\n", strings.Repeat("=", len(title))); err != nil {
-			return "", err
+		if _, err := fmt.Fprintf(&buffer, "%s\n", strings.Repeat("=", humanTableCellWidth(title))); err != nil {
+			return "", fmt.Errorf("cli: write human section underline: %w", err)
 		}
 	}
 
 	writer := tabwriter.NewWriter(&buffer, 0, 0, 2, ' ', 0)
 	for _, row := range rows {
 		if _, err := fmt.Fprintf(writer, "%s:\t%s\n", row.Label, row.Value); err != nil {
-			return "", err
+			return "", fmt.Errorf("cli: write human section row %q: %w", row.Label, err)
 		}
 	}
 	if err := writer.Flush(); err != nil {
-		return "", err
+		return "", fmt.Errorf("cli: flush human section rows: %w", err)
 	}
 
 	return strings.TrimRight(buffer.String(), "\n"), nil
@@ -215,7 +215,7 @@ func renderHumanTable(title string, headers []string, rows [][]string) string {
 	if title != "" {
 		builder.WriteString(title)
 		builder.WriteByte('\n')
-		builder.WriteString(strings.Repeat("=", len(title)))
+		builder.WriteString(strings.Repeat("=", humanTableCellWidth(title)))
 		builder.WriteByte('\n')
 	}
 	if len(headers) == 0 {
@@ -224,7 +224,7 @@ func renderHumanTable(title string, headers []string, rows [][]string) string {
 
 	separators := make([]string, 0, len(headers))
 	for _, header := range headers {
-		separators = append(separators, strings.Repeat("-", max(3, len(header))))
+		separators = append(separators, strings.Repeat("-", max(3, humanTableCellWidth(header))))
 	}
 
 	tableRows := make([][]string, 0, len(rows)+2)

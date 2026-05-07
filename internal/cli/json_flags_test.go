@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 )
@@ -32,8 +33,13 @@ func TestParseRequiredJSONRawMessage(t *testing.T) {
 	t.Run("Should reject invalid JSON", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := parseRequiredJSONRawMessage("{"); err == nil {
+		_, err := parseRequiredJSONRawMessage("{")
+		if err == nil {
 			t.Fatal("parseRequiredJSONRawMessage() error = nil, want non-nil")
+		}
+		var syntaxErr *json.SyntaxError
+		if !errors.As(err, &syntaxErr) {
+			t.Fatalf("parseRequiredJSONRawMessage() error = %v, want *json.SyntaxError", err)
 		}
 	})
 }

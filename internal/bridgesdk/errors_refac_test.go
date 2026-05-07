@@ -2,6 +2,7 @@ package bridgesdk
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -16,8 +17,27 @@ func TestRetryDoRefacs(t *testing.T) {
 			called = true
 			return "unexpected", nil
 		})
-		if err == nil {
-			t.Fatal("RetryDo(nil context) error = nil, want non-nil")
+		if got, want := err.Error(), "bridgesdk: retry context is required"; got != want {
+			t.Fatalf("RetryDo(nil context) error = %q, want %q", got, want)
+		}
+		if called {
+			t.Fatal("operation called = true, want false")
+		}
+	})
+
+	t.Run("Should reject canceled context before invoking operation", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := RetryDo(ctx, RetryConfig{}, func(context.Context) (string, error) {
+			called = true
+			return "unexpected", nil
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RetryDo(canceled context) error = %v, want context.Canceled", err)
 		}
 		if called {
 			t.Fatal("operation called = true, want false")
@@ -28,8 +48,8 @@ func TestRetryDoRefacs(t *testing.T) {
 		t.Parallel()
 
 		_, err := RetryDo[string](context.Background(), RetryConfig{}, nil)
-		if err == nil {
-			t.Fatal("RetryDo(nil operation) error = nil, want non-nil")
+		if got, want := err.Error(), "bridgesdk: retry function is required"; got != want {
+			t.Fatalf("RetryDo(nil operation) error = %q, want %q", got, want)
 		}
 	})
 }

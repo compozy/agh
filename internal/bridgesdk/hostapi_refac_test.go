@@ -20,6 +20,8 @@ func TestHostAPIClientRefacs(t *testing.T) {
 
 		if err := client.Call(nilHostAPIContext(), "bridges/instances/list", nil, nil); err == nil {
 			t.Fatal("Call(nil context) error = nil, want non-nil")
+		} else if got, want := err.Error(), "bridgesdk: host api context is required"; got != want {
+			t.Fatalf("Call(nil context) error = %q, want %q", got, want)
 		}
 		if called {
 			t.Fatal("transport called = true, want false")

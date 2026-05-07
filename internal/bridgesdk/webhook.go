@@ -256,7 +256,9 @@ func readBodyWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) (
 	bodyReader := http.MaxBytesReader(w, r.Body, maxBytes)
 	body, err := io.ReadAll(bodyReader)
 	if closeErr := bodyReader.Close(); closeErr != nil {
-		err = errors.Join(err, closeErr)
+		if err != nil {
+			err = errors.Join(err, closeErr)
+		}
 	}
 	return body, err
 }

@@ -819,6 +819,42 @@ func TestFindBundleResourceRecordIndexedNormalizesLookupKeys(t *testing.T) {
 	}
 }
 
+func TestFindBundleResourceRecordIndexedPreservesFirstNormalizedRecord(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the first record for duplicate normalized keys", func(t *testing.T) {
+		t.Parallel()
+
+		first := resources.Record[BundleResourceSpec]{
+			ID: BundleResourceID("Marketing-Team", "Launch"),
+			Spec: BundleResourceSpec{
+				ExtensionName: "Marketing-Team",
+				Bundle: extensionpkg.BundleSpec{
+					Name: "Launch",
+				},
+			},
+		}
+		second := resources.Record[BundleResourceSpec]{
+			ID: BundleResourceID(" marketing-team ", " launch "),
+			Spec: BundleResourceSpec{
+				ExtensionName: " marketing-team ",
+				Bundle: extensionpkg.BundleSpec{
+					Name: " launch ",
+				},
+			},
+		}
+		lookup := newBundleRecordLookup([]resources.Record[BundleResourceSpec]{first, second})
+
+		got, ok := findBundleResourceRecordIndexed(lookup, "marketing-team", "launch")
+		if !ok {
+			t.Fatal("findBundleResourceRecordIndexed() ok = false, want true")
+		}
+		if got.ID != first.ID {
+			t.Fatalf("findBundleResourceRecordIndexed().ID = %q, want %q", got.ID, first.ID)
+		}
+	})
+}
+
 func TestServiceRejectsMultipleDefaultChannelClaims(t *testing.T) {
 	t.Parallel()
 

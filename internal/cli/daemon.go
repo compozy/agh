@@ -236,7 +236,7 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 			}
 			return DaemonStatus{}, errors.New("cli: detached daemon exited before readiness")
 		case <-waitCtx.Done():
-			return DaemonStatus{}, errors.New("cli: daemon did not become ready before timeout")
+			return DaemonStatus{}, fmt.Errorf("cli: daemon did not become ready before timeout: %w", waitCtx.Err())
 		case <-ticker.C:
 			status, statusErr := client.DaemonStatus(waitCtx)
 			if statusErr == nil {

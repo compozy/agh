@@ -379,35 +379,61 @@ func TestBridgeResourceApplyReturnsReplaceFailure(t *testing.T) {
 func TestBridgeResourceApplyRejectsTypedNilPlanWithoutReplacingInstances(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
-	store := &projectionStore{
-		instances: []bridgepkg.BridgeInstance{{
-			ID:            "brg-existing",
-			Scope:         bridgepkg.ScopeGlobal,
-			Platform:      "telegram",
-			ExtensionName: "ext-telegram",
-			DisplayName:   "Existing",
-			Source:        bridgepkg.BridgeInstanceSourceDynamic,
-			Enabled:       true,
-			Status:        bridgepkg.BridgeStatusReady,
-			DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
-			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}},
+	newStore := func() *projectionStore {
+		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+		return &projectionStore{
+			instances: []bridgepkg.BridgeInstance{{
+				ID:            "brg-existing",
+				Scope:         bridgepkg.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "ext-telegram",
+				DisplayName:   "Existing",
+				Source:        bridgepkg.BridgeInstanceSourceDynamic,
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusReady,
+				DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}},
+		}
 	}
-	var plan *bridgepkg.ResourceProjectionPlan
 
-	err := bridgepkg.ApplyResourceState(testutil.Context(t), store, plan)
-	if err == nil {
-		t.Fatal("ApplyResourceState(typed nil) error = nil, want plan rejection")
-	}
-	if got := len(store.replacements); got != 0 {
-		t.Fatalf("len(store.replacements) = %d, want no replacement", got)
-	}
-	if got := len(store.instances); got != 1 {
-		t.Fatalf("len(store.instances) = %d, want existing instance preserved", got)
-	}
+	t.Run("Should reject typed nil plan without replacing instances", func(t *testing.T) {
+		t.Parallel()
+
+		store := newStore()
+		var plan *bridgepkg.ResourceProjectionPlan
+
+		err := bridgepkg.ApplyResourceState(testutil.Context(t), store, plan)
+		if got, want := err.Error(), "bridges: bridge resource plan is required"; got != want {
+			t.Fatalf("ApplyResourceState(typed nil) error = %q, want %q", got, want)
+		}
+		if got := len(store.replacements); got != 0 {
+			t.Fatalf("len(store.replacements) = %d, want no replacement", got)
+		}
+		if got := len(store.instances); got != 1 {
+			t.Fatalf("len(store.instances) = %d, want existing instance preserved", got)
+		}
+	})
+
+	t.Run("Should reject untyped nil interface without replacing instances", func(t *testing.T) {
+		t.Parallel()
+
+		store := newStore()
+		var plan resources.ProjectionPlan
+
+		err := bridgepkg.ApplyResourceState(testutil.Context(t), store, plan)
+		if got, want := err.Error(), "bridges: bridge resource plan has type <nil>"; got != want {
+			t.Fatalf("ApplyResourceState(untyped nil) error = %q, want %q", got, want)
+		}
+		if got := len(store.replacements); got != 0 {
+			t.Fatalf("len(store.replacements) = %d, want no replacement", got)
+		}
+		if got := len(store.instances); got != 1 {
+			t.Fatalf("len(store.instances) = %d, want existing instance preserved", got)
+		}
+	})
 }
 
 func TestBridgeResourceProjectionPlanAccessorsAndRollback(t *testing.T) {

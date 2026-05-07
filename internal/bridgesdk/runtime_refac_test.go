@@ -119,5 +119,8 @@ func TestRuntimeRefacs(t *testing.T) {
 		if target == nil {
 			t.Fatal("target = nil, want decoded empty object")
 		}
+		if got := len(target); got != 0 {
+			t.Fatalf("len(target) = %d, want empty decoded object", got)
+		}
 	})
 }

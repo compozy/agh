@@ -14,17 +14,17 @@ import (
 func TestWebhookRefacs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report request body close errors", func(t *testing.T) {
+	t.Run("Should ignore close-only request body errors after a successful read", func(t *testing.T) {
 		t.Parallel()
 
 		request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/webhook", nil)
 		request.Body = closeErrorReadCloser{Reader: strings.NewReader("{}")}
-		_, err := readBodyWithLimit(httptest.NewRecorder(), request, defaultWebhookBodyLimit)
-		if err == nil {
-			t.Fatal("readBodyWithLimit() error = nil, want close error")
+		body, err := readBodyWithLimit(httptest.NewRecorder(), request, defaultWebhookBodyLimit)
+		if err != nil {
+			t.Fatalf("readBodyWithLimit() error = %v, want nil", err)
 		}
-		if !strings.Contains(err.Error(), "close failed") {
-			t.Fatalf("readBodyWithLimit() error = %v, want close failure", err)
+		if got, want := string(body), "{}"; got != want {
+			t.Fatalf("readBodyWithLimit() body = %q, want %q", got, want)
 		}
 	})
 
@@ -55,8 +55,14 @@ func TestWebhookRefacs(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		handler.ServeHTTP(recorder, request)
 
+		if got, want := recorder.Code, http.StatusTooManyRequests; got != want {
+			t.Fatalf("status = %d, want %d", got, want)
+		}
 		if got, want := recorder.Header().Get("Retry-After"), "1"; got != want {
 			t.Fatalf("Retry-After = %q, want %q", got, want)
+		}
+		if got, want := recorder.Body.String(), "slow down\n"; got != want {
+			t.Fatalf("body = %q, want %q", got, want)
 		}
 	})
 }

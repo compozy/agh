@@ -7,19 +7,22 @@ import (
 )
 
 func stableID(prefix string, parts ...string) string {
+	trimmedParts := make([]string, 0, len(parts))
 	size := 0
 	for idx, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		trimmedParts = append(trimmedParts, trimmed)
 		if idx > 0 {
 			size++
 		}
-		size += len(strings.TrimSpace(part))
+		size += len(trimmed)
 	}
 	payload := make([]byte, 0, size)
-	for idx, part := range parts {
+	for idx, part := range trimmedParts {
 		if idx > 0 {
 			payload = append(payload, '\n')
 		}
-		payload = append(payload, strings.TrimSpace(part)...)
+		payload = append(payload, part...)
 	}
 	sum := sha256.Sum256(payload)
 	var encoded [16]byte

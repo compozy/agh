@@ -23,6 +23,8 @@ type commandRunner interface {
 
 type execRunner struct{}
 
+var _ commandRunner = execRunner{}
+
 func (execRunner) Run(ctx context.Context, name string, args ...string) error {
 	return runCommand(ctx, name, args...)
 }

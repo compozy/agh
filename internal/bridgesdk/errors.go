@@ -329,6 +329,9 @@ func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Con
 	if config.RandFloat == nil {
 		config.RandFloat = rand.Float64
 	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
 
 	for attempt := 1; attempt <= config.Attempts; attempt++ {
 		result, err := fn(ctx)
@@ -352,7 +355,7 @@ func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Con
 		}
 	}
 
-	return zero, errors.New("bridgesdk: retry attempts exhausted")
+	panic("bridgesdk: retry loop exhausted without returning")
 }
 
 func retryDelay(config RetryConfig, attempt int, recovery RecoveryDecision) time.Duration {
