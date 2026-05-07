@@ -1347,9 +1347,10 @@ func TestModelCatalogModelsDevConfigValidatesDefaultsAndOverrides(t *testing.T) 
 	}
 
 	tests := []struct {
-		name    string
-		value   ModelsDevSourceConfig
-		wantErr string
+		name           string
+		value          ModelsDevSourceConfig
+		wantErr        string
+		wantErrDetails string
 	}{
 		{
 			name:    "Should reject invalid endpoint",
@@ -1357,9 +1358,10 @@ func TestModelCatalogModelsDevConfigValidatesDefaultsAndOverrides(t *testing.T) 
 			wantErr: "model_catalog.sources.models_dev.endpoint must be an absolute HTTP(S) URL",
 		},
 		{
-			name:    "Should reject invalid TTL",
-			value:   ModelsDevSourceConfig{TTL: "soon"},
-			wantErr: "model_catalog.sources.models_dev.ttl must be a positive duration",
+			name:           "Should reject invalid TTL",
+			value:          ModelsDevSourceConfig{TTL: "soon"},
+			wantErr:        "model_catalog.sources.models_dev.ttl must be a positive duration",
+			wantErrDetails: `time: invalid duration "soon"`,
 		},
 		{
 			name:    "Should reject invalid timeout",
@@ -1377,6 +1379,9 @@ func TestModelCatalogModelsDevConfigValidatesDefaultsAndOverrides(t *testing.T) 
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("ModelsDev Validate() error = %v, want %q", err, tc.wantErr)
+			}
+			if tc.wantErrDetails != "" && !strings.Contains(err.Error(), tc.wantErrDetails) {
+				t.Fatalf("ModelsDev Validate() error = %v, want parse details %q", err, tc.wantErrDetails)
 			}
 		})
 	}

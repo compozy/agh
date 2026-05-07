@@ -101,39 +101,62 @@ func TestConfigOptionMatching(t *testing.T) {
 		},
 	}
 
-	model, ok := findModelConfigOption(options)
-	if !ok || model.ID != "model" {
-		t.Fatalf("findModelConfigOption() = %#v, %v", model, ok)
-	}
-	reasoning, ok := findReasoningConfigOption(options)
-	if !ok || reasoning.ID != "effort" {
-		t.Fatalf("findReasoningConfigOption() = %#v, %v", reasoning, ok)
-	}
-	if !configOptionAllowsValue(model, "model-b") {
-		t.Fatal("configOptionAllowsValue() rejected advertised model")
-	}
-	if configOptionAllowsValue(model, "model-c") {
-		t.Fatal("configOptionAllowsValue() accepted unadvertised model")
-	}
-	if configOptionAllowsValue(options[0], "true") {
-		t.Fatal("configOptionAllowsValue() accepted boolean option as select")
-	}
+	t.Run("Should find model and reasoning config options", func(t *testing.T) {
+		t.Parallel()
+
+		model, ok := findModelConfigOption(options)
+		if !ok || model.ID != "model" {
+			t.Fatalf("findModelConfigOption() = %#v, %v", model, ok)
+		}
+		reasoning, ok := findReasoningConfigOption(options)
+		if !ok || reasoning.ID != "effort" {
+			t.Fatalf("findReasoningConfigOption() = %#v, %v", reasoning, ok)
+		}
+	})
+
+	t.Run("Should allow only advertised select option values", func(t *testing.T) {
+		t.Parallel()
+
+		model, ok := findModelConfigOption(options)
+		if !ok {
+			t.Fatal("findModelConfigOption() ok = false, want true")
+		}
+		if !configOptionAllowsValue(model, "model-b") {
+			t.Fatal("configOptionAllowsValue() rejected advertised model")
+		}
+		if configOptionAllowsValue(model, "model-c") {
+			t.Fatal("configOptionAllowsValue() accepted unadvertised model")
+		}
+		if configOptionAllowsValue(options[0], "true") {
+			t.Fatal("configOptionAllowsValue() accepted boolean option as select")
+		}
+	})
 }
 
 func TestLegacyModelStateAllows(t *testing.T) {
 	t.Parallel()
 
 	caps := Caps{SupportedModels: []string{"model-a", "model-b"}}
-	if !legacyModelStateAllows(caps, "model-b") {
-		t.Fatal("legacyModelStateAllows() rejected advertised model")
-	}
-	if legacyModelStateAllows(caps, "model-c") {
-		t.Fatal("legacyModelStateAllows() accepted unadvertised model")
-	}
-	if legacyModelStateAllows(Caps{}, "model-a") {
-		t.Fatal("legacyModelStateAllows() accepted model without legacy state")
-	}
-	if !slices.Equal(CloneCaps(caps).SupportedModels, caps.SupportedModels) {
-		t.Fatalf("CloneCaps() did not preserve models")
-	}
+
+	t.Run("Should allow only advertised legacy models", func(t *testing.T) {
+		t.Parallel()
+
+		if !legacyModelStateAllows(caps, "model-b") {
+			t.Fatal("legacyModelStateAllows() rejected advertised model")
+		}
+		if legacyModelStateAllows(caps, "model-c") {
+			t.Fatal("legacyModelStateAllows() accepted unadvertised model")
+		}
+		if legacyModelStateAllows(Caps{}, "model-a") {
+			t.Fatal("legacyModelStateAllows() accepted model without legacy state")
+		}
+	})
+
+	t.Run("Should preserve legacy model lists when cloning caps", func(t *testing.T) {
+		t.Parallel()
+
+		if !slices.Equal(CloneCaps(caps).SupportedModels, caps.SupportedModels) {
+			t.Fatalf("CloneCaps() did not preserve models")
+		}
+	})
 }

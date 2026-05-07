@@ -152,7 +152,7 @@ func performParityRequest(t *testing.T, handler http.Handler, method string, pat
 func newShortParityHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 
-	root, err := os.MkdirTemp("/tmp", "agh-model-parity-*")
+	root, err := os.MkdirTemp(".", ".agh-model-parity-*")
 	if err != nil {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}

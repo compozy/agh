@@ -12,7 +12,7 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{8,}`),
 	regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}`),
 	regexp.MustCompile(
-		`(?i)\b([A-Z0-9_-]*(?:api[_-]?key|auth[_-]?token|oauth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|secret|password|credential|private[_-]?key)[A-Z0-9_-]*)=([^&\s]+)`,
+		`(?i)\b([A-Z0-9_-]*(?:api[_-]?key|auth[_-]?token|oauth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|secret|password|credential|private[_-]?key)[A-Z0-9_-]*)\s*[:=]\s*([^&\s]+)`,
 	),
 }
 
@@ -26,8 +26,10 @@ func RedactString(value string) string {
 }
 
 func redactMatch(value string) string {
-	if key, _, ok := strings.Cut(value, "="); ok {
-		return key + "=[REDACTED]"
+	if idx := strings.IndexAny(value, "=:"); idx > 0 {
+		key := strings.TrimSpace(value[:idx])
+		sep := string(value[idx])
+		return key + sep + "[REDACTED]"
 	}
 	return "[REDACTED]"
 }

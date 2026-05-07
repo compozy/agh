@@ -33,6 +33,11 @@ func TestRedactString(t *testing.T) {
 			input:   "extension failed with OAUTH_TOKEN=oauth-secret-value",
 			secrets: []string{"oauth-secret-value"},
 		},
+		{
+			name:    "Should redact colon-delimited secret values",
+			input:   "models.dev failed with api_key: sk-colon-secret-token client_secret: colon-client-secret",
+			secrets: []string{"sk-colon-secret-token", "colon-client-secret"},
+		},
 	}
 
 	for _, tc := range tests {

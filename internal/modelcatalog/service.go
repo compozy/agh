@@ -81,7 +81,6 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 	now := defaultNow(opts.Now)
 	listOpts := opts
 	listOpts.Now = now
-	listOpts.IncludeAll = true
 	rows, err := s.store.ListRows(ctx, listOpts)
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list stored rows: %w", err)

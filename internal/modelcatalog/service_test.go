@@ -257,6 +257,49 @@ func TestMergeRows(t *testing.T) {
 func TestCatalogServiceRefresh(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should respect stale filters when listing merged models", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.rows[sourceProviderKey("models_dev", "codex")] = []ModelRow{
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"codex",
+				"gpt-5.4",
+				testTime(0),
+				func(row *ModelRow) {
+					row.Stale = true
+				},
+			),
+		}
+		service := newTestService(t, store, nil)
+
+		models, err := service.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", Now: testTime(1)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(exclude stale) error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("ListModels(exclude stale) = %#v, want empty projection", models)
+		}
+
+		models, err = service.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", IncludeStale: true, Now: testTime(1)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(include stale) error = %v", err)
+		}
+		model := requireSingleModel(t, models)
+		if !model.Stale {
+			t.Fatalf("Model.Stale = %t, want true", model.Stale)
+		}
+	})
+
 	t.Run("Should return partial success and record failed source status", func(t *testing.T) {
 		t.Parallel()
 
@@ -365,7 +408,18 @@ func TestCatalogServiceRefresh(t *testing.T) {
 			ListOptions{ProviderID: "codex", Refresh: true, Now: testTime(2)},
 		)
 		if err != nil {
-			t.Fatalf("ListModels(stale refresh) error = %v", err)
+			t.Fatalf("ListModels(exclude stale refresh) error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("ListModels(exclude stale refresh) = %#v, want empty projection", models)
+		}
+
+		models, err = service.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", Refresh: true, IncludeStale: true, Now: testTime(2)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(include stale refresh) error = %v", err)
 		}
 		model := requireSingleModel(t, models)
 		if model.AvailabilityState != string(AvailabilityStateAvailableStale) {

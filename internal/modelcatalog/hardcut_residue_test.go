@@ -137,6 +137,10 @@ func skipResidueGuardFile(rel string) bool {
 		strings.HasSuffix(base, ".snap") {
 		return true
 	}
+	switch strings.ToLower(filepath.Ext(base)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".avif":
+		return true
+	}
 	return strings.Contains(rel, "/__tests__/") || strings.Contains(rel, "/testdata/")
 }
 

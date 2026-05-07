@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -57,7 +58,11 @@ func (c *unixSocketClient) RefreshProviderModels(
 	providerID string,
 	request ProviderModelRefreshRequest,
 ) (ProviderModelRefreshRecord, error) {
-	path := providerModelsPath(providerID, "refresh")
+	trimmedProvider := strings.TrimSpace(providerID)
+	if trimmedProvider == "" {
+		return ProviderModelRefreshRecord{}, fmt.Errorf("provider model provider_id is required")
+	}
+	path := providerModelsPath(trimmedProvider, "refresh")
 	var response ProviderModelRefreshRecord
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return ProviderModelRefreshRecord{}, err
@@ -69,7 +74,11 @@ func (c *unixSocketClient) ProviderModelStatus(
 	ctx context.Context,
 	providerID string,
 ) (ProviderModelStatusRecord, error) {
-	path := providerModelsPath(providerID, "status")
+	trimmedProvider := strings.TrimSpace(providerID)
+	if trimmedProvider == "" {
+		return ProviderModelStatusRecord{}, fmt.Errorf("provider model provider_id is required")
+	}
+	path := providerModelsPath(trimmedProvider, "status")
 	var response ProviderModelStatusRecord
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return ProviderModelStatusRecord{}, err

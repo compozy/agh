@@ -3,6 +3,7 @@ package modelcatalog
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -189,8 +190,34 @@ func TestModelsDevSource(t *testing.T) {
 		if err == nil {
 			t.Fatal("ListModels(timeout) error = nil, want timeout error")
 		}
+		var timeoutErr net.Error
+		if !errors.As(err, &timeoutErr) || !timeoutErr.Timeout() {
+			t.Fatalf("ListModels(timeout) error = %v, want timeout error", err)
+		}
 		if elapsed >= 150*time.Millisecond {
 			t.Fatalf("elapsed = %s, want timeout before server sleep completes", elapsed)
+		}
+	})
+
+	t.Run("Should reject injected HTTP clients without timeouts", func(t *testing.T) {
+		t.Parallel()
+
+		enabled := true
+		_, err := NewModelsDevSource(
+			nil,
+			aghconfig.ModelsDevSourceConfig{
+				Enabled:  &enabled,
+				Endpoint: "https://models.example.test/api.json",
+				TTL:      "1h",
+				Timeout:  "1s",
+			},
+			WithModelsDevHTTPClient(&http.Client{}),
+		)
+		if err == nil {
+			t.Fatal("NewModelsDevSource(zero-timeout client) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "client timeout must be positive") {
+			t.Fatalf("NewModelsDevSource(zero-timeout client) error = %v, want timeout validation", err)
 		}
 	})
 
@@ -225,7 +252,18 @@ func TestModelsDevSource(t *testing.T) {
 			ListOptions{ProviderID: "codex", Refresh: true, Now: testTime(1)},
 		)
 		if err != nil {
-			t.Fatalf("ListModels(second stale fallback) error = %v", err)
+			t.Fatalf("ListModels(exclude stale fallback) error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("ListModels(exclude stale fallback) = %#v, want empty projection", models)
+		}
+
+		models, err = service.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", Refresh: true, IncludeStale: true, Now: testTime(1)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(include stale fallback) error = %v", err)
 		}
 		model := requireSingleModel(t, models)
 		if !model.Stale {

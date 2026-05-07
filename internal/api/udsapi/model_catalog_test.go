@@ -3,6 +3,7 @@ package udsapi
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/api/contract"
@@ -64,6 +65,9 @@ func TestUDSModelCatalogRoutes(t *testing.T) {
 		recorder := performRequest(t, engine, http.MethodGet, "/api/openai/v1/models", nil)
 		if recorder.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", recorder.Code, recorder.Body.String())
+		}
+		if got, want := strings.TrimSpace(recorder.Body.String()), "404 page not found"; got != want {
+			t.Fatalf("body = %q, want %q", got, want)
 		}
 	})
 }

@@ -84,14 +84,18 @@ func TestCapabilityCheckerMarketplaceModelCeilings(t *testing.T) {
 			[]string{"model.read", "model.write"},
 		)
 		for _, method := range []string{"models/list", "models/refresh", "models/status"} {
-			err := checker.CheckHostAPI("ext", method)
-			if err == nil {
-				t.Fatalf("CheckHostAPI(%q) error = nil, want capability denied", method)
-			}
-			var denied *ErrCapabilityDenied
-			if !errors.As(err, &denied) {
-				t.Fatalf("CheckHostAPI(%q) error = %T, want *ErrCapabilityDenied", method, err)
-			}
+			t.Run("Should deny "+method+" for marketplace sources", func(t *testing.T) {
+				t.Parallel()
+
+				err := checker.CheckHostAPI("ext", method)
+				if err == nil {
+					t.Fatalf("CheckHostAPI(%q) error = nil, want capability denied", method)
+				}
+				var denied *ErrCapabilityDenied
+				if !errors.As(err, &denied) {
+					t.Fatalf("CheckHostAPI(%q) error = %T, want *ErrCapabilityDenied", method, err)
+				}
+			})
 		}
 	})
 

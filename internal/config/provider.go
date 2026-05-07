@@ -1152,7 +1152,7 @@ func (c ModelsDevSourceConfig) Validate(path string) error {
 func validatePositiveDuration(path string, raw string) error {
 	duration, err := time.ParseDuration(strings.TrimSpace(raw))
 	if err != nil {
-		return fmt.Errorf("%s must be a positive duration", path)
+		return fmt.Errorf("%s must be a positive duration: %w", path, err)
 	}
 	if duration <= 0 {
 		return fmt.Errorf("%s must be a positive duration", path)

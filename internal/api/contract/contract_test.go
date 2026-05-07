@@ -115,6 +115,17 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		if configOption["id"] != "model" || configOption["kind"] != "select" || configOption["current"] != "gpt-test" {
 			t.Fatalf("config option JSON = %#v", configOption)
 		}
+		values, ok := configOption["values"].([]any)
+		if !ok || len(values) != 1 {
+			t.Fatalf("config option values JSON = %#v", configOption["values"])
+		}
+		firstValue, ok := values[0].(map[string]any)
+		if !ok {
+			t.Fatalf("config option value type = %T, want object", values[0])
+		}
+		if firstValue["value"] != "gpt-test" || firstValue["label"] != "GPT Test" {
+			t.Fatalf("config option value JSON = %#v", firstValue)
+		}
 		sandboxPayload, ok := got["sandbox"].(map[string]any)
 		if !ok {
 			t.Fatalf("sandbox type = %T, want object", got["sandbox"])

@@ -93,6 +93,9 @@ func NewModelsDevSource(
 			option(source)
 		}
 	}
+	if source.client == nil || source.client.Timeout <= 0 {
+		return nil, fmt.Errorf("model catalog: models.dev client timeout must be positive")
+	}
 	return source, nil
 }
 
