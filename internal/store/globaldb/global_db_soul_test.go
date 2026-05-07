@@ -72,30 +72,7 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		if heartbeatRecord.Version != 13 || heartbeatRecord.Name != "add_agent_heartbeat_storage" {
 			t.Fatalf("records[12] = %#v, want add_agent_heartbeat_storage v13", heartbeatRecord)
 		}
-		if records[13].Version != 14 || records[13].Name != "add_event_summary_lineage" {
-			t.Fatalf("records[13] = %#v, want add_event_summary_lineage v14", records[13])
-		}
-		if records[14].Version != 15 || records[14].Name != "rebuild_event_summaries_for_global_payloads" {
-			t.Fatalf("records[14] = %#v, want rebuild_event_summaries_for_global_payloads v15", records[14])
-		}
-		if records[15].Version != 16 || records[15].Name != "rename_actor_ref_columns_to_actor_id" {
-			t.Fatalf("records[15] = %#v, want rename_actor_ref_columns_to_actor_id v16", records[15])
-		}
-		if records[16].Version != 17 || records[16].Name != "rebuild_network_conversation_containers" {
-			t.Fatalf("records[16] = %#v, want rebuild_network_conversation_containers v17", records[16])
-		}
-		if records[17].Version != 18 || records[17].Name != "add_task_orchestration_profile_schema" {
-			t.Fatalf("records[17] = %#v, want add_task_orchestration_profile_schema v18", records[17])
-		}
-		if records[18].Version != 19 || records[18].Name != "add_task_review_gate_schema" {
-			t.Fatalf("records[18] = %#v, want add_task_review_gate_schema v19", records[18])
-		}
-		if records[19].Version != 20 || records[19].Name != "add_notification_cursors" {
-			t.Fatalf("records[19] = %#v, want add_notification_cursors v20", records[19])
-		}
-		if records[20].Version != 21 || records[20].Name != "add_bridge_task_subscriptions" {
-			t.Fatalf("records[20] = %#v, want add_bridge_task_subscriptions v21", records[20])
-		}
+		assertAppliedGlobalMigrationOrder(t, records)
 		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
 			exists, err := tableExists(ctx, globalDB.db, table)
 			if err != nil {

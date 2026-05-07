@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -184,6 +185,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/observe/health",
 		"GET /api/observe/tasks/dashboard",
 		"GET /api/observe/tasks/inbox",
+		"GET /api/providers/*catalog_path",
 		"GET /api/resources",
 		"GET /api/resources/:kind",
 		"GET /api/resources/:kind/:id",
@@ -299,6 +301,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/memory/sessions/prune",
 		"POST /api/memory/sessions/repair",
 		"POST /api/memory/sessions/:session_id/replay",
+		"POST /api/providers/*catalog_path",
 		"POST /api/network/channels",
 		"POST /api/network/channels/:channel/directs/resolve",
 		"POST /api/network/send",
@@ -1096,7 +1099,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 		t.Fatalf("len(providers) = %d, want %d (%#v)", len(response.Providers), len(expectedProviders), response)
 	}
 	for i, want := range expectedProviders {
-		if got := response.Providers[i]; got != want {
+		if got := response.Providers[i]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("providers[%d] = %#v, want %#v", i, got, want)
 		}
 	}

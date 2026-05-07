@@ -20,6 +20,9 @@ agh session new [flags]
   # Start a named session for a specific registered workspace and agent
   agh session new --workspace checkout-api --agent reviewer --name review-api
 
+  # Override provider, model, and reasoning effort for this session only
+  agh session new --provider codex --model gpt-5.4 --reasoning-effort high
+
   # Auto-register an absolute workspace path before creating the session
   agh session new --cwd "$PWD" --agent reviewer
 ```
@@ -27,13 +30,15 @@ agh session new [flags]
 ### Options
 
 ```
-      --agent string       Agent definition name (defaults to config default)
-      --channel string     Optional network channel opt-in for the session
-      --cwd string         Absolute workspace directory to auto-register
-  -h, --help               help for new
-      --name string        Optional session label
-      --provider string    Optional provider override for this session
-      --workspace string   Registered workspace name or ID
+      --agent string              Agent definition name (defaults to config default)
+      --channel string            Optional network channel opt-in for the session
+      --cwd string                Absolute workspace directory to auto-register
+  -h, --help                      help for new
+      --model string              Optional model override for this session
+      --name string               Optional session label
+      --provider string           Optional provider override for this session
+      --reasoning-effort string   Optional reasoning effort hint (minimal|low|medium|high|xhigh) for providers that support it
+      --workspace string          Registered workspace name or ID
 ```
 
 ### Options inherited from parent commands

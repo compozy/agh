@@ -62,6 +62,7 @@ type StartOpts struct {
 	Permissions     aghconfig.PermissionMode
 	SystemPrompt    string
 	PreferredModel  string
+	ReasoningEffort string
 	ResumeSessionID string
 	Launcher        sandbox.Launcher
 	ToolHost        sandbox.ToolHost
@@ -218,6 +219,23 @@ func (m PromptMeta) IsZero() bool {
 	return normalized.TurnSource == "" && normalized.Network == nil && normalized.Synthetic == nil
 }
 
+// ToMap converts normalized prompt metadata to the ACP SDK extensibility map.
+func (m PromptMeta) ToMap() (map[string]any, error) {
+	normalized := m.Normalize()
+	if normalized.IsZero() {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("acp: encode prompt metadata: %w", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return nil, fmt.Errorf("acp: decode prompt metadata map: %w", err)
+	}
+	return decoded, nil
+}
+
 // Validate ensures the metadata shape is internally consistent.
 func (m PromptMeta) Validate() error {
 	normalized := m.Normalize()
@@ -307,6 +325,58 @@ type Caps struct {
 	SupportsLoadSession bool
 	SupportedModes      []string
 	SupportedModels     []string
+	ConfigOptions       []SessionConfigOption
+}
+
+// SessionConfigOptionKind identifies the ACP config option shape AGH exposes.
+type SessionConfigOptionKind string
+
+const (
+	// SessionConfigOptionKindSelect is a single-value ACP config selector.
+	SessionConfigOptionKindSelect SessionConfigOptionKind = "select"
+	// SessionConfigOptionKindBoolean is an ACP boolean config toggle.
+	SessionConfigOptionKindBoolean SessionConfigOptionKind = "boolean"
+)
+
+// SessionConfigOption captures one active ACP session config option.
+type SessionConfigOption struct {
+	ID          string
+	Label       string
+	Description string
+	Kind        SessionConfigOptionKind
+	Current     string
+	Values      []SessionConfigOptionValue
+}
+
+// SessionConfigOptionValue captures one selectable value for an ACP config option.
+type SessionConfigOptionValue struct {
+	Value       string
+	Label       string
+	Description string
+}
+
+// CloneCaps returns a deep copy of ACP caps.
+func CloneCaps(caps Caps) Caps {
+	return Caps{
+		SupportsLoadSession: caps.SupportsLoadSession,
+		SupportedModes:      append([]string(nil), caps.SupportedModes...),
+		SupportedModels:     append([]string(nil), caps.SupportedModels...),
+		ConfigOptions:       CloneSessionConfigOptions(caps.ConfigOptions),
+	}
+}
+
+// CloneSessionConfigOptions returns a deep copy of session config options.
+func CloneSessionConfigOptions(options []SessionConfigOption) []SessionConfigOption {
+	if len(options) == 0 {
+		return nil
+	}
+	cloned := make([]SessionConfigOption, 0, len(options))
+	for _, option := range options {
+		copyOption := option
+		copyOption.Values = append([]SessionConfigOptionValue(nil), option.Values...)
+		cloned = append(cloned, copyOption)
+	}
+	return cloned
 }
 
 // TokenUsage captures per-turn usage reported by the agent.
@@ -416,6 +486,7 @@ type AgentProcess struct {
 	Caps      Caps
 	StartedAt time.Time
 
+	capsMu          sync.RWMutex
 	managed         *subprocess.Process
 	handle          sandbox.Handle
 	toolHostMu      sync.Mutex
@@ -522,6 +593,34 @@ func (p *AgentProcess) HealthState() subprocess.HealthState {
 		return subprocess.HealthState{}
 	}
 	return p.managed.HealthState()
+}
+
+// CapsSnapshot returns the latest ACP capability/config snapshot.
+func (p *AgentProcess) CapsSnapshot() Caps {
+	if p == nil {
+		return Caps{}
+	}
+	p.capsMu.RLock()
+	defer p.capsMu.RUnlock()
+	return CloneCaps(p.Caps)
+}
+
+func (p *AgentProcess) setCaps(caps Caps) {
+	if p == nil {
+		return
+	}
+	p.capsMu.Lock()
+	defer p.capsMu.Unlock()
+	p.Caps = CloneCaps(caps)
+}
+
+func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
+	if p == nil {
+		return
+	}
+	p.capsMu.Lock()
+	defer p.capsMu.Unlock()
+	p.Caps.ConfigOptions = CloneSessionConfigOptions(options)
 }
 
 // ToolHost returns the sandbox-owned tool host used by this process.

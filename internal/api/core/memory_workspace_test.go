@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -884,7 +885,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			t.Fatalf("len(providers) = %d, want %d (%#v)", got, want, getPayload.Providers)
 		}
 		for i, want := range expectedProviders {
-			if got := getPayload.Providers[i]; got != want {
+			if got := getPayload.Providers[i]; !reflect.DeepEqual(got, want) {
 				t.Fatalf("providers[%d] = %#v, want %#v", i, got, want)
 			}
 		}

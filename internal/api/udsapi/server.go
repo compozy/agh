@@ -79,6 +79,7 @@ type Server struct {
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
 	agentCatalog      core.AgentCatalog
+	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
 	soulAuthoring     core.SoulAuthoringService
 	soulRefresher     core.SoulRefresher
@@ -127,6 +128,7 @@ type handlerConfig struct {
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
 	agentCatalog      core.AgentCatalog
+	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
 	soulAuthoring     core.SoulAuthoringService
 	soulRefresher     core.SoulRefresher
@@ -353,6 +355,13 @@ func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 func WithAgentCatalog(catalog core.AgentCatalog) Option {
 	return func(server *Server) {
 		server.agentCatalog = catalog
+	}
+}
+
+// WithModelCatalogService injects the daemon-owned provider model catalog service.
+func WithModelCatalogService(service core.ModelCatalogService) Option {
+	return func(server *Server) {
+		server.modelCatalog = service
 	}
 }
 
@@ -610,6 +619,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		vault:             s.vault,
 		workspaces:        s.workspaces,
 		agentCatalog:      s.agentCatalog,
+		modelCatalog:      s.modelCatalog,
 		agentContext:      s.agentContext,
 		soulAuthoring:     s.soulAuthoring,
 		soulRefresher:     s.soulRefresher,
@@ -859,6 +869,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
+			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,
 			SoulAuthoring:                cfg.soulAuthoring,
 			SoulRefresher:                cfg.soulRefresher,

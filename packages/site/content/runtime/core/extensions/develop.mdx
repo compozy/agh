@@ -213,6 +213,7 @@ Important current provide surfaces:
 | ---------------- | ------------------------------------------------ |
 | `memory.backend` | `memory/store`, `memory/recall`, `memory/forget` |
 | `bridge.adapter` | `bridges/deliver`                                |
+| `model.source`   | `models/list`                                    |
 
 `bridge.adapter` extensions must also declare bridge metadata:
 
@@ -226,7 +227,59 @@ display_name = "Slack"
 ```
 
 Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
-`memory.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`.
+`memory.read`, `model.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`.
+
+### Model Source Extensions
+
+Extensions that declare the provide capability `model.source` enrich the daemon-owned provider
+model catalog. The daemon owns persistence and merge, so the extension only contributes source
+rows; it cannot rewrite global catalog state.
+
+```toml
+[capabilities]
+provides = ["model.source"]
+
+[actions]
+requires = ["models/list", "models/refresh", "models/status"]
+
+[security]
+capabilities = ["model.read", "model.write"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js"]
+```
+
+The extension service method `models/list` is dispatched by AGH whenever the catalog refreshes the
+`extension:<slug>` source for a provider the extension declares. The slug is derived from the
+extension name and must match `^[a-z0-9][a-z0-9_-]*$`; manifests that do not normalize cleanly are
+rejected at install time.
+
+| Direction       | Method           | Purpose                                                                      |
+| --------------- | ---------------- | ---------------------------------------------------------------------------- |
+| AGH → extension | `models/list`    | Returns provider model rows for the extension's declared providers.          |
+| Host API call   | `models/list`    | Reads the daemon-owned merged catalog projection, scoped by capability.      |
+| Host API call   | `models/refresh` | Triggers a daemon-owned source refresh; serialized per provider.             |
+| Host API call   | `models/status`  | Reads daemon-owned source status, including `last_refresh` and `last_error`. |
+
+Capability areas align with the Host API authorization layer:
+
+| Method           | Area          | Default in marketplace policy              |
+| ---------------- | ------------- | ------------------------------------------ |
+| `models/list`    | `model.read`  | Allowed (read-oriented grant).             |
+| `models/status`  | `model.read`  | Allowed (read-oriented grant).             |
+| `models/refresh` | `model.write` | Requires explicit grant; marketplace gate. |
+
+Extensions return validated rows. Invalid rows produce a recorded source status (with redacted
+`last_error`) instead of corrupting the merged projection. Refresh runs under a daemon-enforced
+deadline using the provider's auth/env/home policy, and refresh work for the same provider is
+coalesced — concurrent refreshes return identical source statuses when the in-flight refresh
+finishes.
+
+Generated TypeScript SDK and Go SDK helpers (`ProviderModel*`, `ModelCatalogSource*`,
+`ModelSource*`) are published from the same OpenAPI/contract source as the daemon. Extensions
+should depend on those helpers instead of hand-rolling JSON shapes so contract drift is caught at
+typecheck time.
 
 ### Authored Context Host API
 

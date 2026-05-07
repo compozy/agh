@@ -26,6 +26,7 @@ import (
 const (
 	defaultTerminalOutputLimit = 64 * 1024
 	networkCommandName         = "network"
+	sessionUpdateConfigOption  = "config_option_update"
 )
 
 type wireSessionNotification struct {
@@ -381,6 +382,9 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	if err := json.Unmarshal(params, &notification); err != nil {
 		return fmt.Errorf("acp: decode session notification: %w", err)
 	}
+	if notification.Update.ConfigOptionUpdate != nil {
+		p.setConfigOptions(sessionConfigOptionsFromSDK(notification.Update.ConfigOptionUpdate.ConfigOptions))
+	}
 
 	event := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
 	event = p.markToolEventPrechecked(event)
@@ -681,20 +685,20 @@ func (p *AgentProcess) takeExternalTerminalProcess(id string) *toolruntime.Handl
 }
 
 func (p *AgentProcess) handleKillTerminal(
-	request acpsdk.KillTerminalCommandRequest,
-) (acpsdk.KillTerminalCommandResponse, error) {
+	request acpsdk.KillTerminalRequest,
+) (acpsdk.KillTerminalResponse, error) {
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
-		return acpsdk.KillTerminalCommandResponse{}, err
+		return acpsdk.KillTerminalResponse{}, err
 	}
 	if err := p.toolHostOrDefault().KillTerminal(request.TerminalId); err != nil {
-		return acpsdk.KillTerminalCommandResponse{}, err
+		return acpsdk.KillTerminalResponse{}, err
 	}
 	p.completeExternalTerminalProcess(
 		context.Background(),
 		request.TerminalId,
 		toolruntime.ProcessCompletion{Err: errors.New("terminal killed")},
 	)
-	return acpsdk.KillTerminalCommandResponse{}, nil
+	return acpsdk.KillTerminalResponse{}, nil
 }
 
 func (p *AgentProcess) handleTerminalOutput(
@@ -1185,6 +1189,9 @@ func translateSessionUpdate(
 	case notification.Update.CurrentModeUpdate != nil:
 		event.Type = EventTypeSystem
 		event.Title = "current_mode_update"
+	case notification.Update.ConfigOptionUpdate != nil:
+		event.Type = EventTypeSystem
+		event.Title = sessionUpdateConfigOption
 	default:
 		event.Type = EventTypeSystem
 	}

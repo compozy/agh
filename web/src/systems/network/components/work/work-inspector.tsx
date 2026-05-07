@@ -30,7 +30,7 @@ export function WorkInspector({
     isLoading && entries.length === 0 ? (
       <p className="px-4 py-6 text-[13px] text-[color:var(--color-text-tertiary)]">Loading…</p>
     ) : entries.length === 0 ? (
-      <div className="px-4 py-6">
+      <div className="flex justify-center px-4 py-6">
         <Empty
           className="max-w-sm"
           description="The active container has no open work right now."

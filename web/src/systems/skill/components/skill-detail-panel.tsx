@@ -145,7 +145,7 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
   return (
     <Section label="Capabilities">
       {capabilities.length === 0 ? (
-        <div data-testid="skill-capabilities-empty">
+        <div className="flex justify-center px-2 py-6" data-testid="skill-capabilities-empty">
           <Empty
             className="max-w-sm"
             description="This skill has not declared any capabilities."
@@ -176,7 +176,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
   return (
     <Section label="Recent calls">
       {calls.length === 0 ? (
-        <div data-testid="skill-recent-calls-empty">
+        <div className="flex justify-center px-2 py-6" data-testid="skill-recent-calls-empty">
           <Empty
             className="max-w-sm"
             description="No recent invocations recorded."

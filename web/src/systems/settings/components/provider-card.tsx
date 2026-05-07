@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import type { SettingsProviderEntry } from "@/systems/settings";
 
 import { ProviderLogo } from "./provider-logo";
+import { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
 interface ProviderCardProps {
@@ -64,7 +65,13 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
           {provider.settings.command ?? <EmptyValue />}
         </MetaRow>
         <MetaRow label="Default model" testId={`${testId}-model`}>
-          {provider.settings.default_model ?? <EmptyValue />}
+          {provider.settings.models?.default ?? <EmptyValue />}
+        </MetaRow>
+        <MetaRow label="Curated models" testId={`${testId}-curated-models`}>
+          <CuratedModels provider={provider} />
+        </MetaRow>
+        <MetaRow label="Reasoning" testId={`${testId}-reasoning`}>
+          <ReasoningSupport provider={provider} />
         </MetaRow>
         <MetaRow label="Harness" testId={`${testId}-harness`}>
           {provider.settings.harness ? (
@@ -105,6 +112,12 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             shadowed={shadowed}
           />
         </MetaRow>
+        <div className="grid grid-cols-[7.5rem_1fr] items-start gap-3 pt-1">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+            Catalog
+          </span>
+          <ProviderModelCatalogStatus providerId={provider.name} testId={`${testId}-catalog`} />
+        </div>
       </CardContent>
 
       <CardFooter className="justify-between">
@@ -191,6 +204,35 @@ function ProviderAuthStatus({ provider }: { provider: SettingsProviderEntry }) {
       </Pill>
     </span>
   );
+}
+
+function CuratedModels({ provider }: { provider: SettingsProviderEntry }) {
+  const models = provider.settings.models?.curated ?? [];
+  if (models.length === 0) {
+    return <EmptyValue />;
+  }
+  const ids = models.map(model => model.id).filter(Boolean);
+  if (ids.length === 0) {
+    return <EmptyValue />;
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="truncate">{ids.slice(0, 2).join(", ")}</span>
+      {ids.length > 2 ? (
+        <Pill mono tone="neutral">
+          +{ids.length - 2}
+        </Pill>
+      ) : null}
+    </span>
+  );
+}
+
+function ReasoningSupport({ provider }: { provider: SettingsProviderEntry }) {
+  const models = provider.settings.models?.curated ?? [];
+  const supported = models.some(
+    model => model.supports_reasoning || (model.reasoning_efforts?.length ?? 0) > 0
+  );
+  return supported ? "Per model" : "Not declared";
 }
 
 function authStatusTone(state: string): PillTone {

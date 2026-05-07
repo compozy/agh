@@ -1274,8 +1274,10 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 			},
 			Providers: map[string]aghconfig.ProviderConfig{
 				"claude": {
-					Command:      "claude",
-					DefaultModel: "sonnet",
+					Command: "claude",
+					Models: aghconfig.ProviderModelsConfig{
+						Default: "sonnet",
+					},
 					CredentialSlots: []aghconfig.ProviderCredentialSlot{
 						{
 							Name:      "api_key",

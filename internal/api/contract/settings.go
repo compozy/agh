@@ -539,7 +539,7 @@ type SettingsSourceMetadataPayload struct {
 type SettingsProviderSettingsPayload struct {
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`
-	DefaultModel    string                                  `json:"default_model,omitempty"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitempty"`
 	Harness         string                                  `json:"harness,omitempty"`
 	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
 	Transport       string                                  `json:"transport,omitempty"`
@@ -550,6 +550,33 @@ type SettingsProviderSettingsPayload struct {
 	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
 	AuthLoginCmd    string                                  `json:"auth_login_command,omitempty"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+type SettingsProviderModelsPayload struct {
+	Default   string                                  `json:"default,omitempty"`
+	Curated   []SettingsProviderModelPayload          `json:"curated,omitempty"`
+	Discovery *SettingsProviderModelsDiscoveryPayload `json:"discovery,omitempty"`
+}
+
+type SettingsProviderModelsDiscoveryPayload struct {
+	Enabled  *bool  `json:"enabled,omitempty"`
+	Command  string `json:"command,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+	Timeout  string `json:"timeout,omitempty"`
+}
+
+type SettingsProviderModelPayload struct {
+	ID                     string   `json:"id"`
+	DisplayName            string   `json:"display_name,omitempty"`
+	ContextWindow          *int64   `json:"context_window,omitempty"`
+	MaxInputTokens         *int64   `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64   `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool    `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool    `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []string `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort string   `json:"default_reasoning_effort,omitempty"`
+	CostInputPerMillion    *float64 `json:"cost_input_per_million,omitempty"`
+	CostOutputPerMillion   *float64 `json:"cost_output_per_million,omitempty"`
 }
 
 type SettingsProviderCredentialSlotPayload struct {

@@ -40,6 +40,40 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("validate create session runtime overrides", func(t *testing.T) {
+		t.Parallel()
+
+		if err := validateCreateSessionRuntimeOverrides("core-test", "", "gpt-5.4", ""); !errors.Is(
+			err,
+			session.ErrInvalidRuntimeOverride,
+		) {
+			t.Fatalf("validateCreateSessionRuntimeOverrides(model) error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if err := validateCreateSessionRuntimeOverrides("core-test", "", "", "high"); !errors.Is(
+			err,
+			session.ErrInvalidRuntimeOverride,
+		) {
+			t.Fatalf(
+				"validateCreateSessionRuntimeOverrides(reasoning provider) error = %v, want ErrInvalidRuntimeOverride",
+				err,
+			)
+		}
+		if err := validateCreateSessionRuntimeOverrides(
+			"core-test",
+			"codex",
+			"",
+			"unsupported",
+		); !errors.Is(err, session.ErrInvalidRuntimeOverride) {
+			t.Fatalf(
+				"validateCreateSessionRuntimeOverrides(reasoning enum) error = %v, want ErrInvalidRuntimeOverride",
+				err,
+			)
+		}
+		if err := validateCreateSessionRuntimeOverrides("core-test", "codex", "gpt-5.4", "high"); err != nil {
+			t.Fatalf("validateCreateSessionRuntimeOverrides(valid) error = %v", err)
+		}
+	})
+
 	t.Run("lookup workspace id", func(t *testing.T) {
 		t.Parallel()
 
@@ -135,6 +169,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	}
 	if got := statusForSessionError(aghconfig.ErrProviderUnavailable); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(provider unavailable) = %d, want %d", got, http.StatusBadRequest)
+	}
+	if got := statusForSessionError(session.ErrInvalidRuntimeOverride); got != http.StatusBadRequest {
+		t.Fatalf("statusForSessionError(invalid runtime override) = %d, want %d", got, http.StatusBadRequest)
 	}
 	if got := statusForSessionError(session.ErrSessionNotActive); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(not active) = %d, want %d", got, http.StatusBadRequest)

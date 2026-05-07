@@ -58,7 +58,7 @@ export function AutomationRunHistory({
           />
         </div>
       ) : error ? (
-        <div data-testid="automation-run-history-error">
+        <div className="flex justify-center px-2 py-6" data-testid="automation-run-history-error">
           <Empty
             description={error.message ?? "Failed to load automation runs"}
             icon={AlertCircle}
@@ -67,7 +67,7 @@ export function AutomationRunHistory({
           />
         </div>
       ) : runs.length === 0 ? (
-        <div data-testid="automation-run-history-empty">
+        <div className="flex justify-center px-2 py-6" data-testid="automation-run-history-empty">
           <Empty description={emptyDescription} icon={History} title={emptyTitle} fill={false} />
         </div>
       ) : (

@@ -24,9 +24,11 @@
         "---Operations---",
         "daemon",
         "settings",
+        "providers",
         "extensions",
         "vault",
         "agent",
-        "tasks"
+        "tasks",
+        "openai"
     ]
 }

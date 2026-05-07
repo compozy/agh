@@ -25,6 +25,9 @@ const (
 	configEnvKey        = "env"
 	configSecretEnvKey  = "secret_env"
 	configProvidersKey  = "providers"
+	configModelsKey     = "models"
+	configDiscoveryKey  = "discovery"
+	configDefaultKey    = "default"
 	configSessionMCPKey = "session_mcp"
 )
 
@@ -251,6 +254,10 @@ var (
 		"extensions.resources.operator_write_rate_limit.requests": configSetInt,
 		"extensions.resources.operator_write_rate_limit.window":   configSetDuration,
 		"extensions.resources.operator_write_rate_limit.queue":    configSetInt,
+		"model_catalog.sources.models_dev.enabled":                configSetBool,
+		"model_catalog.sources.models_dev.endpoint":               configSetString,
+		"model_catalog.sources.models_dev.ttl":                    configSetDuration,
+		"model_catalog.sources.models_dev.timeout":                configSetDuration,
 		"automation.enabled":                                      configSetBool,
 		"automation.timezone":                                     configSetString,
 		"automation.max_concurrent_jobs":                          configSetInt,
@@ -1357,6 +1364,13 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if len(path) == 3 && path[0] == configProvidersKey && path[2] == configSessionMCPKey {
 		return configSetBool, false, nil
 	}
+	if len(path) == 5 &&
+		path[0] == configProvidersKey &&
+		path[2] == configModelsKey &&
+		path[3] == configDiscoveryKey &&
+		path[4] == "enabled" {
+		return configSetBool, false, nil
+	}
 	if isProviderMutationPath(path) {
 		return configSetString, false, nil
 	}
@@ -1440,12 +1454,28 @@ func isProviderMutationPath(path []string) bool {
 	if len(path) == 3 && path[0] == configProvidersKey {
 		switch path[2] {
 		case "command",
-			"default_model",
 			"auth_mode",
 			"env_policy",
 			"home_policy",
+			"runtime_provider",
+			"transport",
+			"base_url",
 			"auth_status_command",
 			"auth_login_command":
+			return true
+		}
+	}
+	if len(path) == 4 && path[0] == configProvidersKey && path[2] == configModelsKey {
+		if path[3] == configDefaultKey {
+			return true
+		}
+	}
+	if len(path) == 5 &&
+		path[0] == configProvidersKey &&
+		path[2] == configModelsKey &&
+		path[3] == configDiscoveryKey {
+		switch path[4] {
+		case "command", "endpoint", "timeout":
 			return true
 		}
 	}

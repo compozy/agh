@@ -464,7 +464,8 @@ type SourceMetadata struct {
 type ProviderSettings struct {
 	Command         string
 	DisplayName     string
-	DefaultModel    string
+	Models          aghconfig.ProviderModelsConfig
+	ModelsSet       bool
 	Harness         aghconfig.ProviderHarness
 	RuntimeProvider string
 	Transport       string
@@ -633,20 +634,100 @@ func cloneSourceMetadata(value SourceMetadata) SourceMetadata {
 }
 
 func cloneProviderSettings(value ProviderSettings) ProviderSettings {
+	value.Models = cloneProviderModelsConfig(value.Models)
 	value.CredentialSlots = append([]aghconfig.ProviderCredentialSlot(nil), value.CredentialSlots...)
 	return value
 }
 
-func cloneProviderItem(value ProviderItem) ProviderItem {
-	value.Settings = cloneProviderSettings(value.Settings)
-	value.Credentials = append([]ProviderCredentialStatus(nil), value.Credentials...)
-	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
+func cloneProviderModelsConfig(value aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
+	return aghconfig.ProviderModelsConfig{
+		Default:   value.Default,
+		Curated:   cloneProviderModelConfigs(value.Curated),
+		Discovery: cloneProviderModelsDiscoveryConfig(value.Discovery),
+	}
+}
+
+func cloneProviderModelsDiscoveryConfig(
+	value aghconfig.ProviderModelsDiscoveryConfig,
+) aghconfig.ProviderModelsDiscoveryConfig {
+	return aghconfig.ProviderModelsDiscoveryConfig{
+		Enabled:  cloneBoolPtr(value.Enabled),
+		Command:  value.Command,
+		Endpoint: value.Endpoint,
+		Timeout:  value.Timeout,
+	}
+}
+
+func cloneProviderModelConfigs(values []aghconfig.ProviderModelConfig) []aghconfig.ProviderModelConfig {
+	if values == nil {
+		return nil
+	}
+	cloned := make([]aghconfig.ProviderModelConfig, len(values))
+	for idx, value := range values {
+		cloned[idx] = aghconfig.ProviderModelConfig{
+			ID:                     value.ID,
+			DisplayName:            value.DisplayName,
+			ContextWindow:          cloneInt64Ptr(value.ContextWindow),
+			MaxInputTokens:         cloneInt64Ptr(value.MaxInputTokens),
+			MaxOutputTokens:        cloneInt64Ptr(value.MaxOutputTokens),
+			SupportsTools:          cloneBoolPtr(value.SupportsTools),
+			SupportsReasoning:      cloneBoolPtr(value.SupportsReasoning),
+			ReasoningEfforts:       cloneStringSlicePreserveNil(value.ReasoningEfforts),
+			DefaultReasoningEffort: value.DefaultReasoningEffort,
+			CostInputPerMillion:    cloneFloat64Ptr(value.CostInputPerMillion),
+			CostOutputPerMillion:   cloneFloat64Ptr(value.CostOutputPerMillion),
+		}
+	}
+	return cloned
+}
+
+func cloneInt64Ptr(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneFloat64Ptr(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneStringSlicePreserveNil(value []string) []string {
+	if value == nil {
+		return nil
+	}
+	cloned := make([]string, len(value))
+	copy(cloned, value)
+	return cloned
+}
+
+func cloneBoolPtr(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneProviderItem(value *ProviderItem) ProviderItem {
+	if value == nil {
+		return ProviderItem{}
+	}
+	cloned := *value
+	cloned.Settings = cloneProviderSettings(value.Settings)
+	cloned.Credentials = append([]ProviderCredentialStatus(nil), value.Credentials...)
+	cloned.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	if value.Fallback != nil {
 		fallback := *value.Fallback
 		fallback.Settings = cloneProviderSettings(fallback.Settings)
-		value.Fallback = &fallback
+		cloned.Fallback = &fallback
 	}
-	return value
+	return cloned
 }
 
 func cloneMCPServerItem(value MCPServerItem) MCPServerItem {

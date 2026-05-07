@@ -38,6 +38,9 @@ export type HostAPIMethod =
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
+  | "models/list"
+  | "models/refresh"
+  | "models/status"
   | "network/channels"
   | "network/direct/messages"
   | "network/direct/resolve"
@@ -2146,6 +2149,60 @@ export interface MessageStartPayload {
   raw?: JSONValue;
 }
 
+export interface ModelSourceListParams {
+  provider_id?: string;
+  refresh?: boolean;
+  include_stale?: boolean;
+}
+
+export interface ModelCatalogCostPayload {
+  input_per_million?: number;
+  output_per_million?: number;
+}
+
+export interface ModelSourceRow {
+  source_id: string;
+  provider_id: string;
+  model_id: string;
+  display_name?: string;
+  priority?: number;
+  available?: boolean;
+  stale?: boolean;
+  refreshed_at: ISODateTime;
+  expires_at: ISODateTime;
+  context_window?: number;
+  max_input_tokens?: number;
+  max_output_tokens?: number;
+  supports_tools?: boolean;
+  supports_reasoning?: boolean;
+  reasoning_efforts?: string[];
+  default_reasoning_effort?: string;
+  cost?: ModelCatalogCostPayload;
+  last_error?: string;
+}
+
+export interface ModelSourceListResponse {
+  rows: ModelSourceRow[];
+}
+
+export interface ModelsListParams {
+  provider_id?: string;
+  source_id?: string;
+  refresh?: boolean;
+  include_stale?: boolean;
+}
+
+export interface ModelsRefreshParams {
+  provider_id?: string;
+  source_id?: string;
+  force?: boolean;
+  request_id?: string;
+}
+
+export interface ModelsStatusParams {
+  provider_id?: string;
+}
+
 export interface NetworkChannelPayload {
   channel: string;
   workspace_id?: string;
@@ -2897,6 +2954,62 @@ export interface PromptPayload {
   context_blocks?: ContextBlock[];
 }
 
+export interface ModelCatalogSourceRefPayload {
+  source_id: string;
+  source_kind: string;
+  priority: number;
+  refreshed_at?: string;
+  stale: boolean;
+  last_error?: string;
+}
+
+export interface ProviderModelPayload {
+  provider_id: string;
+  model_id: string;
+  display_name?: string;
+  sources: ModelCatalogSourceRefPayload[];
+  available?: boolean;
+  availability_state: string;
+  stale: boolean;
+  refreshed_at?: string;
+  context_window?: number;
+  max_input_tokens?: number;
+  max_output_tokens?: number;
+  supports_tools?: boolean;
+  supports_reasoning?: boolean;
+  reasoning_efforts?: string[];
+  default_reasoning_effort?: string;
+  cost?: ModelCatalogCostPayload;
+  last_error?: string;
+}
+
+export interface ProviderModelListResponse {
+  models: ProviderModelPayload[];
+}
+
+export interface ModelCatalogSourceStatusPayload {
+  source_id: string;
+  source_kind: string;
+  provider_id: string;
+  priority: number;
+  last_refresh?: string;
+  next_refresh?: string;
+  last_success?: string;
+  last_error?: string;
+  refresh_state: string;
+  row_count: number;
+  stale: boolean;
+}
+
+export interface ProviderModelRefreshResponse {
+  sources: ModelCatalogSourceStatusPayload[];
+  error?: string;
+}
+
+export interface ProviderModelStatusResponse {
+  sources: ModelCatalogSourceStatusPayload[];
+}
+
 export interface ResourceGetParams {
   kind: ResourceKind;
   id: string;
@@ -3548,6 +3661,8 @@ export interface SessionsCreateParams {
   agent: string;
   prompt?: string;
   provider?: string;
+  model?: string;
+  reasoning_effort?: string;
   workspace?: string;
 }
 
@@ -5130,6 +5245,18 @@ export interface HostAPIMethodMap {
   "skills/list": {
     params: SkillsListParams | undefined;
     result: SkillSummary[];
+  };
+  "models/list": {
+    params: ModelsListParams | undefined;
+    result: ProviderModelListResponse;
+  };
+  "models/refresh": {
+    params: ModelsRefreshParams | undefined;
+    result: ProviderModelRefreshResponse;
+  };
+  "models/status": {
+    params: ModelsStatusParams | undefined;
+    result: ProviderModelStatusResponse;
   };
   "agents/soul/get": {
     params: AgentSoulGetParams;

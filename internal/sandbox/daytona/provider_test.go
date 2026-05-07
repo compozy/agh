@@ -576,7 +576,7 @@ func TestDaytonaToolHostPermissionDecisionModes(t *testing.T) {
 				t.Fatalf("newDaytonaToolHost() error = %v", err)
 			}
 			decision, interactive := host.PermissionDecision(acpsdk.RequestPermissionRequest{
-				ToolCall: acpsdk.RequestPermissionToolCall{
+				ToolCall: acpsdk.ToolCallUpdate{
 					Kind:      tc.kind,
 					Locations: []acpsdk.ToolCallLocation{{Path: "file.txt"}},
 				},
@@ -800,7 +800,7 @@ func TestDaytonaToolHostConstructorAuthorizationAndPaths(t *testing.T) {
 		t.Fatalf("Authorize(create terminal) error = %v", err)
 	}
 	decision, interactive := allowAll.PermissionDecision(acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{
+		ToolCall: acpsdk.ToolCallUpdate{
 			Locations: []acpsdk.ToolCallLocation{{Path: "/outside/file.txt"}},
 		},
 	})

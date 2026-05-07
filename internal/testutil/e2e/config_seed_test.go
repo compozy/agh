@@ -19,8 +19,10 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 		DefaultAgent: "coder",
 		Providers: map[string]aghconfig.ProviderConfig{
 			"fake": {
-				Command:      "fake-agent --stdio",
-				DefaultModel: "fake-model",
+				Command: "fake-agent --stdio",
+				Models: aghconfig.ProviderModelsConfig{
+					Default: "fake-model",
+				},
 				CredentialSlots: []aghconfig.ProviderCredentialSlot{
 					{
 						Name:      "api_key",

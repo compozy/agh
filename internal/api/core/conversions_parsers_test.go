@@ -27,14 +27,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	ttl := now.Add(time.Hour)
 	payload := core.SessionPayloadFromInfo(&session.Info{
-		ID:          "sess-1",
-		Name:        "demo",
-		AgentName:   "coder",
-		Provider:    "fake",
-		WorkspaceID: "ws_alpha",
-		Workspace:   "/workspace",
-		Channel:     "builders",
-		Type:        session.SessionTypeDream,
+		ID:              "sess-1",
+		Name:            "demo",
+		AgentName:       "coder",
+		Provider:        "fake",
+		Model:           "gpt-test",
+		ReasoningEffort: "high",
+		WorkspaceID:     "ws_alpha",
+		Workspace:       "/workspace",
+		Channel:         "builders",
+		Type:            session.SessionTypeDream,
 		Lineage: &store.SessionLineage{
 			ParentSessionID:  "sess-root",
 			RootSessionID:    "sess-root",
@@ -82,6 +84,18 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
 			SupportedModels:     []string{"gpt-test"},
+			ConfigOptions: []acp.SessionConfigOption{
+				{
+					ID:      "reasoning_effort",
+					Label:   "Reasoning effort",
+					Kind:    acp.SessionConfigOptionKindSelect,
+					Current: "high",
+					Values: []acp.SessionConfigOptionValue{
+						{Value: "low", Label: "Low"},
+						{Value: "high", Label: "High"},
+					},
+				},
+			},
 		},
 	})
 
@@ -91,6 +105,12 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.Provider != "fake" {
 		t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
+	}
+	if payload.Model != "gpt-test" {
+		t.Fatalf("payload.Model = %q, want %q", payload.Model, "gpt-test")
+	}
+	if payload.ReasoningEffort != "high" {
+		t.Fatalf("payload.ReasoningEffort = %q, want %q", payload.ReasoningEffort, "high")
 	}
 	if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
 		t.Fatalf("payload session fields = %#v", payload)
@@ -121,6 +141,13 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)
+	}
+	if len(payload.ACPCaps.ConfigOptions) != 1 {
+		t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)
+	}
+	if got := payload.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
+		got.Kind != "select" || len(got.Values) != 2 {
+		t.Fatalf("config option payload = %#v", got)
 	}
 	if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
 		payload.Sandbox.Backend != "local" ||

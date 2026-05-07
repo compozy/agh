@@ -175,8 +175,8 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 		if cfg.Defaults.Provider != "blackbox" {
 			t.Fatalf("cfg.Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
 		}
-		if got := cfg.Providers["blackbox"].DefaultModel; got != "" {
-			t.Fatalf("cfg.Providers[blackbox].DefaultModel = %q, want empty", got)
+		if got := cfg.Providers["blackbox"].Models.Default; got != "" {
+			t.Fatalf("cfg.Providers[blackbox].Models.Default = %q, want empty", got)
 		}
 	})
 
@@ -291,7 +291,11 @@ func TestBuildInstallWizardInputAndBundleFormats(t *testing.T) {
 
 		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
 		cfg.Defaults.Provider = "codex"
-		cfg.Providers["custom"] = aghconfig.ProviderConfig{DefaultModel: "custom-model"}
+		cfg.Providers["custom"] = aghconfig.ProviderConfig{
+			Models: aghconfig.ProviderModelsConfig{
+				Default: "custom-model",
+			},
+		}
 
 		input := buildInstallWizardInput(&cfg)
 		if len(input.Providers) == 0 {

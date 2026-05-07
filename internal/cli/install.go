@@ -104,7 +104,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 			record := installRecord{
 				AgentName:    aghconfig.DefaultAgentName,
 				Provider:     cfg.Defaults.Provider,
-				Model:        cfg.Providers[cfg.Defaults.Provider].DefaultModel,
+				Model:        cfg.Providers[cfg.Defaults.Provider].Models.Default,
 				Permissions:  string(cfg.Permissions.Mode),
 				ConfigFile:   homePaths.ConfigFile,
 				AgentFile:    agentPath,
@@ -206,12 +206,12 @@ func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {
 	for _, provider := range providers {
 		resolved, err := cfg.ResolveProvider(provider)
 		if err == nil {
-			suggestedModels[provider] = strings.TrimSpace(resolved.DefaultModel)
+			suggestedModels[provider] = strings.TrimSpace(resolved.Models.Default)
 			modelRequired[provider] = installProviderRequiresModel(resolved)
 			continue
 		}
 		configured := cfg.Providers[provider]
-		suggestedModels[provider] = strings.TrimSpace(configured.DefaultModel)
+		suggestedModels[provider] = strings.TrimSpace(configured.Models.Default)
 		modelRequired[provider] = installProviderRequiresModel(configured)
 	}
 

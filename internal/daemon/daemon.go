@@ -169,6 +169,7 @@ type RuntimeDeps struct {
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService
 	AgentCatalog        core.AgentCatalog
+	ModelCatalog        core.ModelCatalogService
 	AgentContext        *situation.Service
 	SoulAuthoring       core.SoulAuthoringService
 	SoulRefresher       core.SoulRefresher
@@ -294,6 +295,7 @@ type extensionManagerDeps struct {
 	Tasks                  taskpkg.Manager
 	Network                core.NetworkService
 	NetworkStore           store.NetworkConversationStore
+	ModelCatalog           core.ModelCatalogService
 	MemoryStore            *memory.Store
 	MemoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	Observer               Observer
@@ -440,6 +442,7 @@ type Daemon struct {
 	workspaceResolver            workspacepkg.RuntimeResolver
 	sandboxRegistry              *sandbox.Registry
 	skillsRegistry               *skills.Registry
+	modelCatalog                 *modelCatalogRuntime
 	skillsCancel                 context.CancelFunc
 	skillsDone                   chan struct{}
 }
@@ -465,6 +468,7 @@ type shutdownTargets struct {
 	memoryExtractor     *daemonMemoryExtractor
 	memoryStore         *memory.Store
 	localMemoryProvider memoryProviderShutdowner
+	modelCatalog        *modelCatalogRuntime
 	skillsCancel        context.CancelFunc
 	skillsDone          chan struct{}
 	retention           observerRetentionStopper
@@ -693,18 +697,18 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
-			buildHostAPIOptions(deps, capChecker, deps.ResourceStore)...,
+			buildHostAPIOptions(&deps, capChecker, deps.ResourceStore)...,
 		)
 
 		return extensionpkg.NewManager(
 			deps.Registry,
-			buildExtensionManagerOptions(deps, capChecker, hostAPI, deps.SourceSessions)...,
+			buildExtensionManagerOptions(&deps, capChecker, hostAPI, deps.SourceSessions)...,
 		)
 	}
 }
 
 func buildHostAPIOptions(
-	deps extensionManagerDeps,
+	deps *extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
 	resourceStore resources.RawStore,
 ) []extensionpkg.HostAPIOption {
@@ -713,6 +717,7 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
 		extensionpkg.WithHostAPINetworkService(deps.Network),
 		extensionpkg.WithHostAPINetworkStore(deps.NetworkStore),
+		extensionpkg.WithHostAPIModelCatalogService(deps.ModelCatalog),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 		extensionpkg.WithHostAPIResourceStore(resourceStore),
@@ -740,7 +745,7 @@ func buildHostAPIOptions(
 }
 
 func buildExtensionManagerOptions(
-	deps extensionManagerDeps,
+	deps *extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
 	hostAPI *extensionpkg.HostAPIHandler,
 	sourceSessions resources.SourceSessionManager,
@@ -1047,6 +1052,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithResourceService(deps.Resources),
 		httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 		httpapi.WithAgentCatalog(deps.AgentCatalog),
+		httpapi.WithModelCatalogService(deps.ModelCatalog),
 		httpapi.WithAgentContext(deps.AgentContext),
 		httpapi.WithSoulAuthoring(deps.SoulAuthoring),
 		httpapi.WithSoulRefresher(deps.SoulRefresher),
@@ -1089,6 +1095,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithResourceService(deps.Resources),
 		udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 		udsapi.WithAgentCatalog(deps.AgentCatalog),
+		udsapi.WithModelCatalogService(deps.ModelCatalog),
 		udsapi.WithAgentContext(deps.AgentContext),
 		udsapi.WithSoulAuthoring(deps.SoulAuthoring),
 		udsapi.WithSoulRefresher(deps.SoulRefresher),
@@ -1267,6 +1274,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		memoryExtractor:     d.memoryExtractor,
 		memoryStore:         d.memoryStore,
 		localMemoryProvider: d.localMemoryProvider,
+		modelCatalog:        d.modelCatalog,
 		skillsCancel:        d.skillsCancel,
 		skillsDone:          d.skillsDone,
 	}
@@ -1296,6 +1304,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.memoryProviderRegistry = nil
 	d.memoryExtractor = nil
 	d.localMemoryProvider = nil
+	d.modelCatalog = nil
 	d.skillsRegistry = nil
 	d.lock = nil
 	d.booting = false
@@ -1333,6 +1342,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 			"daemon: shutdown recall signal recorders",
 			targets.memoryStore.CloseRecallSignalRecorders(ctx),
 		)
+	}
+	if targets.modelCatalog != nil {
+		appendWrappedError(errs, "daemon: shutdown model catalog", targets.modelCatalog.Shutdown(ctx))
 	}
 	stopSkillsWatcher(targets.skillsCancel, targets.skillsDone)
 	if targets.resourceReconcile != nil {

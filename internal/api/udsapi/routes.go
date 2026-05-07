@@ -26,6 +26,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
+	registerProviderModelRoutes(api, handlers)
 	registerHostedMCPRoutes(api, handlers)
 }
 
@@ -436,4 +437,9 @@ func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {
 		vaultGroup.PUT("/secrets", handlers.PutVaultSecret)
 		vaultGroup.DELETE("/secrets", handlers.DeleteVaultSecret)
 	}
+}
+
+func registerProviderModelRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/providers/*catalog_path", handlers.ProviderModelCatalog)
+	api.POST("/providers/*catalog_path", handlers.ProviderModelCatalog)
 }

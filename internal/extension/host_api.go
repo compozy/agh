@@ -77,6 +77,7 @@ type HostAPIHandler struct {
 	memory           *memory.Store
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
+	modelCatalog     hostAPIModelCatalogService
 	workspaces       workspacepkg.RuntimeResolver
 	bridges          hostAPIBridgeRegistry
 	dedupStore       hostAPIBridgeDedupStore
@@ -562,6 +563,9 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"memory/store":                                                 handler.handleMemoryStore,
 		"observe/events":                                               handler.handleObserveEvents,
 		"observe/health":                                               handler.handleObserveHealth,
+		string(extensioncontract.HostAPIMethodModelsList):              handler.handleModelsList,
+		string(extensioncontract.HostAPIMethodModelsRefresh):           handler.handleModelsRefresh,
+		string(extensioncontract.HostAPIMethodModelsStatus):            handler.handleModelsStatus,
 		string(extensioncontract.HostAPIMethodAgentsSoulGet):           handler.handleAgentsSoulGet,
 		string(extensioncontract.HostAPIMethodAgentsSoulValidate):      handler.handleAgentsSoulValidate,
 		string(extensioncontract.HostAPIMethodAgentsSoulPut):           handler.handleAgentsSoulPut,
@@ -883,10 +887,12 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	sess, err := h.sessions.Create(ctx, session.CreateOpts{
-		AgentName: strings.TrimSpace(params.Agent),
-		Provider:  strings.TrimSpace(params.Provider),
-		Workspace: strings.TrimSpace(params.Workspace),
-		Type:      session.SessionTypeSystem,
+		AgentName:       strings.TrimSpace(params.Agent),
+		Provider:        strings.TrimSpace(params.Provider),
+		Model:           strings.TrimSpace(params.Model),
+		ReasoningEffort: strings.TrimSpace(params.ReasoningEffort),
+		Workspace:       strings.TrimSpace(params.Workspace),
+		Type:            session.SessionTypeSystem,
 	})
 	if err != nil {
 		return nil, err

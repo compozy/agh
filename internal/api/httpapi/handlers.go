@@ -32,6 +32,7 @@ type handlerConfig struct {
 	vault           core.VaultService
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
+	modelCatalog    core.ModelCatalogService
 	agentContext    core.AgentContextService
 	soulAuthoring   core.SoulAuthoringService
 	soulRefresher   core.SoulRefresher
@@ -112,6 +113,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
+			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,
 			SoulAuthoring:                cfg.soulAuthoring,
 			SoulRefresher:                cfg.soulRefresher,

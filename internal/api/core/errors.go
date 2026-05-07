@@ -15,6 +15,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
@@ -365,6 +366,12 @@ var ErrAutomationValidation = errors.New("automation validation error")
 // ErrNetworkValidation is the sentinel for malformed network control-plane requests.
 var ErrNetworkValidation = errors.New("network validation error")
 
+// ErrModelCatalogValidation is the sentinel for malformed model catalog requests.
+var ErrModelCatalogValidation = errors.New("model catalog validation error")
+
+// ErrModelCatalogUnavailable reports that the daemon model catalog surface is not configured.
+var ErrModelCatalogUnavailable = errors.New("model catalog service unavailable")
+
 // StatusForSkillError maps skill-domain errors to transport statuses.
 func StatusForSkillError(err error) int {
 	switch {
@@ -463,5 +470,85 @@ func StatusForNetworkError(err error) int {
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
+	}
+}
+
+// NewModelCatalogValidationError wraps a model catalog request validation failure.
+func NewModelCatalogValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrModelCatalogValidation, err)
+}
+
+// StatusForModelCatalogError maps model catalog failures to transport statuses.
+func StatusForModelCatalogError(err error) int {
+	var maxBytesErr *http.MaxBytesError
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.As(err, &maxBytesErr):
+		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, ErrModelCatalogValidation),
+		errors.Is(err, modelcatalog.ErrSourceNotRegistered):
+		return http.StatusBadRequest
+	case errors.Is(err, ErrModelCatalogUnavailable),
+		errors.Is(err, modelcatalog.ErrAllSourcesFailed):
+		return http.StatusServiceUnavailable
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// RespondOpenAIError writes an OpenAI-compatible error response envelope.
+func RespondOpenAIError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	message := http.StatusText(status)
+	switch {
+	case maskInternalErrors && status >= http.StatusInternalServerError:
+		if strings.TrimSpace(message) == "" {
+			message = "internal server error"
+		}
+	case err != nil && strings.TrimSpace(err.Error()) != "":
+		message = err.Error()
+	case strings.TrimSpace(message) == "":
+		message = "unknown error"
+	}
+	message = taskpkg.RedactClaimTokens(message)
+	c.JSON(status, contract.OpenAIErrorResponse{
+		Error: contract.OpenAIErrorPayload{
+			Message: message,
+			Type:    openAIErrorTypeForStatus(status),
+			Param:   nil,
+			Code:    openAIErrorCodeForStatus(status),
+		},
+	})
+}
+
+func openAIErrorTypeForStatus(status int) string {
+	if status >= http.StatusInternalServerError {
+		return "server_error"
+	}
+	return "invalid_request_error"
+}
+
+func openAIErrorCodeForStatus(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "invalid_request"
+	case http.StatusUnauthorized:
+		return "unauthorized"
+	case http.StatusForbidden:
+		return "forbidden"
+	case http.StatusNotFound:
+		return "not_found"
+	case http.StatusRequestEntityTooLarge:
+		return "request_too_large"
+	case http.StatusServiceUnavailable:
+		return "service_unavailable"
+	default:
+		if status >= http.StatusInternalServerError {
+			return "internal_error"
+		}
+		return "api_error"
 	}
 }

@@ -75,6 +75,7 @@ type bootState struct {
 	sessions               SessionManager
 	hostedMCP              *mcppkg.HostedService
 	providerVault          *vault.Service
+	modelCatalog           *modelCatalogRuntime
 	tasks                  *taskRuntime
 	reviewRequests         *runReviewRequestedForwarder
 	spawnReaper            *spawnReaper
@@ -224,6 +225,7 @@ func (d *Daemon) beginBoot() error {
 		d.lock != nil ||
 		d.registry != nil ||
 		d.sessions != nil ||
+		d.modelCatalog != nil ||
 		d.network != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
@@ -556,6 +558,9 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	state.providerVault = providerVault
+	if err := d.bootModelCatalog(ctx, state, cleanup); err != nil {
+		return err
+	}
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
 	hostedMCP, err := d.buildHostedMCPService(state)
 	if err != nil {
@@ -952,6 +957,7 @@ func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions Ses
 		MemorySessionLedger: newDaemonMemorySessionLedgerService(state, d.now),
 		WorkspaceResolver:   state.workspaceResolver,
 		WorkspaceService:    state.workspaceResolver,
+		ModelCatalog:        state.modelCatalog,
 		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -1586,6 +1592,7 @@ func (d *Daemon) extensionManagerDeps(
 		Tasks:                  state.deps.Tasks,
 		Network:                state.deps.Network,
 		NetworkStore:           state.registry,
+		ModelCatalog:           state.modelCatalog,
 		MemoryStore:            state.memoryStore,
 		MemoryProviderRegistry: state.memoryProviderRegistry,
 		Observer:               state.observer,
@@ -1875,6 +1882,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	if state.localMemoryProvider != nil {
 		d.localMemoryProvider = state.localMemoryProvider
 	}
+	d.modelCatalog = state.modelCatalog
 	d.situationContext = state.situationContext
 	d.sessions = state.sessions
 	d.tasks = state.tasks

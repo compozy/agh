@@ -260,11 +260,39 @@ func (a *daemonSandboxACPAgent) Cancel(context.Context, acpsdk.CancelNotificatio
 	return nil
 }
 
+func (a *daemonSandboxACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (a *daemonSandboxACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{Sessions: []acpsdk.SessionInfo{}}, nil
+}
+
 func (a *daemonSandboxACPAgent) NewSession(
 	context.Context,
 	acpsdk.NewSessionRequest,
 ) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{SessionId: "daemon-sandbox-helper"}, nil
+}
+
+func (a *daemonSandboxACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
+}
+
+func (a *daemonSandboxACPAgent) SetSessionConfigOption(
+	context.Context,
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
 }
 
 func (a *daemonSandboxACPAgent) LoadSession(

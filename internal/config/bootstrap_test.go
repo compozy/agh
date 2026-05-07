@@ -85,10 +85,10 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 			slots,
 		)
 	}
-	if reloaded.Providers["claude"].DefaultModel != "claude-sonnet-4-6" {
+	if reloaded.Providers["claude"].Models.Default != "claude-sonnet-4-6" {
 		t.Fatalf(
-			"LoadGlobalConfig() Providers[claude].DefaultModel = %q, want %q",
-			reloaded.Providers["claude"].DefaultModel,
+			"LoadGlobalConfig() Providers[claude].Models.Default = %q, want %q",
+			reloaded.Providers["claude"].Models.Default,
 			"claude-sonnet-4-6",
 		)
 	}
@@ -107,7 +107,7 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 		`agent = "general"`,
 		`provider = "claude"`,
 		`mode = "approve-all"`,
-		`default_model = "claude-sonnet-4-6"`,
+		`default = "claude-sonnet-4-6"`,
 		`port = 3030`,
 		`secret_ref = "env:ANTHROPIC_KEY"`,
 	} {
@@ -132,8 +132,8 @@ func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
 	if cfg.Defaults.Provider != "blackbox" {
 		t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
 	}
-	if got := cfg.Providers["blackbox"].DefaultModel; got != "" {
-		t.Fatalf("SaveBootstrapConfig() Providers[blackbox].DefaultModel = %q, want empty", got)
+	if got := cfg.Providers["blackbox"].Models.Default; got != "" {
+		t.Fatalf("SaveBootstrapConfig() Providers[blackbox].Models.Default = %q, want empty", got)
 	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)

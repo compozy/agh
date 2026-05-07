@@ -42,6 +42,12 @@ type DaemonClient interface {
 	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
 	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
 	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	ListProviderModels(ctx context.Context, query ProviderModelListQuery) (ProviderModelListRecord, error)
+	RefreshProviderModels(ctx context.Context, providerID string, request ProviderModelRefreshRequest) (
+		ProviderModelRefreshRecord,
+		error,
+	)
+	ProviderModelStatus(ctx context.Context, providerID string) (ProviderModelStatusRecord, error)
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)

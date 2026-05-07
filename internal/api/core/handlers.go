@@ -51,6 +51,7 @@ type BaseHandlerConfig struct {
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
+	ModelCatalog                 ModelCatalogService
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulRefresher                SoulRefresher
@@ -102,6 +103,7 @@ type BaseHandlers struct {
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
+	ModelCatalog                 ModelCatalogService
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulRefresher                SoulRefresher
@@ -161,6 +163,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
+		ModelCatalog:                 cfg.ModelCatalog,
 		AgentContextService:          cfg.AgentContextService,
 		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
@@ -326,13 +329,15 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 
 	sess, err := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
-		AgentName:     req.AgentName,
-		Provider:      strings.TrimSpace(req.Provider),
-		Name:          req.Name,
-		Workspace:     strings.TrimSpace(req.Workspace),
-		WorkspacePath: strings.TrimSpace(req.WorkspacePath),
-		Channel:       channel,
-		Type:          session.SessionTypeUser,
+		AgentName:       req.AgentName,
+		Provider:        strings.TrimSpace(req.Provider),
+		Model:           strings.TrimSpace(req.Model),
+		ReasoningEffort: strings.TrimSpace(req.ReasoningEffort),
+		Name:            req.Name,
+		Workspace:       strings.TrimSpace(req.Workspace),
+		WorkspacePath:   strings.TrimSpace(req.WorkspacePath),
+		Channel:         channel,
+		Type:            session.SessionTypeUser,
 	})
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)

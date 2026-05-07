@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/vault"
 )
@@ -63,11 +65,59 @@ type ProviderCredentialSlot struct {
 	Required  bool   `toml:"required"`
 }
 
+// ProviderModelsConfig describes provider-scoped model defaults and metadata.
+type ProviderModelsConfig struct {
+	Default   string                        `toml:"default,omitempty"`
+	Curated   []ProviderModelConfig         `toml:"curated,omitempty"`
+	Discovery ProviderModelsDiscoveryConfig `toml:"discovery,omitempty"`
+}
+
+// ProviderModelsDiscoveryConfig describes optional side-effect-free model discovery.
+type ProviderModelsDiscoveryConfig struct {
+	Enabled  *bool  `toml:"enabled,omitempty"`
+	Command  string `toml:"command,omitempty"`
+	Endpoint string `toml:"endpoint,omitempty"`
+	Timeout  string `toml:"timeout,omitempty"`
+}
+
+// ProviderModelConfig describes one curated provider model entry.
+type ProviderModelConfig struct {
+	ID                     string   `toml:"id"`
+	DisplayName            string   `toml:"display_name,omitempty"`
+	ContextWindow          *int64   `toml:"context_window,omitempty"`
+	MaxInputTokens         *int64   `toml:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64   `toml:"max_output_tokens,omitempty"`
+	SupportsTools          *bool    `toml:"supports_tools,omitempty"`
+	SupportsReasoning      *bool    `toml:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []string `toml:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort string   `toml:"default_reasoning_effort,omitempty"`
+	CostInputPerMillion    *float64 `toml:"cost_input_per_million,omitempty"`
+	CostOutputPerMillion   *float64 `toml:"cost_output_per_million,omitempty"`
+}
+
+// ModelCatalogConfig controls daemon-owned model catalog sources.
+type ModelCatalogConfig struct {
+	Sources ModelCatalogSourcesConfig `toml:"sources,omitempty"`
+}
+
+// ModelCatalogSourcesConfig groups built-in model catalog sources.
+type ModelCatalogSourcesConfig struct {
+	ModelsDev ModelsDevSourceConfig `toml:"models_dev,omitempty"`
+}
+
+// ModelsDevSourceConfig controls the models.dev catalog source.
+type ModelsDevSourceConfig struct {
+	Enabled  *bool  `toml:"enabled,omitempty"`
+	Endpoint string `toml:"endpoint,omitempty"`
+	TTL      string `toml:"ttl,omitempty"`
+	Timeout  string `toml:"timeout,omitempty"`
+}
+
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
 	Command         string                   `toml:"command"`
 	DisplayName     string                   `toml:"display_name,omitempty"`
-	DefaultModel    string                   `toml:"default_model"`
+	Models          ProviderModelsConfig     `toml:"models,omitempty"`
 	Harness         ProviderHarness          `toml:"harness,omitempty"`
 	RuntimeProvider string                   `toml:"runtime_provider,omitempty"`
 	Transport       string                   `toml:"transport,omitempty"`
@@ -164,6 +214,9 @@ const (
 	piACPCommand             = "npx -y pi-acp@latest"
 	piACPAuthLoginCommand    = piACPCommand + " --terminal-login"
 	providerAPIKeyCredential = "api_key"
+	defaultModelsDevEndpoint = "https://models.dev/api.json"
+	defaultModelsDevTTL      = "24h"
+	defaultModelsDevTimeout  = "10s"
 )
 
 var builtinProviderAliases = map[string]string{
@@ -208,22 +261,56 @@ var builtinProviderAliases = map[string]string{
 
 var builtinProviders = map[string]ProviderConfig{
 	"claude": {
-		Command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
-		DisplayName:  "Claude Code",
-		Harness:      ProviderHarnessACP,
-		DefaultModel: "claude-sonnet-4-6",
+		Command:     "npx -y @agentclientprotocol/claude-agent-acp@latest",
+		DisplayName: "Claude Code",
+		Harness:     ProviderHarnessACP,
+		Models: ProviderModelsConfig{
+			Default: "claude-sonnet-4-6",
+			Curated: []ProviderModelConfig{
+				{ID: "claude-opus-4-7", DisplayName: "Claude Opus 4.7"},
+				{ID: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6"},
+				{ID: "claude-haiku-4-5", DisplayName: "Claude Haiku 4.5"},
+			},
+		},
 	},
 	"codex": {
-		Command:      "npx -y @zed-industries/codex-acp@latest",
-		DisplayName:  "Codex",
-		Harness:      ProviderHarnessACP,
-		DefaultModel: "gpt-5.4",
+		Command:     "npx -y @zed-industries/codex-acp@latest",
+		DisplayName: "Codex",
+		Harness:     ProviderHarnessACP,
+		Models: ProviderModelsConfig{
+			Default: "gpt-5.4",
+			Curated: []ProviderModelConfig{
+				{
+					ID:                     "gpt-5.4",
+					DisplayName:            "GPT-5.4",
+					SupportsTools:          boolRef(true),
+					SupportsReasoning:      boolRef(true),
+					ReasoningEfforts:       []string{"minimal", "low", "medium", "high", "xhigh"},
+					DefaultReasoningEffort: "medium",
+				},
+				{
+					ID:                     "gpt-5.4-mini",
+					DisplayName:            "GPT-5.4 Mini",
+					SupportsTools:          boolRef(true),
+					SupportsReasoning:      boolRef(true),
+					ReasoningEfforts:       []string{"minimal", "low", "medium", "high", "xhigh"},
+					DefaultReasoningEffort: "medium",
+				},
+				{ID: "gpt-5.3", DisplayName: "GPT-5.3"},
+				{ID: "gpt-5.3-mini", DisplayName: "GPT-5.3 Mini"},
+			},
+		},
 	},
 	"gemini": {
-		Command:      "gemini --acp",
-		DisplayName:  "Gemini CLI",
-		Harness:      ProviderHarnessACP,
-		DefaultModel: "gemini-3.1-pro-preview",
+		Command:     "gemini --acp",
+		DisplayName: "Gemini CLI",
+		Harness:     ProviderHarnessACP,
+		Models: ProviderModelsConfig{
+			Default: "gemini-3.1-pro-preview",
+			Curated: []ProviderModelConfig{
+				{ID: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview"},
+			},
+		},
 	},
 	"opencode": {
 		Command:     "npx -y opencode-ai@latest acp",
@@ -277,10 +364,15 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:     ProviderHarnessACP,
 	},
 	"qwen-code": {
-		Command:      "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
-		DisplayName:  "Qwen Code",
-		Harness:      ProviderHarnessACP,
-		DefaultModel: "qwen3.6-plus",
+		Command:     "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
+		DisplayName: "Qwen Code",
+		Harness:     ProviderHarnessACP,
+		Models: ProviderModelsConfig{
+			Default: "qwen3.6-plus",
+			Curated: []ProviderModelConfig{
+				{ID: "qwen3.6-plus", DisplayName: "Qwen3.6 Plus"},
+			},
+		},
 	},
 	"copilot": {
 		Command:     "copilot --acp --stdio",
@@ -302,72 +394,117 @@ var builtinProviders = map[string]ProviderConfig{
 		DisplayName:     "Pi",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "anthropic",
-		DefaultModel:    "claude-opus-4-7",
 		AuthLoginCmd:    piACPAuthLoginCommand,
+		Models: ProviderModelsConfig{
+			Default: "claude-opus-4-7",
+			Curated: []ProviderModelConfig{
+				{ID: "claude-opus-4-7", DisplayName: "Claude Opus 4.7"},
+			},
+		},
 	},
 	"openrouter": {
 		Command:         piACPCommand,
 		DisplayName:     "OpenRouter",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "openrouter",
-		DefaultModel:    "openai/gpt-5.4",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("OPENROUTER_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "openai/gpt-5.4",
+			Curated: []ProviderModelConfig{
+				{ID: "openai/gpt-5.4", DisplayName: "OpenAI GPT-5.4"},
+			},
+		},
 	},
 	"zai": {
 		Command:         piACPCommand,
 		DisplayName:     "z.ai",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "zai",
-		DefaultModel:    "glm-4.6",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("ZAI_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "glm-4.6",
+			Curated: []ProviderModelConfig{
+				{ID: "glm-4.6", DisplayName: "GLM-4.6"},
+			},
+		},
 	},
 	"moonshot": {
 		Command:         piACPCommand,
 		DisplayName:     "Moonshot / Kimi",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "kimi-coding",
-		DefaultModel:    "kimi-k2-thinking",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("KIMI_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "kimi-k2-thinking",
+			Curated: []ProviderModelConfig{
+				{ID: "kimi-k2-thinking", DisplayName: "Kimi K2 Thinking"},
+			},
+		},
 	},
 	"vercel-ai-gateway": {
 		Command:         piACPCommand,
 		DisplayName:     "Vercel AI Gateway",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "vercel-ai-gateway",
-		DefaultModel:    "anthropic/claude-opus-4-7",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("AI_GATEWAY_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "anthropic/claude-opus-4-7",
+			Curated: []ProviderModelConfig{
+				{ID: "anthropic/claude-opus-4-7", DisplayName: "Anthropic Claude Opus 4.7"},
+			},
+		},
 	},
 	"xai": {
 		Command:         piACPCommand,
 		DisplayName:     "xAI",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "xai",
-		DefaultModel:    "grok-4-fast-non-reasoning",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("XAI_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "grok-4-fast-non-reasoning",
+			Curated: []ProviderModelConfig{
+				{ID: "grok-4-fast-non-reasoning", DisplayName: "Grok 4 Fast Non-Reasoning"},
+			},
+		},
 	},
 	"minimax": {
 		Command:         piACPCommand,
 		DisplayName:     "MiniMax",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "minimax",
-		DefaultModel:    "MiniMax-M2.1",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MINIMAX_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "MiniMax-M2.1",
+			Curated: []ProviderModelConfig{
+				{ID: "MiniMax-M2.1", DisplayName: "MiniMax M2.1"},
+			},
+		},
 	},
 	"mistral": {
 		Command:         piACPCommand,
 		DisplayName:     "Mistral",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "mistral",
-		DefaultModel:    "devstral-medium-latest",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MISTRAL_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "devstral-medium-latest",
+			Curated: []ProviderModelConfig{
+				{ID: "devstral-medium-latest", DisplayName: "Devstral Medium Latest"},
+			},
+		},
 	},
 	"groq": {
 		Command:         piACPCommand,
 		DisplayName:     "Groq",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "groq",
-		DefaultModel:    "openai/gpt-oss-120b",
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("GROQ_API_KEY")},
+		Models: ProviderModelsConfig{
+			Default: "openai/gpt-oss-120b",
+			Curated: []ProviderModelConfig{
+				{ID: "openai/gpt-oss-120b", DisplayName: "OpenAI GPT-OSS 120B"},
+			},
+		},
 	},
 }
 
@@ -477,7 +614,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 
 	model := strings.TrimSpace(agent.Model)
 	if model == "" {
-		model = strings.TrimSpace(provider.DefaultModel)
+		model = strings.TrimSpace(provider.Models.Default)
 	}
 	if model == "" && provider.RequiresRuntimeModel() {
 		return ResolvedAgent{}, fmt.Errorf(
@@ -599,8 +736,8 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	if strings.TrimSpace(override.DisplayName) != "" {
 		merged.DisplayName = override.DisplayName
 	}
-	if strings.TrimSpace(override.DefaultModel) != "" {
-		merged.DefaultModel = override.DefaultModel
+	if !providerModelsConfigIsZero(override.Models) {
+		merged.Models = mergeProviderModels(merged.Models, override.Models)
 	}
 	if override.Harness != "" {
 		merged.Harness = override.Harness
@@ -641,6 +778,53 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	merged.MCPServers = MergeMCPServers(merged.MCPServers, override.MCPServers)
 
 	return merged
+}
+
+func mergeProviderModels(base ProviderModelsConfig, override ProviderModelsConfig) ProviderModelsConfig {
+	merged := cloneProviderModelsConfig(base)
+	if strings.TrimSpace(override.Default) != "" {
+		merged.Default = override.Default
+	}
+	if override.Curated != nil {
+		merged.Curated = cloneProviderModelConfigs(override.Curated)
+	}
+	if !providerModelsDiscoveryConfigIsZero(override.Discovery) {
+		merged.Discovery = mergeProviderModelsDiscovery(merged.Discovery, override.Discovery)
+	}
+	return merged
+}
+
+func mergeProviderModelsDiscovery(
+	base ProviderModelsDiscoveryConfig,
+	override ProviderModelsDiscoveryConfig,
+) ProviderModelsDiscoveryConfig {
+	merged := cloneProviderModelsDiscoveryConfig(base)
+	if override.Enabled != nil {
+		merged.Enabled = boolRef(*override.Enabled)
+	}
+	if strings.TrimSpace(override.Command) != "" {
+		merged.Command = override.Command
+	}
+	if strings.TrimSpace(override.Endpoint) != "" {
+		merged.Endpoint = override.Endpoint
+	}
+	if strings.TrimSpace(override.Timeout) != "" {
+		merged.Timeout = override.Timeout
+	}
+	return merged
+}
+
+func providerModelsConfigIsZero(value ProviderModelsConfig) bool {
+	return strings.TrimSpace(value.Default) == "" &&
+		value.Curated == nil &&
+		providerModelsDiscoveryConfigIsZero(value.Discovery)
+}
+
+func providerModelsDiscoveryConfigIsZero(value ProviderModelsDiscoveryConfig) bool {
+	return value.Enabled == nil &&
+		strings.TrimSpace(value.Command) == "" &&
+		strings.TrimSpace(value.Endpoint) == "" &&
+		strings.TrimSpace(value.Timeout) == ""
 }
 
 func newUnknownProviderError(providerName string) error {
@@ -840,6 +1024,159 @@ func (p ProviderConfig) SessionMCPEnabled() bool {
 	return *p.SessionMCP
 }
 
+// Validate reports whether the provider model block is usable.
+func (m ProviderModelsConfig) Validate(path string) error {
+	if strings.TrimSpace(m.Default) == "" && m.Default != "" {
+		return fmt.Errorf("%s.default is required", path)
+	}
+	seen := make(map[string]struct{}, len(m.Curated))
+	for idx, model := range m.Curated {
+		modelPath := fmt.Sprintf("%s.curated[%d]", path, idx)
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			return fmt.Errorf("%s.id is required", modelPath)
+		}
+		if _, ok := seen[id]; ok {
+			return fmt.Errorf("%s.id duplicates %q", modelPath, id)
+		}
+		seen[id] = struct{}{}
+		efforts := make(map[string]struct{}, len(model.ReasoningEfforts))
+		for effortIdx, effort := range model.ReasoningEfforts {
+			trimmed := strings.TrimSpace(effort)
+			if trimmed == "" {
+				return fmt.Errorf("%s.reasoning_efforts[%d] is required", modelPath, effortIdx)
+			}
+			if _, ok := efforts[trimmed]; ok {
+				return fmt.Errorf("%s.reasoning_efforts[%d] duplicates %q", modelPath, effortIdx, trimmed)
+			}
+			efforts[trimmed] = struct{}{}
+		}
+		defaultEffort := strings.TrimSpace(model.DefaultReasoningEffort)
+		if defaultEffort != "" && len(efforts) > 0 {
+			if _, ok := efforts[defaultEffort]; !ok {
+				return fmt.Errorf("%s.default_reasoning_effort must be listed in reasoning_efforts", modelPath)
+			}
+		}
+	}
+	return m.Discovery.Validate(path + ".discovery")
+}
+
+// Validate reports whether the discovery source config is usable.
+func (d ProviderModelsDiscoveryConfig) Validate(path string) error {
+	command := strings.TrimSpace(d.Command)
+	endpoint := strings.TrimSpace(d.Endpoint)
+	if command != "" && unsafeDiscoveryCommand(command) {
+		return fmt.Errorf("%s.command must be a single-line command", path)
+	}
+	if endpoint != "" {
+		if err := validateAbsoluteHTTPURL(path+".endpoint", endpoint); err != nil {
+			return err
+		}
+	}
+	if command != "" && endpoint != "" {
+		return fmt.Errorf("%s.command and %s.endpoint are mutually exclusive", path, path)
+	}
+	if strings.TrimSpace(d.Timeout) != "" {
+		if err := validatePositiveDuration(path+".timeout", d.Timeout); err != nil {
+			return err
+		}
+	}
+	if d.Enabled != nil && *d.Enabled && command == "" && endpoint == "" {
+		return fmt.Errorf("%s requires command or endpoint when enabled", path)
+	}
+	return nil
+}
+
+// DefaultModelCatalogConfig returns the default model catalog source config.
+func DefaultModelCatalogConfig() ModelCatalogConfig {
+	return ModelCatalogConfig{
+		Sources: ModelCatalogSourcesConfig{
+			ModelsDev: ModelsDevSourceConfig{
+				Enabled:  boolRef(true),
+				Endpoint: defaultModelsDevEndpoint,
+				TTL:      defaultModelsDevTTL,
+				Timeout:  defaultModelsDevTimeout,
+			},
+		},
+	}
+}
+
+// Validate reports whether model catalog config is usable.
+func (c ModelCatalogConfig) Validate() error {
+	return c.Sources.ModelsDev.Validate("model_catalog.sources.models_dev")
+}
+
+// EffectiveEnabled reports whether the models.dev source should run.
+func (c ModelsDevSourceConfig) EffectiveEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
+}
+
+// EffectiveEndpoint returns the configured endpoint or the default models.dev endpoint.
+func (c ModelsDevSourceConfig) EffectiveEndpoint() string {
+	if endpoint := strings.TrimSpace(c.Endpoint); endpoint != "" {
+		return endpoint
+	}
+	return defaultModelsDevEndpoint
+}
+
+// EffectiveTTL returns the configured TTL or the default models.dev TTL.
+func (c ModelsDevSourceConfig) EffectiveTTL() string {
+	if ttl := strings.TrimSpace(c.TTL); ttl != "" {
+		return ttl
+	}
+	return defaultModelsDevTTL
+}
+
+// EffectiveTimeout returns the configured timeout or the default models.dev timeout.
+func (c ModelsDevSourceConfig) EffectiveTimeout() string {
+	if timeout := strings.TrimSpace(c.Timeout); timeout != "" {
+		return timeout
+	}
+	return defaultModelsDevTimeout
+}
+
+// Validate reports whether the models.dev source config is usable.
+func (c ModelsDevSourceConfig) Validate(path string) error {
+	if err := validateAbsoluteHTTPURL(path+".endpoint", c.EffectiveEndpoint()); err != nil {
+		return err
+	}
+	if err := validatePositiveDuration(path+".ttl", c.EffectiveTTL()); err != nil {
+		return err
+	}
+	return validatePositiveDuration(path+".timeout", c.EffectiveTimeout())
+}
+
+func validatePositiveDuration(path string, raw string) error {
+	duration, err := time.ParseDuration(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("%s must be a positive duration", path)
+	}
+	if duration <= 0 {
+		return fmt.Errorf("%s must be a positive duration", path)
+	}
+	return nil
+}
+
+func validateAbsoluteHTTPURL(path string, raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must be an absolute HTTP(S) URL", path)
+	}
+	switch parsed.Scheme {
+	case string(MCPServerTransportHTTP), urlSchemeHTTPS:
+		return nil
+	default:
+		return fmt.Errorf("%s must be an absolute HTTP(S) URL", path)
+	}
+}
+
+func unsafeDiscoveryCommand(command string) bool {
+	return strings.ContainsAny(command, "\x00\r\n")
+}
+
 // Validate reports whether the harness is supported.
 func (h ProviderHarness) Validate(path string) error {
 	switch h {
@@ -903,7 +1240,7 @@ func validProviderSecretRef(ref string) bool {
 	if vault.IsEnvRef(normalized) {
 		return vault.ValidateRef(normalized) == nil
 	}
-	if err := vault.ValidateSecretRefNamespace(normalized, "providers"); err != nil {
+	if err := vault.ValidateSecretRefNamespace(normalized, providersConfigKey); err != nil {
 		return false
 	}
 	path := strings.TrimPrefix(normalized, "vault:providers/")
@@ -996,6 +1333,9 @@ func (a MCPAuthConfig) Validate(path string) error {
 func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if strings.TrimSpace(provider.Command) == "" {
 		return fmt.Errorf("provider %q command is required", name)
+	}
+	if err := provider.Models.Validate(fmt.Sprintf("providers.%s.models", name)); err != nil {
+		return err
 	}
 	if err := provider.EffectiveHarness().Validate(fmt.Sprintf("providers.%s.harness", name)); err != nil {
 		return err
@@ -1147,7 +1487,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 	return ProviderConfig{
 		Command:         src.Command,
 		DisplayName:     src.DisplayName,
-		DefaultModel:    src.DefaultModel,
+		Models:          cloneProviderModelsConfig(src.Models),
 		Harness:         src.Harness,
 		RuntimeProvider: src.RuntimeProvider,
 		Transport:       src.Transport,
@@ -1173,6 +1513,64 @@ func cloneBoolRef(src *bool) *bool {
 		return nil
 	}
 	return boolRef(*src)
+}
+
+func cloneInt64Ref(src *int64) *int64 {
+	if src == nil {
+		return nil
+	}
+	value := *src
+	return &value
+}
+
+func cloneFloat64Ref(src *float64) *float64 {
+	if src == nil {
+		return nil
+	}
+	value := *src
+	return &value
+}
+
+func cloneProviderModelsConfig(src ProviderModelsConfig) ProviderModelsConfig {
+	return ProviderModelsConfig{
+		Default:   src.Default,
+		Curated:   cloneProviderModelConfigs(src.Curated),
+		Discovery: cloneProviderModelsDiscoveryConfig(src.Discovery),
+	}
+}
+
+func cloneProviderModelsDiscoveryConfig(
+	src ProviderModelsDiscoveryConfig,
+) ProviderModelsDiscoveryConfig {
+	return ProviderModelsDiscoveryConfig{
+		Enabled:  cloneBoolRef(src.Enabled),
+		Command:  src.Command,
+		Endpoint: src.Endpoint,
+		Timeout:  src.Timeout,
+	}
+}
+
+func cloneProviderModelConfigs(src []ProviderModelConfig) []ProviderModelConfig {
+	if src == nil {
+		return nil
+	}
+	cloned := make([]ProviderModelConfig, len(src))
+	for idx, model := range src {
+		cloned[idx] = ProviderModelConfig{
+			ID:                     model.ID,
+			DisplayName:            model.DisplayName,
+			ContextWindow:          cloneInt64Ref(model.ContextWindow),
+			MaxInputTokens:         cloneInt64Ref(model.MaxInputTokens),
+			MaxOutputTokens:        cloneInt64Ref(model.MaxOutputTokens),
+			SupportsTools:          cloneBoolRef(model.SupportsTools),
+			SupportsReasoning:      cloneBoolRef(model.SupportsReasoning),
+			ReasoningEfforts:       cloneStrings(model.ReasoningEfforts),
+			DefaultReasoningEffort: model.DefaultReasoningEffort,
+			CostInputPerMillion:    cloneFloat64Ref(model.CostInputPerMillion),
+			CostOutputPerMillion:   cloneFloat64Ref(model.CostOutputPerMillion),
+		}
+	}
+	return cloned
 }
 
 func cloneProviderCredentialSlots(src []ProviderCredentialSlot) []ProviderCredentialSlot {

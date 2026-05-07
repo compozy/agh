@@ -51,6 +51,12 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 - Append-only event store (`runtime.db`) is the canonical operational ledger; session DBs are projections, not authority.
 - Live broadcasters publish only after durable append; reconnect/replay uses `after_seq`.
 
+### Persistence
+
+- **SQLite migration registries are append-only.** `internal/store/globaldb.globalSchemaMigrations` and equivalent registries persist `version`, `name`, and `checksum` in `schema_migrations`; never insert, reorder, rename, renumber, or change an existing migration identity after it may have been applied.
+- **Migration drift fixes require observed-history tests.** Cover fresh DB, upgrade/reopen, and the real recorded migration prefix that failed. Integrity mismatch is a safety signal to preserve, not an error to suppress.
+- **New schema work appends at the registry tail.** If a migration appears to need an earlier slot, stop and write an ADR-backed repair plan instead of silently shifting recorded history.
+
 ## Security Invariants
 
 - **`claim_token` redaction is non-negotiable.** Raw `claim_token` (`agh_claim_*`), MCP auth tokens, OAuth codes, PKCE verifiers, and secret bindings MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory. Use hash forms (`claim_token_hash`) over the wire. Network layer rejects raw `claim_token` in metadata.

@@ -490,11 +490,39 @@ func (a *daemonNightlyCombinedACPAgent) Cancel(context.Context, acpsdk.CancelNot
 	return nil
 }
 
+func (a *daemonNightlyCombinedACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (a *daemonNightlyCombinedACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{Sessions: []acpsdk.SessionInfo{}}, nil
+}
+
 func (a *daemonNightlyCombinedACPAgent) NewSession(
 	context.Context,
 	acpsdk.NewSessionRequest,
 ) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{SessionId: "daemon-nightly-combined-helper"}, nil
+}
+
+func (a *daemonNightlyCombinedACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
+}
+
+func (a *daemonNightlyCombinedACPAgent) SetSessionConfigOption(
+	context.Context,
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
 }
 
 func (a *daemonNightlyCombinedACPAgent) LoadSession(

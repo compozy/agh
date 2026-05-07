@@ -311,11 +311,39 @@ func (a *e2eACPAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
 	return nil
 }
 
+func (a *e2eACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (a *e2eACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{Sessions: []acpsdk.SessionInfo{}}, nil
+}
+
 func (a *e2eACPAgent) NewSession(
 	context.Context,
 	acpsdk.NewSessionRequest,
 ) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{SessionId: "e2e-helper-session"}, nil
+}
+
+func (a *e2eACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
+}
+
+func (a *e2eACPAgent) SetSessionConfigOption(
+	context.Context,
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
 }
 
 func (a *e2eACPAgent) LoadSession(

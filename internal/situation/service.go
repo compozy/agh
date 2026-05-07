@@ -387,7 +387,7 @@ func (s *Service) resolveAgent(
 		model := strings.TrimSpace(agent.Model)
 		if provider != "" && model == "" {
 			if providerConfig, err := workspaceSnapshot.Config.ResolveProvider(provider); err == nil {
-				model = strings.TrimSpace(providerConfig.DefaultModel)
+				model = strings.TrimSpace(providerConfig.Models.Default)
 			}
 		}
 		return aghconfig.ResolvedAgent{

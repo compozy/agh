@@ -339,7 +339,7 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 	initRequest := acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientCapabilities: acpsdk.ClientCapabilities{
-			Fs: acpsdk.FileSystemCapability{
+			Fs: acpsdk.FileSystemCapabilities{
 				ReadTextFile:  true,
 				WriteTextFile: true,
 			},
@@ -364,9 +364,9 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		)
 	}
 
-	process.Caps = Caps{
+	process.setCaps(Caps{
 		SupportsLoadSession: initializeResponse.AgentCapabilities.LoadSession,
-	}
+	})
 	return nil
 }
 
@@ -378,7 +378,7 @@ func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, no
 }
 
 func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
-	if !process.Caps.SupportsLoadSession {
+	if !process.CapsSnapshot().SupportsLoadSession {
 		return WrapFailure(store.FailureLoad, "ACP session/load is not supported", fmt.Errorf(
 			"%w: agent %q does not support session/load for resume %q",
 			ErrAgentDoesNotSupportSession,
@@ -418,7 +418,12 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 	if err := process.checkpointProcessOwner(ctx); err != nil {
 		return err
 	}
-	process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
+	process.setCaps(captureCaps(
+		process.CapsSnapshot().SupportsLoadSession,
+		loadResponse.Modes,
+		loadResponse.Models,
+		loadResponse.ConfigOptions,
+	))
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
 		return WrapFailure(
 			store.FailureProtocol,
@@ -431,6 +436,13 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 			store.FailureProtocol,
 			"ACP session model negotiation failed",
 			fmt.Errorf("acp: set session model for %q: %w", normalized.AgentName, err),
+		)
+	}
+	if err := d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session reasoning negotiation failed",
+			fmt.Errorf("acp: set session reasoning effort for %q: %w", normalized.AgentName, err),
 		)
 	}
 	return nil
@@ -464,7 +476,12 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 	if err := process.checkpointProcessOwner(ctx); err != nil {
 		return err
 	}
-	process.Caps = captureCaps(process.Caps.SupportsLoadSession, newResponse.Modes, newResponse.Models)
+	process.setCaps(captureCaps(
+		process.CapsSnapshot().SupportsLoadSession,
+		newResponse.Modes,
+		newResponse.Models,
+		newResponse.ConfigOptions,
+	))
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
 		return WrapFailure(
 			store.FailureProtocol,
@@ -479,6 +496,13 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 			fmt.Errorf("acp: set session model for %q: %w", normalized.AgentName, err),
 		)
 	}
+	if err := d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session reasoning negotiation failed",
+			fmt.Errorf("acp: set session reasoning effort for %q: %w", normalized.AgentName, err),
+		)
+	}
 	return nil
 }
 
@@ -491,7 +515,7 @@ func (d *Driver) applySessionMode(
 		return nil
 	}
 
-	modeID := preferredSessionMode(process.Caps.SupportedModes, permissions, process.toolGateway != nil)
+	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil)
 	if modeID == "" {
 		return nil
 	}
@@ -517,16 +541,80 @@ func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, p
 		return nil
 	}
 
-	_, err := acpsdk.SendRequest[acpsdk.SetSessionModelResponse](
+	caps := process.CapsSnapshot()
+	if len(caps.ConfigOptions) > 0 {
+		option, ok := findModelConfigOption(caps.ConfigOptions)
+		if !ok {
+			return fmt.Errorf("acp: model config option is not available for requested model %q", modelID)
+		}
+		if !configOptionAllowsValue(option, modelID) {
+			return fmt.Errorf("acp: model %q is not available in config option %q", modelID, option.ID)
+		}
+		return d.applySessionConfigOption(ctx, process, option.ID, modelID)
+	}
+
+	if !legacyModelStateAllows(caps, modelID) {
+		return fmt.Errorf("acp: model %q is not available in legacy ACP model state", modelID)
+	}
+
+	_, err := acpsdk.SendRequest[acpsdk.UnstableSetSessionModelResponse](
 		process.conn,
 		ctx,
 		acpsdk.AgentMethodSessionSetModel,
-		acpsdk.SetSessionModelRequest{
+		acpsdk.UnstableSetSessionModelRequest{
 			SessionId: acpsdk.SessionId(process.SessionID),
-			ModelId:   acpsdk.ModelId(modelID),
+			ModelId:   acpsdk.UnstableModelId(modelID),
 		},
 	)
 	return err
+}
+
+func (d *Driver) applySessionReasoningEffort(ctx context.Context, process *AgentProcess, effort string) error {
+	if ctx == nil || process == nil || process.conn == nil {
+		return nil
+	}
+	effortID := strings.TrimSpace(effort)
+	if effortID == "" {
+		return nil
+	}
+
+	caps := process.CapsSnapshot()
+	if len(caps.ConfigOptions) == 0 {
+		return nil
+	}
+	option, ok := findReasoningConfigOption(caps.ConfigOptions)
+	if !ok {
+		return nil
+	}
+	if !configOptionAllowsValue(option, effortID) {
+		return fmt.Errorf("acp: reasoning effort %q is not available in config option %q", effortID, option.ID)
+	}
+	return d.applySessionConfigOption(ctx, process, option.ID, effortID)
+}
+
+func (d *Driver) applySessionConfigOption(
+	ctx context.Context,
+	process *AgentProcess,
+	optionID string,
+	valueID string,
+) error {
+	response, err := acpsdk.SendRequest[acpsdk.SetSessionConfigOptionResponse](
+		process.conn,
+		ctx,
+		acpsdk.AgentMethodSessionSetConfigOption,
+		acpsdk.SetSessionConfigOptionRequest{
+			ValueId: &acpsdk.SetSessionConfigOptionValueId{
+				SessionId: acpsdk.SessionId(process.SessionID),
+				ConfigId:  acpsdk.SessionConfigId(strings.TrimSpace(optionID)),
+				Value:     acpsdk.SessionConfigValueId(strings.TrimSpace(valueID)),
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+	process.setConfigOptions(sessionConfigOptionsFromSDK(response.ConfigOptions))
+	return nil
 }
 
 func preferredSessionMode(
@@ -831,12 +919,10 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		}
 	}()
 
-	promptRequest := acpsdk.PromptRequest{
-		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(proc.nextPromptText(req.Message))},
-	}
-	if meta := req.Meta.Normalize(); !meta.IsZero() {
-		promptRequest.Meta = meta
+	promptRequest, err := buildWirePromptRequest(proc, req)
+	if err != nil {
+		emitPromptBuildError(proc, req, err)
+		return
 	}
 	response, err := acpsdk.SendRequest[wirePromptResponse](
 		proc.conn,
@@ -876,6 +962,31 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	}
 	d.waitForPromptQuiescence(active)
 	proc.emitPromptEvent(doneEvent)
+}
+
+func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {
+	promptRequest := acpsdk.PromptRequest{
+		SessionId: acpsdk.SessionId(proc.SessionID),
+		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(proc.nextPromptText(req.Message))},
+	}
+	if meta := req.Meta.Normalize(); !meta.IsZero() {
+		metaMap, err := meta.ToMap()
+		if err != nil {
+			return acpsdk.PromptRequest{}, err
+		}
+		promptRequest.Meta = metaMap
+	}
+	return promptRequest, nil
+}
+
+func emitPromptBuildError(proc *AgentProcess, req PromptRequest, err error) {
+	proc.emitPromptEvent(AgentEvent{
+		Type:      EventTypeError,
+		SessionID: proc.SessionID,
+		TurnID:    req.TurnID,
+		Timestamp: timeNowUTC(),
+		Error:     err.Error(),
+	})
 }
 
 func shouldSuppressPromptErrorOnStop(err error) bool {
@@ -1024,6 +1135,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
 	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
+	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
 
 	return normalized, nil
 }
@@ -1207,7 +1319,12 @@ func toSDKMCPServers(servers []aghconfig.MCPServer) []acpsdk.McpServer {
 	return converted
 }
 
-func captureCaps(loadSession bool, modes *acpsdk.SessionModeState, models *acpsdk.SessionModelState) Caps {
+func captureCaps(
+	loadSession bool,
+	modes *acpsdk.SessionModeState,
+	models *acpsdk.SessionModelState,
+	configOptions []acpsdk.SessionConfigOption,
+) Caps {
 	caps := Caps{SupportsLoadSession: loadSession}
 	if modes != nil {
 		caps.SupportedModes = make([]string, 0, len(modes.AvailableModes))
@@ -1221,6 +1338,7 @@ func captureCaps(loadSession bool, modes *acpsdk.SessionModeState, models *acpsd
 			caps.SupportedModels = append(caps.SupportedModels, string(model.ModelId))
 		}
 	}
+	caps.ConfigOptions = sessionConfigOptionsFromSDK(configOptions)
 	return caps
 }
 

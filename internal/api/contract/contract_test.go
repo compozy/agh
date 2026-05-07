@@ -23,14 +23,16 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
 		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
-			ID:           "sess-1",
-			Name:         "demo",
-			AgentName:    "coder",
-			Provider:     "fake",
-			WorkspaceID:  "ws_alpha",
-			Workspace:    "/workspace",
-			State:        session.StateActive,
-			ACPSessionID: "acp-123",
+			ID:              "sess-1",
+			Name:            "demo",
+			AgentName:       "coder",
+			Provider:        "fake",
+			Model:           "gpt-test",
+			ReasoningEffort: "high",
+			WorkspaceID:     "ws_alpha",
+			Workspace:       "/workspace",
+			State:           session.StateActive,
+			ACPSessionID:    "acp-123",
 			Lineage: &store.SessionLineage{
 				RootSessionID:    "sess-1",
 				SpawnDepth:       0,
@@ -51,6 +53,17 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
 				SupportedModels:     []string{"gpt-test"},
+				ConfigOptions: []acp.SessionConfigOption{
+					{
+						ID:      "model",
+						Label:   "Model",
+						Kind:    acp.SessionConfigOptionKindSelect,
+						Current: "gpt-test",
+						Values: []acp.SessionConfigOptionValue{
+							{Value: "gpt-test", Label: "GPT Test"},
+						},
+					},
+				},
 			},
 		})
 
@@ -59,6 +72,8 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 
 		if got["agent_name"] != "coder" ||
 			got["provider"] != "fake" ||
+			got["model"] != "gpt-test" ||
+			got["reasoning_effort"] != "high" ||
 			got["workspace_id"] != "ws_alpha" ||
 			got["workspace_path"] != "/workspace" {
 			t.Fatalf("session JSON = %#v", got)
@@ -88,6 +103,17 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		}
 		if acpCaps["supports_load_session"] != true {
 			t.Fatalf("acp_caps JSON = %#v", acpCaps)
+		}
+		configOptions, ok := acpCaps["config_options"].([]any)
+		if !ok || len(configOptions) != 1 {
+			t.Fatalf("config_options JSON = %#v", acpCaps["config_options"])
+		}
+		configOption, ok := configOptions[0].(map[string]any)
+		if !ok {
+			t.Fatalf("config option type = %T, want object", configOptions[0])
+		}
+		if configOption["id"] != "model" || configOption["kind"] != "select" || configOption["current"] != "gpt-test" {
+			t.Fatalf("config option JSON = %#v", configOption)
 		}
 		sandboxPayload, ok := got["sandbox"].(map[string]any)
 		if !ok {
@@ -214,6 +240,49 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		}
 		if req.WorkspacePath != "/workspace" {
 			t.Fatalf("request = %#v", req)
+		}
+	})
+
+	t.Run("Should round-trip model and reasoning_effort overrides", func(t *testing.T) {
+		t.Parallel()
+
+		req := contract.CreateSessionRequest{
+			AgentName:       "coder",
+			Provider:        "codex",
+			Model:           "gpt-5.4",
+			ReasoningEffort: "high",
+			Workspace:       "alpha",
+		}
+		raw, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded contract.CreateSessionRequest
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Model != "gpt-5.4" || decoded.ReasoningEffort != "high" {
+			t.Fatalf("decoded = %#v", decoded)
+		}
+		var shape map[string]any
+		if err := json.Unmarshal(raw, &shape); err != nil {
+			t.Fatalf("json.Unmarshal(map) error = %v", err)
+		}
+		if shape["model"] != "gpt-5.4" || shape["reasoning_effort"] != "high" {
+			t.Fatalf("shape = %#v", shape)
+		}
+	})
+
+	t.Run("Should omit model and reasoning_effort cleanly when absent", func(t *testing.T) {
+		t.Parallel()
+
+		req := contract.CreateSessionRequest{AgentName: "coder", Workspace: "alpha"}
+		raw, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(raw), "model") || strings.Contains(string(raw), "reasoning_effort") {
+			t.Fatalf("raw = %s", string(raw))
 		}
 	})
 }

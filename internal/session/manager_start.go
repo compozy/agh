@@ -28,6 +28,7 @@ type sessionStartSpec struct {
 	agentName              string
 	provider               string
 	model                  string
+	reasoningEffort        string
 	sandboxDisabled        bool
 	workspace              workspacepkg.ResolvedWorkspace
 	channel                string
@@ -103,6 +104,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		agentName:         strings.TrimSpace(agentName),
 		provider:          strings.TrimSpace(opts.Provider),
 		model:             strings.TrimSpace(opts.Model),
+		reasoningEffort:   strings.TrimSpace(opts.ReasoningEffort),
 		sandboxDisabled:   sandboxDisabled,
 		workspace:         resolvedWorkspace,
 		channel:           strings.TrimSpace(opts.Channel),
@@ -135,6 +137,8 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		sessionName:            meta.Name,
 		agentName:              meta.AgentName,
 		provider:               strings.TrimSpace(meta.Provider),
+		model:                  strings.TrimSpace(meta.Model),
+		reasoningEffort:        strings.TrimSpace(meta.ReasoningEffort),
 		workspace:              resolvedWorkspace,
 		channel:                strings.TrimSpace(meta.Channel),
 		sessionType:            normalizeSessionType(Type(meta.SessionType)),
@@ -364,6 +368,9 @@ func (m *Manager) prepareSessionStartRuntime(
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
+	if err := spec.validateRuntimeOverrides(resolved); err != nil {
+		return sessionStartRuntime{}, err
+	}
 
 	startMCPServers, err := m.sessionMCPServers(ctx, spec, resolved)
 	if err != nil {
@@ -375,6 +382,25 @@ func (m *Manager) prepareSessionStartRuntime(
 		mcpServers:          startMCPServers,
 		networkCapabilities: networkPeerCapabilities(agentDef.Capabilities),
 	}, nil
+}
+
+func (s *sessionStartSpec) validateRuntimeOverrides(_ aghconfig.ResolvedAgent) error {
+	providerOverride := strings.TrimSpace(s.provider)
+	modelOverride := strings.TrimSpace(s.model)
+	reasoningEffort := strings.TrimSpace(s.reasoningEffort)
+	if modelOverride != "" && providerOverride == "" {
+		return fmt.Errorf("%w: provider is required when model is set", ErrInvalidRuntimeOverride)
+	}
+	if reasoningEffort == "" {
+		return nil
+	}
+	if providerOverride == "" {
+		return fmt.Errorf("%w: provider is required when reasoning_effort is set", ErrInvalidRuntimeOverride)
+	}
+	if err := ValidateReasoningEffort(reasoningEffort); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) sessionMCPServers(
@@ -440,6 +466,7 @@ func (s *sessionStartSpec) newStartingSession(
 		AgentName:            resolved.Name,
 		Provider:             strings.TrimSpace(resolved.Provider),
 		Model:                strings.TrimSpace(resolved.Model),
+		ReasoningEffort:      strings.TrimSpace(s.reasoningEffort),
 		WorkspaceID:          s.workspace.ID,
 		Workspace:            s.workspace.RootDir,
 		Channel:              s.channel,
@@ -556,6 +583,7 @@ func (m *Manager) sessionStartOpts(
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved),
+		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session),
 	}
@@ -601,6 +629,12 @@ func sessionStartEnvForProvider(
 	env = setSessionStartEnvValue(env, "AGH_AGENT", strings.TrimSpace(session.AgentName))
 	env = setSessionStartEnvValue(env, "AGH_AGENT_NAME", strings.TrimSpace(session.AgentName))
 	env = unsetSessionStartEnvKeys(env, "AGH_SESSION_CHANNEL", "AGH_PEER_ID")
+
+	if effort := strings.TrimSpace(session.ReasoningEffort); effort != "" {
+		env = setSessionStartEnvValue(env, "AGH_REASONING_EFFORT", effort)
+	} else {
+		env = unsetSessionStartEnvKeys(env, "AGH_REASONING_EFFORT")
+	}
 
 	channel := strings.TrimSpace(session.Channel)
 	if channel == "" {

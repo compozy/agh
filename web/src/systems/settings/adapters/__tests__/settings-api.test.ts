@@ -319,7 +319,10 @@ describe("collection endpoints", () => {
     const result = await putSettingsProvider("openai", {
       settings: {
         command: "codex",
-        default_model: "gpt-5",
+        models: {
+          default: "gpt-5",
+          curated: [{ id: "gpt-5" }],
+        },
         auth_mode: "native_cli",
         env_policy: "filtered",
         home_policy: "operator",
@@ -331,7 +334,10 @@ describe("collection endpoints", () => {
       body: {
         settings: {
           command: "codex",
-          default_model: "gpt-5",
+          models: {
+            default: "gpt-5",
+            curated: [{ id: "gpt-5" }],
+          },
           auth_mode: "native_cli",
           env_policy: "filtered",
           home_policy: "operator",

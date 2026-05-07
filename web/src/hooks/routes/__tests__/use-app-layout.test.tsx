@@ -61,6 +61,32 @@ vi.mock("@/systems/session/hooks/use-session-actions", () => ({
   }),
 }));
 
+vi.mock("@/systems/model-catalog", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/systems/model-catalog")>("@/systems/model-catalog");
+  return {
+    ...actual,
+    useProviderModels: () => ({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    }),
+    useProviderModelStatus: () => ({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    }),
+    useRefreshProviderModels: () => ({
+      mutate: vi.fn(),
+      mutateAsync: vi.fn(),
+      isPending: false,
+      error: null,
+    }),
+  };
+});
+
 vi.mock("@/systems/session", async () => {
   const useSessionCreateDialogModule = await vi.importActual<
     typeof import("@/systems/session/hooks/use-session-create-dialog")

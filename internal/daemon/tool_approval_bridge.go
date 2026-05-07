@@ -113,7 +113,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 		sessionID,
 		acp.RequestPermissionRequest{
 			SessionId: acpsdk.SessionId(sessionID),
-			ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call, view)),
 				Title:      acpsdk.Ptr(toolApprovalTitle(descriptor)),
 				Kind:       acpsdk.Ptr(toolApprovalKind(descriptor)),

@@ -47,7 +47,7 @@ export function InspectorMembersList({
 
   if (members.length === 0) {
     return (
-      <div className="px-4 py-6">
+      <div className="flex justify-center px-4 py-6">
         <Empty
           className="max-w-sm"
           description="No peers have joined this channel yet."

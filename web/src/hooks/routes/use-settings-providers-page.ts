@@ -14,12 +14,18 @@ import {
 type ProviderCredentialSlotDraft = NonNullable<
   NonNullable<SettingsProviderRequest["settings"]>["credential_slots"]
 >[number];
+type ProviderModelsPayload = NonNullable<
+  NonNullable<SettingsProviderRequest["settings"]>["models"]
+>;
+type ProviderModelPayload = NonNullable<ProviderModelsPayload["curated"]>[number];
 
 export type ProviderDraft = {
   name: string;
   command: string;
   display_name: string;
-  default_model: string;
+  model_default: string;
+  curated_models: string;
+  curated_snapshot: ProviderModelPayload[];
   target_env: string;
   harness: string;
   runtime_provider: string;
@@ -49,7 +55,9 @@ function emptyDraft(): ProviderDraft {
     name: "",
     command: "",
     display_name: "",
-    default_model: "",
+    model_default: "",
+    curated_models: "",
+    curated_snapshot: [],
     target_env: "",
     harness: "acp",
     runtime_provider: "",
@@ -70,11 +78,14 @@ function emptyDraft(): ProviderDraft {
 function toDraft(entry: SettingsProviderEntry): ProviderDraft {
   const credentialSlots = credentialSlotsForDraft(entry.settings.credential_slots ?? []);
   const credentialSlot = credentialSlots[0];
+  const curatedSnapshot = (entry.settings.models?.curated ?? []).map(model => ({ ...model }));
   return {
     name: entry.name,
     command: entry.settings.command ?? "",
     display_name: entry.settings.display_name ?? "",
-    default_model: entry.settings.default_model ?? "",
+    model_default: entry.settings.models?.default ?? "",
+    curated_models: joinCuratedModels(curatedSnapshot),
+    curated_snapshot: curatedSnapshot,
     target_env: credentialSlot?.target_env ?? "",
     harness: entry.settings.harness ?? "acp",
     runtime_provider: entry.settings.runtime_provider ?? "",
@@ -96,7 +107,10 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   const settings: SettingsProviderRequest["settings"] = {};
   if (draft.command.trim()) settings.command = draft.command.trim();
   if (draft.display_name.trim()) settings.display_name = draft.display_name.trim();
-  if (draft.default_model.trim()) settings.default_model = draft.default_model.trim();
+  settings.models = {
+    ...(draft.model_default.trim() ? { default: draft.model_default.trim() } : {}),
+    curated: parseCuratedModels(draft.curated_models, draft.curated_snapshot),
+  };
   if (draft.harness.trim()) settings.harness = draft.harness.trim();
   if (draft.runtime_provider.trim()) settings.runtime_provider = draft.runtime_provider.trim();
   if (draft.transport.trim()) settings.transport = draft.transport.trim();
@@ -135,6 +149,33 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
 function envSecretRef(apiKeyEnv?: string): string {
   const envName = apiKeyEnv?.trim();
   return envName ? `env:${envName}` : "";
+}
+
+function joinCuratedModels(models: ProviderModelPayload[]): string {
+  return models
+    .map(model => model.id.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function parseCuratedModels(raw: string, snapshot: ProviderModelPayload[]): ProviderModelPayload[] {
+  const seen = new Set<string>();
+  const models: ProviderModelPayload[] = [];
+  const snapshotById = new Map(
+    snapshot.filter(entry => entry.id.trim().length > 0).map(entry => [entry.id.trim(), entry])
+  );
+  for (const part of raw.split(/[\n,]/u)) {
+    const id = part.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const enrichment = snapshotById.get(id);
+    if (enrichment) {
+      models.push({ ...enrichment, id });
+    } else {
+      models.push({ id });
+    }
+  }
+  return models;
 }
 
 function credentialSlotsForDraft(

@@ -415,7 +415,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 			{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
 			{OptionId: "reject-always", Name: "reject always", Kind: acpsdk.PermissionOptionKindRejectAlways},
 		},
-		ToolCall: acpsdk.RequestPermissionToolCall{
+		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: "tool-1",
 			Title:      &title,
 			Kind:       &kind,
@@ -527,7 +527,7 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
 			},
-			ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: "tool-timeout",
 				Title:      &title,
 				Kind:       &kind,
@@ -581,7 +581,7 @@ func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T
 				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
 			},
-			ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: "tool-deny-all",
 				Title:      &title,
 				Kind:       &kind,
@@ -637,7 +637,7 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
 			},
-			ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: "tool-approve-all",
 				Title:      &title,
 				Kind:       &kind,
@@ -738,10 +738,10 @@ func TestResolvePermissionByTurnIDConflictsWhenMultipleRequestsPending(t *testin
 	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
 	turnID := "turn-conflict"
 	_, first := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: "tool-1"},
+		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-1"},
 	})
 	_, second := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: "tool-2"},
+		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-2"},
 	})
 	t.Cleanup(func() {
 		proc.clearPendingPermission(first.requestID)
@@ -773,7 +773,7 @@ func TestResolvePermissionConcurrentSafety(t *testing.T) {
 		requestID, pending := proc.registerPendingPermission(
 			fmt.Sprintf("turn-%d", i),
 			acpsdk.RequestPermissionRequest{
-				ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: acpsdk.ToolCallId(fmt.Sprintf("tool-%d", i))},
+				ToolCall: acpsdk.ToolCallUpdate{ToolCallId: acpsdk.ToolCallId(fmt.Sprintf("tool-%d", i))},
 			},
 		)
 		registeredPending = append(registeredPending, registered{
@@ -831,7 +831,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
 			},
-			ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: "tool-read",
 				Title:      &title,
 				Kind:       &kind,
@@ -921,7 +921,7 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 	if _, reqErr := proc.handleInbound(
 		context.Background(),
 		acpsdk.ClientMethodTerminalKill,
-		mustMarshalJSON(acpsdk.KillTerminalCommandRequest{
+		mustMarshalJSON(acpsdk.KillTerminalRequest{
 			SessionId:  "sess-direct",
 			TerminalId: createResponse.TerminalId,
 		}),
@@ -1055,7 +1055,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		t.Fatalf("handleWaitForTerminalExit(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
 	}
 
-	if _, err := proc.handleKillTerminal(acpsdk.KillTerminalCommandRequest{
+	if _, err := proc.handleKillTerminal(acpsdk.KillTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); err != nil {
@@ -1096,7 +1096,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		{
 			name: "kill user terminal",
 			run: func() error {
-				_, err := proc.handleKillTerminal(acpsdk.KillTerminalCommandRequest{
+				_, err := proc.handleKillTerminal(acpsdk.KillTerminalRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1444,7 +1444,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 
 	readKind := acpsdk.ToolKindRead
 	readDecision, interactive := policy.permissionDecision(acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{
+		ToolCall: acpsdk.ToolCallUpdate{
 			Kind:      &readKind,
 			Locations: []acpsdk.ToolCallLocation{{Path: filepath.Join(root, "inside.txt")}},
 		},
@@ -1459,7 +1459,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 	}
 	editKind := acpsdk.ToolKindEdit
 	editDecision, interactive := approveReadsPolicy.permissionDecision(acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{Kind: &editKind},
+		ToolCall: acpsdk.ToolCallUpdate{Kind: &editKind},
 	})
 	if editDecision != decisionPending || !interactive {
 		t.Fatalf("permissionDecision(edit) = %q, %v, want %q, true", editDecision, interactive, decisionPending)
@@ -1470,7 +1470,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 		t.Fatalf("newPermissionPolicy(deny-all) error = %v", err)
 	}
 	denyDecision, interactive := denyAllPolicy.permissionDecision(acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{Kind: &editKind},
+		ToolCall: acpsdk.ToolCallUpdate{Kind: &editKind},
 	})
 	if denyDecision != decisionRejectOnce || interactive {
 		t.Fatalf("permissionDecision(deny-all) = %q, %v, want %q, false", denyDecision, interactive, decisionRejectOnce)
@@ -1481,7 +1481,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 	}
 	title := "Write file"
 	if got := permissionRequestName("turn-1", acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{
+		ToolCall: acpsdk.ToolCallUpdate{
 			Title: &title,
 			Kind:  &editKind,
 		},

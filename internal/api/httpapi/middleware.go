@@ -57,7 +57,12 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 		if origin != "" {
 			allowedOrigin, ok := resolveAllowedOrigin(origin, requestScheme(c.Request), c.Request.Host, boundHost)
 			if !ok {
-				c.AbortWithStatusJSON(http.StatusForbidden, contract.ErrorPayload{Error: "origin not allowed"})
+				if isOpenAICompatiblePath(c) {
+					core.RespondOpenAIError(c, http.StatusForbidden, errors.New("origin not allowed"), false)
+					c.Abort()
+				} else {
+					c.AbortWithStatusJSON(http.StatusForbidden, contract.ErrorPayload{Error: "origin not allowed"})
+				}
 				return
 			}
 			headers.Set("Access-Control-Allow-Origin", allowedOrigin)
@@ -267,7 +272,11 @@ func loopbackAPIGuard(boundHost string) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		core.RespondError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
+		if isOpenAICompatiblePath(c) {
+			core.RespondOpenAIError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
+		} else {
+			core.RespondError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
+		}
 		c.Abort()
 	}
 }
@@ -282,4 +291,11 @@ func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
 		core.RespondError(c, http.StatusForbidden, errLoopbackMutationRequired, false)
 		c.Abort()
 	}
+}
+
+func isOpenAICompatiblePath(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	return strings.HasPrefix(c.Request.URL.Path, "/api/openai/")
 }

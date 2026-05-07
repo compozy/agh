@@ -39,12 +39,14 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 
 func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	var (
-		agentName    string
-		cwd          string
-		name         string
-		channel      string
-		provider     string
-		workspaceRef string
+		agentName       string
+		cwd             string
+		name            string
+		channel         string
+		provider        string
+		model           string
+		reasoningEffort string
+		workspaceRef    string
 	)
 
 	cmd := &cobra.Command{
@@ -55,6 +57,9 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 
   # Start a named session for a specific registered workspace and agent
   agh session new --workspace checkout-api --agent reviewer --name review-api
+
+  # Override provider, model, and reasoning effort for this session only
+  agh session new --provider codex --model gpt-5.4 --reasoning-effort high
 
   # Auto-register an absolute workspace path before creating the session
   agh session new --cwd "$PWD" --agent reviewer`,
@@ -70,12 +75,14 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			}
 
 			created, err := client.CreateSession(cmd.Context(), CreateSessionRequest{
-				AgentName:     agentName,
-				Provider:      strings.TrimSpace(provider),
-				Name:          name,
-				Workspace:     workspace,
-				WorkspacePath: workspacePath,
-				Channel:       strings.TrimSpace(channel),
+				AgentName:       agentName,
+				Provider:        strings.TrimSpace(provider),
+				Model:           strings.TrimSpace(model),
+				ReasoningEffort: strings.TrimSpace(reasoningEffort),
+				Name:            name,
+				Workspace:       workspace,
+				WorkspacePath:   workspacePath,
+				Channel:         strings.TrimSpace(channel),
 			})
 			if err != nil {
 				return err
@@ -90,6 +97,13 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Optional session label")
 	cmd.Flags().StringVar(&channel, "channel", "", "Optional network channel opt-in for the session")
 	cmd.Flags().StringVar(&provider, "provider", "", "Optional provider override for this session")
+	cmd.Flags().StringVar(&model, "model", "", "Optional model override for this session")
+	cmd.Flags().StringVar(
+		&reasoningEffort,
+		"reasoning-effort",
+		"",
+		"Optional reasoning effort hint (minimal|low|medium|high|xhigh) for providers that support it",
+	)
 	return cmd
 }
 

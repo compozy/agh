@@ -59,6 +59,7 @@ type Server struct {
 	vault           core.VaultService
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
+	modelCatalog    core.ModelCatalogService
 	agentContext    core.AgentContextService
 	soulAuthoring   core.SoulAuthoringService
 	soulRefresher   core.SoulRefresher
@@ -281,6 +282,13 @@ func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 func WithAgentCatalog(catalog core.AgentCatalog) Option {
 	return func(server *Server) {
 		server.agentCatalog = catalog
+	}
+}
+
+// WithModelCatalogService injects the daemon-owned provider model catalog service.
+func WithModelCatalogService(service core.ModelCatalogService) Option {
+	return func(server *Server) {
+		server.modelCatalog = service
 	}
 }
 
@@ -542,6 +550,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		vault:           s.vault,
 		workspaces:      s.workspaces,
 		agentCatalog:    s.agentCatalog,
+		modelCatalog:    s.modelCatalog,
 		agentContext:    s.agentContext,
 		soulAuthoring:   s.soulAuthoring,
 		soulRefresher:   s.soulRefresher,

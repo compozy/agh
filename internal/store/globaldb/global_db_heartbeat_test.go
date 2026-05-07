@@ -134,36 +134,7 @@ func TestGlobalDBHeartbeatMigration(t *testing.T) {
 		if got, want := len(records), len(globalSchemaMigrations); got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
-		if records[11].Version != 12 || records[11].Name != "add_agent_soul_snapshots" {
-			t.Fatalf("records[11] = %#v, want Soul v12 before Heartbeat", records[11])
-		}
-		if records[12].Version != 13 || records[12].Name != "add_agent_heartbeat_storage" {
-			t.Fatalf("records[12] = %#v, want Heartbeat storage v13", records[12])
-		}
-		if records[13].Version != 14 || records[13].Name != "add_event_summary_lineage" {
-			t.Fatalf("records[13] = %#v, want event summary lineage v14", records[13])
-		}
-		if records[14].Version != 15 || records[14].Name != "rebuild_event_summaries_for_global_payloads" {
-			t.Fatalf("records[14] = %#v, want event summary global payloads v15", records[14])
-		}
-		if records[15].Version != 16 || records[15].Name != "rename_actor_ref_columns_to_actor_id" {
-			t.Fatalf("records[15] = %#v, want actor_id rename v16", records[15])
-		}
-		if records[16].Version != 17 || records[16].Name != "rebuild_network_conversation_containers" {
-			t.Fatalf("records[16] = %#v, want network conversation containers v17", records[16])
-		}
-		if records[17].Version != 18 || records[17].Name != "add_task_orchestration_profile_schema" {
-			t.Fatalf("records[17] = %#v, want task orchestration profile schema v18", records[17])
-		}
-		if records[18].Version != 19 || records[18].Name != "add_task_review_gate_schema" {
-			t.Fatalf("records[18] = %#v, want task review gate schema v19", records[18])
-		}
-		if records[19].Version != 20 || records[19].Name != "add_notification_cursors" {
-			t.Fatalf("records[19] = %#v, want notification cursors v20", records[19])
-		}
-		if records[20].Version != 21 || records[20].Name != "add_bridge_task_subscriptions" {
-			t.Fatalf("records[20] = %#v, want bridge task subscriptions v21", records[20])
-		}
+		assertAppliedGlobalMigrationOrder(t, records)
 	})
 
 	t.Run("Should return wrapped errors and not mark failed Heartbeat migrations successful", func(t *testing.T) {

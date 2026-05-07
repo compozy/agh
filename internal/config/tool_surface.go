@@ -321,10 +321,9 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		policy.Kind = kind
 		return policy, nil
 	}
-	if len(clean) == 3 && clean[0] == "providers" {
+	if len(clean) == 3 && clean[0] == providersConfigKey {
 		switch clean[2] {
 		case "command",
-			"default_model",
 			"auth_mode",
 			"env_policy",
 			"home_policy",
@@ -334,6 +333,12 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 			return policy, nil
 		case "session_mcp":
 			policy.Kind = ConfigValueBool
+			return policy, nil
+		}
+	}
+	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == "models" {
+		if clean[3] == "default" {
+			policy.Kind = ConfigValueString
 			return policy, nil
 		}
 	}
@@ -646,7 +651,7 @@ func configPathIsTrustRoot(path []string) bool {
 		return true
 	case "hooks":
 		return true
-	case "providers":
+	case providersConfigKey:
 		return providerConfigPathIsTrustRoot(path)
 	case "memory":
 		return memoryConfigPathIsTrustRoot(path)

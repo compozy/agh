@@ -15,6 +15,8 @@ const (
 	CapabilityProvideBridgeAdapter = "bridge.adapter"
 	// CapabilityToolProvider is the provide surface for executable extension-host tools.
 	CapabilityToolProvider = "tool.provider"
+	// CapabilityProvideModelSource is the provide surface for model catalog source rows.
+	CapabilityProvideModelSource = "model.source"
 )
 
 // ExtensionServiceMethod identifies one AGH -> extension capability service request.
@@ -27,6 +29,7 @@ const (
 	ExtensionServiceMethodBridgesDeliver ExtensionServiceMethod = "bridges/deliver"
 	ExtensionServiceMethodProvideTools   ExtensionServiceMethod = "provide_tools"
 	ExtensionServiceMethodToolsCall      ExtensionServiceMethod = "tools/call"
+	ExtensionServiceMethodModelsList     ExtensionServiceMethod = "models/list"
 )
 
 const (
@@ -48,6 +51,9 @@ const (
 	HostAPIMethodObserveHealth               HostAPIMethod = "observe/health"
 	HostAPIMethodObserveEvents               HostAPIMethod = "observe/events"
 	HostAPIMethodSkillsList                  HostAPIMethod = "skills/list"
+	HostAPIMethodModelsList                  HostAPIMethod = "models/list"
+	HostAPIMethodModelsRefresh               HostAPIMethod = "models/refresh"
+	HostAPIMethodModelsStatus                HostAPIMethod = "models/status"
 	HostAPIMethodAgentsSoulGet               HostAPIMethod = "agents/soul/get"
 	HostAPIMethodAgentsSoulValidate          HostAPIMethod = "agents/soul/validate"
 	HostAPIMethodAgentsSoulPut               HostAPIMethod = "agents/soul/put"
@@ -117,7 +123,22 @@ const (
 
 // AllHostAPIMethods returns the canonical Host API method registry in wire order.
 func AllHostAPIMethods() []HostAPIMethod {
-	methods := []HostAPIMethod{
+	methods := preNetworkHostAPIMethods()
+	methods = append(methods, networkHostAPIMethods()...)
+	methods = append(methods,
+		HostAPIMethodResourcesList,
+		HostAPIMethodResourcesGet,
+		HostAPIMethodResourcesSnapshot,
+		HostAPIMethodBridgesInstancesList,
+		HostAPIMethodBridgesMessagesIngest,
+		HostAPIMethodBridgesInstancesGet,
+		HostAPIMethodBridgesInstancesReportState,
+	)
+	return methods
+}
+
+func preNetworkHostAPIMethods() []HostAPIMethod {
+	return []HostAPIMethod{
 		HostAPIMethodSessionsList,
 		HostAPIMethodSessionsCreate,
 		HostAPIMethodSessionsPrompt,
@@ -136,6 +157,9 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodObserveHealth,
 		HostAPIMethodObserveEvents,
 		HostAPIMethodSkillsList,
+		HostAPIMethodModelsList,
+		HostAPIMethodModelsRefresh,
+		HostAPIMethodModelsStatus,
 		HostAPIMethodAgentsSoulGet,
 		HostAPIMethodAgentsSoulValidate,
 		HostAPIMethodAgentsSoulPut,
@@ -184,17 +208,6 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodTasksRunsFail,
 		HostAPIMethodTasksRunsCancel,
 	}
-	methods = append(methods, networkHostAPIMethods()...)
-	methods = append(methods,
-		HostAPIMethodResourcesList,
-		HostAPIMethodResourcesGet,
-		HostAPIMethodResourcesSnapshot,
-		HostAPIMethodBridgesInstancesList,
-		HostAPIMethodBridgesMessagesIngest,
-		HostAPIMethodBridgesInstancesGet,
-		HostAPIMethodBridgesInstancesReportState,
-	)
-	return methods
 }
 
 func networkHostAPIMethods() []HostAPIMethod {
@@ -225,6 +238,9 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	CapabilityToolProvider: {
 		ExtensionServiceMethodProvideTools,
 		ExtensionServiceMethodToolsCall,
+	},
+	CapabilityProvideModelSource: {
+		ExtensionServiceMethodModelsList,
 	},
 }
 

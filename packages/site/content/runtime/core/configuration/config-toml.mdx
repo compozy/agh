@@ -24,51 +24,52 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 
 ## Quick Reference
 
-| Section                        | Purpose                                                                         | Default                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `[daemon]`                     | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                 |
-| `[http]`                       | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                |
-| `[defaults]`                   | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                               |
-| `[limits]`                     | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                  |
-| `[session.limits]`             | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                   |
-| `[session.supervision]`        | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes  |
-| `[agents.soul]`                | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                     |
-| `[agents.heartbeat]`           | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention  |
-| `[permissions]`                | Default permission mode.                                                        | `mode = "approve-all"`                                                             |
-| `[tools]`                      | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                                |
-| `[tools.hosted_mcp]`           | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                         |
-| `[tools.policy]`               | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources           |
-| `[[mcp_servers]]`              | Top-level MCP servers passed to agents.                                         | empty list                                                                         |
-| `[providers.<name>]`           | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                           |
-| `[sandboxes.<name>]`           | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                          |
-| `[observability]`              | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                             |
-| `[observability.transcripts]`  | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                       |
-| `[log]`                        | Structured log level.                                                           | `level = "info"`                                                                   |
-| `[memory]`                     | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                        |
-| `[memory.controller]`          | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                               |
-| `[memory.controller.llm]`      | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                               |
-| `[memory.controller.policy]`   | Content/rate caps and allowed write origins.                                    | 4096 chars, 60 writes/min, all canonical origins                                   |
-| `[memory.recall]`              | Deterministic recall: top-K, weights, freshness, signal queue.                  | top-K 5, raw 50, weighted fusion                                                   |
-| `[memory.decisions]`           | Decision WAL retention and per-row body cap.                                    | 90 days, audit summary on, 64 KiB body cap                                         |
-| `[memory.extractor]`           | Post-message extractor and bounded queue.                                       | enabled, post_message mode, capacity 1, coalesce 16                                |
-| `[memory.dream]`               | Dreaming runtime, gates, and scoring.                                           | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                 |
-| `[memory.session]`             | Forensic session ledger materialization, archive, and unbound partition.        | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition |
-| `[memory.daily]`               | Daily-log retention and rotation.                                               | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00               |
-| `[memory.file]`                | Curated memory file body limits.                                                | 200 lines, 25 KiB                                                                  |
-| `[memory.provider]`            | Active memory provider selection and circuit breaker.                           | bundled local, 2 s timeout, 5 failures, 30 s cooldown                              |
-| `[memory.workspace]`           | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                      |
-| `[skills]`                     | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                      |
-| `[skills.marketplace]`         | Skill registry override.                                                        | unset                                                                              |
-| `[extensions.marketplace]`     | Extension registry override.                                                    | unset                                                                              |
-| `[automation]`                 | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                    |
-| `[[automation.jobs]]`          | Scheduled automation jobs.                                                      | empty list                                                                         |
-| `[[automation.triggers]]`      | Event-driven automation triggers.                                               | empty list                                                                         |
-| `[autonomy.coordinator]`       | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace     |
-| `[task.orchestration]`         | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5       |
-| `[task.orchestration.profile]` | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed     |
-| `[task.orchestration.review]`  | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`     |
-| `[[hooks.declarations]]`       | Config-defined runtime hooks.                                                   | empty list                                                                         |
-| `[network]`                    | Experimental AGH network runtime.                                               | enabled, channel `default`                                                         |
+| Section                              | Purpose                                                                         | Default                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `[daemon]`                           | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                 |
+| `[http]`                             | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                |
+| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                               |
+| `[limits]`                           | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                  |
+| `[session.limits]`                   | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                   |
+| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes  |
+| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                     |
+| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention  |
+| `[permissions]`                      | Default permission mode.                                                        | `mode = "approve-all"`                                                             |
+| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                                |
+| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                         |
+| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources           |
+| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                         | empty list                                                                         |
+| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                           |
+| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                     |
+| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                          |
+| `[observability]`                    | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                             |
+| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                       |
+| `[log]`                              | Structured log level.                                                           | `level = "info"`                                                                   |
+| `[memory]`                           | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                        |
+| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                               |
+| `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                               |
+| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                    | 4096 chars, 60 writes/min, all canonical origins                                   |
+| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                  | top-K 5, raw 50, weighted fusion                                                   |
+| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                    | 90 days, audit summary on, 64 KiB body cap                                         |
+| `[memory.extractor]`                 | Post-message extractor and bounded queue.                                       | enabled, post_message mode, capacity 1, coalesce 16                                |
+| `[memory.dream]`                     | Dreaming runtime, gates, and scoring.                                           | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                 |
+| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.        | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition |
+| `[memory.daily]`                     | Daily-log retention and rotation.                                               | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00               |
+| `[memory.file]`                      | Curated memory file body limits.                                                | 200 lines, 25 KiB                                                                  |
+| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                           | bundled local, 2 s timeout, 5 failures, 30 s cooldown                              |
+| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                      |
+| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                      |
+| `[skills.marketplace]`               | Skill registry override.                                                        | unset                                                                              |
+| `[extensions.marketplace]`           | Extension registry override.                                                    | unset                                                                              |
+| `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                    |
+| `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                         |
+| `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                         |
+| `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace     |
+| `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5       |
+| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed     |
+| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`     |
+| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                   | empty list                                                                         |
+| `[network]`                          | Experimental AGH network runtime.                                               | enabled, channel `default`                                                         |
 
 ## Load And Merge Order
 
@@ -208,12 +209,30 @@ client_secret_ref = "env:REMOTE_DOCS_MCP_CLIENT_SECRET"
 scopes = ["mcp.read", "mcp.write"]
 
 [providers.claude]
-# Overrides the built-in Claude provider command/model and records native auth diagnostics.
+# Overrides the built-in Claude provider command and records native auth diagnostics.
 command = "npx -y @agentclientprotocol/claude-agent-acp@latest"
-default_model = "claude-sonnet-4-6"
 auth_mode = "native_cli"
 auth_status_command = "claude auth status"
 auth_login_command = "claude auth login"
+
+[providers.claude.models]
+# Pre-session catalog defaults consumed by the daemon-owned model catalog.
+default = "claude-sonnet-4-6"
+
+[[providers.claude.models.curated]]
+id = "claude-sonnet-4-6"
+display_name = "Claude Sonnet 4.6"
+
+[[providers.claude.models.curated]]
+id = "claude-haiku-4-5"
+display_name = "Claude Haiku 4.5"
+
+[model_catalog.sources.models_dev]
+# Optional models.dev enrichment source for catalog metadata.
+enabled = true
+endpoint = "https://models.dev/api.json"
+ttl = "24h"
+timeout = "10s"
 
 [[providers.claude.mcp_servers]]
 name = "github"
@@ -698,23 +717,67 @@ Provider keys override built-ins with the same name or create a custom provider.
 `goose`, `hermes`, `junie`, `kimi-cli`, `openclaw`, `openhands`, `qoder`, `qwen-code`, `pi`,
 `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`, `minimax`, `mistral`, and `groq`.
 
-| Field                 | Type                        | Default                                                                           | Valid values                                      | Description                                                                                  |
-| --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `command`             | string                      | Built-in command or empty for custom providers.                                   | Required after built-in plus override resolution. | ACP launch command for this provider.                                                        |
-| `display_name`        | string                      | Built-in label or empty.                                                          | Any string.                                       | Operator-facing label shown in settings and provider pickers.                                |
-| `default_model`       | string                      | Built-in model or empty.                                                          | Any string.                                       | Model used when an agent omits `model`; native `pi` receives it through ACP model selection. |
-| `harness`             | string                      | `acp` unless a built-in sets `pi_acp`.                                            | `acp`, `pi_acp`.                                  | Launch strategy. `pi_acp` routes the provider through Pi's ACP adapter.                      |
-| `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                     | Downstream provider id used by Pi and other harnesses.                                       |
-| `transport`           | string                      | empty.                                                                            | Harness-specific string.                          | Optional Pi models override transport/API family.                                            |
-| `base_url`            | string                      | empty.                                                                            | URL string.                                       | Optional Pi models override base URL for custom gateways.                                    |
-| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.             | Declares whether auth belongs to the provider CLI, AGH secret binding, or no auth.           |
-| `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                           | Controls which daemon environment variables the provider subprocess inherits.                |
-| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                           | Controls whether native CLI state comes from the operator home or an AGH provider home.      |
-| `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                       | Optional status probe run by `agh provider auth status <provider>`.                          |
-| `auth_login_command`  | string                      | empty.                                                                            | Shell-style command string.                       | Optional login command run by `agh provider auth login <provider>`.                          |
-| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                  | Enables AGH session MCP injection for providers that support it.                             |
-| `credential_slots`    | array                       | empty.                                                                            | See below.                                        | Bound secret refs injected into provider subprocess environment variables at launch.         |
-| `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                  | Provider-specific MCP servers merged after top-level config and before agent MCP servers.    |
+| Field                 | Type                        | Default                                                                           | Valid values                                      | Description                                                                               |
+| --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `command`             | string                      | Built-in command or empty for custom providers.                                   | Required after built-in plus override resolution. | ACP launch command for this provider.                                                     |
+| `display_name`        | string                      | Built-in label or empty.                                                          | Any string.                                       | Operator-facing label shown in settings and provider pickers.                             |
+| `models`              | table                       | Built-in defaults or empty.                                                       | Nested model config block (see below).            | Pre-session model defaults, curated metadata, and optional discovery wiring.              |
+| `harness`             | string                      | `acp` unless a built-in sets `pi_acp`.                                            | `acp`, `pi_acp`.                                  | Launch strategy. `pi_acp` routes the provider through Pi's ACP adapter.                   |
+| `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                     | Downstream provider id used by Pi and other harnesses.                                    |
+| `transport`           | string                      | empty.                                                                            | Harness-specific string.                          | Optional Pi models override transport/API family.                                         |
+| `base_url`            | string                      | empty.                                                                            | URL string.                                       | Optional Pi models override base URL for custom gateways.                                 |
+| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.             | Declares whether auth belongs to the provider CLI, AGH secret binding, or no auth.        |
+| `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                           | Controls which daemon environment variables the provider subprocess inherits.             |
+| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                           | Controls whether native CLI state comes from the operator home or an AGH provider home.   |
+| `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                       | Optional status probe run by `agh provider auth status <provider>`.                       |
+| `auth_login_command`  | string                      | empty.                                                                            | Shell-style command string.                       | Optional login command run by `agh provider auth login <provider>`.                       |
+| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                  | Enables AGH session MCP injection for providers that support it.                          |
+| `credential_slots`    | array                       | empty.                                                                            | See below.                                        | Bound secret refs injected into provider subprocess environment variables at launch.      |
+| `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                  | Provider-specific MCP servers merged after top-level config and before agent MCP servers. |
+
+The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
+accepted. Config that still sets them is rejected with a deterministic hard-cut error citing the
+exact path. Move every value into `[providers.<id>.models]` below.
+
+### `[providers.<id>.models]`
+
+Pre-session model defaults and curated metadata are owned by the daemon-owned model catalog. The
+catalog merges builtin defaults, the operator config, the optional `models.dev` enrichment source,
+live provider discovery sources, and extension model sources, and exposes the result through HTTP,
+UDS, CLI, the OpenAI-compatible projection, the Host API, and the web. Active ACP `configOptions`
+continue to govern model and reasoning controls inside a running session, so curated entries are
+metadata, never an allowlist.
+
+| Field                                       | Type    | Default                            | Valid values                                                            | Description                                                                                                   |
+| ------------------------------------------- | ------- | ---------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `models.default`                            | string  | Built-in default or empty.         | Any non-blank model id.                                                 | Model used when an agent omits `model`. Free-form: it does not need to appear in `models.curated`.            |
+| `models.curated`                            | array   | empty.                             | See entry fields below.                                                 | Curated model entries projected as `config` rows. Not an allowlist; manual model ids stay valid.              |
+| `models.curated[].id`                       | string  | required per entry.                | Unique provider model id.                                               | Provider model identifier sent to the runtime.                                                                |
+| `models.curated[].display_name`             | string  | empty.                             | Any string.                                                             | Optional human label.                                                                                         |
+| `models.curated[].context_window`           | integer | empty.                             | Positive integer.                                                       | Context window in tokens.                                                                                     |
+| `models.curated[].max_input_tokens`         | integer | empty.                             | Positive integer.                                                       | Maximum input tokens.                                                                                         |
+| `models.curated[].max_output_tokens`        | integer | empty.                             | Positive integer.                                                       | Maximum output tokens.                                                                                        |
+| `models.curated[].supports_tools`           | boolean | empty.                             | `true`, `false`.                                                        | Whether the model supports tool calls.                                                                        |
+| `models.curated[].supports_reasoning`       | boolean | empty.                             | `true`, `false`.                                                        | Whether the model supports reasoning effort.                                                                  |
+| `models.curated[].reasoning_efforts`        | array   | empty.                             | Subset of `minimal`, `low`, `medium`, `high`, `xhigh`. Blanks rejected. | Allowed reasoning levels for this model.                                                                      |
+| `models.curated[].default_reasoning_effort` | string  | empty.                             | Member of `reasoning_efforts` when both are set.                        | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                      |
+| `models.curated[].cost_input_per_million`   | number  | empty.                             | Non-negative number.                                                    | Display-only input cost per million tokens.                                                                   |
+| `models.curated[].cost_output_per_million`  | number  | empty.                             | Non-negative number.                                                    | Display-only output cost per million tokens.                                                                  |
+| `models.discovery.enabled`                  | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                        | Enables the side-effect-free model discovery adapter for this provider.                                       |
+| `models.discovery.command`                  | string  | empty.                             | Shell-style command string.                                             | Side-effect-free discovery command. Mutually exclusive with `endpoint` unless the adapter documents both.     |
+| `models.discovery.endpoint`                 | string  | empty.                             | Absolute HTTP(S) URL.                                                   | Side-effect-free discovery endpoint URL. Mutually exclusive with `command` unless the adapter documents both. |
+| `models.discovery.timeout`                  | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                 | Per-discovery timeout.                                                                                        |
+
+Discovery adapters use the resolved provider auth, env, and home policy. Discovery never creates an
+ACP session; if discovery is unavailable or fails, the catalog records source status and falls back
+to stale or lower-priority rows. Session creation never depends on a successful discovery refresh.
+
+`OpenClaw`, `Hermes`, and `Pi` only register a live provider source when `models.discovery.enabled
+= true` and either `command` or `endpoint` is set; with no discovery wiring, those providers stay
+on builtin/config rows plus the optional `models.dev` enrichment.
+
+Top-level `[model_catalog.sources.models_dev]` controls the cross-provider `models.dev` enrichment
+source documented in the next section.
 
 `env_policy = "filtered"` preserves ordinary operator context such as `PATH`, `HOME`, and locale
 while stripping secret-shaped daemon variables before launch. `env_policy = "isolated"` starts from
@@ -750,7 +813,7 @@ direct `pi` provider use `native_cli` by default and do not preflight provider A
 API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral,
 and Groq default to AGH-managed `bound_secret` slots while AGH runs Pi under the hood.
 
-| Built-in            | Harness  | Runtime provider    | Default model               | Auth mode      | Credential target    |
+| Built-in            | Harness  | Runtime provider    | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | --------------------------- | -------------- | -------------------- |
 | `claude`            | `acp`    | `claude`            | `claude-sonnet-4-6`         | `native_cli`   | provider login       |
 | `codex`             | `acp`    | `codex`             | `gpt-5.4`                   | `native_cli`   | provider login       |
@@ -778,6 +841,36 @@ and Groq default to AGH-managed `bound_secret` slots while AGH runs Pi under the
 | `minimax`           | `pi_acp` | `minimax`           | `MiniMax-M2.1`              | `bound_secret` | `MINIMAX_API_KEY`    |
 | `mistral`           | `pi_acp` | `mistral`           | `devstral-medium-latest`    | `bound_secret` | `MISTRAL_API_KEY`    |
 | `groq`              | `pi_acp` | `groq`              | `openai/gpt-oss-120b`       | `bound_secret` | `GROQ_API_KEY`       |
+
+## `[model_catalog.sources.models_dev]`
+
+The `models.dev` enrichment source feeds catalog metadata such as token windows, tool support, and
+reasoning hints. It is cross-provider, daemon-owned, and never proves account-level availability.
+
+| Field      | Type     | Default                       | Valid values          | Description                                                                                                              |
+| ---------- | -------- | ----------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`  | boolean  | `true`                        | `true`, `false`       | Toggles the `models.dev` source. When `false`, the source still appears in status but performs no outbound calls.        |
+| `endpoint` | string   | `https://models.dev/api.json` | Absolute HTTP(S) URL. | Endpoint queried for the cross-provider model index. Must be HTTP(S) when set.                                           |
+| `ttl`      | duration | `24h`                         | Positive Go duration. | Cache lifetime before catalog rows are flagged stale and a refresh is scheduled.                                         |
+| `timeout`  | duration | `10s`                         | Positive Go duration. | Per-call HTTP timeout for the source. The HTTP client always uses an explicit deadline (no shared `http.DefaultClient`). |
+
+```toml
+[model_catalog.sources.models_dev]
+enabled = true
+endpoint = "https://models.dev/api.json"
+ttl = "24h"
+timeout = "10s"
+```
+
+`models.dev` rows write provider-scoped status: a single `models.dev` refresh records one
+`(source_id="models_dev", provider_id)` status row per AGH provider mapped, never a global
+empty-provider sentinel. Disabled sources still expose status but skip outbound calls. Refresh
+lifetime is daemon-owned: requests trigger refreshes but the daemon detaches the work, applies an
+explicit deadline, and joins outstanding refresh workers during shutdown.
+
+Live provider discovery is configured per provider through `[providers.<id>.models.discovery]`.
+Discovery refresh is serialized per `provider_id` before any subprocess or provider-home work, and
+concurrent refresh requests for the same provider coalesce behind the in-flight refresh.
 
 ## `[observability]`
 
@@ -1265,4 +1358,6 @@ context.post_compact
 
 - [mcp.json](/runtime/core/configuration/mcp-json) documents JSON sidecars and whole-object replacement.
 - [AGENT.md](/runtime/core/configuration/agent-md) documents agent-local `mcp_servers` and hooks.
+- [Providers](/runtime/core/agents/providers) covers `[providers.<id>.models]` shape and `models.discovery` defaults.
+- [Provider Model Catalog](/runtime/core/agents/model-catalog) explains the catalog projection, OpenAI-compatible endpoint, and extension `model.source`.
 - [File Locations](/runtime/core/configuration/file-locations) lists the exact global and workspace paths.
