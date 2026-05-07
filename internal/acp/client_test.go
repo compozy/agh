@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -731,14 +732,14 @@ func TestStartSetsPreferredSessionModelWhenProvided(t *testing.T) {
 		{
 			name:        "Should set preferred model for new sessions",
 			scenario:    "stream_updates",
-			preferred:   "openrouter/openai/gpt-5.4",
+			preferred:   "new-model",
 			wantSession: "sess-new",
 		},
 		{
 			name:          "Should set preferred model for resumed sessions",
 			scenario:      "load_session",
 			resumeSession: "sess-existing",
-			preferred:     "anthropic/claude-opus-4-7",
+			preferred:     "loaded-model",
 			wantSession:   "sess-existing",
 		},
 	}
@@ -766,6 +767,228 @@ func TestStartSetsPreferredSessionModelWhenProvided(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartCapturesSessionConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		scenario      string
+		resumeSession string
+		wantModel     string
+		wantReasoning string
+	}{
+		{
+			name:          "Should capture config options from session new",
+			scenario:      "config_options",
+			wantModel:     "new-model",
+			wantReasoning: "medium",
+		},
+		{
+			name:          "Should capture config options from session load",
+			scenario:      "load_config_options",
+			resumeSession: "sess-existing",
+			wantModel:     "loaded-model",
+			wantReasoning: "high",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
+				ResumeSessionID: tc.resumeSession,
+			})
+			defer stopProcess(t, driver, proc)
+
+			caps := proc.CapsSnapshot()
+			assertConfigOption(t, caps.ConfigOptions, "model", tc.wantModel, "new-model", "loaded-model", "other-model")
+			assertConfigOption(t, caps.ConfigOptions, "reasoning_effort", tc.wantReasoning, "minimal", "high", "xhigh")
+		})
+	}
+}
+
+func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-config-model.jsonl")
+	proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+		PreferredModel: "other-model",
+		Env:            helperEnvWithCapture("config_options", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	request := decodeCapturedSetSessionConfigOptionRequest(
+		t,
+		captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+	)
+	if got := request.SessionID; got != "sess-new" {
+		t.Fatalf("set-config session id = %q, want sess-new", got)
+	}
+	if got := request.ConfigID; got != "model" {
+		t.Fatalf("set-config config id = %q, want model", got)
+	}
+	if got := request.Value; got != "other-model" {
+		t.Fatalf("set-config value = %q, want other-model", got)
+	}
+	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetModel) {
+		t.Fatal("legacy set_model was sent when model config option was available")
+	}
+	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
+}
+
+func TestStartUsesSetConfigOptionForReasoningEffortWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-config-reasoning.jsonl")
+	proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+		ReasoningEffort: "high",
+		Env:             helperEnvWithCapture("config_options", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	request := decodeCapturedSetSessionConfigOptionRequest(
+		t,
+		captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+	)
+	if got := request.ConfigID; got != "reasoning_effort" {
+		t.Fatalf("set-config config id = %q, want reasoning_effort", got)
+	}
+	if got := request.Value; got != "high" {
+		t.Fatalf("set-config value = %q, want high", got)
+	}
+	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+}
+
+func TestStartDoesNotInventReasoningConfigOptionWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-no-reasoning-config.jsonl")
+	proc := startHelperProcess(t, driver, "config_options_no_reasoning", "", StartOpts{
+		ReasoningEffort: "xhigh",
+		Env:             helperEnvWithCapture("config_options_no_reasoning", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+		t.Fatal("set_config_option was sent without a reasoning config option")
+	}
+	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetModel) {
+		t.Fatal("legacy set_model was sent for a reasoning-only override")
+	}
+}
+
+func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		opts            StartOpts
+		wantError       string
+		forbiddenMethod string
+	}{
+		{
+			name: "Should reject preferred model absent from model config option values",
+			opts: StartOpts{
+				PreferredModel: "missing-model",
+			},
+			wantError:       `model "missing-model" is not available in config option "model"`,
+			forbiddenMethod: acpsdk.AgentMethodSessionSetModel,
+		},
+		{
+			name: "Should reject reasoning effort absent from reasoning config option values",
+			opts: StartOpts{
+				ReasoningEffort: "turbo",
+			},
+			wantError:       `reasoning effort "turbo" is not available in config option "reasoning_effort"`,
+			forbiddenMethod: acpsdk.AgentMethodSessionSetConfigOption,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			captureFile := filepath.Join(t.TempDir(), "session-unavailable-config-option.jsonl")
+			opts := StartOpts{
+				AgentName:   "helper",
+				Command:     helperCommand(t),
+				Cwd:         t.TempDir(),
+				Env:         helperEnvWithCapture("config_options", "", captureFile),
+				Permissions: aghconfig.PermissionModeApproveAll,
+			}
+			opts.PreferredModel = tc.opts.PreferredModel
+			opts.ReasoningEffort = tc.opts.ReasoningEffort
+			proc, err := driver.Start(testutil.Context(t), opts)
+			if proc != nil {
+				defer stopProcess(t, driver, proc)
+			}
+			if err == nil {
+				t.Fatal("Start() error = nil, want unavailable config option error")
+			}
+			if !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("Start() error = %v, want containing %q", err, tc.wantError)
+			}
+			if captureMethodExists(t, captureFile, tc.forbiddenMethod) {
+				t.Fatalf("forbidden method %q was sent after unavailable config value", tc.forbiddenMethod)
+			}
+		})
+	}
+}
+
+func TestStartRejectsUnsupportedLegacyPreferredModel(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-unsupported-legacy-model.jsonl")
+	proc, err := driver.Start(testutil.Context(t), StartOpts{
+		AgentName:      "helper",
+		Command:        helperCommand(t),
+		Cwd:            t.TempDir(),
+		Env:            helperEnvWithCapture("stream_updates", "", captureFile),
+		Permissions:    aghconfig.PermissionModeApproveAll,
+		PreferredModel: "missing-model",
+	})
+	if proc != nil {
+		defer stopProcess(t, driver, proc)
+	}
+	if err == nil {
+		t.Fatal("Start() error = nil, want unsupported legacy model error")
+	}
+	if !strings.Contains(err.Error(), `model "missing-model" is not available in legacy ACP model state`) {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetModel) {
+		t.Fatal("legacy set_model was sent for an unsupported legacy model")
+	}
+}
+
+func TestSessionConfigOptionUpdateMutatesCaps(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	proc := startHelperProcess(t, driver, "config_option_update", "", StartOpts{})
+	defer stopProcess(t, driver, proc)
+
+	events, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+		TurnID:  "turn-config-options",
+		Message: "update config",
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	collectEvents(t, events)
+
+	caps := proc.CapsSnapshot()
+	assertConfigOption(t, caps.ConfigOptions, "model", "other-model", "other-model")
+	assertConfigOption(t, caps.ConfigOptions, "reasoning_effort", "xhigh", "xhigh")
 }
 
 func TestStartWithEmptyAdditionalDirsKeepsBaselinePayload(t *testing.T) {
@@ -1209,7 +1432,7 @@ func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 
 	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
 	requestID, pending := proc.registerPendingPermission("turn-1", acpsdk.RequestPermissionRequest{
-		ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: "tool-1"},
+		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-1"},
 	})
 
 	if err := driver.ApprovePermission(context.Background(), proc, ApproveRequest{
@@ -1287,6 +1510,9 @@ func startHelperProcess(
 	}
 	if overrides.PreferredModel != "" {
 		opts.PreferredModel = overrides.PreferredModel
+	}
+	if overrides.ReasoningEffort != "" {
+		opts.ReasoningEffort = overrides.ReasoningEffort
 	}
 	opts.ResumeSessionID = overrides.ResumeSessionID
 	opts.Launcher = overrides.Launcher
@@ -1541,7 +1767,30 @@ type capturedSetSessionModelRequest struct {
 	ModelID   string `json:"modelId"`
 }
 
+type capturedSetSessionConfigOptionRequest struct {
+	SessionID string `json:"sessionId"`
+	ConfigID  string `json:"configId"`
+	Value     string `json:"value"`
+}
+
 func captureRequestParams(t *testing.T, path string, method string) map[string]json.RawMessage {
+	t.Helper()
+
+	matches := captureRequestParamsForMethod(t, path, method)
+	if len(matches) > 0 {
+		return matches[0]
+	}
+	t.Fatalf("capture file %q does not contain method %q", path, method)
+	return nil
+}
+
+func captureMethodExists(t *testing.T, path string, method string) bool {
+	t.Helper()
+
+	return len(captureRequestParamsForMethod(t, path, method)) > 0
+}
+
+func captureRequestParamsForMethod(t *testing.T, path string, method string) []map[string]json.RawMessage {
 	t.Helper()
 
 	data, err := os.ReadFile(path)
@@ -1549,6 +1798,7 @@ func captureRequestParams(t *testing.T, path string, method string) map[string]j
 		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
 	}
 
+	matches := make([]map[string]json.RawMessage, 0)
 	lines := strings.SplitSeq(strings.TrimSpace(string(data)), "\n")
 	for line := range lines {
 		if strings.TrimSpace(line) == "" {
@@ -1567,11 +1817,9 @@ func captureRequestParams(t *testing.T, path string, method string) map[string]j
 		if err := json.Unmarshal(envelope.Params, &params); err != nil {
 			t.Fatalf("json.Unmarshal(captured params) error = %v", err)
 		}
-		return params
+		matches = append(matches, params)
 	}
-
-	t.Fatalf("capture file %q does not contain method %q", path, method)
-	return nil
+	return matches
 }
 
 func decodeCapturedNewSessionRequest(t *testing.T, params map[string]json.RawMessage) capturedNewSessionRequest {
@@ -1636,6 +1884,56 @@ func decodeCapturedSetSessionModelRequest(
 	return request
 }
 
+func decodeCapturedSetSessionConfigOptionRequest(
+	t *testing.T,
+	params map[string]json.RawMessage,
+) capturedSetSessionConfigOptionRequest {
+	t.Helper()
+
+	raw, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("json.Marshal(set-session-config-option params) error = %v", err)
+	}
+	var request capturedSetSessionConfigOptionRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatalf("json.Unmarshal(set-session-config-option request) error = %v", err)
+	}
+	return request
+}
+
+func assertConfigOption(
+	t *testing.T,
+	options []SessionConfigOption,
+	id string,
+	current string,
+	wantValues ...string,
+) {
+	t.Helper()
+
+	var found *SessionConfigOption
+	for index := range options {
+		if options[index].ID == id {
+			found = &options[index]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("config option %q not found in %#v", id, options)
+	}
+	if got := found.Current; got != current {
+		t.Fatalf("config option %q current = %q, want %q", id, got, current)
+	}
+	values := make([]string, 0, len(found.Values))
+	for _, value := range found.Values {
+		values = append(values, value.Value)
+	}
+	for _, want := range wantValues {
+		if !slices.Contains(values, want) {
+			t.Fatalf("config option %q values = %#v, want value %q", id, values, want)
+		}
+	}
+}
+
 func mustCanonicalDir(t *testing.T, path string) string {
 	t.Helper()
 
@@ -1661,9 +1959,11 @@ func assertPermissionResult(t *testing.T, err error, wantOK bool) {
 }
 
 type helperACPAgent struct {
-	conn     *acpsdk.AgentSideConnection
-	scenario string
-	filePath string
+	conn            *acpsdk.AgentSideConnection
+	scenario        string
+	filePath        string
+	configOptionsMu sync.Mutex
+	configOptions   []acpsdk.SessionConfigOption
 }
 
 func (a *helperACPAgent) Authenticate(
@@ -1678,7 +1978,7 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
-				a.scenario == "load_mode_mapping",
+				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options",
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil
@@ -1688,12 +1988,48 @@ func (a *helperACPAgent) Cancel(context.Context, acpsdk.CancelNotification) erro
 	return nil
 }
 
+func (a *helperACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (a *helperACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{}, nil
+}
+
+func (a *helperACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
+}
+
 func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	if a.scenario == "mode_mapping" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 			Models:    helperModelState("new-model"),
+		}, nil
+	}
+	if a.scenario == "config_options" ||
+		a.scenario == "config_options_no_reasoning" ||
+		a.scenario == "config_option_update" {
+		configOptions := helperConfigOptions("new-model", "medium")
+		if a.scenario == "config_options_no_reasoning" {
+			configOptions = helperModelConfigOptions("new-model")
+		}
+		a.setHelperConfigOptions(configOptions)
+		return acpsdk.NewSessionResponse{
+			SessionId:     "sess-new",
+			Modes:         helperModeState("new-mode"),
+			Models:        helperModelState("new-model"),
+			ConfigOptions: configOptions,
 		}, nil
 	}
 	return acpsdk.NewSessionResponse{
@@ -1711,6 +2047,15 @@ func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest)
 		return acpsdk.LoadSessionResponse{
 			Modes:  helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 			Models: helperModelState("loaded-model"),
+		}, nil
+	}
+	if a.scenario == "load_config_options" {
+		configOptions := helperConfigOptions("loaded-model", "high")
+		a.setHelperConfigOptions(configOptions)
+		return acpsdk.LoadSessionResponse{
+			Modes:         helperModeState("loaded-mode"),
+			Models:        helperModelState("loaded-model"),
+			ConfigOptions: configOptions,
 		}, nil
 	}
 	return acpsdk.LoadSessionResponse{
@@ -1751,6 +2096,17 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
 			SessionId: params.SessionId,
 			Update:    acpsdk.UpdateAgentMessageText(string(data)),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+	case "config_option_update":
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update: acpsdk.SessionUpdate{
+				ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+					ConfigOptions: helperConfigOptions("other-model", "xhigh"),
+				},
+			},
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
 		}
@@ -1836,7 +2192,7 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
 				{OptionId: "reject-always", Name: "reject always", Kind: acpsdk.PermissionOptionKindRejectAlways},
 			},
-			ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: "tool-1",
 				Title:      &title,
 				Locations: []acpsdk.ToolCallLocation{
@@ -1965,11 +2321,85 @@ func (a *helperACPAgent) SetSessionMode(
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
-func (a *helperACPAgent) SetSessionModel(
+func (a *helperACPAgent) SetSessionConfigOption(
+	_ context.Context,
+	request acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	a.configOptionsMu.Lock()
+	defer a.configOptionsMu.Unlock()
+	if request.ValueId != nil {
+		configID := string(request.ValueId.ConfigId)
+		value := acpsdk.SessionConfigValueId(strings.TrimSpace(string(request.ValueId.Value)))
+		for index := range a.configOptions {
+			if a.configOptions[index].Select == nil || string(a.configOptions[index].Select.Id) != configID {
+				continue
+			}
+			a.configOptions[index].Select.CurrentValue = value
+		}
+	}
+	return acpsdk.SetSessionConfigOptionResponse{
+		ConfigOptions: append([]acpsdk.SessionConfigOption(nil), a.configOptions...),
+	}, nil
+}
+
+func (a *helperACPAgent) UnstableSetSessionModel(
 	context.Context,
-	acpsdk.SetSessionModelRequest,
-) (acpsdk.SetSessionModelResponse, error) {
-	return acpsdk.SetSessionModelResponse{}, nil
+	acpsdk.UnstableSetSessionModelRequest,
+) (acpsdk.UnstableSetSessionModelResponse, error) {
+	return acpsdk.UnstableSetSessionModelResponse{}, nil
+}
+
+func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOption) {
+	a.configOptionsMu.Lock()
+	defer a.configOptionsMu.Unlock()
+	a.configOptions = append([]acpsdk.SessionConfigOption(nil), options...)
+}
+
+func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.SessionConfigOption {
+	options := helperModelConfigOptions(modelCurrent)
+	options = append(options, helperSelectConfigOption(
+		"reasoning_effort",
+		"Reasoning effort",
+		reasoningCurrent,
+		"minimal",
+		"low",
+		"medium",
+		"high",
+		"xhigh",
+	))
+	return options
+}
+
+func helperModelConfigOptions(current string) []acpsdk.SessionConfigOption {
+	return []acpsdk.SessionConfigOption{
+		helperSelectConfigOption("model", "Model", current, "new-model", "loaded-model", "other-model"),
+	}
+}
+
+func helperSelectConfigOption(
+	id string,
+	name string,
+	current string,
+	values ...string,
+) acpsdk.SessionConfigOption {
+	selectOptions := make(acpsdk.SessionConfigSelectOptionsUngrouped, 0, len(values))
+	for _, value := range values {
+		selectOptions = append(selectOptions, acpsdk.SessionConfigSelectOption{
+			Value: acpsdk.SessionConfigValueId(value),
+			Name:  value,
+		})
+	}
+	return acpsdk.SessionConfigOption{
+		Select: &acpsdk.SessionConfigOptionSelect{
+			Id:           acpsdk.SessionConfigId(id),
+			Name:         name,
+			CurrentValue: acpsdk.SessionConfigValueId(current),
+			Options: acpsdk.SessionConfigSelectOptions{
+				Ungrouped: &selectOptions,
+			},
+			Type: "select",
+		},
+	}
 }
 
 func helperModeState(id string) *acpsdk.SessionModeState {

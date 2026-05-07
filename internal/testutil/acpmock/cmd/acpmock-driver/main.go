@@ -18,9 +18,8 @@ import (
 )
 
 var (
-	_ acpsdk.Agent             = (*mockAgent)(nil)
-	_ acpsdk.AgentLoader       = (*mockAgent)(nil)
-	_ acpsdk.AgentExperimental = (*mockAgent)(nil)
+	_ acpsdk.Agent       = (*mockAgent)(nil)
+	_ acpsdk.AgentLoader = (*mockAgent)(nil)
 )
 
 type cliArgs struct {
@@ -129,6 +128,27 @@ func (a *mockAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
 	return nil
 }
 
+func (a *mockAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (a *mockAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{}, nil
+}
+
+func (a *mockAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
+}
+
 func (a *mockAgent) NewSession(_ context.Context, params acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	a.mu.Lock()
 	a.nextSession++
@@ -180,11 +200,18 @@ func (a *mockAgent) SetSessionMode(
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
-func (a *mockAgent) SetSessionModel(
+func (a *mockAgent) SetSessionConfigOption(
 	context.Context,
-	acpsdk.SetSessionModelRequest,
-) (acpsdk.SetSessionModelResponse, error) {
-	return acpsdk.SetSessionModelResponse{}, nil
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
+}
+
+func (a *mockAgent) UnstableSetSessionModel(
+	context.Context,
+	acpsdk.UnstableSetSessionModelRequest,
+) (acpsdk.UnstableSetSessionModelResponse, error) {
+	return acpsdk.UnstableSetSessionModelResponse{}, nil
 }
 
 func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
@@ -388,7 +415,7 @@ func (a *mockAgent) requestPermission(
 	response, err := a.conn.RequestPermission(ctx, acpsdk.RequestPermissionRequest{
 		SessionId: sessionID,
 		Options:   defaultPermissionOptions(),
-		ToolCall: acpsdk.RequestPermissionToolCall{
+		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: acpsdk.ToolCallId(strings.TrimSpace(step.ToolCallID)),
 			Title:      acpsdk.Ptr(title),
 			Kind:       acpsdk.Ptr(toolKindValue),

@@ -583,6 +583,7 @@ func (m *Manager) sessionStartOpts(
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved),
+		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session),
 	}

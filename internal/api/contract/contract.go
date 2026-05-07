@@ -99,9 +99,27 @@ type SessionSandboxPayload struct {
 
 // ACPCapsPayload is the JSON representation of ACP capabilities.
 type ACPCapsPayload struct {
-	SupportsLoadSession bool     `json:"supports_load_session"`
-	SupportedModes      []string `json:"supported_modes,omitempty"`
-	SupportedModels     []string `json:"supported_models,omitempty"`
+	SupportsLoadSession bool                         `json:"supports_load_session"`
+	SupportedModes      []string                     `json:"supported_modes,omitempty"`
+	SupportedModels     []string                     `json:"supported_models,omitempty"`
+	ConfigOptions       []SessionConfigOptionPayload `json:"config_options,omitempty"`
+}
+
+// SessionConfigOptionPayload is one active ACP session config option.
+type SessionConfigOptionPayload struct {
+	ID          string                            `json:"id"`
+	Label       string                            `json:"label,omitempty"`
+	Description string                            `json:"description,omitempty"`
+	Kind        string                            `json:"kind"`
+	Current     string                            `json:"current,omitempty"`
+	Values      []SessionConfigOptionValuePayload `json:"values,omitempty"`
+}
+
+// SessionConfigOptionValuePayload is one selectable value for an active ACP config option.
+type SessionConfigOptionValuePayload struct {
+	Value       string `json:"value"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // SessionEventPayload is the shared session event response payload.

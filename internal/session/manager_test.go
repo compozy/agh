@@ -170,6 +170,12 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if got := opts.ReasoningEffort; got != "high" {
+				t.Fatalf("StartOpts.ReasoningEffort = %q, want high", got)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-reasoning"), nil
+		}
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:       "coder",
 			Provider:        "claude",

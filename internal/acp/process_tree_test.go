@@ -83,7 +83,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 	if _, reqErr := proc.handleInbound(
 		context.Background(),
 		acpsdk.ClientMethodTerminalKill,
-		mustMarshalJSON(acpsdk.KillTerminalCommandRequest{
+		mustMarshalJSON(acpsdk.KillTerminalRequest{
 			SessionId:  "sess-direct",
 			TerminalId: createResponse.TerminalId,
 		}),

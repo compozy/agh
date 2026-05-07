@@ -127,6 +127,11 @@ func (s *Session) Info() *Info {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	acpCaps := cloneCaps(s.ACPCaps)
+	if s.process != nil {
+		acpCaps = cloneCaps(s.process.CapsSnapshot())
+	}
+
 	return &Info{
 		ID:               s.ID,
 		Name:             s.Name,
@@ -144,7 +149,7 @@ func (s *Session) Info() *Info {
 		StopDetail:       s.stopDetail,
 		Failure:          store.CloneSessionFailure(s.failure),
 		ACPSessionID:     s.ACPSessionID,
-		ACPCaps:          cloneCaps(s.ACPCaps),
+		ACPCaps:          acpCaps,
 		Liveness:         store.CloneSessionLivenessMeta(s.Liveness),
 		Sandbox:          cloneSessionSandboxMeta(s.Sandbox),
 		SoulSnapshotID:   s.SoulSnapshotID,
@@ -393,7 +398,7 @@ func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {
 	s.process = proc
 	if proc != nil {
 		s.ACPSessionID = strings.TrimSpace(proc.SessionID)
-		s.ACPCaps = cloneCaps(proc.Caps)
+		s.ACPCaps = cloneCaps(proc.CapsSnapshot())
 		if s.Liveness == nil {
 			s.Liveness = &store.SessionLivenessMeta{}
 		}
@@ -889,11 +894,7 @@ func canTransition(current State, next State) bool {
 }
 
 func cloneCaps(caps acp.Caps) acp.Caps {
-	return acp.Caps{
-		SupportsLoadSession: caps.SupportsLoadSession,
-		SupportedModes:      append([]string(nil), caps.SupportedModes...),
-		SupportedModels:     append([]string(nil), caps.SupportedModels...),
-	}
+	return acp.CloneCaps(caps)
 }
 
 func stringPointer(value string) *string {

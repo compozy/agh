@@ -5391,6 +5391,18 @@ export interface operations {
               };
               session: {
                 acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
                   supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
@@ -19357,6 +19369,18 @@ export interface operations {
               session_count?: number;
               sessions?: {
                 acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
                   supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
@@ -19609,6 +19633,18 @@ export interface operations {
               session_count?: number;
               sessions?: {
                 acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
                   supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
@@ -22487,6 +22523,18 @@ export interface operations {
           "application/json": {
             sessions: {
               acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
                 supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
@@ -22677,6 +22725,18 @@ export interface operations {
           "application/json": {
             session: {
               acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
                 supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
@@ -22881,6 +22941,18 @@ export interface operations {
           "application/json": {
             session: {
               acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
                 supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
@@ -23520,6 +23592,18 @@ export interface operations {
           "application/json": {
             session: {
               acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
                 supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
@@ -41664,6 +41748,18 @@ export interface operations {
             }[];
             sessions?: {
               acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
                 supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;

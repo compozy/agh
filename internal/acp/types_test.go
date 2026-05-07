@@ -7,6 +7,73 @@ import (
 	"time"
 )
 
+func TestPromptMetaToMap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should convert normalized prompt metadata", func(t *testing.T) {
+		t.Parallel()
+
+		metaMap, err := (PromptMeta{
+			TurnSource: PromptTurnSourceSynthetic,
+			Synthetic: &PromptSyntheticMeta{
+				Reason: "wake",
+			},
+		}).ToMap()
+		if err != nil {
+			t.Fatalf("ToMap() error = %v", err)
+		}
+		if metaMap["turn_source"] != PromptTurnSourceSynthetic {
+			t.Fatalf("ToMap() turn_source = %#v", metaMap["turn_source"])
+		}
+		synthetic, ok := metaMap["synthetic"].(map[string]any)
+		if !ok || synthetic["reason"] != "wake" {
+			t.Fatalf("ToMap() synthetic = %#v", metaMap["synthetic"])
+		}
+	})
+
+	t.Run("Should return nil for empty metadata", func(t *testing.T) {
+		t.Parallel()
+
+		metaMap, err := (PromptMeta{}).ToMap()
+		if err != nil {
+			t.Fatalf("ToMap(empty) error = %v", err)
+		}
+		if metaMap != nil {
+			t.Fatalf("ToMap(empty) = %#v, want nil", metaMap)
+		}
+	})
+}
+
+func TestAgentProcessCapsSnapshotClonesConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	proc := &AgentProcess{}
+	proc.setCaps(Caps{
+		ConfigOptions: []SessionConfigOption{
+			{
+				ID:      "model",
+				Kind:    SessionConfigOptionKindSelect,
+				Current: "model-a",
+				Values:  []SessionConfigOptionValue{{Value: "model-a"}},
+			},
+		},
+	})
+
+	first := proc.CapsSnapshot()
+	first.ConfigOptions[0].Current = "mutated"
+	first.ConfigOptions[0].Values[0].Value = "mutated"
+
+	second := proc.CapsSnapshot()
+	if second.ConfigOptions[0].Current != "model-a" || second.ConfigOptions[0].Values[0].Value != "model-a" {
+		t.Fatalf("CapsSnapshot() leaked mutable config options: %#v", second.ConfigOptions)
+	}
+	proc.setConfigOptions([]SessionConfigOption{{ID: "reasoning_effort", Kind: SessionConfigOptionKindSelect}})
+	updated := proc.CapsSnapshot()
+	if len(updated.ConfigOptions) != 1 || updated.ConfigOptions[0].ID != "reasoning_effort" {
+		t.Fatalf("setConfigOptions() = %#v", updated.ConfigOptions)
+	}
+}
+
 func TestEndPromptClearsActivePromptWhileEmitterIsBackpressured(t *testing.T) {
 	t.Parallel()
 

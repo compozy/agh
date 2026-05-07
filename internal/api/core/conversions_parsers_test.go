@@ -84,6 +84,18 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
 			SupportedModels:     []string{"gpt-test"},
+			ConfigOptions: []acp.SessionConfigOption{
+				{
+					ID:      "reasoning_effort",
+					Label:   "Reasoning effort",
+					Kind:    acp.SessionConfigOptionKindSelect,
+					Current: "high",
+					Values: []acp.SessionConfigOptionValue{
+						{Value: "low", Label: "Low"},
+						{Value: "high", Label: "High"},
+					},
+				},
+			},
 		},
 	})
 
@@ -129,6 +141,13 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)
+	}
+	if len(payload.ACPCaps.ConfigOptions) != 1 {
+		t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)
+	}
+	if got := payload.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
+		got.Kind != "select" || len(got.Values) != 2 {
+		t.Fatalf("config option payload = %#v", got)
 	}
 	if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
 		payload.Sandbox.Backend != "local" ||

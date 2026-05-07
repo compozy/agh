@@ -53,6 +53,17 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
 				SupportedModels:     []string{"gpt-test"},
+				ConfigOptions: []acp.SessionConfigOption{
+					{
+						ID:      "model",
+						Label:   "Model",
+						Kind:    acp.SessionConfigOptionKindSelect,
+						Current: "gpt-test",
+						Values: []acp.SessionConfigOptionValue{
+							{Value: "gpt-test", Label: "GPT Test"},
+						},
+					},
+				},
 			},
 		})
 
@@ -92,6 +103,17 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		}
 		if acpCaps["supports_load_session"] != true {
 			t.Fatalf("acp_caps JSON = %#v", acpCaps)
+		}
+		configOptions, ok := acpCaps["config_options"].([]any)
+		if !ok || len(configOptions) != 1 {
+			t.Fatalf("config_options JSON = %#v", acpCaps["config_options"])
+		}
+		configOption, ok := configOptions[0].(map[string]any)
+		if !ok {
+			t.Fatalf("config option type = %T, want object", configOptions[0])
+		}
+		if configOption["id"] != "model" || configOption["kind"] != "select" || configOption["current"] != "gpt-test" {
+			t.Fatalf("config option JSON = %#v", configOption)
 		}
 		sandboxPayload, ok := got["sandbox"].(map[string]any)
 		if !ok {

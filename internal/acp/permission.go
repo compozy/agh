@@ -555,14 +555,14 @@ func permissionRequestName(turnID string, request acpsdk.RequestPermissionReques
 	return strings.Join(parts, ":")
 }
 
-func toolCallTitle(toolCall acpsdk.RequestPermissionToolCall) string {
+func toolCallTitle(toolCall acpsdk.ToolCallUpdate) string {
 	if toolCall.Title == nil {
 		return ""
 	}
 	return strings.TrimSpace(*toolCall.Title)
 }
 
-func toolCallKind(toolCall acpsdk.RequestPermissionToolCall) string {
+func toolCallKind(toolCall acpsdk.ToolCallUpdate) string {
 	if toolCall.Kind == nil {
 		return ""
 	}

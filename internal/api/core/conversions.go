@@ -177,7 +177,10 @@ func SessionFailurePayloadFromStore(failure *store.SessionFailure) *contract.Ses
 
 // ACPCapsPayloadFromInfo converts ACP capability info into the shared payload.
 func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
-	if !caps.SupportsLoadSession && len(caps.SupportedModes) == 0 && len(caps.SupportedModels) == 0 {
+	if !caps.SupportsLoadSession &&
+		len(caps.SupportedModes) == 0 &&
+		len(caps.SupportedModels) == 0 &&
+		len(caps.ConfigOptions) == 0 {
 		return nil
 	}
 
@@ -185,7 +188,44 @@ func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 		SupportsLoadSession: caps.SupportsLoadSession,
 		SupportedModes:      append([]string(nil), caps.SupportedModes...),
 		SupportedModels:     append([]string(nil), caps.SupportedModels...),
+		ConfigOptions:       SessionConfigOptionPayloadsFromInfo(caps.ConfigOptions),
 	}
+}
+
+// SessionConfigOptionPayloadsFromInfo converts active ACP config options into the shared payload.
+func SessionConfigOptionPayloadsFromInfo(options []acp.SessionConfigOption) []contract.SessionConfigOptionPayload {
+	if len(options) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SessionConfigOptionPayload, 0, len(options))
+	for _, option := range options {
+		payloads = append(payloads, contract.SessionConfigOptionPayload{
+			ID:          strings.TrimSpace(option.ID),
+			Label:       strings.TrimSpace(option.Label),
+			Description: strings.TrimSpace(option.Description),
+			Kind:        string(option.Kind),
+			Current:     strings.TrimSpace(option.Current),
+			Values:      sessionConfigOptionValuePayloads(option.Values),
+		})
+	}
+	return payloads
+}
+
+func sessionConfigOptionValuePayloads(
+	values []acp.SessionConfigOptionValue,
+) []contract.SessionConfigOptionValuePayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SessionConfigOptionValuePayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SessionConfigOptionValuePayload{
+			Value:       strings.TrimSpace(value.Value),
+			Label:       strings.TrimSpace(value.Label),
+			Description: strings.TrimSpace(value.Description),
+		})
+	}
+	return payloads
 }
 
 // SessionEventPayloadFromEvent converts a session event into the shared payload.
