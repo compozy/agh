@@ -39,20 +39,20 @@ export function BashContent({ message }: { message: UIMessage }) {
   return (
     <div className="space-y-1.5 text-xs" data-testid="bash-content">
       {!!command && (
-        <div className="rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-words">
-          <span className="text-[color:var(--color-text-tertiary)]/40 select-none">$ </span>
-          <span className="text-[color:var(--color-text-secondary)]">{String(command)}</span>
+        <div className="rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow whitespace-pre-wrap wrap-break-word">
+          <span className="text-(--color-text-tertiary)/40 select-none">$ </span>
+          <span className="text-(--color-text-secondary)">{String(command)}</span>
         </div>
       )}
       {result && (
         <div>
           {result.stderr && (
-            <pre className="max-h-48 overflow-auto rounded-md bg-red-500/5 px-3 py-2 font-mono text-[11px] text-red-400/80 whitespace-pre-wrap break-words">
+            <pre className="max-h-48 overflow-auto rounded-md bg-(--color-danger-tint) px-3 py-2 font-mono text-eyebrow text-(--color-danger) whitespace-pre-wrap wrap-break-word">
               {result.stderr}
             </pre>
           )}
           {displayText && (
-            <pre className="max-h-48 overflow-auto rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] text-[color:var(--color-text-tertiary)] whitespace-pre-wrap break-words">
+            <pre className="max-h-48 overflow-auto rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow text-(--color-text-tertiary) whitespace-pre-wrap wrap-break-word">
               {displayText}
             </pre>
           )}
@@ -60,7 +60,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[color:var(--color-text-tertiary)]/40 hover:text-[color:var(--color-text-tertiary)]/70 transition-colors"
+              className="mt-1 flex items-center gap-1 text-badge font-medium text-(--color-text-tertiary)/40 hover:text-(--color-text-tertiary)/70 transition-colors"
             >
               <ChevronsUpDown className="size-3" />
               Show full output ({totalLines} lines)
@@ -70,7 +70,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[color:var(--color-text-tertiary)]/40 hover:text-[color:var(--color-text-tertiary)]/70 transition-colors"
+              className="mt-1 flex items-center gap-1 text-badge font-medium text-(--color-text-tertiary)/40 hover:text-(--color-text-tertiary)/70 transition-colors"
             >
               <ChevronsUpDown className="size-3" />
               Collapse

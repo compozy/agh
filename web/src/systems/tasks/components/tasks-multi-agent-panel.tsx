@@ -57,7 +57,7 @@ export function TasksMultiAgentPanel({
         className="flex min-h-[240px] flex-1 items-center justify-center"
         data-testid="tasks-multi-agent-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -92,9 +92,9 @@ export function TasksMultiAgentPanel({
       data-testid="tasks-multi-agent-panel"
     >
       <header className="flex flex-col gap-1" data-testid="tasks-multi-agent-header">
-        <h2 className="text-base font-semibold text-[color:var(--color-text-primary)]">Agents</h2>
+        <h2 className="text-base font-semibold text-(--color-text-primary)">Agents</h2>
         <p
-          className="text-[13px] text-[color:var(--color-text-secondary)]"
+          className="text-small-body text-(--color-text-secondary)"
           data-testid="tasks-multi-agent-summary"
         >
           {subtitle}
@@ -120,7 +120,7 @@ export function TasksMultiAgentPanel({
 
       {state === "no-active" ? (
         <p
-          className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 text-sm text-[color:var(--color-text-secondary)]"
+          className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-sm text-(--color-text-secondary)"
           data-testid="tasks-multi-agent-no-active"
         >
           No runs are currently active. Descendant status will refresh as soon as a run resumes.
@@ -157,10 +157,8 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
   return (
     <article
       className={cn(
-        "relative flex flex-col gap-3 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] py-3 pr-4 transition-colors",
-        agent.isLive
-          ? "border-l-2 border-l-[color:var(--color-accent)] pl-4"
-          : "border-l-2 border-l-transparent pl-4"
+        "relative flex flex-col gap-3 rounded-xl border border-(--color-divider) bg-(--color-surface) py-3 pr-4 transition-colors",
+        agent.isLive ? "border-l-2 border-l-accent pl-4" : "border-l-2 border-l-transparent pl-4"
       )}
       data-depth={depthIndent}
       data-is-live={agent.isLive ? "true" : "false"}
@@ -179,10 +177,10 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               <Pill.Dot tone={agent.isLive ? "accent" : "neutral"} pulse={pulse} />
               <span
                 className={cn(
-                  "truncate text-[13px]",
+                  "truncate text-small-body",
                   agent.isLive
-                    ? "font-medium text-[color:var(--color-text-primary)]"
-                    : "text-[color:var(--color-text-secondary)]"
+                    ? "font-medium text-(--color-text-primary)"
+                    : "text-(--color-text-secondary)"
                 )}
                 data-testid={`tasks-multi-agent-agent-label-${task.id}`}
               >
@@ -199,12 +197,12 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               </Pill>
             </div>
             <p
-              className="mt-1 truncate text-[13px] text-[color:var(--color-text-primary)]"
+              className="mt-1 truncate text-small-body text-(--color-text-primary)"
               data-testid={`tasks-multi-agent-agent-title-${task.id}`}
             >
               {task.title}
             </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--color-text-tertiary)]">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-eyebrow text-(--color-text-tertiary)">
               <span>Owner {ownerLabel}</span>
               {node.last_activity_at ? (
                 <>
@@ -223,7 +221,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
             </div>
             {run?.error ? (
               <p
-                className="mt-2 flex items-start gap-1 text-[11px] text-[color:var(--color-danger)]"
+                className="mt-2 flex items-start gap-1 text-eyebrow text-(--color-danger)"
                 data-testid={`tasks-multi-agent-agent-error-${task.id}`}
               >
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -236,7 +234,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
 
       {agentEventsTop.length > 0 ? (
         <ul
-          className="flex flex-col gap-1 border-t border-[color:var(--color-divider)] pt-3 font-mono text-[11px] text-[color:var(--color-text-secondary)]"
+          className="flex flex-col gap-1 border-t border-(--color-divider) pt-3 font-mono text-eyebrow text-(--color-text-secondary)"
           data-testid={`tasks-multi-agent-agent-events-${task.id}`}
         >
           {agentEventsTop.map(event => (
@@ -245,18 +243,16 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               data-testid={`tasks-multi-agent-agent-event-${event.event_id}`}
               key={event.event_id}
             >
-              <span className="shrink-0 text-[color:var(--color-text-tertiary)]">
+              <span className="shrink-0 text-(--color-text-tertiary)">
                 {formatEventTime(event.timestamp)}
               </span>
-              <span className="truncate text-[color:var(--color-text-secondary)]">
-                {event.event_type}
-              </span>
+              <span className="truncate text-(--color-text-secondary)">{event.event_type}</span>
             </li>
           ))}
           {overflow > 0 ? (
             <li className="pt-0.5">
               <Link
-                className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-accent)] hover:underline"
+                className="inline-flex items-center gap-1 text-eyebrow uppercase tracking-mono text-accent hover:underline"
                 data-testid={`tasks-multi-agent-agent-events-more-${task.id}`}
                 params={{ id: task.id }}
                 to="/tasks/$id"
@@ -269,12 +265,12 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
       ) : null}
 
       <div
-        className="flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-divider)] pt-3"
+        className="flex flex-wrap items-center justify-end gap-3 border-t border-(--color-divider) pt-3"
         data-testid={`tasks-multi-agent-agent-actions-${task.id}`}
       >
         {run?.session_id ? (
           <Link
-            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-accent)]"
+            className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary) hover:text-accent"
             data-testid={`tasks-multi-agent-agent-session-${task.id}`}
             params={{ id: run.session_id }}
             to="/session/$id"
@@ -284,7 +280,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
         ) : null}
         {run?.id ? (
           <Link
-            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-accent)] hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-accent hover:underline"
             data-testid={`tasks-multi-agent-agent-run-${task.id}`}
             params={{ id: task.id, runId: run.id }}
             to="/tasks/$id/runs/$runId"
@@ -294,7 +290,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
         ) : null}
         {!agent.isRoot ? (
           <Link
-            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-accent)]"
+            className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary) hover:text-accent"
             data-testid={`tasks-multi-agent-agent-task-${task.id}`}
             params={{ id: task.id }}
             to="/tasks/$id"
@@ -320,8 +316,8 @@ function AgentAvatar({ label, isLive }: AgentAvatarProps) {
       className={cn(
         "flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold",
         isLive
-          ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]"
-          : "border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text-secondary)]"
+          ? "border-accent bg-(--color-accent-tint) text-accent"
+          : "border-(--color-divider) bg-(--color-surface-elevated) text-(--color-text-secondary)"
       )}
     >
       {initial}

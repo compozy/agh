@@ -434,10 +434,10 @@ function SectionLink({ section, children }: { section: ShowcaseSection; children
       href={`${DESIGN_MD_BASE}${section.anchor}`}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 text-[color:var(--color-text-label)] transition-colors hover:text-[color:var(--color-accent)]"
+      className="inline-flex items-center gap-1.5 text-(--color-text-label) transition-colors hover:text-accent"
     >
       <span>{children ?? section.label}</span>
-      <span aria-hidden="true" className="font-mono text-[10px] tracking-[0.08em]">
+      <span aria-hidden="true" className="font-mono text-badge tracking-badge">
         {"↗"}
       </span>
     </a>
@@ -452,7 +452,7 @@ function DesignSystemShowcase() {
     <TooltipProvider>
       <main
         data-testid="design-system-showcase"
-        className="flex min-h-dvh flex-col bg-[color:var(--color-canvas)] text-[color:var(--color-text-primary)]"
+        className="flex min-h-dvh flex-col bg-(--color-canvas) text-(--color-text-primary)"
       >
         <PageHeader
           title="AGH design system"
@@ -533,14 +533,14 @@ function FoundationsTokenSection() {
           >
             <header className="flex items-end justify-between gap-4">
               <div>
-                <h3 className="text-[15px] font-semibold text-[color:var(--color-text-primary)]">
+                <h3 className="text-item-title font-semibold text-(--color-text-primary)">
                   {group.label}
                 </h3>
-                <p className="mt-0.5 text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="mt-0.5 text-small-body text-(--color-text-secondary)">
                   {group.caption}
                 </p>
               </div>
-              <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+              <span className="font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
                 {group.swatches.length} tokens
               </span>
             </header>
@@ -562,20 +562,16 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       data-testid={`token-${swatch.token}`}
       data-token={swatch.token}
       data-kind={swatch.kind}
-      className="flex flex-col gap-3 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3"
+      className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-3"
     >
       <TokenPreview swatch={swatch} />
       <div className="flex flex-col gap-0.5">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
           {swatch.token}
         </span>
-        <span className="font-mono text-[11px] text-[color:var(--color-text-label)]">
-          {swatch.value}
-        </span>
+        <span className="font-mono text-eyebrow text-(--color-text-label)">{swatch.value}</span>
         {swatch.role ? (
-          <span className="text-[12px] text-[color:var(--color-text-secondary)]">
-            {swatch.role}
-          </span>
+          <span className="text-xs text-(--color-text-secondary)">{swatch.role}</span>
         ) : null}
       </div>
     </article>
@@ -587,7 +583,7 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
     return (
       <div
         aria-hidden="true"
-        className="h-14 w-full rounded-md border border-[color:var(--color-divider)]"
+        className="h-14 w-full rounded-md border border-(--color-divider)"
         style={{ backgroundColor: `var(${swatch.token})` }}
       />
     );
@@ -596,21 +592,19 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
     return (
       <div
         aria-hidden="true"
-        className="flex h-14 w-full items-center justify-center bg-[color:var(--color-surface-elevated)]"
+        className="flex h-14 w-full items-center justify-center bg-(--color-surface-elevated)"
         style={{ borderRadius: `var(${swatch.token})` }}
       >
-        <span className="font-mono text-[11px] text-[color:var(--color-text-label)]">
-          {swatch.value}
-        </span>
+        <span className="font-mono text-eyebrow text-(--color-text-label)">{swatch.value}</span>
       </div>
     );
   }
   return (
     <div
       aria-hidden="true"
-      className="flex h-14 w-full items-center justify-center rounded-md bg-[color:var(--color-surface-elevated)]"
+      className="flex h-14 w-full items-center justify-center rounded-md bg-(--color-surface-elevated)"
     >
-      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]">
+      <span className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)">
         {swatch.value}
       </span>
     </div>
@@ -631,14 +625,12 @@ function TypographySection() {
             <CardTitle>Page title · Inter 20/700</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="text-[20px] font-bold leading-[28px] tracking-[-0.01em]">
-              Runtime sessions overview
-            </p>
-            <p className="text-[16px] leading-[1.6] text-[color:var(--color-text-secondary)]">
+            <p className="text-xl font-bold leading-7 tracking-tight">Runtime sessions overview</p>
+            <p className="text-base leading-7 text-(--color-text-secondary)">
               Body · Inter 16px regular — the default reading text for operator UI. Line-height
               1.5–1.7 keeps dense dashboards breathable without resorting to oversized padding.
             </p>
-            <p className="text-[13px] leading-[18px] text-[color:var(--color-text-tertiary)]">
+            <p className="text-small-body leading-small-body text-(--color-text-tertiary)">
               Small body · Inter 13px — helper text, captions, meta rows.
             </p>
           </CardContent>
@@ -648,17 +640,17 @@ function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
               Eyebrow · JetBrains Mono 11/600 0.06em
             </p>
-            <p className="font-mono text-[14px] leading-[1.6] text-[color:var(--color-text-primary)]">
+            <p className="font-mono text-sm leading-7 text-(--color-text-primary)">
               agh-network/v0 · run_id_01hq8…
             </p>
             <div className="flex items-center gap-3">
-              <span className="font-wordmark text-[28px] leading-none tracking-[-0.02em] text-[color:var(--color-text-primary)]">
+              <span className="font-wordmark text-display-2xl leading-none tracking-tight text-(--color-text-primary)">
                 agh
               </span>
-              <Pill tone="neutral" size="sm" className="border-[color:var(--color-divider)]">
+              <Pill tone="neutral" size="sm" className="border-(--color-divider)">
                 Alpha
               </Pill>
             </div>
@@ -855,15 +847,15 @@ function StatusAndMetricSection() {
       <div className="flex flex-wrap items-center gap-4 pt-4">
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="success" />
-          <span className="text-sm text-[color:var(--color-text-secondary)]">Connected</span>
+          <span className="text-sm text-(--color-text-secondary)">Connected</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="warning" pulse />
-          <span className="text-sm text-[color:var(--color-text-secondary)]">Reconnecting</span>
+          <span className="text-sm text-(--color-text-secondary)">Reconnecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="danger" />
-          <span className="text-sm text-[color:var(--color-text-secondary)]">Disconnected</span>
+          <span className="text-sm text-(--color-text-secondary)">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
         <ConnectionIndicator status="reconnecting" />
@@ -899,10 +891,10 @@ function StatusAndMetricSection() {
       </div>
       <div className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-4">
-          <Spinner className="size-4 text-[color:var(--color-accent)]" />
+          <Spinner className="size-4 text-accent" />
           <Skeleton className="h-4 w-40" />
           <Separator orientation="vertical" className="h-6" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
             spinners · skeletons · separators
           </span>
         </div>
@@ -1076,17 +1068,17 @@ function OverlaysSection() {
             <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
-            <p className="text-sm text-[color:var(--color-text-secondary)]">
+            <p className="text-sm text-(--color-text-secondary)">
               Tabs host section switches — Base UI driven, motion-free.
             </p>
           </TabsContent>
           <TabsContent value="events">
-            <p className="text-sm text-[color:var(--color-text-secondary)]">
+            <p className="text-sm text-(--color-text-secondary)">
               Replayable event timeline lives under this tab in production.
             </p>
           </TabsContent>
           <TabsContent value="artifacts">
-            <p className="text-sm text-[color:var(--color-text-secondary)]">
+            <p className="text-sm text-(--color-text-secondary)">
               Generated files with their provenance chain.
             </p>
           </TabsContent>
@@ -1112,7 +1104,7 @@ function OverlaysSection() {
             Toggle diagnostics
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <p className="text-sm text-[color:var(--color-text-secondary)]">
+            <p className="text-sm text-(--color-text-secondary)">
               Collapsed content reveals with a CSS animation.
             </p>
           </CollapsibleContent>
@@ -1177,7 +1169,7 @@ function LayoutSection() {
       right={<Pill mono>layout</Pill>}
     >
       <div className="grid gap-4 pt-4 lg:grid-cols-2">
-        <div className="h-[340px] overflow-hidden rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)]">
+        <div className="h-[340px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider)">
           <Sidebar
             defaultCollapsed={false}
             rail={
@@ -1185,14 +1177,14 @@ function LayoutSection() {
                 <button
                   type="button"
                   aria-label="Workspace agh-core"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-surface-elevated)] font-mono text-[11px] text-[color:var(--color-accent)]"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-accent bg-(--color-surface-elevated) font-mono text-eyebrow text-accent"
                 >
                   A
                 </button>
                 <button
                   type="button"
                   aria-label="Workspace research"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] font-mono text-[11px] text-[color:var(--color-text-secondary)]"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-(--color-divider) bg-(--color-surface) font-mono text-eyebrow text-(--color-text-secondary)"
                 >
                   R
                 </button>
@@ -1200,8 +1192,8 @@ function LayoutSection() {
             }
             header={
               <>
-                <FolderIcon className="size-3.5 text-[color:var(--color-text-tertiary)]" />
-                <span className="text-[13px] font-medium">agh-core</span>
+                <FolderIcon className="size-3.5 text-(--color-text-tertiary)" />
+                <span className="text-small-body font-medium">agh-core</span>
               </>
             }
             nav={
@@ -1214,7 +1206,7 @@ function LayoutSection() {
               </div>
             }
             footer={
-              <div className="flex items-center justify-between gap-2 text-xs text-[color:var(--color-text-tertiary)]">
+              <div className="flex items-center justify-between gap-2 text-xs text-(--color-text-tertiary)">
                 <ConnectionIndicator status="connected" />
                 <Button variant="ghost" size="icon-sm" aria-label="Settings">
                   <SettingsIcon className="size-3.5" />
@@ -1223,11 +1215,11 @@ function LayoutSection() {
             }
           />
         </div>
-        <div className="h-[340px] overflow-hidden rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)]">
+        <div className="h-[340px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider)">
           <SplitPane
             list={
               <ScrollArea className="h-full">
-                <ul className="flex flex-col divide-y divide-[color:var(--color-divider)]">
+                <ul className="flex flex-col divide-y divide-(--color-divider)">
                   {[
                     "Skill: repo-refactor",
                     "Skill: ship-review",
@@ -1308,9 +1300,9 @@ function SidebarRow({
     <button
       type="button"
       data-active={active ? "true" : undefined}
-      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] data-[active=true]:bg-[color:var(--color-surface-elevated)] data-[active=true]:text-[color:var(--color-text-primary)]"
+      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-(--color-text-secondary) transition-colors hover:bg-(--color-hover) hover:text-(--color-text-primary) data-[active=true]:bg-(--color-surface-elevated) data-[active=true]:text-(--color-text-primary)"
     >
-      <Icon className="size-3.5 text-[color:var(--color-text-tertiary)] group-data-[active=true]:text-[color:var(--color-accent)]" />
+      <Icon className="size-3.5 text-(--color-text-tertiary) group-data-[active=true]:text-accent" />
       <span>{label}</span>
     </button>
   );

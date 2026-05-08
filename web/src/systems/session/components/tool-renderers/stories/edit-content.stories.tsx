@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 function EditFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-full max-w-3xl rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-4">
+      <div className="w-full max-w-3xl rounded-2xl border border-(--color-divider) bg-(--color-canvas) p-4">
         {children}
       </div>
     </CenteredSurface>

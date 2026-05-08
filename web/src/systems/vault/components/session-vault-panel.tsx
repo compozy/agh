@@ -39,7 +39,7 @@ export function SessionVaultPanel({
         className="flex min-h-full items-center justify-center"
         data-testid="session-inspector-vault-loading"
       >
-        <Loader2 className="size-4 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-4 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -68,7 +68,7 @@ export function SessionVaultPanel({
 
   return (
     <ul
-      className="flex flex-col divide-y divide-[color:var(--color-divider)]"
+      className="flex flex-col divide-y divide-(--color-divider)"
       data-testid="session-inspector-vault-list"
     >
       {secrets.map(secret => (
@@ -81,13 +81,13 @@ export function SessionVaultPanel({
             {secret.kind?.trim() || "secret"}
           </Pill>
           <span
-            className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--color-text-primary)]"
+            className="min-w-0 flex-1 truncate font-mono text-eyebrow text-(--color-text-primary)"
             data-testid="session-inspector-vault-ref"
             title={secret.ref}
           >
             {displayVaultName(secret, sessionId)}
           </span>
-          <span className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
+          <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
             {formatUpdated(secret.updated_at)}
           </span>
         </li>

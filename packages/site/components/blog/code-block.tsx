@@ -69,7 +69,7 @@ export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
         ref={ref}
         {...props}
         className={cn(
-          "overflow-x-auto px-5 py-4 font-mono text-[13px] leading-[1.7] text-(--color-text-primary)",
+          "overflow-x-auto px-5 py-4 font-mono text-small-body leading-7 text-(--color-text-primary)",
           className
         )}
       >

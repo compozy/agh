@@ -73,7 +73,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
           label="Active Run"
           right={
             <Link
-              className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+              className="font-mono text-eyebrow uppercase tracking-mono text-accent hover:underline"
               data-testid="tasks-detail-active-run-link"
               params={{ id: record.id, runId: activeRun.id }}
               to="/tasks/$id/runs/$runId"
@@ -82,7 +82,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
             </Link>
           }
         >
-          <div className="flex flex-col gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-3">
+          <div className="flex flex-col gap-2 rounded-xl border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <Pill.Dot tone={activeSignal.tone} pulse={activeSignal.pulse} />
               <Pill mono>{activeRun.id}</Pill>
@@ -102,7 +102,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
                 </Pill>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-[13px] text-[color:var(--color-text-secondary)]">
+            <div className="flex flex-wrap items-center gap-3 text-small-body text-(--color-text-secondary)">
               <span>
                 attempt {activeRun.attempt}
                 {activeRun.max_attempts ? ` of ${activeRun.max_attempts}` : ""}
@@ -120,7 +120,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
       ) : (
         <Section data-testid="tasks-detail-active-run-empty" label="Execution">
           <p
-            className="text-[13px] text-[color:var(--color-text-secondary)]"
+            className="text-small-body text-(--color-text-secondary)"
             data-testid="tasks-detail-active-run-empty-hint"
           >
             {taskLifecyclePhaseDescription(lifecyclePhase)}
@@ -130,11 +130,11 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (
-          <p className="max-w-prose whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--color-text-primary)]">
+          <p className="max-w-prose whitespace-pre-wrap text-small-body leading-relaxed text-(--color-text-primary)">
             {description}
           </p>
         ) : (
-          <p className="text-[13px] italic text-[color:var(--color-text-tertiary)]">
+          <p className="text-small-body italic text-(--color-text-tertiary)">
             No description provided.
           </p>
         )}

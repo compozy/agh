@@ -33,7 +33,7 @@ function VaultSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-vault-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -158,17 +158,17 @@ function VaultFilterBar({
 }: VaultFilterBarProps) {
   return (
     <div
-      className="grid gap-4 rounded-[var(--radius-lg)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
+      className="grid gap-4 rounded-lg border border-(--color-divider) bg-(--color-surface-panel) p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
       data-testid="settings-page-vault-filters"
     >
       <label className="flex min-w-0 flex-col gap-2">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]">
+        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
           Namespace
         </span>
         <select
           value={namespace}
           onChange={event => onNamespaceChange(event.target.value as VaultNamespaceFilter)}
-          className="h-9 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 text-sm text-[color:var(--color-text-primary)] outline-none"
+          className="h-9 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 text-sm text-(--color-text-primary) outline-none"
           data-testid="settings-page-vault-namespace"
         >
           <option value="all">All namespaces</option>
@@ -180,7 +180,7 @@ function VaultFilterBar({
         </select>
       </label>
       <label className="flex min-w-0 flex-col gap-2">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]">
+        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
           Prefix
         </span>
         <Input
@@ -317,7 +317,7 @@ function VaultDeleteDialog({
         target ? (
           <span>
             Delete metadata and encrypted value for{" "}
-            <code className="font-mono text-[color:var(--color-text-primary)]">{target.ref}</code>.
+            <code className="font-mono text-(--color-text-primary)">{target.ref}</code>.
           </span>
         ) : null
       }

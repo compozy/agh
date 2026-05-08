@@ -104,23 +104,23 @@ export function ChannelHeader({
 
   return (
     <header className="flex flex-col" data-testid="network-channel-header">
-      <div className="flex items-start gap-4 border-b border-[color:var(--color-divider)] px-5 py-3">
+      <div className="flex items-start gap-4 border-b border-(--color-divider) px-5 py-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h1
-            className="flex items-center gap-1.5 truncate text-[18px] font-semibold leading-tight text-[color:var(--color-text-primary)]"
+            className="flex items-center gap-1.5 truncate text-lg font-semibold leading-tight text-(--color-text-primary)"
             data-testid="network-channel-title"
           >
-            <Hash aria-hidden="true" className="size-4 shrink-0 text-[color:var(--color-accent)]" />
+            <Hash aria-hidden="true" className="size-4 shrink-0 text-accent" />
             <span className="truncate">{channel.channel}</span>
           </h1>
           <p
-            className="truncate text-[13px] text-[color:var(--color-text-secondary)]"
+            className="truncate text-small-body text-(--color-text-secondary)"
             data-testid="network-channel-meta"
           >
             {metaSegments.map((segment, index) => (
               <span key={`${segment}-${index}`}>
                 {index > 0 ? (
-                  <span aria-hidden="true" className="mx-2 text-[color:var(--color-text-tertiary)]">
+                  <span aria-hidden="true" className="mx-2 text-(--color-text-tertiary)">
                     ·
                   </span>
                 ) : null}
@@ -149,9 +149,7 @@ export function ChannelHeader({
             aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
             aria-pressed={inspectorOpen}
             className={cn(
-              inspectorOpen
-                ? "bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text-primary)]"
-                : null
+              inspectorOpen ? "bg-(--color-surface-elevated) text-(--color-text-primary)" : null
             )}
             data-state={inspectorOpen ? "open" : "closed"}
             data-testid="network-channel-inspector-toggle"

@@ -90,7 +90,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         />
       ) : error ? (
         <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-(--color-accent)">
+          <p className="font-mono text-xs font-semibold uppercase tracking-mono text-accent">
             Diagram source
           </p>
           <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">

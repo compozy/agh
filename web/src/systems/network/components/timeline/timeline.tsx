@@ -49,11 +49,11 @@ function TimelineSkeleton({ density }: TimelineSkeletonProps) {
     >
       {[0, 1, 2, 3, 4].map(index => (
         <div key={index} className="flex gap-3">
-          <Skeleton className={cn("rounded-[4px]", density === "overlay" ? "size-8" : "size-9")} />
+          <Skeleton className={cn("rounded-chip", density === "overlay" ? "size-8" : "size-9")} />
           <div className="flex flex-1 flex-col gap-1.5">
             <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-3.5 w-full max-w-[28rem]" />
-            <Skeleton className="h-3.5 w-3/4 max-w-[22rem]" />
+            <Skeleton className="h-3.5 w-full max-w-md" />
+            <Skeleton className="h-3.5 w-3/4 max-w-88" />
           </div>
         </div>
       ))}

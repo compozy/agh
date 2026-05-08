@@ -53,10 +53,10 @@ export default async function CategoryArchivePage({ params }: PageProps) {
             <span className="inline-block h-px w-9 bg-(--color-divider)" />
             <MonoEyebrow>{categoryLabel(category)}</MonoEyebrow>
           </div>
-          <h1 className="mt-6 font-display text-[clamp(2.2rem,4vw,3.4rem)] font-normal leading-[1.02] tracking-[-0.035em] text-(--color-text-primary)">
+          <h1 className="mt-6 font-display text-site-category-title font-normal leading-none tracking-tight text-(--color-text-primary)">
             {categoryLabel(category)} posts
           </h1>
-          <p className="mt-4 max-w-[58ch] text-base leading-[1.6] text-(--color-text-secondary)">
+          <p className="mt-4 max-w-[58ch] text-base leading-7 text-(--color-text-secondary)">
             {posts.length === 0
               ? "Nothing filed here yet. Subscribe to the feed to catch the next one."
               : `${posts.length} ${posts.length === 1 ? "post" : "posts"} in this category.`}

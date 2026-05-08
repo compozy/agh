@@ -32,13 +32,13 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
     return (
       <div
         className={cn(
-          "flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2",
-          "border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)]",
-          "text-xs text-[color:var(--color-text-tertiary)]"
+          "flex items-center gap-2 rounded-md border px-3 py-2",
+          "border-(--color-divider) bg-(--color-canvas-deep)",
+          "text-xs text-(--color-text-tertiary)"
         )}
       >
         <Loader2 className="size-3.5 animate-spin" />
-        <span className="font-mono uppercase tracking-[0.08em]">{part.toolName}</span>
+        <span className="font-mono uppercase tracking-badge">{part.toolName}</span>
         <span>preparing input</span>
       </div>
     );
@@ -48,9 +48,9 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
     return (
       <div
         className={cn(
-          "flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2",
-          "border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger)]/8",
-          "text-xs text-[color:var(--color-danger)]"
+          "flex items-center gap-2 rounded-md border px-3 py-2",
+          "border-(--color-danger)/30 bg-(--color-danger)/8",
+          "text-xs text-(--color-danger)"
         )}
       >
         <AlertCircle className="size-3.5" />

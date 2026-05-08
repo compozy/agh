@@ -34,13 +34,13 @@ export function Hero() {
       <div className="relative mx-auto max-w-(--site-layout-width)">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
           <div className="order-2 lg:order-0 lg:pr-2">
-            <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-label)">
-              <span className="text-(--color-accent)">AGH</span>
+            <div className="flex items-center gap-3 font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-label)">
+              <span className="text-accent">AGH</span>
               <span className="h-px w-10 bg-(--color-divider)" />
               <span>Artificial General Hivemind</span>
             </div>
 
-            <h1 className="mt-6 max-w-[20ch] text-[clamp(2.8rem,6.5vw,5.4rem)] leading-[0.96] font-normal tracking-[-0.035em] text-(--color-text-primary)">
+            <h1 className="mt-6 max-w-[20ch] text-site-hero leading-none font-normal tracking-tight text-(--color-text-primary)">
               An open workplace for AI agents.
             </h1>
 
@@ -71,10 +71,10 @@ export function Hero() {
               key={item.label}
               className="rounded-(--radius-diagram) border border-white/10 p-4 backdrop-blur-sm"
             >
-              <dt className="font-mono text-[12px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+              <dt className="font-mono text-xs font-semibold uppercase tracking-mono text-accent">
                 {item.label}
               </dt>
-              <dd className="mt-1.5 text-[12px] leading-relaxed text-(--color-text-secondary)">
+              <dd className="mt-1.5 text-xs leading-relaxed text-(--color-text-secondary)">
                 {item.detail}
               </dd>
             </div>

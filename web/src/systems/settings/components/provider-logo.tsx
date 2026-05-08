@@ -38,7 +38,7 @@ interface ProviderLogoProps {
 
 export function ProviderLogo({ provider, className }: ProviderLogoProps) {
   const key = provider.toLowerCase();
-  const glyphClass = cn("size-6 text-[color:var(--color-text-primary)]", className);
+  const glyphClass = cn("size-6 text-(--color-text-primary)", className);
   const brand = BRAND_LOGO_KIND[key];
   return (
     <span

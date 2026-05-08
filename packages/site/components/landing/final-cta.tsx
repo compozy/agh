@@ -8,10 +8,10 @@ export function FinalCta() {
     <SectionFrame background="surface" padY="lg" className="border-b border-(--color-divider)">
       <div className="grid gap-8 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+          <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
             Ship it
           </p>
-          <h2 className="mt-4 max-w-[18ch] text-[clamp(2rem,4.5vw,3.2rem)] leading-[1.02] font-normal tracking-[-0.03em] text-(--color-text-primary)">
+          <h2 className="mt-4 max-w-[18ch] text-site-cta-title leading-none font-normal tracking-tight text-(--color-text-primary)">
             Install AGH. Run a session. Join the network.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-(--color-text-secondary)">
@@ -34,7 +34,7 @@ export function FinalCta() {
             href={baseOptions.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-2 font-mono text-[12px] uppercase tracking-(--tracking-mono) text-(--color-text-secondary) transition-colors hover:text-(--color-accent)"
+            className="mt-1 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:text-accent"
           >
             <Star aria-hidden className="h-3.5 w-3.5" />
             Star on GitHub

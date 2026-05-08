@@ -70,11 +70,11 @@ export function ExtensibilitySection() {
             cite={feature.cite}
           />
         ))}
-        <article className="group relative flex min-h-[220px] flex-col items-start justify-center gap-4 rounded-(--radius-diagram) border border-dashed border-(--color-divider) bg-transparent p-6 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-divider))] hover:bg-[color-mix(in_srgb,var(--color-accent)_4%,transparent)]">
-          <span className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-dashed border-(--color-divider) text-(--color-text-secondary) transition-colors group-hover:border-(--color-accent) group-hover:text-(--color-accent)">
+        <article className="group relative flex min-h-[220px] flex-col items-start justify-center gap-4 rounded-(--radius-diagram) border border-dashed border-(--color-divider) bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
+          <span className="flex h-12 w-12 items-center justify-center rounded-diagram border border-dashed border-(--color-divider) text-(--color-text-secondary) transition-colors group-hover:border-accent group-hover:text-accent">
             <BookOpen aria-hidden className="h-5 w-5" />
           </span>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
             Reference
           </p>
           <h3 className="text-base font-medium leading-snug text-(--color-text-primary)">
@@ -85,7 +85,7 @@ export function ExtensibilitySection() {
           </p>
           <Link
             href={EXTENSIONS_DOCS_HREF}
-            className="mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent) before:absolute before:inset-0 before:rounded-(--radius-diagram) before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)"
+            className="mt-1 inline-flex items-center gap-1.5 font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent before:absolute before:inset-0 before:rounded-(--radius-diagram) before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Read extensions docs
             <ArrowUpRight
@@ -107,7 +107,7 @@ export function ExtensibilitySection() {
             <code className="font-mono text-(--color-text-primary)">agh hooks list</code>, and{" "}
             <code className="font-mono text-(--color-text-primary)">agh extension list</code>.
           </p>
-          <p className="mt-4 font-mono text-[11px] uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+          <p className="mt-4 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
             Contract on disk — not a plugin API.
           </p>
         </div>

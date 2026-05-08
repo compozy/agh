@@ -25,31 +25,26 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
   if (entry.surface === "thread") {
     return (
       <Link
-        className={cn(NAV_ROW_CLASS, "py-1 text-[12px]")}
+        className={cn(NAV_ROW_CLASS, "py-1 text-xs")}
         data-testid={`network-recents-thread-${entry.containerId}`}
         params={{ channel: entry.channel, threadId: entry.containerId }}
         to="/network/$channel/threads/$threadId"
       >
-        <Icon
-          aria-label={ariaLabel}
-          className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
-        />
+        <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
         <span
           className={cn(
             "min-w-0 flex-1 truncate",
             entry.hasUnread
-              ? "font-semibold text-[color:var(--color-text-primary)]"
-              : "text-[color:var(--color-text-secondary)]"
+              ? "font-semibold text-(--color-text-primary)"
+              : "text-(--color-text-secondary)"
           )}
         >
           <span>{entry.preview}</span>
-          <span className="px-1 text-[color:var(--color-text-tertiary)]">·</span>
-          <span className="font-mono text-[color:var(--color-text-tertiary)]">
-            #{entry.channel}
-          </span>
+          <span className="px-1 text-(--color-text-tertiary)">·</span>
+          <span className="font-mono text-(--color-text-tertiary)">#{entry.channel}</span>
         </span>
         {timestampLabel ? (
-          <span className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
+          <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
             {timestampLabel}
           </span>
         ) : null}
@@ -59,29 +54,26 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
 
   return (
     <Link
-      className={cn(NAV_ROW_CLASS, "py-1 text-[12px]")}
+      className={cn(NAV_ROW_CLASS, "py-1 text-xs")}
       data-testid={`network-recents-direct-${entry.containerId}`}
       params={{ channel: entry.channel, directId: entry.containerId }}
       to="/network/$channel/directs/$directId"
     >
-      <Icon
-        aria-label={ariaLabel}
-        className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
-      />
+      <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
       <span
         className={cn(
           "min-w-0 flex-1 truncate",
           entry.hasUnread
-            ? "font-semibold text-[color:var(--color-text-primary)]"
-            : "text-[color:var(--color-text-secondary)]"
+            ? "font-semibold text-(--color-text-primary)"
+            : "text-(--color-text-secondary)"
         )}
       >
         <span>{entry.preview}</span>
-        <span className="px-1 text-[color:var(--color-text-tertiary)]">in</span>
-        <span className="font-mono text-[color:var(--color-text-tertiary)]">#{entry.channel}</span>
+        <span className="px-1 text-(--color-text-tertiary)">in</span>
+        <span className="font-mono text-(--color-text-tertiary)">#{entry.channel}</span>
       </span>
       {timestampLabel ? (
-        <span className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
+        <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
           {timestampLabel}
         </span>
       ) : null}
@@ -102,7 +94,7 @@ export function ChannelRailRecents({ recents, isLoading }: ChannelRailRecentsPro
           </div>
         ) : recents.length === 0 ? (
           <p
-            className="px-2 py-1 text-[11px] text-[color:var(--color-text-tertiary)]"
+            className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
             data-testid="network-recents-empty"
           >
             Recent threads and direct rooms appear here.

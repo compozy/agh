@@ -102,13 +102,13 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           to="/agents/$name/sessions/$id"
           params={{ name: agentName, id: session.id }}
           className={cn(
-            "text-item-title flex flex-col gap-0.5 text-[color:var(--color-text-primary)]",
-            "transition-colors hover:text-[color:var(--color-accent)]"
+            "text-item-title flex flex-col gap-0.5 text-(--color-text-primary)",
+            "transition-colors hover:text-accent"
           )}
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
-          <span className="text-badge font-mono uppercase tracking-mono text-[color:var(--color-text-tertiary)]">
+          <span className="text-badge font-mono uppercase tracking-mono text-(--color-text-tertiary)">
             {session.provider}
           </span>
         </Link>
@@ -118,13 +118,13 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           {status.label}
         </Pill>
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
+      <TableCell className="text-small-body text-right font-mono text-(--color-text-secondary)">
         {formatDuration(session.activity?.elapsed_seconds)}
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
+      <TableCell className="text-small-body text-right font-mono text-(--color-text-secondary)">
         {formatIterations(session.activity?.iteration_current, session.activity?.iteration_max)}
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
+      <TableCell className="text-small-body text-right font-mono text-(--color-text-secondary)">
         {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at, now)}
       </TableCell>
     </TableRow>
@@ -140,7 +140,7 @@ function AgentSessionsSkeleton() {
       aria-live="polite"
     >
       {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-9 w-full rounded-[var(--radius-md)]" />
+        <Skeleton key={index} className="h-9 w-full rounded-md" />
       ))}
     </div>
   );

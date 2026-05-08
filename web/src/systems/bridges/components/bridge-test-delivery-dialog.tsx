@@ -62,7 +62,7 @@ export function BridgeTestDeliveryDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-2xl"
+        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-2xl"
         showCloseButton={false}
       >
         <form
@@ -74,7 +74,7 @@ export function BridgeTestDeliveryDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
+          <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
             <DialogTitle>Test Delivery</DialogTitle>
             <DialogDescription>
               Resolve the outbound target for {bridgeName ?? "the selected bridge"} using the saved
@@ -199,11 +199,11 @@ export function BridgeTestDeliveryDialog({
                     </Pill>
                   }
                 >
-                  <p className="text-[13px] text-[color:var(--color-text-primary)]">
+                  <p className="text-small-body text-(--color-text-primary)">
                     {describeBridgeTestTarget(result.delivery_target)}
                   </p>
                   {result.message ? (
-                    <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+                    <p className="mt-2 text-small-body leading-relaxed text-(--color-text-secondary)">
                       Message: {result.message}
                     </p>
                   ) : null}
@@ -212,7 +212,7 @@ export function BridgeTestDeliveryDialog({
             </FieldGroup>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+          <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Close
             </Button>

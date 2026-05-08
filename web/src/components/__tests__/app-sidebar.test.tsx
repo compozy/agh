@@ -148,7 +148,7 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const active = screen.getByTestId("workspace-avatar-ws_alpha");
       expect(active).toHaveAttribute("data-active", "true");
-      expect(active.className).toContain("border-[color:var(--color-accent)]");
+      expect(active.className).toContain("border-accent");
     });
 
     it("does not highlight inactive workspaces", () => {
@@ -365,9 +365,9 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const label = screen.getAllByTestId("sidebar-section-label")[0];
       expect(label.className).toContain("font-mono");
-      expect(label.className).toContain("text-[9px]");
+      expect(label.className).toContain("text-micro");
       expect(label.className).toContain("uppercase");
-      expect(label.className).toContain("tracking-[0.14em]");
+      expect(label.className).toContain("tracking-mono");
     });
 
     it("renders Dashboard above the Agents section as the first nav item", () => {
@@ -437,7 +437,7 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const indicator = screen.getByTestId(`nav-active-${testKey}`);
       expect(indicator.className).toContain("w-[2px]");
-      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+      expect(indicator.className).toContain("bg-accent");
     });
 
     it("keeps Tasks nav active for task detail and run detail deep links (fuzzy match)", () => {
@@ -445,7 +445,7 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const indicator = screen.getByTestId("nav-active-tasks");
       expect(indicator.className).toContain("w-[2px]");
-      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+      expect(indicator.className).toContain("bg-accent");
     });
 
     it("marks Settings active when the settings route matches (fuzzy)", () => {
@@ -453,7 +453,7 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const indicator = screen.getByTestId("nav-active-settings");
       expect(indicator.className).toContain("w-[2px]");
-      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+      expect(indicator.className).toContain("bg-accent");
     });
 
     it("does not show active indicators when no route matches", () => {

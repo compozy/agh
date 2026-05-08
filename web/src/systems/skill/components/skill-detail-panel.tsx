@@ -73,10 +73,10 @@ function SkillContentSection({
   if (content) {
     return (
       <div
-        className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
+        className="rounded-lg border border-(--color-divider) bg-(--color-surface) p-4"
         data-testid="content-body"
       >
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-(--color-text-secondary)">
           {content}
         </pre>
       </div>
@@ -85,13 +85,10 @@ function SkillContentSection({
   if (isLoading) {
     return (
       <div
-        className="flex items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 text-[13px] text-[color:var(--color-text-secondary)]"
+        className="flex items-center gap-2 rounded-lg border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body text-(--color-text-secondary)"
         data-testid="content-loading"
       >
-        <Loader2
-          aria-hidden="true"
-          className="size-4 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
+        <Loader2 aria-hidden="true" className="size-4 animate-spin text-(--color-text-tertiary)" />
         Loading full skill content…
       </div>
     );
@@ -99,10 +96,10 @@ function SkillContentSection({
   if (error) {
     return (
       <div
-        className="flex flex-col gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+        className="flex flex-col gap-2 rounded-lg border border-(--color-divider) bg-(--color-surface) px-4 py-3"
         data-testid="content-error"
       >
-        <p className="text-[13px] text-[color:var(--color-danger)]">
+        <p className="text-small-body text-(--color-danger)">
           {error.message ?? "Failed to load full content."}
         </p>
         <Button
@@ -119,10 +116,10 @@ function SkillContentSection({
   }
   return (
     <div
-      className="flex flex-col gap-3 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+      className="flex flex-col gap-3 rounded-lg border border-(--color-divider) bg-(--color-surface) px-4 py-3"
       data-testid="content-empty"
     >
-      <p className="text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+      <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
         Full skill instructions are loaded on demand.
       </p>
       <div>
@@ -186,7 +183,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+          className="overflow-hidden rounded-lg border border-(--color-divider)"
           data-testid="skill-recent-calls-table"
         >
           <Table>
@@ -215,10 +212,10 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                       }
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <TableCell className="font-mono text-xs text-(--color-text-secondary)">
                     {call.label}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                  <TableCell className="text-right font-mono text-eyebrow text-(--color-text-tertiary)">
                     {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "—"}
                   </TableCell>
                 </TableRow>
@@ -250,10 +247,7 @@ function SkillDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="skill-detail-loading"
       >
-        <Loader2
-          aria-hidden="true"
-          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -314,7 +308,7 @@ function SkillDetailPanel({
           right={
             <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
               <span
-                className="font-mono text-[11px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+                className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)"
                 id="skill-enabled-label"
               >
                 {skill.enabled ? "Enabled" : "Disabled"}
@@ -330,10 +324,10 @@ function SkillDetailPanel({
           }
         >
           <div className="flex flex-col gap-3">
-            <p className="text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+            <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
               {skill.description}
             </p>
-            <span className="truncate font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+            <span className="truncate font-mono text-eyebrow text-(--color-text-tertiary)">
               {skill.dir}
             </span>
             <SkillContentSection

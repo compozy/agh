@@ -22,9 +22,9 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
                   href={`#${release.version}`}
                   aria-current={isActive ? "location" : undefined}
                   className={cn(
-                    "block font-mono text-[13px] tracking-[0.02em]",
+                    "block font-mono text-small-body tracking-mono",
                     isActive
-                      ? "text-(--color-accent)"
+                      ? "text-accent"
                       : "text-(--color-text-secondary) hover:text-(--color-text-primary)"
                   )}
                 >
@@ -39,12 +39,12 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
         <MonoEyebrow tracking="wide" tone="accent">
           Upgrade
         </MonoEyebrow>
-        <p className="mt-3 text-[13px] leading-[1.55] text-(--color-text-secondary)">
+        <p className="mt-3 text-small-body leading-6 text-(--color-text-secondary)">
           One binary, one daemon. Pull the latest from Go and restart the process.
         </p>
         <Link
           href="/runtime/core/getting-started/installation"
-          className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-(--color-accent)"
+          className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-accent"
         >
           Install instructions →
         </Link>

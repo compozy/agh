@@ -60,7 +60,7 @@ function MCPServersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-mcp-servers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -72,8 +72,8 @@ function MCPServersSettingsPage() {
         data-testid="settings-page-mcp-servers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load MCP servers"}
           </p>
         </div>
@@ -249,7 +249,7 @@ function ScopeSelector({
       />
       {workspaceScopeAvailable && workspaces.length === 0 && !isLoadingWorkspaces ? (
         <span
-          className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
+          className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
           data-testid="settings-page-mcp-servers-scope-workspace-empty"
         >
           no workspaces yet
@@ -263,7 +263,7 @@ function ScopeLabel({ primary, mono }: { primary: string; mono: string }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span className="font-medium">{primary}</span>
-      <span className="font-mono text-[10px] normal-case tracking-[0.04em] text-[color:var(--color-text-tertiary)]">
+      <span className="font-mono text-badge normal-case tracking-mono text-(--color-text-tertiary)">
         {mono}
       </span>
     </span>
@@ -281,28 +281,28 @@ function MCPServersTable({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+      className="overflow-hidden rounded-lg border border-(--color-divider)"
       data-testid="settings-page-mcp-servers-list"
     >
       <Table>
         <TableHeader>
-          <TableRow className="bg-[color:var(--color-surface-elevated)]">
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+          <TableRow className="bg-(--color-surface-elevated)">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Name
             </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Endpoint
             </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Source
             </TableHead>
-            <TableHead className="text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-right text-badge uppercase tracking-mono text-(--color-text-label)">
               Env
             </TableHead>
-            <TableHead className="text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-right text-badge uppercase tracking-mono text-(--color-text-label)">
               Args
             </TableHead>
-            <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
               Actions
             </TableHead>
           </TableRow>
@@ -348,13 +348,11 @@ function MCPServerRow({
             data-testid={`settings-page-mcp-servers-row-${server.name}-status`}
             data-tone="configured"
           />
-          <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
-            {server.name}
-          </span>
+          <span className="font-mono text-sm text-(--color-text-primary)">{server.name}</span>
         </div>
       </TableCell>
       <TableCell
-        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
+        className="font-mono text-xs text-(--color-text-secondary)"
         data-testid={`settings-page-mcp-servers-row-${server.name}-command`}
       >
         {endpoint ?? "-"}
@@ -367,13 +365,13 @@ function MCPServerRow({
         />
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
+        className="text-right font-mono text-xs text-(--color-text-secondary)"
         data-testid={`settings-page-mcp-servers-row-${server.name}-env`}
       >
         {envCount}
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
+        className="text-right font-mono text-xs text-(--color-text-secondary)"
         data-testid={`settings-page-mcp-servers-row-${server.name}-args`}
       >
         {argsCount}
@@ -597,7 +595,7 @@ function TargetSelector({
           </NativeSelect>
           {entry ? (
             <div
-              className="flex flex-wrap items-center gap-1 text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]"
+              className="flex flex-wrap items-center gap-1 text-badge uppercase tracking-mono text-(--color-text-label)"
               data-testid="settings-mcp-servers-editor-available-targets"
             >
               <span>allowed:</span>
@@ -829,7 +827,7 @@ function MCPServerDeleteDialog({
             >
               <label
                 htmlFor="settings-mcp-servers-delete-target-input"
-                className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
+                className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)"
               >
                 target
               </label>

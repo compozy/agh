@@ -21,7 +21,7 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
   return (
     <li
       className={cn(
-        "flex flex-col gap-1.5 border-b border-[color:var(--color-divider)] px-4 py-3 last:border-b-0",
+        "flex flex-col gap-1.5 border-b border-(--color-divider) px-4 py-3 last:border-b-0",
         className
       )}
       data-testid={`network-work-inspector-row-${entry.workId}`}
@@ -39,11 +39,11 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
           <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </Button>
       </div>
-      <p className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
-        <span className="text-[color:var(--color-text-tertiary)]">target </span>
+      <p className="font-mono text-eyebrow text-(--color-text-secondary)">
+        <span className="text-(--color-text-tertiary)">target </span>
         {target}
       </p>
-      <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+      <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
         opened {opened}
       </p>
     </li>

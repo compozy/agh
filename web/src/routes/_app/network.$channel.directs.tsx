@@ -73,10 +73,10 @@ function NetworkChannelDirectsRoute() {
       />
 
       <header
-        className="flex items-center justify-between gap-3 border-b border-[color:var(--color-divider)] px-5 py-2"
+        className="flex items-center justify-between gap-3 border-b border-(--color-divider) px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+        <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
           {subheaderLabel}
         </span>
         <Button

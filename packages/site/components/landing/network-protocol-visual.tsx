@@ -175,10 +175,10 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       role="group"
       aria-roledescription="protocol walkthrough"
       aria-label="agh-network/v0 seven-step delegation sequence"
-      className="min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) outline-none focus:ring-1 focus:ring-(--color-accent)"
+      className="min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) outline-none focus:ring-1 focus:ring-accent"
     >
       {/* Header — lane labels */}
-      <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2 border-b border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:gap-4 sm:px-4 md:px-6">
+      <div className="grid grid-cols-3 gap-2 border-b border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:gap-4 sm:px-4 md:px-6">
         <LaneHeader title="Agent A" subtitle="coder · desk-01" />
         <LaneHeader title="AGH Network" subtitle="agh-network/v0 · nats" accent />
         <LaneHeader title="Agent B" subtitle="deployer · ci-runner-03" />
@@ -187,7 +187,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       {/* Body */}
       <div className="relative">
         {/* Lane lines — purely decorative vertical rulers */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-2 px-3 sm:gap-4 sm:px-4 md:px-6">
+        <div className="pointer-events-none absolute inset-y-0 left-0 grid w-full grid-cols-3 gap-2 px-3 sm:gap-4 sm:px-4 md:px-6">
           <div className="relative flex justify-center">
             <div className="h-full w-px bg-(--color-divider)" />
           </div>
@@ -212,18 +212,17 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
                   aria-current={isCurrent ? "step" : undefined}
                   aria-label={`Step ${i + 1} of ${STEPS.length}: ${step.kind} ${directionGlyph(step.direction, step.from, step.to)}`}
                   className={cn(
-                    "group grid w-full grid-cols-[24px_1fr] items-start gap-3 rounded-[10px] border border-transparent px-2 py-2 text-left transition-all",
+                    "group grid w-full grid-cols-[24px_1fr] items-start gap-3 rounded-icon-well border border-transparent px-2 py-2 text-left transition-all",
                     visible ? "opacity-100" : "pointer-events-none opacity-30",
-                    isCurrent &&
-                      "border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-divider))] bg-[color-mix(in_srgb,var(--color-accent-tint)_80%,transparent)]",
+                    isCurrent && "border-accent/55 bg-accent-tint/80",
                     isPast && "opacity-60"
                   )}
                 >
                   <span
                     className={cn(
-                      "mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full font-mono text-[10px] font-semibold",
+                      "mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full font-mono text-badge font-semibold",
                       isCurrent
-                        ? "bg-(--color-accent) text-white"
+                        ? "bg-accent text-white"
                         : "bg-(--color-surface-elevated) text-(--color-text-tertiary)"
                     )}
                   >
@@ -243,28 +242,28 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
                       </Pill>
                       <span
                         className={cn(
-                          "inline-flex min-w-0 flex-wrap items-center gap-1 font-mono text-[11px] tracking-[0.03em]",
+                          "inline-flex min-w-0 flex-wrap items-center gap-1 font-mono text-eyebrow tracking-mono",
                           step.direction === ".."
                             ? "text-(--color-text-tertiary)"
                             : "text-(--color-text-secondary)"
                         )}
                       >
-                        <span className="min-w-0 [overflow-wrap:anywhere] sm:whitespace-nowrap">
+                        <span className="min-w-0 wrap-anywhere sm:whitespace-nowrap">
                           {fromLabel(step.from)}
                         </span>
                         <ArrowGlyph direction={step.direction} />
-                        <span className="min-w-0 [overflow-wrap:anywhere] sm:whitespace-nowrap">
+                        <span className="min-w-0 wrap-anywhere sm:whitespace-nowrap">
                           {fromLabel(step.to)}
                         </span>
                       </span>
                     </div>
 
-                    <pre className="mt-1.5 overflow-x-auto font-mono text-[12px] leading-[1.55] text-(--color-text-primary)">
+                    <pre className="mt-1.5 overflow-x-auto font-mono text-xs leading-6 text-(--color-text-primary)">
                       <code>{step.payload}</code>
                     </pre>
 
                     {isCurrent ? (
-                      <p className="mt-1 text-[12px] leading-relaxed text-(--color-text-tertiary)">
+                      <p className="mt-1 text-xs leading-relaxed text-(--color-text-tertiary)">
                         {step.hint}
                       </p>
                     ) : null}
@@ -278,9 +277,9 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
 
       {/* Footer — controls + kind footnote */}
       <div className="flex min-w-0 flex-col gap-3 border-t border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:px-4 md:flex-row md:items-center md:justify-between md:px-6">
-        <p className="min-w-0 font-mono text-[11px] text-(--color-text-tertiary)">
-          <span className="text-(--color-accent)">capability</span> transfers full capability
-          artifacts. <span className="text-(--color-accent)">say</span> is free-form operator chat.
+        <p className="min-w-0 font-mono text-eyebrow text-(--color-text-tertiary)">
+          <span className="text-accent">capability</span> transfers full capability artifacts.{" "}
+          <span className="text-accent">say</span> is free-form operator chat.
         </p>
         {!showAll ? (
           <div className="flex items-center gap-1.5">
@@ -297,7 +296,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
               size="sm"
               onClick={() => dispatch({ type: state.playing ? "pause" : "play" })}
               aria-label={state.playing ? "Pause walkthrough" : "Play walkthrough"}
-              className="font-mono text-[10px] uppercase tracking-(--tracking-mono)"
+              className="font-mono text-badge uppercase tracking-mono"
             >
               {state.playing ? <Pause aria-hidden /> : <Play aria-hidden />}
               {state.playing ? "pause" : "play"}
@@ -310,7 +309,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
             >
               <ArrowLeftRight aria-hidden />
             </Button>
-            <span className="ml-2 font-mono text-[10px] tracking-(--tracking-mono) text-(--color-text-tertiary)">
+            <span className="ml-2 font-mono text-badge tracking-mono text-(--color-text-tertiary)">
               {state.step + 1} / {STEPS.length}
             </span>
           </div>
@@ -333,13 +332,13 @@ function LaneHeader({
     <div className="min-w-0 text-center">
       <p
         className={cn(
-          "font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono)",
-          accent ? "text-(--color-accent)" : "text-(--color-text-tertiary)"
+          "font-mono text-badge font-semibold uppercase tracking-mono",
+          accent ? "text-accent" : "text-(--color-text-tertiary)"
         )}
       >
         {title}
       </p>
-      <p className="mt-0.5 font-mono text-[11px] text-(--color-text-secondary) [overflow-wrap:anywhere]">
+      <p className="mt-0.5 font-mono text-eyebrow text-(--color-text-secondary) wrap-anywhere">
         {subtitle}
       </p>
     </div>

@@ -18,17 +18,17 @@ export function PostCard({ post }: PostCardProps) {
         <BulletDivider />
         <DateStamp date={post.date} />
       </div>
-      <h3 className="mt-4 font-sans text-[20px] font-medium leading-[1.25] tracking-[-0.02em] text-(--color-text-primary) transition-colors group-hover:text-(--color-accent)">
+      <h3 className="mt-4 font-sans text-xl font-medium leading-tight tracking-tight text-(--color-text-primary) transition-colors group-hover:text-accent">
         <Link href={post.permalink}>{post.title}</Link>
       </h3>
-      <p className="mt-3 text-sm leading-[1.6] text-(--color-text-secondary)">{post.description}</p>
+      <p className="mt-3 text-sm leading-7 text-(--color-text-secondary)">{post.description}</p>
       <div className="mt-auto flex items-center justify-between border-t border-(--color-divider) pt-3.5">
-        <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-label)">
+        <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
           {post.author}
         </span>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-(--color-text-tertiary)">
+        <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
           <Clock size={11} aria-hidden />
-          <span className="font-mono tracking-[0.04em]">
+          <span className="font-mono tracking-mono">
             {formatReadingTime(post.metadata.readingTime)}
           </span>
         </span>

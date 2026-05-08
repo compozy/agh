@@ -26,7 +26,7 @@ export function TasksDashboardView({
         className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="tasks-dashboard-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -75,7 +75,7 @@ export function TasksDashboardView({
 
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
-      <div className="flex items-center justify-between gap-2 border-t border-[color:var(--color-divider)] pt-3 font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+      <div className="flex items-center justify-between gap-2 border-t border-(--color-divider) pt-3 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
         <span data-testid="tasks-dashboard-freshness">
           {freshness.stale ? "Stale" : "Fresh"} · {freshnessLabel}
         </span>

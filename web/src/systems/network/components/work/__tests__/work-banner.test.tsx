@@ -32,7 +32,7 @@ describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
     expect(banner).toHaveAttribute("data-escalate", "true");
     expect(banner).toHaveTextContent("1 needs input · 2 working");
     // Solid warning bg-color, not the tint.
-    expect(banner.className).toContain("bg-[color:var(--color-warning)]");
+    expect(banner.className).toContain("bg-(--color-warning)");
   });
 
   it("Should auto-hide within 400ms when openCount returns to 0", () => {

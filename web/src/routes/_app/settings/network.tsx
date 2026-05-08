@@ -49,10 +49,7 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-loading"
         role="status"
       >
-        <Loader2
-          aria-hidden="true"
-          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -64,8 +61,8 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load network settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -140,10 +137,10 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
         <Link
           to="/network"
-          className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
           data-testid="settings-page-network-link-network"
         >
-          <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
           Open Network
         </Link>
       </div>
@@ -344,7 +341,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
         {label}
       </span>
       <div className="flex items-center gap-2">
@@ -358,14 +355,12 @@ function NumberField({
           onValueChange={onChange}
         />
         {suffix ? (
-          <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
             {suffix}
           </span>
         ) : null}
       </div>
-      {errorMessage ? (
-        <span className="text-xs text-[color:var(--color-danger)]">{errorMessage}</span>
-      ) : null}
+      {errorMessage ? <span className="text-xs text-(--color-danger)">{errorMessage}</span> : null}
     </div>
   );
 }

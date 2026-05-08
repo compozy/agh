@@ -23,7 +23,7 @@ export function KindChip({ kind, label, className }: KindChipProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-[3px] border border-(--color-divider) px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-(--color-text-tertiary)",
+        "inline-flex items-center gap-1.5 rounded-chip border border-(--color-divider) px-1.5 py-px font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)",
         className
       )}
     >

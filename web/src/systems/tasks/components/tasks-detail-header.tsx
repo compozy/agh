@@ -75,7 +75,7 @@ export function TasksDetailHeader({
 
   return (
     <header
-      className="flex flex-col gap-3 border-b border-[color:var(--color-divider)]"
+      className="flex flex-col gap-3 border-b border-(--color-divider)"
       data-testid="tasks-detail-header"
     >
       <PageHeader
@@ -84,7 +84,7 @@ export function TasksDetailHeader({
           <span className="flex min-w-0 items-center gap-2">
             <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
             <span
-              className="truncate text-[15px] font-semibold text-[color:var(--color-text-primary)]"
+              className="truncate text-item-title font-semibold text-(--color-text-primary)"
               data-testid="tasks-detail-title"
             >
               {record.title}
@@ -183,22 +183,22 @@ export function TasksDetailHeader({
 
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-1.5 px-4 pb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
+        className="flex items-center gap-1.5 px-4 pb-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)"
         data-testid="tasks-detail-breadcrumb"
       >
         <Link
-          className="hover:text-[color:var(--color-text-secondary)]"
+          className="hover:text-(--color-text-secondary)"
           data-testid="tasks-detail-breadcrumb-tasks"
           to="/tasks"
         >
           Tasks
         </Link>
         <span aria-hidden="true">›</span>
-        <span className="text-[color:var(--color-text-secondary)]">{identifier}</span>
+        <span className="text-(--color-text-secondary)">{identifier}</span>
       </nav>
 
       <div
-        className="flex flex-wrap items-center gap-2 px-4 pb-3 text-[13px] text-[color:var(--color-text-secondary)]"
+        className="flex flex-wrap items-center gap-2 px-4 pb-3 text-small-body text-(--color-text-secondary)"
         data-testid="tasks-detail-meta"
       >
         {record.priority ? (
@@ -213,15 +213,13 @@ export function TasksDetailHeader({
         <span>· Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
         <span>
           · Created by{" "}
-          <span className="text-[color:var(--color-text-primary)]">
-            {record.created_by?.ref ?? "unknown"}
-          </span>
+          <span className="text-(--color-text-primary)">{record.created_by?.ref ?? "unknown"}</span>
         </span>
         <span>· Updated {formatRelativeTime(record.updated_at)}</span>
       </div>
 
       <p
-        className="px-4 pb-3 text-[12px] text-[color:var(--color-text-tertiary)]"
+        className="px-4 pb-3 text-xs text-(--color-text-tertiary)"
         data-testid="tasks-detail-lifecycle-hint"
       >
         {taskLifecyclePhaseDescription(lifecyclePhase)}

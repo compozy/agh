@@ -120,7 +120,7 @@ export function TaskEditorSurface({
   const signal = task ? taskStatusSignal(task.status) : null;
 
   const headerMeta = task ? (
-    <div className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]">
+    <div className="flex flex-wrap items-center gap-2 text-small-body text-(--color-text-secondary)">
       {task.identifier ? <Pill mono>{task.identifier}</Pill> : null}
       <Pill tone={pillToneFromLegacyTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
@@ -132,16 +132,16 @@ export function TaskEditorSurface({
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col bg-[color:var(--color-canvas)]"
+      className="flex min-h-0 flex-1 flex-col bg-(--color-canvas)"
       data-testid="task-editor-surface"
     >
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 border-b border-[color:var(--color-divider)] px-6 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
+        className="flex items-center gap-2 border-b border-(--color-divider) px-6 py-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)"
       >
         {task ? (
           <Link
-            className="inline-flex items-center gap-1.5 hover:text-[color:var(--color-text-secondary)]"
+            className="inline-flex items-center gap-1.5 hover:text-(--color-text-secondary)"
             data-testid="task-editor-back-link"
             params={{ id: task.id }}
             to="/tasks/$id"
@@ -151,7 +151,7 @@ export function TaskEditorSurface({
           </Link>
         ) : (
           <Link
-            className="inline-flex items-center gap-1.5 hover:text-[color:var(--color-text-secondary)]"
+            className="inline-flex items-center gap-1.5 hover:text-(--color-text-secondary)"
             data-testid="task-editor-back-link"
             to="/tasks"
           >
@@ -168,7 +168,7 @@ export function TaskEditorSurface({
           <span className="flex min-w-0 items-center gap-2">
             {signal ? <Pill.Dot pulse={signal.pulse} tone={signal.tone} /> : null}
             <span
-              className="truncate text-[15px] font-semibold text-[color:var(--color-text-primary)]"
+              className="truncate text-item-title font-semibold text-(--color-text-primary)"
               data-testid="task-editor-title"
             >
               {title}
@@ -177,7 +177,7 @@ export function TaskEditorSurface({
         }
       />
 
-      <p className="border-b border-[color:var(--color-divider)] px-6 py-3 text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+      <p className="border-b border-(--color-divider) px-6 py-3 text-small-body leading-6 text-(--color-text-secondary)">
         {description}
       </p>
 
@@ -186,7 +186,7 @@ export function TaskEditorSurface({
           <div className="grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.85fr)]">
             <div className="flex min-w-0 flex-col gap-6">
               <Section label="Task contract">
-                <div className="flex flex-col gap-5 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-5">
+                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5">
                   {isCreateMode && template && templateId && onTemplateChange ? (
                     <Field>
                       <FieldLabel data-testid="task-editor-template-label">Template</FieldLabel>
@@ -210,7 +210,7 @@ export function TaskEditorSurface({
                       >
                         Title
                       </FieldLabel>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+                      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
                         Required
                       </span>
                     </div>
@@ -280,7 +280,7 @@ export function TaskEditorSurface({
 
               {isCreateMode ? (
                 <Section label="Queue settings">
-                  <div className="flex flex-col gap-5 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-5">
+                  <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5">
                     <div className="grid gap-5 md:grid-cols-2">
                       <Field>
                         <FieldLabel
@@ -371,9 +371,9 @@ export function TaskEditorSurface({
 
             <div className="flex min-w-0 flex-col gap-6">
               <Section label={isCreateMode ? "Submission" : "Editable fields"}>
-                <div className="flex flex-col gap-5 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-5">
+                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface-panel) p-5">
                   <p
-                    className="text-[13px] leading-5 text-[color:var(--color-text-secondary)]"
+                    className="text-small-body leading-5 text-(--color-text-secondary)"
                     data-testid="task-editor-notice"
                   >
                     {noticeText}
@@ -461,11 +461,11 @@ export function TaskEditorSurface({
                     </>
                   ) : null}
 
-                  <div className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                  <div className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+                    <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                       Read-only context
                     </p>
-                    <dl className="mt-3 space-y-2 text-[13px] text-[color:var(--color-text-secondary)]">
+                    <dl className="mt-3 space-y-2 text-small-body text-(--color-text-secondary)">
                       <ContextRow label="Scope" value={draft.scope} />
                       <ContextRow label="Parent task" value={draft.parentTaskId || "None"} />
                       <ContextRow label="Identifier" value={draft.identifier || "Auto-generated"} />
@@ -481,9 +481,9 @@ export function TaskEditorSurface({
           </div>
         </div>
 
-        <footer className="border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-6 py-4">
+        <footer className="border-t border-(--color-divider) bg-(--color-surface) px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+            <p className="text-small-body text-(--color-text-secondary)">
               {isCreateMode
                 ? "Review the contract before you enqueue work."
                 : "Saving updates refreshes the list, detail, inbox, and dashboard views."}
@@ -540,10 +540,10 @@ export function TaskEditorSurface({
 function ContextRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+      <dt className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
         {label}
       </dt>
-      <dd className="truncate text-[color:var(--color-text-primary)]">{value}</dd>
+      <dd className="truncate text-(--color-text-primary)">{value}</dd>
     </div>
   );
 }

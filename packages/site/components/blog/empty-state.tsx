@@ -24,10 +24,10 @@ export function BlogEmptyState({
   return (
     <section className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-6">
       <MonoEyebrow tone="accent">{eyebrow}</MonoEyebrow>
-      <h2 className="mt-4 max-w-[26ch] font-sans text-[clamp(1.45rem,3vw,1.9rem)] font-semibold leading-[1.1] tracking-[-0.025em] text-(--color-text-primary)">
+      <h2 className="mt-4 max-w-[26ch] font-sans text-site-card-title font-semibold leading-tight tracking-tight text-(--color-text-primary)">
         {title}
       </h2>
-      <p className="mt-4 max-w-[58ch] text-sm leading-[1.7] text-(--color-text-secondary)">
+      <p className="mt-4 max-w-[58ch] text-sm leading-7 text-(--color-text-secondary)">
         {description}
       </p>
       <div className="mt-6 flex flex-wrap gap-3">

@@ -31,18 +31,18 @@ function SettingsPageShell({
       data-testid={`settings-page-${slug}`}
     >
       <header
-        className="flex flex-col gap-4 border-b border-[color:var(--color-divider)] px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
+        className="flex flex-col gap-4 border-b border-(--color-divider) px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
         data-testid={`settings-page-${slug}-header`}
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <span
-              className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]"
+              className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)"
               data-testid={`settings-page-${slug}-eyebrow`}
             >
               {eyebrow} / {title}
             </span>
-            <h1 className="text-2xl font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
+            <h1 className="text-2xl font-semibold tracking-tight text-(--color-text-primary)">
               {title}
             </h1>
           </div>
@@ -57,7 +57,7 @@ function SettingsPageShell({
         </div>
         {statusLine ? (
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[color:var(--color-text-secondary)]"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-(--color-text-secondary)"
             data-testid={`settings-page-${slug}-status`}
           >
             {statusLine}
@@ -79,7 +79,7 @@ function SettingsPageShell({
 
       {footer ? (
         <div
-          className="border-t border-[color:var(--color-divider)]"
+          className="border-t border-(--color-divider)"
           data-testid={`settings-page-${slug}-footer`}
         >
           {footer}

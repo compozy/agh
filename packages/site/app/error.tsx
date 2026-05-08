@@ -12,10 +12,10 @@ export default function Error({
   return (
     <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
       <section className="mx-auto w-full max-w-[760px] rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-8 md:p-10">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-danger)">
+        <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-danger)">
           Render failure
         </p>
-        <h1 className="mt-5 max-w-[13ch] text-[clamp(2.6rem,6vw,4.8rem)] leading-[0.96] font-normal tracking-[-0.04em] text-(--color-text-primary)">
+        <h1 className="mt-5 max-w-[13ch] text-site-error-title leading-none font-normal tracking-tight text-(--color-text-primary)">
           The site hit a recoverable boundary.
         </h1>
         <p className="mt-5 max-w-[58ch] text-base leading-7 text-(--color-text-secondary)">
@@ -28,7 +28,7 @@ export default function Error({
         <button
           type="button"
           onClick={reset}
-          className="mt-8 inline-flex h-10 items-center justify-center rounded-lg bg-(--color-accent) px-5 text-sm font-medium text-white transition-colors hover:bg-(--color-accent-hover) active:translate-y-px"
+          className="mt-8 inline-flex h-10 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-white transition-colors hover:bg-(--color-accent-hover) active:translate-y-px"
         >
           Retry boundary
         </button>

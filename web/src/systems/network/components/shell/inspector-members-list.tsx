@@ -22,7 +22,7 @@ function MembersSkeleton() {
     >
       {[0, 1, 2].map(index => (
         <li
-          className="flex items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3"
+          className="flex items-center gap-3 border-b border-(--color-divider) px-4 py-3"
           key={index}
         >
           <Skeleton className="size-8 rounded-md" />
@@ -67,7 +67,7 @@ export function InspectorMembersList({
     >
       {members.map(member => (
         <li
-          className="flex items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3 last:border-b-0"
+          className="flex items-center gap-3 border-b border-(--color-divider) px-4 py-3 last:border-b-0"
           data-testid={`network-inspector-member-${member.peerId}`}
           key={member.peerId}
         >
@@ -77,11 +77,11 @@ export function InspectorMembersList({
             sizePx={32}
           />
           <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+            <span className="truncate text-small-body font-medium text-(--color-text-primary)">
               {member.displayName || `@${member.peerId}`}
             </span>
             <span
-              className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+              className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
               data-testid={`network-inspector-member-role-${member.peerId}`}
             >
               {member.role === "agent" ? "AGENT" : "HUMAN"}

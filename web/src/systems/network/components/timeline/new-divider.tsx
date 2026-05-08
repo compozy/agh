@@ -12,13 +12,11 @@ export function NewDivider({ label = "NEW" }: NewDividerProps) {
     >
       <span
         aria-hidden="true"
-        className="h-px flex-1 bg-[color:var(--color-accent)]"
+        className="h-px flex-1 bg-accent"
         data-testid="network-timeline-new-divider-line"
       />
-      <span className="text-[11px] font-semibold tracking-[0.06em] text-[color:var(--color-accent)]">
-        {label}
-      </span>
-      <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--color-accent)]" />
+      <span className="text-eyebrow font-semibold tracking-mono text-accent">{label}</span>
+      <span aria-hidden="true" className="h-px flex-1 bg-accent" />
     </div>
   );
 }

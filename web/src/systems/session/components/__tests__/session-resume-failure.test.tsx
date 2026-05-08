@@ -24,9 +24,7 @@ describe("SessionResumeFailure", () => {
     );
     expect(screen.getByTestId("session-resume-failure-title").className).toContain("text-sm");
     expect(screen.getByTestId("session-resume-failure-message").className).toContain("text-xs");
-    expect(screen.getByTestId("session-resume-failure-meta").className).toContain(
-      "tracking-[var(--tracking-mono)]"
-    );
+    expect(screen.getByTestId("session-resume-failure-meta").className).toContain("tracking-mono");
     expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent("sess_123");
     expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent("claude-agent");
   });

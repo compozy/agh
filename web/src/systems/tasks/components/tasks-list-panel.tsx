@@ -78,10 +78,10 @@ export function TasksListPanel({
 
   return (
     <aside
-      className="flex min-h-0 flex-1 flex-col bg-[color:var(--color-canvas)]"
+      className="flex min-h-0 flex-1 flex-col bg-(--color-canvas)"
       data-testid="tasks-list-panel"
     >
-      <div className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] px-4 py-3">
+      <div className="flex flex-col gap-3 border-b border-(--color-divider) px-4 py-3">
         <SearchInput
           value={searchQuery}
           onChange={onSearchChange}
@@ -114,7 +114,7 @@ export function TasksListPanel({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between border-b border-[color:var(--color-divider)] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+      <div className="flex items-center justify-between border-b border-(--color-divider) px-4 py-2 font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
         <span data-testid="tasks-list-headline">
           {getStatusHeadline(statusFilter)}
           {tasks.length > 0 ? <span className="ml-2">{tasks.length}</span> : null}
@@ -127,12 +127,12 @@ export function TasksListPanel({
           <div className="space-y-3 px-4 py-4" data-testid="tasks-list-loading">
             {Array.from({ length: 5 }, (_, index) => (
               <div
-                className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4"
+                className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-4"
                 key={index}
               >
-                <div className="h-2.5 w-20 rounded-full bg-[color:var(--color-surface-elevated)]" />
-                <div className="mt-3 h-3.5 w-3/4 rounded-full bg-[color:var(--color-surface-elevated)]" />
-                <div className="mt-2 h-2.5 w-1/2 rounded-full bg-[color:var(--color-surface-elevated)]" />
+                <div className="h-2.5 w-20 rounded-full bg-(--color-surface-elevated)" />
+                <div className="mt-3 h-3.5 w-3/4 rounded-full bg-(--color-surface-elevated)" />
+                <div className="mt-2 h-2.5 w-1/2 rounded-full bg-(--color-surface-elevated)" />
               </div>
             ))}
           </div>
@@ -142,8 +142,8 @@ export function TasksListPanel({
             data-testid="tasks-list-error"
           >
             <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-              <AlertCircle className="size-5 text-[color:var(--color-danger)]" />
-              <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
+              <AlertCircle className="size-5 text-(--color-danger)" />
+              <p className="text-sm text-(--color-text-secondary)">{errorMessage}</p>
             </div>
           </div>
         ) : isEmpty ? (

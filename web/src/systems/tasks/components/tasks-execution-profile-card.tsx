@@ -43,7 +43,7 @@ function ListSlot({ label, values }: ListSlotProps) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
         {label}
       </span>
       <div className="flex flex-wrap gap-1.5">
@@ -66,7 +66,7 @@ interface PillRowProps {
 function PillRow({ label, value, tone }: PillRowProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
         {label}
       </span>
       <Pill tone={tone ?? "neutral"}>{value}</Pill>
@@ -153,7 +153,7 @@ export function TasksExecutionProfileCard({
     >
       {hasActiveRun ? (
         <p
-          className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-warning-tint)] px-3 py-2 text-[12px] text-[color:var(--color-warning)]"
+          className="rounded-xl border border-(--color-divider) bg-(--color-warning-tint) px-3 py-2 text-xs text-(--color-warning)"
           data-testid="tasks-execution-profile-active-run-warning"
         >
           Profile mutation is blocked while this task has an active run. Cancel or wait for the
@@ -165,7 +165,7 @@ export function TasksExecutionProfileCard({
           className="flex min-h-[120px] items-center justify-center"
           data-testid="tasks-execution-profile-loading"
         >
-          <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+          <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
         </div>
       ) : null}
       {errorMessage && !profile ? (
@@ -186,7 +186,7 @@ export function TasksExecutionProfileCard({
       ) : null}
       {profile ? (
         <div
-          className="flex flex-col gap-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-3"
+          className="flex flex-col gap-4 rounded-xl border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3"
           data-testid="tasks-execution-profile-summary"
         >
           <div className="flex flex-wrap items-center gap-3">
@@ -196,20 +196,20 @@ export function TasksExecutionProfileCard({
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-secondary)]">
+              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
                 Worker
               </h3>
-              <div className="flex flex-col gap-2 text-[13px] text-[color:var(--color-text-primary)]">
+              <div className="flex flex-col gap-2 text-small-body text-(--color-text-primary)">
                 {profile.worker?.agent_name ? (
-                  <span className="font-mono text-[12px]">agent {profile.worker.agent_name}</span>
+                  <span className="font-mono text-xs">agent {profile.worker.agent_name}</span>
                 ) : null}
                 {profile.worker?.provider ? (
-                  <span className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <span className="font-mono text-xs text-(--color-text-secondary)">
                     provider {profile.worker.provider}
                   </span>
                 ) : null}
                 {profile.worker?.model ? (
-                  <span className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <span className="font-mono text-xs text-(--color-text-secondary)">
                     model {profile.worker.model}
                   </span>
                 ) : null}
@@ -226,49 +226,45 @@ export function TasksExecutionProfileCard({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-secondary)]">
+              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
                 Coordinator
               </h3>
-              <div className="flex flex-col gap-2 text-[13px] text-[color:var(--color-text-primary)]">
+              <div className="flex flex-col gap-2 text-small-body text-(--color-text-primary)">
                 {profile.coordinator?.agent_name ? (
-                  <span className="font-mono text-[12px]">
-                    agent {profile.coordinator.agent_name}
-                  </span>
+                  <span className="font-mono text-xs">agent {profile.coordinator.agent_name}</span>
                 ) : null}
                 {profile.coordinator?.provider ? (
-                  <span className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <span className="font-mono text-xs text-(--color-text-secondary)">
                     provider {profile.coordinator.provider}
                   </span>
                 ) : null}
                 {profile.coordinator?.model ? (
-                  <span className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <span className="font-mono text-xs text-(--color-text-secondary)">
                     model {profile.coordinator.model}
                   </span>
                 ) : null}
                 {profile.coordinator?.guidance ? (
-                  <p className="whitespace-pre-wrap text-[12px] text-[color:var(--color-text-secondary)]">
+                  <p className="whitespace-pre-wrap text-xs text-(--color-text-secondary)">
                     {profile.coordinator.guidance}
                   </p>
                 ) : null}
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-secondary)]">
+              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
                 Review selectors
               </h3>
-              <div className="flex flex-col gap-2 text-[13px]">
+              <div className="flex flex-col gap-2 text-small-body">
                 {profile.review?.agent_name ? (
-                  <span className="font-mono text-[12px]">
-                    reviewer {profile.review.agent_name}
-                  </span>
+                  <span className="font-mono text-xs">reviewer {profile.review.agent_name}</span>
                 ) : null}
                 {profile.review?.provider ? (
-                  <span className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <span className="font-mono text-xs text-(--color-text-secondary)">
                     provider {profile.review.provider}
                   </span>
                 ) : null}
                 {profile.review?.model ? (
-                  <span className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                  <span className="font-mono text-xs text-(--color-text-secondary)">
                     model {profile.review.model}
                   </span>
                 ) : null}
@@ -283,14 +279,12 @@ export function TasksExecutionProfileCard({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-secondary)]">
+              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
                 Sandbox + participants
               </h3>
-              <div className="flex flex-col gap-2 text-[13px]">
+              <div className="flex flex-col gap-2 text-small-body">
                 {profile.sandbox?.sandbox_ref ? (
-                  <span className="font-mono text-[12px]">
-                    sandbox {profile.sandbox.sandbox_ref}
-                  </span>
+                  <span className="font-mono text-xs">sandbox {profile.sandbox.sandbox_ref}</span>
                 ) : null}
                 <ListSlot
                   label="Preferred agents"
@@ -312,7 +306,7 @@ export function TasksExecutionProfileCard({
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 border-t border-[color:var(--color-divider)] pt-3 text-[11px] text-[color:var(--color-text-tertiary)]">
+          <div className="flex flex-wrap items-center gap-3 border-t border-(--color-divider) pt-3 text-eyebrow text-(--color-text-tertiary)">
             <span>created {formatRelativeTime(profile.created_at)}</span>
             <span>updated {formatRelativeTime(profile.updated_at)}</span>
           </div>
@@ -334,7 +328,7 @@ export function TasksExecutionProfileCard({
           </DialogHeader>
           <textarea
             aria-label="Execution profile JSON"
-            className="min-h-[280px] w-full rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3 font-mono text-[12px] text-[color:var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)]"
+            className="min-h-[280px] w-full rounded-xl border border-(--color-divider) bg-(--color-surface) p-3 font-mono text-xs text-(--color-text-primary) focus:outline-none focus:ring-1 focus:ring-accent"
             data-testid="tasks-execution-profile-editor-input"
             disabled={isSetPending}
             onChange={event => editor.setValue(event.target.value)}
@@ -343,7 +337,7 @@ export function TasksExecutionProfileCard({
           />
           {editor.error ? (
             <p
-              className="text-[12px] text-[color:var(--color-danger)]"
+              className="text-xs text-(--color-danger)"
               data-testid="tasks-execution-profile-editor-error"
             >
               {editor.error}

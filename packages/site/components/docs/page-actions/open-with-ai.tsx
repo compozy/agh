@@ -38,7 +38,7 @@ export function OpenWithAI({ pageUrl }: OpenWithAIProps) {
             render={
               <a href={target.href} rel="noreferrer noopener" target="_blank">
                 {target.label}
-                <ExternalLink aria-hidden className="ms-auto !size-3" />
+                <ExternalLink aria-hidden className="ms-auto size-3!" />
               </a>
             }
           />

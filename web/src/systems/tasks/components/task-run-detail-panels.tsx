@@ -21,10 +21,10 @@ function IdentityRow({
 }) {
   return (
     <TableRow>
-      <TableCell className="w-[140px] pl-4 align-middle font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+      <TableCell className="w-[140px] pl-4 align-middle font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
         {label}
       </TableCell>
-      <TableCell className="pr-4 align-middle text-[13px] text-[color:var(--color-text-primary)]">
+      <TableCell className="pr-4 align-middle text-small-body text-(--color-text-primary)">
         <span data-testid={testId}>{children}</span>
       </TableCell>
     </TableRow>
@@ -43,8 +43,8 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
 
   return (
     <Section aria-label="Run identity" data-testid="task-run-detail-identity" label="Run identity">
-      <div className="rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]">
-        <Table className="text-[13px]">
+      <div className="rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)">
+        <Table className="text-small-body">
           <TableBody>
             <IdentityRow label="Run ID" testId="task-run-detail-identity-run">
               <Pill mono>{record.id}</Pill>
@@ -70,7 +70,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
             <IdentityRow label="Session">
               {linkedSessionID && linkedSessionAgent ? (
                 <Link
-                  className="font-mono text-[12px] text-[color:var(--color-accent)] hover:underline"
+                  className="font-mono text-xs text-accent hover:underline"
                   data-testid="task-run-detail-session-link"
                   params={{ name: linkedSessionAgent, id: linkedSessionID }}
                   to="/agents/$name/sessions/$id"
@@ -79,7 +79,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
                 </Link>
               ) : linkedSessionID ? (
                 <Link
-                  className="font-mono text-[12px] text-[color:var(--color-accent)] hover:underline"
+                  className="font-mono text-xs text-accent hover:underline"
                   data-testid="task-run-detail-session-link"
                   params={{ id: linkedSessionID }}
                   to="/session/$id"
@@ -88,7 +88,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
                 </Link>
               ) : (
                 <span
-                  className="text-[color:var(--color-text-tertiary)]"
+                  className="text-(--color-text-tertiary)"
                   data-testid="task-run-detail-session-missing"
                 >
                   None
@@ -217,11 +217,11 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
 
   return (
     <Section aria-label="Run activity" data-testid="task-run-detail-activity" label="Activity">
-      <div className="flex flex-col gap-3 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4">
-        <dl className="flex flex-col gap-2 text-[13px]">
+      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-4 py-4">
+        <dl className="flex flex-col gap-2 text-small-body">
           {lastEventType ? (
             <div className="flex items-center justify-between gap-3">
-              <dt className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+              <dt className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
                 Last event
               </dt>
               <dd>
@@ -233,11 +233,11 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
           ) : null}
           {lastActivityAt ? (
             <div className="flex items-center justify-between gap-3">
-              <dt className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+              <dt className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
                 Last activity
               </dt>
               <dd
-                className="text-[color:var(--color-text-primary)]"
+                className="text-(--color-text-primary)"
                 data-testid="task-run-detail-activity-timestamp"
               >
                 {lastActivityAt}
@@ -247,18 +247,18 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
         </dl>
         {error ? (
           <div
-            className="rounded-md border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-3 py-2"
+            className="rounded-md border border-(--color-danger) bg-(--color-danger-tint) px-3 py-2"
             data-testid="task-run-detail-activity-error"
           >
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-danger)]">
+            <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-danger)">
               Error
             </p>
-            <p className="mt-1 text-[13px] text-[color:var(--color-danger)]">{error}</p>
+            <p className="mt-1 text-small-body text-(--color-danger)">{error}</p>
           </div>
         ) : null}
         {result !== undefined && result !== null ? (
           <div data-testid="task-run-detail-activity-result">
-            <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+            <p className="mb-2 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
               Result
             </p>
             <CodeBlock

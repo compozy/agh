@@ -44,10 +44,10 @@ export function RuntimeSection() {
       <div className="grid gap-12 lg:grid-cols-[minmax(0,360px)_1fr] lg:items-start lg:gap-16">
         <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
           <div>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
               Runtime
             </p>
-            <h2 className="mt-3 text-[clamp(1.9rem,3.4vw,2.6rem)] leading-[1.05] font-normal tracking-[-0.025em] text-(--color-text-primary)">
+            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-(--color-text-primary)">
               A daemon built for sessions, not chats.
             </h2>
             <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-(--color-text-secondary)">

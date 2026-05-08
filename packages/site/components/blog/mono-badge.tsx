@@ -5,8 +5,8 @@ export type MonoBadgeTone = "neutral" | "accent" | "success" | "danger" | "warni
 
 const toneClass: Record<MonoBadgeTone, string> = {
   neutral: "border-(--color-divider) text-(--color-text-label)",
-  accent: "border-transparent bg-(--color-accent-tint) text-(--color-accent)",
-  success: "border-transparent bg-(--color-success-tint) text-(--color-success)",
+  accent: "border-transparent bg-(--color-accent-tint) text-accent",
+  success: "border-transparent bg-(--color-success-tint) text-success",
   danger: "border-transparent bg-(--color-danger-tint) text-(--color-danger)",
   warning: "border-transparent bg-(--color-warning-tint) text-(--color-warning)",
   info: "border-transparent bg-(--color-info-tint) text-(--color-info)",
@@ -21,7 +21,7 @@ export function MonoBadge({ tone = "neutral", className, ...props }: MonoBadgePr
     <span
       {...props}
       className={cn(
-        "inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-[0.06em]",
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-eyebrow font-medium tracking-mono",
         toneClass[tone],
         className
       )}

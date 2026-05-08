@@ -133,7 +133,7 @@ describe("SettingsPageShell", () => {
     const header = screen.getByTestId("settings-page-general-header");
     const body = screen.getByTestId("settings-page-general-body");
 
-    expect(eyebrow.className).toContain("tracking-[var(--tracking-mono)]");
+    expect(eyebrow.className).toContain("tracking-mono");
     expect(header.className).toContain("px-4");
     expect(header.className).toContain("sm:px-6");
     expect(body.className).toContain("md:px-8");
@@ -146,6 +146,6 @@ describe("SettingsPageShell", () => {
       </SettingsSectionCard>
     );
 
-    expect(screen.getByText("Runtime").className).toContain("tracking-[var(--tracking-mono)]");
+    expect(screen.getByText("Runtime").className).toContain("tracking-mono");
   });
 });

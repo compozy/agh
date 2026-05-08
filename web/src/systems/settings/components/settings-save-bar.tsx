@@ -33,7 +33,7 @@ function SettingsSaveBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 bg-[color:var(--color-surface)] px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 xl:px-10",
+        "flex flex-col gap-4 bg-(--color-surface) px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 xl:px-10",
         className
       )}
       data-testid={`settings-page-${slug}-save-bar`}
@@ -47,7 +47,7 @@ function SettingsSaveBar({
       >
         {error ? (
           <span
-            className="flex items-center gap-1.5 text-[color:var(--color-danger)]"
+            className="flex items-center gap-1.5 text-(--color-danger)"
             data-testid={`settings-page-${slug}-save-error`}
           >
             <AlertCircle className="size-3.5" />
@@ -55,7 +55,7 @@ function SettingsSaveBar({
           </span>
         ) : warnings && warnings.length > 0 ? (
           <ul
-            className="flex flex-col gap-0.5 text-[color:var(--color-warning)]"
+            className="flex flex-col gap-0.5 text-(--color-warning)"
             data-testid={`settings-page-${slug}-save-warnings`}
           >
             {warnings.map(warning => (
@@ -67,7 +67,7 @@ function SettingsSaveBar({
           </ul>
         ) : isInvalid ? (
           <span
-            className="flex items-center gap-1.5 text-[color:var(--color-warning)]"
+            className="flex items-center gap-1.5 text-(--color-warning)"
             data-testid={`settings-page-${slug}-save-invalid`}
           >
             <AlertCircle className="size-3.5" />
@@ -75,22 +75,22 @@ function SettingsSaveBar({
           </span>
         ) : isDirty ? (
           <span
-            className="text-[color:var(--color-text-tertiary)]"
+            className="text-(--color-text-tertiary)"
             data-testid={`settings-page-${slug}-save-dirty`}
           >
             Unsaved changes
           </span>
         ) : lastAppliedLabel ? (
           <span
-            className="flex items-center gap-1.5 text-[color:var(--color-text-tertiary)]"
+            className="flex items-center gap-1.5 text-(--color-text-tertiary)"
             data-testid={`settings-page-${slug}-save-applied`}
           >
-            <Check className="size-3.5 text-[color:var(--color-success)]" />
+            <Check className="size-3.5 text-success" />
             {lastAppliedLabel}
           </span>
         ) : (
           <span
-            className="text-[color:var(--color-text-tertiary)]"
+            className="text-(--color-text-tertiary)"
             data-testid={`settings-page-${slug}-save-clean`}
           >
             No unsaved changes

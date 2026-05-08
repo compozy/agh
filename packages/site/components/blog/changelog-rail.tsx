@@ -24,7 +24,7 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-(--color-success)" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
           <MonoEyebrow tracking="wide">Changelog</MonoEyebrow>
         </div>
         <Link
@@ -47,13 +47,13 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
                 <MonoBadge tone={statusTone[release.status]}>{release.version}</MonoBadge>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-sans text-[13px] leading-[1.4] text-(--color-text-primary)">
+                <span className="block font-sans text-small-body leading-5 text-(--color-text-primary)">
                   {release.summary}
                 </span>
                 <DateStamp
                   date={release.date}
                   format="compact-year"
-                  className="mt-1 block text-[10px]"
+                  className="mt-1 block text-badge"
                 />
               </span>
             </Link>

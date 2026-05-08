@@ -89,7 +89,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           <div className="max-w-[760px]">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-1.5 text-[13px] text-(--color-text-tertiary) hover:text-(--color-text-primary)"
+              className="inline-flex items-center gap-1.5 text-small-body text-(--color-text-tertiary) hover:text-(--color-text-primary)"
             >
               <ArrowLeft size={13} aria-hidden />
               <span>Back to blog</span>
@@ -101,15 +101,15 @@ export default async function BlogPostPage({ params }: PageProps) {
               <BulletDivider />
               <DateStamp date={post.date} />
               <BulletDivider />
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-(--color-text-tertiary)">
+              <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
                 <Clock size={11} aria-hidden />
-                <span className="font-mono uppercase tracking-[0.06em]">{readingTime} read</span>
+                <span className="font-mono uppercase tracking-mono">{readingTime} read</span>
               </span>
             </div>
-            <h1 className="mt-7 font-display text-[clamp(2.4rem,4.4vw,3.6rem)] font-normal leading-[1] tracking-[-0.035em] text-(--color-text-primary)">
+            <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-(--color-text-primary)">
               {post.title}
             </h1>
-            <p className="mt-6 max-w-[58ch] text-[19px] leading-[1.5] text-(--color-text-secondary)">
+            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-(--color-text-secondary)">
               {post.description}
             </p>
             <div className="mt-9 flex items-center justify-between gap-4">

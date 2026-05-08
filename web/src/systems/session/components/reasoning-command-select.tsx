@@ -98,7 +98,7 @@ export function ReasoningCommandSelect({
         </span>
         <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--anchor-width)] min-w-64 p-0">
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-64 p-0">
         <Command>
           <CommandInput
             placeholder="Filter effort levels..."
@@ -130,7 +130,7 @@ export function ReasoningCommandSelect({
                     <span className="truncate text-sm text-foreground">
                       {option.label || labelFor(option.value)}
                     </span>
-                    <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <span className="ml-auto font-mono text-badge uppercase tracking-mono text-muted-foreground">
                       {option.value}
                     </span>
                   </div>

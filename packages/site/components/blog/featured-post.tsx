@@ -30,12 +30,12 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
           <BulletDivider />
           <DateStamp date={post.date} />
         </div>
-        <h2 className="mt-6 max-w-[20ch] font-display text-[clamp(2rem,3.4vw,2.8rem)] font-normal leading-[1.02] tracking-[-0.03em] text-(--color-text-primary)">
-          <Link href={post.permalink} className="transition-colors hover:text-(--color-accent)">
+        <h2 className="mt-6 max-w-[20ch] font-display text-site-feature-title font-normal leading-none tracking-tight text-(--color-text-primary)">
+          <Link href={post.permalink} className="transition-colors hover:text-accent">
             {post.title}
           </Link>
         </h2>
-        <p className="mt-5 max-w-[54ch] text-base leading-[1.6] text-(--color-text-secondary)">
+        <p className="mt-5 max-w-[54ch] text-base leading-7 text-(--color-text-secondary)">
           {post.description}
         </p>
         {post.kinds.length > 0 && (
@@ -54,7 +54,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
           </span>
           <Link
             href={post.permalink}
-            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-(--color-accent)"
+            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-accent"
           >
             Read post <ArrowUpRight size={14} aria-hidden />
           </Link>
@@ -124,7 +124,7 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
       <div className="flex items-center justify-between">
         <MonoEyebrow tracking="wide">agh-network/v0</MonoEyebrow>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-(--color-accent)" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
           <MonoEyebrow tone="accent" tracking="wide">
             ALPHA
           </MonoEyebrow>
@@ -139,17 +139,17 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
           <div
             key={node.id}
             className={`rounded-lg border bg-(--color-surface) px-3 py-2.5 ${
-              node.highlight ? "border-(--color-accent)" : "border-(--color-divider)"
+              node.highlight ? "border-accent" : "border-(--color-divider)"
             }`}
           >
             <p
-              className={`font-mono text-[11px] ${
-                node.highlight ? "text-(--color-accent)" : "text-(--color-text-primary)"
+              className={`font-mono text-eyebrow ${
+                node.highlight ? "text-accent" : "text-(--color-text-primary)"
               }`}
             >
               {node.id}
             </p>
-            <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.08em] text-(--color-text-tertiary)">
+            <p className="mt-1 font-mono text-micro uppercase tracking-badge text-(--color-text-tertiary)">
               {node.role}
             </p>
           </div>
@@ -163,12 +163,12 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
         <ul className="mt-3 flex flex-col gap-2">
           {trace.map((row, idx) => (
             <li key={idx} className="flex items-center gap-3">
-              <span className="w-16 font-mono text-[10px] text-(--color-text-tertiary)">
+              <span className="w-16 font-mono text-badge text-(--color-text-tertiary)">
                 {row.t}
               </span>
               <KindChip kind={row.kind} />
-              <span className="font-mono text-[11px] text-(--color-text-secondary)">
-                {row.from} <span className="text-(--color-accent)">→</span> {row.to}
+              <span className="font-mono text-eyebrow text-(--color-text-secondary)">
+                {row.from} <span className="text-accent">→</span> {row.to}
               </span>
             </li>
           ))}

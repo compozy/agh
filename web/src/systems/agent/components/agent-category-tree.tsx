@@ -38,7 +38,7 @@ export function AgentCategoryTree({
     return (
       <div
         data-testid="agents-loading"
-        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center gap-2 px-3 py-2 text-xs text-(--color-text-tertiary)"
       >
         <Loader2 aria-hidden="true" className="size-3 animate-spin" />
         <span>Loading agents...</span>
@@ -54,7 +54,7 @@ export function AgentCategoryTree({
     return (
       <div
         data-testid="agents-error"
-        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center gap-2 px-3 py-2 text-xs text-(--color-text-tertiary)"
       >
         <TriangleAlert aria-hidden="true" className="size-3" />
         <span>Could not load agents. Retry once the daemon is reachable.</span>
@@ -66,7 +66,7 @@ export function AgentCategoryTree({
     return (
       <div
         data-testid="agents-empty"
-        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center gap-2 px-3 py-2 text-xs text-(--color-text-tertiary)"
       >
         <Bot aria-hidden="true" className="size-3" />
         <span>Run `agh install` to bootstrap AGH</span>
@@ -140,13 +140,13 @@ function FolderRow({ item, label, segments }: FolderRowProps) {
       item={item}
       data-testid={`agent-category-${joined}`}
       data-expanded={expanded}
-      className="text-[color:var(--color-text-secondary)]"
+      className="text-(--color-text-secondary)"
     >
       <TreeItemLabel
         item={item}
         className={cn(
-          "flex items-center gap-1 rounded-[6px] bg-transparent px-1.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[color:var(--color-text-label)]",
-          "hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+          "flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 font-mono text-badge font-medium uppercase tracking-mono text-(--color-text-label)",
+          "hover:bg-(--color-hover) hover:text-(--color-text-primary)"
         )}
       >
         <span className="truncate">{label}</span>
@@ -180,7 +180,7 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
       ) : null}
       <AgentIcon
         provider={agent.provider}
-        className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
+        className="size-3.5 shrink-0 text-(--color-text-tertiary)"
       />
       <span className="truncate">{agent.name}</span>
       {hasActiveSession ? (

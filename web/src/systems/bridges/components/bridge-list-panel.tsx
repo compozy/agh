@@ -54,9 +54,9 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
     <button
       aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-        isSelected && "bg-[color:var(--color-surface)]"
+        "relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
+        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isSelected && "bg-(--color-surface)"
       )}
       data-state={isSelected ? "selected" : undefined}
       data-testid={`bridge-item-${bridge.id}`}
@@ -66,7 +66,7 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
       {isSelected ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
           data-testid="bridge-active-indicator"
         />
       ) : null}
@@ -74,11 +74,11 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot pulse={pulse} tone={tone} />
-          <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
             {bridge.display_name}
           </span>
         </div>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--color-text-tertiary)]">
+        <span className="shrink-0 font-mono text-badge uppercase tracking-widest text-(--color-text-tertiary)">
           {formatBridgeRelativeTime(health?.last_success_at)}
         </span>
       </div>
@@ -89,7 +89,7 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
           {effectiveStatus}
         </Pill>
         {health?.route_count !== undefined ? (
-          <span className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
+          <span className="ml-auto font-mono text-badge text-(--color-text-tertiary)">
             {health.route_count} routes
           </span>
         ) : null}
@@ -142,17 +142,14 @@ export function BridgeListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="bridge-list-panel">
-      <div className="space-y-2 border-b border-[color:var(--color-divider)] p-3">
+      <div className="space-y-2 border-b border-(--color-divider) p-3">
         <SearchInput
           data-testid="bridge-search-input"
           onChange={onSearchChange}
           placeholder="Search bridges…"
           value={searchQuery}
         />
-        <p
-          className="text-[12px] text-[color:var(--color-text-secondary)]"
-          data-testid="bridge-list-summary"
-        >
+        <p className="text-xs text-(--color-text-secondary)" data-testid="bridge-list-summary">
           {summary}
         </p>
       </div>
@@ -165,7 +162,7 @@ export function BridgeListPanel({
           >
             <Loader2
               aria-hidden="true"
-              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+              className="size-5 animate-spin text-(--color-text-tertiary)"
             />
           </div>
         ) : errorMessage && isEmpty ? (
@@ -204,10 +201,10 @@ export function BridgeListPanel({
                 key={`${group.extensionName}::${group.platform}`}
               >
                 <div
-                  className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-2"
+                  className="flex items-center justify-between gap-2 border-b border-(--color-divider) bg-(--color-surface-panel) px-4 py-2"
                   data-testid={`bridge-list-group-header-${group.extensionName}-${group.platform}`}
                 >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                  <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                     {group.platform}
                   </span>
                   <Pill mono>{group.items.length}</Pill>

@@ -44,10 +44,7 @@ function SkillsPage() {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="skills-loading">
-        <Loader2
-          aria-hidden="true"
-          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -95,9 +92,9 @@ function SkillsPage() {
         title={<span data-testid="skills-shell-title">Skills</span>}
       />
       {page.backgroundError ? (
-        <div className="border-b border-[color:var(--color-divider)] px-6 py-3">
+        <div className="border-b border-(--color-divider) px-6 py-3">
           <Alert
-            className="border-[color:var(--color-warning)]/40"
+            className="border-(--color-warning)/40"
             data-testid="skills-background-error"
             variant="warning"
           >

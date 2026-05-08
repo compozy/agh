@@ -65,7 +65,7 @@ export function AutomationJobForm({
     >
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
         <Section label="Core">
-          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="job-name">Name</FieldLabel>
@@ -132,7 +132,7 @@ export function AutomationJobForm({
         </Section>
 
         <Section label="Schedule">
-          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <Field>
               <FieldTitle>Mode</FieldTitle>
               <PillGroup
@@ -217,7 +217,7 @@ export function AutomationJobForm({
         </Section>
 
         <Section label="Governance">
-          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <div className="grid gap-4 md:grid-cols-3">
               <Field>
                 <FieldTitle>Retry policy</FieldTitle>
@@ -330,7 +330,7 @@ export function AutomationJobForm({
         </Section>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+      <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>

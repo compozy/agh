@@ -80,10 +80,10 @@ function TasksListRow({
       onClick={clickable ? () => onSelect?.(task.id) : undefined}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3.5 text-left transition-colors",
+        "group relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3.5 text-left transition-colors",
         clickable &&
-          "cursor-pointer hover:bg-[color:var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-        selected && "bg-[color:var(--color-surface)]",
+          "cursor-pointer hover:bg-(--color-surface) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        selected && "bg-(--color-surface)",
         className
       )}
       {...props}
@@ -92,7 +92,7 @@ function TasksListRow({
         <span
           aria-hidden="true"
           data-slot="tasks-list-row-indicator"
-          className="absolute top-1 bottom-1 left-0 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute top-1 bottom-1 left-0 w-[3px] rounded-r bg-accent"
         />
       ) : null}
 
@@ -100,7 +100,7 @@ function TasksListRow({
         <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
         <span
           data-slot="tasks-list-row-title"
-          className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]"
+          className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)"
         >
           {task.title}
         </span>
@@ -115,11 +115,11 @@ function TasksListRow({
         ) : null}
       </div>
 
-      <div className="flex min-w-0 items-center gap-2 text-[11px]">
+      <div className="flex min-w-0 items-center gap-2 text-eyebrow">
         <Pill mono>{identifier}</Pill>
         <span
           data-slot="tasks-list-row-timestamp"
-          className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+          className="font-mono text-badge text-(--color-text-tertiary)"
         >
           {timestamp}
         </span>

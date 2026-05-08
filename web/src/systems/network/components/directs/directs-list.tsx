@@ -47,8 +47,8 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-start gap-3 border-b border-[color:var(--color-divider)] px-5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]",
-        active ? "bg-[color:var(--color-accent-tint)]" : "hover:bg-[color:var(--color-hover)]"
+        "group flex items-start gap-3 border-b border-(--color-divider) px-5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
+        active ? "bg-(--color-accent-tint)" : "hover:bg-(--color-hover)"
       )}
       data-testid={`network-direct-list-row-${direct.direct_id}`}
       params={{ channel, directId: direct.direct_id }}
@@ -58,25 +58,25 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
+          <p className="truncate text-sm font-semibold text-(--color-text-primary)">
             @{otherPeerId}
           </p>
           {role ? (
             <span
-              className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+              className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
               data-testid={`network-direct-list-row-role-${direct.direct_id}`}
             >
               {role === "agent" ? "AGENT" : "HUMAN"}
             </span>
           ) : null}
         </div>
-        <p className="line-clamp-2 text-[13px] text-[color:var(--color-text-secondary)]">
+        <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
           {direct.last_message_preview ?? "No messages yet."}
         </p>
       </div>
 
       <span
-        className="shrink-0 self-start font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="shrink-0 self-start font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
         data-testid={`network-direct-list-row-time-${direct.direct_id}`}
       >
         {lastActivity}
@@ -89,11 +89,8 @@ function DirectsListSkeleton() {
   return (
     <div className="space-y-0" data-testid="network-direct-list-skeleton">
       {[0, 1, 2].map(index => (
-        <div
-          className="flex gap-3 border-b border-[color:var(--color-divider)] px-5 py-3"
-          key={index}
-        >
-          <Skeleton className="size-9 rounded-[4px]" />
+        <div className="flex gap-3 border-b border-(--color-divider) px-5 py-3" key={index}>
+          <Skeleton className="size-9 rounded-chip" />
           <div className="flex flex-1 flex-col gap-1.5">
             <Skeleton className="h-3 w-1/3" />
             <Skeleton className="h-3 w-full" />

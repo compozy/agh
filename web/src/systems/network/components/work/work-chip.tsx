@@ -21,12 +21,11 @@ export interface WorkChipProps {
 
 const STATE_BG: Record<NetworkWorkState, string | null> = {
   submitted: null,
-  working: "bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)]",
-  needs_input:
-    "bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)] motion-safe:animate-pulse",
+  working: "bg-(--color-warning-tint) text-(--color-warning)",
+  needs_input: "bg-(--color-warning-tint) text-(--color-warning) motion-safe:animate-pulse",
   completed: null,
-  failed: "bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)]",
-  canceled: "text-[color:var(--color-text-tertiary)]",
+  failed: "bg-(--color-danger-tint) text-(--color-danger)",
+  canceled: "text-(--color-text-tertiary)",
 };
 
 export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: WorkChipProps) {
@@ -51,7 +50,7 @@ export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: Wo
       <button
         aria-label={ariaLabel ?? text}
         className={cn(
-          "inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em]",
+          "inline-flex items-center gap-1 rounded-chip px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono",
           bg,
           className
         )}
@@ -69,7 +68,7 @@ export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: Wo
     <span
       aria-label={ariaLabel ?? text}
       className={cn(
-        "inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em]",
+        "inline-flex items-center gap-1 rounded-chip px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono",
         bg,
         className
       )}

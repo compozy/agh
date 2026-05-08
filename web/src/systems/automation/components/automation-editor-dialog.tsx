@@ -87,11 +87,11 @@ export function AutomationEditorDialog({
     >
       {editor ? (
         <DialogContent
-          className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[44rem]"
+          className="gap-0 p-0 text-(--color-text-primary) sm:max-w-176"
           data-testid="automation-editor-dialog"
         >
           <>
-            <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
+            <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
               <DialogTitle>{copy.title}</DialogTitle>
               <DialogDescription>{copy.description}</DialogDescription>
             </DialogHeader>

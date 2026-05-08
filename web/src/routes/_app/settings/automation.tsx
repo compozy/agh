@@ -47,7 +47,7 @@ function AutomationSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-automation-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -59,8 +59,8 @@ function AutomationSettingsPage() {
         data-testid="settings-page-automation-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load automation settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -130,18 +130,18 @@ function OperationalLinksRow() {
       >
         <Link
           to="/jobs"
-          className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
           data-testid="settings-page-automation-link-jobs"
         >
-          <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
           Open Jobs
         </Link>
         <Link
           to="/triggers"
-          className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
           data-testid="settings-page-automation-link-triggers"
         >
-          <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
           Open Triggers
         </Link>
       </div>
@@ -289,10 +289,10 @@ function LimitsSection({
                 })
               }
             />
-            <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
               fires
             </span>
-            <span className="text-xs text-[color:var(--color-text-tertiary)]">per</span>
+            <span className="text-xs text-(--color-text-tertiary)">per</span>
             <Input
               className="w-24 font-mono"
               data-testid="settings-page-automation-fire-limit-window-input"

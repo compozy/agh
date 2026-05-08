@@ -90,7 +90,7 @@ export function AutomationTriggerForm({
     >
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
         <Section label="Core">
-          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="trigger-name">Name</FieldLabel>
@@ -151,7 +151,7 @@ export function AutomationTriggerForm({
                 <Pill mono tone="info">
                   GO TEMPLATE
                 </Pill>
-                <span className="text-[12px] text-[color:var(--color-text-tertiary)]">
+                <span className="text-xs text-(--color-text-tertiary)">
                   Variables: .EventName, .Source, .Data, .Timestamp
                 </span>
               </div>
@@ -168,7 +168,7 @@ export function AutomationTriggerForm({
         </Section>
 
         <Section label="Activation">
-          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <Field>
               <FieldLabel htmlFor="trigger-filter">Filter rules</FieldLabel>
               <Textarea
@@ -227,7 +227,7 @@ export function AutomationTriggerForm({
           </div>
         </Section>
 
-        <section className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <section className="rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
           <button
             className="flex w-full items-center justify-between gap-3 text-left"
             data-testid="trigger-governance-toggle"
@@ -236,21 +236,15 @@ export function AutomationTriggerForm({
           >
             <span className="flex items-center gap-2">
               {governanceExpanded ? (
-                <ChevronDown
-                  aria-hidden="true"
-                  className="size-4 text-[color:var(--color-text-tertiary)]"
-                />
+                <ChevronDown aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
               ) : (
-                <ChevronRight
-                  aria-hidden="true"
-                  className="size-4 text-[color:var(--color-text-tertiary)]"
-                />
+                <ChevronRight aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
               )}
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
                 Governance
               </span>
             </span>
-            <span className="text-[13px] text-[color:var(--color-text-secondary)]">
+            <span className="text-small-body text-(--color-text-secondary)">
               Optional retry and rate limit settings
             </span>
           </button>
@@ -374,7 +368,7 @@ export function AutomationTriggerForm({
         </section>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+      <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>

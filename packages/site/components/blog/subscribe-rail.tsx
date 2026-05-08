@@ -11,10 +11,10 @@ export function SubscribeRail() {
       <MonoEyebrow tone="accent" tracking="wide">
         Stay current
       </MonoEyebrow>
-      <h4 className="mt-3 font-sans text-lg font-medium leading-[1.25] tracking-[-0.01em] text-(--color-text-primary)">
+      <h4 className="mt-3 font-sans text-lg font-medium leading-tight tracking-tight text-(--color-text-primary)">
         Follow releases on the wire.
       </h4>
-      <p className="mt-3 text-[13px] leading-[1.55] text-(--color-text-secondary)">
+      <p className="mt-3 text-small-body leading-6 text-(--color-text-secondary)">
         Protocol changes, runtime drops, and the occasional engineering note. Pick your channel.
       </p>
       <div className="mt-5 flex flex-col gap-2">
@@ -40,7 +40,7 @@ export function SubscribeRail() {
           <ArrowUpRight size={14} aria-hidden className="text-(--color-text-tertiary)" />
         </Link>
       </div>
-      <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-tertiary)">
+      <p className="mt-5 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
         /blog/feed.xml
       </p>
     </aside>

@@ -65,7 +65,7 @@ function KnowledgeEditDialog({
         data-testid="knowledge-edit-dialog"
         showCloseButton={false}
       >
-        <DialogHeader className="gap-2 border-b border-[color:var(--color-divider)] px-5 py-4">
+        <DialogHeader className="gap-2 border-b border-(--color-divider) px-5 py-4">
           <DialogTitle>Edit knowledge entry</DialogTitle>
           <DialogDescription>
             Update <span className="font-mono">{filename}</span> in the {scope} scope. Edits go
@@ -75,7 +75,7 @@ function KnowledgeEditDialog({
         <div className="flex flex-col gap-4 px-5 py-4">
           <div className="flex flex-col gap-1.5">
             <Label
-              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+              className="font-mono text-badge uppercase tracking-badge text-(--color-text-label)"
               htmlFor="knowledge-edit-description"
             >
               Description
@@ -90,13 +90,13 @@ function KnowledgeEditDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label
-              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+              className="font-mono text-badge uppercase tracking-badge text-(--color-text-label)"
               htmlFor="knowledge-edit-content"
             >
               Content
             </Label>
             <Textarea
-              className="h-60 font-mono text-[12px]"
+              className="h-60 font-mono text-xs"
               data-testid="knowledge-edit-content"
               id="knowledge-edit-content"
               onChange={event => setContent(event.target.value)}
@@ -106,13 +106,13 @@ function KnowledgeEditDialog({
         </div>
         {error ? (
           <div
-            className="border-t border-[color:var(--color-divider)] px-5 py-3 text-xs text-[color:var(--color-danger)]"
+            className="border-t border-(--color-divider) px-5 py-3 text-xs text-(--color-danger)"
             data-testid="knowledge-edit-dialog-error"
           >
             {error}
           </div>
         ) : null}
-        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-[color:var(--color-divider)] bg-transparent px-5 py-3">
+        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-(--color-divider) bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-edit-memory-btn"
             onClick={() => onOpenChange(false)}

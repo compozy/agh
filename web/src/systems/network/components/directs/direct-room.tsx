@@ -63,17 +63,17 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
       data-testid="network-direct-room"
     >
       <header
-        className="flex h-12 items-center gap-3 border-b border-[color:var(--color-divider)] px-5"
+        className="flex h-12 items-center gap-3 border-b border-(--color-divider) px-5"
         data-testid="network-direct-identity-row"
       >
         {otherPeerId ? (
           <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={32} />
         ) : null}
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h1 className="truncate text-[16px] font-semibold text-[color:var(--color-text-primary)]">
+          <h1 className="truncate text-base font-semibold text-(--color-text-primary)">
             {otherPeerId ? `@${otherPeerId}` : "Direct room"}
           </h1>
-          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
             agent
           </span>
           <PresenceDot state={room.presence.state} />

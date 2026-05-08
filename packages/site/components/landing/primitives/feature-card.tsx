@@ -24,17 +24,17 @@ export function FeatureCard({
   return (
     <article
       className={cn(
-        "flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-6 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))]",
+        "flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-6 transition-colors hover:border-accent/40",
         className
       )}
     >
       {icon ? (
-        <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-(--color-surface-elevated) text-(--color-accent)">
+        <div className="flex h-10 w-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) text-accent">
           {icon}
         </div>
       ) : null}
       {eyebrow ? (
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+        <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
           {eyebrow}
         </p>
       ) : null}
@@ -43,7 +43,7 @@ export function FeatureCard({
       {cite ? (
         <Link
           href={cite.href}
-          className="mt-auto inline-flex items-center gap-1 pt-2 font-mono text-[10px] uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) transition-colors hover:text-(--color-accent)"
+          className="mt-auto inline-flex items-center gap-1 pt-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary) transition-colors hover:text-accent"
         >
           {cite.label ?? "source"}
           <ArrowUpRight aria-hidden className="h-3 w-3" />

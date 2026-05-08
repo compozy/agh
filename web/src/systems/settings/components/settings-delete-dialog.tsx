@@ -52,7 +52,7 @@ function SettingsDeleteDialog({
 
         {fallbackNote ? (
           <div
-            className="rounded-md border border-[color:var(--color-info)] bg-[color:var(--color-info-tint)] px-3 py-2 text-xs text-[color:var(--color-info)]"
+            className="rounded-md border border-(--color-info) bg-(--color-info-tint) px-3 py-2 text-xs text-(--color-info)"
             data-testid={`settings-${slug}-delete-fallback`}
           >
             {fallbackNote}
@@ -61,7 +61,7 @@ function SettingsDeleteDialog({
 
         {error ? (
           <div
-            className="flex items-start gap-2 rounded-md border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-3 py-2 text-xs text-[color:var(--color-danger)]"
+            className="flex items-start gap-2 rounded-md border border-(--color-danger) bg-(--color-danger-tint) px-3 py-2 text-xs text-(--color-danger)"
             role="alert"
             data-testid={`settings-${slug}-delete-error`}
           >

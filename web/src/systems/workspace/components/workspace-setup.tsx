@@ -66,7 +66,7 @@ function SetupOptionCard({
       right={right}
       data-testid={testId}
       className={cn(
-        "rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
+        "rounded-2xl border border-(--color-divider) bg-(--color-surface)",
         variant === "onboarding" ? "p-5" : "p-4"
       )}
     >
@@ -74,22 +74,20 @@ function SetupOptionCard({
         <span
           aria-hidden="true"
           className={cn(
-            "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--color-divider)]",
+            "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-(--color-divider)",
             iconTone === "accent"
-              ? "bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]"
-              : "bg-[color:var(--color-surface-panel)] text-[color:var(--color-text-primary)]"
+              ? "bg-(--color-surface-panel) text-accent"
+              : "bg-(--color-surface-panel) text-(--color-text-primary)"
           )}
         >
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[color:var(--color-text-primary)]">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
-            {description}
-          </p>
+          <p className="text-sm font-semibold text-(--color-text-primary)">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-(--color-text-secondary)">{description}</p>
           {meta ? (
             <p
-              className="mt-3 truncate font-mono text-[0.68rem] text-[color:var(--color-text-tertiary)]"
+              className="mt-3 truncate font-mono text-eyebrow text-(--color-text-tertiary)"
               data-testid="workspace-global-meta"
             >
               {meta}
@@ -134,7 +132,7 @@ function WorkspaceSetupContent({
       testId="workspace-setup-global-card"
     >
       <Button
-        className="mt-4 w-full justify-between text-[color:var(--color-accent-ink)]"
+        className="mt-4 w-full justify-between text-(--color-accent-ink)"
         disabled={isGlobalDisabled}
         onClick={setup.handleUseGlobalWorkspace}
         data-testid="workspace-use-global"
@@ -165,7 +163,7 @@ function WorkspaceSetupContent({
             id="workspace-manual-path"
             aria-label={WORKSPACE_SETUP_COPY.manual.inputLabel}
             aria-invalid={manualInvalid || undefined}
-            className="border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
+            className="border-(--color-divider) bg-(--color-surface-panel)"
             disabled={setup.submissionMode !== null}
             onChange={event => setup.setManualPath(event.currentTarget.value)}
             placeholder={WORKSPACE_SETUP_COPY.manual.inputPlaceholder}
@@ -179,7 +177,7 @@ function WorkspaceSetupContent({
           )}
         </Field>
         <Button
-          className="w-full justify-between text-[color:var(--color-accent-ink)]"
+          className="w-full justify-between text-(--color-accent-ink)"
           disabled={setup.submissionMode !== null}
           type="submit"
           data-testid="workspace-register-manual"
@@ -196,11 +194,11 @@ function WorkspaceSetupContent({
       <div className="flex flex-col gap-4 p-5" data-testid="workspace-setup-dialog-body">
         {globalCard}
         <div className="flex items-center gap-3 px-1">
-          <div className="h-px flex-1 bg-[color:var(--color-divider)]" />
-          <span className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+          <div className="h-px flex-1 bg-(--color-divider)" />
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
             {WORKSPACE_SETUP_COPY.manual.dividerLabel}
           </span>
-          <div className="h-px flex-1 bg-[color:var(--color-divider)]" />
+          <div className="h-px flex-1 bg-(--color-divider)" />
         </div>
         {manualCard}
       </div>
@@ -226,15 +224,15 @@ function WorkspaceSetupDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-xl border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-0 sm:max-w-xl"
+        className="max-w-xl border border-(--color-divider) bg-(--color-canvas) p-0 sm:max-w-xl"
         showCloseButton
         data-testid="workspace-setup-dialog"
       >
-        <DialogHeader className="gap-2 border-b border-[color:var(--color-divider)] px-5 py-4">
-          <DialogTitle className="text-[15px] font-semibold text-[color:var(--color-text-primary)]">
+        <DialogHeader className="gap-2 border-b border-(--color-divider) px-5 py-4">
+          <DialogTitle className="text-item-title font-semibold text-(--color-text-primary)">
             {WORKSPACE_SETUP_COPY.dialog.title}
           </DialogTitle>
-          <DialogDescription className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+          <DialogDescription className="text-small-body leading-6 text-(--color-text-secondary)">
             {WORKSPACE_SETUP_COPY.dialog.description}
           </DialogDescription>
         </DialogHeader>
@@ -256,26 +254,26 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
       className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto bg-background px-6 py-6 lg:items-center lg:py-10"
       data-testid="workspace-onboarding"
     >
-      <div className="w-full max-w-5xl rounded-[28px] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-6 sm:p-8 lg:p-10">
+      <div className="w-full max-w-5xl rounded-xl border border-(--color-divider) bg-(--color-canvas) p-6 sm:p-8 lg:p-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,24rem)] lg:gap-8 xl:gap-10">
           <div className="flex flex-col justify-between gap-6">
             <div className="space-y-4">
               <Pill tone="accent">{copy.eyebrow}</Pill>
               <div className="space-y-3">
-                <h1 className="max-w-xl text-3xl font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)] sm:text-4xl">
+                <h1 className="max-w-xl text-3xl font-semibold tracking-tight text-(--color-text-primary) sm:text-4xl">
                   {copy.title}
                 </h1>
-                <p className="max-w-xl text-[15px] leading-7 text-[color:var(--color-text-secondary)]">
+                <p className="max-w-xl text-item-title leading-7 text-(--color-text-secondary)">
                   {copy.description}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-              <p className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+            <div className="rounded-2xl border border-(--color-divider) bg-(--color-surface-panel) p-4">
+              <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                 {copy.noteLabel}
               </p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--color-text-secondary)]">
+              <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
                 {copy.noteBody}
               </p>
             </div>

@@ -119,7 +119,7 @@ describe("SessionCreateDialog", () => {
     );
 
     expect(screen.getByTestId("session-create-dialog").className).toContain("sm:max-w-xl");
-    expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-[30rem]");
+    expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-120");
 
     const trigger = screen.getByTestId("session-create-provider-select");
     expect(trigger).toBeEnabled();

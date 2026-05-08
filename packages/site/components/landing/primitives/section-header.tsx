@@ -23,13 +23,13 @@ export function SectionHeader({
   const maxWidth = align === "center" ? "max-w-[750px]" : "max-w-[700px]";
   const titleClass =
     size === "lg"
-      ? "text-[clamp(2.6rem,5.5vw,4.2rem)] leading-[0.98] font-normal tracking-[-0.035em]"
-      : "text-[clamp(2.2rem,4.6vw,3.6rem)] leading-[1.02] font-normal tracking-[-0.03em]";
+      ? "text-site-hero-section leading-none font-normal tracking-tight"
+      : "text-site-section-title leading-none font-normal tracking-tight";
 
   return (
     <div className={cn(maxWidth, alignClass, className)}>
       {eyebrow ? (
-        <p className="font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+        <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-tertiary)">
           {eyebrow}
         </p>
       ) : null}

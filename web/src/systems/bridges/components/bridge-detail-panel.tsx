@@ -138,11 +138,11 @@ function BridgeStateFallback({ children, testId }: { children: React.ReactNode; 
 
 function BridgeDetailFact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+    <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+      <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
         {label}
       </p>
-      <div className="mt-2 text-[13px] text-[color:var(--color-text-primary)]">{value}</div>
+      <div className="mt-2 text-small-body text-(--color-text-primary)">{value}</div>
     </div>
   );
 }
@@ -168,11 +168,11 @@ function SecretSlotCard({
 }: SecretSlotCardProps) {
   return (
     <article
-      className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+      className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3"
       data-testid={`bridge-secret-binding-${slot.name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
+        <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-primary)">
           {slot.name}
         </span>
         <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
@@ -182,7 +182,7 @@ function SecretSlotCard({
           {binding ? "BOUND" : "UNBOUND"}
         </Pill>
       </div>
-      <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
+      <p className="mt-2 text-xs leading-relaxed text-(--color-text-secondary)">
         {describeBridgeSecretSlot(slot)}
       </p>
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -202,13 +202,11 @@ function SecretSlotCard({
             value={inputValue}
           />
           {binding ? (
-            <p className="text-[12px] text-[color:var(--color-text-secondary)]">
+            <p className="text-xs text-(--color-text-secondary)">
               Current ref: <span className="font-mono">{binding.secret_ref}</span>
             </p>
           ) : (
-            <p className="text-[12px] text-[color:var(--color-text-tertiary)]">
-              No secret binding stored.
-            </p>
+            <p className="text-xs text-(--color-text-tertiary)">No secret binding stored.</p>
           )}
         </Field>
         <div className="flex flex-wrap items-center gap-2">
@@ -291,12 +289,12 @@ function BridgeEventStreamSection({
     return (
       <Section label="Event stream">
         <div
-          className="flex min-h-28 items-center justify-center rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
+          className="flex min-h-28 items-center justify-center rounded-md border border-(--color-divider) bg-(--color-surface)"
           data-testid="bridge-routes-loading"
         >
           <Loader2
             aria-hidden="true"
-            className="size-4 animate-spin text-[color:var(--color-text-tertiary)]"
+            className="size-4 animate-spin text-(--color-text-tertiary)"
           />
         </div>
       </Section>
@@ -320,25 +318,25 @@ function BridgeEventStreamSection({
   return (
     <Section label="Event stream" right={<Pill mono>{routes.length}</Pill>}>
       <div
-        className="overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
+        className="overflow-hidden rounded-md border border-(--color-divider) bg-(--color-surface)"
         data-testid="bridge-routes-table"
       >
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                 Status
               </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                 Agent
               </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                 Target
               </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                 Scope
               </TableHead>
-              <TableHead className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                 Last activity
               </TableHead>
             </TableRow>
@@ -359,16 +357,16 @@ function BridgeEventStreamSection({
                 </TableCell>
                 <TableCell>
                   <div className="min-w-0">
-                    <div className="text-[13px] text-[color:var(--color-text-primary)]">
+                    <div className="text-small-body text-(--color-text-primary)">
                       {route.agent_name}
                     </div>
-                    <div className="mt-1 break-all font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
-                      <span className="uppercase tracking-[0.12em]">SESSION</span>{" "}
+                    <div className="mt-1 break-all font-mono text-eyebrow text-(--color-text-tertiary)">
+                      <span className="uppercase tracking-mono">SESSION</span>{" "}
                       <span>{route.session_id}</span>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                <TableCell className="font-mono text-xs text-(--color-text-secondary)">
                   {describeBridgeRouteTarget(route)}
                 </TableCell>
                 <TableCell>
@@ -376,7 +374,7 @@ function BridgeEventStreamSection({
                     {route.scope}
                   </Pill>
                 </TableCell>
-                <TableCell className="font-mono text-[12px] text-[color:var(--color-text-tertiary)]">
+                <TableCell className="font-mono text-xs text-(--color-text-tertiary)">
                   {formatBridgeRelativeTime(route.last_activity_at)}
                 </TableCell>
               </TableRow>
@@ -463,7 +461,7 @@ function BridgeProviderRuntimeSection({
       </div>
 
       {provider?.description ? (
-        <p className="mt-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+        <p className="mt-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body leading-relaxed text-(--color-text-secondary)">
           {provider.description}
         </p>
       ) : null}
@@ -484,14 +482,14 @@ function BridgeProviderRuntimeSection({
           ))}
         </div>
       ) : isSecretBindingsLoading ? (
-        <div className="mt-3 flex items-center gap-2 text-[13px] text-[color:var(--color-text-tertiary)]">
+        <div className="mt-3 flex items-center gap-2 text-small-body text-(--color-text-tertiary)">
           <Loader2 aria-hidden="true" className="size-4 animate-spin" />
           <span>Loading secret bindings…</span>
         </div>
       ) : null}
 
       <div className="mt-3">
-        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+        <p className="mb-2 font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
           Provider config
         </p>
         {providerConfig ? (
@@ -502,7 +500,7 @@ function BridgeProviderRuntimeSection({
             showPrompt={false}
           />
         ) : (
-          <p className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+          <p className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body leading-relaxed text-(--color-text-secondary)">
             No provider runtime config stored for this bridge.
           </p>
         )}
@@ -534,18 +532,18 @@ function BridgeDetailHeader({
   const pulse = effectiveStatus === "starting";
 
   return (
-    <header className="border-b border-[color:var(--color-divider)] px-6 py-4">
+    <header className="border-b border-(--color-divider) px-6 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span
               aria-hidden="true"
-              className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-accent)]"
+              className="inline-flex size-8 items-center justify-center rounded-md border border-(--color-divider) bg-(--color-surface) text-accent"
             >
               <Waypoints className="size-4" />
             </span>
             <Pill.Dot pulse={pulse} tone={statusTone} />
-            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
+            <h2 className="text-item-title font-semibold tracking-tight text-(--color-text-primary)">
               {bridge.display_name}
             </h2>
             <Pill mono tone={statusTone}>
@@ -555,7 +553,7 @@ function BridgeDetailHeader({
               {bridge.scope}
             </Pill>
           </div>
-          <p className="text-[12px] text-[color:var(--color-text-secondary)]">
+          <p className="text-xs text-(--color-text-secondary)">
             {bridge.platform} · {bridge.extension_name}
           </p>
         </div>
@@ -641,10 +639,7 @@ export function BridgeDetailPanel({
   if (isLoading) {
     return (
       <BridgeStateFallback testId="bridge-detail-loading">
-        <Loader2
-          aria-hidden="true"
-          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
       </BridgeStateFallback>
     );
   }
@@ -698,7 +693,7 @@ export function BridgeDetailPanel({
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {restartRequired ? (
           <div
-            className="rounded-[var(--radius-md)] border border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning-tint)] px-4 py-3 text-[13px] text-[color:var(--color-warning)]"
+            className="rounded-md border border-(--color-warning)/40 bg-(--color-warning-tint) px-4 py-3 text-small-body text-(--color-warning)"
             data-testid="bridge-restart-required"
           >
             Pending runtime changes require a restart or enable action before the provider picks
@@ -724,12 +719,12 @@ export function BridgeDetailPanel({
 
         <BridgeEventStreamSection isRoutesLoading={isRoutesLoading} routes={routes} />
 
-        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-4">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-5 py-4">
           <div className="space-y-1">
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+            <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
               Test delivery
             </p>
-            <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+            <p className="text-small-body text-(--color-text-secondary)">
               Resolve the outbound target using bridge defaults plus any explicit target override.
             </p>
           </div>

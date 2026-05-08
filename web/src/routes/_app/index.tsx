@@ -90,7 +90,7 @@ function DaemonStatusSection({ page }: { page: HomePageView }) {
         <DisconnectedCard description={page.daemonStatus.description} />
       ) : (
         <div
-          className="flex flex-col gap-3 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-4"
+          className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4"
           data-testid="home-daemon-card"
           data-status={page.daemonStatus.key}
         >
@@ -102,14 +102,14 @@ function DaemonStatusSection({ page }: { page: HomePageView }) {
               tone={page.daemonStatus.tone}
             />
             <span
-              className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]"
+              className="text-item-title font-semibold tracking-tight text-(--color-text-primary)"
               data-testid="home-daemon-status-label"
             >
               {page.daemonStatus.label}
             </span>
           </div>
           <p
-            className="text-[13px] leading-5 text-[color:var(--color-text-secondary)]"
+            className="text-small-body leading-5 text-(--color-text-secondary)"
             data-testid="home-daemon-status-description"
           >
             {page.daemonStatus.description}
@@ -170,7 +170,7 @@ function DaemonStatusSkeleton() {
   return (
     <div className="flex flex-col gap-3" data-testid="home-daemon-skeleton">
       <Skeleton className="h-3 w-24" />
-      <div className="flex flex-col gap-3 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-4">
+      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4">
         <div className="flex items-center gap-3">
           <Skeleton className="size-2 rounded-full" />
           <Skeleton className="h-4 w-32" />
@@ -188,7 +188,7 @@ function MetricsSkeleton() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {METRIC_ORDER.map(key => (
           <div
-            className="flex flex-col gap-2 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-4"
+            className="flex flex-col gap-2 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4"
             data-testid={`home-metric-skeleton-${key}`}
             key={key}
           >

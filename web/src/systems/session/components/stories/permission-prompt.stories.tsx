@@ -43,7 +43,7 @@ function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision 
   return (
     <CenteredSurface className="flex-col gap-4">
       {resolvedState ? (
-        <div className="w-full max-w-xl rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 text-sm text-[color:var(--color-text-primary)]">
+        <div className="w-full max-w-xl rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-sm text-(--color-text-primary)">
           {resolvedState === "allow-once"
             ? "Permission approved for this turn."
             : "Permission rejected for this turn."}

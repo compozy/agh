@@ -55,7 +55,7 @@ function CountChip({ count }: { count: number }) {
   return (
     <span
       aria-label={`${count} entries`}
-      className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+      className="font-mono text-badge text-(--color-text-tertiary)"
     >
       {count}
     </span>
@@ -68,7 +68,7 @@ export function ChannelTabs({ channel, activeTab, threadCount, directCount }: Ch
   return (
     <nav
       aria-label={`Surfaces for #${channel}`}
-      className="flex items-center gap-1 border-b border-[color:var(--color-divider)] px-5"
+      className="flex items-center gap-1 border-b border-(--color-divider) px-5"
       data-testid="network-channel-tabs"
       role="tablist"
     >
@@ -77,10 +77,10 @@ export function ChannelTabs({ channel, activeTab, threadCount, directCount }: Ch
           aria-current={tab.tab === activeTab ? "page" : undefined}
           aria-selected={tab.tab === activeTab}
           className={cn(
-            "relative flex h-9 items-center gap-2 px-3 text-[13px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]",
+            "relative flex h-9 items-center gap-2 px-3 text-small-body focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
             tab.tab === activeTab
-              ? "text-[color:var(--color-text-primary)]"
-              : "text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
+              ? "text-(--color-text-primary)"
+              : "text-(--color-text-secondary) hover:text-(--color-text-primary)"
           )}
           data-testid={tab.testId}
           key={tab.tab}
@@ -93,7 +93,7 @@ export function ChannelTabs({ channel, activeTab, threadCount, directCount }: Ch
           {tab.tab === activeTab ? (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute right-3 bottom-0 left-3 h-[2px] bg-[color:var(--color-accent)]"
+              className="pointer-events-none absolute right-3 bottom-0 left-3 h-[2px] bg-accent"
             />
           ) : null}
         </Link>

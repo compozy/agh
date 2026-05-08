@@ -15,7 +15,7 @@ export function ThreadOverlayRoot({ rootMessage, isLoading }: ThreadOverlayRootP
         data-testid="network-thread-overlay-root-loading"
         role="status"
       >
-        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
           Loading root
         </span>
       </div>
@@ -27,9 +27,9 @@ export function ThreadOverlayRoot({ rootMessage, isLoading }: ThreadOverlayRootP
   }
 
   return (
-    <div className="flex flex-col gap-1 border-b border-[color:var(--color-divider)] py-2">
+    <div className="flex flex-col gap-1 border-b border-(--color-divider) py-2">
       <span
-        className="px-4 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="px-4 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
         data-testid="network-thread-overlay-root-badge"
       >
         ROOT

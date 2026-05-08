@@ -115,7 +115,7 @@ export function InstallSection() {
         <div
           role="tablist"
           aria-label="Install methods"
-          className="flex flex-wrap gap-1 rounded-[8px] border border-(--color-divider) bg-(--color-canvas) p-1"
+          className="flex flex-wrap gap-1 rounded-md border border-(--color-divider) bg-(--color-canvas) p-1"
         >
           {INSTALL_TABS.map(t => (
             <button
@@ -133,9 +133,9 @@ export function InstallSection() {
                   variant: t.id === tab ? "secondary" : "ghost",
                   size: "sm",
                 }),
-                "flex-1 font-mono text-[12px] tracking-[0.02em]",
+                "flex-1 font-mono text-xs tracking-mono",
                 t.id === tab &&
-                  "bg-(--color-accent-tint) text-(--color-accent) hover:bg-(--color-accent-tint)"
+                  "bg-(--color-accent-tint) text-accent hover:bg-(--color-accent-tint)"
               )}
             >
               {t.label}
@@ -165,7 +165,7 @@ export function InstallSection() {
               className="flex flex-col gap-4 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) p-6"
             >
               <div className="flex items-start gap-4">
-                <span className="mt-0.5 font-mono text-lg font-medium text-(--color-accent)">
+                <span className="mt-0.5 font-mono text-lg font-medium text-accent">
                   {item.step}
                 </span>
                 <div className="flex-1">
@@ -175,7 +175,7 @@ export function InstallSection() {
                   </p>
                 </div>
               </div>
-              <div className="ml-[2.75rem]">
+              <div className="ml-11">
                 <CodeBlock code={item.code} copyable caption="shell" shell />
               </div>
             </div>

@@ -45,7 +45,7 @@ export function ConnectionIndicator({
       <Pill.Dot tone={config.tone} pulse={config.pulse} />
       <span
         data-slot="connection-indicator-label"
-        className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-(--color-text-label)"
+        className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--color-text-label)"
       >
         {label ?? config.label}
       </span>

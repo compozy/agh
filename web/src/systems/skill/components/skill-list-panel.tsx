@@ -58,9 +58,9 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
     <button
       aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-1.5 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-        isSelected && "bg-[color:var(--color-surface)]"
+        "relative flex w-full flex-col gap-1.5 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
+        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isSelected && "bg-(--color-surface)"
       )}
       data-state={isSelected ? "selected" : undefined}
       data-testid={`skill-item-${skill.name}`}
@@ -70,7 +70,7 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
       {isSelected ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
           data-testid="skill-active-indicator"
         />
       ) : null}
@@ -79,19 +79,17 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
           data-testid={`skill-status-dot-${skill.name}`}
           tone={skillStatusTone(skill.enabled)}
         />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+        <span className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)">
           {skill.name}
         </span>
         {skill.version ? (
-          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+          <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
             v{skill.version}
           </span>
         ) : null}
       </div>
       {skill.description ? (
-        <span className="truncate text-[12px] text-[color:var(--color-text-secondary)]">
-          {skill.description}
-        </span>
+        <span className="truncate text-xs text-(--color-text-secondary)">{skill.description}</span>
       ) : null}
     </button>
   );
@@ -112,7 +110,7 @@ function SkillListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="skill-list-panel">
-      <div className="border-b border-[color:var(--color-divider)] p-3">
+      <div className="border-b border-(--color-divider) p-3">
         <SearchInput
           aria-label="Search installed skills"
           data-testid="skill-search-input"
@@ -130,7 +128,7 @@ function SkillListPanel({
           >
             <Loader2
               aria-hidden="true"
-              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+              className="size-5 animate-spin text-(--color-text-tertiary)"
             />
           </div>
         ) : errorMessage && isEmpty ? (
@@ -164,10 +162,10 @@ function SkillListPanel({
             {groups.map(group => (
               <div data-testid={`skill-group-${group.source}`} key={group.source}>
                 <div
-                  className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-2"
+                  className="flex items-center justify-between gap-2 border-b border-(--color-divider) bg-(--color-surface-panel) px-4 py-2"
                   data-testid={`skill-group-header-${group.source}`}
                 >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                  <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                     {group.label}
                   </span>
                   <Pill mono>{group.skills.length}</Pill>

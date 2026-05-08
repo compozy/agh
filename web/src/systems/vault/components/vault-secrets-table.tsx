@@ -49,10 +49,10 @@ export function VaultSecretsTable({
   if (isLoading) {
     return (
       <div
-        className="flex min-h-48 items-center justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-divider)]"
+        className="flex min-h-48 items-center justify-center rounded-lg border border-(--color-divider)"
         data-testid={`${testId}-loading`}
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -81,7 +81,7 @@ export function VaultSecretsTable({
 
   return (
     <div
-      className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--color-divider)]"
+      className="overflow-hidden rounded-lg border border-(--color-divider)"
       data-testid={testId}
     >
       <Table>
@@ -98,7 +98,7 @@ export function VaultSecretsTable({
           {secrets.map(secret => (
             <TableRow key={secret.ref} data-testid="vault-secrets-row">
               <TableCell className="min-w-0">
-                <span className="block max-w-[42rem] truncate font-mono text-xs text-[color:var(--color-text-primary)]">
+                <span className="block max-w-2xl truncate font-mono text-xs text-(--color-text-primary)">
                   {secret.ref}
                 </span>
               </TableCell>
@@ -108,12 +108,12 @@ export function VaultSecretsTable({
                 </Pill>
               </TableCell>
               <TableCell>
-                <span className="font-mono text-xs text-[color:var(--color-text-secondary)]">
+                <span className="font-mono text-xs text-(--color-text-secondary)">
                   {secret.kind?.trim() || "—"}
                 </span>
               </TableCell>
               <TableCell>
-                <span className="font-mono text-xs text-[color:var(--color-text-tertiary)]">
+                <span className="font-mono text-xs text-(--color-text-tertiary)">
                   {formatDateTime(secret.updated_at)}
                 </span>
               </TableCell>

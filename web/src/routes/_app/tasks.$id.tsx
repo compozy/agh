@@ -34,7 +34,7 @@ function TaskDetailRoute() {
   if (page.detailLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="tasks-detail-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -45,8 +45,8 @@ function TaskDetailRoute() {
         className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
         data-testid="tasks-detail-not-found"
       >
-        <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
+        <AlertCircle className="size-6 text-(--color-danger)" />
+        <p className="text-sm text-(--color-text-secondary)">
           {page.fatalError?.message ?? `Task ${id} not found.`}
         </p>
       </div>
@@ -60,7 +60,7 @@ function TaskDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-detail-placeholder"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }

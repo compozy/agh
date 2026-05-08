@@ -55,9 +55,9 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
     <button
       aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-        isSelected && "bg-[color:var(--color-surface)]"
+        "relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
+        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isSelected && "bg-(--color-surface)"
       )}
       data-state={isSelected ? "selected" : undefined}
       data-testid={`automation-item-${job.id}`}
@@ -67,7 +67,7 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
       {isSelected ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
           data-testid="automation-active-indicator"
         />
       ) : null}
@@ -75,16 +75,16 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot tone={enabledTone} />
-          <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
             {job.name}
           </span>
         </div>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--color-accent)]">
+        <span className="shrink-0 font-mono text-badge uppercase tracking-widest text-accent">
           {formatRelativeTime(job.next_run)}
         </span>
       </div>
 
-      <p className="truncate text-[12px] text-[color:var(--color-text-secondary)]">
+      <p className="truncate text-xs text-(--color-text-secondary)">
         {describeSchedule(job.schedule)}
       </p>
 
@@ -113,9 +113,9 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
     <button
       aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-        isSelected && "bg-[color:var(--color-surface)]"
+        "relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
+        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isSelected && "bg-(--color-surface)"
       )}
       data-state={isSelected ? "selected" : undefined}
       data-testid={`automation-item-${trigger.id}`}
@@ -125,7 +125,7 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
       {isSelected ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
           data-testid="automation-active-indicator"
         />
       ) : null}
@@ -133,7 +133,7 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot tone={enabledTone} />
-          <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
             {trigger.name}
           </span>
         </div>
@@ -142,7 +142,7 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
         </Pill>
       </div>
 
-      <p className="line-clamp-2 text-[12px] text-[color:var(--color-text-secondary)]">
+      <p className="line-clamp-2 text-xs text-(--color-text-secondary)">
         {formatPromptPreview(trigger.prompt)}
       </p>
 
@@ -187,17 +187,14 @@ export function AutomationListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="automation-list-panel">
-      <div className="space-y-2 border-b border-[color:var(--color-divider)] p-3">
+      <div className="space-y-2 border-b border-(--color-divider) p-3">
         <SearchInput
           data-testid="automation-search-input"
           onChange={onSearchChange}
           placeholder={kind === "jobs" ? "Search jobs…" : "Search triggers…"}
           value={searchQuery}
         />
-        <p
-          className="text-[12px] text-[color:var(--color-text-secondary)]"
-          data-testid="automation-list-summary"
-        >
+        <p className="text-xs text-(--color-text-secondary)" data-testid="automation-list-summary">
           {summary}
         </p>
       </div>
@@ -210,7 +207,7 @@ export function AutomationListPanel({
           >
             <Loader2
               aria-hidden="true"
-              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+              className="size-5 animate-spin text-(--color-text-tertiary)"
             />
           </div>
         ) : errorMessage && isEmpty ? (

@@ -17,15 +17,15 @@ export function CategoryPill({ label, count, href, active = false }: CategoryPil
       aria-current={active ? "page" : undefined}
       aria-label={accessibleLabel}
       className={cn(
-        "inline-flex h-8 items-center gap-2 rounded-full border px-3.5 font-sans text-[13px] font-medium transition-colors",
+        "inline-flex h-8 items-center gap-2 rounded-full border px-3.5 font-sans text-small-body font-medium transition-colors",
         active
-          ? "border-(--color-accent) bg-(--color-surface-elevated) text-(--color-text-primary)"
+          ? "border-accent bg-(--color-surface-elevated) text-(--color-text-primary)"
           : "border-(--color-divider) text-(--color-text-secondary) hover:text-(--color-text-primary)"
       )}
     >
       <span>{label}</span>
       {count !== undefined && (
-        <span className="font-mono text-[10px] tracking-[0.06em] text-(--color-text-label)">
+        <span className="font-mono text-badge tracking-mono text-(--color-text-label)">
           {String(count).padStart(2, "0")}
         </span>
       )}

@@ -87,7 +87,7 @@ export function MessageRow({
         "group relative flex gap-3 px-5 py-1.5",
         density === "overlay" && "px-4",
         optimisticState === "pending" && "opacity-70",
-        optimisticState === "failed" && "rounded-[4px] bg-[color:var(--color-danger-tint)]",
+        optimisticState === "failed" && "rounded-chip bg-(--color-danger-tint)",
         className
       )}
       data-density={density}
@@ -100,17 +100,17 @@ export function MessageRow({
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
+          <span className="truncate text-sm font-semibold text-(--color-text-primary)">
             {displayName}
           </span>
           <span
-            className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+            className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
             data-testid="network-message-role-chip"
           >
             {role}
           </span>
           <time
-            className="text-[12px] text-[color:var(--color-text-tertiary)]"
+            className="text-xs text-(--color-text-tertiary)"
             data-testid="network-message-timestamp"
             dateTime={iso}
             title={iso}
@@ -131,7 +131,7 @@ export function MessageRow({
 
         {optimisticState === "failed" ? (
           <div
-            className="flex items-center gap-2 pt-1 text-[12px] text-[color:var(--color-danger)]"
+            className="flex items-center gap-2 pt-1 text-xs text-(--color-danger)"
             data-testid="network-message-failed-cluster"
           >
             <span>Couldn&apos;t send.</span>

@@ -57,10 +57,10 @@ export function NetworkCreateChannelDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[30rem]"
+        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-120"
         data-testid="network-create-channel-dialog"
       >
-        <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
+        <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
           <DialogTitle>Create channel</DialogTitle>
           <DialogDescription>
             {workspaceName
@@ -93,7 +93,7 @@ export function NetworkCreateChannelDialog({
               </FieldDescription>
               <Textarea
                 aria-required="true"
-                className="min-h-24 border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-3 text-[13px] leading-6"
+                className="min-h-24 border-(--color-divider) bg-(--color-surface-panel) px-3 py-3 text-small-body leading-6"
                 data-testid="network-channel-purpose-input"
                 id="network-channel-purpose"
                 onChange={event => onPurposeChange(event.target.value)}
@@ -129,14 +129,14 @@ export function NetworkCreateChannelDialog({
               )}
 
               {!workspaceName ? (
-                <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-warning)]">
+                <p className="mt-2 text-xs leading-relaxed text-(--color-warning)">
                   Select an active workspace before creating a channel.
                 </p>
               ) : null}
             </Section>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
             <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel
             </Button>

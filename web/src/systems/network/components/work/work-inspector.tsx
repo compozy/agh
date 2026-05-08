@@ -28,7 +28,7 @@ export function WorkInspector({
 }: WorkInspectorProps) {
   const body =
     isLoading && entries.length === 0 ? (
-      <p className="px-4 py-6 text-[13px] text-[color:var(--color-text-tertiary)]">Loading…</p>
+      <p className="px-4 py-6 text-small-body text-(--color-text-tertiary)">Loading…</p>
     ) : entries.length === 0 ? (
       <div className="flex justify-center px-4 py-6">
         <Empty
@@ -69,10 +69,10 @@ export function WorkInspector({
       className={cn("flex min-h-0 flex-1 flex-col", className)}
       data-testid="network-work-inspector"
     >
-      <header className="flex items-baseline justify-between border-b border-[color:var(--color-divider)] px-4 py-3">
-        <h2 className="text-[14px] font-semibold text-[color:var(--color-text-primary)]">Work</h2>
+      <header className="flex items-baseline justify-between border-b border-(--color-divider) px-4 py-3">
+        <h2 className="text-sm font-semibold text-(--color-text-primary)">Work</h2>
         <span
-          className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+          className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
           data-testid="network-work-inspector-count"
         >
           {entries.length} open

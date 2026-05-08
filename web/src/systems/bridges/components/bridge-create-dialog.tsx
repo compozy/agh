@@ -71,7 +71,7 @@ export function BridgeCreateDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-4xl"
+        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-4xl"
         showCloseButton={false}
       >
         <form
@@ -82,7 +82,7 @@ export function BridgeCreateDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
+          <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
             <DialogTitle>Create Bridge</DialogTitle>
             <DialogDescription>
               Select an installed provider, configure provider-owned runtime settings separately
@@ -93,12 +93,12 @@ export function BridgeCreateDialog({
           <div className="flex-1 overflow-y-auto px-5 py-5">
             <FieldSet className="gap-6">
               <Section label="Provider">
-                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="text-small-body text-(--color-text-secondary)">
                   Only providers with healthy runtime state can be selected for bridge creation.
                 </p>
                 {providers.length === 0 ? (
                   <div
-                    className="mt-3 rounded-[var(--radius-md)] border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-8 text-center text-[13px] leading-6 text-[color:var(--color-text-secondary)]"
+                    className="mt-3 rounded-md border border-dashed border-(--color-divider) bg-(--color-surface) px-5 py-8 text-center text-small-body leading-6 text-(--color-text-secondary)"
                     data-testid="bridge-provider-empty"
                   >
                     No bridge providers are currently available. Install or enable a bridge adapter
@@ -130,27 +130,27 @@ export function BridgeCreateDialog({
 
               {selectedProvider ? (
                 <Section data-testid="bridge-provider-runtime-section" label="Provider runtime">
-                  <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  <p className="text-small-body text-(--color-text-secondary)">
                     Provider-owned runtime configuration, DM policy, and secret requirements stay
                     separate from generic routing and delivery defaults.
                   </p>
 
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+                    <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+                      <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                         Config schema
                       </p>
                       <p
-                        className="mt-2 text-[13px] text-[color:var(--color-text-primary)]"
+                        className="mt-2 text-small-body text-(--color-text-primary)"
                         data-testid="bridge-provider-config-schema"
                       >
                         {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
                       </p>
                     </div>
 
-                    <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
+                    <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+                        <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                           Secret slots
                         </p>
                         <Pill mono>{selectedProvider.secret_slots?.length ?? 0}</Pill>
@@ -160,24 +160,24 @@ export function BridgeCreateDialog({
                           {selectedProvider.secret_slots.map(slot => (
                             <li
                               key={slot.name}
-                              className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2"
+                              className="rounded-md border border-(--color-divider) bg-(--color-surface-panel) px-3 py-2"
                             >
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
+                                <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-primary)">
                                   {slot.name}
                                 </span>
                                 <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
                                   {slot.required === false ? "OPTIONAL" : "REQUIRED"}
                                 </Pill>
                               </div>
-                              <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
+                              <p className="mt-2 text-xs leading-relaxed text-(--color-text-secondary)">
                                 {describeBridgeSecretSlot(slot)}
                               </p>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+                        <p className="mt-3 text-small-body leading-relaxed text-(--color-text-secondary)">
                           This provider does not declare secret slot requirements in its manifest.
                         </p>
                       )}
@@ -235,13 +235,13 @@ export function BridgeCreateDialog({
                       />
                       {providerConfigError ? (
                         <p
-                          className="text-[13px] text-[color:var(--color-danger)]"
+                          className="text-small-body text-(--color-danger)"
                           data-testid="bridge-provider-config-error"
                         >
                           {providerConfigError}
                         </p>
                       ) : (
-                        <p className="text-[12px] leading-relaxed text-[color:var(--color-text-tertiary)]">
+                        <p className="text-xs leading-relaxed text-(--color-text-tertiary)">
                           Hint: {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
                         </p>
                       )}
@@ -298,7 +298,7 @@ export function BridgeCreateDialog({
               </FieldGroup>
 
               <Section label="Routing policy">
-                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="text-small-body text-(--color-text-secondary)">
                   {describeBridgeRoutingPolicy(draft.routingPolicy)}
                 </p>
                 <FieldGroup className="mt-3 gap-3">
@@ -369,7 +369,7 @@ export function BridgeCreateDialog({
               </Section>
 
               <Section label="Delivery defaults">
-                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="text-small-body text-(--color-text-secondary)">
                   These defaults are applied when resolving outbound delivery targets.
                 </p>
                 <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -462,7 +462,7 @@ export function BridgeCreateDialog({
             </FieldSet>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+          <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Cancel
             </Button>

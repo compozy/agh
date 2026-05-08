@@ -134,7 +134,7 @@ describe("Timeline", () => {
     render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
 
     const avatar = screen.getByTestId("network-message-avatar");
-    expect(avatar.className).toContain("rounded-[4px]");
+    expect(avatar.className).toContain("rounded-chip");
     expect(avatar.className).not.toContain("rounded-full");
   });
 

@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <CenteredSurface>
-      <div className="w-[28rem]">
+      <div className="w-md">
         <BridgeProviderCard onSelect={() => undefined} provider={bridgeProvidersFixture[0]} />
       </div>
     </CenteredSurface>
@@ -29,7 +29,7 @@ export const Default: Story = {
 export const Disabled: Story = {
   render: () => (
     <CenteredSurface>
-      <div className="w-[28rem]">
+      <div className="w-md">
         <BridgeProviderCard
           onSelect={() => undefined}
           provider={{

@@ -56,7 +56,7 @@ export function TaskCard({
       onSelect={onSelect ? () => onSelect() : undefined}
       footer={
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--color-text-secondary)]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-eyebrow text-(--color-text-secondary)">
             <span data-testid={`task-card-owner-${task.id}`}>{ownerLabel}</span>
             {activeRun ? (
               <span data-testid={`task-card-attempt-${task.id}`}>
@@ -74,7 +74,7 @@ export function TaskCard({
               </span>
             ) : null}
             {task.parent_task_id ? (
-              <span className="font-mono text-[color:var(--color-text-tertiary)]">
+              <span className="font-mono text-(--color-text-tertiary)">
                 parent {task.parent_task_id}
               </span>
             ) : null}
@@ -82,7 +82,7 @@ export function TaskCard({
 
           {failedRunError ? (
             <p
-              className="flex items-start gap-1 text-[11px] text-[color:var(--color-danger)]"
+              className="flex items-start gap-1 text-eyebrow text-(--color-danger)"
               data-testid={`task-card-error-${task.id}`}
             >
               <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -109,7 +109,7 @@ export function TaskCard({
                   event.stopPropagation();
                   onPublish();
                 }}
-                className="ml-auto rounded-lg border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-text-label)] hover:text-[color:var(--color-text-primary)] disabled:opacity-50"
+                className="ml-auto rounded-lg border border-(--color-divider) px-2.5 py-1 font-mono text-badge uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:border-(--color-text-label) hover:text-(--color-text-primary) disabled:opacity-50"
               >
                 Publish
               </button>
@@ -133,7 +133,7 @@ export function TaskCard({
                   event.stopPropagation();
                   onRetry();
                 }}
-                className="ml-auto rounded-lg border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-text-label)] hover:text-[color:var(--color-text-primary)]"
+                className="ml-auto rounded-lg border border-(--color-divider) px-2.5 py-1 font-mono text-badge uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:border-(--color-text-label) hover:text-(--color-text-primary)"
               >
                 Retry
               </button>

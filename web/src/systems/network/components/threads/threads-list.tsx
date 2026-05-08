@@ -32,7 +32,7 @@ function StateChip({ openWorkCount }: { openWorkCount: number }) {
   // thread has open work — clearly truthful, not invented.
   return (
     <span
-      className="shrink-0 rounded-[3px] bg-[color:var(--color-warning-tint)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-warning)]"
+      className="shrink-0 rounded-chip bg-(--color-warning-tint) px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-(--color-warning)"
       data-testid="network-thread-list-row-state-chip"
     >
       {openWorkCount === 1 ? "1 work open" : `${openWorkCount} work open`}
@@ -52,8 +52,8 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-start gap-3 border-b border-[color:var(--color-divider)] px-5 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]",
-        active ? "bg-[color:var(--color-surface)]" : "hover:bg-[color:var(--color-hover)]"
+        "group flex items-start gap-3 border-b border-(--color-divider) px-5 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
+        active ? "bg-(--color-surface)" : "hover:bg-(--color-hover)"
       )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
       params={{ channel, threadId: thread.thread_id }}
@@ -61,17 +61,17 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-start justify-between gap-3">
-          <p className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
+          <p className="truncate text-sm font-semibold text-(--color-text-primary)">
             {thread.title ?? "Untitled thread"}
           </p>
           <StateChip openWorkCount={openWorkCount} />
         </div>
 
-        <p className="line-clamp-2 text-[13px] text-[color:var(--color-text-secondary)]">
+        <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
           {thread.last_message_preview ?? "No messages yet."}
         </p>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
           <span data-testid="network-thread-list-row-meta-peers">
             {peerCount} {peerCount === 1 ? "peer" : "peers"}
           </span>
@@ -85,7 +85,7 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
       </div>
 
       <span
-        className="shrink-0 self-start font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="shrink-0 self-start font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
         data-testid="network-thread-list-row-meta-time"
       >
         {lastActivity}
@@ -99,7 +99,7 @@ function ThreadsListSkeleton() {
     <div className="space-y-0" data-testid="network-thread-list-skeleton">
       {[0, 1, 2, 3, 4].map(index => (
         <div
-          className="flex flex-col gap-2 border-b border-[color:var(--color-divider)] px-5 py-4"
+          className="flex flex-col gap-2 border-b border-(--color-divider) px-5 py-4"
           key={index}
         >
           <Skeleton className="h-3.5 w-2/3" />
@@ -145,7 +145,7 @@ export function ThreadsList({
       data-testid="network-thread-list"
     >
       <div
-        className="flex items-center justify-between gap-3 border-b border-[color:var(--color-divider)] px-5 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center justify-between gap-3 border-b border-(--color-divider) px-5 py-2 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)"
         data-testid="network-thread-list-subheader"
       >
         <span>

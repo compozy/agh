@@ -9,13 +9,11 @@ export function ReadContent({ message }: { message: UIMessage }) {
     const lineCount = result.stdout.split("\n").length;
     return (
       <div
-        className="flex items-center gap-1.5 text-xs font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center gap-1.5 text-xs font-mono text-eyebrow text-(--color-text-tertiary)"
         data-testid="read-content"
       >
         <span className="truncate">{filePath}</span>
-        <span className="text-[color:var(--color-text-tertiary)]/30 shrink-0">
-          {lineCount} lines
-        </span>
+        <span className="text-(--color-text-tertiary)/30 shrink-0">{lineCount} lines</span>
       </div>
     );
   }
@@ -24,13 +22,11 @@ export function ReadContent({ message }: { message: UIMessage }) {
     const lineCount = result.content.split("\n").length;
     return (
       <div
-        className="flex items-center gap-1.5 text-xs font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center gap-1.5 text-xs font-mono text-eyebrow text-(--color-text-tertiary)"
         data-testid="read-content"
       >
         <span className="truncate">{filePath}</span>
-        <span className="text-[color:var(--color-text-tertiary)]/30 shrink-0">
-          {lineCount} lines
-        </span>
+        <span className="text-(--color-text-tertiary)/30 shrink-0">{lineCount} lines</span>
       </div>
     );
   }
@@ -39,7 +35,7 @@ export function ReadContent({ message }: { message: UIMessage }) {
   if (filePath) {
     return (
       <div
-        className="flex items-center gap-1.5 text-xs font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
+        className="flex items-center gap-1.5 text-xs font-mono text-eyebrow text-(--color-text-tertiary)"
         data-testid="read-content"
       >
         <span className="truncate">{filePath}</span>

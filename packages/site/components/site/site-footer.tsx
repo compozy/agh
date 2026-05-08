@@ -7,10 +7,10 @@ import { type FooterColumn, type FooterLink, footerColumns } from "@/lib/footer-
 import { siteConfig } from "@/lib/site-config";
 
 const LINK_CLASS =
-  "inline-flex items-center text-sm text-(--color-text-secondary) transition-colors hover:text-(--color-text-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)/50 focus-visible:rounded-sm";
+  "inline-flex items-center text-sm text-(--color-text-secondary) transition-colors hover:text-(--color-text-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm";
 
 const COLUMN_TITLE_CLASS =
-  "font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-label)";
+  "font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-label)";
 
 const currentYear = new Date().getFullYear();
 
@@ -70,7 +70,7 @@ export function SiteFooter() {
               className={cn(
                 "inline-flex h-9 w-9 items-center justify-center rounded-full border border-(--color-divider) text-(--color-text-secondary) transition-colors",
                 "hover:border-(--color-text-secondary) hover:text-(--color-text-primary)",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)/50"
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               )}
             >
               <GithubLogo aria-hidden className="h-4 w-4" />
@@ -96,9 +96,9 @@ export function SiteFooter() {
             target="_blank"
             rel="noreferrer noopener"
             className={cn(
-              "inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) transition-colors",
+              "inline-flex items-center gap-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary) transition-colors",
               "hover:text-(--color-text-primary)",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)/50 focus-visible:rounded-sm"
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm"
             )}
           >
             <span>Alpha · Compozy on GitHub</span>

@@ -19,7 +19,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
       right={
         total > 0 ? (
           <span
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
+            className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)"
             data-testid="tasks-dashboard-status-breakdown-total"
           >
             total {total}
@@ -29,7 +29,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
     >
       {entries.length === 0 ? (
         <p
-          className="px-1 py-6 text-sm text-[color:var(--color-text-secondary)]"
+          className="px-1 py-6 text-sm text-(--color-text-secondary)"
           data-testid="tasks-dashboard-status-breakdown-empty"
         >
           No task activity yet.
@@ -49,13 +49,13 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
               >
                 {taskStatusLabel(entry.status)}
                 <span
-                  className="ml-1 font-mono text-[10px] tracking-[0.06em] opacity-80"
+                  className="ml-1 font-mono text-badge tracking-mono opacity-80"
                   data-testid={`tasks-dashboard-status-count-${entry.status}`}
                 >
                   {entry.count}
                 </span>
               </Pill>
-              <span className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+              <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
                 {formatPercent(entry.share_percent)}
               </span>
             </li>

@@ -42,7 +42,7 @@ export function TasksDetailRunsPanel({
         className="flex min-h-[240px] items-center justify-center"
         data-testid="tasks-detail-runs-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -115,14 +115,14 @@ export function TasksDetailRunsPanel({
                         </Pill>
                       ) : null}
                       {run.session_id ? (
-                        <span className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
+                        <span className="font-mono text-eyebrow text-(--color-text-secondary)">
                           session {run.session_id}
                         </span>
                       ) : null}
                     </div>
                     {run.error ? (
                       <p
-                        className="text-[11px] text-[color:var(--color-danger)]"
+                        className="text-eyebrow text-(--color-danger)"
                         data-testid={`tasks-detail-runs-error-${run.id}`}
                       >
                         {run.error}
@@ -130,19 +130,19 @@ export function TasksDetailRunsPanel({
                     ) : null}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-secondary)">
                   attempt {run.attempt}
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
                   {formatRelativeTime(run.queued_at)}
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
                   {run.ended_at ? formatRelativeTime(run.ended_at) : "—"}
                 </TableCell>
                 <TableCell className="w-8 pr-4">
                   <Link
                     aria-label={`Open run ${run.id}`}
-                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-badge uppercase tracking-mono text-accent hover:underline"
                     data-testid={`tasks-detail-runs-link-${run.id}`}
                     params={{ id: taskId, runId: run.id }}
                     to="/tasks/$id/runs/$runId"

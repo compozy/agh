@@ -47,7 +47,7 @@ function SandboxPage() {
   if (page.isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -56,8 +56,8 @@ function SandboxPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-error">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load sandboxes"}
           </p>
         </div>
@@ -165,28 +165,28 @@ function SandboxTable({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+      className="overflow-hidden rounded-lg border border-(--color-divider)"
       data-testid="sandbox-page-list"
     >
       <Table>
         <TableHeader>
-          <TableRow className="bg-[color:var(--color-surface-elevated)]">
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+          <TableRow className="bg-(--color-surface-elevated)">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Name
             </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Backend
             </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Profile
             </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
               Source
             </TableHead>
-            <TableHead className="text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="text-right text-badge uppercase tracking-mono text-(--color-text-label)">
               Usage
             </TableHead>
-            <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
               Actions
             </TableHead>
           </TableRow>
@@ -218,16 +218,14 @@ function SandboxRow({
   return (
     <TableRow data-testid={`sandbox-page-card-${entry.name}`}>
       <TableCell>
-        <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
-          {entry.name}
-        </span>
+        <span className="font-mono text-sm text-(--color-text-primary)">{entry.name}</span>
       </TableCell>
       <TableCell>
         <div className="flex flex-col gap-1">
           <Pill mono tone={backendTone(profile.backend)}>
             {profile.backend}
           </Pill>
-          <span className="text-xs text-[color:var(--color-text-tertiary)]">
+          <span className="text-xs text-(--color-text-tertiary)">
             {backendLabel(profile.backend)}
           </span>
         </div>
@@ -250,7 +248,7 @@ function SandboxRow({
         />
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
+        className="text-right font-mono text-xs text-(--color-text-secondary)"
         data-testid={`sandbox-page-card-${entry.name}-usage`}
       >
         {entry.workspace_usage_count}{" "}
@@ -291,10 +289,10 @@ function SandboxRow({
 function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
-      <span className="font-mono text-[0.58rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+      <span className="font-mono text-micro uppercase tracking-mono text-(--color-text-label)">
         {label}
       </span>
-      <span className="font-mono text-[color:var(--color-text-primary)]">{value}</span>
+      <span className="font-mono text-(--color-text-primary)">{value}</span>
     </span>
   );
 }
@@ -373,7 +371,7 @@ function SandboxEditor({
             />
             {entry.workspace_usage_count > 0 ? (
               <span
-                className="text-xs text-[color:var(--color-text-tertiary)]"
+                className="text-xs text-(--color-text-tertiary)"
                 data-testid="sandbox-editor-usage"
               >
                 {entry.workspace_usage_count} workspaces depend on this profile
@@ -497,10 +495,10 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
   if (preserved.length === 0) return null;
   return (
     <p
-      className="rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-2 text-xs text-[color:var(--color-text-tertiary)]"
+      className="rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-2 text-xs text-(--color-text-tertiary)"
       data-testid="sandbox-editor-preserved"
     >
-      <span className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
         preserved on save
       </span>
       <span className="ml-2">

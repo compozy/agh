@@ -41,7 +41,7 @@ interface FrameProps {
 function Frame({ children }: FrameProps) {
   return (
     <StorySurface className="flex">
-      <div className="flex flex-1 items-center justify-center text-sm text-[color:var(--color-text-secondary)]">
+      <div className="flex flex-1 items-center justify-center text-sm text-(--color-text-secondary)">
         Agent detail content
       </div>
       {children}

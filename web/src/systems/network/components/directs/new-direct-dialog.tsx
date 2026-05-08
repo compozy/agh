@@ -44,17 +44,13 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
   const isLoading = peersQuery.isLoading;
 
   if (isLoading) {
-    return (
-      <p className="px-2 py-3 text-[12px] text-[color:var(--color-text-tertiary)]">
-        Loading peers…
-      </p>
-    );
+    return <p className="px-2 py-3 text-xs text-(--color-text-tertiary)">Loading peers…</p>;
   }
 
   if (candidates.length === 0) {
     return (
       <p
-        className="px-2 py-3 text-[12px] text-[color:var(--color-text-tertiary)]"
+        className="px-2 py-3 text-xs text-(--color-text-tertiary)"
         data-testid="network-new-direct-no-peers"
       >
         No other peers in this channel yet.
@@ -68,17 +64,17 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
         <li key={peer.peer_id}>
           <button
             aria-selected={peer.peer_id === selectedPeerId ? "true" : "false"}
-            className="flex w-full items-baseline justify-between rounded-[4px] px-2 py-2 text-left hover:bg-[color:var(--color-hover)] focus-visible:bg-[color:var(--color-hover)] focus-visible:outline-none disabled:opacity-50"
+            className="flex w-full items-baseline justify-between rounded-chip px-2 py-2 text-left hover:bg-(--color-hover) focus-visible:bg-(--color-hover) focus-visible:outline-none disabled:opacity-50"
             data-testid={`network-new-direct-peer-${peer.peer_id}`}
             disabled={disabled}
             onClick={() => onSelect(peer)}
             role="option"
             type="button"
           >
-            <span className="truncate text-[13px] text-[color:var(--color-text-primary)]">
+            <span className="truncate text-small-body text-(--color-text-primary)">
               @{getPeerDisplayName(peer)}
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
               {peer.peer_id}
             </span>
           </button>
@@ -145,7 +141,7 @@ export function NewDirectDialog({
 
         {error ? (
           <p
-            className="text-[12px] text-[color:var(--color-danger)]"
+            className="text-xs text-(--color-danger)"
             data-testid="network-new-direct-error"
             role="alert"
           >

@@ -81,10 +81,10 @@ export function TasksDetailDependenciesPanel({
                 </TableCell>
                 <TableCell className="max-w-[360px]">
                   <div className="flex min-w-0 flex-col gap-1">
-                    <span className="truncate text-[13px] text-[color:var(--color-text-primary)]">
+                    <span className="truncate text-small-body text-(--color-text-primary)">
                       {target.title}
                     </span>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
                       <Pill mono>
                         {taskShortId({ id: target.id, identifier: target.identifier })}
                       </Pill>
@@ -94,13 +94,13 @@ export function TasksDetailDependenciesPanel({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="text-[12px] text-[color:var(--color-text-secondary)]">
+                <TableCell className="text-xs text-(--color-text-secondary)">
                   {taskOwnerLabel(target.owner)}
                 </TableCell>
                 <TableCell className="w-8 pr-4">
                   <Link
                     aria-label={`Open dependency ${target.identifier ?? target.id}`}
-                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-badge uppercase tracking-mono text-accent hover:underline"
                     data-testid={`tasks-detail-dependencies-link-${target.id}`}
                     params={{ id: target.id }}
                     to="/tasks/$id"

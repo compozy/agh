@@ -24,7 +24,7 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
   return (
     <Tabs
       aria-label="Task detail panels"
-      className="border-b border-[color:var(--color-divider)] px-4"
+      className="border-b border-(--color-divider) px-4"
       data-testid="tasks-detail-tabs"
       onValueChange={value => onChange(value as TaskDetailPanel)}
       value={active}
@@ -41,9 +41,9 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
             {typeof item.count === "number" ? (
               <span
                 className={cn(
-                  "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-mono text-[10px]",
-                  "bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]",
-                  "group-data-[active=true]:bg-[color:var(--color-surface-elevated)] group-data-[active=true]:text-[color:var(--color-text-primary)]"
+                  "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-mono text-badge",
+                  "bg-(--color-surface) text-(--color-text-secondary)",
+                  "group-data-[active=true]:bg-(--color-surface-elevated) group-data-[active=true]:text-(--color-text-primary)"
                 )}
                 data-testid={`tasks-detail-tab-count-${item.id}`}
               >
@@ -52,10 +52,10 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
             ) : null}
             {item.live ? (
               <span
-                className="inline-flex h-5 items-center gap-1 rounded-md bg-[color:var(--color-accent-tint)] px-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
+                className="inline-flex h-5 items-center gap-1 rounded-md bg-(--color-accent-tint) px-1.5 font-mono text-badge uppercase tracking-mono text-accent"
                 data-testid={`tasks-detail-tab-live-${item.id}`}
               >
-                <span className="size-1.5 rounded-full bg-[color:var(--color-accent)]" />
+                <span className="size-1.5 rounded-full bg-accent" />
                 Live
               </span>
             ) : null}

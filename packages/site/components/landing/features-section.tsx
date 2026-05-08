@@ -51,22 +51,22 @@ export function FeaturesSection() {
           <li key={feature.eyebrow}>
             <article
               data-testid="feature-card"
-              className="group flex h-full min-h-[420px] flex-col overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-4 transition-colors duration-300 hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-5"
+              className="group flex h-full min-h-[420px] flex-col overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-4 transition-colors duration-300 hover:border-accent/40 sm:p-5"
             >
-              <div className="overflow-hidden rounded-[8px]">
+              <div className="overflow-hidden rounded-md">
                 <img
                   src={feature.image}
                   alt={feature.imageAlt}
                   loading="lazy"
                   decoding="async"
-                  className="block aspect-[16/10] w-full object-contain opacity-95 transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+                  className="block aspect-16/10 w-full object-contain opacity-95 transition-transform duration-500 ease-out group-hover:scale-[1.02]"
                 />
               </div>
               <div className="flex flex-1 flex-col pt-5">
-                <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+                <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
                   {feature.eyebrow}
                 </p>
-                <h3 className="mt-3 text-[1.0625rem] font-medium leading-snug tracking-[-0.01em] text-(--color-text-primary)">
+                <h3 className="mt-3 text-base font-medium leading-snug tracking-tight text-(--color-text-primary)">
                   {feature.title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-(--color-text-secondary)">

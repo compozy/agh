@@ -65,7 +65,7 @@ export function NetworkShell({
   children,
 }: NetworkShellProps) {
   return (
-    <div className="flex min-h-0 flex-1 bg-[color:var(--color-canvas)]" data-testid="network-shell">
+    <div className="flex min-h-0 flex-1 bg-(--color-canvas)" data-testid="network-shell">
       <ChannelRail
         activeChannel={activeChannel?.channel ?? null}
         activeDirectId={activeDirectId}

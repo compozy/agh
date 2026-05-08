@@ -67,7 +67,7 @@ function SettingsFieldRow({
   let renderedLabel: ReactNode = (
     <span
       id={labelId}
-      className="text-sm font-medium text-[color:var(--color-text-primary)]"
+      className="text-sm font-medium text-(--color-text-primary)"
       data-testid={testId ? `${testId}-label` : undefined}
     >
       {label}
@@ -101,7 +101,7 @@ function SettingsFieldRow({
           <label
             htmlFor={controlId}
             id={labelId}
-            className="text-sm font-medium text-[color:var(--color-text-primary)]"
+            className="text-sm font-medium text-(--color-text-primary)"
             data-testid={testId ? `${testId}-label` : undefined}
           >
             {label}
@@ -115,7 +115,7 @@ function SettingsFieldRow({
     <Field
       orientation="vertical"
       className={cn(
-        "grid gap-3 border-t border-[color:var(--color-divider)] pt-5 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
+        "grid gap-3 border-t border-(--color-divider) pt-5 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
         className
       )}
       data-testid={testId}
@@ -124,7 +124,7 @@ function SettingsFieldRow({
         <div className="flex flex-wrap items-center gap-2">
           {renderedLabel}
           {hint ? (
-            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-label)] lg:hidden">
+            <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-label) lg:hidden">
               {hint}
             </span>
           ) : null}
@@ -132,13 +132,13 @@ function SettingsFieldRow({
         {description ? (
           <span
             id={descriptionId}
-            className="max-w-[34rem] text-xs leading-5 text-[color:var(--color-text-secondary)]"
+            className="max-w-136 text-xs leading-5 text-(--color-text-secondary)"
           >
             {description}
           </span>
         ) : null}
         {error ? (
-          <span id={errorId} className="text-xs text-[color:var(--color-danger)]">
+          <span id={errorId} className="text-xs text-(--color-danger)">
             {error}
           </span>
         ) : null}
@@ -147,7 +147,7 @@ function SettingsFieldRow({
         <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 lg:w-auto [&_input]:max-w-full [&_select]:max-w-full">
           {renderedControl}
           {hint ? (
-            <span className="hidden font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-label)] lg:inline">
+            <span className="hidden font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-label) lg:inline">
               {hint}
             </span>
           ) : null}

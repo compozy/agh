@@ -9,6 +9,7 @@ import type { AgentPayload } from "@/systems/agent/types";
 
 import { AgentCommandSelect } from "../agent-command-select";
 import { AgentCommandMultiSelect } from "../agent-command-multi-select";
+import { AgentCommandList } from "../agent-command-list";
 
 const categoryByName: Record<string, string[]> = {
   [storyAgentNames.cto]: ["Engineering", "Leadership"],
@@ -153,6 +154,18 @@ export const NoMatch: Story = {
     await userEvent.type(canvas.getByTestId("agent-command-input"), "nonexistent-agent");
     await waitFor(() => expect(canvas.getByTestId("agent-command-empty")).toBeInTheDocument());
   },
+};
+
+/**
+ * Base command list renders grouped agents without the popover wrapper used by
+ * the single and multi-select controls.
+ */
+export const CommandList: StoryObj<typeof AgentCommandList> = {
+  render: () => (
+    <Frame>
+      <AgentCommandList agents={groupedAgents} isSelected={() => false} onSelect={fn()} />
+    </Frame>
+  ),
 };
 
 /**

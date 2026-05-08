@@ -90,7 +90,7 @@ export function TasksReviewsCard({
           className="flex min-h-[120px] items-center justify-center"
           data-testid={`${testId}-loading`}
         >
-          <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+          <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
         </div>
       </Section>
     );
@@ -124,10 +124,7 @@ export function TasksReviewsCard({
 
   return (
     <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
-      <p
-        className="text-[12px] text-[color:var(--color-text-tertiary)]"
-        data-testid={`${testId}-disclaimer`}
-      >
+      <p className="text-xs text-(--color-text-tertiary)" data-testid={`${testId}-disclaimer`}>
         Status reflects the persisted review row. Outcomes appear once a bound reviewer session
         submits through submit_run_review. This view is read-only — operator sessions cannot bind a
         verdict.
@@ -154,12 +151,12 @@ export function TasksReviewsCard({
                 <TableCell className="max-w-[320px]">
                   <div className="flex min-w-0 flex-col gap-1">
                     <Pill mono>{review.review_id}</Pill>
-                    <span className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                    <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
                       run {review.run_id}
                     </span>
                     {review.reason ? (
                       <p
-                        className="line-clamp-2 text-[12px] text-[color:var(--color-text-secondary)]"
+                        className="line-clamp-2 text-xs text-(--color-text-secondary)"
                         data-testid={`${testIdPrefix}-${review.review_id}-reason`}
                       >
                         {review.reason}
@@ -167,7 +164,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {review.next_round_guidance ? (
                       <p
-                        className="line-clamp-3 rounded border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-2 py-1 text-[11px] text-[color:var(--color-text-secondary)]"
+                        className="line-clamp-3 rounded border border-(--color-divider) bg-(--color-surface) px-2 py-1 text-eyebrow text-(--color-text-secondary)"
                         data-testid={`${testIdPrefix}-${review.review_id}-guidance`}
                       >
                         {review.next_round_guidance}
@@ -175,7 +172,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {missingWorkCount > 0 ? (
                       <span
-                        className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-warning)]"
+                        className="font-mono text-badge uppercase tracking-mono text-(--color-warning)"
                         data-testid={`${testIdPrefix}-${review.review_id}-missing-work`}
                       >
                         Missing work · {missingWorkCount}
@@ -192,9 +189,7 @@ export function TasksReviewsCard({
                       {status}
                     </Pill>
                   ) : (
-                    <span className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
-                      —
-                    </span>
+                    <span className="font-mono text-eyebrow text-(--color-text-tertiary)">—</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -207,28 +202,28 @@ export function TasksReviewsCard({
                     </Pill>
                   ) : (
                     <span
-                      className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
+                      className="font-mono text-eyebrow text-(--color-text-tertiary)"
                       data-testid={`${testIdPrefix}-${review.review_id}-outcome-pending`}
                     >
                       pending
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-secondary)">
                   {review.reviewer_agent_name ?? "—"}
                   {review.reviewer_session_id ? (
-                    <span className="ml-2 text-[10px] text-[color:var(--color-text-tertiary)]">
+                    <span className="ml-2 text-badge text-(--color-text-tertiary)">
                       session {review.reviewer_session_id}
                     </span>
                   ) : null}
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-secondary)">
                   round {review.review_round} · attempt {review.attempt}
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
                   {formatRelativeTime(review.requested_at)}
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
                   {review.outcome ? formatRelativeTime(review.reviewed_at) : "—"}
                 </TableCell>
               </TableRow>

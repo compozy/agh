@@ -39,17 +39,17 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
   return (
     <Card
       data-testid={testId}
-      className="transition-colors duration-150 ease-out hover:ring-[color-mix(in_oklab,var(--color-accent)_40%,transparent)]"
+      className="transition-colors duration-150 ease-out hover:ring-accent/40"
     >
       <CardHeader>
         <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
-            className="flex size-10 items-center justify-center rounded-[10px] bg-[color:var(--color-surface-elevated)] ring-1 ring-[color:var(--color-divider)]"
+            className="flex size-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) ring-1 ring-(--color-divider)"
           >
             <ProviderLogo provider={provider.name} className="size-5" />
           </span>
-          <CardTitle className="font-mono text-sm text-[color:var(--color-text-primary)]">
+          <CardTitle className="font-mono text-sm text-(--color-text-primary)">
             {provider.name}
           </CardTitle>
         </div>
@@ -60,7 +60,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
         ) : null}
       </CardHeader>
 
-      <CardContent className="flex flex-col flex-1 gap-2 border-t border-[color:var(--color-divider)] pt-4">
+      <CardContent className="flex flex-col flex-1 gap-2 border-t border-(--color-divider) pt-4">
         <MetaRow label="Command" testId={`${testId}-command`}>
           {provider.settings.command ?? <EmptyValue />}
         </MetaRow>
@@ -113,7 +113,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
           />
         </MetaRow>
         <div className="grid grid-cols-[7.5rem_1fr] items-start gap-3 pt-1">
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
             Catalog
           </span>
           <ProviderModelCatalogStatus providerId={provider.name} testId={`${testId}-catalog`} />
@@ -128,7 +128,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             data-testid={`${testId}-status`}
             data-tone={state.label}
           />
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
             {STATE_LABELS[state.label] ?? state.label}
           </span>
         </span>
@@ -172,12 +172,12 @@ interface MetaRowProps {
 function MetaRow({ label, children, testId }: MetaRowProps) {
   return (
     <div className="grid grid-cols-[7.5rem_1fr] items-center gap-3">
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+      <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
         {label}
       </span>
       <span
         data-testid={testId}
-        className="min-w-0 truncate font-mono text-xs text-[color:var(--color-text-secondary)]"
+        className="min-w-0 truncate font-mono text-xs text-(--color-text-secondary)"
       >
         {children}
       </span>
@@ -186,7 +186,7 @@ function MetaRow({ label, children, testId }: MetaRowProps) {
 }
 
 function EmptyValue() {
-  return <span className="text-[color:var(--color-text-label)]">—</span>;
+  return <span className="text-(--color-text-label)">—</span>;
 }
 
 function ProviderAuthStatus({ provider }: { provider: SettingsProviderEntry }) {

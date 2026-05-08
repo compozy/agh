@@ -40,9 +40,9 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
     <button
       aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-1.5 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-        isSelected && "bg-[color:var(--color-surface)]"
+        "relative flex w-full flex-col gap-1.5 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
+        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isSelected && "bg-(--color-surface)"
       )}
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
@@ -52,22 +52,20 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
       {isSelected ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
           data-testid="memory-active-indicator"
         />
       ) : null}
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+        <span className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)">
           {memory.name}
         </span>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+        <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
           {formatKnowledgeRelativeTime(memory.mod_time)}
         </span>
       </div>
       {memory.description ? (
-        <span className="truncate text-[12px] text-[color:var(--color-text-secondary)]">
-          {memory.description}
-        </span>
+        <span className="truncate text-xs text-(--color-text-secondary)">{memory.description}</span>
       ) : null}
       <div className="flex flex-wrap items-center gap-1.5">
         <Pill
@@ -130,7 +128,7 @@ function KnowledgeListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
-      <div className="border-b border-[color:var(--color-divider)] p-3">
+      <div className="border-b border-(--color-divider) p-3">
         <SearchInput
           aria-label="Search knowledge"
           data-testid="knowledge-search-input"
@@ -140,7 +138,7 @@ function KnowledgeListPanel({
         />
         {searchInfo ? (
           <p
-            className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--color-text-tertiary)]"
+            className="mt-2 font-mono text-badge uppercase tracking-widest text-(--color-text-tertiary)"
             data-testid="knowledge-search-info"
           >
             {searchInfo}
@@ -156,7 +154,7 @@ function KnowledgeListPanel({
           >
             <Loader2
               aria-hidden="true"
-              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+              className="size-5 animate-spin text-(--color-text-tertiary)"
             />
           </div>
         ) : errorMessage && isEmpty ? (
@@ -194,10 +192,10 @@ function KnowledgeListPanel({
             {groups.map(group => (
               <div data-testid={`knowledge-group-${group.scope}`} key={group.scope}>
                 <div
-                  className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-2"
+                  className="flex items-center justify-between gap-2 border-b border-(--color-divider) bg-(--color-surface-panel) px-4 py-2"
                   data-testid={`knowledge-group-header-${group.scope}`}
                 >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                  <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                     {group.label}
                   </span>
                   <Pill mono>{group.memories.length}</Pill>

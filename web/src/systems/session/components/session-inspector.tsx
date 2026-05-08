@@ -415,12 +415,12 @@ function InspectorBody({
       >
         <TabsList
           variant="line"
-          className="w-full shrink-0 border-b border-[color:var(--color-divider)] px-2 group-data-horizontal/tabs:h-12"
+          className="w-full shrink-0 border-b border-(--color-divider) px-2 group-data-horizontal/tabs:h-12"
         >
           <TabsTrigger
             value="trace"
             data-testid="session-inspector-tab-trace"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:bottom-[-1px]"
+            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
           >
             <Activity className="size-3.5" />
             <span>{SECTION_LABELS.trace}</span>
@@ -428,7 +428,7 @@ function InspectorBody({
           <TabsTrigger
             value="usage"
             data-testid="session-inspector-tab-usage"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:bottom-[-1px]"
+            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
           >
             <Gauge className="size-3.5" />
             <span>{SECTION_LABELS.usage}</span>
@@ -456,16 +456,16 @@ function InspectorBody({
         aria-label="Memory, files, and vault"
         value={bottomTab}
         onValueChange={handleBottomChange}
-        className="flex min-h-0 flex-1 basis-0 flex-col gap-0 border-t border-[color:var(--color-divider)]"
+        className="flex min-h-0 flex-1 basis-0 flex-col gap-0 border-t border-(--color-divider)"
       >
         <TabsList
           variant="line"
-          className="w-full shrink-0 border-b border-[color:var(--color-divider)] px-2 group-data-horizontal/tabs:h-12"
+          className="w-full shrink-0 border-b border-(--color-divider) px-2 group-data-horizontal/tabs:h-12"
         >
           <TabsTrigger
             value="memory"
             data-testid="session-inspector-tab-memory"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:bottom-[-1px]"
+            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
           >
             <Library className="size-3.5" />
             <span>{SECTION_LABELS.memory}</span>
@@ -473,7 +473,7 @@ function InspectorBody({
           <TabsTrigger
             value="files"
             data-testid="session-inspector-tab-files"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:bottom-[-1px]"
+            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
           >
             <FileCode className="size-3.5" />
             <span>{SECTION_LABELS.files}</span>
@@ -481,7 +481,7 @@ function InspectorBody({
           <TabsTrigger
             value="vault"
             data-testid="session-inspector-tab-vault"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:bottom-[-1px]"
+            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
           >
             <KeyRound className="size-3.5" />
             <span>{SECTION_LABELS.vault}</span>
@@ -544,8 +544,8 @@ export function SessionInspector({
       aria-label="Session inspector"
       style={{ width: INSPECTOR_WIDTH }}
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden border-l bg-[color:var(--color-canvas)]",
-        "border-[color:var(--color-divider)] min-w-0",
+        "hidden shrink-0 flex-col overflow-hidden border-l bg-(--color-canvas)",
+        "border-(--color-divider) min-w-0",
         "xl:flex",
         className
       )}
@@ -599,7 +599,7 @@ function TraceSection({ events, total, limit, onViewAll }: TraceSectionProps) {
           size="sm"
           onClick={onViewAll}
           data-testid="session-inspector-trace-view-all"
-          className="mt-3 h-7 gap-1 self-start px-1 text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
+          className="mt-3 h-7 gap-1 self-start px-1 text-(--color-text-secondary) hover:text-(--color-text-primary)"
         >
           View all
           <ChevronRight className="size-3" />
@@ -630,7 +630,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
           data-testid="session-inspector-trace-timestamp"
-          className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+          className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
         >
           {ts}
         </span>
@@ -644,7 +644,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
         </Pill>
         <span
           data-testid="session-inspector-trace-label"
-          className="min-w-0 flex-1 truncate text-[12.5px] text-[color:var(--color-text-primary)]"
+          className="min-w-0 flex-1 truncate text-small-body text-(--color-text-primary)"
         >
           {event.label}
         </span>
@@ -731,7 +731,7 @@ function MemorySection({ memory }: MemorySectionProps) {
       >
         <div
           data-testid="session-inspector-memory-loading"
-          className="flex items-center gap-2 px-1 py-3 text-[12px] text-[color:var(--color-text-tertiary)]"
+          className="flex items-center gap-2 px-1 py-3 text-xs text-(--color-text-tertiary)"
         >
           <Loader2 aria-hidden="true" className="size-4 animate-spin" />
           Loading session ledger…
@@ -839,7 +839,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
         <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
           LEDGER
         </Pill>
-        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
           Forensic
         </span>
       </div>
@@ -850,13 +850,13 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
             data-testid={`session-inspector-memory-meta-${item.testId}`}
             className="flex items-baseline justify-between gap-2"
           >
-            <dt className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+            <dt className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
               {item.label}
             </dt>
             <dd
               className={cn(
-                "min-w-0 flex-1 break-all text-right text-[12px] text-[color:var(--color-text-primary)]",
-                item.mono ? "font-mono text-[11.5px]" : null
+                "min-w-0 flex-1 break-all text-right text-xs text-(--color-text-primary)",
+                item.mono ? "font-mono text-eyebrow" : null
               )}
               data-testid={`session-inspector-memory-meta-${item.testId}-value`}
             >
@@ -882,11 +882,11 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       className="flex flex-col gap-2"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
           Ledger events
         </span>
         <span
-          className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+          className="font-mono text-badge text-(--color-text-tertiary)"
           data-testid="session-inspector-memory-events-count"
         >
           {events.length}
@@ -902,7 +902,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       ) : (
         <ul
           data-testid="session-inspector-memory-events-list"
-          className="flex flex-col divide-y divide-[color:var(--color-divider)]"
+          className="flex flex-col divide-y divide-(--color-divider)"
         >
           {visible.map(event => (
             <li
@@ -912,7 +912,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
             >
               <span
                 data-testid="session-inspector-memory-event-sequence"
-                className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+                className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
               >
                 #{event.sequence}
               </span>
@@ -921,7 +921,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
               </Pill>
               <span
                 data-testid="session-inspector-memory-event-timestamp"
-                className="ml-auto shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+                className="ml-auto shrink-0 font-mono text-badge text-(--color-text-tertiary)"
               >
                 {formatLedgerTimestamp(event.emitted_at)}
               </span>
@@ -962,11 +962,11 @@ function FilesSection({ files }: FilesSectionProps) {
       ) : (
         <ScrollArea
           data-testid="session-inspector-files-scroll"
-          className="max-h-[240px] rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
+          className="max-h-[240px] rounded-md border border-(--color-divider) bg-(--color-surface)"
         >
           <ul
             data-testid="session-inspector-files-list"
-            className="flex flex-col divide-y divide-[color:var(--color-divider)]"
+            className="flex flex-col divide-y divide-(--color-divider)"
           >
             {files.map(file => (
               <li
@@ -976,17 +976,17 @@ function FilesSection({ files }: FilesSectionProps) {
               >
                 <FileCode
                   aria-hidden="true"
-                  className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
+                  className="size-3 shrink-0 text-(--color-text-tertiary)"
                 />
                 <span
                   data-testid="session-inspector-files-path"
-                  className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--color-text-primary)]"
+                  className="min-w-0 flex-1 truncate font-mono text-eyebrow text-(--color-text-primary)"
                 >
                   {file.path}
                 </span>
                 <span
                   data-testid="session-inspector-files-count"
-                  className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+                  className="shrink-0 font-mono text-badge text-(--color-text-tertiary)"
                 >
                   ×{file.readCount}
                 </span>
@@ -1045,10 +1045,10 @@ export function SessionInspectorDrawer({
       <SheetContent
         side="right"
         data-testid="session-inspector-drawer"
-        className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-[color:var(--color-canvas)] p-0 sm:max-w-[360px]"
+        className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-(--color-canvas) p-0 sm:max-w-[360px]"
       >
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-[color:var(--color-divider)] px-4">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-(--color-divider) px-4">
+          <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
             Inspector
           </span>
         </header>

@@ -29,21 +29,21 @@ export function ThreadOverlayHeader({ channel, threadId, detail }: ThreadOverlay
 
   return (
     <header
-      className="flex items-start gap-2 border-b border-[color:var(--color-divider)] px-4 py-3"
+      className="flex items-start gap-2 border-b border-(--color-divider) px-4 py-3"
       data-testid="network-thread-overlay-header"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="truncate text-[15px] font-semibold text-[color:var(--color-text-primary)]">
+        <h2 className="truncate text-item-title font-semibold text-(--color-text-primary)">
           {title}
         </h2>
         {participantLabel ? (
-          <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+          <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
             {participantLabel}
           </p>
         ) : null}
         <Button
           aria-label="Open thread in main pane"
-          className="self-start text-[12px] text-[color:var(--color-text-secondary)]"
+          className="self-start text-xs text-(--color-text-secondary)"
           data-testid="network-thread-overlay-open-main"
           onClick={() => {
             void navigate({

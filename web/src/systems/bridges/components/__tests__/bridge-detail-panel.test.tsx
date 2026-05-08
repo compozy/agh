@@ -210,7 +210,7 @@ describe("BridgeDetailPanel", () => {
     const routeRow = screen.getByTestId("bridge-route-sess_trace_123");
 
     expect(routeRow).toHaveTextContent("sess_trace_123");
-    expect(within(routeRow).getByText("SESSION")).toHaveClass("uppercase", "tracking-[0.12em]");
+    expect(within(routeRow).getByText("SESSION")).toHaveClass("uppercase", "tracking-mono");
   });
 
   it("uses unique default route identities when rendering multiple route fixtures", () => {

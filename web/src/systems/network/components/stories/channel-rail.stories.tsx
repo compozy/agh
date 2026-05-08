@@ -6,7 +6,12 @@ import {
   networkDirectRoomsFixture,
   networkThreadsFixture,
 } from "@/systems/network/mocks";
-import { ChannelRail } from "@/systems/network/components/shell";
+import {
+  ChannelRail,
+  ChannelRailRecents,
+  ChannelRailRow,
+  ChannelTabs,
+} from "@/systems/network/components/shell";
 import type { NetworkChannelSummary, NetworkRecentEntry, NetworkSurface } from "@/systems/network";
 
 const allChannels: NetworkChannelSummary[] = [...networkChannelsFixture.channels];
@@ -108,6 +113,42 @@ export const Empty: Story = {
         selfPeerId={null}
         unpinnedChannels={[]}
       />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * Individual rail row, recents, and tab primitives used inside the channel rail
+ * and network header.
+ */
+export const RailPrimitives: StoryObj<typeof ChannelRailRow> = {
+  render: () => (
+    <PanelSurface className="min-h-[360px] p-4">
+      <div className="grid max-w-sm gap-5">
+        <div className="space-y-1">
+          <ChannelRailRow
+            active
+            channel={allChannels[0]!}
+            hasUnread
+            isPinned
+            onTogglePinned={() => undefined}
+          />
+          <ChannelRailRow
+            active={false}
+            channel={allChannels[1]!}
+            hasUnread={false}
+            isPinned={false}
+            onTogglePinned={() => undefined}
+          />
+        </div>
+        <ChannelRailRecents recents={recents} isLoading={false} />
+        <ChannelTabs
+          channel={allChannels[0]?.channel ?? "launch-war-room"}
+          activeTab="threads"
+          threadCount={12}
+          directCount={3}
+        />
+      </div>
     </PanelSurface>
   ),
 };

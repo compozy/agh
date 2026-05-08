@@ -5,8 +5,8 @@ export type MonoEyebrowTone = "neutral" | "accent" | "success" | "danger" | "war
 
 const toneClass: Record<MonoEyebrowTone, string> = {
   neutral: "text-(--color-text-label)",
-  accent: "text-(--color-accent)",
-  success: "text-(--color-success)",
+  accent: "text-accent",
+  success: "text-success",
   danger: "text-(--color-danger)",
   warning: "text-(--color-warning)",
   info: "text-(--color-info)",
@@ -27,8 +27,8 @@ export function MonoEyebrow({
     <span
       {...props}
       className={cn(
-        "font-mono text-[11px] font-semibold uppercase",
-        tracking === "wide" ? "tracking-[0.08em]" : "tracking-[0.06em]",
+        "font-mono text-eyebrow font-semibold uppercase",
+        tracking === "wide" ? "tracking-badge" : "tracking-mono",
         toneClass[tone],
         className
       )}

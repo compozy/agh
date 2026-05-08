@@ -20,6 +20,49 @@
   --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Courier New", monospace;
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1rem;
+  --text-display-2xl: 1.75rem;
+  --text-display-2xl--line-height: 1;
+  --text-site-lead: 1.1875rem;
+  --text-site-lead--line-height: 1.5;
+  --text-micro: 0.5625rem;
+  --text-micro--line-height: 0.75rem;
+  --text-inline-code: 0.9em;
+  --text-accent-glyph: 0.85em;
+  --text-ui-title-lg: 1.35rem;
+  --text-site-hero: clamp(2.8rem, 6.5vw, 5.4rem);
+  --text-site-error-title: clamp(2.6rem, 6vw, 4.8rem);
+  --text-site-hero-section: clamp(2.6rem, 5.5vw, 4.2rem);
+  --text-site-blog-title: clamp(2.6rem, 5.4vw, 4.6rem);
+  --text-site-doc-title: clamp(2.55rem, 4.7vw, 4rem);
+  --text-site-protocol-title: clamp(2.4rem, 5vw, 3.8rem);
+  --text-site-page-title: clamp(2.4rem, 4.4vw, 4rem);
+  --text-site-article-title: clamp(2.4rem, 4.4vw, 3.6rem);
+  --text-site-section-title: clamp(2.2rem, 4.6vw, 3.6rem);
+  --text-site-category-title: clamp(2.2rem, 4vw, 3.4rem);
+  --text-site-cta-title: clamp(2rem, 4.5vw, 3.2rem);
+  --text-site-feature-title: clamp(2rem, 3.4vw, 2.8rem);
+  --text-site-subsection-title: clamp(1.9rem, 3.4vw, 2.6rem);
+  --text-site-doc-heading: clamp(1.7rem, 3vw, 2.45rem);
+  --text-site-release-title: clamp(1.6rem, 3vw, 2.1rem);
+  --text-site-empty-title: clamp(1.55rem, 3vw, 2rem);
+  --text-site-quote: clamp(1.5rem, 2.4vw, 1.95rem);
+  --text-site-card-title: clamp(1.45rem, 3vw, 1.9rem);
+  --text-site-subheading: clamp(1.3rem, 2.2vw, 1.7rem);
+  --text-site-bento-2xl: 2.5rem;
+  --text-site-bento-xl: 2.35rem;
+  --text-site-bento-lg: 2rem;
+  --text-site-bento-md: 1.9rem;
+  --text-site-bento-sm: 1.8rem;
+  --text-site-bento-xs: 1.65rem;
+  --leading-small-body: var(--text-small-body--line-height);
+  --leading-doc-body: 1.8;
+  --tracking-badge: var(--tracking-badge);
+  --radius-chip: var(--radius-chip);
+  --radius-mono-badge: var(--radius-mono-badge);
+  --radius-diagram: var(--radius-diagram);
+  --radius-icon-well: 0.625rem;
 }
 
 :root {
@@ -87,7 +130,7 @@ a {
 }
 
 ::selection {
-  background: rgba(232, 87, 42, 0.28);
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
   color: var(--color-text-primary);
 }
 
@@ -310,6 +353,51 @@ button span.truncate[class*="transition-"] {
 .site-home h1,
 .site-home h2 {
   font-family: var(--font-display), var(--font-sans);
+}
+
+.site-bento-overlay-runtime {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-canvas-deep) 68%, transparent) 0%,
+    color-mix(in srgb, var(--color-canvas-deep) 18%, transparent) 42%,
+    transparent 68%
+  );
+}
+
+.site-bento-overlay-network {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-canvas-deep) 94%, transparent) 0%,
+    color-mix(in srgb, var(--color-canvas-deep) 78%, transparent) 21%,
+    transparent 48%
+  );
+}
+
+.site-bento-overlay-bridges {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-canvas-deep) 84%, transparent) 0%,
+    color-mix(in srgb, var(--color-canvas-deep) 40%, transparent) 30%,
+    transparent 64%
+  );
+}
+
+.site-bento-overlay-memory {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-canvas-deep) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-canvas-deep) 72%, transparent) 27%,
+    transparent 58%
+  );
+}
+
+.site-bento-overlay-extensibility {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-canvas-deep) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-canvas-deep) 66%, transparent) 26%,
+    transparent 58%
+  );
 }
 
 @media (max-width: 1024px) {

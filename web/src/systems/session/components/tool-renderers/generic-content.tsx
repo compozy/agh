@@ -26,12 +26,12 @@ export function GenericContent({ message }: { message: UIMessage }) {
   return (
     <div className="space-y-1.5 text-xs">
       {message.toolInput && (
-        <pre className="max-h-32 overflow-auto rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] text-[color:var(--color-text-tertiary)] whitespace-pre-wrap break-words">
+        <pre className="max-h-32 overflow-auto rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow text-(--color-text-tertiary) whitespace-pre-wrap wrap-break-word">
           {formatInput(message.toolInput)}
         </pre>
       )}
       {hasResult && (
-        <pre className="max-h-48 overflow-auto rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] text-[color:var(--color-text-tertiary)] whitespace-pre-wrap break-words">
+        <pre className="max-h-48 overflow-auto rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow text-(--color-text-tertiary) whitespace-pre-wrap wrap-break-word">
           {formatResult(result)}
         </pre>
       )}

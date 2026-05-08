@@ -39,9 +39,9 @@ function SandboxDiagram() {
           {["workspace", "agh daemon", "sandbox provider"].map(label => (
             <div
               key={label}
-              className="rounded-[8px] border border-(--color-divider) bg-(--color-canvas) px-3 py-2"
+              className="rounded-md border border-(--color-divider) bg-(--color-canvas) px-3 py-2"
             >
-              <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-label)">
+              <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
                 {label}
               </p>
             </div>
@@ -50,9 +50,9 @@ function SandboxDiagram() {
 
         <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
           <DiagramNode title="Host files" lines={["root_dir", "add_dirs", ".agh/config.toml"]} />
-          <div className="h-px w-10 bg-(--color-accent)" />
+          <div className="h-px w-10 bg-accent" />
           <DiagramNode title="Session" lines={["prepare", "sync", "stop"]} active />
-          <div className="h-px w-10 bg-(--color-accent)" />
+          <div className="h-px w-10 bg-accent" />
           <DiagramNode title="Daytona" lines={["image/snapshot", "runtime_root", "tool host"]} />
         </div>
 
@@ -60,7 +60,7 @@ function SandboxDiagram() {
           {["sandbox_id", "sandbox_ref", "sandbox.exec"].map(label => (
             <code
               key={label}
-              className="rounded-[6px] border border-(--color-divider) bg-(--color-canvas-deep) px-3 py-2 text-center font-mono text-[11px] text-(--color-text-secondary)"
+              className="rounded-mono-badge border border-(--color-divider) bg-(--color-canvas-deep) px-3 py-2 text-center font-mono text-eyebrow text-(--color-text-secondary)"
             >
               {label}
             </code>
@@ -82,16 +82,14 @@ function DiagramNode({
 }) {
   return (
     <div
-      className={`rounded-[8px] border p-4 ${
-        active
-          ? "border-(--color-accent) bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface))]"
-          : "border-(--color-divider) bg-(--color-canvas)"
+      className={`rounded-md border p-4 ${
+        active ? "border-accent bg-accent/8" : "border-(--color-divider) bg-(--color-canvas)"
       }`}
     >
       <p className="text-sm font-medium text-(--color-text-primary)">{title}</p>
       <ul className="mt-3 space-y-1">
         {lines.map(line => (
-          <li key={line} className="font-mono text-[11px] text-(--color-text-tertiary)">
+          <li key={line} className="font-mono text-eyebrow text-(--color-text-tertiary)">
             {line}
           </li>
         ))}
@@ -118,14 +116,14 @@ export function SandboxSection() {
               className="rounded-(--radius-card) border border-(--color-divider) bg-(--color-canvas) p-5"
             >
               <div className="flex items-center gap-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--color-divider) text-(--color-accent)">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-mono-badge border border-(--color-divider) text-accent">
                   {card.icon}
                 </span>
-                <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+                <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
                   {card.eyebrow}
                 </p>
               </div>
-              <h3 className="mt-4 text-[1.0625rem] font-medium leading-snug text-(--color-text-primary)">
+              <h3 className="mt-4 text-base font-medium leading-snug text-(--color-text-primary)">
                 {card.title}
               </h3>
               <p className="mt-3 text-sm leading-relaxed text-(--color-text-secondary)">

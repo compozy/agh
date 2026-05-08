@@ -59,7 +59,7 @@ export function BridgeEditDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-3xl"
+        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-3xl"
         showCloseButton={false}
       >
         <form
@@ -70,7 +70,7 @@ export function BridgeEditDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
+          <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
             <DialogTitle>Edit Bridge</DialogTitle>
             <DialogDescription>
               Update mutable bridge settings for {bridgeName ?? "the selected bridge"} and restart
@@ -129,21 +129,21 @@ export function BridgeEditDialog({
               </FieldGroup>
 
               <Section label="Provider runtime">
-                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="text-small-body text-(--color-text-secondary)">
                   Provider-owned runtime settings remain separate from generic delivery defaults.
                 </p>
 
-                <div className="mt-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+                <div className="mt-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+                  <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
                     Config schema
                   </p>
-                  <p className="mt-2 text-[13px] text-[color:var(--color-text-primary)]">
+                  <p className="mt-2 text-small-body text-(--color-text-primary)">
                     {describeBridgeProviderConfigSchema(provider?.config_schema)}
                   </p>
                   {provider?.secret_slots?.length ? (
                     <div className="mt-3 flex items-center gap-2">
                       <Pill mono>{provider.secret_slots.length}</Pill>
-                      <p className="text-[12px] text-[color:var(--color-text-secondary)]">
+                      <p className="text-xs text-(--color-text-secondary)">
                         Secret slots are managed inline from the detail panel.
                       </p>
                     </div>
@@ -174,7 +174,7 @@ export function BridgeEditDialog({
                   />
                   {providerConfigError ? (
                     <p
-                      className="text-[13px] text-[color:var(--color-danger)]"
+                      className="text-small-body text-(--color-danger)"
                       data-testid="bridge-edit-provider-config-error"
                     >
                       {providerConfigError}
@@ -184,7 +184,7 @@ export function BridgeEditDialog({
               </Section>
 
               <Section label="Routing policy">
-                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="text-small-body text-(--color-text-secondary)">
                   {describeBridgeRoutingPolicy(draft.routingPolicy)}
                 </p>
                 <FieldGroup className="mt-3 gap-3">
@@ -255,7 +255,7 @@ export function BridgeEditDialog({
               </Section>
 
               <Section label="Delivery defaults">
-                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                <p className="text-small-body text-(--color-text-secondary)">
                   These defaults are applied when resolving outbound delivery targets.
                 </p>
                 <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -348,7 +348,7 @@ export function BridgeEditDialog({
             </FieldSet>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+          <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Cancel
             </Button>

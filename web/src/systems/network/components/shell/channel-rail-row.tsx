@@ -37,7 +37,7 @@ export function ChannelRailRow({
           NAV_ROW_CLASS,
           "min-w-0 flex-1 pr-7",
           active && ACTIVE_NAV_ROW_CLASS,
-          !active && hasUnread && "font-semibold text-[color:var(--color-text-primary)]"
+          !active && hasUnread && "font-semibold text-(--color-text-primary)"
         )}
         data-active={active}
         data-testid={`network-channel-link-${channel.channel}`}
@@ -49,9 +49,7 @@ export function ChannelRailRow({
           aria-hidden="true"
           className={cn(
             "size-3.5 shrink-0",
-            active
-              ? "text-[color:var(--color-text-primary)]"
-              : "text-[color:var(--color-text-tertiary)]"
+            active ? "text-(--color-text-primary)" : "text-(--color-text-tertiary)"
           )}
         />
         <span className="min-w-0 truncate">{channel.channel}</span>
@@ -61,7 +59,7 @@ export function ChannelRailRow({
         aria-label={ariaLabel}
         aria-pressed={isPinned}
         className={cn(
-          "absolute right-1 top-1/2 -translate-y-1/2 rounded-[4px] p-1 text-[color:var(--color-text-tertiary)] opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)] group-hover:opacity-100",
+          "absolute right-1 top-1/2 -translate-y-1/2 rounded-chip p-1 text-(--color-text-tertiary) opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent group-hover:opacity-100",
           (isPinned || active) && "opacity-100"
         )}
         data-testid={`network-channel-pin-${channel.channel}`}
@@ -74,10 +72,7 @@ export function ChannelRailRow({
       >
         <Star
           aria-hidden="true"
-          className={cn(
-            "size-3",
-            isPinned ? "fill-[color:var(--color-accent)] text-[color:var(--color-accent)]" : null
-          )}
+          className={cn("size-3", isPinned ? "fill-accent text-accent" : null)}
         />
       </button>
     </div>

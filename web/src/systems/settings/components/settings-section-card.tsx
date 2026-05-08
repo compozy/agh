@@ -20,18 +20,18 @@ function SettingsSectionCard({
   return (
     <section
       className={cn(
-        "flex flex-col gap-4 border-t border-[color:var(--color-divider)] pt-5 first:border-t-0 first:pt-0 md:gap-5 md:pt-6",
+        "flex flex-col gap-4 border-t border-(--color-divider) pt-5 first:border-t-0 first:pt-0 md:gap-5 md:pt-6",
         className
       )}
       {...props}
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]">
+          <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
             {eyebrow}
           </span>
           {note ? (
-            <span className="max-w-[38rem] text-xs leading-5 text-[color:var(--color-text-secondary)]">
+            <span className="max-w-152 text-xs leading-5 text-(--color-text-secondary)">
               {note}
             </span>
           ) : null}

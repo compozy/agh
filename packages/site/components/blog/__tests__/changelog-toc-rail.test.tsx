@@ -49,10 +49,10 @@ describe("ChangelogTocRail", () => {
     const latest = screen.getByRole("link", { name: "v0.2.0" });
     const previous = screen.getByRole("link", { name: "v0.1.0" });
     expect(latest.getAttribute("href")).toBe("#v0.2.0");
-    expect(latest.getAttribute("class")).toContain("text-(--color-accent)");
+    expect(latest.getAttribute("class")).toContain("text-accent");
     expect(latest.getAttribute("aria-current")).toBe("location");
     expect(previous.getAttribute("href")).toBe("#v0.1.0");
-    expect(previous.getAttribute("class")).not.toContain("text-(--color-accent)");
+    expect(previous.getAttribute("class")).not.toContain("text-accent");
     expect(previous.getAttribute("aria-current")).toBeNull();
   });
 

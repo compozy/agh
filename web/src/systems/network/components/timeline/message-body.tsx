@@ -47,7 +47,7 @@ export function MessageBodyText({ message, className }: MessageBodyTextProps) {
     <p
       className={
         className ??
-        "whitespace-pre-wrap text-[15px] leading-[1.5] text-[color:var(--color-text-primary)]"
+        "whitespace-pre-wrap text-item-title leading-normal text-(--color-text-primary)"
       }
       data-testid="network-message-body"
     >

@@ -63,7 +63,7 @@ export function CodeBlock({
     >
       {(caption || language || copyable) && (
         <div className="flex min-w-0 items-start justify-between gap-3 border-b border-(--color-divider) px-4 py-2.5">
-          <span className="min-w-0 font-mono text-[10px] leading-relaxed font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) [overflow-wrap:anywhere]">
+          <span className="min-w-0 font-mono text-badge leading-relaxed font-medium uppercase tracking-mono text-(--color-text-tertiary) wrap-anywhere">
             {caption ?? language ?? "shell"}
           </span>
           {copyable ? (
@@ -80,7 +80,7 @@ export function CodeBlock({
               }
               aria-live="polite"
               className={cn(
-                "text-(--color-text-tertiary) hover:text-(--color-accent)",
+                "text-(--color-text-tertiary) hover:text-accent",
                 copyState === "failed" && "text-(--color-danger) hover:text-(--color-danger)"
               )}
             >
@@ -95,12 +95,12 @@ export function CodeBlock({
           ) : null}
         </div>
       )}
-      <pre className="overflow-x-auto px-4 py-4 font-mono text-[13px] leading-[1.7] text-(--color-text-primary)">
+      <pre className="overflow-x-auto px-4 py-4 font-mono text-small-body leading-7 text-(--color-text-primary)">
         <code>
           {lines.map((line, i) => (
             <div key={i} className={line === "" ? "h-[1.1em]" : undefined}>
               {shell && line !== "" && !line.startsWith("#") ? (
-                <span className="select-none text-(--color-accent)">$ </span>
+                <span className="select-none text-accent">$ </span>
               ) : null}
               {line.startsWith("#") ? (
                 <span className="text-(--color-text-tertiary)">{line}</span>

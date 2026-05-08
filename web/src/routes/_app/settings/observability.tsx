@@ -59,7 +59,7 @@ function ObservabilitySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-observability-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -71,8 +71,8 @@ function ObservabilitySettingsPage() {
         data-testid="settings-page-observability-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load observability settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -338,16 +338,16 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
   return (
     <SettingsSectionCard eyebrow="Log tail" note="daemon log stream">
       <div
-        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-3"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3"
         data-testid="settings-page-observability-log-tail"
         data-available={logTail.available ? "true" : "false"}
       >
         <div className="flex flex-col gap-1">
-          <span className="text-sm text-[color:var(--color-text-primary)]">
+          <span className="text-sm text-(--color-text-primary)">
             {logTail.available ? "Live log tail available" : "Log tail unavailable"}
           </span>
           <span
-            className="font-mono text-[0.64rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]"
+            className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)"
             data-testid="settings-page-observability-log-tail-transport"
           >
             transport: {logTail.transport ?? "none"}
@@ -355,7 +355,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
         </div>
         {logTail.available && logTail.stream_url ? (
           <a
-            className="inline-flex items-center gap-1.5 text-sm text-[color:var(--color-accent)] hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
             data-testid="settings-page-observability-log-tail-link"
             href={logTail.stream_url}
             rel="noreferrer"
@@ -391,7 +391,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
         {label}
       </span>
       <div className="flex items-center gap-2">
@@ -404,14 +404,12 @@ function NumberField({
           onValueChange={onChange}
         />
         {suffix ? (
-          <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
             {suffix}
           </span>
         ) : null}
       </div>
-      {errorMessage ? (
-        <span className="text-xs text-[color:var(--color-danger)]">{errorMessage}</span>
-      ) : null}
+      {errorMessage ? <span className="text-xs text-(--color-danger)">{errorMessage}</span> : null}
     </div>
   );
 }
@@ -429,30 +427,30 @@ function UsageBreakdown({ globalBytes, sessionBytes, cap }: UsageBreakdownProps)
 
   return (
     <div className="flex flex-col gap-2" data-testid="settings-page-observability-usage-breakdown">
-      <div className="flex items-center justify-between text-xs text-[color:var(--color-text-tertiary)]">
-        <span className="font-mono uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+      <div className="flex items-center justify-between text-xs text-(--color-text-tertiary)">
+        <span className="font-mono uppercase tracking-mono text-(--color-text-label)">
           Usage breakdown
         </span>
       </div>
-      <div className="relative h-2 w-full overflow-hidden rounded-full bg-[color:var(--color-surface-panel)]">
+      <div className="relative h-2 w-full overflow-hidden rounded-full bg-(--color-surface-panel)">
         <div
-          className="absolute inset-y-0 left-0 bg-[color:var(--color-accent)]"
+          className="absolute inset-y-0 left-0 bg-accent"
           style={{ width: `${globalPct}%` }}
           data-testid="settings-page-observability-usage-bar-global"
         />
         <div
-          className="absolute inset-y-0 bg-[color:var(--color-info)]"
+          className="absolute inset-y-0 bg-(--color-info)"
           style={{ left: `${globalPct}%`, width: `${sessionPct}%` }}
           data-testid="settings-page-observability-usage-bar-sessions"
         />
       </div>
-      <div className="flex flex-wrap gap-4 text-xs text-[color:var(--color-text-secondary)]">
+      <div className="flex flex-wrap gap-4 text-xs text-(--color-text-secondary)">
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-[color:var(--color-accent)]" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
           global DB {formatBytes(globalBytes)}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-[color:var(--color-info)]" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-(--color-info)" />
           session DB {formatBytes(sessionBytes)}
         </span>
       </div>

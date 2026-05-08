@@ -46,7 +46,7 @@ function ProvidersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-providers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -58,8 +58,8 @@ function ProvidersSettingsPage() {
         data-testid="settings-page-providers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load providers"}
           </p>
         </div>
@@ -501,7 +501,7 @@ function ProviderEditor({
           hint="OPTIONAL"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+              <KeyRound className="size-3.5 text-(--color-text-tertiary)" />
               <Input
                 className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
@@ -522,7 +522,7 @@ function ProviderEditor({
           hint="BOUND"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+              <KeyRound className="size-3.5 text-(--color-text-tertiary)" />
               <Input
                 className="w-72 font-mono"
                 data-testid="settings-providers-editor-secret-ref-input"
@@ -580,10 +580,10 @@ function AdditionalCredentialSlotsEditor({
       description="Additional credential refs injected into provider subprocess env."
       hint="OPTIONAL"
       control={
-        <div className="flex w-full max-w-[44rem] flex-col gap-2">
+        <div className="flex w-full max-w-176 flex-col gap-2">
           {additionalSlots.length === 0 ? (
             <span
-              className="font-mono text-xs text-[color:var(--color-text-tertiary)]"
+              className="font-mono text-xs text-(--color-text-tertiary)"
               data-testid="settings-providers-editor-credential-slots-empty"
             >
               No additional credential slots
@@ -593,7 +593,7 @@ function AdditionalCredentialSlotsEditor({
               const index = offset + 1;
               return (
                 <div
-                  className="grid gap-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
+                  className="grid gap-2 rounded-md border border-(--color-divider) p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
                   data-testid={`settings-providers-editor-credential-slot-${index}`}
                   key={`${slot.name}-${index}`}
                 >

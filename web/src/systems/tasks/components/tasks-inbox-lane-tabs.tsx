@@ -34,7 +34,7 @@ export function TasksInboxLaneTabs({
 
   return (
     <div
-      className="border-b border-[color:var(--color-divider)] px-4 py-2.5"
+      className="border-b border-(--color-divider) px-4 py-2.5"
       data-testid="tasks-inbox-lane-tabs"
     >
       <Tabs
@@ -44,7 +44,7 @@ export function TasksInboxLaneTabs({
       >
         <TabsList className="h-8 overflow-x-auto" variant="line">
           <TabsTrigger
-            className="flex-none gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em]"
+            className="flex-none gap-1.5 font-mono text-eyebrow uppercase tracking-mono"
             data-testid="tasks-inbox-lane-all"
             value="all"
           >
@@ -56,7 +56,7 @@ export function TasksInboxLaneTabs({
             const label = taskInboxLaneLabel(lane);
             return (
               <TabsTrigger
-                className="flex-none gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em]"
+                className="flex-none gap-1.5 font-mono text-eyebrow uppercase tracking-mono"
                 data-testid={`tasks-inbox-lane-${lane}`}
                 key={lane}
                 value={lane}
@@ -79,10 +79,7 @@ interface LaneCountProps {
 
 function LaneCount({ value, testId }: LaneCountProps) {
   return (
-    <span
-      className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
-      data-testid={testId}
-    >
+    <span className="font-mono text-badge text-(--color-text-tertiary)" data-testid={testId}>
       ({value})
     </span>
   );

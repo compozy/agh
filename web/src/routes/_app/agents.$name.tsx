@@ -37,7 +37,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
   if (page.agentLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="agent-detail-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -55,7 +55,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
             <button
               type="button"
               onClick={page.onGoHome}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] px-3 py-1.5 text-[12px] text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text-primary)]"
+              className="inline-flex items-center gap-2 rounded-md border border-(--color-divider) px-3 py-1.5 text-xs text-(--color-text-secondary) transition-colors hover:border-accent hover:text-(--color-text-primary)"
               data-testid="agent-detail-go-home"
             >
               <Compass className="size-3.5" />

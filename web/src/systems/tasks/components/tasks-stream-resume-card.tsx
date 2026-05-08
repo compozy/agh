@@ -46,7 +46,7 @@ export function TasksStreamResumeCard({
       label="Stream resume"
     >
       <p
-        className="text-[12px] text-[color:var(--color-text-tertiary)]"
+        className="text-xs text-(--color-text-tertiary)"
         data-testid="tasks-stream-resume-disclaimer"
       >
         The web client seeds task SSE through Last-Event-ID derived from the task's latest_event_seq
@@ -54,33 +54,33 @@ export function TasksStreamResumeCard({
         queries without inferring authority.
       </p>
       <div
-        className="grid gap-3 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-3 md:grid-cols-3"
+        className="grid gap-3 rounded-xl border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3 md:grid-cols-3"
         data-testid="tasks-stream-resume-summary"
       >
         <div className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
             Latest event seq
           </span>
           <span
-            className="font-mono text-[15px] text-[color:var(--color-text-primary)]"
+            className="font-mono text-item-title text-(--color-text-primary)"
             data-testid="tasks-stream-resume-latest"
           >
             {seqLabel}
           </span>
         </div>
         <div className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
             SSE resume seed
           </span>
           <span
-            className="font-mono text-[15px] text-[color:var(--color-text-primary)]"
+            className="font-mono text-item-title text-(--color-text-primary)"
             data-testid="tasks-stream-resume-seed"
           >
             {seedLabel}
           </span>
         </div>
         <div className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
             Connection
           </span>
           <div className="inline-flex items-center gap-2" data-testid="tasks-stream-resume-status">
@@ -91,7 +91,7 @@ export function TasksStreamResumeCard({
       </div>
       {streamState === "error" && streamErrorMessage ? (
         <p
-          className="inline-flex items-center gap-2 text-[12px] text-[color:var(--color-danger)]"
+          className="inline-flex items-center gap-2 text-xs text-(--color-danger)"
           data-testid="tasks-stream-resume-error"
         >
           <AlertCircle className="size-3.5" />
@@ -100,7 +100,7 @@ export function TasksStreamResumeCard({
       ) : null}
       {streamState === "disabled" ? (
         <p
-          className="inline-flex items-center gap-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+          className="inline-flex items-center gap-2 text-xs text-(--color-text-tertiary)"
           data-testid="tasks-stream-resume-disabled"
         >
           <Activity className="size-3.5" />

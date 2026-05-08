@@ -41,11 +41,7 @@ export const Empty: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px] p-0">
       <Timeline
-        emptyState={
-          <p className="text-[12px] text-[color:var(--color-text-tertiary)]">
-            Thread has no replies.
-          </p>
-        }
+        emptyState={<p className="text-xs text-(--color-text-tertiary)">Thread has no replies.</p>}
         messages={[]}
       />
     </PanelSurface>

@@ -65,32 +65,32 @@ export function TaskRunDetailHeader({
 
   return (
     <header
-      className="flex flex-col border-b border-[color:var(--color-divider)]"
+      className="flex flex-col border-b border-(--color-divider)"
       data-testid="task-run-detail-header"
     >
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-1 px-6 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
+        className="flex items-center gap-1 px-6 py-2.5 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)"
         data-testid="task-run-detail-breadcrumb"
       >
         <Link
-          className="hover:text-[color:var(--color-text-secondary)]"
+          className="hover:text-(--color-text-secondary)"
           data-testid="task-run-detail-breadcrumb-tasks"
           to="/tasks"
         >
           Tasks
         </Link>
-        <ChevronRight className="size-3 text-[color:var(--color-text-tertiary)]" />
+        <ChevronRight className="size-3 text-(--color-text-tertiary)" />
         <Link
-          className="hover:text-[color:var(--color-text-secondary)]"
+          className="hover:text-(--color-text-secondary)"
           data-testid="task-run-detail-breadcrumb-task"
           params={{ id: task.id }}
           to="/tasks/$id"
         >
           {identifier}
         </Link>
-        <ChevronRight className="size-3 text-[color:var(--color-text-tertiary)]" />
-        <span className="text-[color:var(--color-text-secondary)]">{record.id}</span>
+        <ChevronRight className="size-3 text-(--color-text-tertiary)" />
+        <span className="text-(--color-text-secondary)">{record.id}</span>
       </nav>
 
       <PageHeader
@@ -104,7 +104,7 @@ export function TaskRunDetailHeader({
             ) : null}
             {linkedSessionID && linkedSessionAgent ? (
               <Link
-                className="inline-flex items-center gap-1 rounded-md border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:border-[color:var(--color-accent)]"
+                className="inline-flex items-center gap-1 rounded-md border border-(--color-divider) px-2.5 py-1 font-mono text-eyebrow uppercase tracking-mono text-accent hover:border-accent"
                 data-testid="task-run-detail-open-session"
                 params={{ name: linkedSessionAgent, id: linkedSessionID }}
                 to="/agents/$name/sessions/$id"
@@ -114,7 +114,7 @@ export function TaskRunDetailHeader({
               </Link>
             ) : linkedSessionID ? (
               <Link
-                className="inline-flex items-center gap-1 rounded-md border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:border-[color:var(--color-accent)]"
+                className="inline-flex items-center gap-1 rounded-md border border-(--color-divider) px-2.5 py-1 font-mono text-eyebrow uppercase tracking-mono text-accent hover:border-accent"
                 data-testid="task-run-detail-open-session"
                 params={{ id: linkedSessionID }}
                 to="/session/$id"
@@ -141,7 +141,7 @@ export function TaskRunDetailHeader({
           <span className="flex min-w-0 items-center gap-2">
             <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
             <span
-              className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-[color:var(--color-text-primary)]"
+              className="flex min-w-0 items-center gap-1.5 text-item-title font-semibold text-(--color-text-primary)"
               data-testid="task-run-detail-title"
             >
               Run{" "}
@@ -157,7 +157,7 @@ export function TaskRunDetailHeader({
       />
 
       <div
-        className="flex flex-wrap items-center gap-2 px-6 py-2.5 text-[13px] text-[color:var(--color-text-secondary)]"
+        className="flex flex-wrap items-center gap-2 px-6 py-2.5 text-small-body text-(--color-text-secondary)"
         data-testid="task-run-detail-meta"
       >
         <span>attempt {record.attempt}</span>

@@ -50,7 +50,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
     <header
       {...props}
       className={cn(
-        "sticky top-0 z-40 border-b border-(--color-divider) bg-[rgba(20,19,18,0.92)] px-4 backdrop-blur-xl",
+        "sticky top-0 z-40 border-b border-(--color-divider) bg-background/92 px-4 backdrop-blur-xl",
         props.className
       )}
     >

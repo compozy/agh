@@ -78,7 +78,7 @@ function SettingsEditorDialog({
         <div className="flex flex-col gap-2" data-testid={`settings-${slug}-editor-feedback`}>
           {error ? (
             <div
-              className="flex items-start gap-2 rounded-md border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-3 py-2 text-xs text-[color:var(--color-danger)]"
+              className="flex items-start gap-2 rounded-md border border-(--color-danger) bg-(--color-danger-tint) px-3 py-2 text-xs text-(--color-danger)"
               role="alert"
               data-testid={`settings-${slug}-editor-error`}
             >
@@ -88,7 +88,7 @@ function SettingsEditorDialog({
           ) : null}
           {!error && warnings && warnings.length > 0 ? (
             <ul
-              className="flex flex-col gap-1 rounded-md border border-[color:var(--color-warning)] bg-[color:var(--color-warning-tint)] px-3 py-2 text-xs text-[color:var(--color-warning)]"
+              className="flex flex-col gap-1 rounded-md border border-(--color-warning) bg-(--color-warning-tint) px-3 py-2 text-xs text-(--color-warning)"
               data-testid={`settings-${slug}-editor-warnings`}
             >
               {warnings.map(warning => (

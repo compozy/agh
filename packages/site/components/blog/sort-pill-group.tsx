@@ -32,9 +32,9 @@ export function SortPillGroup({ initial = "newest", onChange, className }: SortP
             onChange?.(key);
           }}
           className={cn(
-            "h-5 rounded-full px-2 font-mono text-[10px] font-semibold tracking-[0.08em] transition-colors",
+            "h-5 rounded-full px-2 font-mono text-badge font-semibold tracking-badge transition-colors",
             active === key
-              ? "bg-(--color-accent) text-(--color-accent-ink)"
+              ? "bg-accent text-(--color-accent-ink)"
               : "text-(--color-text-label) hover:text-(--color-text-primary)"
           )}
         >

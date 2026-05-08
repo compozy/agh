@@ -69,7 +69,7 @@ function InspectorTabNav({ activeTab, onTabChange, workCount }: InspectorTabNavP
   return (
     <nav
       aria-label="Inspector sections"
-      className="flex w-full items-stretch border-b border-[color:var(--color-divider)]"
+      className="flex w-full items-stretch border-b border-(--color-divider)"
       data-testid="network-inspector-tabs"
       role="tablist"
     >
@@ -81,10 +81,10 @@ function InspectorTabNav({ activeTab, onTabChange, workCount }: InspectorTabNavP
             aria-current={isActive ? "page" : undefined}
             aria-selected={isActive}
             className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-inset",
+              "relative flex flex-1 items-center justify-center gap-1.5 px-3 py-2 font-mono text-eyebrow font-semibold uppercase tracking-mono transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-inset",
               isActive
-                ? "text-[color:var(--color-text-primary)]"
-                : "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-secondary)]"
+                ? "text-(--color-text-primary)"
+                : "text-(--color-text-tertiary) hover:text-(--color-text-secondary)"
             )}
             data-active={isActive}
             data-testid={tab.testId}
@@ -97,7 +97,7 @@ function InspectorTabNav({ activeTab, onTabChange, workCount }: InspectorTabNavP
             <span>{tab.label}</span>
             {typeof tab.count === "number" && tab.count > 0 ? (
               <span
-                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-[color:var(--color-divider)] px-1 font-mono text-[10px] tracking-[0.04em] text-[color:var(--color-text-tertiary)]"
+                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-(--color-divider) px-1 font-mono text-badge tracking-mono text-(--color-text-tertiary)"
                 data-testid={`${tab.testId}-count`}
               >
                 {tab.count}
@@ -106,7 +106,7 @@ function InspectorTabNav({ activeTab, onTabChange, workCount }: InspectorTabNavP
             {isActive ? (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute right-0 bottom-0 left-0 h-[2px] bg-[color:var(--color-accent)]"
+                className="pointer-events-none absolute right-0 bottom-0 left-0 h-[2px] bg-accent"
               />
             ) : null}
           </button>
@@ -138,8 +138,8 @@ export function NetworkInspector({
       className={cn("flex min-h-0 flex-1 flex-col", className)}
       data-testid="network-inspector"
     >
-      <header className="flex items-center gap-2 border-b border-[color:var(--color-divider)] px-4 py-2.5">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+      <header className="flex items-center gap-2 border-b border-(--color-divider) px-4 py-2.5">
+        <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
           Inspector
         </span>
         <div className="ml-auto flex items-center gap-1">

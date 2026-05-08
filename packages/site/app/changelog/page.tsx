@@ -20,20 +20,20 @@ export default function ChangelogPage() {
             <span className="inline-block h-px w-9 bg-(--color-divider)" />
             <MonoEyebrow>Release receipts</MonoEyebrow>
           </div>
-          <h1 className="mt-6 max-w-[24ch] font-display text-[clamp(2.4rem,4.4vw,4rem)] font-normal leading-[1] tracking-[-0.035em] text-(--color-text-primary)">
+          <h1 className="mt-6 max-w-[24ch] font-display text-site-page-title font-normal leading-none tracking-tight text-(--color-text-primary)">
             Every alpha, on the wire.
           </h1>
-          <p className="mt-5 max-w-[58ch] text-lg leading-[1.6] text-(--color-text-secondary)">
+          <p className="mt-5 max-w-[58ch] text-lg leading-7 text-(--color-text-secondary)">
             AGH ships in the open and logs every change here. New behavior, breaking moves, and
             engineering notes are sourced from the same git history that ships the binary.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               href="/blog/feed.xml"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-(--color-divider) px-3.5 font-sans text-[13px] text-(--color-text-secondary) hover:text-(--color-text-primary)"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-(--color-divider) px-3.5 font-sans text-small-body text-(--color-text-secondary) hover:text-(--color-text-primary)"
             >
               <Rss size={12} aria-hidden />
-              <span className="font-mono text-[11px] uppercase tracking-[0.06em]">RSS</span>
+              <span className="font-mono text-eyebrow uppercase tracking-mono">RSS</span>
             </Link>
           </div>
         </div>
@@ -45,10 +45,10 @@ export default function ChangelogPage() {
             {releases.length === 0 ? (
               <section className="mt-12 rounded-xl border border-(--color-divider) bg-(--color-surface) p-6">
                 <MonoEyebrow tone="accent">Release notes pending</MonoEyebrow>
-                <h2 className="mt-4 max-w-[24ch] font-sans text-[clamp(1.55rem,3vw,2rem)] font-semibold leading-[1.1] tracking-[-0.025em] text-(--color-text-primary)">
+                <h2 className="mt-4 max-w-[24ch] font-sans text-site-empty-title font-semibold leading-tight tracking-tight text-(--color-text-primary)">
                   Follow the alpha while the first changelog entries are prepared.
                 </h2>
-                <p className="mt-4 max-w-[62ch] text-sm leading-[1.7] text-(--color-text-secondary)">
+                <p className="mt-4 max-w-[62ch] text-sm leading-7 text-(--color-text-secondary)">
                   Published entries will appear here once tagged release notes land in the content
                   layer. Until then, use the install guide for the current runtime path, read the
                   launch post for product context, or subscribe to the RSS feed for new release

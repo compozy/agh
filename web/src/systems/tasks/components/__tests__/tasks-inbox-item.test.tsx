@@ -37,7 +37,7 @@ describe("TasksInboxItem", () => {
 
     const row = screen.getByTestId("tasks-inbox-item-task_apr");
     expect(row).toHaveAttribute("data-unread", "true");
-    expect(row.className).toContain("border-l-[color:var(--color-accent)]");
+    expect(row.className).toContain("border-l-accent");
 
     // The old unread StatusDot has been removed — the rail carries the signal.
     expect(screen.queryByTestId("tasks-inbox-item-unread-task_apr")).not.toBeInTheDocument();

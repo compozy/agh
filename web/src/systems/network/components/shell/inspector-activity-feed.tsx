@@ -76,10 +76,7 @@ function ActivitySkeleton() {
       data-testid="network-inspector-activity-skeleton"
     >
       {[0, 1, 2].map(index => (
-        <li
-          className="flex flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3"
-          key={index}
-        >
+        <li className="flex flex-col gap-2 border-b border-(--color-divider) px-4 py-3" key={index}>
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-3 w-3/4" />
         </li>
@@ -124,43 +121,33 @@ export function InspectorActivityFeed({
     >
       {entries.map(({ entry, href }) =>
         entry.kind === "thread" ? (
-          <li
-            className="border-b border-[color:var(--color-divider)] last:border-b-0"
-            key={entry.id}
-          >
+          <li className="border-b border-(--color-divider) last:border-b-0" key={entry.id}>
             <Link
-              className="flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
+              className="flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
               data-testid={`network-inspector-activity-${entry.id}`}
               params={{ channel, threadId: href }}
               to="/network/$channel/threads/$threadId"
             >
-              <div className="flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+              <div className="flex items-center justify-between gap-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
                 <span>{entry.title}</span>
                 <span>{formatNetworkRelativeTime(entry.timestamp)}</span>
               </div>
-              <p className="line-clamp-2 text-[12px] text-[color:var(--color-text-secondary)]">
-                {entry.preview}
-              </p>
+              <p className="line-clamp-2 text-xs text-(--color-text-secondary)">{entry.preview}</p>
             </Link>
           </li>
         ) : (
-          <li
-            className="border-b border-[color:var(--color-divider)] last:border-b-0"
-            key={entry.id}
-          >
+          <li className="border-b border-(--color-divider) last:border-b-0" key={entry.id}>
             <Link
-              className="flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
+              className="flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
               data-testid={`network-inspector-activity-${entry.id}`}
               params={{ channel, directId: href }}
               to="/network/$channel/directs/$directId"
             >
-              <div className="flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+              <div className="flex items-center justify-between gap-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
                 <span>{entry.title}</span>
                 <span>{formatNetworkRelativeTime(entry.timestamp)}</span>
               </div>
-              <p className="line-clamp-2 text-[12px] text-[color:var(--color-text-secondary)]">
-                {entry.preview}
-              </p>
+              <p className="line-clamp-2 text-xs text-(--color-text-secondary)">{entry.preview}</p>
             </Link>
           </li>
         )

@@ -33,8 +33,8 @@ export function SessionResumeFailure({
     <div
       aria-live="assertive"
       className={cn(
-        "mx-4 mt-3 flex flex-col gap-3 rounded-[var(--radius-md)] border border-[color:var(--color-danger)]/60",
-        "bg-[color:var(--color-surface-panel)] px-4 py-3"
+        "mx-4 mt-3 flex flex-col gap-3 rounded-md border border-(--color-danger)/60",
+        "bg-(--color-surface-panel) px-4 py-3"
       )}
       data-testid="session-resume-failure"
       role="alert"
@@ -42,12 +42,12 @@ export function SessionResumeFailure({
       <div className="flex items-start gap-3">
         <AlertTriangle
           aria-hidden="true"
-          className="mt-0.5 size-4 shrink-0 text-[color:var(--color-danger)]"
+          className="mt-0.5 size-4 shrink-0 text-(--color-danger)"
         />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex items-center gap-2">
             <span
-              className="text-sm font-semibold text-[color:var(--color-text-primary)]"
+              className="text-sm font-semibold text-(--color-text-primary)"
               data-testid="session-resume-failure-title"
             >
               {title}
@@ -59,7 +59,7 @@ export function SessionResumeFailure({
             ) : null}
           </div>
           <p
-            className="text-xs leading-5 text-[color:var(--color-text-secondary)]"
+            className="text-xs leading-5 text-(--color-text-secondary)"
             data-testid="session-resume-failure-message"
           >
             {hasProviderDetail
@@ -67,19 +67,19 @@ export function SessionResumeFailure({
               : message}
           </p>
           <dl
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-tertiary)]"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-mono text-(--color-text-tertiary)"
             data-testid="session-resume-failure-meta"
           >
             <div className="flex items-center gap-1.5">
               <dt>session</dt>
-              <dd className="normal-case tracking-normal text-[color:var(--color-text-secondary)]">
+              <dd className="normal-case tracking-normal text-(--color-text-secondary)">
                 {sessionId}
               </dd>
             </div>
             {hasAgentDetail ? (
               <div className="flex items-center gap-1.5">
                 <dt>agent</dt>
-                <dd className="normal-case tracking-normal text-[color:var(--color-text-secondary)]">
+                <dd className="normal-case tracking-normal text-(--color-text-secondary)">
                   {normalizedAgentName}
                 </dd>
               </div>

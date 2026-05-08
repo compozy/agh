@@ -61,12 +61,12 @@ export function AgentCommandSelect({
               className="size-3.5 shrink-0 text-muted-foreground"
             />
             <span className="truncate text-sm text-foreground">{selectedAgent.name}</span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="font-mono text-badge uppercase tracking-mono text-muted-foreground">
               {selectedAgent.provider}
             </span>
             {selectedAgent.category_path && selectedAgent.category_path.length > 0 ? (
               <span
-                className="ml-auto truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground"
+                className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-muted-foreground"
                 data-testid="agent-command-select-trigger-category"
               >
                 {formatCategoryLabel(selectedAgent.category_path)}
@@ -78,7 +78,7 @@ export function AgentCommandSelect({
         )}
         <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--anchor-width)] min-w-64 p-0">
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-64 p-0">
         <AgentCommandList agents={agents} isSelected={isSelected} onSelect={handleSelect} />
       </PopoverContent>
     </Popover>

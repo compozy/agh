@@ -16,21 +16,19 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
     >
       <DateStamp date={post.date} format="compact" className="sm:pt-1" />
       <div className="min-w-0">
-        <p className="font-sans text-[19px] font-medium leading-[1.3] tracking-[-0.02em] text-(--color-text-primary) group-hover:text-(--color-accent)">
+        <p className="font-sans text-site-lead font-medium leading-snug tracking-tight text-(--color-text-primary) group-hover:text-accent">
           {post.title}
         </p>
-        <p className="mt-1.5 text-sm leading-[1.55] text-(--color-text-secondary)">
-          {post.description}
-        </p>
+        <p className="mt-1.5 text-sm leading-6 text-(--color-text-secondary)">{post.description}</p>
         {post.tags.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            <span className="rounded-[5px] bg-(--color-surface-elevated) px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-(--color-text-tertiary)">
+            <span className="rounded-chip bg-(--color-surface-elevated) px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
               {categoryLabel(post.category)}
             </span>
             {post.tags.map(tag => (
               <span
                 key={tag}
-                className="rounded-[5px] bg-(--color-surface-elevated) px-1.5 py-0.5 font-mono text-[10px] tracking-[0.04em] text-(--color-text-tertiary)"
+                className="rounded-chip bg-(--color-surface-elevated) px-1.5 py-0.5 font-mono text-badge tracking-mono text-(--color-text-tertiary)"
               >
                 {tag}
               </span>
@@ -38,16 +36,16 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
           </div>
         )}
       </div>
-      <span className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-label) sm:col-start-2 lg:col-start-auto lg:pt-1">
+      <span className="min-w-0 truncate font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label) sm:col-start-2 lg:col-start-auto lg:pt-1">
         {post.author}
       </span>
-      <span className="font-mono text-[11px] tracking-[0.04em] text-(--color-text-tertiary) sm:col-start-2 lg:col-start-auto lg:pt-1">
+      <span className="font-mono text-eyebrow tracking-mono text-(--color-text-tertiary) sm:col-start-2 lg:col-start-auto lg:pt-1">
         {formatReadingTime(post.metadata.readingTime)}
       </span>
       <ArrowUpRight
         size={16}
         aria-hidden
-        className="hidden self-center text-(--color-text-tertiary) group-hover:text-(--color-accent) lg:block"
+        className="hidden self-center text-(--color-text-tertiary) group-hover:text-accent lg:block"
       />
     </Link>
   );

@@ -24,9 +24,9 @@ const providerIconMap: Record<string, LucideIcon> = {
 type AgentIconTone = "default" | "muted" | "accent";
 
 const AGENT_ICON_TONE: Record<AgentIconTone, string> = {
-  default: "text-[color:var(--color-text-primary)]",
-  muted: "text-[color:var(--color-text-tertiary)]",
-  accent: "text-[color:var(--color-accent)]",
+  default: "text-(--color-text-primary)",
+  muted: "text-(--color-text-tertiary)",
+  accent: "text-accent",
 };
 
 interface AgentIconProps extends ComponentProps<"svg"> {

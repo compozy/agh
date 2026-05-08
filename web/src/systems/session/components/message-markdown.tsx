@@ -97,11 +97,11 @@ export const MessageMarkdown = memo(
                     ariaLabel="Copy code"
                     className={cn(
                       "absolute top-2 right-2 rounded-md p-1.5",
-                      "border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]",
+                      "border border-(--color-divider) bg-(--color-surface-elevated)",
                       "opacity-0 transition-opacity duration-200",
                       "group-hover/codeblock:opacity-100 group-focus-within/codeblock:opacity-100",
                       "focus-visible:opacity-100",
-                      "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
+                      "text-(--color-text-tertiary) hover:text-(--color-text-primary)"
                     )}
                   />
                 </div>
@@ -111,8 +111,8 @@ export const MessageMarkdown = memo(
             return (
               <code
                 className={cn(
-                  "rounded-md bg-[color:var(--color-surface-elevated)] px-1.5 py-0.5",
-                  "text-[0.8125rem] text-[color:var(--color-text-primary)]",
+                  "rounded-md bg-(--color-surface-elevated) px-1.5 py-0.5",
+                  "text-small-body text-(--color-text-primary)",
                   className
                 )}
                 {...props}
@@ -127,7 +127,7 @@ export const MessageMarkdown = memo(
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[color:var(--color-accent)] underline underline-offset-2 hover:opacity-80"
+                className="text-accent underline underline-offset-2 hover:opacity-80"
                 {...props}
               >
                 {children}

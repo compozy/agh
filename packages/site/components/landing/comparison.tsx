@@ -77,18 +77,18 @@ export function Comparison() {
       <div className="mt-10 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)">
         {/* Header row */}
         <div className="hidden border-b border-(--color-divider) px-5 py-4 md:grid md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:gap-4">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
             Approach
           </p>
           {DIMENSIONS.map(d => (
             <p
               key={d.key}
-              className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)"
+              className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)"
             >
               {d.label}
             </p>
           ))}
-          <p className="text-right font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+          <p className="text-right font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
             Cross-runtime
           </p>
         </div>
@@ -98,15 +98,14 @@ export function Comparison() {
             key={row.approach}
             className={cn(
               "grid gap-3 border-t border-(--color-divider) px-5 py-5 first:border-t-0 md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:items-center md:gap-4",
-              row.highlight &&
-                "border-l-4 border-l-(--color-accent) bg-[color-mix(in_srgb,var(--color-accent-tint)_40%,transparent)]"
+              row.highlight && "border-l-4 border-l-accent bg-accent-tint/40"
             )}
           >
             <div>
               <h3
                 className={cn(
-                  "text-[14px] font-semibold",
-                  row.highlight ? "text-(--color-accent)" : "text-(--color-text-primary)"
+                  "text-sm font-semibold",
+                  row.highlight ? "text-accent" : "text-(--color-text-primary)"
                 )}
               >
                 {row.approach}
@@ -114,12 +113,12 @@ export function Comparison() {
             </div>
             {DIMENSIONS.map(d => (
               <div key={d.key}>
-                <p className="font-mono text-[10px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) md:hidden">
+                <p className="font-mono text-badge font-medium uppercase tracking-mono text-(--color-text-tertiary) md:hidden">
                   {d.label}
                 </p>
                 <p
                   className={cn(
-                    "text-[13px] leading-6",
+                    "text-small-body leading-6",
                     row.highlight && d.key === "coordination"
                       ? "font-medium text-(--color-text-primary)"
                       : "text-(--color-text-secondary)"
@@ -133,9 +132,9 @@ export function Comparison() {
               <span
                 aria-label={row.crossRuntime ? "Cross-runtime: yes" : "Cross-runtime: no"}
                 className={cn(
-                  "inline-flex h-6 w-6 items-center justify-center rounded-[6px]",
+                  "inline-flex h-6 w-6 items-center justify-center rounded-mono-badge",
                   row.crossRuntime
-                    ? "bg-(--color-success-tint) text-(--color-success)"
+                    ? "bg-(--color-success-tint) text-success"
                     : "bg-(--color-surface-elevated) text-(--color-text-tertiary)"
                 )}
               >

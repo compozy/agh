@@ -80,7 +80,7 @@ export function ComposerSlashPopover({
     <ul
       aria-label="Slash commands"
       className={cn(
-        "absolute bottom-full left-0 mb-2 w-72 rounded-[6px] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-1 text-[13px]",
+        "absolute bottom-full left-0 mb-2 w-72 rounded-mono-badge border border-(--color-divider) bg-(--color-canvas) p-1 text-small-body",
         className
       )}
       data-testid="network-composer-slash-popover"
@@ -88,9 +88,7 @@ export function ComposerSlashPopover({
       role="listbox"
     >
       {entries.length === 0 ? (
-        <li className="px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]">
-          No matching commands.
-        </li>
+        <li className="px-3 py-2 text-xs text-(--color-text-tertiary)">No matching commands.</li>
       ) : (
         entries.map(entry => (
           <li
@@ -104,10 +102,10 @@ export function ComposerSlashPopover({
           >
             <button
               className={cn(
-                "flex w-full items-baseline gap-2 rounded-[4px] px-3 py-2 text-left",
+                "flex w-full items-baseline gap-2 rounded-chip px-3 py-2 text-left",
                 entry.disabled
-                  ? "cursor-not-allowed text-[color:var(--color-text-tertiary)]"
-                  : "hover:bg-[color:var(--color-hover)] focus-visible:bg-[color:var(--color-hover)] focus-visible:outline-none"
+                  ? "cursor-not-allowed text-(--color-text-tertiary)"
+                  : "hover:bg-(--color-hover) focus-visible:bg-(--color-hover) focus-visible:outline-none"
               )}
               disabled={entry.disabled}
               onClick={() => {
@@ -120,19 +118,17 @@ export function ComposerSlashPopover({
             >
               <span
                 className={cn(
-                  "font-mono text-[12px] tracking-[0.04em]",
-                  entry.disabled
-                    ? "text-[color:var(--color-text-tertiary)]"
-                    : "text-[color:var(--color-text-primary)]"
+                  "font-mono text-xs tracking-mono",
+                  entry.disabled ? "text-(--color-text-tertiary)" : "text-(--color-text-primary)"
                 )}
               >
                 /{entry.command}
               </span>
-              <span className="truncate text-[12px] text-[color:var(--color-text-tertiary)]">
+              <span className="truncate text-xs text-(--color-text-tertiary)">
                 {entry.description}
               </span>
               {entry.disabled ? (
-                <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+                <span className="ml-auto font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
                   Post-MVP
                 </span>
               ) : null}

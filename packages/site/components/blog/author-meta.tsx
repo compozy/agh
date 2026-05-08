@@ -23,9 +23,9 @@ export function AuthorMeta({
       <div className={cn("flex items-center gap-3", className)}>
         <Avatar initial={initial} size={size} />
         <div>
-          <p className="font-sans text-[14px] font-medium text-(--color-text-primary)">{handle}</p>
+          <p className="font-sans text-sm font-medium text-(--color-text-primary)">{handle}</p>
           {role && (
-            <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-label)">
+            <p className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
               {role}
             </p>
           )}
@@ -37,7 +37,7 @@ export function AuthorMeta({
   return (
     <div className={cn("inline-flex items-center gap-2.5", className)}>
       <Avatar initial={initial} size={size} />
-      <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-label)">
+      <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
         {handle}
       </span>
     </div>

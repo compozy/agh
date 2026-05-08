@@ -60,10 +60,10 @@ export function WorkBanner({
     <div
       aria-live="polite"
       className={cn(
-        "flex h-9 items-center justify-between gap-3 overflow-hidden border-b border-[color:var(--color-divider)] px-5 transition-[opacity,max-height] duration-200 ease-out",
+        "flex h-9 items-center justify-between gap-3 overflow-hidden border-b border-(--color-divider) px-5 transition-[opacity,max-height] duration-200 ease-out",
         escalate
-          ? "bg-[color:var(--color-warning)] text-[color:var(--color-canvas)]"
-          : "bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)]",
+          ? "bg-(--color-warning) text-(--color-canvas)"
+          : "bg-(--color-warning-tint) text-(--color-warning)",
         fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
         className
       )}
@@ -72,17 +72,17 @@ export function WorkBanner({
       data-testid="network-work-banner"
       role="status"
     >
-      <p className="truncate text-[13px] font-medium" data-testid="network-work-banner-message">
+      <p className="truncate text-small-body font-medium" data-testid="network-work-banner-message">
         {message}
       </p>
       {onView ? (
         <Button
           aria-label="View open work"
           className={cn(
-            "h-7 px-2 text-[12px] font-medium",
+            "h-7 px-2 text-xs font-medium",
             escalate
-              ? "text-[color:var(--color-canvas)] hover:bg-[color:var(--color-canvas)]/10"
-              : "text-[color:var(--color-warning)] hover:bg-[color:var(--color-warning-tint)]/40"
+              ? "text-(--color-canvas) hover:bg-(--color-canvas)/10"
+              : "text-(--color-warning) hover:bg-(--color-warning-tint)/40"
           )}
           data-testid="network-work-banner-view"
           onClick={onView}

@@ -69,7 +69,7 @@ export function AgentCommandMultiSelect({
         </Pill>
         <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--anchor-width)] min-w-64 p-0">
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-64 p-0">
         <AgentCommandList
           agents={agents}
           isSelected={isSelected}

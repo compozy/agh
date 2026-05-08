@@ -53,7 +53,7 @@ describe("BashContent", () => {
     );
     expect(screen.getByText("command not found")).toBeInTheDocument();
     const stderrEl = screen.getByText("command not found");
-    expect(stderrEl.closest("pre")).toHaveClass("text-red-400/80");
+    expect(stderrEl.closest("pre")).toHaveClass("text-(--color-danger)");
   });
 
   it("renders without command when toolInput has no command", () => {

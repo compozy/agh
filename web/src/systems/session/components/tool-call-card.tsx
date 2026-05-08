@@ -28,7 +28,7 @@ export const ToolCallCard = memo(
         aria-hidden="true"
         data-slot="tool-call-card-icon"
         data-testid="tool-call-icon"
-        className="size-3.5 shrink-0 text-[color:var(--color-danger)]"
+        className="size-3.5 shrink-0 text-(--color-danger)"
       />
     ) : (
       <Icon
@@ -37,9 +37,7 @@ export const ToolCallCard = memo(
         data-testid="tool-call-icon"
         className={cn(
           "size-3.5 shrink-0",
-          card.isRunning
-            ? "text-[color:var(--color-accent)]"
-            : "text-[color:var(--color-text-tertiary)]"
+          card.isRunning ? "text-accent" : "text-(--color-text-tertiary)"
         )}
       />
     );
@@ -53,7 +51,7 @@ export const ToolCallCard = memo(
             {card.summary}
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-[min(56rem,calc(100vw-2rem))] px-0 py-0">
-            <div className="overflow-x-auto px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
+            <div className="overflow-x-auto px-2 py-1.5 font-mono text-eyebrow whitespace-nowrap">
               {card.fullSummary}
             </div>
           </TooltipContent>
@@ -72,8 +70,8 @@ export const ToolCallCard = memo(
           data-testid="tool-card-trigger"
           className={cn(
             "block w-full cursor-pointer text-left outline-none",
-            "focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40 focus-visible:ring-offset-0",
-            "rounded-[var(--radius-md)]"
+            "focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-0",
+            "rounded-md"
           )}
         >
           <PrimitiveToolCallCard
@@ -81,9 +79,7 @@ export const ToolCallCard = memo(
               <span
                 data-testid={card.labelTestId}
                 className={cn(
-                  card.isError
-                    ? "text-[color:var(--color-danger)]"
-                    : "text-[color:var(--color-text-primary)]"
+                  card.isError ? "text-(--color-danger)" : "text-(--color-text-primary)"
                 )}
               >
                 {card.label}
@@ -92,7 +88,10 @@ export const ToolCallCard = memo(
             filePath={pathNode ?? undefined}
             status={card.status}
             icon={iconNode}
-            className={cn("transition-colors hover:border-[color:var(--color-hover)]")}
+            className={cn(
+              "rounded-md transition-colors hover:border-(--color-hover)",
+              "data-[status=error]:border-(--color-danger)/40"
+            )}
           />
           {card.hasResult ? (
             <ChevronRight
@@ -105,7 +104,7 @@ export const ToolCallCard = memo(
 
         {card.expanded && card.hasResult ? (
           <div
-            className="mt-1 mb-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] p-3"
+            className="mt-1 mb-2 rounded-md border border-(--color-divider) bg-(--color-canvas-deep) p-3"
             data-testid="tool-card-expanded"
           >
             <ExpandedToolContent message={message} />

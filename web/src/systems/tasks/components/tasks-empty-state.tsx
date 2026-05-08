@@ -71,7 +71,7 @@ export function TasksEmptyState({
           data-testid="tasks-empty-templates"
           label="Start from a template"
           right={
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[color:var(--color-text-tertiary)]">
+            <p className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
               {TASK_TEMPLATES.length} templates
             </p>
           }
@@ -104,22 +104,20 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
       className={cn(
         "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border px-5 py-5 text-left transition-colors",
         isBlank
-          ? "border-dashed border-[color:rgba(58,58,60,0.6)] hover:border-[color:var(--color-text-label)]"
-          : "border-[color:var(--color-divider)] bg-[color:var(--color-surface)] hover:border-[color:var(--color-text-label)]"
+          ? "border-dashed border-divider/60 hover:border-(--color-text-label)"
+          : "border-(--color-divider) bg-(--color-surface) hover:border-(--color-text-label)"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
       onClick={onSelect}
       type="button"
     >
       <div className="flex items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-text-secondary)]">
+        <span className="flex size-7 items-center justify-center rounded-lg border border-(--color-divider) bg-(--color-surface-panel) text-(--color-text-secondary)">
           {TEMPLATE_ICONS[template.id]}
         </span>
-        <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
-          {template.label}
-        </span>
+        <span className="text-sm font-semibold text-(--color-text-primary)">{template.label}</span>
       </div>
-      <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+      <p className="text-sm leading-relaxed text-(--color-text-secondary)">
         {template.description}
       </p>
       {template.badges.length > 0 ? (

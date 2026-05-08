@@ -244,7 +244,7 @@ describe("TasksMultiAgentPanel", () => {
     const liveCard = screen.getByTestId("tasks-multi-agent-agent-task_001");
     expect(liveCard).toHaveAttribute("data-is-live", "true");
     expect(liveCard.className).toContain("border-l-2");
-    expect(liveCard.className).toContain("border-l-[color:var(--color-accent)]");
+    expect(liveCard.className).toContain("border-l-accent");
 
     const idleCard = screen.getByTestId("tasks-multi-agent-agent-task_002");
     expect(idleCard).toHaveAttribute("data-is-live", "false");

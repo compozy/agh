@@ -40,7 +40,7 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
   return (
     <CenteredSurface className="flex-col gap-4">
       {conflictMessage ? (
-        <div className="w-full max-w-md rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-4 py-3 text-sm text-[color:var(--color-danger)]">
+        <div className="w-full max-w-md rounded-md border border-(--color-danger) bg-(--color-danger-tint) px-4 py-3 text-sm text-(--color-danger)">
           {conflictMessage}
         </div>
       ) : null}

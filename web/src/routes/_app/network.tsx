@@ -75,7 +75,7 @@ function NetworkRouteShell() {
         >
           <Loader2
             aria-hidden="true"
-            className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+            className="size-5 animate-spin text-(--color-text-tertiary)"
           />
         </div>
       </NetworkPageShell>

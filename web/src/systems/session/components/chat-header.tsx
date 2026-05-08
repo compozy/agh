@@ -67,7 +67,7 @@ export function ChatHeader({
       <div
         className={cn(
           "flex h-12 items-center justify-between gap-3 border-b px-4",
-          "border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]/90 backdrop-blur"
+          "border-(--color-divider) bg-(--color-surface-panel)/90 backdrop-blur"
         )}
         data-testid="chat-header"
       >
@@ -83,17 +83,17 @@ export function ChatHeader({
             aria-label={`Session state: ${session.state}`}
           />
           <span className="sr-only">{`Session state: ${session.state}`}</span>
-          <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
             {session.agent_name}
           </span>
 
           <ChevronRight
             aria-hidden="true"
-            className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
+            className="size-3 shrink-0 text-(--color-text-tertiary)"
           />
 
           <span
-            className="truncate text-[13px] text-[color:var(--color-text-secondary)]"
+            className="truncate text-small-body text-(--color-text-secondary)"
             data-testid="session-name"
           >
             {session.name?.trim() || session.id}
@@ -103,7 +103,7 @@ export function ChatHeader({
             <>
               <ChevronRight
                 aria-hidden="true"
-                className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
+                className="size-3 shrink-0 text-(--color-text-tertiary)"
               />
               <Pill
                 mono
@@ -120,7 +120,7 @@ export function ChatHeader({
             <>
               <ChevronRight
                 aria-hidden="true"
-                className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
+                className="size-3 shrink-0 text-(--color-text-tertiary)"
               />
               <Pill
                 mono

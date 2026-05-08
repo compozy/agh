@@ -52,9 +52,9 @@ export function TocRail({ items }: TocRailProps) {
                 href={item.url}
                 aria-current={isActive ? "location" : undefined}
                 className={cn(
-                  "block text-[13px] leading-[1.4] transition-colors",
+                  "block text-small-body leading-5 transition-colors",
                   isActive
-                    ? "text-(--color-accent)"
+                    ? "text-accent"
                     : "text-(--color-text-secondary) hover:text-(--color-text-primary)",
                   item.depth >= 3 && "pl-3"
                 )}

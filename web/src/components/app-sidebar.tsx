@@ -45,7 +45,7 @@ function RailSlot({
         to="/"
         aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-canvas-deep)]"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-canvas-deep)"
       >
         <Logo variant="symbol" decorative className="size-7" />
       </Link>
@@ -63,9 +63,8 @@ function RailSlot({
             aria-label={`Workspace: ${workspace.name}`}
             aria-pressed={isActive}
             className={cn(
-              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-[color:var(--color-surface-elevated)] font-mono text-[11px] font-medium text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
-              isActive &&
-                "border-[color:var(--color-accent)] text-[color:var(--color-text-primary)]"
+              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-(--color-surface-elevated) font-mono text-eyebrow font-medium text-(--color-text-secondary) transition-colors hover:bg-(--color-hover) hover:text-(--color-text-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              isActive && "border-accent text-(--color-text-primary)"
             )}
           >
             {letter}
@@ -77,7 +76,7 @@ function RailSlot({
         onClick={onAddWorkspace}
         data-testid="add-workspace-btn"
         aria-label="Add workspace"
-        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-[color:var(--color-divider)] text-[color:var(--color-text-tertiary)] transition-colors hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-(--color-divider) text-(--color-text-tertiary) transition-colors hover:border-accent hover:text-(--color-text-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Plus aria-hidden="true" className="size-3" />
       </button>
@@ -197,7 +196,7 @@ function SectionLabel({ children, className }: { children: React.ReactNode; clas
   return (
     <SidebarSectionLabel
       data-testid="sidebar-section-label"
-      className={cn("px-2 pt-2 pb-1", className)}
+      className={cn("px-2 pt-2 pb-1 text-(--color-text-label) tracking-mono text-micro", className)}
     >
       {children}
     </SidebarSectionLabel>
@@ -216,7 +215,7 @@ function FooterSlot({ connectionStatus, health }: FooterSlotProps) {
       {health && (
         <span
           data-testid="sidebar-version"
-          className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+          className="ml-auto font-mono text-badge text-(--color-text-tertiary)"
         >
           v{health.version}
         </span>

@@ -22,7 +22,7 @@ function isActive(href: string, pathname: string): boolean {
 }
 
 const ITEM_CLS =
-  "relative flex flex-row items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-fd-muted-foreground transition-colors hover:bg-fd-accent/40 hover:text-fd-accent-foreground data-[active=true]:bg-fd-primary/10 data-[active=true]:text-fd-primary [&_svg]:size-3.5 [&_svg]:shrink-0";
+  "relative flex flex-row items-center gap-1.5 rounded-md px-2 py-1 text-small-body text-fd-muted-foreground transition-colors hover:bg-fd-accent/40 hover:text-fd-accent-foreground data-[active=true]:bg-fd-primary/10 data-[active=true]:text-fd-primary [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 function offset(depth: number) {
   return `calc(0.5rem + 0.75rem * ${depth})`;

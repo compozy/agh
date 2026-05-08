@@ -39,7 +39,7 @@ function KnowledgeDeleteDialog({
         data-testid="knowledge-delete-dialog"
         showCloseButton={false}
       >
-        <DialogHeader className="gap-2 border-b border-[color:var(--color-divider)] px-5 py-4">
+        <DialogHeader className="gap-2 border-b border-(--color-divider) px-5 py-4">
           <DialogTitle>Delete knowledge entry?</DialogTitle>
           <DialogDescription>
             This removes <span className="font-mono">{filename}</span> from the {scope} scope. The
@@ -49,13 +49,13 @@ function KnowledgeDeleteDialog({
         </DialogHeader>
         {error ? (
           <div
-            className="border-t border-[color:var(--color-divider)] px-5 py-3 text-xs text-[color:var(--color-danger)]"
+            className="border-t border-(--color-divider) px-5 py-3 text-xs text-(--color-danger)"
             data-testid="knowledge-delete-dialog-error"
           >
             {error}
           </div>
         ) : null}
-        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-[color:var(--color-divider)] bg-transparent px-5 py-3">
+        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-(--color-divider) bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-delete-memory-btn"
             onClick={() => onOpenChange(false)}

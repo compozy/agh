@@ -69,7 +69,7 @@ describe("ToolCallCard", () => {
     expect(root).not.toBeNull();
     expect(root?.className).toMatch(/bg-\[color:var\(--color-surface\)\]/);
     expect(root?.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
-    expect(root?.className).toContain("rounded-[var(--radius-md)]");
+    expect(root?.className).toContain("rounded-md");
   });
 
   it("renders a tool icon in the primitive header", () => {
@@ -118,7 +118,7 @@ describe("ToolCallCard", () => {
     expect(badge?.className).toMatch(/bg-\(--color-danger-tint\)/);
     const root = queryPrimitiveRoot();
     expect(root?.getAttribute("data-status")).toBe("error");
-    expect(root?.className).toContain("data-[status=error]:border-[color:var(--color-danger)]/40");
+    expect(root?.className).toContain("data-[status=error]:border-(--color-danger)/40");
   });
 
   it("renders success state with past-tense label for completed tool", () => {

@@ -95,7 +95,7 @@ function NetworkShellHarness({
         threadCount={networkThreadsFixture.length}
         unpinnedChannels={unpinned}
       >
-        <div className="px-6 py-4 text-[13px] text-[color:var(--color-text-secondary)]">
+        <div className="px-6 py-4 text-small-body text-(--color-text-secondary)">
           Tab content placeholder — message rows land in task_14.
         </div>
       </NetworkShell>

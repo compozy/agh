@@ -48,7 +48,7 @@ export function MemorySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid={`${TEST_PREFIX}-loading`}
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -57,8 +57,8 @@ export function MemorySettingsPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid={`${TEST_PREFIX}-error`}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load memory settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -1582,7 +1582,7 @@ function DreamSection({
       />
       {actionMessage ? (
         <p
-          className="text-xs text-[color:var(--color-text-tertiary)]"
+          className="text-xs text-(--color-text-tertiary)"
           data-testid={`${TEST_PREFIX}-action-message`}
         >
           {actionMessage}

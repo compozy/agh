@@ -62,7 +62,7 @@ export function HoverToolbar({
     <div
       aria-label="Message actions"
       className={cn(
-        "absolute -top-3 right-4 z-10 flex items-center gap-0.5 rounded-[6px] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+        "absolute -top-3 right-4 z-10 flex items-center gap-0.5 rounded-mono-badge border border-(--color-divider) bg-(--color-canvas) p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
         className
       )}
       data-testid={`network-message-toolbar-${testIdSuffix}`}

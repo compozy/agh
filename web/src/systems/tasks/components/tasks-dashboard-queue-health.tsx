@@ -43,7 +43,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </Pill>
       }
     >
-      <p className="text-xs text-[color:var(--color-text-secondary)]">
+      <p className="text-xs text-(--color-text-secondary)">
         {totals.runs_total} runs tracked · {totals.completed_runs} completed
       </p>
 
@@ -57,7 +57,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
             const pct = (bucket.value / maxValue) * 100;
             return (
               <span
-                className="rounded-[2px]"
+                className="rounded-sm"
                 data-testid={`tasks-dashboard-queue-bar-${index}`}
                 key={`${bucket.label}-${index}`}
                 style={{
@@ -82,7 +82,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         />
       )}
 
-      <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-[color:var(--color-text-tertiary)]">
+      <div className="mt-2 flex items-center justify-between text-badge font-mono text-(--color-text-tertiary)">
         <span>24h ago</span>
         <span>now</span>
       </div>
@@ -128,10 +128,10 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
 
       {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-[var(--radius-diagram)] border border-[color:var(--color-warning)] bg-[color:var(--color-accent-tint)] px-3 py-2 text-xs text-[color:var(--color-text-primary)]"
+          className="mt-4 flex items-start gap-2 rounded-(--radius-diagram) border border-(--color-warning) bg-(--color-accent-tint) px-3 py-2 text-xs text-(--color-text-primary)"
           data-testid="tasks-dashboard-warning"
         >
-          <AlertTriangle className="mt-[1px] size-4 shrink-0 text-[color:var(--color-warning)]" />
+          <AlertTriangle className="mt-px size-4 shrink-0 text-(--color-warning)" />
           <span>
             {queue.backlog_warning
               ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)} — oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
@@ -142,7 +142,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </div>
       ) : (
         <div
-          className="mt-4 flex items-center gap-2 text-xs text-[color:var(--color-success)]"
+          className="mt-4 flex items-center gap-2 text-xs text-success"
           data-testid="tasks-dashboard-ok"
         >
           <Check className="size-4" /> Queue is healthy.
@@ -162,16 +162,16 @@ interface HealthMetricProps {
 function HealthMetric({ label, value, testId, tone }: HealthMetricProps) {
   const valueTone =
     tone === "warning"
-      ? "text-[color:var(--color-warning)]"
+      ? "text-(--color-warning)"
       : tone === "danger"
-        ? "text-[color:var(--color-danger)]"
+        ? "text-(--color-danger)"
         : tone === "success"
-          ? "text-[color:var(--color-success)]"
-          : "text-[color:var(--color-text-primary)]";
+          ? "text-success"
+          : "text-(--color-text-primary)";
 
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+      <dt className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
         {label}
       </dt>
       <dd className={`text-sm font-medium ${valueTone}`} data-testid={testId}>

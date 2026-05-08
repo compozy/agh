@@ -11,12 +11,7 @@ interface StoryFrameProps {
 
 export function StorySurface({ children, className }: StoryFrameProps) {
   return (
-    <div
-      className={cn(
-        "min-h-[640px] bg-background p-6 text-[color:var(--color-text-primary)]",
-        className
-      )}
-    >
+    <div className={cn("min-h-[640px] bg-background p-6 text-(--color-text-primary)", className)}>
       {children}
     </div>
   );
@@ -34,7 +29,7 @@ export function PanelSurface({ children, className }: StoryFrameProps) {
   return (
     <StorySurface
       className={cn(
-        "flex min-h-[640px] overflow-hidden rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-0",
+        "flex min-h-[640px] overflow-hidden rounded-2xl border border-(--color-divider) bg-(--color-canvas) p-0",
         className
       )}
     >

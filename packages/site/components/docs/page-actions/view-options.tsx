@@ -31,7 +31,7 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
             <a href={githubUrl} rel="noreferrer noopener" target="_blank">
               <GithubLogo aria-hidden className="size-3.5" />
               Open on GitHub
-              <ExternalLink aria-hidden className="ms-auto !size-3" />
+              <ExternalLink aria-hidden className="ms-auto size-3!" />
             </a>
           }
         />
@@ -40,7 +40,7 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
             <a href={markdownUrl} rel="noreferrer noopener" target="_blank">
               <FileText aria-hidden />
               View as Markdown
-              <ExternalLink aria-hidden className="ms-auto !size-3" />
+              <ExternalLink aria-hidden className="ms-auto size-3!" />
             </a>
           }
         />

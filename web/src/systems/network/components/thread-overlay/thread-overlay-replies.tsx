@@ -36,18 +36,18 @@ export function ThreadOverlayReplies({
         className="flex items-center gap-3 px-4 py-3"
         data-testid="network-thread-overlay-replies-divider"
       >
-        <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--color-divider)]" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+        <span aria-hidden="true" className="h-px flex-1 bg-(--color-divider)" />
+        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
           {replyLabel}
         </span>
-        <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--color-divider)]" />
+        <span aria-hidden="true" className="h-px flex-1 bg-(--color-divider)" />
       </div>
       <Timeline
         ariaLabel="Thread replies"
         density="overlay"
         emptyState={
           emptyOverride ?? (
-            <p className="text-center text-[12px] text-[color:var(--color-text-tertiary)]">
+            <p className="text-center text-xs text-(--color-text-tertiary)">
               Thread has no replies.
             </p>
           )

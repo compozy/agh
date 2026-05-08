@@ -41,10 +41,7 @@ export function AutomationOperationsPage({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid={`${titlePrefix}-loading`}
       >
-        <Loader2
-          aria-hidden="true"
-          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }

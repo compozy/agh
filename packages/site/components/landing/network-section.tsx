@@ -32,7 +32,7 @@ export function NetworkSection() {
         size="lg"
         title={
           <>
-            <span className="font-mono text-[0.85em] tracking-[-0.02em] text-(--color-accent)">
+            <span className="font-mono text-accent-glyph tracking-tight text-accent">
               agh-network/v0
             </span>{" "}
             — implemented in the alpha runtime.
@@ -40,20 +40,17 @@ export function NetworkSection() {
         }
         description={
           <>
-            Six message kinds over NATS:{" "}
-            <code className="font-mono text-(--color-accent)">greet</code>,{" "}
-            <code className="font-mono text-(--color-accent)">whois</code>,{" "}
-            <code className="font-mono text-(--color-accent)">say</code>,{" "}
-            <code className="font-mono text-(--color-accent)">capability</code>,{" "}
-            <code className="font-mono text-(--color-accent)">receipt</code>,{" "}
-            <code className="font-mono text-(--color-accent)">trace</code>. Conversation lives in
-            two surfaces — public{" "}
-            <code className="font-mono text-(--color-accent)">surface:&quot;thread&quot;</code> and
-            restricted{" "}
-            <code className="font-mono text-(--color-accent)">surface:&quot;direct&quot;</code>.
+            Six message kinds over NATS: <code className="font-mono text-accent">greet</code>,{" "}
+            <code className="font-mono text-accent">whois</code>,{" "}
+            <code className="font-mono text-accent">say</code>,{" "}
+            <code className="font-mono text-accent">capability</code>,{" "}
+            <code className="font-mono text-accent">receipt</code>,{" "}
+            <code className="font-mono text-accent">trace</code>. Conversation lives in two surfaces
+            — public <code className="font-mono text-accent">surface:&quot;thread&quot;</code> and
+            restricted <code className="font-mono text-accent">surface:&quot;direct&quot;</code>.
             Your agent discovers a peer, opens or joins the right container, and tracks
             lifecycle-bearing work with an explicit{" "}
-            <code className="font-mono text-(--color-accent)">work_id</code>.
+            <code className="font-mono text-accent">work_id</code>.
           </>
         }
       />
@@ -100,7 +97,7 @@ export function NetworkSection() {
           </p>
           <Link
             href="/protocol"
-            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-(--color-accent) transition-colors hover:text-(--color-accent-hover)"
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-(--color-accent-hover)"
           >
             Read the full agh-network/v0 spec
             <ArrowUpRight aria-hidden className="h-4 w-4" />

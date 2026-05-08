@@ -28,13 +28,13 @@ export function ArchitectureDiagram() {
       <div className="mx-auto max-w-(--site-layout-width)">
         <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
           <div className="max-w-[540px]">
-            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--color-text-tertiary)">
+            <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-tertiary)">
               CONTROL PLANE
             </p>
-            <h2 className="mt-5 text-[clamp(2.4rem,5vw,3.8rem)] leading-[0.98] font-semibold tracking-[-0.03em] text-(--color-text-primary)">
+            <h2 className="mt-5 text-site-protocol-title leading-none font-semibold tracking-tight text-(--color-text-primary)">
               One runtime for operator control and open coordination.
             </h2>
-            <p className="mt-6 text-[1.05rem] leading-relaxed text-(--color-text-secondary)">
+            <p className="mt-6 text-lg leading-relaxed text-(--color-text-secondary)">
               AGH keeps the operator surface, durable runtime behavior, and open network boundary in
               one place so teams can run real agent work without assembling another pile of
               infrastructure.
@@ -42,8 +42,8 @@ export function ArchitectureDiagram() {
           </div>
 
           <div className="w-full lg:max-w-[420px]">
-            <div className="rounded-[24px] bg-(--color-canvas) p-6 md:p-8">
-              <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--color-accent)">
+            <div className="rounded-xl bg-(--color-canvas) p-6 md:p-8">
+              <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-accent">
                 Reading guide
               </p>
               <div className="mt-6 flex flex-col gap-6">
@@ -52,10 +52,8 @@ export function ArchitectureDiagram() {
                     key={note.label}
                     className="border-b border-(--color-divider) pb-6 last:border-b-0 last:pb-0"
                   >
-                    <p className="text-[1.05rem] font-medium text-(--color-text-primary)">
-                      {note.label}
-                    </p>
-                    <p className="mt-2 text-[0.95rem] leading-relaxed text-(--color-text-secondary)">
+                    <p className="text-lg font-medium text-(--color-text-primary)">{note.label}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">
                       {note.description}
                     </p>
                   </div>
@@ -65,13 +63,13 @@ export function ArchitectureDiagram() {
           </div>
         </div>
 
-        <div className="mt-16 rounded-[24px] bg-(--color-canvas) p-6 md:p-10">
+        <div className="mt-16 rounded-xl bg-(--color-canvas) p-6 md:p-10">
           <div className="flex flex-col gap-4 border-b border-(--color-divider) pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--color-accent)">
+              <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-accent">
                 Runtime map
               </p>
-              <p className="mt-2 text-[1.1rem] font-medium leading-tight text-(--color-text-primary)">
+              <p className="mt-2 text-lg font-medium leading-tight text-(--color-text-primary)">
                 Operator surfaces feed one local daemon, which exposes AGH Network at the edge
               </p>
             </div>

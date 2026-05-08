@@ -43,18 +43,15 @@ export function MessageRowSystem({ message, className }: MessageRowSystemProps) 
       }}
       type="button"
     >
-      <span
-        aria-hidden="true"
-        className="block h-px w-9 shrink-0 bg-[color:var(--color-divider)]"
-      />
-      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2 font-mono text-[12px] text-[color:var(--color-text-secondary)]">
-        <span className="text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+      <span aria-hidden="true" className="block h-px w-9 shrink-0 bg-(--color-divider)" />
+      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2 font-mono text-xs text-(--color-text-secondary)">
+        <span className="text-badge uppercase tracking-mono text-(--color-text-tertiary)">
           {message.kind}
         </span>
         <span className={cn("min-w-0", expanded ? "" : "truncate")}>{summary}</span>
       </span>
       <time
-        className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+        className="shrink-0 font-mono text-badge text-(--color-text-tertiary)"
         dateTime={iso}
         title={iso}
       >

@@ -48,7 +48,7 @@ function SkillsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-skills-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -60,8 +60,8 @@ function SkillsSettingsPage() {
         data-testid="settings-page-skills-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load skills settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -261,10 +261,10 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
         <Link
           to="/skills"
-          className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
           data-testid="settings-page-skills-link-skills"
         >
-          <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
           Open Skills
         </Link>
       </div>
@@ -342,19 +342,19 @@ function DisabledSkillsSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+          className="overflow-hidden rounded-lg border border-(--color-divider)"
           data-testid="settings-page-skills-disabled-list"
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-[color:var(--color-surface-elevated)]">
-                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              <TableRow className="bg-(--color-surface-elevated)">
+                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
                   Skill
                 </TableHead>
-                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
                   Identifier
                 </TableHead>
-                <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
                   Disabled
                 </TableHead>
               </TableRow>
@@ -364,13 +364,11 @@ function DisabledSkillsSection({
                 <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
-                      <Wrench className="size-3.5 text-[color:var(--color-text-tertiary)]" />
-                      <span className="truncate text-sm text-[color:var(--color-text-primary)]">
-                        {name}
-                      </span>
+                      <Wrench className="size-3.5 text-(--color-text-tertiary)" />
+                      <span className="truncate text-sm text-(--color-text-primary)">{name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-[color:var(--color-text-secondary)]">
+                  <TableCell className="font-mono text-xs text-(--color-text-secondary)">
                     {name}
                   </TableCell>
                   <TableCell className="text-right">
@@ -398,7 +396,7 @@ function AgentScopePolicyNotice() {
       note="read-only in agent scope"
       data-testid="settings-page-skills-agent-policy-note"
     >
-      <p className="text-sm text-[color:var(--color-text-secondary)]">
+      <p className="text-sm text-(--color-text-secondary)">
         Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
         poll interval, and marketplace allowlists remain global settings.
       </p>
@@ -602,28 +600,28 @@ function SaveControls({
       <div className="min-w-0" role="status" aria-live={liveRegion}>
         {error ? (
           <span
-            className="text-xs text-[color:var(--color-danger)]"
+            className="text-xs text-(--color-danger)"
             data-testid={`settings-page-skills-${slug}-error`}
           >
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
           <span
-            className="text-xs text-[color:var(--color-warning)]"
+            className="text-xs text-(--color-warning)"
             data-testid={`settings-page-skills-${slug}-warning`}
           >
             {warnings.join(" · ")}
           </span>
         ) : isDirty ? (
           <span
-            className="text-xs text-[color:var(--color-text-tertiary)]"
+            className="text-xs text-(--color-text-tertiary)"
             data-testid={`settings-page-skills-${slug}-dirty`}
           >
             Unsaved changes
           </span>
         ) : lastAppliedLabel ? (
           <span
-            className="text-xs text-[color:var(--color-text-tertiary)]"
+            className="text-xs text-(--color-text-tertiary)"
             data-testid={`settings-page-skills-${slug}-applied`}
           >
             {lastAppliedLabel}

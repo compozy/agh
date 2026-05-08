@@ -77,7 +77,7 @@ function GeneralSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-general-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -89,8 +89,8 @@ function GeneralSettingsPage() {
         data-testid="settings-page-general-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
+          <AlertCircle className="size-6 text-(--color-danger)" />
+          <p className="text-sm text-(--color-text-tertiary)">
             {page.error?.message ?? "Failed to load general settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -117,7 +117,7 @@ function GeneralSettingsPage() {
             <span key="sessions">
               {runtime.active_sessions} active sessions · {runtime.active_agents} agents
             </span>,
-            <span key="config" className="font-mono text-[0.7rem]">
+            <span key="config" className="font-mono text-eyebrow">
               config: {configPaths.global_config}
             </span>,
           ]}
@@ -192,16 +192,16 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
       href={snapshot.release_url}
       rel="noreferrer"
       target="_blank"
-      className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+      className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
       data-testid="settings-page-general-update-release-link"
     >
-      <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+      <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
       Release notes
     </a>
   ) : null;
   const refreshIndicator = update.isFetching ? (
-    <span className="inline-flex items-center gap-1.5 text-xs text-[color:var(--color-text-secondary)]">
-      <Loader2 className="size-3.5 animate-spin text-[color:var(--color-text-tertiary)]" />
+    <span className="inline-flex items-center gap-1.5 text-xs text-(--color-text-secondary)">
+      <Loader2 className="size-3.5 animate-spin text-(--color-text-tertiary)" />
       Checking
     </span>
   ) : null;
@@ -276,7 +276,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           label="Next action"
           description="Exact command or package-manager path for this install"
           control={
-            <span className="max-w-[34rem] font-mono text-xs text-[color:var(--color-text-primary)]">
+            <span className="max-w-136 font-mono text-xs text-(--color-text-primary)">
               {snapshot.recommendation}
             </span>
           }
@@ -288,9 +288,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           label="Last error"
           description="The last update refresh that failed"
           control={
-            <span className="max-w-[34rem] font-mono text-xs text-[color:var(--color-danger)]">
-              {lastError}
-            </span>
+            <span className="max-w-136 font-mono text-xs text-(--color-danger)">{lastError}</span>
           }
         />
       ) : null}
@@ -384,7 +382,7 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
           testId: `settings-page-general-permission-${mode}`,
         }))}
       />
-      <p className="text-xs text-[color:var(--color-text-tertiary)]">
+      <p className="text-xs text-(--color-text-tertiary)">
         {describePermissionMode(draft.permissions.mode)}
       </p>
     </SettingsSectionCard>
@@ -423,7 +421,7 @@ function SessionSection({
                 })
               }
             />
-            <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
               seconds
             </span>
           </div>

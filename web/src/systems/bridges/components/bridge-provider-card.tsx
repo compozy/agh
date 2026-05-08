@@ -50,12 +50,12 @@ export function BridgeProviderCard({
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h3 className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+          <h3 className="truncate text-small-body font-medium text-(--color-text-primary)">
             {provider.display_name}
           </h3>
           <div className="flex flex-wrap items-center gap-1.5">
             <KindChip kind={provider.platform} />
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
               {provider.extension_name}
             </span>
           </div>
@@ -65,7 +65,7 @@ export function BridgeProviderCard({
         </Pill>
       </div>
 
-      <p className="text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
+      <p className="text-xs leading-relaxed text-(--color-text-secondary)">
         {provider.description ?? "Bridge adapter installed and ready for instance configuration."}
       </p>
 
@@ -80,7 +80,7 @@ export function BridgeProviderCard({
         ) : null}
       </div>
 
-      <p className="text-[11px] leading-relaxed text-[color:var(--color-text-tertiary)]">
+      <p className="text-eyebrow leading-relaxed text-(--color-text-tertiary)">
         {provider.health_message ||
           (selectable
             ? "This provider can be used to create a bridge instance."
@@ -90,13 +90,9 @@ export function BridgeProviderCard({
   );
 
   const className = cn(
-    "flex w-full flex-col gap-3 rounded-[var(--radius-md)] border bg-[color:var(--color-surface)] p-4 text-left transition-colors",
-    selected
-      ? "border-[color:var(--color-accent)] bg-[color:var(--color-surface-elevated)]"
-      : "border-[color:var(--color-divider)]",
-    onSelect &&
-      selectable &&
-      "cursor-pointer hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-hover)]",
+    "flex w-full flex-col gap-3 rounded-md border bg-(--color-surface) p-4 text-left transition-colors",
+    selected ? "border-accent bg-(--color-surface-elevated)" : "border-(--color-divider)",
+    onSelect && selectable && "cursor-pointer hover:border-accent hover:bg-(--color-hover)",
     onSelect && !selectable && "cursor-not-allowed opacity-70"
   );
 

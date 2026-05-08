@@ -78,7 +78,7 @@ function ActivityFeedSkeleton() {
     <div className="space-y-0" data-testid="network-activity-feed-skeleton">
       {[0, 1, 2, 3].map(index => (
         <div
-          className="flex flex-col gap-2 border-b border-[color:var(--color-divider)] px-5 py-3"
+          className="flex flex-col gap-2 border-b border-(--color-divider) px-5 py-3"
           key={index}
         >
           <Skeleton className="h-3 w-24" />
@@ -117,28 +117,28 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
       data-testid="network-activity-feed"
     >
       <div
-        className="border-b border-[color:var(--color-divider)] px-5 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="border-b border-(--color-divider) px-5 py-2 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)"
         data-testid="network-activity-subheader"
       >
         Recent activity · Read-only
       </div>
       {entries.map(entry => {
         const linkClass = cn(
-          "flex flex-col gap-1 border-b border-[color:var(--color-divider)] px-5 py-3 text-left transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
+          "flex flex-col gap-1 border-b border-(--color-divider) px-5 py-3 text-left transition-colors hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
         );
         const meta = (
           <>
-            <div className="flex items-baseline gap-2 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+            <div className="flex items-baseline gap-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
               <span data-testid={`network-activity-tag-${entry.kind}`}>
                 {entry.kind === "thread" ? "[TH]" : "[DM]"}
               </span>
               <span aria-hidden="true">·</span>
               <span>{formatNetworkRelativeTime(entry.timestamp)}</span>
             </div>
-            <p className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
+            <p className="truncate text-sm font-semibold text-(--color-text-primary)">
               {entry.title}
             </p>
-            <p className="line-clamp-2 text-[13px] text-[color:var(--color-text-secondary)]">
+            <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
               {entry.preview}
             </p>
           </>

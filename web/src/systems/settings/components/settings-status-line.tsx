@@ -24,7 +24,7 @@ function SettingsStatusLine({
       {items.map((item, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: ordered static items from caller
         <span key={index} className="flex items-center gap-1">
-          <span aria-hidden="true" className="text-[color:var(--color-text-tertiary)]">
+          <span aria-hidden="true" className="text-(--color-text-tertiary)">
             ·
           </span>
           {item}

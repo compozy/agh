@@ -18,7 +18,7 @@ export const ThinkingBlock = memo(
         <CollapsibleTrigger
           className={cn(
             "flex w-full items-center gap-1.5 px-4 py-1.5 text-xs",
-            "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-secondary)]",
+            "text-(--color-text-tertiary) hover:text-(--color-text-secondary)",
             "cursor-pointer transition-colors"
           )}
           data-testid="thinking-trigger"
@@ -31,8 +31,8 @@ export const ThinkingBlock = memo(
           <div
             className={cn(
               "mx-4 mb-2 rounded-lg border px-3 py-2",
-              "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
-              "text-xs leading-relaxed text-[color:var(--color-text-secondary)]",
+              "border-(--color-divider) bg-(--color-surface)",
+              "text-xs leading-relaxed text-(--color-text-secondary)",
               "max-h-60 overflow-y-auto whitespace-pre-wrap"
             )}
             data-testid="thinking-content"

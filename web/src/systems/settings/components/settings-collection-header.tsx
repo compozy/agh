@@ -23,12 +23,10 @@ function SettingsCollectionHeader({
       data-testid={testId}
     >
       <div className="flex flex-wrap items-baseline gap-3">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-label)]">
+        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
           {eyebrow}
         </span>
-        {summary ? (
-          <span className="text-xs text-[color:var(--color-text-tertiary)]">{summary}</span>
-        ) : null}
+        {summary ? <span className="text-xs text-(--color-text-tertiary)">{summary}</span> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
