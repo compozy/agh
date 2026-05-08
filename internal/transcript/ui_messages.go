@@ -269,15 +269,15 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 		builder.appendReasoning(decoded.parsed.Text)
 	case acp.EventTypeToolCall:
 		builder.applyToolCall(decoded)
-		builder.appendDataPart(uiPartDataEvent, decoded.dataPayload())
+		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
 	case acp.EventTypeToolResult:
 		builder.applyToolResult(decoded)
 	case acp.EventTypePermission:
-		builder.appendDataPart(uiPartDataPermission, decoded.dataPayload())
+		builder.appendDataPart(uiPartDataPermission, uiPermissionDataPartID(decoded.agent), decoded.dataPayload())
 	case acp.EventTypeDone, acp.EventTypeError:
 		builder.finished = true
 	default:
-		builder.appendDataPart(uiPartDataEvent, decoded.dataPayload())
+		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
 	}
 }
 
@@ -323,14 +323,39 @@ func (b *uiMessageBuilder) ensureReasoningPart() int {
 	return b.reasoningIndex
 }
 
-func (b *uiMessageBuilder) appendDataPart(partType string, payload json.RawMessage) {
+func (b *uiMessageBuilder) appendDataPart(partType string, partID string, payload json.RawMessage) {
 	if len(payload) == 0 {
 		return
 	}
+	if partID != "" {
+		for index := range b.parts {
+			if b.parts[index].Type != partType || b.parts[index].ID != partID {
+				continue
+			}
+			b.parts[index].Data = acp.CloneRawMessage(payload)
+			return
+		}
+	}
 	b.parts = append(b.parts, UIMessagePart{
 		Type: partType,
+		ID:   partID,
 		Data: acp.CloneRawMessage(payload),
 	})
+}
+
+func uiPermissionDataPartID(event acp.AgentEvent) string {
+	if requestID := strings.TrimSpace(event.RequestID); requestID != "" {
+		return requestID
+	}
+	if turnID := strings.TrimSpace(event.TurnID); turnID != "" {
+		if toolCallID := strings.TrimSpace(event.ToolCallID); toolCallID != "" {
+			return turnID + ":" + toolCallID
+		}
+	}
+	if toolCallID := strings.TrimSpace(event.ToolCallID); toolCallID != "" {
+		return toolCallID
+	}
+	return ""
 }
 
 func (b *uiMessageBuilder) applyToolCall(decoded *decodedStoredEvent) {

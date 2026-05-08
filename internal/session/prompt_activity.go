@@ -350,10 +350,23 @@ func (s *promptActivitySupervisor) stopSessionAfterRuntimeTimeout(stopDetail str
 	}
 	timer := time.NewTimer(s.config.TimeoutCancelGrace)
 	defer timer.Stop()
-	select {
-	case <-s.ctx.Done():
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			goto forceStop
+		case <-ticker.C:
+			if !s.session.IsPrompting() {
+				return
+			}
+		}
+	}
+
+forceStop:
+	if !s.session.IsPrompting() {
 		return
-	case <-timer.C:
 	}
 
 	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.timeoutStopDeadline())
@@ -372,6 +385,9 @@ func (s *promptActivitySupervisor) stopSessionAfterRuntimeTimeout(stopDetail str
 func (s *promptActivitySupervisor) timeoutStopDeadline() time.Duration {
 	if s == nil || s.config.TimeoutCancelGrace <= 0 {
 		return aghconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
+	}
+	if s.config.TimeoutCancelGrace < defaultLifecycleTimeout {
+		return defaultLifecycleTimeout
 	}
 	return s.config.TimeoutCancelGrace
 }

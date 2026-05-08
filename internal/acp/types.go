@@ -535,6 +535,7 @@ type activePromptState struct {
 	turnID   string
 	events   chan AgentEvent
 	activity chan struct{}
+	cancel   context.CancelFunc
 
 	sendMu sync.Mutex
 	closed bool
@@ -665,7 +666,11 @@ func (p *AgentProcess) checkpointProcessOwner(ctx context.Context) error {
 	return nil
 }
 
-func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePromptState, error) {
+func (p *AgentProcess) beginPrompt(
+	turnID string,
+	bufferSize int,
+	cancelFns ...context.CancelFunc,
+) (*activePromptState, error) {
 	p.promptMu.Lock()
 	defer p.promptMu.Unlock()
 	if p.activePrompt != nil {
@@ -674,10 +679,15 @@ func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePrompt
 	if bufferSize <= 0 {
 		bufferSize = 1
 	}
+	var cancel context.CancelFunc
+	if len(cancelFns) > 0 {
+		cancel = cancelFns[0]
+	}
 	active := &activePromptState{
 		turnID:               turnID,
 		events:               make(chan AgentEvent, bufferSize),
 		activity:             make(chan struct{}, 1),
+		cancel:               cancel,
 		seenToolCalls:        make(map[string]struct{}),
 		pendingToolResultIDs: make(map[string]struct{}),
 	}
@@ -708,6 +718,17 @@ func (p *AgentProcess) currentPrompt() *activePromptState {
 	p.promptMu.RLock()
 	defer p.promptMu.RUnlock()
 	return p.activePrompt
+}
+
+func (p *AgentProcess) cancelCurrentPrompt() bool {
+	p.promptMu.RLock()
+	active := p.activePrompt
+	p.promptMu.RUnlock()
+	if active == nil || active.cancel == nil {
+		return false
+	}
+	active.cancel()
+	return true
 }
 
 // SetTurnSourceProvider configures a daemon-local callback that reports the current turn provenance.

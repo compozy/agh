@@ -77,3 +77,43 @@ func TestFailureFromErrorPreservesGenericPromptErrors(t *testing.T) {
 		t.Fatalf("FailureFromError() kind = %q, want %q", got, want)
 	}
 }
+
+func TestFailureFromErrorClassifiesPromptCancellationRequestErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "Should classify JSON-RPC cancellation code as cancellation",
+			err: &acpsdk.RequestError{
+				Code:    -32800,
+				Message: "Request canceled",
+				Data:    map[string]any{"error": "context canceled"},
+			},
+		},
+		{
+			name: "Should classify canceled request details as cancellation",
+			err: &acpsdk.RequestError{
+				Code:    -32603,
+				Message: "Internal error",
+				Data:    map[string]any{"error": "context canceled"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			failure, ok := FailureFromError(tc.err, store.FailurePrompt)
+			if !ok {
+				t.Fatal("FailureFromError() ok = false, want true")
+			}
+			if got, want := failure.Kind, store.FailureCanceled; got != want {
+				t.Fatalf("FailureFromError() kind = %q, want %q", got, want)
+			}
+		})
+	}
+}

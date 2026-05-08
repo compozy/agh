@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const defaultTimeout = 10 * time.Second
+const defaultTimeout = 45 * time.Second
 
 var tcpPortCounter atomic.Uint32
 

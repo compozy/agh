@@ -153,6 +153,16 @@ func (fakeStore) GetRunReview(context.Context, string) (taskpkg.RunReview, error
 	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
 }
 
+func (fakeStore) RecordRunReview(
+	context.Context,
+	taskpkg.RecordRunReviewRequest,
+	taskpkg.ActorContext,
+	time.Time,
+	string,
+) (taskpkg.RunReviewResult, error) {
+	return taskpkg.RunReviewResult{}, taskpkg.ErrRunReviewNotFound
+}
+
 func (fakeStore) BindRunReviewSession(
 	context.Context,
 	taskpkg.BindRunReviewSessionRequest,

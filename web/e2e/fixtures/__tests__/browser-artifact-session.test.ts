@@ -24,6 +24,12 @@ describe("captureRouteState", () => {
             <article data-testid="network-thread-list-row-thread_one"></article>
             <article data-testid="network-thread-list-row-thread_two"></article>
           </section>
+          <section data-testid="network-activity-feed">
+            <a data-testid="network-activity-entry-thread:thread_one"></a>
+          </section>
+          <section data-testid="network-work-inspector">
+            <li data-testid="network-work-inspector-row-work_one"></li>
+          </section>
         </main>
       </div>
     `;
@@ -42,11 +48,37 @@ describe("captureRouteState", () => {
       network_channel_count: 2,
       network_thread_count: 2,
       network_direct_count: 0,
+      network_activity_count: 1,
       network_message_count: 0,
+      network_work_count: 1,
       network_selected_channel: "builders",
     });
     expect(routeState).not.toHaveProperty("network_selected_peer");
     expect(routeState.network_selected_thread).toBeUndefined();
+  });
+
+  it("captures disabled and no-channel network route states for launch diagnostics", async () => {
+    window.history.replaceState({}, "", "/network");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <div data-testid="network-shell">
+        <section data-testid="network-no-channels-state"></section>
+      </div>
+      <section data-testid="network-disabled-state"></section>
+      <form data-testid="network-create-channel-dialog"></form>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/network",
+      network_create_dialog_open: true,
+      network_disabled_visible: true,
+      network_no_channels_visible: true,
+      network_view_visible: true,
+    });
   });
 
   it("captures the selected thread overlay container id without leaking direct fields", async () => {
@@ -106,6 +138,8 @@ describe("captureRouteState", () => {
     document.body.innerHTML = `
       <div data-testid="jobs-shell">
         <button data-testid="jobs-scope-all" aria-pressed="true"></button>
+        <button data-testid="jobs-scope-global" aria-pressed="false"></button>
+        <button data-testid="jobs-scope-workspace" aria-pressed="false"></button>
       </div>
       <aside data-testid="automation-list-panel">
         <button data-testid="automation-item-job_daily_review"></button>
@@ -113,6 +147,10 @@ describe("captureRouteState", () => {
       </aside>
       <section data-testid="automation-detail-panel">
         <h2>deploy-review</h2>
+        <button data-testid="toggle-automation-btn"></button>
+        <button data-testid="trigger-job-btn"></button>
+        <button data-testid="delete-automation-btn"></button>
+        <div data-testid="automation-job-scheduler"></div>
       </section>
       <section data-testid="automation-run-history">
         <article data-testid="automation-run-run_001"></article>
@@ -131,12 +169,18 @@ describe("captureRouteState", () => {
       title: "AGH",
       automation_view_visible: true,
       automation_active_tab: "jobs",
+      automation_delete_visible: true,
+      automation_enabled_toggle_visible: true,
       automation_editor_kind: "job",
+      automation_editor_open: false,
       automation_item_count: 2,
       automation_run_count: 2,
       automation_run_history_visible: true,
+      automation_scheduler_visible: true,
+      automation_scope_filter: "all",
       automation_selected_item: "deploy-review",
       automation_session_link_count: 1,
+      automation_trigger_visible: true,
     });
   });
 
@@ -177,6 +221,98 @@ describe("captureRouteState", () => {
       bridge_route_count: 1,
       bridge_edit_dialog_open: true,
       bridge_test_delivery_result_visible: true,
+    });
+  });
+
+  it("captures task route context, selected run, and graph/review counts", async () => {
+    window.history.replaceState({}, "", "/tasks/task_launch/runs/run_launch");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <div data-testid="tasks-dashboard-view">
+        <button data-testid="tasks-mode-dashboard" aria-pressed="false"></button>
+        <button data-testid="tasks-mode-inbox" aria-pressed="false"></button>
+        <button data-testid="tasks-mode-kanban" aria-pressed="false"></button>
+        <button data-testid="tasks-mode-list" aria-pressed="true"></button>
+        <article data-testid="task-card-task_launch"></article>
+        <article data-testid="task-card-task_review"></article>
+      </div>
+      <section data-testid="tasks-detail-content">
+        <button data-testid="tasks-detail-cancel"></button>
+        <table data-testid="tasks-detail-children-panel">
+          <tr data-testid="tasks-detail-children-item-task_child"></tr>
+        </table>
+        <table data-testid="tasks-detail-dependencies-panel">
+          <tr data-testid="tasks-detail-dependencies-item-task_dependency"></tr>
+        </table>
+      </section>
+      <section data-testid="tasks-run-detail-content">
+        <button data-testid="task-run-detail-cancel"></button>
+        <table data-testid="tasks-run-reviews-card">
+          <tr data-testid="tasks-run-reviews-row-review_001"></tr>
+        </table>
+      </section>
+      <article data-testid="tasks-inbox-item-task_launch" data-lane="failed_runs"></article>
+      <button data-testid="tasks-inbox-item-retry-task_launch"></button>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/tasks/task_launch/runs/run_launch",
+      tasks_active_mode: "list",
+      tasks_children_count: 1,
+      tasks_dependencies_count: 1,
+      tasks_detail_cancel_visible: true,
+      tasks_detail_visible: true,
+      tasks_inbox_count: 1,
+      tasks_review_count: 1,
+      tasks_run_cancel_visible: true,
+      tasks_run_detail_visible: true,
+      tasks_selected_run: "run_launch",
+      tasks_selected_task: "task_launch",
+      tasks_task_count: 2,
+      tasks_view_visible: true,
+    });
+  });
+
+  it("captures dashboard health and metric route context", async () => {
+    window.history.replaceState({}, "", "/");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <main data-testid="home-shell">
+        <div data-testid="home-connection-indicator" data-status="connected"></div>
+        <section data-testid="home-daemon-card" data-status="healthy"></section>
+        <article data-testid="home-metric-active-sessions">
+          <span data-slot="metric-value">1</span>
+        </article>
+        <article data-testid="home-metric-workspaces">
+          <span data-slot="metric-value">2</span>
+        </article>
+        <article data-testid="home-metric-agents">
+          <span data-slot="metric-value">3</span>
+        </article>
+        <article data-testid="home-metric-uptime">
+          <span data-slot="metric-value">4m</span>
+        </article>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/",
+      home_view_visible: true,
+      home_connection_status: "connected",
+      home_daemon_status: "healthy",
+      home_metric_count: 4,
+      home_active_sessions_value: "1",
+      home_workspaces_value: "2",
+      home_agents_value: "3",
+      home_uptime_value: "4m",
     });
   });
 });

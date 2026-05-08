@@ -728,6 +728,78 @@ func TestMarshalAgentEventExtractsToolResultShapeWithoutPersistingRaw(t *testing
 	})
 }
 
+func TestToUIMessagesPermissionDataParts(t *testing.T) {
+	t.Run("ShouldReplacePendingPermissionWithFinalDecision", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
+		events := []store.SessionEvent{
+			mustPermissionSessionEvent(t, "ev-pending", 1, timestamp, ""),
+			mustPermissionSessionEvent(t, "ev-final", 2, timestamp.Add(time.Second), "allow-once"),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := len(messages[0].Parts), 1; got != want {
+			t.Fatalf("len(parts) = %d, want %d; parts=%#v", got, want, messages[0].Parts)
+		}
+
+		part := messages[0].Parts[0]
+		if got, want := part.Type, uiPartDataPermission; got != want {
+			t.Fatalf("part.Type = %q, want %q", got, want)
+		}
+		if got, want := part.ID, "req-permission"; got != want {
+			t.Fatalf("part.ID = %q, want %q", got, want)
+		}
+
+		var payload UIAgentEventPayload
+		if err := json.Unmarshal(part.Data, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(part.Data) error = %v", err)
+		}
+		if got, want := payload.Decision, "allow-once"; got != want {
+			t.Fatalf("payload.Decision = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldPreservePendingPermissionWithoutDecision", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
+		events := []store.SessionEvent{
+			mustPermissionSessionEvent(t, "ev-pending", 1, timestamp, ""),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := len(messages[0].Parts), 1; got != want {
+			t.Fatalf("len(parts) = %d, want %d; parts=%#v", got, want, messages[0].Parts)
+		}
+
+		part := messages[0].Parts[0]
+		if got, want := part.ID, "req-permission"; got != want {
+			t.Fatalf("part.ID = %q, want %q", got, want)
+		}
+
+		var payload UIAgentEventPayload
+		if err := json.Unmarshal(part.Data, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(part.Data) error = %v", err)
+		}
+		if payload.Decision != "" {
+			t.Fatalf("payload.Decision = %q, want empty", payload.Decision)
+		}
+	})
+}
+
 func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 	t.Parallel()
 
@@ -751,6 +823,42 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 			t.Fatal("StructuredPatch = empty, want preserved patch payload")
 		}
 	})
+}
+
+func mustPermissionSessionEvent(
+	t *testing.T,
+	id string,
+	sequence int64,
+	timestamp time.Time,
+	decision string,
+) store.SessionEvent {
+	t.Helper()
+
+	content, err := MarshalAgentEvent(acp.AgentEvent{
+		Type:      acp.EventTypePermission,
+		SessionID: "sess-permission",
+		TurnID:    "turn-permission",
+		RequestID: "req-permission",
+		Timestamp: timestamp,
+		Title:     "Bash",
+		Action:    "session/request_permission",
+		Resource:  "Bash",
+		Decision:  decision,
+		Raw:       json.RawMessage(`{"command":"pwd"}`),
+	})
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent() error = %v", err)
+	}
+
+	return store.SessionEvent{
+		ID:        id,
+		SessionID: "sess-permission",
+		TurnID:    "turn-permission",
+		Sequence:  sequence,
+		Type:      acp.EventTypePermission,
+		Content:   content,
+		Timestamp: timestamp,
+	}
 }
 
 func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {

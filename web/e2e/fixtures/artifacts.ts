@@ -11,6 +11,7 @@ const browserArtifactSpecs = {
   browser_screenshots: { relativePath: "browser_screenshots", isDir: true },
   browser_console: { relativePath: "browser_console.json", isDir: false },
   browser_network: { relativePath: "browser_network.json", isDir: false },
+  browser_api_snapshots: { relativePath: "browser_api_snapshots.json", isDir: false },
   browser_route_state: { relativePath: "browser_route_state.json", isDir: false },
 } as const;
 
@@ -60,12 +61,18 @@ export interface BrowserRouteState {
   pathname: string;
   title: string;
   automation_active_tab?: "jobs" | "triggers";
+  automation_delete_visible?: boolean;
+  automation_enabled_toggle_visible?: boolean;
   automation_editor_kind?: "job" | "trigger";
+  automation_editor_open?: boolean;
   automation_item_count?: number;
   automation_run_count?: number;
   automation_run_history_visible?: boolean;
+  automation_scheduler_visible?: boolean;
+  automation_scope_filter?: "all" | "global" | "workspace";
   automation_selected_item?: string;
   automation_session_link_count?: number;
+  automation_trigger_visible?: boolean;
   automation_view_visible?: boolean;
   bridge_create_dialog_open?: boolean;
   bridge_detail_visible?: boolean;
@@ -79,7 +86,33 @@ export interface BrowserRouteState {
   bridge_test_delivery_result_visible?: boolean;
   bridge_view_visible?: boolean;
   chat_view_visible: boolean;
+  composer_clear_button_enabled?: boolean;
+  composer_clear_button_visible?: boolean;
+  delete_button_visible?: boolean;
+  home_active_sessions_value?: string;
+  home_agents_value?: string;
+  home_connection_status?: string;
+  home_daemon_status?: string;
+  home_metric_count?: number;
+  home_uptime_value?: string;
+  home_view_visible?: boolean;
+  home_workspaces_value?: string;
   session_name?: string;
+  tasks_active_mode?: "dashboard" | "inbox" | "kanban" | "list";
+  tasks_children_count?: number;
+  tasks_dependencies_count?: number;
+  tasks_detail_cancel_visible?: boolean;
+  tasks_detail_delete_dialog_open?: boolean;
+  tasks_detail_visible?: boolean;
+  tasks_inbox_count?: number;
+  tasks_review_count?: number;
+  tasks_run_cancel_visible?: boolean;
+  tasks_run_detail_visible?: boolean;
+  tasks_selected_run?: string;
+  tasks_selected_task?: string;
+  tasks_task_count?: number;
+  tasks_view_visible?: boolean;
+  tool_card_count?: number;
   permission_prompt_visible: boolean;
   processing_indicator_visible: boolean;
   stop_button_visible: boolean;
@@ -88,9 +121,14 @@ export interface BrowserRouteState {
   network_view_visible: boolean;
   network_active_tab?: "threads" | "directs" | "activity";
   network_channel_count: number;
+  network_create_dialog_open?: boolean;
+  network_disabled_visible?: boolean;
   network_thread_count: number;
   network_direct_count: number;
+  network_activity_count?: number;
   network_message_count: number;
+  network_no_channels_visible?: boolean;
+  network_work_count?: number;
   network_selected_channel?: string;
   network_selected_thread?: string;
   network_selected_direct?: string;

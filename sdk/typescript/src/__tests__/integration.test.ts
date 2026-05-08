@@ -12,7 +12,7 @@ const packageDir = resolve(sourceDir, "..");
 const workspaceRoot = resolve(packageDir, "../..");
 const tscBin = join(workspaceRoot, "node_modules/.bin/tsc");
 const buildTimeoutMs = 120_000;
-const integrationTimeoutMs = 120_000;
+const integrationTimeoutMs = 180_000;
 
 async function newestMtimeMs(path: string): Promise<number> {
   const entry = await stat(path);

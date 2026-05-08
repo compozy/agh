@@ -59,6 +59,7 @@ export function TasksInboxView({
   pendingMarkReadId,
 }: TasksInboxViewProps) {
   const groups = inbox?.groups ?? [];
+  const hasInboxItems = groups.some(group => (group.items ?? []).length > 0);
   const itemActionProps: Omit<TasksInboxItemProps, "item"> = {
     onApprove,
     onReject,
@@ -121,7 +122,7 @@ export function TasksInboxView({
             description={errorMessage}
             data-testid="tasks-inbox-error"
           />
-        ) : groups.length === 0 ? (
+        ) : groups.length === 0 || !hasInboxItems ? (
           <Empty
             className="mx-auto max-w-xl"
             description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."

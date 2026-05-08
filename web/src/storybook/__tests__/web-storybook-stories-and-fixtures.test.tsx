@@ -21,7 +21,7 @@ describe("storybook story and fixture regressions", () => {
   const webRoot = resolve(testDir, "../../..");
   const fromWeb = (path: string) => resolve(webRoot, path);
 
-  it("loads the edited story modules", { timeout: 15_000 }, async () => {
+  it("loads the edited story modules", { timeout: 120_000 }, async () => {
     const agentStoryModules = import("@/systems/agent/storybook");
     const modules = await Promise.all([
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),

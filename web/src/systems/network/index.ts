@@ -130,6 +130,7 @@ export type {
   UseNetworkInspectorViewArgs,
   UseNetworkInspectorViewResult,
 } from "./hooks/use-network-inspector-view";
+export { useNetworkCreateChannelAction } from "./hooks/use-network-create-channel-action";
 export { useNetworkChannelDirectsRoute } from "./hooks/use-network-channel-directs-route";
 export type { UseNetworkChannelDirectsRouteResult } from "./hooks/use-network-channel-directs-route";
 export { useNetworkRailView } from "./hooks/use-network-rail-view";
@@ -169,6 +170,7 @@ export { useNetworkRecents } from "./hooks/use-recents";
 export type { UseNetworkRecentsResult } from "./hooks/use-recents";
 export { useNetworkRouteShell } from "./hooks/use-network-route-shell";
 export type { NetworkRouteShellResult } from "./hooks/use-network-route-shell";
+export { useNetworkRouteView } from "./hooks/use-network-route-view";
 export { useNetworkThreads, useNetworkThreadDetail } from "./hooks/use-threads";
 export type {
   UseNetworkThreadsOptions,

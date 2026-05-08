@@ -82,6 +82,7 @@ type promptToolInputAvailablePayload struct {
 
 type promptDataEventEnvelope struct {
 	Type string                  `json:"type"`
+	ID   string                  `json:"id,omitempty"`
 	Data promptAgentEventPayload `json:"data"`
 }
 
@@ -238,7 +239,11 @@ func (e *PromptStreamEncoder) emitToolResult(writer FlushWriter, event acp.Agent
 
 func (e *PromptStreamEncoder) emitPermission(writer FlushWriter, event acp.AgentEvent) error {
 	return WriteSSE(writer, SSEMessage{
-		Data: promptDataEventEnvelope{Type: "data-agh-permission", Data: promptAgentEventPayloadFromEvent(event)},
+		Data: promptDataEventEnvelope{
+			Type: "data-agh-permission",
+			ID:   promptPermissionDataPartID(event),
+			Data: promptAgentEventPayloadFromEvent(event),
+		},
 	})
 }
 
@@ -462,6 +467,21 @@ func promptAISDKFinishReason(stopReason string) string {
 	default:
 		return "other"
 	}
+}
+
+func promptPermissionDataPartID(event acp.AgentEvent) string {
+	if requestID := strings.TrimSpace(event.RequestID); requestID != "" {
+		return requestID
+	}
+	if turnID := strings.TrimSpace(event.TurnID); turnID != "" {
+		if toolCallID := strings.TrimSpace(event.ToolCallID); toolCallID != "" {
+			return turnID + ":" + toolCallID
+		}
+	}
+	if toolCallID := strings.TrimSpace(event.ToolCallID); toolCallID != "" {
+		return toolCallID
+	}
+	return ""
 }
 
 func promptAgentEventPayloadFromEvent(event acp.AgentEvent) promptAgentEventPayload {

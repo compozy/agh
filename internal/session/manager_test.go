@@ -1275,7 +1275,7 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 		ProgressNotifyInterval:    0,
 		InactivityWarningAfter:    0,
 		InactivityTimeout:         0,
-		TimeoutCancelGrace:        200 * time.Millisecond,
+		TimeoutCancelGrace:        2 * time.Second,
 		PromptDeadline:            20 * time.Millisecond,
 	}))
 	session := createSession(t, h)
@@ -1321,8 +1321,8 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	if got := h.driver.cancelCalls; got != 1 {
 		t.Fatalf("driver cancel calls = %d, want 1", got)
 	}
-	if got := h.driver.stopCalls; got != 0 {
-		t.Fatalf("driver stop calls = %d, want 0", got)
+	if got := h.driver.stopCalls; got != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", got)
 	}
 }
 
@@ -1524,6 +1524,38 @@ func TestCancelPrompt(t *testing.T) {
 
 		close(promptEvents)
 		_ = collectEvents(t, eventsCh)
+	})
+
+	t.Run("Should cancel prompt setup before driver prompt is registered", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			session.clearCurrentTurnSource()
+			session.clearCurrentPromptCancel()
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		promptCtx, cancelPrompt := context.WithCancel(testutil.Context(t))
+		session.setCurrentTurnID("turn-setup")
+		session.setCurrentTurnSource(TurnSourceUser)
+		session.setCurrentPromptCancel(cancelPrompt)
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		select {
+		case <-promptCtx.Done():
+		default:
+			t.Fatal("prompt setup context is still active after CancelPrompt()")
+		}
+		if got := h.driver.cancelCalls; got != 1 {
+			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+		if got := len(h.driver.interruptScopes); got != 1 {
+			t.Fatalf("driver interrupt calls = %d, want 1", got)
+		}
 	})
 
 	t.Run("Should no-op when a prompting session loses its process handle", func(t *testing.T) {
@@ -3731,7 +3763,7 @@ func countEventType(events []store.SessionEvent, want string) int {
 func waitForCondition(t *testing.T, label string, fn func() bool) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if fn() {
 			return

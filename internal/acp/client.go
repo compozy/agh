@@ -720,16 +720,18 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 		return nil, err
 	}
 
-	active, err := proc.beginPrompt(req.TurnID, d.promptBufferCap)
+	promptCtx, cancelPrompt := context.WithCancel(ctx)
+	active, err := proc.beginPrompt(req.TurnID, d.promptBufferCap, cancelPrompt)
 	if err != nil {
+		cancelPrompt()
 		return nil, err
 	}
 
-	go d.runPrompt(ctx, proc, active, req)
+	go d.runPrompt(promptCtx, proc, active, req)
 	return active.events, nil
 }
 
-// Cancel sends the ACP cooperative cancellation notification for the active session.
+// Cancel cancels the local active prompt or falls back to ACP cooperative cancellation.
 func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	if ctx == nil {
 		return errors.New("acp: context is required")
@@ -742,6 +744,9 @@ func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	}
 	if strings.TrimSpace(proc.SessionID) == "" {
 		return errors.New("acp: session id is required")
+	}
+	if proc.cancelCurrentPrompt() {
+		return nil
 	}
 	return proc.conn.SendNotification(ctx, acpsdk.AgentMethodSessionCancel, acpsdk.CancelNotification{
 		SessionId: acpsdk.SessionId(proc.SessionID),
@@ -880,40 +885,18 @@ func (d *Driver) stopExecCommand(ctx context.Context, proc *AgentProcess, errs [
 }
 
 func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *activePromptState, req PromptRequest) {
-	defer proc.endPrompt(active)
+	defer func() {
+		if active != nil && active.cancel != nil {
+			active.cancel()
+		}
+		proc.endPrompt(active)
+	}()
 
 	stopReporter := startPromptActivityReporter(ctx, req)
 	defer stopReporter()
 
-	cancellationDone := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			if strings.TrimSpace(proc.SessionID) != "" {
-				notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-				defer cancel()
-				if err := proc.conn.SendNotification(
-					notifyCtx,
-					acpsdk.AgentMethodSessionCancel,
-					acpsdk.CancelNotification{
-						SessionId: acpsdk.SessionId(proc.SessionID),
-					},
-				); err != nil && !errors.Is(err, context.Canceled) {
-					d.logger.WarnContext(
-						notifyCtx,
-						"acp: send session cancel notification",
-						"session_id",
-						proc.SessionID,
-						"turn_id",
-						active.turnID,
-						"error",
-						err,
-					)
-				}
-			}
-		case <-cancellationDone:
-		}
-	}()
+	stopCancellationNotifier := d.startPromptCancellationNotifier(ctx, proc, active)
+	defer stopCancellationNotifier()
 
 	promptRequest, err := buildWirePromptRequest(proc, req)
 	if err != nil {
@@ -926,7 +909,6 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		acpsdk.AgentMethodSessionPrompt,
 		promptRequest,
 	)
-	close(cancellationDone)
 
 	if err != nil {
 		if proc.stopWasRequested() && shouldSuppressPromptErrorOnStop(err) {
@@ -958,6 +940,53 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	}
 	d.waitForPromptQuiescence(active)
 	proc.emitPromptEvent(doneEvent)
+}
+
+func (d *Driver) startPromptCancellationNotifier(
+	ctx context.Context,
+	proc *AgentProcess,
+	active *activePromptState,
+) func() {
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			d.sendPromptCancellationNotification(ctx, proc, active)
+		case <-done:
+		}
+	}()
+	return func() {
+		close(done)
+	}
+}
+
+func (d *Driver) sendPromptCancellationNotification(
+	ctx context.Context,
+	proc *AgentProcess,
+	active *activePromptState,
+) {
+	if strings.TrimSpace(proc.SessionID) == "" {
+		return
+	}
+	notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	err := proc.conn.SendNotification(
+		notifyCtx,
+		acpsdk.AgentMethodSessionCancel,
+		acpsdk.CancelNotification{SessionId: acpsdk.SessionId(proc.SessionID)},
+	)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		d.logger.WarnContext(
+			notifyCtx,
+			"acp: send session cancel notification",
+			"session_id",
+			proc.SessionID,
+			"turn_id",
+			active.turnID,
+			"error",
+			err,
+		)
+	}
 }
 
 func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {

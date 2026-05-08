@@ -428,7 +428,7 @@ func (a *ACPDriverAdapter) Prompt(
 	return a.driver.Prompt(ctx, native, req)
 }
 
-// Cancel cooperatively cancels the active ACP prompt.
+// Cancel cancels the active ACP prompt.
 func (a *ACPDriverAdapter) Cancel(ctx context.Context, proc *AgentProcess) error {
 	native, err := a.nativeProcess(proc)
 	if err != nil {

@@ -12,7 +12,9 @@ import {
   CodeBlock,
   MetadataList,
 } from "@agh/ui";
-import type { PermissionRequest } from "../types";
+import { cn } from "@/lib/utils";
+import { toPermissionRequest } from "../lib/message-parts";
+import type { AghPermissionData, PermissionRequest } from "../types";
 import type { PermissionDecision } from "../adapters/session-api";
 import { approveSession } from "../adapters/session-api";
 
@@ -22,8 +24,24 @@ export interface PermissionPromptProps {
   onResolved?: () => void;
 }
 
+function normalizePermissionDecision(value: string | undefined): PermissionDecision | null {
+  switch (value?.trim()) {
+    case "allow-once":
+      return "allow-once";
+    case "allow-always":
+      return "allow-always";
+    case "reject-once":
+      return "reject-once";
+    case "reject-always":
+      return "reject-always";
+    default:
+      return null;
+  }
+}
+
 export function PermissionPrompt({ permission, sessionId, onResolved }: PermissionPromptProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResolved, setIsResolved] = useState(false);
 
   const handleDecision = useCallback(
     async (decision: PermissionDecision) => {
@@ -34,14 +52,20 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
           turn_id: permission.turnId ?? "",
           decision,
         });
+        setIsResolved(true);
+        onResolved?.();
       } catch {
         toast.error("Failed to send permission response. The agent may continue waiting.");
+      } finally {
+        setIsSubmitting(false);
       }
-      onResolved?.();
-      setIsSubmitting(false);
     },
     [sessionId, permission.requestId, permission.turnId, onResolved]
   );
+
+  if (isResolved) {
+    return null;
+  }
 
   return (
     <div className="px-4 py-2" data-testid="permission-prompt">
@@ -128,6 +152,52 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
           </Button>
         </AlertActions>
       </Alert>
+    </div>
+  );
+}
+
+export function PermissionDataPart({
+  data,
+  sessionId,
+}: {
+  data: AghPermissionData;
+  sessionId: string;
+}) {
+  const decision = normalizePermissionDecision(data.decision);
+  const permission = toPermissionRequest(data);
+  switch (decision) {
+    case "allow-once":
+    case "allow-always":
+      return null;
+    case "reject-once":
+    case "reject-always":
+      return <PermissionRejectedNotice permission={permission} />;
+    default:
+      return <PermissionPrompt permission={permission} sessionId={sessionId} />;
+  }
+}
+
+function PermissionRejectedNotice({ permission }: { permission: PermissionRequest }) {
+  return (
+    <div className="px-4 py-2" data-testid="permission-rejected-notice" role="status">
+      <div
+        className={cn(
+          "flex max-w-3xl items-start gap-2 rounded-[var(--radius-md)] border px-3 py-2",
+          "border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger)]/8",
+          "text-xs text-[color:var(--color-danger)]"
+        )}
+      >
+        <ShieldOff aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-[color:var(--color-text-primary)]">
+            Permission Rejected
+          </div>
+          <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[color:var(--color-text-secondary)]">
+            <span className="font-mono">{permission.toolName}</span>
+            {permission.resource ? <span className="truncate">{permission.resource}</span> : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

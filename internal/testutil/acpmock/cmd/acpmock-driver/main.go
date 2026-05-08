@@ -29,8 +29,11 @@ type cliArgs struct {
 }
 
 type sessionState struct {
-	PromptCount   int
-	ConfigOptions []acpsdk.SessionConfigOption
+	PromptCount         int
+	ConfigOptions       []acpsdk.SessionConfigOption
+	activePromptCancel  context.CancelFunc
+	promptStarting      bool
+	pendingPromptCancel bool
 }
 
 type mockAgent struct {
@@ -127,7 +130,25 @@ func (a *mockAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsd
 	}, nil
 }
 
-func (a *mockAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
+func (a *mockAgent) Cancel(_ context.Context, params acpsdk.CancelNotification) error {
+	sessionID := strings.TrimSpace(string(params.SessionId))
+	if sessionID == "" {
+		return errors.New("acpmock-driver: session id is required")
+	}
+
+	a.mu.Lock()
+	session := a.sessions[sessionID]
+	var cancel context.CancelFunc
+	if session != nil {
+		cancel = session.activePromptCancel
+		if cancel == nil {
+			session.pendingPromptCancel = true
+		}
+	}
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	return nil
 }
 
@@ -374,6 +395,8 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	if sessionID == "" {
 		return acpsdk.PromptResponse{}, errors.New("sessionId is required")
 	}
+	a.beginPromptRegistration(sessionID)
+	defer a.clearPromptCancel(sessionID)
 
 	promptMeta, err := decodePromptMeta(params.Meta)
 	if err != nil {
@@ -399,6 +422,7 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 
 	promptCtx, cancelPrompt := context.WithCancel(ctx)
 	defer cancelPrompt()
+	a.registerPromptCancel(sessionID, cancelPrompt)
 
 	for _, step := range turn.Steps {
 		entry, execErr := a.executeStep(promptCtx, acpsdk.SessionId(sessionID), step)
@@ -422,6 +446,54 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		return acpsdk.PromptResponse{}, err
 	}
 	return acpsdk.PromptResponse{StopReason: stopReason(turn.StopReason)}, nil
+}
+
+func (a *mockAgent) beginPromptRegistration(sessionID string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	session := a.sessions[sessionID]
+	if session == nil {
+		session = &sessionState{
+			ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
+		}
+		a.sessions[sessionID] = session
+	}
+	session.promptStarting = true
+	session.pendingPromptCancel = false
+}
+
+func (a *mockAgent) registerPromptCancel(sessionID string, cancel context.CancelFunc) {
+	shouldCancel := false
+	a.mu.Lock()
+	session := a.sessions[sessionID]
+	if session == nil {
+		session = &sessionState{
+			ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
+		}
+		a.sessions[sessionID] = session
+	}
+	session.activePromptCancel = cancel
+	session.promptStarting = false
+	if session.pendingPromptCancel {
+		session.pendingPromptCancel = false
+		shouldCancel = true
+	}
+	a.mu.Unlock()
+	if shouldCancel {
+		cancel()
+	}
+}
+
+func (a *mockAgent) clearPromptCancel(sessionID string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if session := a.sessions[sessionID]; session != nil {
+		session.activePromptCancel = nil
+		session.promptStarting = false
+		session.pendingPromptCancel = false
+	}
 }
 
 func (a *mockAgent) selectTurn(

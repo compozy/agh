@@ -50,7 +50,7 @@ function PageHeader({
           {breadcrumb}
         </div>
       ) : null}
-      <div data-slot="page-header-main" className="flex min-w-0 items-center gap-3">
+      <div data-slot="page-header-main" className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
         <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
           {Icon ? (
             <span
@@ -74,7 +74,10 @@ function PageHeader({
           ) : null}
         </div>
         {controls ? (
-          <div data-slot="page-header-controls" className="flex min-w-0 items-center gap-2">
+          <div
+            data-slot="page-header-controls"
+            className="order-3 flex w-full min-w-0 items-center gap-2 sm:order-none sm:w-auto"
+          >
             {controls}
           </div>
         ) : null}

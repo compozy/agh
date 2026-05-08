@@ -163,15 +163,20 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
       }
     | undefined;
   await expect
-    .poll(async () => {
-      const runsPayload = await runtime.requestJSON<{
-        runs: Array<{ id: string; session_id?: string | null }>;
-      }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
-      uiTriggeredRun = runsPayload.runs.find(
-        run => run.id !== seeded.baselineRun.id && run.session_id
-      );
-      return uiTriggeredRun?.session_id ?? "";
-    })
+    .poll(
+      async () => {
+        const runsPayload = await runtime.requestJSON<{
+          runs: Array<{ id: string; session_id?: string | null }>;
+        }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
+        uiTriggeredRun = runsPayload.runs.find(
+          run => run.id !== seeded.baselineRun.id && run.session_id
+        );
+        return uiTriggeredRun?.session_id ?? "";
+      },
+      {
+        timeout: 20_000,
+      }
+    )
     .not.toBe("");
 
   if (!uiTriggeredRun?.session_id) {

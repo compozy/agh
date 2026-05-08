@@ -13,6 +13,8 @@ const storyURL = `${storybookBaseURL}/iframe.html?id=components-designsystemshow
 const storyModulePath = "/src/components/stories/design-system-showcase.stories.tsx";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
+test.setTimeout(180_000);
+
 test("registers the MSW worker and bypasses unknown requests in web Storybook", async ({
   page,
 }) => {

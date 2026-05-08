@@ -3,10 +3,10 @@ import { makeAssistantDataUI } from "@assistant-ui/react";
 import { AlertCircle, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { PermissionPrompt } from "../components/permission-prompt";
+import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
 import { ToolCallCard } from "../components/tool-call-card";
-import { isAgentEventPayload, parseToolUseResult, toPermissionRequest } from "./message-parts";
+import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
 import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
@@ -96,9 +96,7 @@ export const sessionToolkit: Toolkit = {
 export function createAghPermissionDataUI(sessionId: string) {
   return makeAssistantDataUI<AghPermissionData>({
     name: "agh-permission",
-    render: ({ data }) => (
-      <PermissionPrompt permission={toPermissionRequest(data)} sessionId={sessionId} />
-    ),
+    render: ({ data }) => <PermissionDataPart data={data} sessionId={sessionId} />,
   });
 }
 

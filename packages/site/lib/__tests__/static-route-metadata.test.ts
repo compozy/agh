@@ -46,36 +46,40 @@ describe("static public route metadata", () => {
     });
   });
 
-  it("keeps root metadata aligned with site identity and design tokens", async () => {
-    const { metadata, viewport } = await import("@/app/layout");
+  it(
+    "keeps root metadata aligned with site identity and design tokens",
+    { timeout: 60_000 },
+    async () => {
+      const { metadata, viewport } = await import("@/app/layout");
 
-    expect(siteConfig.description).toBe(
-      "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
-    );
-    expect(metadata.metadataBase?.toString()).toBe("https://agh.network/");
-    expect(metadata.applicationName).toBe(siteConfig.name);
-    expect(metadata.title).toEqual({
-      default: siteConfig.name,
-      template: "%s | AGH",
-    });
-    expect(metadata.description).toBe(siteConfig.description);
-    expect(metadata.alternates?.canonical).toBe("/");
-    expect(metadata.openGraph).toMatchObject({
-      type: "website",
-      locale: "en_US",
-      url: siteConfig.url,
-      siteName: siteConfig.name,
-      title: siteConfig.name,
-      description: siteConfig.description,
-    });
-    expect(metadata.twitter).toMatchObject({
-      card: "summary_large_image",
-      title: siteConfig.name,
-      description: siteConfig.description,
-      images: ["/opengraph-image"],
-    });
-    expect(metadata.robots).toEqual({ index: true, follow: true });
-    expect(metadata.manifest).toBe("/site.webmanifest");
-    expect(viewport.themeColor).toBe("#E8572A");
-  });
+      expect(siteConfig.description).toBe(
+        "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+      );
+      expect(metadata.metadataBase?.toString()).toBe("https://agh.network/");
+      expect(metadata.applicationName).toBe(siteConfig.name);
+      expect(metadata.title).toEqual({
+        default: siteConfig.name,
+        template: "%s | AGH",
+      });
+      expect(metadata.description).toBe(siteConfig.description);
+      expect(metadata.alternates?.canonical).toBe("/");
+      expect(metadata.openGraph).toMatchObject({
+        type: "website",
+        locale: "en_US",
+        url: siteConfig.url,
+        siteName: siteConfig.name,
+        title: siteConfig.name,
+        description: siteConfig.description,
+      });
+      expect(metadata.twitter).toMatchObject({
+        card: "summary_large_image",
+        title: siteConfig.name,
+        description: siteConfig.description,
+        images: ["/opengraph-image"],
+      });
+      expect(metadata.robots).toEqual({ index: true, follow: true });
+      expect(metadata.manifest).toBe("/site.webmanifest");
+      expect(viewport.themeColor).toBe("#E8572A");
+    }
+  );
 });

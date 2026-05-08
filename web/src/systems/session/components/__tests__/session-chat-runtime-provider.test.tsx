@@ -152,4 +152,48 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("runtime-activity-notice")).toHaveTextContent("Still working");
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
   }, 10_000);
+
+  it("renders only unresolved permission events as interactive prompts", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_permission_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-permission",
+            data: {
+              type: "permission",
+              request_id: "turn_001:perm_pending",
+              title: "Edit pending file",
+              resource: "pending.txt",
+              action: "session/request_permission",
+              raw: { path: "pending.txt" },
+            },
+          },
+          {
+            type: "data-agh-permission",
+            data: {
+              type: "permission",
+              request_id: "turn_001:perm_resolved",
+              title: "Edit resolved file",
+              resource: "resolved.txt",
+              action: "session/request_permission",
+              decision: "reject-always",
+              raw: { path: "resolved.txt" },
+            },
+          },
+        ],
+      },
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByTestId("permission-prompt")).toHaveLength(1);
+    expect(screen.getByTestId("permission-prompt")).toHaveTextContent("pending.txt");
+  }, 10_000);
 });

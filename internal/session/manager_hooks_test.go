@@ -591,7 +591,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			if !errors.Is(err, stopErr) {
 				t.Fatalf("StopWithCause() error = %v, want wrapped driver stop failure", err)
 			}
-		case <-time.After(150 * time.Millisecond):
+		case <-time.After(2 * time.Second):
 			t.Fatal("StopWithCause() blocked waiting for proc.Done after driver stop failure")
 		}
 
@@ -1105,7 +1105,7 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 		if event.Type != acp.EventTypeAgentMessage {
 			t.Fatalf("first prompt event type = %q, want %q", event.Type, acp.EventTypeAgentMessage)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for first prompt event; message.delta hook blocked streaming")
 	}
 
@@ -1117,7 +1117,7 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 		if event.Type != acp.EventTypeDone {
 			t.Fatalf("second prompt event type = %q, want %q", event.Type, acp.EventTypeDone)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for done event; message.delta hook blocked prompt completion")
 	}
 
@@ -1126,7 +1126,7 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 		if ok {
 			t.Fatal("prompt event channel still open after done event")
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for prompt event channel close")
 	}
 

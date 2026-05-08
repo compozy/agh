@@ -73,9 +73,9 @@ vi.mock("../../adapters/session-api", () => ({
 }));
 
 import { toast } from "sonner";
-import { PermissionPrompt } from "../permission-prompt";
+import { PermissionDataPart, PermissionPrompt } from "../permission-prompt";
 import { approveSession } from "../../adapters/session-api";
-import type { PermissionRequest } from "../../types";
+import type { AghPermissionData, PermissionRequest } from "../../types";
 
 const mockPermission: PermissionRequest = {
   requestId: "req-123",
@@ -83,6 +83,17 @@ const mockPermission: PermissionRequest = {
   action: "execute",
   resource: "rm -rf /tmp/test",
   toolInput: { command: "rm -rf /tmp/test" },
+};
+
+const mockPermissionData: AghPermissionData = {
+  type: "permission",
+  session_id: "sess-001",
+  turn_id: "turn-001",
+  request_id: "req-123",
+  title: "Bash",
+  action: "execute",
+  resource: "rm -rf /tmp/test",
+  raw: { command: "rm -rf /tmp/test" },
 };
 
 describe("PermissionPrompt", () => {
@@ -137,6 +148,9 @@ describe("PermissionPrompt", () => {
     });
 
     expect(onResolved).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
+    });
   });
 
   it("calls approve API with allow-always on Allow Always click", async () => {
@@ -196,7 +210,7 @@ describe("PermissionPrompt", () => {
     expect(onResolved).toHaveBeenCalled();
   });
 
-  it("handles approve API error gracefully (shows toast, clears state)", async () => {
+  it("handles approve API error gracefully without resolving the prompt", async () => {
     vi.mocked(approveSession).mockRejectedValue(new Error("Network error"));
     const onResolved = vi.fn();
 
@@ -212,8 +226,9 @@ describe("PermissionPrompt", () => {
       );
     });
 
-    // Still clears state even on error
-    expect(onResolved).toHaveBeenCalled();
+    expect(onResolved).not.toHaveBeenCalled();
+    expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).not.toBeDisabled();
   });
 
   it("renders tool input as formatted JSON", () => {
@@ -249,5 +264,57 @@ describe("PermissionPrompt", () => {
     );
 
     expect(screen.getByText("Permission Required")).toBeInTheDocument();
+  });
+});
+
+describe("PermissionDataPart", () => {
+  beforeEach(() => {
+    vi.mocked(approveSession).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders an actionable prompt for pending permission data", () => {
+    render(<PermissionDataPart data={mockPermissionData} sessionId="sess-001" />);
+
+    expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+  });
+
+  it("renders nothing for allowed resolved permission data", () => {
+    const { container } = render(
+      <PermissionDataPart
+        data={{
+          ...mockPermissionData,
+          decision: "allow-once",
+        }}
+        sessionId="sess-001"
+      />
+    );
+
+    expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-rejected-notice")).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders a passive notice for rejected resolved permission data", () => {
+    render(
+      <PermissionDataPart
+        data={{
+          ...mockPermissionData,
+          decision: "reject-once",
+        }}
+        sessionId="sess-001"
+      />
+    );
+
+    expect(screen.getByTestId("permission-rejected-notice")).toBeInTheDocument();
+    expect(screen.getByText("Permission Rejected")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-once")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-once")).not.toBeInTheDocument();
   });
 });

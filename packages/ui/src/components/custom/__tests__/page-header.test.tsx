@@ -71,4 +71,19 @@ describe("PageHeader", () => {
       "page-header-status-row",
     ]);
   });
+
+  it("Should keep controls in a full-width responsive row on narrow viewports", () => {
+    const { container } = render(
+      <PageHeader title="Tasks" controls={<span data-testid="mode-pills">mode</span>} />
+    );
+
+    const main = container.querySelector('[data-slot="page-header-main"]');
+    expect(main?.className).toContain("flex-wrap");
+
+    const controls = container.querySelector('[data-slot="page-header-controls"]');
+    expect(controls?.className).toContain("order-3");
+    expect(controls?.className).toContain("w-full");
+    expect(controls?.className).toContain("sm:order-none");
+    expect(controls?.className).toContain("sm:w-auto");
+  });
 });

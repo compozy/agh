@@ -45,10 +45,15 @@ export const networkOperatorTestIds = {
   channelTabs: "network-channel-tabs",
   createDialog: "network-create-channel-dialog",
   createSubmit: "network-create-channel-submit",
+  createAgentTrigger: "network-create-channel-agent-trigger",
+  channelPurposeInput: "network-channel-purpose-input",
+  disabledState: "network-disabled-state",
   directList: "network-direct-list",
   directRoom: "network-direct-room",
   directsTab: "network-directs-tab",
   directTab: "network-tab-directs",
+  activityFeed: "network-activity-feed",
+  inspectorToggle: "network-channel-inspector-toggle",
   messageList: "network-timeline",
   inspector: "network-inspector",
   inspectorActivityTab: "network-inspector-tab-activity",
@@ -58,9 +63,11 @@ export const networkOperatorTestIds = {
   inspectorPanelWork: "network-inspector-panel-work",
   inspectorWorkTab: "network-inspector-tab-work",
   navNetwork: "nav-network",
+  noChannelsState: "network-no-channels-state",
   newDirectButton: "network-directs-new-direct",
   newDirectDialog: "network-new-direct-dialog",
   openCreateDialog: "network-open-create-dialog",
+  workInspector: "network-work-inspector",
   threadList: "network-thread-list",
   threadOverlay: "network-thread-overlay",
   threadsTab: "network-threads-tab",
@@ -73,22 +80,56 @@ export const networkOperatorTestIds = {
 export const automationOperatorTestIds = {
   appSidebar: sessionLifecycleTestIds.appSidebar,
   automationDetailPanel: "automation-detail-panel",
+  automationEditorDialog: "automation-editor-dialog",
+  automationJobScheduler: "automation-job-scheduler",
   automationJobForm: "automation-job-form",
   automationListPanel: "automation-list-panel",
   automationRunHistory: "automation-run-history",
   createJobButton: "create-job-btn",
   createTriggerButton: "create-trigger-btn",
+  deleteAutomationButton: "delete-automation-btn",
   editAutomationButton: "edit-automation-btn",
+  jobAgentInput: "job-agent-input",
+  jobEnabledToggle: "job-enabled-toggle",
+  jobFireLimitMax: "job-fire-limit-max",
+  jobFireLimitWindow: "job-fire-limit-window",
   jobsScopeAll: "jobs-scope-all",
+  jobsScopeGlobal: "jobs-scope-global",
+  jobsScopeWorkspace: "jobs-scope-workspace",
   jobsShell: "jobs-shell",
   jobNameInput: "job-name-input",
+  jobPromptInput: "job-prompt-input",
   jobScheduleExpr: "job-schedule-expr",
+  jobScheduleInterval: "job-schedule-interval",
+  jobScheduleModeAt: "job-schedule-mode-at",
+  jobScheduleModeCron: "job-schedule-mode-cron",
+  jobScheduleModeEvery: "job-schedule-mode-every",
+  jobScheduleTime: "job-schedule-time",
+  jobScopeGlobal: "job-scope-global",
+  jobScopeWorkspace: "job-scope-workspace",
   navJobs: "nav-jobs",
   navTriggers: "nav-triggers",
   submitJobForm: "submit-job-form",
   submitTriggerForm: "submit-trigger-form",
+  triggerAgentInput: "trigger-agent-input",
+  triggerEnabledToggle: "trigger-enabled-toggle",
+  triggerEndpointSlugInput: "trigger-endpoint-slug-input",
+  triggerEventInput: "trigger-event-input",
+  triggerFilterInput: "trigger-filter-input",
+  triggerFireLimitMax: "trigger-fire-limit-max",
+  triggerFireLimitWindow: "trigger-fire-limit-window",
   triggersScopeAll: "triggers-scope-all",
+  triggersScopeGlobal: "triggers-scope-global",
+  triggersScopeWorkspace: "triggers-scope-workspace",
   triggersShell: "triggers-shell",
+  triggerPromptInput: "trigger-prompt-input",
+  triggerRetryMax: "trigger-retry-max",
+  triggerRetryStrategyBackoff: "trigger-retry-strategy-backoff",
+  triggerRetryStrategyNone: "trigger-retry-strategy-none",
+  triggerScopeGlobal: "trigger-scope-global",
+  triggerWebhookIDInput: "trigger-webhook-id-input",
+  triggerWebhookSecretValueInput: "trigger-webhook-secret-value-input",
+  toggleAutomationButton: "toggle-automation-btn",
   triggerJobButton: "trigger-job-btn",
   triggerNameInput: "trigger-name-input",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
@@ -137,12 +178,17 @@ export interface NetworkOperatorSelectors {
   channelInspectorToggle: Locator;
   channelTabs: Locator;
   createDialog: Locator;
+  createAgentTrigger: Locator;
   createSubmit: Locator;
+  channelPurposeInput: Locator;
+  disabledState: Locator;
+  activityFeed: Locator;
   directItem(directId: string): Locator;
   directList: Locator;
   directRoom: Locator;
   directsTab: Locator;
   directTab: Locator;
+  inspectorToggle: Locator;
   messageList: Locator;
   inspector: Locator;
   inspectorActivityTab: Locator;
@@ -152,10 +198,13 @@ export interface NetworkOperatorSelectors {
   inspectorPanelWork: Locator;
   inspectorWorkTab: Locator;
   navNetwork: Locator;
+  noChannelsState: Locator;
   newDirectButton: Locator;
   newDirectDialog: Locator;
   newDirectPeer(peerId: string): Locator;
   openCreateDialog: Locator;
+  workInspector: Locator;
+  workInspectorRow(workId: string): Locator;
   threadItem(threadId: string): Locator;
   threadList: Locator;
   threadOverlay: Locator;
@@ -170,13 +219,29 @@ export interface AutomationOperatorSelectors {
   appSidebar: Locator;
   createJobButton: Locator;
   createTriggerButton: Locator;
+  deleteAutomationButton: Locator;
   detailPanel: Locator;
   editAutomationButton: Locator;
   item(id: string): Locator;
+  editorDialog: Locator;
   jobForm: Locator;
+  jobAgentInput: Locator;
+  jobEnabledToggle: Locator;
+  jobFireLimitMax: Locator;
+  jobFireLimitWindow: Locator;
   jobNameInput: Locator;
+  jobPromptInput: Locator;
   jobScheduleExpr: Locator;
+  jobScheduleInterval: Locator;
+  jobScheduleModeAt: Locator;
+  jobScheduleModeCron: Locator;
+  jobScheduleModeEvery: Locator;
+  jobScheduleTime: Locator;
+  jobScopeGlobal: Locator;
+  jobScopeWorkspace: Locator;
   jobsScopeAll: Locator;
+  jobsScopeGlobal: Locator;
+  jobsScopeWorkspace: Locator;
   jobsShell: Locator;
   listPanel: Locator;
   navJobs: Locator;
@@ -186,8 +251,25 @@ export interface AutomationOperatorSelectors {
   runSessionLink(runId: string): Locator;
   submitJobForm: Locator;
   submitTriggerForm: Locator;
+  triggerAgentInput: Locator;
+  triggerEnabledToggle: Locator;
+  triggerEndpointSlugInput: Locator;
+  triggerEventInput: Locator;
+  triggerFilterInput: Locator;
+  triggerFireLimitMax: Locator;
+  triggerFireLimitWindow: Locator;
   triggersScopeAll: Locator;
+  triggersScopeGlobal: Locator;
+  triggersScopeWorkspace: Locator;
   triggersShell: Locator;
+  triggerPromptInput: Locator;
+  triggerRetryMax: Locator;
+  triggerRetryStrategyBackoff: Locator;
+  triggerRetryStrategyNone: Locator;
+  triggerScopeGlobal: Locator;
+  triggerWebhookIDInput: Locator;
+  triggerWebhookSecretValueInput: Locator;
+  toggleAutomationButton: Locator;
   triggerJobButton: Locator;
   triggerNameInput: Locator;
   workspaceOnboarding: Locator;
@@ -439,9 +521,12 @@ export const tasksOperatorTestIds = {
   detailBreadcrumbTasks: "tasks-detail-breadcrumb-tasks",
   detailContent: "tasks-detail-content",
   detailCoordination: "tasks-detail-coordination",
+  detailCancel: "tasks-detail-cancel",
   detailDelete: "tasks-detail-delete",
+  detailDeleteCancel: "tasks-detail-delete-cancel",
   detailDeleteConfirm: "tasks-detail-delete-confirm",
   detailDeleteDialog: "tasks-detail-delete-dialog",
+  detailEdit: "tasks-detail-edit",
   detailEnqueue: "tasks-detail-enqueue",
   detailLifecycle: "tasks-detail-lifecycle",
   detailLifecycleHint: "tasks-detail-lifecycle-hint",
@@ -480,6 +565,7 @@ export const tasksOperatorTestIds = {
   navTasks: "nav-tasks",
   openCreate: "tasks-open-create",
   runDetailContent: "tasks-run-detail-content",
+  runDetailCancel: "task-run-detail-cancel",
   runSessionDrilldown: "task-run-detail-open-session",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
@@ -503,9 +589,12 @@ export interface TasksOperatorSelectors {
   detailBreadcrumbTasks: Locator;
   detailContent: Locator;
   detailCoordination: Locator;
+  detailCancel: Locator;
   detailDelete: Locator;
+  detailDeleteCancel: Locator;
   detailDeleteConfirm: Locator;
   detailDeleteDialog: Locator;
+  detailEdit: Locator;
   detailEnqueue: Locator;
   detailLifecycle: Locator;
   detailLifecycleHint: Locator;
@@ -522,6 +611,10 @@ export interface TasksOperatorSelectors {
   detailTabAgents: Locator;
   detailTabOrchestration: Locator;
   detailTabRuns: Locator;
+  detailChildItem(taskId: string): Locator;
+  detailChildLink(taskId: string): Locator;
+  detailDependencyItem(taskId: string): Locator;
+  detailDependencyLink(taskId: string): Locator;
   orchestrationPanel: Locator;
   orchestrationProfileCard: Locator;
   orchestrationProfileEmpty: Locator;
@@ -535,9 +628,13 @@ export interface TasksOperatorSelectors {
   orchestrationStreamSeed: Locator;
   orchestrationStreamStatus: Locator;
   inboxApprove(taskId: string): Locator;
+  inboxArchive(taskId: string): Locator;
+  inboxDismiss(taskId: string): Locator;
   inboxItem(taskId: string): Locator;
   inboxLane(lane: string): Locator;
   inboxOpenTask(taskId: string): Locator;
+  inboxReject(taskId: string): Locator;
+  inboxRetry(taskId: string): Locator;
   inboxView: Locator;
   modeDashboard: Locator;
   modeInbox: Locator;
@@ -552,6 +649,8 @@ export interface TasksOperatorSelectors {
   navTasks: Locator;
   openCreate: Locator;
   runDetailContent: Locator;
+  runDetailCancel: Locator;
+  runReviewRow(reviewId: string): Locator;
   runSessionDrilldown: Locator;
   taskCard(taskId: string): Locator;
   taskCardPublish(taskId: string): Locator;
@@ -598,12 +697,17 @@ export function networkOperatorSelectors(
     channelInspectorToggle: page.getByTestId(networkOperatorTestIds.channelInspectorToggle),
     channelTabs: page.getByTestId(networkOperatorTestIds.channelTabs),
     createDialog: page.getByTestId(networkOperatorTestIds.createDialog),
+    createAgentTrigger: page.getByTestId(networkOperatorTestIds.createAgentTrigger),
     createSubmit: page.getByTestId(networkOperatorTestIds.createSubmit),
+    channelPurposeInput: page.getByTestId(networkOperatorTestIds.channelPurposeInput),
+    disabledState: page.getByTestId(networkOperatorTestIds.disabledState),
+    activityFeed: page.getByTestId(networkOperatorTestIds.activityFeed),
     directItem: (directId: string) => page.getByTestId(`network-direct-list-row-${directId}`),
     directList: page.getByTestId(networkOperatorTestIds.directList),
     directRoom: page.getByTestId(networkOperatorTestIds.directRoom),
     directsTab: page.getByTestId(networkOperatorTestIds.directsTab),
     directTab: page.getByTestId(networkOperatorTestIds.directTab),
+    inspectorToggle: page.getByTestId(networkOperatorTestIds.inspectorToggle),
     messageList: page.getByTestId(networkOperatorTestIds.messageList),
     inspector: page.getByTestId(networkOperatorTestIds.inspector),
     inspectorActivityTab: page.getByTestId(networkOperatorTestIds.inspectorActivityTab),
@@ -613,10 +717,13 @@ export function networkOperatorSelectors(
     inspectorPanelWork: page.getByTestId(networkOperatorTestIds.inspectorPanelWork),
     inspectorWorkTab: page.getByTestId(networkOperatorTestIds.inspectorWorkTab),
     navNetwork: page.getByTestId(networkOperatorTestIds.navNetwork),
+    noChannelsState: page.getByTestId(networkOperatorTestIds.noChannelsState),
     newDirectButton: page.getByTestId(networkOperatorTestIds.newDirectButton),
     newDirectDialog: page.getByTestId(networkOperatorTestIds.newDirectDialog),
     newDirectPeer: (peerId: string) => page.getByTestId(`network-new-direct-peer-${peerId}`),
     openCreateDialog: page.getByTestId(networkOperatorTestIds.openCreateDialog),
+    workInspector: page.getByTestId(networkOperatorTestIds.workInspector),
+    workInspectorRow: (workId: string) => page.getByTestId(`network-work-inspector-row-${workId}`),
     threadItem: (threadId: string) => page.getByTestId(`network-thread-list-row-${threadId}`),
     threadList: page.getByTestId(networkOperatorTestIds.threadList),
     threadOverlay: page.getByTestId(networkOperatorTestIds.threadOverlay),
@@ -635,13 +742,29 @@ export function automationOperatorSelectors(
     appSidebar: page.getByTestId(automationOperatorTestIds.appSidebar),
     createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
     createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
+    deleteAutomationButton: page.getByTestId(automationOperatorTestIds.deleteAutomationButton),
     detailPanel: page.getByTestId(automationOperatorTestIds.automationDetailPanel),
     editAutomationButton: page.getByTestId(automationOperatorTestIds.editAutomationButton),
+    editorDialog: page.getByTestId(automationOperatorTestIds.automationEditorDialog),
     item: (id: string) => page.getByTestId(`automation-item-${id}`),
+    jobAgentInput: page.getByTestId(automationOperatorTestIds.jobAgentInput),
+    jobEnabledToggle: page.getByTestId(automationOperatorTestIds.jobEnabledToggle),
+    jobFireLimitMax: page.getByTestId(automationOperatorTestIds.jobFireLimitMax),
+    jobFireLimitWindow: page.getByTestId(automationOperatorTestIds.jobFireLimitWindow),
     jobForm: page.getByTestId(automationOperatorTestIds.automationJobForm),
     jobNameInput: page.getByTestId(automationOperatorTestIds.jobNameInput),
+    jobPromptInput: page.getByTestId(automationOperatorTestIds.jobPromptInput),
     jobScheduleExpr: page.getByTestId(automationOperatorTestIds.jobScheduleExpr),
+    jobScheduleInterval: page.getByTestId(automationOperatorTestIds.jobScheduleInterval),
+    jobScheduleModeAt: page.getByTestId(automationOperatorTestIds.jobScheduleModeAt),
+    jobScheduleModeCron: page.getByTestId(automationOperatorTestIds.jobScheduleModeCron),
+    jobScheduleModeEvery: page.getByTestId(automationOperatorTestIds.jobScheduleModeEvery),
+    jobScheduleTime: page.getByTestId(automationOperatorTestIds.jobScheduleTime),
+    jobScopeGlobal: page.getByTestId(automationOperatorTestIds.jobScopeGlobal),
+    jobScopeWorkspace: page.getByTestId(automationOperatorTestIds.jobScopeWorkspace),
     jobsScopeAll: page.getByTestId(automationOperatorTestIds.jobsScopeAll),
+    jobsScopeGlobal: page.getByTestId(automationOperatorTestIds.jobsScopeGlobal),
+    jobsScopeWorkspace: page.getByTestId(automationOperatorTestIds.jobsScopeWorkspace),
     jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
     listPanel: page.getByTestId(automationOperatorTestIds.automationListPanel),
     navJobs: page.getByTestId(automationOperatorTestIds.navJobs),
@@ -651,8 +774,29 @@ export function automationOperatorSelectors(
     runSessionLink: (runId: string) => page.getByTestId(`automation-run-session-link-${runId}`),
     submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
     submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
+    triggerAgentInput: page.getByTestId(automationOperatorTestIds.triggerAgentInput),
+    triggerEnabledToggle: page.getByTestId(automationOperatorTestIds.triggerEnabledToggle),
+    triggerEndpointSlugInput: page.getByTestId(automationOperatorTestIds.triggerEndpointSlugInput),
+    triggerEventInput: page.getByTestId(automationOperatorTestIds.triggerEventInput),
+    triggerFilterInput: page.getByTestId(automationOperatorTestIds.triggerFilterInput),
+    triggerFireLimitMax: page.getByTestId(automationOperatorTestIds.triggerFireLimitMax),
+    triggerFireLimitWindow: page.getByTestId(automationOperatorTestIds.triggerFireLimitWindow),
     triggersScopeAll: page.getByTestId(automationOperatorTestIds.triggersScopeAll),
+    triggersScopeGlobal: page.getByTestId(automationOperatorTestIds.triggersScopeGlobal),
+    triggersScopeWorkspace: page.getByTestId(automationOperatorTestIds.triggersScopeWorkspace),
     triggersShell: page.getByTestId(automationOperatorTestIds.triggersShell),
+    triggerPromptInput: page.getByTestId(automationOperatorTestIds.triggerPromptInput),
+    triggerRetryMax: page.getByTestId(automationOperatorTestIds.triggerRetryMax),
+    triggerRetryStrategyBackoff: page.getByTestId(
+      automationOperatorTestIds.triggerRetryStrategyBackoff
+    ),
+    triggerRetryStrategyNone: page.getByTestId(automationOperatorTestIds.triggerRetryStrategyNone),
+    triggerScopeGlobal: page.getByTestId(automationOperatorTestIds.triggerScopeGlobal),
+    triggerWebhookIDInput: page.getByTestId(automationOperatorTestIds.triggerWebhookIDInput),
+    triggerWebhookSecretValueInput: page.getByTestId(
+      automationOperatorTestIds.triggerWebhookSecretValueInput
+    ),
+    toggleAutomationButton: page.getByTestId(automationOperatorTestIds.toggleAutomationButton),
     triggerJobButton: page.getByTestId(automationOperatorTestIds.triggerJobButton),
     triggerNameInput: page.getByTestId(automationOperatorTestIds.triggerNameInput),
     workspaceOnboarding: page.getByTestId(automationOperatorTestIds.workspaceOnboarding),
@@ -832,9 +976,12 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     detailBreadcrumbTasks: page.getByTestId(tasksOperatorTestIds.detailBreadcrumbTasks),
     detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
     detailCoordination: page.getByTestId(tasksOperatorTestIds.detailCoordination),
+    detailCancel: page.getByTestId(tasksOperatorTestIds.detailCancel),
     detailDelete: page.getByTestId(tasksOperatorTestIds.detailDelete),
+    detailDeleteCancel: page.getByTestId(tasksOperatorTestIds.detailDeleteCancel),
     detailDeleteConfirm: page.getByTestId(tasksOperatorTestIds.detailDeleteConfirm),
     detailDeleteDialog: page.getByTestId(tasksOperatorTestIds.detailDeleteDialog),
+    detailEdit: page.getByTestId(tasksOperatorTestIds.detailEdit),
     detailEnqueue: page.getByTestId(tasksOperatorTestIds.detailEnqueue),
     detailLifecycle: page.getByTestId(tasksOperatorTestIds.detailLifecycle),
     detailLifecycleHint: page.getByTestId(tasksOperatorTestIds.detailLifecycleHint),
@@ -851,6 +998,12 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     detailTabAgents: page.getByTestId(tasksOperatorTestIds.detailTabAgents),
     detailTabOrchestration: page.getByTestId(tasksOperatorTestIds.detailTabOrchestration),
     detailTabRuns: page.getByTestId(tasksOperatorTestIds.detailTabRuns),
+    detailChildItem: (taskId: string) => page.getByTestId(`tasks-detail-children-item-${taskId}`),
+    detailChildLink: (taskId: string) => page.getByTestId(`tasks-detail-children-link-${taskId}`),
+    detailDependencyItem: (taskId: string) =>
+      page.getByTestId(`tasks-detail-dependencies-item-${taskId}`),
+    detailDependencyLink: (taskId: string) =>
+      page.getByTestId(`tasks-detail-dependencies-link-${taskId}`),
     orchestrationPanel: page.getByTestId(tasksOperatorTestIds.orchestrationPanel),
     orchestrationProfileCard: page.getByTestId(tasksOperatorTestIds.orchestrationProfileCard),
     orchestrationProfileEmpty: page.getByTestId(tasksOperatorTestIds.orchestrationProfileEmpty),
@@ -868,9 +1021,13 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     orchestrationStreamSeed: page.getByTestId(tasksOperatorTestIds.orchestrationStreamSeed),
     orchestrationStreamStatus: page.getByTestId(tasksOperatorTestIds.orchestrationStreamStatus),
     inboxApprove: (taskId: string) => page.getByTestId(`tasks-inbox-item-approve-${taskId}`),
+    inboxArchive: (taskId: string) => page.getByTestId(`tasks-inbox-item-archive-${taskId}`),
+    inboxDismiss: (taskId: string) => page.getByTestId(`tasks-inbox-item-dismiss-${taskId}`),
     inboxItem: (taskId: string) => page.getByTestId(`tasks-inbox-item-${taskId}`),
     inboxLane: (lane: string) => page.getByTestId(`tasks-inbox-lane-${lane}`),
     inboxOpenTask: (taskId: string) => page.getByTestId(`tasks-inbox-item-open-${taskId}`),
+    inboxReject: (taskId: string) => page.getByTestId(`tasks-inbox-item-reject-${taskId}`),
+    inboxRetry: (taskId: string) => page.getByTestId(`tasks-inbox-item-retry-${taskId}`),
     inboxView: page.getByTestId(tasksOperatorTestIds.inboxView),
     modeDashboard: page.getByTestId(tasksOperatorTestIds.modeDashboard),
     modeInbox: page.getByTestId(tasksOperatorTestIds.modeInbox),
@@ -886,6 +1043,8 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     navTasks: page.getByTestId(tasksOperatorTestIds.navTasks),
     openCreate: page.getByTestId(tasksOperatorTestIds.openCreate),
     runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),
+    runDetailCancel: page.getByTestId(tasksOperatorTestIds.runDetailCancel),
+    runReviewRow: (reviewId: string) => page.getByTestId(`tasks-run-reviews-row-${reviewId}`),
     runSessionDrilldown: page.getByTestId(tasksOperatorTestIds.runSessionDrilldown),
     taskCard: (taskId: string) => page.getByTestId(`task-card-${taskId}`),
     taskCardPublish: (taskId: string) => page.getByTestId(`task-card-publish-${taskId}`),

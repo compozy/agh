@@ -145,12 +145,16 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	session.setCurrentTurnID(req.turnID)
 	session.setCurrentTurnSource(turnState.turnSource)
 	session.setCurrentPromptMeta(req.meta)
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx)
+	session.setCurrentPromptCancel(cancelPromptExecution)
 	clearTurnSource := true
 	defer func() {
 		if clearTurnSource {
+			cancelPromptExecution()
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMeta()
+			session.clearCurrentPromptCancel()
 		}
 	}()
 
@@ -173,7 +177,6 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
-	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx)
 	activity := newPromptActivitySupervisor(promptExecutionCtx, m, session, turnState, m.supervision)
 	activity.start()
 	source, err := m.driver.Prompt(promptExecutionCtx, proc, acp.PromptRequest{
@@ -341,7 +344,7 @@ func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheti
 	return &cloned
 }
 
-// CancelPrompt cooperatively cancels the active prompt turn for a known session.
+// CancelPrompt cancels prompt setup/execution for a known session.
 func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 	if m == nil {
 		return errors.New("session: manager is required")
@@ -366,6 +369,7 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 		return nil
 	}
 	turnID := session.CurrentTurnID()
+	session.cancelCurrentPrompt()
 
 	proc := session.processHandle()
 	if proc == nil {
@@ -475,7 +479,6 @@ func (m *Manager) pumpPrompt(
 	var fatalPromptFailure *store.SessionFailure
 	var fatalPromptError string
 
-	defer close(out)
 	defer func() {
 		if releaseExecution != nil {
 			releaseExecution()
@@ -490,6 +493,10 @@ func (m *Manager) pumpPrompt(
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMeta()
+			session.clearCurrentPromptCancel()
+		}
+		close(out)
+		if session != nil {
 			if fatalPromptFailure != nil {
 				m.stopSessionAfterFatalPromptFailure(ctx, session, fatalPromptFailure, fatalPromptError)
 			} else {

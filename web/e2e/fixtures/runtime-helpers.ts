@@ -55,7 +55,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     `host = ${tomlString(input.host)}`,
     `port = ${input.port}`,
     "",
-    ...(input.networkEnabled ? ["[network]", "enabled = true", ""] : []),
+    ...(input.networkEnabled === undefined
+      ? []
+      : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),
   ].join("\n");
 }
 

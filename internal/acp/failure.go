@@ -13,7 +13,10 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
-const maxFailureSummaryBytes = 2048
+const (
+	maxFailureSummaryBytes   = 2048
+	requestErrorCanceledCode = -32800
+)
 
 // FailureError carries a typed lifecycle classification beside the wrapped ACP
 // error so session orchestration can persist the failure without parsing text.
@@ -104,6 +107,9 @@ func failureKindForError(err error, fallback store.FailureKind) store.FailureKin
 
 	var reqErr *acpsdk.RequestError
 	if errors.As(err, &reqErr) {
+		if requestErrorIndicatesCancellation(reqErr) {
+			return store.FailureCanceled
+		}
 		if fallback == store.FailurePrompt && requestErrorIndicatesSessionLoss(reqErr) {
 			return store.FailureProcess
 		}
@@ -119,6 +125,18 @@ func failureKindForError(err error, fallback store.FailureKind) store.FailureKin
 		return fallback
 	}
 	return store.FailureUnknown
+}
+
+func requestErrorIndicatesCancellation(reqErr *acpsdk.RequestError) bool {
+	if reqErr == nil {
+		return false
+	}
+	if reqErr.Code == requestErrorCanceledCode {
+		return true
+	}
+
+	text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
+	return strings.Contains(text, "request canceled") || strings.Contains(text, "context canceled")
 }
 
 func requestErrorIndicatesSessionLoss(reqErr *acpsdk.RequestError) bool {

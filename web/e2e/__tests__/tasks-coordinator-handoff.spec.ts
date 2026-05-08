@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { sessionLifecycleSelectors, tasksOperatorSelectors } from "../fixtures/selectors";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 /**
  * ADR-010 (manual operator control) and ADR-012 (task-run coordination
@@ -64,7 +64,7 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await expect(tasksUI.navTasks).toBeVisible();
-  await tasksUI.navTasks.click();
+  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await expect(appPage).toHaveURL(/\/tasks$/);
 
   await tasksUI.openCreate.click();
@@ -122,7 +122,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
 
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
-  await tasksUI.navTasks.click();
+  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await tasksUI.openCreate.click();
   await tasksUI.createPriority("high").click();
   const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
@@ -239,6 +239,8 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   const tasksUI = tasksOperatorSelectors(appPage);
   const sessionUI = sessionLifecycleSelectors(appPage);
 
+  await ensureGlobalWorkspace(runtime);
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await expect(sessionUI.appSidebar).toBeVisible();

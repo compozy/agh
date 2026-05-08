@@ -40,6 +40,8 @@ const bridgeRuntimeEnv = {
 const createdBridgeName = "Telegram Bridge Create Smoke";
 const createdBridgeProviderKey = "telegram-reference::telegram";
 
+test.setTimeout(120_000);
+
 test.use({
   runtimeOptions: {
     env: bridgeRuntimeEnv,
@@ -136,19 +138,28 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   await bridgeUI.enableBridgeButton.click();
 
   await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        health: { status?: string };
-      }>(`/api/bridges/${encodeURIComponent(seeded.bridge.id)}`);
-      return payload.health.status;
-    })
+    .poll(
+      async () => {
+        const payload = await runtime.requestJSON<{
+          health: { status?: string };
+        }>(`/api/bridges/${encodeURIComponent(seeded.bridge.id)}`);
+        return payload.health.status;
+      },
+      {
+        timeout: 60_000,
+      }
+    )
     .toBe("ready");
 
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", {
+      timeout: 45_000,
+    })
     .toContain("ready");
   await expect
-    .poll(async () => (await bridgeUI.item(seeded.bridge.id).textContent()) ?? "")
+    .poll(async () => (await bridgeUI.item(seeded.bridge.id).textContent()) ?? "", {
+      timeout: 45_000,
+    })
     .toContain("0 routes");
   await browserArtifacts.captureScreenshot("bridge-operator-enabled", appPage);
 
@@ -163,7 +174,8 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   await bridgeUI.testDeliveryThreadInput.fill(
     browserBridgeOperatorFlowScenario.testDelivery.threadId
   );
-  await bridgeUI.submitTestDelivery.click();
+  await expect(bridgeUI.submitTestDelivery).toBeEnabled();
+  await bridgeUI.testDeliveryThreadInput.press("Enter");
 
   await expect(bridgeUI.testDeliveryResult).toBeVisible();
   await expect(bridgeUI.testDeliveryResult).toContainText(

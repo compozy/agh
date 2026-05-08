@@ -53,7 +53,7 @@ function TasksRoute() {
   };
 
   const handleCloseDetail = () => {
-    page.setSelectedTaskId(null);
+    page.dismissSelectedTask();
     if (hasChildMatch) {
       void navigate({ to: "/tasks" });
     }

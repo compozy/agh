@@ -61,6 +61,17 @@ describe("runtime helpers", () => {
     ).toContain("[network]\nenabled = true\n");
   });
 
+  it("renders network disablement when requested by the browser runtime", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        networkEnabled: false,
+        port: 4321,
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain("[network]\nenabled = false\n");
+  });
+
   it("requires API readiness probes only for loopback HTTP bindings", () => {
     expect(requiresHTTPAPIReadinessProbe("")).toBe(true);
     expect(requiresHTTPAPIReadinessProbe("localhost")).toBe(true);

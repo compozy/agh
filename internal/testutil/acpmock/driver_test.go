@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -410,6 +412,116 @@ func TestDriverControlBlockUntilCancelReturnsCanceledStopReason(t *testing.T) {
 	}) {
 		t.Fatalf("events = %#v, want error event after prompt cancellation", events)
 	}
+}
+
+func TestDriverCancelNotification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should unblock active prompt controls with a canceled stop reason", func(t *testing.T) {
+		t.Parallel()
+
+		driverPath, err := DefaultDriverPath()
+		if err != nil {
+			t.Fatalf("DefaultDriverPath() error = %v", err)
+		}
+		fixturePath := filepath.Join(t.TempDir(), "cancel-notification-fixture.json")
+		fixture := `{
+			"version": 2,
+			"agents": [
+				{
+					"name": "faulty",
+					"provider": "claude",
+					"turns": [
+						{
+							"name": "cancel-after-visible-progress",
+							"match": {
+								"turn_source": "user",
+								"user_text": "block after progress"
+							},
+							"steps": [
+								{
+									"kind": "assistant",
+									"text": "cancel ready"
+								},
+								{
+									"kind": "driver_control",
+									"driver_control": {
+										"action": "block_until_cancel"
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}`
+		if err := os.WriteFile(fixturePath, []byte(fixture), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", fixturePath, err)
+		}
+		command := BuildCommand(
+			driverPath,
+			fixturePath,
+			"faulty",
+			filepath.Join(t.TempDir(), "cancel-notification-diagnostics.jsonl"),
+		)
+
+		driver := acp.New()
+		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+			AgentName:   "faulty",
+			Command:     command,
+			Cwd:         t.TempDir(),
+			Permissions: aghconfig.PermissionModeApproveReads,
+		})
+		if err != nil {
+			t.Fatalf("driver.Start() error = %v", err)
+		}
+		defer stopDriverProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+			TurnID:  "turn-cancel-notification",
+			Message: "block after progress",
+			Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		})
+		if err != nil {
+			t.Fatalf("driver.Prompt() error = %v", err)
+		}
+
+		var cancelOnce sync.Once
+		events := collectPromptEvents(t, eventsCh, func(event acp.AgentEvent) {
+			if event.Type != acp.EventTypeAgentMessage {
+				return
+			}
+			cancelOnce.Do(func() {
+				if err := driver.Cancel(testutil.Context(t), proc); err != nil {
+					t.Fatalf("driver.Cancel() error = %v", err)
+				}
+			})
+		})
+		normalized := normalizeEvents(events)
+		if !containsNormalizedEvent(normalized, map[string]string{
+			"type": acp.EventTypeAgentMessage,
+			"text": "cancel ready",
+		}) {
+			t.Fatalf("events = %#v, want visible prompt progress before cancel", events)
+		}
+		sawCanceledTerminal := false
+		for _, event := range events {
+			if event.Type == acp.EventTypeDone && event.StopReason == "canceled" {
+				sawCanceledTerminal = true
+			}
+			if event.Type == acp.EventTypeError && event.Failure != nil {
+				if event.Failure.Kind == store.FailureCanceled {
+					sawCanceledTerminal = true
+				}
+				if event.Failure.Kind == store.FailureProcess {
+					t.Fatalf("events = %#v, did not expect process failure after cancel notification", events)
+				}
+			}
+		}
+		if !sawCanceledTerminal {
+			t.Fatalf("events = %#v, want canceled terminal event after cancel notification", events)
+		}
+	})
 }
 
 func TestDriverControlAsyncDisconnectDuringPermissionRequestSurfacesPromptFailure(t *testing.T) {

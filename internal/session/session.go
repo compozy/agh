@@ -115,6 +115,7 @@ type Session struct {
 	currentTurnID        string
 	currentTurnSource    TurnSource
 	currentPromptMeta    acp.PromptMeta
+	currentPromptCancel  context.CancelFunc
 	providerRedactions   []func()
 }
 
@@ -357,6 +358,31 @@ func (s *Session) setCurrentPromptMeta(meta acp.PromptMeta) {
 	s.currentPromptMeta = meta.Normalize()
 }
 
+func (s *Session) setCurrentPromptCancel(cancel context.CancelFunc) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentPromptCancel = cancel
+}
+
+func (s *Session) cancelCurrentPrompt() bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	cancel := s.currentPromptCancel
+	s.mu.RUnlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
 func (s *Session) clearCurrentTurnSource() {
 	if s == nil {
 		return
@@ -385,6 +411,16 @@ func (s *Session) clearCurrentPromptMeta() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptMeta = acp.PromptMeta{}
+}
+
+func (s *Session) clearCurrentPromptCancel() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentPromptCancel = nil
 }
 
 func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {

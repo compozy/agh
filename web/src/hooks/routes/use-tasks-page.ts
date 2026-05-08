@@ -60,7 +60,8 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskIdState] = useState<string | null>(null);
+  const [isSelectionDismissed, setSelectionDismissed] = useState(false);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [includeDrafts, setIncludeDrafts] = useState(true);
   const [createDraft, setCreateDraft] = useState<CreateTaskDraftInput>(EMPTY_TASK_EDITOR_DRAFT);
@@ -150,13 +151,28 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     return Array.from(seen.values()).sort((a, b) => a.ref.localeCompare(b.ref));
   }, [allTasks]);
 
+  const setSelectedTaskId = useCallback((taskId: string | null) => {
+    setSelectedTaskIdState(taskId);
+    if (taskId !== null) {
+      setSelectionDismissed(false);
+    }
+  }, []);
+
+  const dismissSelectedTask = useCallback(() => {
+    setSelectedTaskIdState(null);
+    setSelectionDismissed(true);
+  }, []);
+
   const effectiveSelectedTaskId = useMemo(() => {
+    if (isSelectionDismissed) {
+      return null;
+    }
     if (selectedTaskId && visibleTasks.some(task => task.id === selectedTaskId)) {
       return selectedTaskId;
     }
 
     return visibleTasks[0]?.id ?? null;
-  }, [selectedTaskId, visibleTasks]);
+  }, [isSelectionDismissed, selectedTaskId, visibleTasks]);
 
   const selectedTask: TaskListItem | null = useMemo(() => {
     if (!effectiveSelectedTaskId) {
@@ -374,6 +390,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     dashboardError: dashboardQuery.error ?? null,
     dashboardLoading: dashboardQuery.isLoading && !dashboardQuery.data,
     dashboardFetching: dashboardQuery.isFetching,
+    dismissSelectedTask,
     draftTasks,
     effectiveSelectedTaskId,
     handleApproveTask,

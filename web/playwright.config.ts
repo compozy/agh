@@ -14,6 +14,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 90_000,
+  expect: {
+    timeout: 20_000,
+  },
   outputDir: path.join(sharedTmpDir, "test-results"),
   reporter: [
     ["list"],

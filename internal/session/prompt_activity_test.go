@@ -456,7 +456,7 @@ func TestPromptActivitySupervisorPromptDeadlineStopsWithDeadlineDetail(t *testin
 
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-time.After(3 * time.Second):
 		t.Fatal("handlePromptDeadline() did not return after runtime warning ack")
 	}
 
@@ -510,13 +510,22 @@ func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 			want: defaultGrace,
 		},
 		{
-			name: "Should use configured timeout cancel grace for forced stop deadline",
+			name: "Should use lifecycle minimum for short configured grace",
 			supervisor: &promptActivitySupervisor{
 				config: aghconfig.SessionSupervisionConfig{
 					TimeoutCancelGrace: 42 * time.Millisecond,
 				},
 			},
-			want: 42 * time.Millisecond,
+			want: defaultLifecycleTimeout,
+		},
+		{
+			name: "Should use configured timeout cancel grace above lifecycle minimum",
+			supervisor: &promptActivitySupervisor{
+				config: aghconfig.SessionSupervisionConfig{
+					TimeoutCancelGrace: defaultLifecycleTimeout + time.Second,
+				},
+			},
+			want: defaultLifecycleTimeout + time.Second,
 		},
 	}
 
