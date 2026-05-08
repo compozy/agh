@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DirectionProvider } from "../direction";
 
 const meta: Meta<typeof DirectionProvider> = {
-  title: "ui/Direction",
+  title: "components/ui/Direction",
   component: DirectionProvider,
   parameters: {
     layout: "centered",

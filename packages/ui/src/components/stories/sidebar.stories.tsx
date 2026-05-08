@@ -14,10 +14,10 @@ import {
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Sidebar } from "../sidebar";
-import { UIProvider } from "../ui-provider";
+import { UIProvider } from "../custom/ui-provider";
 
 const meta: Meta<typeof Sidebar> = {
-  title: "ui/Sidebar",
+  title: "components/ui/Sidebar",
   component: Sidebar,
   parameters: {
     layout: "fullscreen",

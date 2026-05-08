@@ -12,7 +12,7 @@ import {
 import { Input } from "../input";
 
 const meta: Meta<typeof Field> = {
-  title: "ui/Field",
+  title: "components/ui/Field",
   component: Field,
   parameters: {
     layout: "centered",

@@ -14,10 +14,10 @@ import {
 import { Button } from "../button";
 import { Input } from "../input";
 import { Label } from "../label";
-import { UIProvider } from "../ui-provider";
+import { UIProvider } from "../custom/ui-provider";
 
 const meta: Meta<typeof Dialog> = {
-  title: "ui/Dialog",
+  title: "components/ui/Dialog",
   component: Dialog,
   parameters: {
     layout: "centered",

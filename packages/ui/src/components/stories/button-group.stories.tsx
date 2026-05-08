@@ -7,7 +7,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../input-group";
 
 const meta: Meta<typeof ButtonGroup> = {
-  title: "ui/ButtonGroup",
+  title: "components/ui/ButtonGroup",
   component: ButtonGroup,
   parameters: {
     layout: "centered",

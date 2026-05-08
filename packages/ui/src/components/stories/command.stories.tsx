@@ -22,7 +22,7 @@ import {
 } from "../command";
 
 const meta: Meta<typeof Command> = {
-  title: "ui/Command",
+  title: "components/ui/Command",
   component: Command,
   parameters: {
     layout: "centered",

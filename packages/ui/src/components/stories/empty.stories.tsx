@@ -5,7 +5,7 @@ import { Button } from "../button";
 import { Empty } from "../empty";
 
 const meta: Meta<typeof Empty> = {
-  title: "ui/Empty",
+  title: "components/ui/Empty",
   component: Empty,
   parameters: {
     layout: "padded",

@@ -12,7 +12,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "../toggle-group";
 
 const meta: Meta<typeof ToggleGroup> = {
-  title: "ui/ToggleGroup",
+  title: "components/ui/ToggleGroup",
   component: ToggleGroup,
   parameters: {
     layout: "centered",

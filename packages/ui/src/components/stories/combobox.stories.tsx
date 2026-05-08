@@ -16,7 +16,7 @@ import {
 } from "../combobox";
 
 const meta: Meta<typeof Combobox> = {
-  title: "ui/Combobox",
+  title: "components/ui/Combobox",
   component: Combobox,
   parameters: {
     layout: "centered",

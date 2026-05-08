@@ -12,7 +12,7 @@ import {
 } from "../table";
 
 const meta: Meta<typeof Table> = {
-  title: "ui/Table",
+  title: "components/ui/Table",
   component: Table,
   parameters: {
     layout: "centered",

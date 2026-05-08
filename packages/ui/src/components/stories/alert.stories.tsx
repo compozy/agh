@@ -5,7 +5,7 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "../alert";
 import { Button } from "../button";
 
 const meta: Meta<typeof Alert> = {
-  title: "ui/Alert",
+  title: "components/ui/Alert",
   component: Alert,
   parameters: {
     layout: "centered",

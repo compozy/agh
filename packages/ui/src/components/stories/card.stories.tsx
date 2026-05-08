@@ -12,7 +12,7 @@ import {
 } from "../card";
 
 const meta: Meta<typeof Card> = {
-  title: "ui/Card",
+  title: "components/ui/Card",
   component: Card,
   parameters: {
     layout: "centered",

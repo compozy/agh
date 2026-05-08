@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Kbd, KbdGroup } from "../kbd";
 
 const meta: Meta<typeof Kbd> = {
-  title: "ui/Kbd",
+  title: "components/ui/Kbd",
   component: Kbd,
   parameters: {
     layout: "centered",

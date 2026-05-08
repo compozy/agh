@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ca
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../tabs";
 
 const meta: Meta<typeof Tabs> = {
-  title: "ui/Tabs",
+  title: "components/ui/Tabs",
   component: Tabs,
   parameters: {
     layout: "centered",

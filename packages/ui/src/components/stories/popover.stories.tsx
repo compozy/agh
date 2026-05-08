@@ -12,10 +12,10 @@ import {
 import { Button } from "../button";
 import { Input } from "../input";
 import { Label } from "../label";
-import { UIProvider } from "../ui-provider";
+import { UIProvider } from "../custom/ui-provider";
 
 const meta: Meta<typeof Popover> = {
-  title: "ui/Popover",
+  title: "components/ui/Popover",
   component: Popover,
   parameters: {
     layout: "centered",

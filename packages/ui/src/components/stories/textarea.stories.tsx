@@ -4,7 +4,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import { Textarea } from "../textarea";
 
 const meta: Meta<typeof Textarea> = {
-  title: "ui/Textarea",
+  title: "components/ui/Textarea",
   component: Textarea,
   parameters: {
     layout: "centered",

@@ -14,10 +14,10 @@ import {
 import { Button } from "../button";
 import { Input } from "../input";
 import { Label } from "../label";
-import { UIProvider } from "../ui-provider";
+import { UIProvider } from "../custom/ui-provider";
 
 const meta: Meta<typeof Sheet> = {
-  title: "ui/Sheet",
+  title: "components/ui/Sheet",
   component: Sheet,
   parameters: {
     layout: "centered",

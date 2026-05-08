@@ -5,7 +5,7 @@ import { Button } from "../button";
 import { Toaster, toast } from "../sonner";
 
 const meta: Meta<typeof Toaster> = {
-  title: "ui/Sonner",
+  title: "components/ui/Sonner",
   component: Toaster,
   parameters: {
     layout: "centered",

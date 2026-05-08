@@ -5,7 +5,7 @@ import { Separator } from "../separator";
 import { ScrollArea, ScrollBar } from "../scroll-area";
 
 const meta: Meta<typeof ScrollArea> = {
-  title: "ui/ScrollArea",
+  title: "components/ui/ScrollArea",
   component: ScrollArea,
   parameters: {
     layout: "centered",

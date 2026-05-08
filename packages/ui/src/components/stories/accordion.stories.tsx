@@ -4,7 +4,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../accordion";
 
 const meta: Meta<typeof Accordion> = {
-  title: "ui/Accordion",
+  title: "components/ui/Accordion",
   component: Accordion,
   parameters: {
     layout: "centered",

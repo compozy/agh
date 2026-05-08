@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";
 
 const meta: Meta<typeof Collapsible> = {
-  title: "ui/Collapsible",
+  title: "components/ui/Collapsible",
   component: Collapsible,
   parameters: {
     layout: "centered",

@@ -45,8 +45,8 @@ export {
   TableCaption,
 } from "./components/table";
 export { Kbd, KbdGroup } from "./components/kbd";
-export { UIProvider, type UIProviderProps } from "./components/ui-provider";
-export { Logo, type LogoProps, type LogoVariant } from "./components/logo";
+export { UIProvider, type UIProviderProps } from "./components/custom/ui-provider";
+export { Logo, type LogoProps, type LogoVariant } from "./components/custom/logo";
 export {
   Dialog,
   DialogClose,
@@ -156,8 +156,12 @@ export {
   SIDEBAR_RAIL_WIDTH,
   type SidebarProps,
 } from "./components/sidebar";
-export { SplitPane, SPLIT_LIST_WIDTH_DEFAULT, type SplitPaneProps } from "./components/split-pane";
-export { PageHeader, type PageHeaderProps } from "./components/page-header";
+export {
+  SplitPane,
+  SPLIT_LIST_WIDTH_DEFAULT,
+  type SplitPaneProps,
+} from "./components/custom/split-pane";
+export { PageHeader, type PageHeaderProps } from "./components/custom/page-header";
 export {
   Pill,
   PillDot,
@@ -166,39 +170,39 @@ export {
   type PillDotProps,
   type PillTone,
   type PillSize,
-} from "./components/pill";
+} from "./components/custom/pill";
 export {
   PillGroup,
   pillGroupSegmentVariants,
   type PillGroupProps,
   type PillGroupItem,
   type PillGroupSize,
-} from "./components/pill-group";
-export { SearchInput, type SearchInputProps } from "./components/search-input";
+} from "./components/custom/pill-group";
+export { SearchInput, type SearchInputProps } from "./components/custom/search-input";
 export { Empty, type EmptyProps } from "./components/empty";
-export { Section, type SectionProps } from "./components/section";
-export { Toolbar, type ToolbarProps } from "./components/toolbar";
+export { Section, type SectionProps } from "./components/custom/section";
+export { Toolbar, type ToolbarProps } from "./components/custom/toolbar";
 export {
   WireCard,
   WireCardHead,
   WireCardBody,
   WireCardFoot,
   type WireCardProps,
-} from "./components/wire-card";
-export { TypingDots, type TypingDotsProps } from "./components/typing-dots";
-export { CodeBlock, type CodeBlockProps } from "./components/code-block";
+} from "./components/custom/wire-card";
+export { TypingDots, type TypingDotsProps } from "./components/custom/typing-dots";
+export { CodeBlock, type CodeBlockProps } from "./components/custom/code-block";
 export {
   ChatMessageBubble,
   type ChatMessageBubbleProps,
   type ChatMessageRole,
   type ChatMessageAlign,
-} from "./components/chat-message-bubble";
+} from "./components/custom/chat-message-bubble";
 export {
   ToolCallCard,
   type ToolCallCardProps,
   type ToolCallStatus,
-} from "./components/tool-call-card";
-export { Metric, type MetricProps, type MetricTone } from "./components/metric";
+} from "./components/custom/tool-call-card";
+export { Metric, type MetricProps, type MetricTone } from "./components/custom/metric";
 export {
   Avatar,
   AvatarBadge,

@@ -14,7 +14,7 @@ import { Kbd } from "../kbd";
 import { Label } from "../label";
 
 const meta: Meta<typeof InputGroup> = {
-  title: "ui/InputGroup",
+  title: "components/ui/InputGroup",
   component: InputGroup,
   parameters: {
     layout: "centered",

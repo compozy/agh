@@ -16,7 +16,7 @@ import {
 } from "../item";
 
 const meta: Meta<typeof Item> = {
-  title: "ui/Item",
+  title: "components/ui/Item",
   component: Item,
   parameters: {
     layout: "centered",

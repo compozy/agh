@@ -4,7 +4,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "../native-select";
 
 const meta: Meta<typeof NativeSelect> = {
-  title: "ui/NativeSelect",
+  title: "components/ui/NativeSelect",
   component: NativeSelect,
   parameters: {
     layout: "centered",

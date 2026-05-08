@@ -5,7 +5,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { Toggle } from "../toggle";
 
 const meta: Meta<typeof Toggle> = {
-  title: "ui/Toggle",
+  title: "components/ui/Toggle",
   component: Toggle,
   parameters: {
     layout: "centered",

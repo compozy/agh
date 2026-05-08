@@ -5,7 +5,7 @@ import { Label } from "../label";
 import { Switch } from "../switch";
 
 const meta: Meta<typeof Switch> = {
-  title: "ui/Switch",
+  title: "components/ui/Switch",
   component: Switch,
   parameters: {
     layout: "centered",

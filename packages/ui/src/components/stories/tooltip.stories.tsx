@@ -4,10 +4,10 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../tooltip";
 import { Button } from "../button";
 import { Kbd, KbdGroup } from "../kbd";
-import { UIProvider } from "../ui-provider";
+import { UIProvider } from "../custom/ui-provider";
 
 const meta: Meta<typeof Tooltip> = {
-  title: "ui/Tooltip",
+  title: "components/ui/Tooltip",
   component: Tooltip,
   parameters: {
     layout: "centered",
