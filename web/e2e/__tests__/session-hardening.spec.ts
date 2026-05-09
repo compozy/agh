@@ -202,8 +202,11 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await expect(
     runtime.requestJSON<SessionEnvelope>(`/api/sessions/${encodeURIComponent(deletableSession.id)}`)
   ).rejects.toThrow("404");
+  if (!runtime.requestOperatorJSON) {
+    throw new Error("session delete parity check requires launch-mode UDS access.");
+  }
   await expect(
-    runtime.requestOperatorJSON?.<SessionEnvelope>(
+    runtime.requestOperatorJSON<SessionEnvelope>(
       `/api/sessions/${encodeURIComponent(deletableSession.id)}`
     )
   ).rejects.toThrow("404");
@@ -217,6 +220,13 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     deleted_session_id: deletableSession.id,
   });
   await browserArtifacts.captureScreenshot("session-cancel-clear-delete", appPage);
+  await browserArtifacts.persist(appPage);
+  await assertNoSensitiveLeak(appPage, runtime, {
+    afterClear,
+    beforeClear,
+    cli_sessions_after_delete: cliSessions,
+    deleted_session_id: deletableSession.id,
+  });
 });
 
 test("operator repairs an interrupted session through HTTP, UDS, and CLI without losing transcript evidence", async ({
@@ -369,7 +379,9 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
     ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }
 

@@ -1534,7 +1534,10 @@ func TestCancelPrompt(t *testing.T) {
 		t.Cleanup(func() {
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptCancel()
-			_ = h.manager.Stop(testutil.Context(t), session.ID)
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
 		})
 
 		promptCtx, cancelPrompt := context.WithCancel(testutil.Context(t))

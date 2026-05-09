@@ -428,7 +428,7 @@ func (a *ACPDriverAdapter) Prompt(
 	return a.driver.Prompt(ctx, native, req)
 }
 
-// Cancel cancels the active ACP prompt.
+// Cancel lets higher layers stop prompt work without bypassing ACP-owned lifecycle handling.
 func (a *ACPDriverAdapter) Cancel(ctx context.Context, proc *AgentProcess) error {
 	native, err := a.nativeProcess(proc)
 	if err != nil {

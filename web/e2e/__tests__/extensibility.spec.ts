@@ -1222,6 +1222,8 @@ function browserRuntimeCLIEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
     AGH_E2E_CLI_BIN: paths.cliShim,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }

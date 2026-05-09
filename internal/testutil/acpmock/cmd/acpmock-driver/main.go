@@ -460,7 +460,6 @@ func (a *mockAgent) beginPromptRegistration(sessionID string) {
 		a.sessions[sessionID] = session
 	}
 	session.promptStarting = true
-	session.pendingPromptCancel = false
 }
 
 func (a *mockAgent) registerPromptCancel(sessionID string, cancel context.CancelFunc) {

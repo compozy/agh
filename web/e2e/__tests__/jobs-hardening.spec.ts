@@ -684,8 +684,12 @@ async function assertNoJobSensitiveLeak(
 ): Promise<void> {
   expect(JSON.stringify(snapshot)).not.toMatch(sensitivePattern);
   expect((await appPage.textContent("body")) ?? "").not.toMatch(sensitivePattern);
+  const consolePath = runtime.artifactCollector.artifactPath("browser_console");
+  const networkPath = runtime.artifactCollector.artifactPath("browser_network");
   const routeStatePath = runtime.artifactCollector.artifactPath("browser_route_state");
   const apiSnapshotPath = runtime.artifactCollector.artifactPath("browser_api_snapshots");
+  await expect(readFileIfExists(consolePath)).resolves.not.toMatch(sensitivePattern);
+  await expect(readFileIfExists(networkPath)).resolves.not.toMatch(sensitivePattern);
   await expect(readFileIfExists(routeStatePath)).resolves.not.toMatch(sensitivePattern);
   await expect(readFileIfExists(apiSnapshotPath)).resolves.not.toMatch(sensitivePattern);
   if (runtime.paths?.daemonLog) {
@@ -710,7 +714,9 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
     ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }
 

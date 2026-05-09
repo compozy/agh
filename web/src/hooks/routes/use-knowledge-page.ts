@@ -320,15 +320,22 @@ function useKnowledgePage() {
   };
 
   const handleRevertDecision = async (decision: MemoryDecision) => {
+    if (isRevertPending || revertingDecisionId !== null) {
+      return;
+    }
+
     resetRevertMutation();
     setRevertingDecisionId(decision.id);
-    await revertMemoryDecisionMutate({
-      decisionID: decision.id,
-      body: { reason: "operator reverted from Knowledge" },
-    });
-    const filename = decision.target_filename ?? decision.frontmatter.filename;
-    setSelectedMemoryKey(`${decision.scope}:${filename}`);
-    setRevertingDecisionId(prev => (prev === decision.id ? null : prev));
+    try {
+      await revertMemoryDecisionMutate({
+        decisionID: decision.id,
+        body: { reason: "operator reverted from Knowledge" },
+      });
+      const filename = decision.target_filename ?? decision.frontmatter.filename;
+      setSelectedMemoryKey(`${decision.scope}:${filename}`);
+    } finally {
+      setRevertingDecisionId(prev => (prev === decision.id ? null : prev));
+    }
   };
 
   const selectedTargetMatches = (() => {

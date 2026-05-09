@@ -181,18 +181,15 @@ describe("NetworkSettingsPage", () => {
   });
 
   it("accepts the auto-assigned listener port sentinel without blocking other network saves", () => {
-    pageState.envelope = {
-      ...envelope,
-      config: {
-        ...envelope.config,
-        port: -1,
-      },
-    };
-    pageState.draft = pageState.envelope.config;
     pageState.isDirty = true;
 
     render(<NetworkSettingsPage />);
 
+    fireEvent.change(screen.getByTestId("settings-page-network-port-input"), {
+      target: { value: "-1" },
+    });
+
+    expect(pageState.setDraft).toHaveBeenCalled();
     expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("-1");
     expect(screen.queryByTestId("settings-page-network-save-invalid")).not.toBeInTheDocument();
     expect(screen.getByTestId("settings-page-network-save")).not.toBeDisabled();

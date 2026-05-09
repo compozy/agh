@@ -522,11 +522,21 @@ async function promptDiagnostics(
   const diagnosticsPath = path.join(runtime.paths.homeDir, "logs", "acpmock", `${agentName}.jsonl`);
   await expect.poll(() => readFileIfExists(diagnosticsPath)).not.toBe("");
   const text = await readFile(diagnosticsPath, "utf8");
-  return text
+  const lines = text
     .split("\n")
     .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => JSON.parse(line) as DiagnosticsRecord)
+    .filter(Boolean);
+  return lines
+    .flatMap((line, index) => {
+      try {
+        return [JSON.parse(line) as DiagnosticsRecord];
+      } catch (error) {
+        if (index === lines.length - 1) {
+          return [];
+        }
+        throw error;
+      }
+    })
     .filter(record => !record.lifecycle_event && record.prompt_index > 0);
 }
 
@@ -615,6 +625,8 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
     ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }

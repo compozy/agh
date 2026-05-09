@@ -400,7 +400,50 @@ function extractJSON(stdout: string): string {
   if (start === undefined) {
     throw new Error(`CLI output did not contain JSON: ${stdout}`);
   }
-  return trimmed.slice(start);
+
+  const stack = [trimmed[start] === "{" ? "}" : "]"];
+  let inString = false;
+  let escaping = false;
+  for (let index = start + 1; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaping = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      stack.push("}");
+      continue;
+    }
+    if (char === "[") {
+      stack.push("]");
+      continue;
+    }
+    if (char === "}" || char === "]") {
+      const expected = stack.pop();
+      if (expected !== char) {
+        throw new Error(`CLI output did not contain balanced JSON: ${stdout}`);
+      }
+      if (stack.length === 0) {
+        return trimmed.slice(start, index + 1);
+      }
+    }
+  }
+
+  throw new Error(`CLI output did not contain balanced JSON: ${stdout}`);
 }
 
 function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
@@ -408,7 +451,9 @@ function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
     ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }
 

@@ -123,6 +123,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
   await tasksUI.openCreate.click();
   await tasksUI.createPriority("high").click();
   const publishedTitle = `Coordinator handoff publish ${Date.now()}`;

@@ -350,6 +350,7 @@ async function pollRestartStatus(runtime: BrowserRuntime, statusURL: string): Pr
     const payload = await runtime.requestJSON<SettingsRestartStatus>(statusURL);
     return payload.status;
   } catch {
+    // Daemon restarts can briefly drop the transport before the status endpoint comes back.
     return "restarting";
   }
 }

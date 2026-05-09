@@ -792,13 +792,14 @@ async function captureTaskRunParity(
   taskID: string,
   runID: string
 ): Promise<TaskRunParitySnapshot> {
+  const uds = await requestOperatorJSONOrThrow<TaskRunDetailEnvelope>(
+    runtime,
+    `/api/task-runs/${encodeURIComponent(runID)}`
+  );
   return {
     cliRuns: await taskCLI<TaskRun[]>(runtime, ["task", "run", "list", taskID, "--last", "10"]),
     http: await getTaskRun(runtime, runID),
-    uds: await requestOperatorJSONOrThrow<TaskRunDetailEnvelope>(
-      runtime,
-      `/api/task-runs/${encodeURIComponent(runID)}`
-    ).then(payload => payload.run),
+    uds: uds.run,
   };
 }
 
@@ -860,7 +861,9 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
     ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }
 

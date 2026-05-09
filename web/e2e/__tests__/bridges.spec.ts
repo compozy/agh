@@ -447,15 +447,25 @@ async function waitForBridgeByName(
   displayName: string
 ): Promise<BridgeSummary> {
   const deadline = Date.now() + 45_000;
+  let lastError: Error | null = null;
   while (Date.now() < deadline) {
-    const payload = await runtime.requestJSON<BridgeListResponse>("/api/bridges");
-    const bridge = payload.bridges.find(candidate => candidate.display_name === displayName);
-    if (bridge) {
-      return bridge;
+    try {
+      const payload = await runtime.requestJSON<BridgeListResponse>("/api/bridges");
+      lastError = null;
+      const bridge = payload.bridges.find(candidate => candidate.display_name === displayName);
+      if (bridge) {
+        return bridge;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
     }
     await delay(250);
   }
-  throw new Error(`bridge ${displayName} was not present after wait`);
+  throw new Error(
+    `bridge ${displayName} was not present after wait${
+      lastError ? ` (last error: ${lastError.message})` : ""
+    }`
+  );
 }
 
 async function waitForBridgeStatus(
@@ -464,18 +474,28 @@ async function waitForBridgeStatus(
   status: BridgeHealth["status"]
 ): Promise<BridgeDetailResponse> {
   const deadline = Date.now() + 60_000;
+  let lastError: Error | null = null;
   let lastStatus: string | undefined;
   while (Date.now() < deadline) {
-    const payload = await runtime.requestJSON<BridgeDetailResponse>(
-      `/api/bridges/${encodeURIComponent(bridgeId)}`
-    );
-    lastStatus = payload.health.status;
-    if (lastStatus === status) {
-      return payload;
+    try {
+      const payload = await runtime.requestJSON<BridgeDetailResponse>(
+        `/api/bridges/${encodeURIComponent(bridgeId)}`
+      );
+      lastError = null;
+      lastStatus = payload.health.status;
+      if (lastStatus === status) {
+        return payload;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
     }
     await delay(250);
   }
-  throw new Error(`bridge ${bridgeId} status is ${lastStatus ?? "unknown"}; expected ${status}`);
+  throw new Error(
+    `bridge ${bridgeId} status is ${lastStatus ?? "unknown"}; expected ${status}${
+      lastError ? ` (last error: ${lastError.message})` : ""
+    }`
+  );
 }
 
 async function collectBridgeSnapshots(runtime: BrowserRuntime, bridgeId: string) {
@@ -616,7 +636,9 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
     AGH_HOME: paths.homeDir,
     AGH_E2E_CLI_BIN: paths.cliShim,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }
 

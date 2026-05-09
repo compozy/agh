@@ -947,6 +947,11 @@ func (d *Driver) startPromptCancellationNotifier(
 	proc *AgentProcess,
 	active *activePromptState,
 ) func() {
+	if ctx.Err() != nil {
+		d.sendPromptCancellationNotification(ctx, proc, active)
+		return func() {}
+	}
+
 	done := make(chan struct{})
 	go func() {
 		select {

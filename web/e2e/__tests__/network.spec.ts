@@ -588,6 +588,8 @@ async function networkCLI(runtime: BrowserRuntime, args: string[]): Promise<unkn
   }
   const { stdout } = await execFileAsync(runtime.paths.cliShim, [...args, "-o", "json"], {
     env: cliEnv(runtime.paths),
+    maxBuffer: 1024 * 1024,
+    timeout: 15_000,
   });
   return JSON.parse(stdout) as unknown;
 }
@@ -597,7 +599,9 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
     ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
-    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+    PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 }
 
