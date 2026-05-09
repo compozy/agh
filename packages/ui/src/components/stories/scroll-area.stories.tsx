@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 const events = Array.from({ length: 24 }, (_, i) => ({
   id: `evt-${i + 1}`,
   label: `ACP event ${i + 1}`,
-  summary: "tool_use · bash , listing repository files under /internal",
+  summary: "tool_use · bash, listing repository files under /internal",
 }));
 
 export const Default: Story = {

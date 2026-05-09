@@ -15,7 +15,7 @@ const meta: Meta<typeof Toolbar> = {
     docs: {
       description: {
         component:
-          "Composition-first toolbar shell , pass `SearchInput`, `PillGroup`, `Button` children directly. Wraps on narrow viewports.",
+          "Composition-first toolbar shell, pass `SearchInput`, `PillGroup`, and `Button` children directly. Wraps on narrow viewports.",
       },
     },
   },
@@ -86,7 +86,7 @@ export const Sticky: Story = {
         </Button>
       </Toolbar>
       <div className="h-96 p-4 text-sm text-[color:var(--color-text-secondary)]">
-        Scroll , the toolbar stays pinned to the top edge of the scroll container.
+        Scroll, the toolbar stays pinned to the top edge of the scroll container.
       </div>
     </div>
   ),

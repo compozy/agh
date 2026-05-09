@@ -6,6 +6,10 @@ import { cn } from "../lib/utils";
 import { Label } from "./label";
 import { Separator } from "./separator";
 
+function hasFieldErrorContent(content: React.ReactNode) {
+  return content !== undefined && content !== null && content !== false;
+}
+
 function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
   return (
     <fieldset
@@ -173,22 +177,24 @@ function FieldError({
 }) {
   let content = children;
 
-  if (!content && errors?.length) {
-    const uniqueErrors = [...new Map(errors.map(error => [error?.message, error])).values()];
+  const uniqueMessages = [
+    ...new Set(errors?.flatMap(error => (error?.message ? [error.message] : []))),
+  ];
 
+  if (!hasFieldErrorContent(content) && uniqueMessages.length > 0) {
     content =
-      uniqueErrors.length === 1 ? (
-        uniqueErrors[0]?.message
+      uniqueMessages.length === 1 ? (
+        uniqueMessages[0]
       ) : (
         <ul className="ml-4 flex list-disc flex-col gap-1">
-          {uniqueErrors.map(error =>
-            error?.message ? <li key={error.message}>{error.message}</li> : null
-          )}
+          {uniqueMessages.map(message => (
+            <li key={message}>{message}</li>
+          ))}
         </ul>
       );
   }
 
-  if (!content) {
+  if (!hasFieldErrorContent(content)) {
     return null;
   }
 

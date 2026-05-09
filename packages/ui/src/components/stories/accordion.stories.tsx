@@ -31,7 +31,7 @@ const faq = [
     value: "memory",
     question: "When does memory dream?",
     answer:
-      "The dream consolidator runs on a cron plus idle triggers , any quiet window over 30 minutes kicks off a pass.",
+      "The dream consolidator runs on a cron plus idle triggers, any quiet window over 30 minutes kicks off a pass.",
   },
   {
     value: "network",

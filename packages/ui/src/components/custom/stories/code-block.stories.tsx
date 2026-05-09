@@ -43,7 +43,7 @@ export const MultilineWithoutPrompt: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Source-code block with prompts disabled , rendered as plain code.",
+        story: "Source-code block with prompts disabled, rendered as plain code.",
       },
     },
   },

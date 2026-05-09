@@ -66,6 +66,22 @@ describe("Field", () => {
     expect(items[1]?.textContent).toBe("Must be alphanumeric");
   });
 
+  it("Should preserve valid falsy children instead of treating them as missing", () => {
+    render(<FieldError>{0}</FieldError>);
+    expect(screen.getByRole("alert")).toHaveTextContent("0");
+  });
+
+  it("Should ignore empty error entries before deciding between single and list output", () => {
+    const { container } = render(
+      <FieldError
+        errors={[{ message: "Must not be empty" }, {}, { message: "Must not be empty" }]}
+      />
+    );
+
+    expect(container.querySelectorAll("li")).toHaveLength(0);
+    expect(screen.getByRole("alert")).toHaveTextContent("Must not be empty");
+  });
+
   it("Should render nothing when FieldError has no children and no errors", () => {
     const { container } = render(<FieldError />);
     expect(container.firstChild).toBeNull();

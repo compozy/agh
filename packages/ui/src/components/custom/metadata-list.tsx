@@ -2,17 +2,17 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-type MetadataListProps = React.ComponentProps<"dl">;
-type MetadataListTermProps = React.ComponentProps<"dt">;
-type MetadataListValueProps = React.ComponentProps<"dd">;
-type DataAttributes = {
+interface MetadataListProps extends React.ComponentProps<"dl"> {}
+interface MetadataListTermProps extends React.ComponentProps<"dt"> {}
+interface MetadataListValueProps extends React.ComponentProps<"dd"> {}
+interface DataAttributes {
   [key: `data-${string}`]: string | number | boolean | undefined;
-};
-type MetadataListRowProps = React.ComponentProps<"div"> & {
+}
+interface MetadataListRowProps extends React.ComponentProps<"div"> {
   label?: React.ReactNode;
   termProps?: MetadataListTermProps & DataAttributes;
   valueProps?: MetadataListValueProps & DataAttributes;
-};
+}
 
 function MetadataListRoot({ className, ...props }: MetadataListProps) {
   return (
@@ -67,7 +67,7 @@ function MetadataListTerm({ className, ...props }: MetadataListTermProps) {
     <dt
       data-slot="metadata-list-term"
       className={cn(
-        "shrink-0 font-mono text-badge font-semibold uppercase tracking-mono text-[color:var(--color-text-tertiary)]",
+        "shrink-0 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)",
         className
       )}
       {...props}
@@ -79,7 +79,7 @@ function MetadataListValue({ className, ...props }: MetadataListValueProps) {
   return (
     <dd
       data-slot="metadata-list-value"
-      className={cn("min-w-0 text-small-body text-[color:var(--color-text-secondary)]", className)}
+      className={cn("min-w-0 text-small-body text-(--color-text-secondary)", className)}
       {...props}
     />
   );

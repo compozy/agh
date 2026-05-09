@@ -10,7 +10,7 @@ const meta: Meta<typeof MetadataList> = {
   },
   decorators: [
     Story => (
-      <div className="w-[420px] rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+      <div className="w-[420px] rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
         <Story />
       </div>
     ),

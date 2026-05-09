@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Item,
@@ -90,6 +90,23 @@ describe("Item", () => {
     expect(button).toBe(screen.getByTestId("selectable-button"));
     expect(button).toHaveAttribute("aria-pressed", "true");
     expect(button).toHaveAttribute("type", "button");
+  });
+
+  it("Should preserve button-specific props when rendered as a button", () => {
+    const onClick = vi.fn();
+
+    render(
+      <Item as="button" disabled onClick={onClick}>
+        <ItemContent>
+          <ItemTitle>Disabled button row</ItemTitle>
+        </ItemContent>
+      </Item>
+    );
+
+    const button = screen.getByRole("button", { name: "Disabled button row" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it("Should render the dot indicator as a standalone subpart", () => {

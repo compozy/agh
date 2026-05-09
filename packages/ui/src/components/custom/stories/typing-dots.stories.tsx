@@ -10,7 +10,7 @@ const meta: Meta<typeof TypingDots> = {
     docs: {
       description: {
         component:
-          "Three-dot typing indicator , mirrors `.typing-dots` in `docs/design/web-inspiration/styles/app.css`. Relies on the `typing-bounce` keyframes in `packages/ui/src/tokens.css`.",
+          "Three-dot typing indicator, mirrors `.typing-dots` in `docs/design/web-inspiration/styles/app.css`. Relies on the `typing-bounce` keyframes in `packages/ui/src/tokens.css`.",
       },
     },
   },

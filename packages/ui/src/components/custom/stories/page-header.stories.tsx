@@ -14,7 +14,7 @@ const meta: Meta<typeof PageHeader> = {
     docs: {
       description: {
         component:
-          "Top-of-page header , icon + title + count badge on the left, segmented `PillGroup` controls in the middle, meta/actions on the right.",
+          "Top-of-page header, icon + title + count badge on the left, segmented `PillGroup` controls in the middle, meta/actions on the right.",
       },
     },
   },

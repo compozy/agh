@@ -10,7 +10,7 @@ const meta: Meta<typeof Metric> = {
     docs: {
       description: {
         component:
-          "Metric card , mono eyebrow + Inter 24px/700 value + optional inline detail or subtext. Per DESIGN.md §4 Metric Cards.",
+          "Metric card, mono eyebrow + Inter 24px/700 value + optional inline detail or subtext. Per DESIGN.md §4 Metric Cards.",
       },
     },
   },

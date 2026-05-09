@@ -93,7 +93,7 @@ function DetailView({ row }: { row: Row }) {
         </span>
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-4 text-sm text-muted-foreground">
-        Detail view for run {row.id} , event timeline, artifacts, diff.
+        Detail view for run {row.id}, event timeline, artifacts, diff.
       </div>
     </div>
   );
@@ -195,7 +195,7 @@ export const ReducedMotion: Story = {
     docs: {
       description: {
         story:
-          "With `UIProvider reducedMotion='always'` the detail swap is instant , motion drops the opacity transition.",
+          "With `UIProvider reducedMotion='always'` the detail swap is instant, motion drops the opacity transition.",
       },
     },
   },

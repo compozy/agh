@@ -140,7 +140,7 @@ export const Error: Story = {
         </div>
       </div>
       <CatalogCard.Description>
-        The catalog endpoint returned an error. Existing installed skills are unchanged.
+        The catalog endpoint returned an error. Existing installed capabilities are unchanged.
       </CatalogCard.Description>
       <CatalogCard.Actions>
         <Button size="sm" type="button" variant="outline">

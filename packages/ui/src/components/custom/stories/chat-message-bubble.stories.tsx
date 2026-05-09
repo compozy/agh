@@ -56,7 +56,7 @@ export const AgentRole: Story = {
     role: "agent",
     meta: <AgentMeta />,
     children:
-      "I can see two candidates , stream.ts and map.ts. I'll extract the grouping into `groupToolCallsByTurn` and point the call site at it.",
+      "I can see two candidates, `stream.ts` and `map.ts`. I'll extract the grouping into `groupToolCallsByTurn` and point the call site at it.",
   },
 };
 
@@ -110,7 +110,7 @@ export const AllRoles: Story = {
         Find the event mapper that groups tool calls by turn.
       </ChatMessageBubble>
       <ChatMessageBubble role="agent" meta={<AgentMeta />} data-role-key="agent">
-        Two candidates , I&apos;ll extract the grouping into `groupToolCallsByTurn`.
+        Two candidates, I&apos;ll extract the grouping into `groupToolCallsByTurn`.
       </ChatMessageBubble>
       <ChatMessageBubble role="tool" data-role-key="tool">
         <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="done" />

@@ -19,4 +19,18 @@ describe("MetadataList", () => {
     expect(screen.getByText("Ready").tagName).toBe("DD");
     expect(screen.getByTestId("metadata-row")).toHaveAttribute("data-slot", "metadata-list-row");
   });
+
+  it("Should apply the shared shorthand color tokens to term and value slots", () => {
+    render(
+      <MetadataList>
+        <MetadataList.Row>
+          <MetadataList.Term>Status</MetadataList.Term>
+          <MetadataList.Value>Ready</MetadataList.Value>
+        </MetadataList.Row>
+      </MetadataList>
+    );
+
+    expect(screen.getByText("Status").className).toContain("text-(--color-text-tertiary)");
+    expect(screen.getByText("Ready").className).toContain("text-(--color-text-secondary)");
+  });
 });

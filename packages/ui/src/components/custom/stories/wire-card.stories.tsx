@@ -11,7 +11,7 @@ const meta: Meta<typeof WireCard> = {
     docs: {
       description: {
         component:
-          "Bordered protocol card , mirrors `.wire-card` (head/body/foot) in `docs/design/web-inspiration/styles/app.css`. Used to embed wire-protocol payloads (recipes, receipts, capabilities) inside message threads.",
+          "Bordered protocol card, mirrors `.wire-card` (head/body/foot) in `docs/design/web-inspiration/styles/app.css`. Used to embed wire-protocol payloads (capabilities, receipts, and descriptors) inside message threads.",
       },
     },
   },
@@ -20,12 +20,12 @@ const meta: Meta<typeof WireCard> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Recipe: Story = {
+export const Capability: Story = {
   render: () => (
     <WireCard>
       <WireCardHead>
         <Package className="size-3" />
-        <span>Recipe</span>
+        <span>Capability</span>
         <span className="text-[color:var(--color-text-primary)]">rag.embed.bulk · v2</span>
       </WireCardHead>
       <WireCardBody>
@@ -45,7 +45,7 @@ export const Recipe: Story = {
           className="rounded-[4px] border border-[color:var(--color-divider)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
           type="button"
         >
-          Call recipe
+          Call capability
         </button>
         <button
           className="rounded-[4px] border border-[color:var(--color-divider)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"

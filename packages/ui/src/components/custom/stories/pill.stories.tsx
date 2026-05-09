@@ -158,7 +158,7 @@ export const KindChipReplacement: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Protocol kind markers , leading dot keyed off the kind, label preserved.",
+        story: "Protocol kind markers, leading dot keyed off the kind, label preserved.",
       },
     },
   },
@@ -229,7 +229,7 @@ export const ConnectionIndicator: Story = {
     docs: {
       description: {
         story:
-          "Replacement composition for the legacy `ConnectionIndicator` , `Pill.Dot` + monospace label inside an `aria-live=polite` region.",
+          "Replacement composition for the legacy `ConnectionIndicator`, `Pill.Dot` + monospace label inside an `aria-live=polite` region.",
       },
     },
   },
