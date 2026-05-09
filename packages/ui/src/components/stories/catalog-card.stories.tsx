@@ -15,7 +15,11 @@ const meta: Meta<typeof CatalogCard> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function CatalogCardExample({ installed = false }: { installed?: boolean }) {
+interface CatalogCardExampleProps {
+  installed?: boolean;
+}
+
+function CatalogCardExample({ installed = false }: CatalogCardExampleProps) {
   return (
     <CatalogCard className="max-w-sm" data-testid="catalog-card-story">
       <div className="flex items-start gap-3">

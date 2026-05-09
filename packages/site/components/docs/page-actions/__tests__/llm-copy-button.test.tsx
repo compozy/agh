@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LLMCopyButton } from "../llm-copy-button";
+import { LLMCopyButton } from "@/components/docs/page-actions/llm-copy-button";
 
 vi.mock("fumadocs-ui/utils/use-copy-button", () => ({
   useCopyButton: (callback: () => Promise<void>) => [false, callback] as const,

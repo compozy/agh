@@ -216,11 +216,14 @@ describe("DocsHeader", () => {
       ],
     };
 
-    render(<DocsHeader />);
+    try {
+      render(<DocsHeader />);
 
-    expect(screen.getByText("First custom item")).toBeDefined();
-    expect(screen.getByText("Second custom item")).toBeDefined();
-    expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
-    errorSpy.mockRestore();
+      expect(screen.getByText("First custom item")).toBeDefined();
+      expect(screen.getByText("Second custom item")).toBeDefined();
+      expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

@@ -123,17 +123,23 @@ describe("changelog public components", () => {
   it("renders duplicate release bullets without duplicate-key warnings", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    render(
-      <ReleaseEntry
-        release={release({
-          version: "v0.6.1",
-          added: ["Added duplicate-safe release bullets.", "Added duplicate-safe release bullets."],
-        })}
-      />
-    );
+    try {
+      render(
+        <ReleaseEntry
+          release={release({
+            version: "v0.6.1",
+            added: [
+              "Added duplicate-safe release bullets.",
+              "Added duplicate-safe release bullets.",
+            ],
+          })}
+        />
+      );
 
-    expect(screen.getAllByText("Added duplicate-safe release bullets.")).toHaveLength(2);
-    expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
-    errorSpy.mockRestore();
+      expect(screen.getAllByText("Added duplicate-safe release bullets.")).toHaveLength(2);
+      expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
