@@ -2,7 +2,7 @@
 
 import { useEffect, useReducer, useRef, type ReactNode } from "react";
 import { cn } from "@agh/ui/lib/utils";
-import { useReducedMotion } from "./use-reduced-motion";
+import { useReducedMotion } from "@/components/landing/primitives/use-reduced-motion";
 
 interface AnimatedDiagramProps {
   children: (ctx: { active: boolean; reducedMotion: boolean }) => ReactNode;

@@ -201,4 +201,26 @@ describe("DocsHeader", () => {
 
     expect(screen.queryByRole("link", { name: "CLI Reference" })).toBeNull();
   });
+
+  it("keeps fallback nav keys unique when custom items lack identifiers", () => {
+    const state = mocks.state;
+    if (!state) throw new Error("missing docs header mock state");
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.state = {
+      ...state,
+      navItems: [
+        ...state.navItems,
+        { children: <span>First custom item</span>, type: "custom" },
+        { children: <span>Second custom item</span>, type: "custom" },
+      ],
+    };
+
+    render(<DocsHeader />);
+
+    expect(screen.getByText("First custom item")).toBeDefined();
+    expect(screen.getByText("Second custom item")).toBeDefined();
+    expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
+    errorSpy.mockRestore();
+  });
 });

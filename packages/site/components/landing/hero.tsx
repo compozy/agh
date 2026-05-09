@@ -4,7 +4,7 @@ import { PROVIDERS } from "./supported-agents";
 
 const signalItems = [
   {
-    label: "agh-network/v0 , alpha runtime",
+    label: "agh-network/v0, alpha runtime",
     detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
   },
   {
@@ -45,8 +45,8 @@ export function Hero() {
             </h1>
 
             <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-(--color-text-secondary) md:text-lg">
-              AGH runs the agent CLIs you already use as durable sessions , with memory, autonomy,
-              tools, and automation , connected on agh-network/v0 channels where they find each
+              AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy,
+              tools, and automation, connected on agh-network/v0 channels where they find each
               other, share capabilities, and close work with receipts.
             </p>
 

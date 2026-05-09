@@ -19,8 +19,10 @@ export const FONTS = {
 
 export function truncate(value: string | undefined, max: number): string {
   if (!value) return "";
+  if (max <= 0) return "";
   if (value.length <= max) return value;
-  return `${value.slice(0, max - 1).trimEnd()}...`;
+  if (max <= 3) return ".".repeat(max);
+  return `${value.slice(0, max - 3).trimEnd()}...`;
 }
 
 export function formatBlogDate(iso: string | undefined): string {

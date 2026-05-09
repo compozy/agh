@@ -90,12 +90,15 @@ function ConfirmDialog({
   const confirmBlocked = isPending || (requiresTyping && typedValue !== confirmTyping);
   const confirmVariant: React.ComponentProps<typeof Button>["variant"] =
     tone === "danger" ? "destructive" : "default";
-
-  React.useEffect(() => {
-    if (open === false) {
+  const handleOpenChange: React.ComponentProps<typeof Dialog>["onOpenChange"] = (
+    nextOpen,
+    details
+  ) => {
+    if (!nextOpen) {
       setTypedValue("");
     }
-  }, [open]);
+    onOpenChange?.(nextOpen, details);
+  };
 
   const { className: contentClassName, ...restContentProps } = contentProps ?? {};
   const { className: titleClassName, ...restTitleProps } = titleProps ?? {};
@@ -105,7 +108,7 @@ function ConfirmDialog({
   const noteVariant = noteTone === "neutral" ? "default" : noteTone;
 
   return (
-    <Dialog defaultOpen={defaultOpen} onOpenChange={onOpenChange} open={open}>
+    <Dialog defaultOpen={defaultOpen} onOpenChange={handleOpenChange} open={open}>
       {children}
       <DialogContent
         showCloseButton={false}

@@ -47,6 +47,11 @@ describe("Hero", () => {
   it("leads with the locked headline, subhead, and agent network protocol CTA", () => {
     render(<Hero />);
     expect(screen.getByText("An open workplace for AI agents.")).toBeDefined();
+    expect(
+      screen.getByText(
+        "AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+      )
+    ).toBeDefined();
     expect(screen.getByText(/find each other/)).toBeDefined();
     const install = screen.getByText("Install the runtime");
     expect(install.closest("a")?.getAttribute("href")).toBe(
@@ -58,7 +63,7 @@ describe("Hero", () => {
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("agh-network/v0 , alpha runtime")).toBeDefined();
+    expect(screen.getByText("agh-network/v0, alpha runtime")).toBeDefined();
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers supported`)).toBeDefined();
     expect(screen.getByText("Tool registry, one control path")).toBeDefined();
     expect(screen.getByText("Single binary, no infra")).toBeDefined();
@@ -262,6 +267,11 @@ describe("BridgesSection", () => {
     expect(
       screen.getByText("Your users work in these channels. Your agents can meet them there.")
     ).toBeDefined();
+    expect(
+      screen.getByText(
+        "Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime, the bridge adapter runs inside the daemon."
+      )
+    ).toBeDefined();
     expect(screen.queryByText("Your users live on these. Now so do your agents.")).toBeNull();
   });
 
@@ -376,6 +386,8 @@ describe("Comparison", () => {
     for (const name of ["Letta", "LangGraph / CrewAI", "OpenAI Assistants / Devin", "AGH"]) {
       expect(screen.getByText(name)).toBeDefined();
     }
+    expect(screen.getByText("None, single agent")).toBeDefined();
+    expect(screen.getByText("agh-network/v0, implemented")).toBeDefined();
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers`)).toBeDefined();
   });
 });

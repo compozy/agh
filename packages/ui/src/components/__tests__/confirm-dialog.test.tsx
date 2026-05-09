@@ -3,8 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { Trash2 } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Button } from "../button";
 import { UIProvider } from "../custom/ui-provider";
 import { ConfirmDialog } from "../custom/confirm-dialog";
+import { DialogTrigger } from "../dialog";
 
 function renderDialog(props: Partial<React.ComponentProps<typeof ConfirmDialog>> = {}) {
   const merged: React.ComponentProps<typeof ConfirmDialog> = {
@@ -96,5 +98,37 @@ describe("ConfirmDialog", () => {
     expect(note).toHaveAttribute("role", "note");
     expect(note).toHaveAttribute("data-variant", "info");
     expect(note).toHaveTextContent("Builtin fallback will become effective again.");
+  });
+
+  it("Should clear typed confirmation after an uncontrolled close and reopen", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <ConfirmDialog
+          cancelButtonProps={{ "data-testid": "cancel-action" }}
+          cancelLabel="Cancel"
+          confirmButtonProps={{ "data-testid": "confirm-action" }}
+          confirmInputProps={{ "data-testid": "confirm-typing" }}
+          confirmLabel="Delete"
+          confirmTyping="operator-style.md"
+          description="Confirm the filename before removing this entry."
+          onConfirm={() => undefined}
+          title="Delete knowledge entry?"
+        >
+          <DialogTrigger render={<Button variant="outline">Open confirm</Button>} />
+        </ConfirmDialog>
+      </UIProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open confirm" }));
+    await user.type(screen.getByTestId("confirm-typing"), "operator-style.md");
+    expect(screen.getByTestId("confirm-action")).toBeEnabled();
+
+    await user.click(screen.getByTestId("cancel-action"));
+    await waitFor(() => expect(screen.queryByTestId("confirm-typing")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "Open confirm" }));
+    expect(await screen.findByTestId("confirm-typing")).toHaveValue("");
+    expect(screen.getByTestId("confirm-action")).toBeDisabled();
   });
 });

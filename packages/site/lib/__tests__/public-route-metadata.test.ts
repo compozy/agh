@@ -1,24 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
 import { GET as feedGET } from "@/app/blog/feed.xml/route";
+import { GET as llmsGET } from "@/app/llms.txt/route";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
 import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 
 const mockedDocs = vi.hoisted(() => ({
-  protocolPageUrls: ["/protocol/implementation-status"],
-  runtimePageUrls: [
-    "/runtime/how-to-use-these-docs",
-    "/runtime/use-cases/prepare-a-project-workspace",
+  protocolPages: [
+    {
+      data: { description: "Implemented protocol surface.", title: "Implementation Status" },
+      url: "/protocol/implementation-status",
+    },
+  ],
+  runtimePages: [
+    {
+      data: { description: "Runtime docs overview.", title: "How to use these docs" },
+      url: "/runtime/how-to-use-these-docs",
+    },
+    {
+      data: {
+        description: "Prepare a project workspace for agent execution.",
+        title: "Prepare a project workspace",
+      },
+      url: "/runtime/use-cases/prepare-a-project-workspace",
+    },
   ],
 }));
 
 vi.mock("@/lib/source", () => ({
   protocolDocs: {
-    getPages: () => mockedDocs.protocolPageUrls.map(url => ({ url })),
+    getPages: () => mockedDocs.protocolPages,
   },
   runtimeDocs: {
-    getPages: () => mockedDocs.runtimePageUrls.map(url => ({ url })),
+    getPages: () => mockedDocs.runtimePages,
   },
 }));
 
@@ -75,6 +90,22 @@ describe("public route metadata", () => {
       allow: "/",
     });
     expect(route.sitemap).toBe(`${siteConfig.url}/sitemap.xml`);
+  });
+
+  it("publishes llms.txt with the corrected tagline and canonical doc links", async () => {
+    const response = llmsGET();
+    const body = await response.text();
+
+    expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+    expect(body).toContain(
+      "> An open workplace for AI agents, the runtime, the agh-network/v0 protocol, and the blog."
+    );
+    expect(body).toContain(
+      "- [How to use these docs](https://agh.network/runtime/how-to-use-these-docs): Runtime docs overview."
+    );
+    expect(body).toContain(
+      "- [Implementation Status](https://agh.network/protocol/implementation-status): Implemented protocol surface."
+    );
   });
 
   it("publishes a parseable RSS feed with canonical post links", async () => {

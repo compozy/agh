@@ -73,8 +73,8 @@ export function DocsHeader(props: ComponentProps<"header">) {
         </div>
 
         <nav className="flex flex-1 items-center justify-start gap-6 empty:hidden max-lg:hidden">
-          {mainItems.map(item => (
-            <NavbarLinkItem key={getLinkItemKey(item)} item={item} />
+          {mainItems.map((item, index) => (
+            <NavbarLinkItem key={getLinkItemKey(item, index)} item={item} />
           ))}
         </nav>
 
@@ -89,11 +89,11 @@ export function DocsHeader(props: ComponentProps<"header">) {
         )}
 
         <div className="flex items-center md:gap-2">
-          {iconItems.map(item => {
+          {iconItems.map((item, index) => {
             const iconItem = item as Extract<LinkItemType, { type: "icon" }>;
             return (
               <LinkItem
-                key={getLinkItemKey(iconItem)}
+                key={getLinkItemKey(iconItem, index)}
                 item={iconItem as WithUrl}
                 aria-label={iconItem.label}
                 className={cn(
@@ -180,11 +180,11 @@ function DocsHeaderTabs({ tabs }: { tabs: LayoutTab[] }) {
   );
 }
 
-function getLinkItemKey(item: LinkItemType) {
+function getLinkItemKey(item: LinkItemType, index: number) {
   if ("url" in item && item.url) return item.url;
   if ("label" in item && typeof item.label === "string") return item.label;
   if ("text" in item && typeof item.text === "string") return item.text;
-  return item.type;
+  return `${item.type}-${index}`;
 }
 
 function NavbarLinkItem({ item }: { item: LinkItemType }) {

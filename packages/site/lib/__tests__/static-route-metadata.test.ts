@@ -13,7 +13,7 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Blog");
     expect(metadata.description).toBe(
-      "Field notes from the runtime , protocol design, engineering, and release receipts."
+      "Field notes from the runtime, protocol design, engineering, and release receipts."
     );
     expect(metadata.alternates?.canonical).toBe("/blog/");
     expect(metadata.openGraph?.title).toBe("Blog");
@@ -49,6 +49,9 @@ describe("static public route metadata", () => {
   it("keeps root metadata aligned with site identity and design tokens", async () => {
     const { metadata, viewport } = await import("@/app/layout");
 
+    expect(siteConfig.description).toBe(
+      "An open workplace for AI agents. AGH runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
+    );
     expect(metadata.metadataBase?.toString()).toBe("https://agh.network/");
     expect(metadata.applicationName).toBe(siteConfig.name);
     expect(metadata.title).toEqual({

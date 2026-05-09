@@ -55,5 +55,17 @@ describe("Alert", () => {
     expect(screen.getByTestId("alert-meta").className).toContain("tracking-mono");
     expect(screen.getByTestId("alert-actions")).toHaveAttribute("data-slot", "alert-actions");
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(
+      screen
+        .getByText("Reconnect the provider.")
+        .compareDocumentPosition(screen.getByTestId("alert-meta")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("alert-meta")
+        .compareDocumentPosition(screen.getByTestId("alert-actions")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });

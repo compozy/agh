@@ -103,6 +103,14 @@ describe("blog content quality", () => {
     }
   });
 
+  it("keeps fallback featured cover alt text aligned with public copy", () => {
+    const post = postBySlug("posts/introducing-agh-the-first-agent-network-protocol");
+    expect(post).toBeTruthy();
+    expect(post ? blogPostCover(post)?.alt : null).toBe(
+      "agh-network/v0, three peers exchanging direct, receipt, and trace envelopes"
+    );
+  });
+
   it("keeps authors and releases internally consistent", () => {
     expectUnique(
       authors.map(author => author.handle),

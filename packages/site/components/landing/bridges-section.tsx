@@ -80,7 +80,7 @@ export function BridgesSection() {
         align="start"
         eyebrow="Bridges"
         title="Your users work in these channels. Your agents can meet them there."
-        description="Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime , the bridge adapter runs inside the daemon."
+        description="Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime, the bridge adapter runs inside the daemon."
       />
 
       <ul className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
