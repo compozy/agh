@@ -1,8 +1,16 @@
-import { AlertTriangle, Loader2, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, RefreshCw, X } from "lucide-react";
 
-import { Button, Pill } from "@agh/ui";
-
-import { cn } from "@/lib/utils";
+import {
+  Alert,
+  AlertActions,
+  AlertDescription,
+  AlertMeta,
+  AlertTitle,
+  Button,
+  MetadataList,
+  Pill,
+  Spinner,
+} from "@agh/ui";
 
 export interface SessionResumeFailureProps {
   sessionId: string;
@@ -30,65 +38,44 @@ export function SessionResumeFailure({
   const title = hasProviderDetail ? "Resume failed: provider no longer available" : "Resume failed";
 
   return (
-    <div
+    <Alert
       aria-live="assertive"
-      className={cn(
-        "mx-4 mt-3 flex flex-col gap-3 rounded-md border border-(--color-danger)/60",
-        "bg-(--color-surface-panel) px-4 py-3"
-      )}
+      className="mx-4 mt-3 px-4 py-3"
       data-testid="session-resume-failure"
-      role="alert"
+      variant="destructive"
     >
-      <div className="flex items-start gap-3">
-        <AlertTriangle
-          aria-hidden="true"
-          className="mt-0.5 size-4 shrink-0 text-(--color-danger)"
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <span
-              className="text-sm font-semibold text-(--color-text-primary)"
-              data-testid="session-resume-failure-title"
-            >
-              {title}
-            </span>
-            {hasProviderDetail ? (
-              <Pill mono data-testid="session-resume-failure-provider" tone="danger">
-                {normalizedMissingProvider}
-              </Pill>
-            ) : null}
-          </div>
-          <p
-            className="text-xs leading-5 text-(--color-text-secondary)"
-            data-testid="session-resume-failure-message"
-          >
-            {hasProviderDetail
-              ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
-              : message}
-          </p>
-          <dl
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-mono text-(--color-text-tertiary)"
-            data-testid="session-resume-failure-meta"
-          >
-            <div className="flex items-center gap-1.5">
-              <dt>session</dt>
-              <dd className="normal-case tracking-normal text-(--color-text-secondary)">
-                {sessionId}
-              </dd>
-            </div>
-            {hasAgentDetail ? (
-              <div className="flex items-center gap-1.5">
-                <dt>agent</dt>
-                <dd className="normal-case tracking-normal text-(--color-text-secondary)">
-                  {normalizedAgentName}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <AlertTitle
+        className="flex items-center gap-2 text-sm font-semibold"
+        data-testid="session-resume-failure-title"
+      >
+        {title}
+        {hasProviderDetail ? (
+          <Pill mono data-testid="session-resume-failure-provider" tone="danger">
+            {normalizedMissingProvider}
+          </Pill>
+        ) : null}
+      </AlertTitle>
+      <AlertDescription className="text-xs leading-5" data-testid="session-resume-failure-message">
+        {hasProviderDetail
+          ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
+          : message}
+      </AlertDescription>
+      <AlertMeta data-testid="session-resume-failure-meta">
+        <MetadataList className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <MetadataList.Row>
+            <MetadataList.Term>session</MetadataList.Term>
+            <MetadataList.Value className="font-mono">{sessionId}</MetadataList.Value>
+          </MetadataList.Row>
+          {hasAgentDetail ? (
+            <MetadataList.Row>
+              <MetadataList.Term>agent</MetadataList.Term>
+              <MetadataList.Value className="font-mono">{normalizedAgentName}</MetadataList.Value>
+            </MetadataList.Row>
+          ) : null}
+        </MetadataList>
+      </AlertMeta>
+      <AlertActions>
         <Button
           data-testid="session-resume-failure-dismiss"
           onClick={onDismiss}
@@ -108,13 +95,13 @@ export function SessionResumeFailure({
           variant="outline"
         >
           {isRetrying ? (
-            <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+            <Spinner className="size-3.5" />
           ) : (
             <RefreshCw aria-hidden="true" className="size-3.5" />
           )}
           Retry resume
         </Button>
-      </div>
-    </div>
+      </AlertActions>
+    </Alert>
   );
 }

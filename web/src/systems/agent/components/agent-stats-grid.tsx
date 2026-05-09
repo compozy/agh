@@ -1,4 +1,4 @@
-import { Metric, cn } from "@agh/ui";
+import { Metric, MetricGrid } from "@agh/ui";
 
 import { isAgentSessionFailure } from "../lib/session-status";
 import type { SessionPayload } from "@/systems/session";
@@ -11,10 +11,7 @@ export interface AgentStatsGridProps {
 export function AgentStatsGrid({ sessions, className }: AgentStatsGridProps) {
   const totals = computeTotals(sessions);
   return (
-    <div
-      data-testid="agent-stats-grid"
-      className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-4", className)}
-    >
+    <MetricGrid data-testid="agent-stats-grid" className={className}>
       <Metric
         label="Active sessions"
         value={totals.active}
@@ -38,7 +35,7 @@ export function AgentStatsGrid({ sessions, className }: AgentStatsGridProps) {
         value={formatRelative(totals.lastActivityMs)}
         data-testid="agent-stat-last-activity"
       />
-    </div>
+    </MetricGrid>
   );
 }
 
@@ -84,7 +81,7 @@ function computeTotals(sessions: SessionPayload[]): SessionTotals {
 }
 
 function formatDuration(totalSeconds: number): string {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "—";
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "--";
   const total = Math.round(totalSeconds);
   if (total < 60) return `${total}s`;
   const minutes = Math.floor(total / 60);
@@ -103,7 +100,7 @@ function formatDuration(totalSeconds: number): string {
 }
 
 function formatRelative(ts: number | null): string {
-  if (ts === null || !Number.isFinite(ts)) return "—";
+  if (ts === null || !Number.isFinite(ts)) return "--";
   const diffMs = Date.now() - ts;
   if (diffMs < 0) return "just now";
   const seconds = Math.floor(diffMs / 1000);

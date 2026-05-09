@@ -1,6 +1,7 @@
 "use client";
 
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
+import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "../lib/utils";
@@ -47,7 +48,12 @@ function TabsList({
   );
 }
 
-function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
+export interface TabsTriggerProps extends TabsPrimitive.Tab.Props {
+  count?: number;
+  liveLabel?: React.ReactNode;
+}
+
+function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTriggerProps) {
   return (
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
@@ -59,7 +65,29 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
         className
       )}
       {...props}
-    />
+    >
+      <span data-slot="tabs-trigger-label" className="inline-flex min-w-0 items-center">
+        {children}
+      </span>
+      {typeof count === "number" ? (
+        <span
+          data-slot="tabs-trigger-count"
+          className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-(--color-surface) px-1.5 font-mono text-badge text-(--color-text-secondary) group-data-[active=true]:bg-(--color-surface-elevated) group-data-[active=true]:text-(--color-text-primary)"
+        >
+          {count}
+        </span>
+      ) : null}
+      {liveLabel ? (
+        <span
+          aria-live="polite"
+          data-slot="tabs-trigger-live"
+          className="inline-flex h-5 items-center gap-1 rounded-md bg-(--color-accent-tint) px-1.5 font-mono text-badge uppercase tracking-mono text-accent"
+        >
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+          {liveLabel}
+        </span>
+      ) : null}
+    </TabsPrimitive.Tab>
   );
 }
 

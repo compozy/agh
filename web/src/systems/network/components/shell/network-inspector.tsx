@@ -1,6 +1,6 @@
 import { Activity, ListTodo, MoreHorizontal, Users, X, type LucideIcon } from "lucide-react";
 
-import { Button } from "@agh/ui";
+import { Button, Eyebrow, Tabs, TabsList, TabsTrigger } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -37,13 +37,13 @@ interface TabDescriptor {
   testId: string;
 }
 
-interface InspectorTabNavProps {
+interface NetworkInspectorTabsProps {
   activeTab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
   workCount: number;
 }
 
-function InspectorTabNav({ activeTab, onTabChange, workCount }: InspectorTabNavProps) {
+function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInspectorTabsProps) {
   const tabs: TabDescriptor[] = [
     {
       id: "members",
@@ -67,52 +67,35 @@ function InspectorTabNav({ activeTab, onTabChange, workCount }: InspectorTabNavP
   ];
 
   return (
-    <nav
+    <Tabs
       aria-label="Inspector sections"
-      className="flex w-full items-stretch border-b border-(--color-divider)"
+      className="gap-0 border-b border-(--color-divider)"
       data-testid="network-inspector-tabs"
-      role="tablist"
+      onValueChange={value => {
+        if (value === "members" || value === "work" || value === "activity") {
+          onTabChange(value);
+        }
+      }}
+      value={activeTab}
     >
-      {tabs.map(tab => {
-        const Icon = tab.icon;
-        const isActive = tab.id === activeTab;
-        return (
-          <button
-            aria-current={isActive ? "page" : undefined}
-            aria-selected={isActive}
-            className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 px-3 py-2 font-mono text-eyebrow font-semibold uppercase tracking-mono transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-inset",
-              isActive
-                ? "text-(--color-text-primary)"
-                : "text-(--color-text-tertiary) hover:text-(--color-text-secondary)"
-            )}
-            data-active={isActive}
-            data-testid={tab.testId}
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            role="tab"
-            type="button"
-          >
-            <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-            <span>{tab.label}</span>
-            {typeof tab.count === "number" && tab.count > 0 ? (
-              <span
-                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-(--color-divider) px-1 font-mono text-badge tracking-mono text-(--color-text-tertiary)"
-                data-testid={`${tab.testId}-count`}
-              >
-                {tab.count}
-              </span>
-            ) : null}
-            {isActive ? (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute right-0 bottom-0 left-0 h-[2px] bg-accent"
-              />
-            ) : null}
-          </button>
-        );
-      })}
-    </nav>
+      <TabsList variant="line" className="h-10 w-full bg-transparent p-0">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <TabsTrigger
+              className="h-10 flex-1 gap-1.5 px-3 group-data-horizontal/tabs:after:bottom-0"
+              count={tab.count && tab.count > 0 ? tab.count : undefined}
+              data-testid={tab.testId}
+              key={tab.id}
+              value={tab.id}
+            >
+              <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              <span>{tab.label}</span>
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+    </Tabs>
   );
 }
 
@@ -139,13 +122,11 @@ export function NetworkInspector({
       data-testid="network-inspector"
     >
       <header className="flex items-center gap-2 border-b border-(--color-divider) px-4 py-2.5">
-        <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
-          Inspector
-        </span>
+        <Eyebrow>Inspector</Eyebrow>
         <div className="ml-auto flex items-center gap-1">
           <Button
             aria-disabled="true"
-            aria-label="Inspector actions — coming soon"
+            aria-label="Inspector actions - coming soon"
             data-testid="network-inspector-overflow"
             onClick={event => event.preventDefault()}
             size="icon-sm"
@@ -169,7 +150,7 @@ export function NetworkInspector({
         </div>
       </header>
 
-      <InspectorTabNav activeTab={activeTab} onTabChange={onTabChange} workCount={workCount} />
+      <NetworkInspectorTabs activeTab={activeTab} onTabChange={onTabChange} workCount={workCount} />
 
       <div
         className="flex min-h-0 flex-1 flex-col"

@@ -1,7 +1,8 @@
-import { Pill, type PillTone } from "@agh/ui";
+import { Eyebrow, Item, ItemContent, ItemFooter, ItemHeader, ItemTitle, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 import { KindChip } from "@/systems/network";
+import { providerHealthTone, providerStateTone } from "@/systems/model-catalog";
 import {
   buildBridgeProviderKey,
   isBridgeProviderSelectable,
@@ -14,32 +15,6 @@ interface BridgeProviderCardProps {
   selected?: boolean;
 }
 
-function healthBadgeTone(health?: string): PillTone {
-  switch (health) {
-    case "healthy":
-      return "success";
-    case "unhealthy":
-      return "danger";
-    default:
-      return "neutral";
-  }
-}
-
-function stateBadgeTone(state?: string): PillTone {
-  switch (state) {
-    case "active":
-      return "success";
-    case "error":
-      return "danger";
-    case "registered":
-      return "info";
-    case "enabled":
-      return "warning";
-    default:
-      return "neutral";
-  }
-}
-
 export function BridgeProviderCard({
   onSelect,
   provider,
@@ -48,29 +23,25 @@ export function BridgeProviderCard({
   const selectable = isBridgeProviderSelectable(provider);
   const content = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <h3 className="truncate text-small-body font-medium text-(--color-text-primary)">
-            {provider.display_name}
-          </h3>
+      <ItemHeader className="items-start">
+        <ItemContent className="min-w-0">
+          <ItemTitle>{provider.display_name}</ItemTitle>
           <div className="flex flex-wrap items-center gap-1.5">
             <KindChip kind={provider.platform} />
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-              {provider.extension_name}
-            </span>
+            <Eyebrow tone="neutral">{provider.extension_name}</Eyebrow>
           </div>
-        </div>
-        <Pill mono tone={healthBadgeTone(provider.health)}>
+        </ItemContent>
+        <Pill mono tone={providerHealthTone(provider.health)}>
           {provider.health}
         </Pill>
-      </div>
+      </ItemHeader>
 
-      <p className="text-xs leading-relaxed text-(--color-text-secondary)">
+      <p className="basis-full text-xs leading-relaxed text-(--color-text-secondary)">
         {provider.description ?? "Bridge adapter installed and ready for instance configuration."}
       </p>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Pill mono tone={stateBadgeTone(provider.state)}>
+      <ItemFooter className="justify-start gap-1.5">
+        <Pill mono tone={providerStateTone(provider.state)}>
           {provider.state}
         </Pill>
         {!selectable ? (
@@ -78,9 +49,9 @@ export function BridgeProviderCard({
             UNAVAILABLE
           </Pill>
         ) : null}
-      </div>
+      </ItemFooter>
 
-      <p className="text-eyebrow leading-relaxed text-(--color-text-tertiary)">
+      <p className="basis-full text-eyebrow leading-relaxed text-(--color-text-tertiary)">
         {provider.health_message ||
           (selectable
             ? "This provider can be used to create a bridge instance."
@@ -90,32 +61,24 @@ export function BridgeProviderCard({
   );
 
   const className = cn(
-    "flex w-full flex-col gap-3 rounded-md border bg-(--color-surface) p-4 text-left transition-colors",
+    "gap-3 rounded-md border bg-(--color-surface) p-4 text-left",
     selected ? "border-accent bg-(--color-surface-elevated)" : "border-(--color-divider)",
     onSelect && selectable && "cursor-pointer hover:border-accent hover:bg-(--color-hover)",
     onSelect && !selectable && "cursor-not-allowed opacity-70"
   );
 
-  if (!onSelect) {
-    return (
-      <div
-        className={className}
-        data-testid={`bridge-provider-card-${buildBridgeProviderKey(provider)}`}
-      >
-        {content}
-      </div>
-    );
-  }
-
   return (
-    <button
+    <Item
+      aria-disabled={onSelect && !selectable ? true : undefined}
+      as={onSelect ? "button" : "div"}
       className={className}
       data-testid={`bridge-provider-card-${buildBridgeProviderKey(provider)}`}
-      disabled={!selectable}
-      onClick={onSelect}
-      type="button"
+      onClick={selectable ? onSelect : undefined}
+      selected={selected}
+      selectable={Boolean(onSelect && selectable)}
+      tabIndex={onSelect && !selectable ? -1 : undefined}
     >
       {content}
-    </button>
+    </Item>
   );
 }

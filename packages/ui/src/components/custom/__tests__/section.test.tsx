@@ -17,6 +17,21 @@ describe("Section", () => {
     expect(screen.getByText("Body content")).toBeInTheDocument();
   });
 
+  it("Should render note and divided section chrome when requested", () => {
+    const { container } = render(
+      <Section label="Runtime" note="Read-only daemon state" divided>
+        <p>Body content</p>
+      </Section>
+    );
+
+    expect(container.querySelector('[data-slot="section-note"]')).toHaveTextContent(
+      "Read-only daemon state"
+    );
+    const root = container.querySelector('[data-slot="section"]');
+    expect(root?.className).toContain("border-t");
+    expect(root?.className).toContain("first:border-t-0");
+  });
+
   it("Should omit the header when neither label nor right are provided", () => {
     const { container } = render(
       <Section>

@@ -1,8 +1,9 @@
 import { Loader2, RefreshCw } from "lucide-react";
 
-import { Button, Pill, type PillTone } from "@agh/ui";
+import { Button, Item, ItemActions, ItemContent, ItemGroup, ItemTitle, Pill } from "@agh/ui";
 
 import {
+  modelRefreshStateTone,
   useProviderModelStatus,
   useRefreshProviderModels,
   type ProviderModelSourceStatus,
@@ -12,13 +13,6 @@ interface ProviderModelCatalogStatusProps {
   providerId: string;
   testId: string;
 }
-
-const REFRESH_STATE_TONE: Record<string, PillTone> = {
-  idle: "neutral",
-  refreshing: "info",
-  succeeded: "success",
-  failed: "danger",
-};
 
 export function ProviderModelCatalogStatus({
   providerId,
@@ -31,7 +25,7 @@ export function ProviderModelCatalogStatus({
     return (
       <div className="flex items-center gap-2 text-xs text-(--color-text-tertiary)">
         <Loader2 className="size-3.5 animate-spin" />
-        <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
+        <span data-testid={`${testId}-loading`}>Loading catalog status...</span>
       </div>
     );
   }
@@ -56,34 +50,41 @@ export function ProviderModelCatalogStatus({
           No catalog sources reporting yet.
         </p>
       ) : (
-        <ul
+        <ItemGroup
           className="flex flex-col gap-1 font-mono text-eyebrow text-(--color-text-secondary)"
           data-testid={`${testId}-list`}
         >
           {sources.map(source => (
-            <li
+            <Item
               key={source.source_id}
-              className="flex flex-wrap items-center gap-1.5"
+              className="gap-1.5 rounded-none border-0 px-0 py-0"
+              size="xs"
               data-testid={`${testId}-source-${source.source_id}`}
             >
-              <span className="truncate">{source.source_id}</span>
-              <Pill mono tone={REFRESH_STATE_TONE[source.refresh_state] ?? "neutral"}>
-                {source.refresh_state}
-              </Pill>
-              {source.stale ? (
-                <Pill mono tone="warning">
-                  stale
+              <ItemContent className="min-w-0 flex-none">
+                <ItemTitle className="text-eyebrow">
+                  <span className="truncate">{source.source_id}</span>
+                </ItemTitle>
+              </ItemContent>
+              <ItemActions className="flex-wrap gap-1.5">
+                <Pill mono tone={modelRefreshStateTone(source.refresh_state)}>
+                  {source.refresh_state}
                 </Pill>
-              ) : null}
-              <span
-                className="text-(--color-text-tertiary)"
-                data-testid={`${testId}-source-${source.source_id}-rows`}
-              >
-                {formatRowCount(source)}
-              </span>
-            </li>
+                {source.stale ? (
+                  <Pill mono tone="warning">
+                    stale
+                  </Pill>
+                ) : null}
+                <span
+                  className="text-(--color-text-tertiary)"
+                  data-testid={`${testId}-source-${source.source_id}-rows`}
+                >
+                  {formatRowCount(source)}
+                </span>
+              </ItemActions>
+            </Item>
           ))}
-        </ul>
+        </ItemGroup>
       )}
       {refreshError ? (
         <p className="text-xs text-(--color-danger)" data-testid={`${testId}-refresh-error`}>

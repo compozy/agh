@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
-import { AlertCircle, Edit3, Loader2, Settings2, Trash2 } from "lucide-react";
+import { AlertCircle, Edit3, Settings2, Trash2 } from "lucide-react";
 
 import {
   Button,
+  BlockLoading,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
   Empty,
   Pill,
+  Spinner,
   type PillTone,
   Section,
 } from "@agh/ui";
@@ -43,9 +45,7 @@ function ListSlot({ label, values }: ListSlotProps) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-        {label}
-      </span>
+      <span className="text-badge text-(--color-text-tertiary)">{label}</span>
       <div className="flex flex-wrap gap-1.5">
         {items.map(value => (
           <Pill key={`${label}:${value}`} mono>
@@ -66,9 +66,7 @@ interface PillRowProps {
 function PillRow({ label, value, tone }: PillRowProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-        {label}
-      </span>
+      <span className="text-badge text-(--color-text-tertiary)">{label}</span>
       <Pill tone={tone ?? "neutral"}>{value}</Pill>
     </div>
   );
@@ -141,11 +139,7 @@ export function TasksExecutionProfileCard({
             type="button"
             variant="outline"
           >
-            {isDeletePending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="size-3.5" />
-            )}
+            {isDeletePending ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
             Delete
           </Button>
         </div>
@@ -161,12 +155,12 @@ export function TasksExecutionProfileCard({
         </p>
       ) : null}
       {isLoading && !profile ? (
-        <div
-          className="flex min-h-[120px] items-center justify-center"
+        <BlockLoading
+          label="Loading execution profile"
+          size="sm"
+          surface="bare"
           data-testid="tasks-execution-profile-loading"
-        >
-          <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-        </div>
+        />
       ) : null}
       {errorMessage && !profile ? (
         <Empty
@@ -196,9 +190,7 @@ export function TasksExecutionProfileCard({
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
-                Worker
-              </h3>
+              <h3 className="text-eyebrow text-(--color-text-secondary)">Worker</h3>
               <div className="flex flex-col gap-2 text-small-body text-(--color-text-primary)">
                 {profile.worker?.agent_name ? (
                   <span className="font-mono text-xs">agent {profile.worker.agent_name}</span>
@@ -226,9 +218,7 @@ export function TasksExecutionProfileCard({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
-                Coordinator
-              </h3>
+              <h3 className="text-eyebrow text-(--color-text-secondary)">Coordinator</h3>
               <div className="flex flex-col gap-2 text-small-body text-(--color-text-primary)">
                 {profile.coordinator?.agent_name ? (
                   <span className="font-mono text-xs">agent {profile.coordinator.agent_name}</span>
@@ -251,9 +241,7 @@ export function TasksExecutionProfileCard({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
-                Review selectors
-              </h3>
+              <h3 className="text-eyebrow text-(--color-text-secondary)">Review selectors</h3>
               <div className="flex flex-col gap-2 text-small-body">
                 {profile.review?.agent_name ? (
                   <span className="font-mono text-xs">reviewer {profile.review.agent_name}</span>
@@ -279,9 +267,7 @@ export function TasksExecutionProfileCard({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)">
-                Sandbox + participants
-              </h3>
+              <h3 className="text-eyebrow text-(--color-text-secondary)">Sandbox + participants</h3>
               <div className="flex flex-col gap-2 text-small-body">
                 {profile.sandbox?.sandbox_ref ? (
                   <span className="font-mono text-xs">sandbox {profile.sandbox.sandbox_ref}</span>
@@ -360,7 +346,7 @@ export function TasksExecutionProfileCard({
               type="button"
               variant="default"
             >
-              {isSetPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {isSetPending ? <Spinner className="size-3.5" /> : null}
               Save profile
             </Button>
           </DialogFooter>
@@ -397,7 +383,7 @@ export function TasksExecutionProfileCard({
               type="button"
               variant="destructive"
             >
-              {isDeletePending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {isDeletePending ? <Spinner className="size-3.5" /> : null}
               Delete profile
             </Button>
           </DialogFooter>

@@ -1,6 +1,6 @@
 import { Activity, AlertCircle } from "lucide-react";
 
-import { Pill, PillDot, Section, type PillTone } from "@agh/ui";
+import { Metric, Pill, PillDot, Section, type PillTone } from "@agh/ui";
 
 import type { StreamConnectionState } from "@/hooks/routes/use-task-detail-orchestration-tab";
 
@@ -33,7 +33,7 @@ export function TasksStreamResumeCard({
   streamState,
   streamErrorMessage,
 }: TasksStreamResumeCardProps) {
-  const seqLabel = hasLatestEventSeq && latestEventSeq !== null ? String(latestEventSeq) : "—";
+  const seqLabel = hasLatestEventSeq && latestEventSeq !== null ? String(latestEventSeq) : "--";
   const seedLabel = String(streamSeedSequence);
   const tone = STREAM_TONE[streamState];
   const label = STREAM_LABEL[streamState];
@@ -53,41 +53,23 @@ export function TasksStreamResumeCard({
         projection. Reconnects resume from the seeded sequence; named SSE frames invalidate read
         queries without inferring authority.
       </p>
-      <div
-        className="grid gap-3 rounded-xl border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3 md:grid-cols-3"
-        data-testid="tasks-stream-resume-summary"
-      >
-        <div className="flex flex-col gap-1">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-            Latest event seq
-          </span>
-          <span
-            className="font-mono text-item-title text-(--color-text-primary)"
-            data-testid="tasks-stream-resume-latest"
-          >
-            {seqLabel}
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-            SSE resume seed
-          </span>
-          <span
-            className="font-mono text-item-title text-(--color-text-primary)"
-            data-testid="tasks-stream-resume-seed"
-          >
-            {seedLabel}
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-            Connection
-          </span>
-          <div className="inline-flex items-center gap-2" data-testid="tasks-stream-resume-status">
-            <PillDot tone={tone} pulse={streamState === "connected"} />
-            <Pill tone={tone}>{label}</Pill>
-          </div>
-        </div>
+      <div className="grid gap-3 md:grid-cols-3" data-testid="tasks-stream-resume-summary">
+        <Metric
+          data-testid="tasks-stream-resume-latest"
+          label="Latest event seq"
+          value={seqLabel}
+        />
+        <Metric data-testid="tasks-stream-resume-seed" label="SSE resume seed" value={seedLabel} />
+        <Metric
+          data-testid="tasks-stream-resume-status"
+          label="Connection"
+          value={
+            <span className="inline-flex items-center gap-2">
+              <PillDot tone={tone} pulse={streamState === "connected"} />
+              <Pill tone={tone}>{label}</Pill>
+            </span>
+          }
+        />
       </div>
       {streamState === "error" && streamErrorMessage ? (
         <p

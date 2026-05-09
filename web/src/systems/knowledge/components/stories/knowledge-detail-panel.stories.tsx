@@ -83,6 +83,7 @@ const sampleDecision: MemoryDecision = {
 };
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -106,6 +107,7 @@ export const Default: Story = {
 };
 
 export const AgentScope: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -129,6 +131,7 @@ export const AgentScope: Story = {
 };
 
 export const Superseded: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -152,6 +155,7 @@ export const Superseded: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -169,6 +173,7 @@ export const Loading: Story = {
 };
 
 export const ErrorState: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -186,6 +191,7 @@ export const ErrorState: Story = {
 };
 
 export const EmptySelection: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -202,6 +208,7 @@ export const EmptySelection: Story = {
 };
 
 export const DecisionsLoading: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel
@@ -222,6 +229,7 @@ export const DecisionsLoading: Story = {
 };
 
 export const DecisionsError: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDetailPanel

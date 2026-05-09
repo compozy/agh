@@ -147,7 +147,7 @@ function AgentSessionsSkeleton() {
 }
 
 function formatDuration(seconds: number | undefined | null): string {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "—";
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "--";
   const total = Math.round(seconds);
   if (total < 60) return `${total}s`;
   const minutes = Math.floor(total / 60);
@@ -159,7 +159,7 @@ function formatDuration(seconds: number | undefined | null): string {
 }
 
 function formatIterations(current: number | undefined, max: number | undefined): string {
-  if (typeof current !== "number" || !Number.isFinite(current)) return "—";
+  if (typeof current !== "number" || !Number.isFinite(current)) return "--";
   if (typeof max === "number" && Number.isFinite(max) && max > 0) {
     return `${current}/${max}`;
   }
@@ -167,9 +167,9 @@ function formatIterations(current: number | undefined, max: number | undefined):
 }
 
 function formatRelativeTime(value: string | null | undefined, now: number): string {
-  if (!value) return "—";
+  if (!value) return "--";
   const ts = new Date(value).getTime();
-  if (!Number.isFinite(ts)) return "—";
+  if (!Number.isFinite(ts)) return "--";
   const diffMs = now - ts;
   if (diffMs < 0) return "just now";
   const seconds = Math.floor(diffMs / 1000);

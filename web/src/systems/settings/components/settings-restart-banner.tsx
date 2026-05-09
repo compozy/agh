@@ -90,7 +90,7 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
             onClick={restart.trigger}
           >
             <RefreshCw className="size-3.5" />
-            {restart.isTriggerPending ? "Starting…" : "Restart daemon"}
+            {restart.isTriggerPending ? "Starting..." : "Restart daemon"}
           </Button>
         ) : null}
         {restart.isSuccessful || restart.isFailed ? (

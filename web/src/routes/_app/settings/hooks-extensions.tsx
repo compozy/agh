@@ -12,6 +12,8 @@ import {
   Pill,
   NativeSelect,
   NativeSelectOption,
+  PageShell,
+  Section,
   Switch,
   Table,
   TableBody,
@@ -33,9 +35,7 @@ import {
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
-  SettingsSectionCard,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -93,13 +93,13 @@ function HooksExtensionsSettingsPage() {
   const { draft, hooks, extensions, transportParity } = page;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="hooks-extensions"
       title="Hooks & Extensions"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-hooks-extensions-status-line"
-          daemonAvailable
+          status="connected"
           items={[
             <span key="hooks" data-testid="settings-page-hooks-extensions-hooks-total">
               {page.hooksCounts.enabled}/{page.hooksCounts.total} hooks enabled
@@ -150,7 +150,7 @@ function HooksExtensionsSettingsPage() {
         onSave={page.handleSavePolicy}
         onReset={page.handleResetPolicy}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -211,9 +211,9 @@ function HooksSection({
   onToggle,
 }: HooksSectionProps) {
   return (
-    <SettingsSectionCard
+    <Section
       data-testid="settings-page-hooks-extensions-hooks-section"
-      eyebrow="Lifecycle hooks"
+      label="Lifecycle hooks"
       note="restart required to re-read declarations · toggles persist now"
     >
       {hookError ? (
@@ -270,7 +270,7 @@ function HooksSection({
           </Table>
         </div>
       )}
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -312,7 +312,7 @@ function HookRow({
         className="font-mono text-xs text-(--color-text-secondary)"
         data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-matcher`}
       >
-        {matcherSummary || "—"}
+        {matcherSummary || "--"}
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-2">
@@ -358,9 +358,9 @@ function ExtensionsSection({
   onToggle,
 }: ExtensionsSectionProps) {
   return (
-    <SettingsSectionCard
+    <Section
       data-testid="settings-page-hooks-extensions-extensions-section"
-      eyebrow="Installed extensions"
+      label="Installed extensions"
       note="toggles apply immediately · no restart"
     >
       {error ? (
@@ -377,7 +377,7 @@ function ExtensionsSection({
           data-testid="settings-page-hooks-extensions-extensions-loading"
         >
           <Loader2 className="size-3.5 animate-spin" />
-          Loading extensions…
+          Loading extensions...
         </div>
       ) : extensions.length === 0 ? (
         <Empty
@@ -402,7 +402,7 @@ function ExtensionsSection({
           ))}
         </ul>
       )}
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -530,11 +530,11 @@ function PolicySection({
   );
 
   return (
-    <SettingsSectionCard
+    <Section
       data-testid="settings-page-hooks-extensions-policy-section"
-      eyebrow="Extensions policy"
+      label="Extensions policy"
       note="restart required to apply"
-      headerAction={
+      right={
         <SaveControls
           isDirty={isDirty}
           isSaving={isSaving}
@@ -660,7 +660,7 @@ function PolicySection({
           })
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -868,7 +868,7 @@ function SaveControls({
         data-testid="settings-page-hooks-extensions-policy-save"
       >
         {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-        {isSaving ? "Saving…" : "Save policy"}
+        {isSaving ? "Saving..." : "Save policy"}
       </Button>
     </div>
   );

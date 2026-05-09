@@ -51,6 +51,9 @@ describe("AutomationTriggerForm", () => {
   it("updates trigger fields, parses filters, and submits webhook triggers", () => {
     const { onCancel, onChange, onSubmit } = renderTriggerForm();
 
+    const footer = document.body.querySelector('[data-slot="dialog-footer"]');
+    expect(footer).not.toBeNull();
+    expect(footer).toHaveAttribute("data-variant", "ruled");
     expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("trigger-name-input"), {

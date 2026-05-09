@@ -201,7 +201,7 @@ describe("BridgeCreateDialog", () => {
     expect(screen.getByTestId("bridge-delivery-peer-input")).toHaveValue("peer_123");
     expect(screen.getByTestId("bridge-delivery-thread-input")).toHaveValue("thread_123");
     expect(screen.getByTestId("bridge-delivery-group-input")).toHaveValue("group_123");
-    expect(screen.getByTestId("submit-bridge-create")).toHaveTextContent("Creating…");
+    expect(screen.getByTestId("submit-bridge-create")).toHaveTextContent("Creating...");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

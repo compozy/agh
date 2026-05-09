@@ -1,8 +1,20 @@
-import { AlertCircle, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, Wrench } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, Pill, SearchInput } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import {
+  Empty,
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemHeader,
+  ItemMedia,
+  ItemSelectionIndicator,
+  ItemTitle,
+  ListGroup,
+  Pill,
+  SearchInput,
+  Spinner,
+} from "@agh/ui";
 
 import {
   compareSkillSource,
@@ -55,43 +67,40 @@ interface SkillListItemProps {
 
 function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
   return (
-    <button
-      aria-pressed={isSelected}
-      className={cn(
-        "relative flex w-full flex-col gap-1.5 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
-        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isSelected && "bg-(--color-surface)"
-      )}
+    <Item
+      as="button"
+      className="rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`skill-item-${skill.name}`}
       onClick={onSelect}
-      type="button"
+      selectable
+      selected={isSelected}
     >
-      {isSelected ? (
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
-          data-testid="skill-active-indicator"
-        />
-      ) : null}
-      <div className="flex items-center gap-2">
-        <Pill.Dot
-          data-testid={`skill-status-dot-${skill.name}`}
-          tone={skillStatusTone(skill.enabled)}
-        />
-        <span className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)">
-          {skill.name}
-        </span>
-        {skill.version ? (
-          <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
-            v{skill.version}
-          </span>
-        ) : null}
-      </div>
+      {isSelected ? <ItemSelectionIndicator data-testid="skill-active-indicator" /> : null}
+      <ItemHeader>
+        <ItemMedia>
+          <Pill.Dot
+            data-testid={`skill-status-dot-${skill.name}`}
+            tone={skillStatusTone(skill.enabled)}
+          />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle className="w-full">
+            <span className="min-w-0 flex-1 truncate">{skill.name}</span>
+            {skill.version ? (
+              <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
+                v{skill.version}
+              </span>
+            ) : null}
+          </ItemTitle>
+        </ItemContent>
+      </ItemHeader>
       {skill.description ? (
-        <span className="truncate text-xs text-(--color-text-secondary)">{skill.description}</span>
+        <ItemDescription className="basis-full truncate text-xs">
+          {skill.description}
+        </ItemDescription>
       ) : null}
-    </button>
+    </Item>
   );
 }
 
@@ -126,10 +135,7 @@ function SkillListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="skill-list-loading"
           >
-            <Loader2
-              aria-hidden="true"
-              className="size-5 animate-spin text-(--color-text-tertiary)"
-            />
+            <Spinner aria-hidden="true" className="size-5 text-(--color-text-tertiary)" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div
@@ -160,16 +166,13 @@ function SkillListPanel({
         ) : (
           <div data-testid="skill-list-groups">
             {groups.map(group => (
-              <div data-testid={`skill-group-${group.source}`} key={group.source}>
-                <div
-                  className="flex items-center justify-between gap-2 border-b border-(--color-divider) bg-(--color-surface-panel) px-4 py-2"
-                  data-testid={`skill-group-header-${group.source}`}
-                >
-                  <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                    {group.label}
-                  </span>
-                  <Pill mono>{group.skills.length}</Pill>
-                </div>
+              <ListGroup
+                count={group.skills.length}
+                data-testid={`skill-group-${group.source}`}
+                headerProps={{ "data-testid": `skill-group-header-${group.source}` }}
+                key={group.source}
+                label={group.label}
+              >
                 {group.skills.map(skill => (
                   <SkillListItem
                     isSelected={skill.name === selectedSkillName}
@@ -178,7 +181,7 @@ function SkillListPanel({
                     skill={skill}
                   />
                 ))}
-              </div>
+              </ListGroup>
             ))}
           </div>
         )}

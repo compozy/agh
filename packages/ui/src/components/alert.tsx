@@ -72,5 +72,31 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { Alert, AlertTitle, AlertDescription, AlertAction, alertVariants };
+function AlertMeta({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-meta"
+      className={cn(
+        "mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-badge uppercase tracking-mono text-current/75 group-has-[>svg]/alert:col-start-2",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function AlertActions({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-actions"
+      className={cn(
+        "mt-2 flex flex-wrap items-center justify-end gap-2 group-has-[>svg]/alert:col-start-2",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Alert, AlertTitle, AlertDescription, AlertAction, AlertMeta, AlertActions, alertVariants };
 export type { AlertProps };

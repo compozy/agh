@@ -8,7 +8,8 @@ describe("AgentIcon", () => {
     render(<AgentIcon provider="claude" data-testid="icon" />);
     const icon = screen.getByTestId("icon");
     expect(icon).toBeInTheDocument();
-    expect(icon.tagName.toLowerCase()).toBe("svg");
+    expect(icon.tagName.toLowerCase()).toBe("span");
+    expect(icon.querySelector("svg")).toBeInTheDocument();
     expect(icon).toHaveAttribute("data-slot", "agent-icon");
     expect(icon).toHaveAttribute("data-provider", "claude");
   });
@@ -72,6 +73,6 @@ describe("AgentIcon", () => {
     render(<AgentIcon provider="claude" tone="accent" data-testid="icon" className="size-8" />);
     const icon = screen.getByTestId("icon");
     expect(icon.getAttribute("class")).toContain("size-8");
-    expect(icon.getAttribute("class")).toContain("text-accent");
+    expect(icon.getAttribute("class")).toContain("--color-accent");
   });
 });

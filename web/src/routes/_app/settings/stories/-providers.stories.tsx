@@ -31,7 +31,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty shell state — the create-editor dialog is open with the name field
+ * Dirty shell state -- the create-editor dialog is open with the name field
  * pre-filled, mirroring the in-progress editor state.
  */
 export const Dirty: Story = {
@@ -46,7 +46,7 @@ export const Dirty: Story = {
 };
 
 /**
- * Empty catalog branch before any provider overlays have been defined —
+ * Empty catalog branch before any provider overlays have been defined --
  * exercises the @agh/ui Empty primitive for the zero-providers state.
  */
 export const Empty: Story = {

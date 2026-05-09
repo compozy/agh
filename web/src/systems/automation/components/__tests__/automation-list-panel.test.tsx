@@ -58,8 +58,10 @@ describe("AutomationListPanel", () => {
       />
     );
 
-    expect(screen.getByTestId("automation-item-job_daily_review")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-active-indicator")).toBeInTheDocument();
+    const selected = screen.getByTestId("automation-item-job_daily_review");
+    expect(selected).toBeInTheDocument();
+    expect(selected).toHaveAttribute("aria-pressed", "true");
+    expect(selected.querySelector('[data-slot="item-selection-indicator"]')).not.toBeNull();
     expect(screen.getByTestId("automation-list-summary")).toHaveTextContent("1 job in alpha");
   });
 

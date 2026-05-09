@@ -142,6 +142,7 @@ describe("KnowledgeDetailPanel", () => {
     await user.click(screen.getByTestId("delete-memory-btn"));
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
 
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), MEMORY.filename);
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
     expect(onDelete).toHaveBeenCalledWith(MEMORY);
   });

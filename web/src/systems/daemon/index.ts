@@ -15,5 +15,10 @@ export { daemonKeys } from "./lib/query-keys";
 export { daemonHealthOptions, daemonStatusOptions } from "./lib/query-options";
 
 // Hooks
+export {
+  deriveDaemonConnectionStatus,
+  useDaemonConnectionStatus,
+  type ConnectionStatus,
+} from "./hooks/use-daemon-connection-status";
 export { useDaemonHealth } from "./hooks/use-daemon-health";
 export { useDaemonStatus } from "./hooks/use-daemon-status";

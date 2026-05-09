@@ -37,7 +37,7 @@ type Story = StoryObj<typeof meta>;
  */
 export const Default: Story = {
   args: {
-    placeholder: "Start a new thread…",
+    placeholder: "Start a new thread...",
     testIdSuffix: "story",
     sendLabel: "Send to #launch-war-room",
     onSubmit: fn(),
@@ -49,7 +49,7 @@ export const Default: Story = {
  */
 export const Disabled: Story = {
   args: {
-    placeholder: "Start a new thread…",
+    placeholder: "Start a new thread...",
     testIdSuffix: "story",
     sendLabel: "Send to #launch-war-room",
     disabled: true,

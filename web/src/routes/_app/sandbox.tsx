@@ -6,12 +6,14 @@ import {
   AlertAction,
   AlertDescription,
   Button,
+  ConfirmDialog,
   Empty,
   Input,
   Pill,
   NativeSelect,
   NativeSelectOption,
   PageHeader,
+  Section,
   Table,
   TableBody,
   TableCell,
@@ -27,8 +29,6 @@ import {
 } from "@/hooks/routes/use-sandbox-page";
 import type { SettingsSandboxEntry } from "@/systems/settings";
 import {
-  SettingsCollectionHeader,
-  SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
   SettingsPageActions,
@@ -74,7 +74,7 @@ function SandboxPage() {
         meta={
           <SettingsStatusLine
             data-testid="sandbox-page-status-line"
-            daemonAvailable
+            status="connected"
             items={[
               <span key="total" data-testid="sandbox-page-total">
                 {page.counts.total} profiles
@@ -97,11 +97,11 @@ function SandboxPage() {
           <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
         ) : null}
 
-        <SettingsCollectionHeader
+        <Section
           data-testid="sandbox-page-header-row"
-          eyebrow="Profiles"
-          summary={`${page.counts.total} defined · used across ${page.counts.totalWorkspaces} workspaces`}
-          action={
+          label="Profiles"
+          note={`${page.counts.total} defined · used across ${page.counts.totalWorkspaces} workspaces`}
+          right={
             <Button
               type="button"
               variant="default"
@@ -235,9 +235,9 @@ function SandboxRow({
           className="flex flex-col gap-0.5"
           data-testid={`sandbox-page-card-${entry.name}-profile`}
         >
-          <ProfileLine label="sync_mode" value={profile.sync_mode ?? "—"} />
-          <ProfileLine label="persistence" value={profile.persistence ?? "—"} />
-          <ProfileLine label="runtime_root" value={profile.runtime_root ?? "—"} />
+          <ProfileLine label="sync_mode" value={profile.sync_mode ?? "--"} />
+          <ProfileLine label="persistence" value={profile.persistence ?? "--"} />
+          <ProfileLine label="runtime_root" value={profile.runtime_root ?? "--"} />
         </div>
       </TableCell>
       <TableCell>
@@ -274,7 +274,9 @@ function SandboxRow({
             disabled={!deletable}
             aria-label={`Delete ${entry.name}`}
             title={
-              deletable ? undefined : "Builtin sandboxes cannot be deleted — override them instead."
+              deletable
+                ? undefined
+                : "Builtin sandboxes cannot be deleted -- override them instead."
             }
             data-testid={`sandbox-page-card-${entry.name}-delete`}
           >
@@ -397,7 +399,7 @@ function SandboxEditor({
           description={
             isCreate
               ? "Lower-case identifier referenced by workspaces."
-              : "Name is immutable — create a new sandbox to rename."
+              : "Name is immutable -- create a new sandbox to rename."
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
@@ -502,7 +504,7 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
         preserved on save
       </span>
       <span className="ml-2">
-        {preserved.join(", ")} — edited outside this dialog and included as-is in the PUT replace.
+        {preserved.join(", ")} -- edited outside this dialog and included as-is in the PUT replace.
       </span>
     </p>
   );
@@ -526,16 +528,15 @@ function SandboxDeleteDialog({
   const hasUsage = usage > 0;
 
   return (
-    <SettingsDeleteDialog
+    <ConfirmDialog
       open={open}
-      slug="sandboxes"
       title={target ? `Delete sandbox profile "${target.name}"?` : "Delete sandbox profile"}
       description={
         target
           ? "Removing the overlay stops making this profile selectable for new workspaces."
           : null
       }
-      fallbackNote={
+      note={
         hasUsage ? (
           <div className="flex flex-col gap-1" data-testid="sandbox-delete-usage">
             <span className="font-medium">
@@ -549,8 +550,20 @@ function SandboxDeleteDialog({
         ) : null
       }
       error={error}
-      isDeleting={isDeleting}
+      isPending={isDeleting}
+      cancelLabel="Cancel"
       confirmLabel="Delete sandbox profile"
+      confirmIcon={Trash2}
+      contentProps={{ "data-testid": "settings-sandboxes-delete" }}
+      noteProps={{ "data-testid": "settings-sandboxes-delete-fallback" }}
+      errorProps={{ "data-testid": "settings-sandboxes-delete-error" }}
+      cancelButtonProps={{
+        "data-testid": "settings-sandboxes-delete-cancel",
+        disabled: isDeleting,
+      }}
+      confirmButtonProps={{
+        "data-testid": "settings-sandboxes-delete-confirm",
+      }}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();

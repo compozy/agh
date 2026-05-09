@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
+import { CodeBlock } from "@agh/ui";
+
 import type { UIMessage } from "../../types";
 import { GenericContent } from "./generic-content";
 
@@ -34,19 +36,27 @@ export function EditContent({ message }: { message: UIMessage }) {
         <div className="font-mono text-eyebrow text-(--color-text-tertiary)">{filePath}</div>
       )}
       {(oldStr || newStr) && (
-        <div className="rounded-md border border-(--color-divider) overflow-hidden font-mono text-eyebrow">
+        <div className="overflow-hidden rounded-md border border-(--color-divider)">
           {oldStr ? (
-            <pre className="bg-(--color-danger-tint) px-3 py-2 text-(--color-danger) whitespace-pre-wrap wrap-break-word max-h-40 overflow-auto">
-              {displayOld}
-              {!showFull && oldStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}
-            </pre>
+            <CodeBlock
+              code={`${displayOld}${!showFull && oldStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}`}
+              className="rounded-none"
+              copyable={false}
+              showPrompt={false}
+              tone="danger"
+              truncateLines={12}
+            />
           ) : null}
           {oldStr && newStr ? <div className="border-t border-(--color-divider)" /> : null}
           {newStr ? (
-            <pre className="bg-(--color-success-tint) px-3 py-2 text-success whitespace-pre-wrap wrap-break-word max-h-40 overflow-auto">
-              {displayNew}
-              {!showFull && newStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}
-            </pre>
+            <CodeBlock
+              code={`${displayNew}${!showFull && newStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}`}
+              className="rounded-none"
+              copyable={false}
+              showPrompt={false}
+              tone="success"
+              truncateLines={12}
+            />
           ) : null}
         </div>
       )}

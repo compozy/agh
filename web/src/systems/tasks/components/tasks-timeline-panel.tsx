@@ -1,7 +1,7 @@
-import { Activity, AlertCircle, Loader2 } from "lucide-react";
+import { Activity, AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Button, Empty, Pill, PillGroup, Section } from "@agh/ui";
+import { BlockLoading, Button, Empty, Pill, PillGroup, Section } from "@agh/ui";
 import type { PillGroupItem } from "@agh/ui";
 
 import { taskStatusSignal } from "../lib/task-formatters";
@@ -119,7 +119,7 @@ interface TimelineGroup {
 function groupByAgent(items: TaskTimelineItem[]): TimelineGroup[] {
   const buckets = new Map<string, { label: string; items: TaskTimelineItem[] }>();
   for (const item of items) {
-    const id = item.task?.id ?? "—";
+    const id = item.task?.id ?? "--";
     const label = item.task?.identifier ?? item.task?.title ?? id;
     const bucket = buckets.get(id);
     if (bucket) {
@@ -154,7 +154,7 @@ function groupByEventType(items: TaskTimelineItem[]): TimelineGroup[] {
 }
 
 /**
- * Events panel — interleaved by default, with a compact view-mode toggle that
+ * Events panel -- interleaved by default, with a compact view-mode toggle that
  * switches to per-agent or per-event-type groupings of the same data. Each row
  * carries a `StatusDot` whose tone follows the event kind (failure → danger,
  * live → accent, otherwise neutral) and the load-more button paginates the
@@ -179,12 +179,12 @@ export function TasksTimelinePanel({
 
   if (isLoading && items.length === 0) {
     return (
-      <div
-        className="flex min-h-[240px] items-center justify-center"
+      <BlockLoading
+        label="Loading task events"
+        size="md"
+        surface="bare"
         data-testid="tasks-timeline-loading"
-      >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
+      />
     );
   }
 
@@ -228,7 +228,7 @@ export function TasksTimelinePanel({
           />
           {isLive ? (
             <span
-              className="inline-flex items-center gap-1 font-mono text-badge uppercase tracking-mono text-accent"
+              className="inline-flex items-center gap-1 text-badge text-accent"
               data-testid="tasks-timeline-live"
             >
               <Pill.Dot tone="accent" pulse />
@@ -248,7 +248,7 @@ export function TasksTimelinePanel({
                 key={group.key}
               >
                 <header className="flex items-baseline justify-between gap-2">
-                  <h3 className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
+                  <h3 className="text-eyebrow font-semibold text-(--color-text-label)">
                     {group.label}
                   </h3>
                   <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
@@ -300,7 +300,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
         const timestamp = formatTime(item.timestamp);
 
         return (
-          <li
+          <div
             className="relative flex gap-3"
             data-testid={`tasks-timeline-item-${item.event_id}`}
             key={item.event_id}
@@ -309,7 +309,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
               <Pill.Dot pulse={pulse} tone={signalTone} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+              <div className="flex flex-wrap items-center gap-2 text-badge text-(--color-text-label)">
                 <span
                   className={isFailure ? "text-(--color-danger)" : "text-(--color-text-primary)"}
                   data-testid={`tasks-timeline-event-type-${item.event_id}`}
@@ -342,7 +342,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
                 {timestamp}
               </span>
             ) : null}
-          </li>
+          </div>
         );
       })}
     </ol>

@@ -1,6 +1,6 @@
 import { AlertTriangle, Check, Gauge } from "lucide-react";
 
-import { Empty, Pill, Section } from "@agh/ui";
+import { Empty, Metric, Pill, Section } from "@agh/ui";
 
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatDurationMs } from "../lib/task-formatters";
@@ -87,44 +87,50 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         <span>now</span>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-        <HealthMetric
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+        <Metric
+          className="px-3 py-2"
           label="Queued"
-          testId="tasks-dashboard-queue-total"
+          data-testid="tasks-dashboard-queue-total"
           tone={queue.backlog_warning ? "warning" : "default"}
           value={queue.total.toString()}
         />
-        <HealthMetric
+        <Metric
+          className="px-3 py-2"
           label="Oldest queued"
-          testId="tasks-dashboard-queue-oldest"
+          data-testid="tasks-dashboard-queue-oldest"
           tone={queue.backlog_warning ? "warning" : "default"}
           value={formatDurationMs(queue.oldest_queue_age_ms)}
         />
-        <HealthMetric
+        <Metric
+          className="px-3 py-2"
           label="Stuck runs"
-          testId="tasks-dashboard-stuck-runs"
+          data-testid="tasks-dashboard-stuck-runs"
           tone={stuckRuns > 0 ? "danger" : "default"}
           value={stuckRuns.toString()}
         />
-        <HealthMetric
+        <Metric
+          className="px-3 py-2"
           label="Orphan runs"
-          testId="tasks-dashboard-orphan-runs"
+          data-testid="tasks-dashboard-orphan-runs"
           tone={orphanRuns > 0 ? "warning" : "default"}
           value={orphanRuns.toString()}
         />
-        <HealthMetric
+        <Metric
+          className="px-3 py-2"
           label="Backlog status"
-          testId="tasks-dashboard-backlog-status"
+          data-testid="tasks-dashboard-backlog-status"
           tone={queue.backlog_warning ? "warning" : "default"}
           value={queue.backlog_status}
         />
-        <HealthMetric
+        <Metric
+          className="px-3 py-2"
           label="Queue backlog"
-          testId="tasks-dashboard-queue-backlog"
+          data-testid="tasks-dashboard-queue-backlog"
           tone={health.queue_backlog ? "warning" : "success"}
           value={health.queue_backlog ? "yes" : "no"}
         />
-      </dl>
+      </div>
 
       {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
         <div
@@ -134,9 +140,9 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
           <AlertTriangle className="mt-px size-4 shrink-0 text-(--color-warning)" />
           <span>
             {queue.backlog_warning
-              ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)} — oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
+              ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)} -- oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
               : stuckRuns > 0
-                ? `${stuckRuns} stuck runs detected — investigate claimed/starting work`
+                ? `${stuckRuns} stuck runs detected -- investigate claimed/starting work`
                 : `${orphanRuns} active orphan runs detected`}
           </span>
         </div>
@@ -149,35 +155,6 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </div>
       )}
     </Section>
-  );
-}
-
-interface HealthMetricProps {
-  label: string;
-  value: string;
-  testId: string;
-  tone: "default" | "warning" | "danger" | "success";
-}
-
-function HealthMetric({ label, value, testId, tone }: HealthMetricProps) {
-  const valueTone =
-    tone === "warning"
-      ? "text-(--color-warning)"
-      : tone === "danger"
-        ? "text-(--color-danger)"
-        : tone === "success"
-          ? "text-success"
-          : "text-(--color-text-primary)";
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
-        {label}
-      </dt>
-      <dd className={`text-sm font-medium ${valueTone}`} data-testid={testId}>
-        {value}
-      </dd>
-    </div>
   );
 }
 

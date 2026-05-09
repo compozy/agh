@@ -51,6 +51,9 @@ describe("AutomationJobForm", () => {
   it("updates core, scope, schedule, governance, and submit state for a create flow", () => {
     const { onCancel, onChange, onSubmit } = renderJobForm();
 
+    const footer = document.body.querySelector('[data-slot="dialog-footer"]');
+    expect(footer).not.toBeNull();
+    expect(footer).toHaveAttribute("data-variant", "ruled");
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
     expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Create Job");
     expect(screen.getByText("Enabled on create")).toBeInTheDocument();

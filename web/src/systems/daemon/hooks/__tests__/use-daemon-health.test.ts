@@ -91,27 +91,30 @@ describe("useDaemonHealth", () => {
     expect(result.current.health?.status).toBe("ok");
   });
 
-  it('derives "reconnecting" while the first health query is still pending', () => {
+  it('derives "connecting" while the first health query is still pending', () => {
     vi.mocked(fetchHealth).mockReturnValue(new Promise(() => undefined));
 
     const { result } = renderHook(() => useDaemonHealth(), {
       wrapper: createWrapper(),
     });
 
-    expect(result.current.connectionStatus).toBe("reconnecting");
+    expect(result.current.connectionStatus).toBe("connecting");
     expect(result.current.isInitialLoading).toBe(true);
   });
 
-  it('derives "reconnecting" while the health query is retrying after an error', async () => {
+  it('derives "error" after the health query fails', async () => {
     vi.mocked(fetchHealth).mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => useDaemonHealth(), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.connectionStatus).toBe("reconnecting");
-    });
+    await waitFor(
+      () => {
+        expect(result.current.connectionStatus).toBe("error");
+      },
+      { timeout: 3_000 }
+    );
 
     expect(result.current.health).toBeUndefined();
   });

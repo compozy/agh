@@ -1,6 +1,7 @@
-import { AlertCircle, Gavel, Loader2 } from "lucide-react";
+import { AlertCircle, Gavel } from "lucide-react";
 
 import {
+  BlockLoading,
   Empty,
   Pill,
   Section,
@@ -86,12 +87,12 @@ export function TasksReviewsCard({
         data-testid={`${testId}-loading-section`}
         label={label}
       >
-        <div
-          className="flex min-h-[120px] items-center justify-center"
+        <BlockLoading
+          label={`Loading ${label}`}
+          size="sm"
+          surface="bare"
           data-testid={`${testId}-loading`}
-        >
-          <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-        </div>
+        />
       </Section>
     );
   }
@@ -126,7 +127,7 @@ export function TasksReviewsCard({
     <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
       <p className="text-xs text-(--color-text-tertiary)" data-testid={`${testId}-disclaimer`}>
         Status reflects the persisted review row. Outcomes appear once a bound reviewer session
-        submits through submit_run_review. This view is read-only — operator sessions cannot bind a
+        submits through submit_run_review. This view is read-only -- operator sessions cannot bind a
         verdict.
       </p>
       <Table>
@@ -172,7 +173,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {missingWorkCount > 0 ? (
                       <span
-                        className="font-mono text-badge uppercase tracking-mono text-(--color-warning)"
+                        className="text-badge text-(--color-warning)"
                         data-testid={`${testIdPrefix}-${review.review_id}-missing-work`}
                       >
                         Missing work · {missingWorkCount}
@@ -189,7 +190,7 @@ export function TasksReviewsCard({
                       {status}
                     </Pill>
                   ) : (
-                    <span className="font-mono text-eyebrow text-(--color-text-tertiary)">—</span>
+                    <span className="font-mono text-eyebrow text-(--color-text-tertiary)">--</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -210,7 +211,7 @@ export function TasksReviewsCard({
                   )}
                 </TableCell>
                 <TableCell className="font-mono text-eyebrow text-(--color-text-secondary)">
-                  {review.reviewer_agent_name ?? "—"}
+                  {review.reviewer_agent_name ?? "--"}
                   {review.reviewer_session_id ? (
                     <span className="ml-2 text-badge text-(--color-text-tertiary)">
                       session {review.reviewer_session_id}
@@ -224,7 +225,7 @@ export function TasksReviewsCard({
                   {formatRelativeTime(review.requested_at)}
                 </TableCell>
                 <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                  {review.outcome ? formatRelativeTime(review.reviewed_at) : "—"}
+                  {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
                 </TableCell>
               </TableRow>
             );

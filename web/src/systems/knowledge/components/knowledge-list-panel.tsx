@@ -1,7 +1,17 @@
-import { AlertCircle, BookOpen, Loader2 } from "lucide-react";
+import { AlertCircle, BookOpen } from "lucide-react";
 
-import { Empty, Pill, SearchInput } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import {
+  Empty,
+  Item,
+  ItemDescription,
+  ItemFooter,
+  ItemHeader,
+  ItemTitle,
+  ListGroup,
+  Pill,
+  SearchInput,
+  Spinner,
+} from "@agh/ui";
 
 import {
   formatKnowledgeRelativeTime,
@@ -37,37 +47,30 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
   const memoryKey = knowledgeMemoryKey(memory);
   const scope = memory.scope;
   return (
-    <button
-      aria-pressed={isSelected}
-      className={cn(
-        "relative flex w-full flex-col gap-1.5 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
-        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isSelected && "bg-(--color-surface)"
-      )}
+    <Item
+      as="button"
+      className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
+      indicator={isSelected ? "rail" : "none"}
       onClick={onSelect}
-      type="button"
+      selectable
+      selected={isSelected}
     >
-      {isSelected ? (
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
-          data-testid="memory-active-indicator"
-        />
-      ) : null}
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)">
+      <ItemHeader>
+        <ItemTitle className="min-w-0 flex-1 text-small-body text-(--color-text-primary)">
           {memory.name}
-        </span>
+        </ItemTitle>
         <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
           {formatKnowledgeRelativeTime(memory.mod_time)}
         </span>
-      </div>
+      </ItemHeader>
       {memory.description ? (
-        <span className="truncate text-xs text-(--color-text-secondary)">{memory.description}</span>
+        <ItemDescription className="basis-full truncate text-xs text-(--color-text-secondary)">
+          {memory.description}
+        </ItemDescription>
       ) : null}
-      <div className="flex flex-wrap items-center gap-1.5">
+      <ItemFooter className="justify-start gap-1.5">
         <Pill
           mono
           data-testid={`type-badge-${memory.type}`}
@@ -107,8 +110,8 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
             SYSTEM
           </Pill>
         ) : null}
-      </div>
-    </button>
+      </ItemFooter>
+    </Item>
   );
 }
 
@@ -133,12 +136,12 @@ function KnowledgeListPanel({
           aria-label="Search knowledge"
           data-testid="knowledge-search-input"
           onChange={onSearchChange}
-          placeholder={searchMode ? "Recall query…" : "Filter knowledge…"}
+          placeholder={searchMode ? "Recall query..." : "Filter knowledge..."}
           value={searchQuery}
         />
         {searchInfo ? (
           <p
-            className="mt-2 font-mono text-badge uppercase tracking-widest text-(--color-text-tertiary)"
+            className="mt-2 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)"
             data-testid="knowledge-search-info"
           >
             {searchInfo}
@@ -152,10 +155,7 @@ function KnowledgeListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="knowledge-list-loading"
           >
-            <Loader2
-              aria-hidden="true"
-              className="size-5 animate-spin text-(--color-text-tertiary)"
-            />
+            <Spinner className="size-5 text-(--color-text-tertiary)" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div
@@ -190,16 +190,13 @@ function KnowledgeListPanel({
         ) : (
           <div data-testid="knowledge-list-groups">
             {groups.map(group => (
-              <div data-testid={`knowledge-group-${group.scope}`} key={group.scope}>
-                <div
-                  className="flex items-center justify-between gap-2 border-b border-(--color-divider) bg-(--color-surface-panel) px-4 py-2"
-                  data-testid={`knowledge-group-header-${group.scope}`}
-                >
-                  <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                    {group.label}
-                  </span>
-                  <Pill mono>{group.memories.length}</Pill>
-                </div>
+              <ListGroup
+                count={group.memories.length}
+                data-testid={`knowledge-group-${group.scope}`}
+                headerProps={{ "data-testid": `knowledge-group-header-${group.scope}` }}
+                key={group.scope}
+                label={group.label}
+              >
                 {group.memories.map(memory => (
                   <KnowledgeListItem
                     isSelected={knowledgeMemoryKey(memory) === selectedMemoryKey}
@@ -208,7 +205,7 @@ function KnowledgeListPanel({
                     onSelect={() => onSelectMemory(knowledgeMemoryKey(memory))}
                   />
                 ))}
-              </div>
+              </ListGroup>
             ))}
           </div>
         )}

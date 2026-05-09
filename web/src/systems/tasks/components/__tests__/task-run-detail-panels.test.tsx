@@ -112,7 +112,7 @@ describe("TaskRunProgressPanel", () => {
   it("shows a dash placeholder when metrics are missing", () => {
     const run = buildRun();
     render(<TaskRunProgressPanel run={{ ...run, summary: {} } as TaskRunDetailView} />);
-    expect(screen.getByTestId("task-run-detail-progress-tool-calls")).toHaveTextContent("—");
+    expect(screen.getByTestId("task-run-detail-progress-tool-calls")).toHaveTextContent("--");
   });
 });
 

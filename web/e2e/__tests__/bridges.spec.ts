@@ -37,6 +37,9 @@ const bridgeRuntimeEnv = {
     : {}),
 };
 
+const createdBridgeName = "Telegram Bridge Create Smoke";
+const createdBridgeProviderKey = "telegram-reference::telegram";
+
 test.use({
   runtimeOptions: {
     env: bridgeRuntimeEnv,
@@ -69,6 +72,29 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();
   await expect(bridgeUI.scopeAll).toHaveAttribute("aria-pressed", "true");
+
+  await bridgeUI.createBridgeButton.click();
+  await expect(bridgeUI.createDialog).toBeVisible();
+  await bridgeUI.providerCard(createdBridgeProviderKey).click();
+  await bridgeUI.createDisplayNameInput.fill(createdBridgeName);
+  await bridgeUI.createProviderConfigInput.fill("{invalid");
+  await expect(bridgeUI.submitBridgeCreate).toBeDisabled();
+  await bridgeUI.createProviderConfigInput.fill(
+    JSON.stringify(browserBridgeOperatorFlowScenario.bridge.initialProviderConfig, null, 2)
+  );
+  await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
+
+  const createResponsePromise = appPage.waitForResponse(response => {
+    return response.request().method() === "POST" && response.url().endsWith("/api/bridges");
+  });
+  await bridgeUI.submitBridgeCreate.click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+  const createdPayload = (await createResponse.json()) as { bridge: { id: string } };
+  await expect(bridgeUI.createDialog).toBeHidden();
+  await expect(bridgeUI.item(createdPayload.bridge.id)).toBeVisible();
+  await expect(bridgeUI.item(createdPayload.bridge.id)).toContainText(createdBridgeName);
+  await browserArtifacts.captureScreenshot("bridge-create-dialog-saved", appPage);
 
   await bridgeUI.item(seeded.bridge.id).click();
   await expect(bridgeUI.item(seeded.bridge.id)).toBeVisible();

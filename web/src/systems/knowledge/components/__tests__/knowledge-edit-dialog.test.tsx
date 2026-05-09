@@ -29,6 +29,17 @@ describe("KnowledgeEditDialog", () => {
     renderDialog();
     expect(screen.getByTestId("knowledge-edit-content")).toHaveValue("# Initial content");
     expect(screen.getByTestId("knowledge-edit-description")).toHaveValue("initial description");
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-frame", "unframed");
+    expect(screen.getByText("Description").closest('[data-slot="field"]')).not.toBeNull();
+    expect(screen.getByText("Content").closest('[data-slot="field"]')).not.toBeNull();
+    expect(screen.getByRole("dialog").querySelector('[data-slot="dialog-header"]')).toHaveAttribute(
+      "data-variant",
+      "ruled"
+    );
+    expect(screen.getByRole("dialog").querySelector('[data-slot="dialog-footer"]')).toHaveAttribute(
+      "data-variant",
+      "ruled"
+    );
   });
 
   it("Should disable the confirm button until content changes", () => {

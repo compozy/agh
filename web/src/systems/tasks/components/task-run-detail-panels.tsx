@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { CodeBlock, Metric, Pill, Section, Table, TableBody, TableCell, TableRow } from "@agh/ui";
+import { CodeBlock, MetadataList, Metric, Pill, Section } from "@agh/ui";
 
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { taskRunStatusTone } from "../lib/task-formatters";
@@ -8,27 +8,6 @@ import type { TaskRunDetailView } from "../types";
 
 export interface TaskRunIdentityPanelProps {
   run: TaskRunDetailView;
-}
-
-function IdentityRow({
-  label,
-  children,
-  testId,
-}: {
-  label: string;
-  children: React.ReactNode;
-  testId?: string;
-}) {
-  return (
-    <TableRow>
-      <TableCell className="w-[140px] pl-4 align-middle font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
-        {label}
-      </TableCell>
-      <TableCell className="pr-4 align-middle text-small-body text-(--color-text-primary)">
-        <span data-testid={testId}>{children}</span>
-      </TableCell>
-    </TableRow>
-  );
 }
 
 function normalizeSessionText(value?: string | null): string {
@@ -43,60 +22,71 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
 
   return (
     <Section aria-label="Run identity" data-testid="task-run-detail-identity" label="Run identity">
-      <div className="rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)">
-        <Table className="text-small-body">
-          <TableBody>
-            <IdentityRow label="Run ID" testId="task-run-detail-identity-run">
-              <Pill mono>{record.id}</Pill>
-            </IdentityRow>
-            <IdentityRow label="Status">
-              <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(record.status))}>
-                {record.status}
-              </Pill>
-            </IdentityRow>
-            <IdentityRow label="Attempt" testId="task-run-detail-identity-attempt">
-              {record.attempt}
-            </IdentityRow>
-            {record.idempotency_key ? (
-              <IdentityRow label="Idempotency" testId="task-run-detail-identity-idempotency">
-                <Pill mono>{record.idempotency_key}</Pill>
-              </IdentityRow>
-            ) : null}
-            {record.claimed_by?.ref ? (
-              <IdentityRow label="Claimed by" testId="task-run-detail-identity-claimed-by">
-                {record.claimed_by.ref}
-              </IdentityRow>
-            ) : null}
-            <IdentityRow label="Session">
-              {linkedSessionID && linkedSessionAgent ? (
-                <Link
-                  className="font-mono text-xs text-accent hover:underline"
-                  data-testid="task-run-detail-session-link"
-                  params={{ name: linkedSessionAgent, id: linkedSessionID }}
-                  to="/agents/$name/sessions/$id"
-                >
-                  {linkedSessionID}
-                </Link>
-              ) : linkedSessionID ? (
-                <Link
-                  className="font-mono text-xs text-accent hover:underline"
-                  data-testid="task-run-detail-session-link"
-                  params={{ id: linkedSessionID }}
-                  to="/session/$id"
-                >
-                  {linkedSessionID}
-                </Link>
-              ) : (
-                <span
-                  className="text-(--color-text-tertiary)"
-                  data-testid="task-run-detail-session-missing"
-                >
-                  None
-                </span>
-              )}
-            </IdentityRow>
-          </TableBody>
-        </Table>
+      <div className="rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+        <MetadataList className="gap-y-2">
+          <MetadataList.Row
+            label="Run ID"
+            valueProps={{ "data-testid": "task-run-detail-identity-run" }}
+          >
+            <Pill mono>{record.id}</Pill>
+          </MetadataList.Row>
+          <MetadataList.Row label="Status">
+            <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(record.status))}>
+              {record.status}
+            </Pill>
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Attempt"
+            valueProps={{ "data-testid": "task-run-detail-identity-attempt" }}
+          >
+            {record.attempt}
+          </MetadataList.Row>
+          {record.idempotency_key ? (
+            <MetadataList.Row
+              label="Idempotency"
+              valueProps={{ "data-testid": "task-run-detail-identity-idempotency" }}
+            >
+              <Pill mono>{record.idempotency_key}</Pill>
+            </MetadataList.Row>
+          ) : null}
+          {record.claimed_by?.ref ? (
+            <MetadataList.Row
+              label="Claimed by"
+              valueProps={{ "data-testid": "task-run-detail-identity-claimed-by" }}
+            >
+              {record.claimed_by.ref}
+            </MetadataList.Row>
+          ) : null}
+          <MetadataList.Row label="Session">
+            {linkedSessionID && linkedSessionAgent ? (
+              <Pill.Link
+                data-testid="task-run-detail-session-link"
+                render={
+                  <Link
+                    params={{ name: linkedSessionAgent, id: linkedSessionID }}
+                    to="/agents/$name/sessions/$id"
+                  />
+                }
+              >
+                {linkedSessionID}
+              </Pill.Link>
+            ) : linkedSessionID ? (
+              <Pill.Link
+                data-testid="task-run-detail-session-link"
+                render={<Link params={{ id: linkedSessionID }} to="/session/$id" />}
+              >
+                {linkedSessionID}
+              </Pill.Link>
+            ) : (
+              <span
+                className="text-(--color-text-tertiary)"
+                data-testid="task-run-detail-session-missing"
+              >
+                None
+              </span>
+            )}
+          </MetadataList.Row>
+        </MetadataList>
       </div>
     </Section>
   );
@@ -108,7 +98,7 @@ export interface TaskRunProgressPanelProps {
 
 function formatCount(value?: number | null): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
-    return "—";
+    return "--";
   }
 
   return value.toLocaleString();
@@ -116,17 +106,17 @@ function formatCount(value?: number | null): string {
 
 function formatElapsed(startedAt?: string | null, endedAt?: string | null): string {
   if (!startedAt) {
-    return "—";
+    return "--";
   }
 
   const start = Date.parse(startedAt);
   if (Number.isNaN(start)) {
-    return "—";
+    return "--";
   }
 
   const end = endedAt ? Date.parse(endedAt) : Date.now();
   if (Number.isNaN(end)) {
-    return "—";
+    return "--";
   }
 
   const delta = Math.max(0, end - start);
@@ -143,7 +133,7 @@ function formatElapsed(startedAt?: string | null, endedAt?: string | null): stri
 
 function formatCost(value?: number | null, currency?: string | null): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
-    return "—";
+    return "--";
   }
 
   const formatted = value.toLocaleString(undefined, {
@@ -218,49 +208,35 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
   return (
     <Section aria-label="Run activity" data-testid="task-run-detail-activity" label="Activity">
       <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-4 py-4">
-        <dl className="flex flex-col gap-2 text-small-body">
+        <MetadataList className="gap-y-2">
           {lastEventType ? (
-            <div className="flex items-center justify-between gap-3">
-              <dt className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
-                Last event
-              </dt>
-              <dd>
-                <Pill mono data-testid="task-run-detail-activity-event">
-                  {lastEventType}
-                </Pill>
-              </dd>
-            </div>
+            <MetadataList.Row label="Last event">
+              <Pill mono data-testid="task-run-detail-activity-event">
+                {lastEventType}
+              </Pill>
+            </MetadataList.Row>
           ) : null}
           {lastActivityAt ? (
-            <div className="flex items-center justify-between gap-3">
-              <dt className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
-                Last activity
-              </dt>
-              <dd
-                className="text-(--color-text-primary)"
-                data-testid="task-run-detail-activity-timestamp"
-              >
-                {lastActivityAt}
-              </dd>
-            </div>
+            <MetadataList.Row
+              label="Last activity"
+              valueProps={{ "data-testid": "task-run-detail-activity-timestamp" }}
+            >
+              {lastActivityAt}
+            </MetadataList.Row>
           ) : null}
-        </dl>
+        </MetadataList>
         {error ? (
           <div
             className="rounded-md border border-(--color-danger) bg-(--color-danger-tint) px-3 py-2"
             data-testid="task-run-detail-activity-error"
           >
-            <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-danger)">
-              Error
-            </p>
+            <p className="text-badge font-semibold text-(--color-danger)">Error</p>
             <p className="mt-1 text-small-body text-(--color-danger)">{error}</p>
           </div>
         ) : null}
         {result !== undefined && result !== null ? (
           <div data-testid="task-run-detail-activity-result">
-            <p className="mb-2 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
-              Result
-            </p>
+            <p className="mb-2 text-badge font-semibold text-(--color-text-label)">Result</p>
             <CodeBlock
               code={JSON.stringify(result, null, 2)}
               copyable={false}

@@ -72,7 +72,11 @@ describe("BridgeListPanel", () => {
     expect(screen.getByTestId("bridge-list-group-header-ext-email-email")).toBeInTheDocument();
 
     expect(screen.getByTestId("bridge-item-brg_support")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("bridge-active-indicator")).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("bridge-item-brg_support")
+        .querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
+    ).toBeInTheDocument();
   });
 
   it("renders the filtered-empty state with no-results copy when search has no matches", () => {

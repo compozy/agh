@@ -231,13 +231,7 @@ describe("DesignSystemShowcase", () => {
       expect(sources.has("@agh/ui")).toBe(true);
       expect(sources.has("lucide-react")).toBe(true);
       expect(sources.has("react")).toBe(true);
-      const allowed = new Set([
-        "@agh/ui",
-        "lucide-react",
-        "react",
-        "@/components/connection-indicator",
-        "@/systems/network",
-      ]);
+      const allowed = new Set(["@agh/ui", "lucide-react", "react", "@/systems/network"]);
       const forbidden = [...sources].filter(specifier => {
         if (allowed.has(specifier)) return false;
         return true;

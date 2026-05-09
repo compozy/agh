@@ -32,10 +32,12 @@ function AutomationListPanelFromPage() {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <AutomationListPanelFromPage />,
 };
 
 export const Empty: Story = {
+  args: {},
   parameters: {
     ...storybookMswParameters({
       automation: [http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
@@ -45,6 +47,7 @@ export const Empty: Story = {
 };
 
 export const Error: Story = {
+  args: {},
   parameters: {
     ...storybookMswParameters({
       automation: [
@@ -58,6 +61,7 @@ export const Error: Story = {
 };
 
 export const TriggersDefault: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[340px]">
       <AutomationListPanel
@@ -77,6 +81,7 @@ export const TriggersDefault: Story = {
 };
 
 export const TriggersEmpty: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[340px]">
       <AutomationListPanel
@@ -96,6 +101,7 @@ export const TriggersEmpty: Story = {
 };
 
 export const SearchFilter: Story = {
+  args: {},
   tags: ["play-fn"],
   render: () => <AutomationListPanelFromPage />,
   play: async ({ canvasElement }) => {
@@ -107,4 +113,25 @@ export const SearchFilter: Story = {
       canvas.findByTestId("automation-item-job_payout_watchlist")
     ).resolves.toBeDefined();
   },
+};
+
+export const Loading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[340px]">
+      <AutomationListPanel
+        activeWorkspaceName={storyDefaultWorkspaceName}
+        isLoading
+        jobs={[]}
+        kind="jobs"
+        onSearchChange={fn()}
+        onSelect={fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={null}
+        totalCount={0}
+        triggers={[]}
+      />
+    </PanelSurface>
+  ),
 };

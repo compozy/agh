@@ -2,19 +2,15 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, PillGroup } from "@agh/ui";
+import { Button, Input, Metric, MetricGrid, PageShell, PillGroup, Section } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsSectionCard,
-  SettingsStatGrid,
-  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -45,9 +41,9 @@ function formatSessionTimeout(seconds: number): string {
 }
 
 function formatUpdateTimestamp(value?: string | null): string {
-  if (!value) return "—";
+  if (!value) return "--";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime()) ? "--" : parsed.toLocaleString();
 }
 
 function formatUpdateStatus(status?: SettingsUpdateStatus["status"]): string {
@@ -106,13 +102,13 @@ function GeneralSettingsPage() {
   const configPaths = envelope.config_paths;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="general"
       title="General"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-general-status-line"
-          daemonAvailable={runtime.available}
+          status={runtime.available ? "connected" : "error"}
           items={[
             <span key="sessions">
               {runtime.active_sessions} active sessions · {runtime.active_agents} agents
@@ -149,20 +145,17 @@ function GeneralSettingsPage() {
         timeoutError={validationErrors.sessionTimeout ?? undefined}
         onTimeoutValidityChange={setValidationError("sessionTimeout")}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
 function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
   const runtime = envelope.runtime;
   return (
-    <SettingsSectionCard eyebrow="Runtime" note="read-only">
-      <SettingsStatGrid>
-        <SettingsStatItem
-          label="UDS socket"
-          value={runtime.socket ?? envelope.config.daemon.socket}
-        />
-        <SettingsStatItem
+    <Section divided label="Runtime" note="read-only">
+      <MetricGrid>
+        <Metric label="UDS socket" value={runtime.socket ?? envelope.config.daemon.socket} />
+        <Metric
           label="HTTP bind"
           value={
             runtime.http_host && runtime.http_port
@@ -170,16 +163,16 @@ function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
               : `${envelope.config.http.host}:${envelope.config.http.port}`
           }
         />
-        <SettingsStatItem
+        <Metric
           label="Active sessions"
           value={`${runtime.active_sessions} / ${envelope.config.limits.max_sessions} max`}
         />
-        <SettingsStatItem
+        <Metric
           label="Concurrent agents"
           value={`${runtime.active_agents} / ${envelope.config.limits.max_concurrent_agents} max`}
         />
-      </SettingsStatGrid>
-    </SettingsSectionCard>
+      </MetricGrid>
+    </Section>
   );
 }
 
@@ -224,10 +217,11 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
   const lastError = snapshot?.last_error ?? (snapshot ? null : transportError);
 
   return (
-    <SettingsSectionCard
-      eyebrow="Software update"
+    <Section
+      divided
+      label="Software update"
       note="Read-only. AGH self-updates direct-binary installs on macOS and Linux; managed installs return exact upgrade guidance."
-      headerAction={
+      right={
         releaseLink || refreshIndicator || retryButton ? (
           <div className="flex flex-wrap items-center gap-2">
             {releaseLink}
@@ -237,39 +231,39 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
         ) : undefined
       }
     >
-      <SettingsStatGrid>
-        <SettingsStatItem
+      <MetricGrid>
+        <Metric
           label="Status"
           value={statusValue}
-          detail={snapshot?.supported ? undefined : "manual update path"}
+          subtext={snapshot?.supported ? undefined : "manual update path"}
           data-testid="settings-page-general-update-status"
         />
-        <SettingsStatItem
+        <Metric
           label="Current version"
-          value={snapshot?.current_version ?? "—"}
+          value={snapshot?.current_version ?? "--"}
           data-testid="settings-page-general-update-current-version"
         />
-        <SettingsStatItem
+        <Metric
           label="Latest stable"
-          value={snapshot?.latest_version ?? "—"}
+          value={snapshot?.latest_version ?? "--"}
           data-testid="settings-page-general-update-latest-version"
         />
-        <SettingsStatItem
+        <Metric
           label="Install method"
-          value={snapshot?.install_method ?? "—"}
+          value={snapshot?.install_method ?? "--"}
           data-testid="settings-page-general-update-install-method"
         />
-        <SettingsStatItem
+        <Metric
           label="Managed"
-          value={snapshot ? (snapshot.managed ? "yes" : "no") : "—"}
+          value={snapshot ? (snapshot.managed ? "yes" : "no") : "--"}
           data-testid="settings-page-general-update-managed"
         />
-        <SettingsStatItem
+        <Metric
           label="Last checked"
           value={formatUpdateTimestamp(snapshot?.checked_at)}
           data-testid="settings-page-general-update-checked-at"
         />
-      </SettingsStatGrid>
+      </MetricGrid>
       {snapshot?.recommendation ? (
         <SettingsFieldRow
           data-testid="settings-page-general-update-recommendation"
@@ -292,7 +286,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           }
         />
       ) : null}
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -303,7 +297,7 @@ interface DraftSectionProps {
 
 function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Defaults" note="applied to new sessions">
+    <Section divided label="Defaults" note="applied to new sessions">
       <SettingsFieldRow
         data-testid="settings-page-general-default-agent"
         label="Default agent"
@@ -363,13 +357,13 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
 function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Permissions" note="tool approval policy">
+    <Section divided label="Permissions" note="tool approval policy">
       <PillGroup
         className="max-w-full flex-wrap"
         data-testid="settings-page-general-permissions-group"
@@ -385,7 +379,7 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
       <p className="text-xs text-(--color-text-tertiary)">
         {describePermissionMode(draft.permissions.mode)}
       </p>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -399,7 +393,7 @@ function SessionSection({
   onTimeoutValidityChange: (message: string | null) => void;
 }) {
   return (
-    <SettingsSectionCard eyebrow="Session" note="runtime limits">
+    <Section divided label="Session" note="runtime limits">
       <SettingsFieldRow
         data-testid="settings-page-general-session-timeout"
         label="Session timeout"
@@ -427,7 +421,7 @@ function SessionSection({
           </div>
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 

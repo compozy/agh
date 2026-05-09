@@ -2,19 +2,15 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Pill, Switch } from "@agh/ui";
+import { Button, Metric, MetricGrid, PageShell, Pill, Section, Switch } from "@agh/ui";
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsSectionCard,
-  SettingsStatGrid,
-  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -91,13 +87,13 @@ function ObservabilitySettingsPage() {
   const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="observability"
       title="Observability"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-observability-status-line"
-          daemonAvailable={runtime.available}
+          status={runtime.available ? "connected" : "error"}
           items={[
             <span key="sessions">{runtime.active_sessions} active sessions</span>,
             <span key="storage" data-testid="settings-page-observability-storage-summary">
@@ -145,7 +141,7 @@ function ObservabilitySettingsPage() {
         setValidationError={setValidationError}
       />
       <LogTailSection logTail={logTail} runtime={runtime} />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -164,32 +160,32 @@ function OverviewMetrics({
 }: OverviewMetricsProps) {
   const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
   return (
-    <SettingsSectionCard eyebrow="Runtime" note="live capture volume">
-      <SettingsStatGrid>
-        <SettingsStatItem
+    <Section divided label="Runtime" note="live capture volume">
+      <MetricGrid>
+        <Metric
           label="Active sessions"
           value={String(activeSessions)}
-          testId="settings-page-observability-metric-sessions"
+          data-testid="settings-page-observability-metric-sessions"
         />
-        <SettingsStatItem
+        <Metric
           label="Active agents"
           value={String(activeAgents)}
-          testId="settings-page-observability-metric-agents"
+          data-testid="settings-page-observability-metric-agents"
         />
-        <SettingsStatItem
+        <Metric
           label="Storage used"
           value={formatBytes(totalStorage)}
-          detail={`of ${formatBytes(cap)}`}
-          testId="settings-page-observability-metric-storage"
+          subtext={`of ${formatBytes(cap)}`}
+          data-testid="settings-page-observability-metric-storage"
         />
-        <SettingsStatItem
+        <Metric
           label="Capacity"
           value={`${capPercent}%`}
-          detail="of soft cap"
-          testId="settings-page-observability-metric-capacity"
+          subtext="of soft cap"
+          data-testid="settings-page-observability-metric-capacity"
         />
-      </SettingsStatGrid>
-    </SettingsSectionCard>
+      </MetricGrid>
+    </Section>
   );
 }
 
@@ -218,10 +214,11 @@ function CaptureSection({
   setValidationError,
 }: CaptureSectionProps) {
   return (
-    <SettingsSectionCard
-      eyebrow="Capture"
+    <Section
+      divided
+      label="Capture"
       note="events, transcripts, logs"
-      headerAction={
+      right={
         <Pill
           mono
           tone={capPercent > 85 ? "warning" : "neutral"}
@@ -264,7 +261,7 @@ function CaptureSection({
         />
       </div>
       <UsageBreakdown globalBytes={globalBytes} sessionBytes={sessionBytes} cap={cap} />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -278,7 +275,7 @@ function TranscriptsSection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <SettingsSectionCard eyebrow="Transcripts" note="full replay of agent I/O">
+    <Section divided label="Transcripts" note="full replay of agent I/O">
       <SettingsFieldRow
         data-testid="settings-page-observability-transcripts-enabled"
         label="Capture transcripts"
@@ -329,14 +326,14 @@ function TranscriptsSection({
           }
         />
       </div>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
 function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: Runtime }) {
   void runtime;
   return (
-    <SettingsSectionCard eyebrow="Log tail" note="daemon log stream">
+    <Section divided label="Log tail" note="daemon log stream">
       <div
         className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3"
         data-testid="settings-page-observability-log-tail"
@@ -366,7 +363,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
           </a>
         ) : null}
       </div>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 

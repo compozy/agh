@@ -10,7 +10,7 @@ export interface TasksDashboardCardsProps {
 /**
  * Top-row metric set per task 18 spec: Active runs, Success rate, Average duration, Queue depth.
  * Values are derived from the dashboard payload; no computed 24h windowing since the API
- * does not yet expose a time-bucketed histogram — we surface the freshest totals we have.
+ * does not yet expose a time-bucketed histogram -- we surface the freshest totals we have.
  */
 export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const { active_runs, totals, cards, queue } = dashboard;
@@ -63,7 +63,7 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
         detail="24h"
         label="Success rate"
         tone={successTone}
-        value={successRate === null ? "—" : formatPercent(successRate)}
+        value={successRate === null ? "--" : formatPercent(successRate)}
       />
       <Metric
         data-testid="tasks-dashboard-card-average-duration"

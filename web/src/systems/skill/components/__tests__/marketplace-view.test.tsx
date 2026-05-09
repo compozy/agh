@@ -45,6 +45,10 @@ describe("MarketplaceView", () => {
     const grid = screen.getByTestId("marketplace-grid");
     expect(grid).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-alpha")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-alpha")).toHaveAttribute(
+      "data-slot",
+      "catalog-card"
+    );
     expect(screen.getByTestId("marketplace-row-beta")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-gamma")).toBeInTheDocument();
   });

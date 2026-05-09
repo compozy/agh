@@ -68,6 +68,24 @@ export const DisabledInstall: Story = {
   },
 };
 
+export const BrowseOnlyWithReason: Story = {
+  args: {},
+  render: () => {
+    const page = useSkillsPage();
+    return (
+      <PanelSurface>
+        <MarketplaceView
+          installUnavailableReason="Remote marketplace search and install are not available in this view yet."
+          installedSkillNames={new Set(page.skills.map(skill => skill.name))}
+          isInstalling={false}
+          onInstall={undefined}
+          skills={page.skills}
+        />
+      </PanelSurface>
+    );
+  },
+};
+
 export const AllInstalled: Story = {
   render: () => {
     const page = useSkillsPage();
@@ -86,7 +104,7 @@ export const AllInstalled: Story = {
 };
 
 /**
- * Interaction test — filter marketplace by a non-matching category shows Empty.
+ * Interaction test: filter marketplace by a non-matching category shows Empty.
  */
 export const FilterToEmpty: Story = {
   tags: ["play-fn"],

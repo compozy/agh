@@ -177,7 +177,7 @@ describe("AgentCategoryTree", () => {
       agentsError: false,
       sessions: [],
     });
-    expect(screen.getByTestId("agents-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-loading")).toHaveAttribute("data-fill", "false");
   });
 
   it("Should expand top-level categories after agents load from an initial loading state", () => {
@@ -220,7 +220,7 @@ describe("AgentCategoryTree", () => {
       agentsError: false,
       sessions: [],
     });
-    expect(screen.getByTestId("agents-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-empty")).toHaveAttribute("data-fill", "false");
   });
 
   it("Should render the empty state with agents-empty test ID on error", () => {
@@ -230,7 +230,7 @@ describe("AgentCategoryTree", () => {
       agentsError: true,
       sessions: [],
     });
-    expect(screen.getByTestId("agents-error")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-error")).toHaveAttribute("data-fill", "false");
   });
 
   it("Should keep rendering stale agents when a refresh error occurs after data loads", () => {

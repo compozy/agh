@@ -1,50 +1,30 @@
-import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "lucide-react";
-import type { ComponentProps } from "react";
+import { KindIcon, providerKindIconRegistry, type KindIconProps } from "@agh/ui";
 
-import { cn } from "@agh/ui";
+type AgentIconTone = KindIconProps["tone"];
 
-const providerIconMap: Record<string, LucideIcon> = {
-  blackbox: Bot,
-  claude: BrainCircuit,
-  cline: Code,
-  codex: Code,
-  gemini: Sparkles,
-  goose: Terminal,
-  hermes: BrainCircuit,
-  junie: Sparkles,
-  "kimi-cli": Terminal,
-  openclaw: Bot,
-  openhands: Code,
-  openai: Bot,
-  ollama: Terminal,
-  qoder: Code,
-  "qwen-code": Sparkles,
-};
-
-type AgentIconTone = "default" | "muted" | "accent";
-
-const AGENT_ICON_TONE: Record<AgentIconTone, string> = {
-  default: "text-(--color-text-primary)",
-  muted: "text-(--color-text-tertiary)",
-  accent: "text-accent",
-};
-
-interface AgentIconProps extends ComponentProps<"svg"> {
+interface AgentIconProps extends Omit<KindIconProps, "kind" | "registry"> {
   provider: string;
-  tone?: AgentIconTone;
 }
 
-function AgentIcon({ provider, tone = "muted", className, ...props }: AgentIconProps) {
-  const Icon = providerIconMap[provider.toLowerCase()] ?? Bot;
+const providerIconMap = providerKindIconRegistry;
+
+function AgentIcon({
+  provider,
+  "data-slot": dataSlot = "agent-icon",
+  "data-provider": dataProvider,
+  ...props
+}: AgentIconProps) {
+  const key = provider.trim().toLowerCase();
   return (
-    <Icon
-      data-slot="agent-icon"
-      data-provider={provider.toLowerCase()}
-      className={cn("size-4 shrink-0", AGENT_ICON_TONE[tone], className)}
+    <KindIcon
+      data-slot={dataSlot}
+      data-provider={dataProvider ?? key}
+      kind={key}
+      registry={providerKindIconRegistry}
       {...props}
     />
   );
 }
 
 export { AgentIcon, providerIconMap };
-export type { AgentIconTone };
+export type { AgentIconProps, AgentIconTone };

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorySurface } from "@/storybook/story-layout";
@@ -39,6 +39,7 @@ function WorkspaceSetupValidationHarness() {
 }
 
 export const OnboardingDefault: Story = {
+  args: {},
   render: () => (
     <StorySurface className="p-0">
       <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
@@ -47,6 +48,7 @@ export const OnboardingDefault: Story = {
 };
 
 export const OnboardingPathError: Story = {
+  args: {},
   render: () => (
     <StorySurface className="p-0">
       <WorkspaceSetupValidationHarness />
@@ -55,6 +57,7 @@ export const OnboardingPathError: Story = {
 };
 
 export const OnboardingGlobalUnavailable: Story = {
+  args: {},
   parameters: {
     ...storybookMswParameters({
       daemon: [
@@ -72,6 +75,7 @@ export const OnboardingGlobalUnavailable: Story = {
 };
 
 export const SetupDialogOpen: StoryObj<typeof WorkspaceSetupDialog> = {
+  args: {},
   render: () => (
     <StorySurface className="p-10">
       <WorkspaceSetupDialog
@@ -84,6 +88,7 @@ export const SetupDialogOpen: StoryObj<typeof WorkspaceSetupDialog> = {
 };
 
 export const SubmitManualPath: Story = {
+  args: {},
   tags: ["play-fn"],
   render: () => {
     function Harness() {
@@ -110,7 +115,91 @@ export const SubmitManualPath: Story = {
   },
 };
 
+export const OnboardingMobile: Story = {
+  args: {},
+  parameters: {
+    viewport: { defaultViewport: "iphone14" },
+    docs: {
+      description: {
+        story:
+          "Below `lg` breakpoint the two-column hero collapses to a single rail so onboarding remains tappable on mobile.",
+      },
+    },
+  },
+  render: () => (
+    <StorySurface className="p-0">
+      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
+    </StorySurface>
+  ),
+};
+
+export const OnboardingLoadingGlobal: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: {
+    ...storybookMswParameters({
+      workspace: [
+        http.post("/api/workspaces", async () => {
+          await delay("infinite");
+          return HttpResponse.json({});
+        }),
+      ],
+    }),
+    docs: {
+      description: {
+        story:
+          "Drives the global submission CTA into its loading state by stalling `POST /api/workspaces` indefinitely.",
+      },
+    },
+  },
+  render: () => (
+    <StorySurface className="p-0">
+      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = await canvas.findByTestId("workspace-use-global");
+    await userEvent.click(button);
+    await expect(canvas.getByTestId("workspace-use-global")).toBeDisabled();
+  },
+};
+
+export const OnboardingLoadingManual: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: {
+    ...storybookMswParameters({
+      workspace: [
+        http.post("/api/workspaces", async () => {
+          await delay("infinite");
+          return HttpResponse.json({});
+        }),
+      ],
+    }),
+    docs: {
+      description: {
+        story:
+          "Manual submission spinner: stall `POST /api/workspaces` and submit a valid absolute path.",
+      },
+    },
+  },
+  render: () => (
+    <StorySurface className="p-0">
+      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
+    </StorySurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = await canvas.findByLabelText("Workspace path");
+    await userEvent.type(input, "/Users/pedro/Dev/agh");
+    await userEvent.click(canvas.getByTestId("workspace-register-manual"));
+    await expect(canvas.getByTestId("workspace-register-manual")).toBeDisabled();
+  },
+};
+
 export const UseGlobalWorkspace: Story = {
+  args: {},
   tags: ["play-fn"],
   render: () => {
     function Harness() {

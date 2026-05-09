@@ -21,6 +21,7 @@ const initialContent = [
 ].join("\n");
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <KnowledgeEditDialog
       filename="operator-style.md"
@@ -36,6 +37,7 @@ export const Default: Story = {
 };
 
 export const PendingSave: Story = {
+  args: {},
   render: () => (
     <KnowledgeEditDialog
       filename="operator-style.md"
@@ -51,6 +53,7 @@ export const PendingSave: Story = {
 };
 
 export const RejectedByPolicy: Story = {
+  args: {},
   render: () => (
     <KnowledgeEditDialog
       error="Edit rejected by policy: invisible Unicode in content"
@@ -67,6 +70,7 @@ export const RejectedByPolicy: Story = {
 };
 
 export const ConfirmSubmits: Story = {
+  args: {},
   tags: ["play-fn"],
   render: () => {
     const onConfirm = fn();

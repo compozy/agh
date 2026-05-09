@@ -1,4 +1,4 @@
-import { Empty } from "@agh/ui";
+import { Empty, Eyebrow } from "@agh/ui";
 import { Activity } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ export function WorkInspector({
 }: WorkInspectorProps) {
   const body =
     isLoading && entries.length === 0 ? (
-      <p className="px-4 py-6 text-small-body text-(--color-text-tertiary)">Loading…</p>
+      <p className="px-4 py-6 text-small-body text-(--color-text-tertiary)">Loading...</p>
     ) : entries.length === 0 ? (
       <div className="flex justify-center px-4 py-6">
         <Empty
@@ -40,15 +40,16 @@ export function WorkInspector({
         />
       </div>
     ) : (
-      <ul
+      <div
         aria-label="Open work entries"
         className="flex flex-1 flex-col overflow-y-auto"
         data-testid="network-work-inspector-list"
+        role="list"
       >
         {entries.map(entry => (
           <WorkInspectorRow entry={entry} key={entry.workId} onJump={onJump} />
         ))}
-      </ul>
+      </div>
     );
 
   if (chromeless) {
@@ -71,12 +72,9 @@ export function WorkInspector({
     >
       <header className="flex items-baseline justify-between border-b border-(--color-divider) px-4 py-3">
         <h2 className="text-sm font-semibold text-(--color-text-primary)">Work</h2>
-        <span
-          className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
-          data-testid="network-work-inspector-count"
-        >
+        <Eyebrow data-testid="network-work-inspector-count" weight="medium">
           {entries.length} open
-        </span>
+        </Eyebrow>
       </header>
       {body}
     </section>

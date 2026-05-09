@@ -23,7 +23,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Right-rail thread overlay surfaces — header (with close + open-in-main), root message badge, replies divider, and reply timeline at overlay density per `_design.md` §3.2/§5.5.",
+          "Right-rail thread overlay surfaces - header (with close + open-in-main), root message badge, replies divider, and reply timeline at overlay density per `_design.md` §3.2/§5.5.",
       },
     },
   },

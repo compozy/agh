@@ -9,8 +9,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
+  FieldContent,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
   Input,
-  Label,
   Textarea,
 } from "@agh/ui";
 
@@ -61,49 +65,46 @@ function KnowledgeEditDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 sm:max-w-2xl"
+        className="sm:max-w-2xl"
         data-testid="knowledge-edit-dialog"
         showCloseButton={false}
+        unframed
       >
-        <DialogHeader className="gap-2 border-b border-(--color-divider) px-5 py-4">
+        <DialogHeader variant="ruled">
           <DialogTitle>Edit knowledge entry</DialogTitle>
           <DialogDescription>
             Update <span className="font-mono">{filename}</span> in the {scope} scope. Edits go
             through the controller and produce a new decision.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4 px-5 py-4">
-          <div className="flex flex-col gap-1.5">
-            <Label
-              className="font-mono text-badge uppercase tracking-badge text-(--color-text-label)"
-              htmlFor="knowledge-edit-description"
-            >
-              Description
-            </Label>
-            <Input
-              data-testid="knowledge-edit-description"
-              id="knowledge-edit-description"
-              onChange={event => setDescription(event.target.value)}
-              placeholder="Optional summary"
-              value={description}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label
-              className="font-mono text-badge uppercase tracking-badge text-(--color-text-label)"
-              htmlFor="knowledge-edit-content"
-            >
-              Content
-            </Label>
-            <Textarea
-              className="h-60 font-mono text-xs"
-              data-testid="knowledge-edit-content"
-              id="knowledge-edit-content"
-              onChange={event => setContent(event.target.value)}
-              value={content}
-            />
-          </div>
-        </div>
+        <FieldSet className="px-5 py-4">
+          <FieldGroup>
+            <Field>
+              <FieldContent>
+                <FieldLabel htmlFor="knowledge-edit-description">Description</FieldLabel>
+              </FieldContent>
+              <Input
+                data-testid="knowledge-edit-description"
+                id="knowledge-edit-description"
+                onChange={event => setDescription(event.target.value)}
+                placeholder="Optional summary"
+                value={description}
+              />
+            </Field>
+            <Field>
+              <FieldContent>
+                <FieldLabel htmlFor="knowledge-edit-content">Content</FieldLabel>
+              </FieldContent>
+              <Textarea
+                className="h-60 font-mono text-xs"
+                data-testid="knowledge-edit-content"
+                id="knowledge-edit-content"
+                onChange={event => setContent(event.target.value)}
+                value={content}
+              />
+            </Field>
+          </FieldGroup>
+        </FieldSet>
         {error ? (
           <div
             className="border-t border-(--color-divider) px-5 py-3 text-xs text-(--color-danger)"
@@ -112,7 +113,7 @@ function KnowledgeEditDialog({
             {error}
           </div>
         ) : null}
-        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-(--color-divider) bg-transparent px-5 py-3">
+        <DialogFooter variant="ruled">
           <Button
             data-testid="cancel-edit-memory-btn"
             onClick={() => onOpenChange(false)}

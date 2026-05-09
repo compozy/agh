@@ -6,10 +6,11 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  MetadataList,
   Pill,
+  PillGroup,
   type PillTone,
 } from "@agh/ui";
-import type { ReactNode } from "react";
 
 import type { SettingsProviderEntry } from "@/systems/settings";
 
@@ -61,63 +62,128 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
       </CardHeader>
 
       <CardContent className="flex flex-col flex-1 gap-2 border-t border-(--color-divider) pt-4">
-        <MetaRow label="Command" testId={`${testId}-command`}>
-          {provider.settings.command ?? <EmptyValue />}
-        </MetaRow>
-        <MetaRow label="Default model" testId={`${testId}-model`}>
-          {provider.settings.models?.default ?? <EmptyValue />}
-        </MetaRow>
-        <MetaRow label="Curated models" testId={`${testId}-curated-models`}>
-          <CuratedModels provider={provider} />
-        </MetaRow>
-        <MetaRow label="Reasoning" testId={`${testId}-reasoning`}>
-          <ReasoningSupport provider={provider} />
-        </MetaRow>
-        <MetaRow label="Harness" testId={`${testId}-harness`}>
-          {provider.settings.harness ? (
-            <span className="flex flex-wrap items-center gap-1.5">
-              <span>{provider.settings.harness}</span>
-              {provider.settings.runtime_provider ? (
-                <Pill mono tone="neutral">
-                  {provider.settings.runtime_provider}
-                </Pill>
-              ) : null}
-            </span>
-          ) : (
-            <EmptyValue />
-          )}
-        </MetaRow>
-        <MetaRow label="Auth mode" testId={`${testId}-auth-mode`}>
-          {provider.settings.auth_mode ?? <EmptyValue />}
-        </MetaRow>
-        <MetaRow label="Env policy" testId={`${testId}-env-policy`}>
-          {provider.settings.env_policy ?? <EmptyValue />}
-        </MetaRow>
-        <MetaRow label="Home policy" testId={`${testId}-home-policy`}>
-          {provider.settings.home_policy ?? <EmptyValue />}
-        </MetaRow>
-        <MetaRow label="Auth status" testId={`${testId}-auth-status`}>
-          <ProviderAuthStatus provider={provider} />
-        </MetaRow>
-        <MetaRow label="Credential slots" testId={`${testId}-api-key`}>
-          <CredentialSlots provider={provider} />
-        </MetaRow>
-        <MetaRow label="Credential" testId={`${testId}-credential`}>
-          <CredentialState provider={provider} testId={testId} />
-        </MetaRow>
-        <MetaRow label="Source">
-          <SettingsSourceBadge
-            data-testid={`${testId}-source`}
-            source={source}
-            shadowed={shadowed}
-          />
-        </MetaRow>
-        <div className="grid grid-cols-[7.5rem_1fr] items-start gap-3 pt-1">
-          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
-            Catalog
-          </span>
-          <ProviderModelCatalogStatus providerId={provider.name} testId={`${testId}-catalog`} />
-        </div>
+        <MetadataList className="gap-y-2">
+          <MetadataList.Row
+            label="Command"
+            valueProps={{
+              "data-testid": `${testId}-command`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            {provider.settings.command ?? <EmptyValue />}
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Default model"
+            valueProps={{
+              "data-testid": `${testId}-model`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            {provider.settings.models?.default ?? <EmptyValue />}
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Curated models"
+            valueProps={{
+              "data-testid": `${testId}-curated-models`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            <CuratedModels provider={provider} />
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Reasoning"
+            valueProps={{
+              "data-testid": `${testId}-reasoning`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            <ReasoningSupport provider={provider} />
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Harness"
+            valueProps={{
+              "data-testid": `${testId}-harness`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            {provider.settings.harness ? (
+              <span className="flex flex-wrap items-center gap-1.5">
+                <span>{provider.settings.harness}</span>
+                {provider.settings.runtime_provider ? (
+                  <Pill mono tone="neutral">
+                    {provider.settings.runtime_provider}
+                  </Pill>
+                ) : null}
+              </span>
+            ) : (
+              <EmptyValue />
+            )}
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Auth mode"
+            valueProps={{
+              "data-testid": `${testId}-auth-mode`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            {provider.settings.auth_mode ?? <EmptyValue />}
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Env policy"
+            valueProps={{
+              "data-testid": `${testId}-env-policy`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            {provider.settings.env_policy ?? <EmptyValue />}
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Home policy"
+            valueProps={{
+              "data-testid": `${testId}-home-policy`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            {provider.settings.home_policy ?? <EmptyValue />}
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Auth status"
+            valueProps={{
+              "data-testid": `${testId}-auth-status`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            <ProviderAuthStatus provider={provider} />
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Credential slots"
+            valueProps={{
+              "data-testid": `${testId}-api-key`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            <CredentialSlots provider={provider} />
+          </MetadataList.Row>
+          <MetadataList.Row
+            label="Credential"
+            valueProps={{
+              "data-testid": `${testId}-credential`,
+              className: "truncate font-mono text-xs",
+            }}
+          >
+            <CredentialState provider={provider} testId={testId} />
+          </MetadataList.Row>
+          <MetadataList.Row label="Source">
+            <SettingsSourceBadge
+              data-testid={`${testId}-source`}
+              source={source}
+              shadowed={shadowed}
+            />
+          </MetadataList.Row>
+          <MetadataList.Row label="Catalog" className="items-start pt-1">
+            <ProviderModelCatalogStatus providerId={provider.name} testId={`${testId}-catalog`} />
+          </MetadataList.Row>
+        </MetadataList>
       </CardContent>
 
       <CardFooter className="justify-between">
@@ -152,7 +218,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             title={
               deletable
                 ? undefined
-                : "Builtin providers cannot be deleted — edit the overlay to override them."
+                : "Builtin providers cannot be deleted -- edit the overlay to override them."
             }
           >
             Delete
@@ -163,30 +229,8 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
   );
 }
 
-interface MetaRowProps {
-  label: string;
-  children: ReactNode;
-  testId?: string;
-}
-
-function MetaRow({ label, children, testId }: MetaRowProps) {
-  return (
-    <div className="grid grid-cols-[7.5rem_1fr] items-center gap-3">
-      <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
-        {label}
-      </span>
-      <span
-        data-testid={testId}
-        className="min-w-0 truncate font-mono text-xs text-(--color-text-secondary)"
-      >
-        {children}
-      </span>
-    </div>
-  );
-}
-
 function EmptyValue() {
-  return <span className="text-(--color-text-label)">—</span>;
+  return <span className="text-(--color-text-label)">--</span>;
 }
 
 function ProviderAuthStatus({ provider }: { provider: SettingsProviderEntry }) {
@@ -215,9 +259,20 @@ function CuratedModels({ provider }: { provider: SettingsProviderEntry }) {
   if (ids.length === 0) {
     return <EmptyValue />;
   }
+  const visibleIds = ids.slice(0, 2);
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <span className="truncate">{ids.slice(0, 2).join(", ")}</span>
+      <PillGroup
+        aria-label="Curated models"
+        size="sm"
+        value={visibleIds[0] ?? ""}
+        onChange={() => undefined}
+        items={visibleIds.map(id => ({
+          value: id,
+          label: id,
+          disabled: true,
+        }))}
+      />
       {ids.length > 2 ? (
         <Pill mono tone="neutral">
           +{ids.length - 2}

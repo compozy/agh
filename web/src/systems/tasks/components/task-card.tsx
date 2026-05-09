@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Pill } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
@@ -26,7 +26,7 @@ export interface TaskCardProps {
 }
 
 /**
- * Full-detail list card — composes the shared `tasks-list-row` primitive and
+ * Full-detail list card -- composes the shared `tasks-list-row` primitive and
  * layers the rich task metadata (attempts, children, deps, priority, publish/retry
  * actions, failure summary) that the Tasks list column surfaces. Kanban + Inbox
  * (task 18) will consume `TasksListRow` directly with their own slot content.
@@ -100,7 +100,7 @@ export function TaskCard({
               <Pill tone="accent">{taskApprovalStateLabel(task.approval_state)}</Pill>
             ) : null}
             {isDraft && onPublish ? (
-              <button
+              <Button
                 type="button"
                 aria-label={`Publish ${task.title}`}
                 disabled={isPublishPending}
@@ -109,10 +109,12 @@ export function TaskCard({
                   event.stopPropagation();
                   onPublish();
                 }}
-                className="ml-auto rounded-lg border border-(--color-divider) px-2.5 py-1 font-mono text-badge uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:border-(--color-text-label) hover:text-(--color-text-primary) disabled:opacity-50"
+                className="ml-auto"
+                size="xs"
+                variant="outline"
               >
                 Publish
-              </button>
+              </Button>
             ) : null}
             {isBlocked ? (
               <Pill
@@ -125,7 +127,7 @@ export function TaskCard({
               </Pill>
             ) : null}
             {task.status === "failed" && onRetry ? (
-              <button
+              <Button
                 type="button"
                 aria-label={`Retry ${task.title}`}
                 data-testid={`task-card-retry-${task.id}`}
@@ -133,10 +135,12 @@ export function TaskCard({
                   event.stopPropagation();
                   onRetry();
                 }}
-                className="ml-auto rounded-lg border border-(--color-divider) px-2.5 py-1 font-mono text-badge uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:border-(--color-text-label) hover:text-(--color-text-primary)"
+                className="ml-auto"
+                size="xs"
+                variant="outline"
               >
                 Retry
-              </button>
+              </Button>
             ) : null}
           </div>
         </>

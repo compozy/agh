@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { Command, CommandEmpty, CommandItem, CommandList, CommandShortcut } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 export interface SlashCommandEntry {
@@ -54,7 +56,7 @@ export function ComposerSlashPopover({
   onClose,
   className,
 }: ComposerSlashPopoverProps) {
-  const containerRef = useRef<HTMLUListElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -77,7 +79,7 @@ export function ComposerSlashPopover({
   const entries = filterEntries(filterValue);
 
   return (
-    <ul
+    <Command
       aria-label="Slash commands"
       className={cn(
         "absolute bottom-full left-0 mb-2 w-72 rounded-mono-badge border border-(--color-divider) bg-(--color-canvas) p-1 text-small-body",
@@ -85,57 +87,43 @@ export function ComposerSlashPopover({
       )}
       data-testid="network-composer-slash-popover"
       ref={containerRef}
-      role="listbox"
     >
-      {entries.length === 0 ? (
-        <li className="px-3 py-2 text-xs text-(--color-text-tertiary)">No matching commands.</li>
-      ) : (
-        entries.map(entry => (
-          <li
-            key={entry.command}
-            role="option"
+      <CommandList>
+        {entries.length === 0 ? <CommandEmpty>No matching commands.</CommandEmpty> : null}
+        {entries.map(entry => (
+          <CommandItem
             aria-disabled={entry.disabled ? "true" : "false"}
-            aria-selected="false"
-            data-testid={`network-composer-slash-option-${entry.command}`}
+            className={cn(
+              "items-baseline rounded-chip px-3 py-2",
+              entry.disabled ? "cursor-not-allowed text-(--color-text-tertiary)" : null
+            )}
             data-disabled={entry.disabled ? "true" : "false"}
-            title={entry.disabled ? entry.disabledReason : undefined}
-          >
-            <button
-              className={cn(
-                "flex w-full items-baseline gap-2 rounded-chip px-3 py-2 text-left",
-                entry.disabled
-                  ? "cursor-not-allowed text-(--color-text-tertiary)"
-                  : "hover:bg-(--color-hover) focus-visible:bg-(--color-hover) focus-visible:outline-none"
-              )}
-              disabled={entry.disabled}
-              onClick={() => {
-                if (entry.disabled) {
-                  return;
-                }
+            data-testid={`network-composer-slash-option-${entry.command}`}
+            disabled={entry.disabled}
+            key={entry.command}
+            onSelect={() => {
+              if (!entry.disabled) {
                 onSelect(entry);
-              }}
-              type="button"
+              }
+            }}
+            title={entry.disabled ? entry.disabledReason : undefined}
+            value={entry.command}
+          >
+            <span
+              className={cn(
+                "font-mono text-xs tracking-mono",
+                entry.disabled ? "text-(--color-text-tertiary)" : "text-(--color-text-primary)"
+              )}
             >
-              <span
-                className={cn(
-                  "font-mono text-xs tracking-mono",
-                  entry.disabled ? "text-(--color-text-tertiary)" : "text-(--color-text-primary)"
-                )}
-              >
-                /{entry.command}
-              </span>
-              <span className="truncate text-xs text-(--color-text-tertiary)">
-                {entry.description}
-              </span>
-              {entry.disabled ? (
-                <span className="ml-auto font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-                  Post-MVP
-                </span>
-              ) : null}
-            </button>
-          </li>
-        ))
-      )}
-    </ul>
+              /{entry.command}
+            </span>
+            <span className="truncate text-xs text-(--color-text-tertiary)">
+              {entry.description}
+            </span>
+            {entry.disabled ? <CommandShortcut>Post-MVP</CommandShortcut> : null}
+          </CommandItem>
+        ))}
+      </CommandList>
+    </Command>
   );
 }

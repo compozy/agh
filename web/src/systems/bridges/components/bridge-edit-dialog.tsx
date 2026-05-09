@@ -1,10 +1,9 @@
-import { Loader2 } from "lucide-react";
-
 import {
   Button,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   Field,
@@ -14,10 +13,12 @@ import {
   FieldSet,
   FieldTitle,
   Input,
+  MetadataList,
   Pill,
   NativeSelect,
   NativeSelectOption,
   Section,
+  Spinner,
   Switch,
   Textarea,
 } from "@agh/ui";
@@ -61,6 +62,7 @@ export function BridgeEditDialog({
       <DialogContent
         className="gap-0 p-0 text-(--color-text-primary) sm:max-w-3xl"
         showCloseButton={false}
+        unframed
       >
         <form
           className="flex max-h-[min(80vh,900px)] flex-col"
@@ -70,7 +72,7 @@ export function BridgeEditDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
+          <DialogHeader variant="ruled">
             <DialogTitle>Edit Bridge</DialogTitle>
             <DialogDescription>
               Update mutable bridge settings for {bridgeName ?? "the selected bridge"} and restart
@@ -133,13 +135,15 @@ export function BridgeEditDialog({
                   Provider-owned runtime settings remain separate from generic delivery defaults.
                 </p>
 
-                <div className="mt-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
-                  <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                    Config schema
-                  </p>
-                  <p className="mt-2 text-small-body text-(--color-text-primary)">
+                <MetadataList className="mt-3">
+                  <MetadataList.Row
+                    className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3"
+                    label="Config schema"
+                    termProps={{ className: "mb-2 text-(--color-text-label)" }}
+                    valueProps={{ className: "text-small-body text-(--color-text-primary)" }}
+                  >
                     {describeBridgeProviderConfigSchema(provider?.config_schema)}
-                  </p>
+                  </MetadataList.Row>
                   {provider?.secret_slots?.length ? (
                     <div className="mt-3 flex items-center gap-2">
                       <Pill mono>{provider.secret_slots.length}</Pill>
@@ -148,7 +152,7 @@ export function BridgeEditDialog({
                       </p>
                     </div>
                   ) : null}
-                </div>
+                </MetadataList>
 
                 <Field className="mt-4">
                   <FieldContent>
@@ -348,7 +352,7 @@ export function BridgeEditDialog({
             </FieldSet>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+          <DialogFooter variant="ruled">
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Cancel
             </Button>
@@ -360,14 +364,14 @@ export function BridgeEditDialog({
             >
               {isPending ? (
                 <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Saving…
+                  <Spinner className="size-3.5" />
+                  Saving...
                 </>
               ) : (
                 "Save Changes"
               )}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

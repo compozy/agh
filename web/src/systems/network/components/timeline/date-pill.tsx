@@ -1,3 +1,5 @@
+import { Separator } from "@agh/ui";
+
 import { formatDatePill } from "../../lib/format-timestamp";
 
 export interface DatePillProps {
@@ -13,17 +15,11 @@ export function DatePill({ timestamp, now }: DatePillProps) {
   }
 
   return (
-    <div
-      className="my-6 flex items-center gap-3 px-5"
+    <Separator
+      className="my-6 px-5"
       data-testid="network-timeline-date-pill"
       data-label={label}
-      role="separator"
-    >
-      <span aria-hidden="true" className="h-px flex-1 bg-(--color-divider)" />
-      <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
-        {label}
-      </span>
-      <span aria-hidden="true" className="h-px flex-1 bg-(--color-divider)" />
-    </div>
+      label={label}
+    />
   );
 }

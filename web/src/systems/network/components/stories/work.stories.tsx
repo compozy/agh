@@ -52,7 +52,7 @@ export const ChipStates: Story = {
 };
 
 export const Banner: Story = {
-  name: "Banner — default tint",
+  name: "Banner - default tint",
   render: () => (
     <PanelSurface className="min-h-[80px] p-0">
       <WorkBanner hasNeedsInput={false} openCount={2} />
@@ -61,7 +61,7 @@ export const Banner: Story = {
 };
 
 export const BannerEscalation: Story = {
-  name: "Banner — needs_input escalation",
+  name: "Banner - needs_input escalation",
   render: () => (
     <PanelSurface className="min-h-[80px] p-0">
       <WorkBanner hasNeedsInput openCount={3} />
@@ -70,7 +70,7 @@ export const BannerEscalation: Story = {
 };
 
 export const Inspector: Story = {
-  name: "Work Inspector — populated",
+  name: "Work Inspector - populated",
   render: () => (
     <PanelSurface className="min-h-[280px] p-0">
       <WorkInspector entries={sampleEntries} />
@@ -79,7 +79,7 @@ export const Inspector: Story = {
 };
 
 export const InspectorEmpty: Story = {
-  name: "Work Inspector — empty",
+  name: "Work Inspector - empty",
   render: () => (
     <PanelSurface className="min-h-[280px] p-0">
       <WorkInspector entries={[]} />

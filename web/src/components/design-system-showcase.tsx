@@ -45,6 +45,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
+  ConnectionIndicator,
   Dialog,
   DialogClose,
   DialogContent,
@@ -134,8 +135,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@agh/ui";
-
-import { ConnectionIndicator } from "@/components/connection-indicator";
 import { KindChip } from "@/systems/network";
 
 const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
@@ -851,14 +850,14 @@ function StatusAndMetricSection() {
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="warning" pulse />
-          <span className="text-sm text-(--color-text-secondary)">Reconnecting</span>
+          <span className="text-sm text-(--color-text-secondary)">Connecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="danger" />
           <span className="text-sm text-(--color-text-secondary)">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
-        <ConnectionIndicator status="reconnecting" />
+        <ConnectionIndicator status="connecting" />
         <ConnectionIndicator status="disconnected" />
       </div>
       <div className="flex flex-wrap items-center gap-2 pt-4">

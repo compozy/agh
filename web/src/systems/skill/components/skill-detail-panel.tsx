@@ -1,11 +1,14 @@
-import { AlertCircle, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, Wrench } from "lucide-react";
 
 import {
   Button,
+  Card,
+  CodeBlock,
   Empty,
   Pill,
   PageHeader,
   Section,
+  Spinner,
   Switch,
   Table,
   TableBody,
@@ -72,33 +75,26 @@ function SkillContentSection({
 }: SkillContentSectionProps) {
   if (content) {
     return (
-      <div
-        className="rounded-lg border border-(--color-divider) bg-(--color-surface) p-4"
-        data-testid="content-body"
-      >
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-(--color-text-secondary)">
-          {content}
-        </pre>
-      </div>
+      <Card className="p-0" data-testid="content-body" size="sm">
+        <CodeBlock code={content} copyable={false} showPrompt={false} truncateLines={16} />
+      </Card>
     );
   }
   if (isLoading) {
     return (
-      <div
-        className="flex items-center gap-2 rounded-lg border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body text-(--color-text-secondary)"
+      <Card
+        className="flex-row items-center px-4 py-3 text-small-body text-(--color-text-secondary)"
         data-testid="content-loading"
+        size="sm"
       >
-        <Loader2 aria-hidden="true" className="size-4 animate-spin text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
         Loading full skill content…
-      </div>
+      </Card>
     );
   }
   if (error) {
     return (
-      <div
-        className="flex flex-col gap-2 rounded-lg border border-(--color-divider) bg-(--color-surface) px-4 py-3"
-        data-testid="content-error"
-      >
+      <Card className="px-4 py-3" data-testid="content-error" size="sm">
         <p className="text-small-body text-(--color-danger)">
           {error.message ?? "Failed to load full content."}
         </p>
@@ -111,14 +107,11 @@ function SkillContentSection({
         >
           Try again
         </Button>
-      </div>
+      </Card>
     );
   }
   return (
-    <div
-      className="flex flex-col gap-3 rounded-lg border border-(--color-divider) bg-(--color-surface) px-4 py-3"
-      data-testid="content-empty"
-    >
+    <Card className="px-4 py-3" data-testid="content-empty" size="sm">
       <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
         Full skill instructions are loaded on demand.
       </p>
@@ -133,7 +126,7 @@ function SkillContentSection({
           View full content
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -216,7 +209,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                     {call.label}
                   </TableCell>
                   <TableCell className="text-right font-mono text-eyebrow text-(--color-text-tertiary)">
-                    {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "—"}
+                    {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "--"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -247,7 +240,7 @@ function SkillDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="skill-detail-loading"
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-5 text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -260,7 +253,7 @@ function SkillDetailPanel({
       >
         <Empty
           className="max-w-md"
-          description={error.message ?? "Failed to load skill details"}
+          description={error.message}
           icon={AlertCircle}
           title="Failed to load skill details"
         />

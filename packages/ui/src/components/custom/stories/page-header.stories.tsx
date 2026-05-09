@@ -24,14 +24,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
+  args: {},
   render: () => <PageHeader title="Settings" icon={SparklesIcon} />,
 };
 
 export const WithCount: Story = {
+  args: {},
   render: () => <PageHeader title="Tasks" icon={ListChecksIcon} count={128} />,
 };
 
 export const WithControlsAndMeta: Story = {
+  args: {},
   render: () => {
     function Harness() {
       const [mode, setMode] = useState<"list" | "kanban" | "dashboard" | "inbox">("list");
@@ -63,4 +66,69 @@ export const WithControlsAndMeta: Story = {
     }
     return <Harness />;
   },
+};
+
+export const WithBreadcrumb: Story = {
+  args: {},
+  render: () => (
+    <PageHeader
+      breadcrumb="Settings / Providers"
+      title="Providers"
+      meta={
+        <Button size="sm" type="button">
+          <PlusIcon className="size-3.5" />
+          Provider
+        </Button>
+      }
+    />
+  ),
+};
+
+export const WithSubtitleAndStatus: Story = {
+  args: {},
+  render: () => (
+    <PageHeader
+      title="Network"
+      subtitle="Runtime transport and delivery limits."
+      statusRow={
+        <>
+          <span>Daemon online</span>
+          <span>NATS enabled</span>
+          <span>3 channels</span>
+        </>
+      }
+    />
+  ),
+};
+
+export const AllSlots: Story = {
+  args: {},
+  render: () => (
+    <PageHeader
+      breadcrumb="Settings / Automation"
+      title="Automation"
+      icon={SparklesIcon}
+      count={6}
+      subtitle="Manage jobs, triggers, and execution limits."
+      controls={
+        <PillGroup
+          value="runtime"
+          onChange={() => undefined}
+          items={[{ value: "runtime", label: "Runtime" }]}
+        />
+      }
+      statusRow={
+        <>
+          <span>Scheduler enabled</span>
+          <span>Next fire in 4m</span>
+        </>
+      }
+      meta={
+        <Button size="sm" type="button">
+          <PlusIcon className="size-3.5" />
+          Job
+        </Button>
+      }
+    />
+  ),
 };

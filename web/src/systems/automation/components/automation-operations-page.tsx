@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
-import { AlertCircle, Loader2, Plus, type LucideIcon } from "lucide-react";
+import { AlertCircle, Plus, type LucideIcon } from "lucide-react";
 
-import { Button, Empty, PageHeader, PillGroup, SplitPane } from "@agh/ui";
+import { Button, Empty, PageHeader, PillGroup, Spinner, SplitPane } from "@agh/ui";
 
 import { AutomationDetailPanel } from "./automation-detail-panel";
 import { AutomationEditorDialog } from "./automation-editor-dialog";
@@ -41,7 +41,7 @@ export function AutomationOperationsPage({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid={`${titlePrefix}-loading`}
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-(--color-text-tertiary)" />
       </div>
     );
   }

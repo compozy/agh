@@ -28,7 +28,7 @@ export function ThreadsEmpty({ onStartThread, className }: ThreadsEmptyProps) {
       }
       className={className}
       data-testid="network-threads-empty"
-      description="Start the first one — agents and humans both join."
+      description="Start the first one; agents and humans both join."
       icon={MessageSquare}
       title="No threads yet."
     />

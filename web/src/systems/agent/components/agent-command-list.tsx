@@ -1,13 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@agh/ui";
+import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup } from "@agh/ui";
 
 import {
   buildAgentCategoryTree,
@@ -58,7 +51,6 @@ export interface AgentCommandListProps {
   agents: AgentPayload[];
   isSelected: (agent: AgentPayload) => boolean;
   onSelect: (agent: AgentPayload) => void;
-  searchPlaceholder?: string;
   emptyState?: ReactNode;
   itemTestId?: (agent: AgentPayload) => string;
 }
@@ -67,58 +59,54 @@ export function AgentCommandList({
   agents,
   isSelected,
   onSelect,
-  searchPlaceholder = "Search agents...",
   emptyState = "No agents match your search.",
   itemTestId,
 }: AgentCommandListProps) {
   const groups = useMemo(() => collectGroups(buildAgentCategoryTree(agents)), [agents]);
 
   return (
-    <Command>
-      <CommandInput placeholder={searchPlaceholder} data-testid="agent-command-input" />
-      <CommandList>
-        <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
-        {groups.map(group => (
-          <CommandGroup
-            key={group.key}
-            heading={group.heading}
-            data-testid={`agent-command-group-${group.key}`}
-          >
-            {group.agents.map(agent => {
-              const selected = isSelected(agent);
-              const categoryLabel = formatCategoryLabel(agent.category_path);
-              return (
-                <CommandItem
-                  key={agent.name}
-                  value={agentSearchKey(agent, categoryLabel)}
-                  onSelect={() => onSelect(agent)}
-                  data-checked={selected ? "true" : "false"}
-                  data-testid={itemTestId ? itemTestId(agent) : `agent-command-item-${agent.name}`}
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-sm text-foreground">{agent.name}</span>
+    <CommandList>
+      <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
+      {groups.map(group => (
+        <CommandSelectGroup
+          key={group.key}
+          heading={group.heading}
+          data-testid={`agent-command-group-${group.key}`}
+        >
+          {group.agents.map(agent => {
+            const selected = isSelected(agent);
+            const categoryLabel = formatCategoryLabel(agent.category_path);
+            return (
+              <CommandItem
+                key={agent.name}
+                value={agentSearchKey(agent, categoryLabel)}
+                onSelect={() => onSelect(agent)}
+                data-checked={selected ? "true" : "false"}
+                data-testid={itemTestId ? itemTestId(agent) : `agent-command-item-${agent.name}`}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="truncate text-sm text-(--color-text-primary)">{agent.name}</span>
+                  <span
+                    className="font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)"
+                    data-testid={`agent-command-provider-${agent.name}`}
+                  >
+                    {agent.provider}
+                  </span>
+                  {categoryLabel ? (
                     <span
-                      className="font-mono text-xs uppercase tracking-wide text-muted-foreground"
-                      data-testid={`agent-command-provider-${agent.name}`}
+                      className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)"
+                      data-testid={`agent-command-category-${agent.name}`}
                     >
-                      {agent.provider}
+                      {categoryLabel}
                     </span>
-                    {categoryLabel ? (
-                      <span
-                        className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-muted-foreground"
-                        data-testid={`agent-command-category-${agent.name}`}
-                      >
-                        {categoryLabel}
-                      </span>
-                    ) : null}
-                  </div>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        ))}
-      </CommandList>
-    </Command>
+                  ) : null}
+                </div>
+              </CommandItem>
+            );
+          })}
+        </CommandSelectGroup>
+      ))}
+    </CommandList>
   );
 }
 

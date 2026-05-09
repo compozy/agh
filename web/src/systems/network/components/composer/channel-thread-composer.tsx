@@ -52,7 +52,7 @@ export function ChannelThreadComposer({
       disabledReason={disabledReason}
       isSending={isCreating}
       onSubmit={handleSubmit}
-      placeholder="Start a new thread…"
+      placeholder="Start a new thread..."
       sendLabel={`Send to #${channel}`}
       testIdSuffix="channel-thread"
     />

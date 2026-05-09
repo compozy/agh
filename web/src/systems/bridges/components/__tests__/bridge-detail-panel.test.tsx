@@ -210,7 +210,7 @@ describe("BridgeDetailPanel", () => {
     const routeRow = screen.getByTestId("bridge-route-sess_trace_123");
 
     expect(routeRow).toHaveTextContent("sess_trace_123");
-    expect(within(routeRow).getByText("SESSION")).toHaveClass("uppercase", "tracking-mono");
+    expect(within(routeRow).getByText("Session")).toHaveAttribute("data-slot", "eyebrow");
   });
 
   it("uses unique default route identities when rendering multiple route fixtures", () => {
@@ -303,6 +303,7 @@ describe("BridgeDetailPanel", () => {
     await user.type(screen.getByTestId("bridge-secret-env-input-bot_token"), "X");
     await user.click(screen.getByTestId("save-bridge-secret-bot_token"));
     await user.click(screen.getByTestId("delete-bridge-secret-bot_token"));
+    await user.click(screen.getByTestId("confirm-delete-bridge-secret-bot_token"));
 
     expect(onOpenEdit).toHaveBeenCalledTimes(1);
     expect(onRestartBridge).toHaveBeenCalledTimes(1);

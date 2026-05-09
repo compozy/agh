@@ -45,9 +45,10 @@ const idleSessions: SessionPayload[] = sessionFixtures
   .map(session => ({ ...session, state: "stopped" as const }));
 
 /**
- * Active agent — at least one session has state === "active", surfaces the ACTIVE chip.
+ * Active agent -- at least one session has state === "active", surfaces the ACTIVE chip.
  */
 export const Default: Story = {
+  args: {},
   render: args => (
     <Frame>
       <AgentPageHeader {...args} />
@@ -56,7 +57,7 @@ export const Default: Story = {
 };
 
 /**
- * No live sessions — IDLE chip on the title; the count badge after the name still
+ * No live sessions -- IDLE chip on the title; the count badge after the name still
  * surfaces the historical session count.
  */
 export const Idle: Story = {
@@ -69,7 +70,7 @@ export const Idle: Story = {
 };
 
 /**
- * Refresh in flight — the Refresh button shows the spinning RefreshCw icon and is disabled.
+ * Refresh in flight -- the Refresh button shows the spinning RefreshCw icon and is disabled.
  */
 export const Refreshing: Story = {
   args: { isRefreshing: true },
@@ -81,7 +82,7 @@ export const Refreshing: Story = {
 };
 
 /**
- * Workspace not active — `+ New session` is disabled and aria-busy stays false.
+ * Workspace not active -- `+ New session` is disabled and aria-busy stays false.
  */
 export const NoActiveWorkspace: Story = {
   args: { newSessionDisabled: true },
@@ -93,7 +94,7 @@ export const NoActiveWorkspace: Story = {
 };
 
 /**
- * Session creation pending for this agent — `+ New session` reports aria-busy.
+ * Session creation pending for this agent -- `+ New session` reports aria-busy.
  */
 export const CreatingSession: Story = {
   args: { isCreatingSession: true },

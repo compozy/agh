@@ -1,9 +1,7 @@
 import { FolderPlus, Home, Loader2, Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
 
 import {
   Button,
-  cn,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -15,9 +13,9 @@ import {
   FieldLabel,
   Input,
   Pill,
-  Section,
 } from "@agh/ui";
 
+import { OptionCard } from "./option-card";
 import {
   useWorkspaceSetupContent,
   type WorkspaceSetupVariant,
@@ -34,71 +32,6 @@ interface WorkspaceSetupDialogProps extends WorkspaceSetupSharedProps {
 }
 
 type WorkspaceOnboardingProps = WorkspaceSetupSharedProps;
-
-interface SetupOptionCardProps {
-  variant: WorkspaceSetupVariant;
-  eyebrow: string;
-  right: ReactNode;
-  icon: ReactNode;
-  iconTone: "accent" | "neutral";
-  title: ReactNode;
-  description: ReactNode;
-  meta?: ReactNode;
-  testId?: string;
-  children: ReactNode;
-}
-
-function SetupOptionCard({
-  variant,
-  eyebrow,
-  right,
-  icon,
-  iconTone,
-  title,
-  description,
-  meta,
-  testId,
-  children,
-}: SetupOptionCardProps) {
-  return (
-    <Section
-      label={eyebrow}
-      right={right}
-      data-testid={testId}
-      className={cn(
-        "rounded-2xl border border-(--color-divider) bg-(--color-surface)",
-        variant === "onboarding" ? "p-5" : "p-4"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className={cn(
-            "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-(--color-divider)",
-            iconTone === "accent"
-              ? "bg-(--color-surface-panel) text-accent"
-              : "bg-(--color-surface-panel) text-(--color-text-primary)"
-          )}
-        >
-          {icon}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-(--color-text-primary)">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-(--color-text-secondary)">{description}</p>
-          {meta ? (
-            <p
-              className="mt-3 truncate font-mono text-eyebrow text-(--color-text-tertiary)"
-              data-testid="workspace-global-meta"
-            >
-              {meta}
-            </p>
-          ) : null}
-        </div>
-      </div>
-      {children}
-    </Section>
-  );
-}
 
 function WorkspaceSetupContent({
   variant,
@@ -118,75 +51,87 @@ function WorkspaceSetupContent({
   const isGlobalDisabled = setup.submissionMode !== null || setup.globalUnavailableReason !== null;
   const globalMeta = setup.userHomeDir || setup.globalUnavailableReason || "";
   const manualInvalid = Boolean(setup.manualError);
+  const density = variant === "onboarding" ? "comfortable" : "compact";
 
   const globalCard = (
-    <SetupOptionCard
-      variant={variant}
-      eyebrow="Global"
-      right={<Pill tone="accent">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
-      icon={<Home className="size-4" />}
-      iconTone="accent"
-      title={WORKSPACE_SETUP_COPY.global.title}
-      description={WORKSPACE_SETUP_COPY.global.description}
-      meta={globalMeta}
-      testId="workspace-setup-global-card"
-    >
-      <Button
-        className="mt-4 w-full justify-between text-(--color-accent-ink)"
-        disabled={isGlobalDisabled}
-        onClick={setup.handleUseGlobalWorkspace}
-        data-testid="workspace-use-global"
-      >
-        <span>{WORKSPACE_SETUP_COPY.global.action}</span>
-        {isSubmittingGlobal ? <Loader2 className="animate-spin" /> : <Sparkles />}
-      </Button>
-    </SetupOptionCard>
+    <OptionCard density={density} data-testid="workspace-setup-global-card">
+      <OptionCard.Header
+        eyebrow="Global"
+        right={<Pill tone="accent">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
+      />
+      <OptionCard.Body>
+        <OptionCard.Icon tone="accent">
+          <Home className="size-4" />
+        </OptionCard.Icon>
+        <OptionCard.Content>
+          <OptionCard.Title>{WORKSPACE_SETUP_COPY.global.title}</OptionCard.Title>
+          <OptionCard.Description>{WORKSPACE_SETUP_COPY.global.description}</OptionCard.Description>
+          {globalMeta ? (
+            <OptionCard.Meta data-testid="workspace-global-meta">{globalMeta}</OptionCard.Meta>
+          ) : null}
+        </OptionCard.Content>
+      </OptionCard.Body>
+      <OptionCard.Action>
+        <Button
+          className="w-full justify-between text-(--color-accent-ink)"
+          disabled={isGlobalDisabled}
+          onClick={setup.handleUseGlobalWorkspace}
+          data-testid="workspace-use-global"
+        >
+          <span>{WORKSPACE_SETUP_COPY.global.action}</span>
+          {isSubmittingGlobal ? <Loader2 className="animate-spin" /> : <Sparkles />}
+        </Button>
+      </OptionCard.Action>
+    </OptionCard>
   );
 
   const manualCard = (
-    <SetupOptionCard
-      variant={variant}
-      eyebrow="Path"
-      right={<Pill>{WORKSPACE_SETUP_COPY.manual.badge}</Pill>}
-      icon={<FolderPlus className="size-4" />}
-      iconTone="neutral"
-      title={WORKSPACE_SETUP_COPY.manual.title}
-      description={WORKSPACE_SETUP_COPY.manual.description}
-      testId="workspace-setup-manual-card"
-    >
-      <form className="mt-4 flex flex-col gap-3" onSubmit={setup.handleManualSubmit}>
-        <Field data-invalid={manualInvalid || undefined}>
-          <FieldLabel htmlFor="workspace-manual-path" className="sr-only">
-            {WORKSPACE_SETUP_COPY.manual.inputLabel}
-          </FieldLabel>
-          <Input
-            id="workspace-manual-path"
-            aria-label={WORKSPACE_SETUP_COPY.manual.inputLabel}
-            aria-invalid={manualInvalid || undefined}
-            className="border-(--color-divider) bg-(--color-surface-panel)"
+    <OptionCard density={density} data-testid="workspace-setup-manual-card">
+      <OptionCard.Header eyebrow="Path" right={<Pill>{WORKSPACE_SETUP_COPY.manual.badge}</Pill>} />
+      <OptionCard.Body>
+        <OptionCard.Icon tone="neutral">
+          <FolderPlus className="size-4" />
+        </OptionCard.Icon>
+        <OptionCard.Content>
+          <OptionCard.Title>{WORKSPACE_SETUP_COPY.manual.title}</OptionCard.Title>
+          <OptionCard.Description>{WORKSPACE_SETUP_COPY.manual.description}</OptionCard.Description>
+        </OptionCard.Content>
+      </OptionCard.Body>
+      <OptionCard.Action>
+        <form className="flex flex-col gap-3" onSubmit={setup.handleManualSubmit}>
+          <Field data-invalid={manualInvalid || undefined}>
+            <FieldLabel htmlFor="workspace-manual-path" className="sr-only">
+              {WORKSPACE_SETUP_COPY.manual.inputLabel}
+            </FieldLabel>
+            <Input
+              id="workspace-manual-path"
+              aria-label={WORKSPACE_SETUP_COPY.manual.inputLabel}
+              aria-invalid={manualInvalid || undefined}
+              className="border-(--color-divider) bg-(--color-surface-panel)"
+              disabled={setup.submissionMode !== null}
+              onChange={event => setup.setManualPath(event.currentTarget.value)}
+              placeholder={WORKSPACE_SETUP_COPY.manual.inputPlaceholder}
+              value={setup.manualPath}
+              data-testid="workspace-manual-path-input"
+            />
+            {setup.manualError ? (
+              <FieldError data-testid="workspace-path-error">{setup.manualError}</FieldError>
+            ) : (
+              <FieldDescription className="sr-only">Absolute path required.</FieldDescription>
+            )}
+          </Field>
+          <Button
+            className="w-full justify-between text-(--color-accent-ink)"
             disabled={setup.submissionMode !== null}
-            onChange={event => setup.setManualPath(event.currentTarget.value)}
-            placeholder={WORKSPACE_SETUP_COPY.manual.inputPlaceholder}
-            value={setup.manualPath}
-            data-testid="workspace-manual-path-input"
-          />
-          {setup.manualError ? (
-            <FieldError data-testid="workspace-path-error">{setup.manualError}</FieldError>
-          ) : (
-            <FieldDescription className="sr-only">Absolute path required.</FieldDescription>
-          )}
-        </Field>
-        <Button
-          className="w-full justify-between text-(--color-accent-ink)"
-          disabled={setup.submissionMode !== null}
-          type="submit"
-          data-testid="workspace-register-manual"
-        >
-          <span>{WORKSPACE_SETUP_COPY.manual.action}</span>
-          {isSubmittingManual ? <Loader2 className="animate-spin" /> : <FolderPlus />}
-        </Button>
-      </form>
-    </SetupOptionCard>
+            type="submit"
+            data-testid="workspace-register-manual"
+          >
+            <span>{WORKSPACE_SETUP_COPY.manual.action}</span>
+            {isSubmittingManual ? <Loader2 className="animate-spin" /> : <FolderPlus />}
+          </Button>
+        </form>
+      </OptionCard.Action>
+    </OptionCard>
   );
 
   if (variant === "dialog") {
@@ -224,11 +169,12 @@ function WorkspaceSetupDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-xl border border-(--color-divider) bg-(--color-canvas) p-0 sm:max-w-xl"
+        unframed
+        className="max-w-xl border border-(--color-divider) bg-(--color-canvas) sm:max-w-xl"
         showCloseButton
         data-testid="workspace-setup-dialog"
       >
-        <DialogHeader className="gap-2 border-b border-(--color-divider) px-5 py-4">
+        <DialogHeader variant="ruled">
           <DialogTitle className="text-item-title font-semibold text-(--color-text-primary)">
             {WORKSPACE_SETUP_COPY.dialog.title}
           </DialogTitle>

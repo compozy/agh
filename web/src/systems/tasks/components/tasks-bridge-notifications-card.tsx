@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { AlertCircle, Loader2, Plus, Radio, Trash2, TriangleAlert } from "lucide-react";
+import { AlertCircle, Plus, Radio, Trash2, TriangleAlert } from "lucide-react";
 
 import {
   Button,
+  BlockLoading,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,6 +20,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Spinner,
   Table,
   TableBody,
   TableCell,
@@ -169,12 +171,12 @@ export function TasksBridgeNotificationsCard({
         and no delivery id; advancement happens only after a confirmed bridge delivery.
       </p>
       {isLoading && subscriptions.length === 0 ? (
-        <div
-          className="flex min-h-[120px] items-center justify-center"
+        <BlockLoading
+          label="Loading bridge notifications"
+          size="sm"
+          surface="bare"
           data-testid="tasks-bridge-notifications-loading"
-        >
-          <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-        </div>
+        />
       ) : null}
       {errorMessage && subscriptions.length === 0 ? (
         <Empty
@@ -223,7 +225,7 @@ export function TasksBridgeNotificationsCard({
                         <Pill tone="info">{sub.scope}</Pill>
                         <Pill tone="neutral">{sub.delivery_mode}</Pill>
                       </div>
-                      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+                      <span className="text-badge text-(--color-text-tertiary)">
                         Created {formatRelativeTime(sub.created_at)}
                       </span>
                     </div>
@@ -258,7 +260,7 @@ export function TasksBridgeNotificationsCard({
                   <TableCell>
                     {isZeroCursor ? (
                       <span
-                        className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)"
+                        className="inline-flex items-center gap-1 text-eyebrow text-(--color-text-tertiary)"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-zero`}
                       >
                         <Pill tone="neutral">zero state</Pill>
@@ -280,7 +282,9 @@ export function TasksBridgeNotificationsCard({
                     )}
                   </TableCell>
                   <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                    {cursor?.last_delivered_at ? formatRelativeTime(cursor.last_delivered_at) : "—"}
+                    {cursor?.last_delivered_at
+                      ? formatRelativeTime(cursor.last_delivered_at)
+                      : "--"}
                     {cursor?.updated_at ? (
                       <span className="block text-badge">
                         updated {formatRelativeTime(cursor.updated_at)}
@@ -297,7 +301,9 @@ export function TasksBridgeNotificationsCard({
                         {cursor.last_error}
                       </span>
                     ) : (
-                      <span className="font-mono text-eyebrow text-(--color-text-tertiary)">—</span>
+                      <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
+                        --
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="w-8 pr-4">
@@ -478,7 +484,7 @@ export function TasksBridgeNotificationsCard({
               type="button"
               variant="default"
             >
-              {isCreatePending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {isCreatePending ? <Spinner className="size-3.5" /> : null}
               Create subscription
             </Button>
           </DialogFooter>
@@ -527,7 +533,7 @@ export function TasksBridgeNotificationsCard({
               type="button"
               variant="destructive"
             >
-              {isDeletePending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {isDeletePending ? <Spinner className="size-3.5" /> : null}
               Delete subscription
             </Button>
           </DialogFooter>

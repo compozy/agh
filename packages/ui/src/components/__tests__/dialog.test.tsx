@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "../dialog";
@@ -134,6 +135,108 @@ describe("Dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
       timeout: 1500,
     });
+  });
+
+  it("Should render the ruled DialogHeader variant with panel-tone background and bottom rule", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent unframed>
+          <DialogHeader variant="ruled" data-testid="ruled-header">
+            <DialogTitle>Add workspace</DialogTitle>
+            <DialogDescription>Description.</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const header = screen.getByTestId("ruled-header");
+    expect(header.dataset.variant).toBe("ruled");
+    expect(header.className).toContain("border-b");
+    expect(header.className).toContain("[color:var(--color-divider)]");
+    expect(header.className).toContain("[color:var(--color-surface-panel)]");
+    expect(header.className).toContain("px-5");
+    expect(header.className).toContain("py-4");
+  });
+
+  it("Should keep the default DialogHeader chrome when no variant is provided", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent>
+          <DialogHeader data-testid="default-header">
+            <DialogTitle>Default</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const header = screen.getByTestId("default-header");
+    expect(header.dataset.variant).toBe("default");
+    expect(header.className).toContain("flex flex-col gap-2");
+    expect(header.className).not.toContain("border-b");
+  });
+
+  it("Should render the ruled DialogFooter variant with top rule and panel-tone background", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent unframed showCloseButton={false}>
+          <DialogTitle>Footer ruled</DialogTitle>
+          <DialogFooter variant="ruled" data-testid="ruled-footer">
+            <DialogClose render={<Button>Done</Button>} />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const footer = screen.getByTestId("ruled-footer");
+    expect(footer.dataset.variant).toBe("ruled");
+    expect(footer.className).toContain("border-t");
+    expect(footer.className).toContain("[color:var(--color-divider)]");
+    expect(footer.className).toContain("[color:var(--color-surface-panel)]");
+    expect(footer.className).toContain("px-5");
+    expect(footer.className).toContain("py-3");
+    expect(footer.className).not.toContain("-mx-4");
+  });
+
+  it("Should remove the default chrome when DialogContent unframed is set", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent unframed showCloseButton={false}>
+          <DialogTitle>Unframed</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.dataset.frame).toBe("unframed");
+    expect(dialog.className).toContain("gap-0");
+    expect(dialog.className).toContain("p-0");
+    expect(dialog.className).not.toContain("gap-4");
+    expect(dialog.className).not.toContain("p-4");
+  });
+
+  it("Should preserve the default framed chrome when unframed is omitted", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent>
+          <DialogTitle>Framed</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.dataset.frame).toBe("framed");
+    expect(dialog.className).toContain("gap-4");
+    expect(dialog.className).toContain("p-4");
   });
 
   it("Should throw when DialogContent is rendered outside <Dialog>", () => {

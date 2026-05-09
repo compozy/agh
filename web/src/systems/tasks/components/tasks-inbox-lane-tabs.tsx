@@ -16,7 +16,7 @@ const LANE_ORDER: TaskInboxLane[] = ["my_work", "approvals", "failed_runs", "blo
 
 /**
  * Lane tabs for the Inbox. Counts render as muted inline `(N)` text beside the
- * label — no bg-colored count pills, no leading StatusDots. Unread totals are
+ * label -- no bg-colored count pills, no leading StatusDots. Unread totals are
  * reflected at the row level via the accent left-rail, not on the tab itself.
  */
 export function TasksInboxLaneTabs({
@@ -44,43 +44,30 @@ export function TasksInboxLaneTabs({
       >
         <TabsList className="h-8 overflow-x-auto" variant="line">
           <TabsTrigger
-            className="flex-none gap-1.5 font-mono text-eyebrow uppercase tracking-mono"
+            count={inbox?.total ?? 0}
+            className="flex-none gap-1.5"
             data-testid="tasks-inbox-lane-all"
             value="all"
           >
-            <span>All</span>
-            <LaneCount testId="tasks-inbox-lane-all-count" value={inbox?.total ?? 0} />
+            All
           </TabsTrigger>
           {lanes.map(lane => {
             const counts = groupCounts.get(lane);
             const label = taskInboxLaneLabel(lane);
             return (
               <TabsTrigger
-                className="flex-none gap-1.5 font-mono text-eyebrow uppercase tracking-mono"
+                count={counts?.count ?? 0}
+                className="flex-none gap-1.5"
                 data-testid={`tasks-inbox-lane-${lane}`}
                 key={lane}
                 value={lane}
               >
-                <span>{label}</span>
-                <LaneCount testId={`tasks-inbox-lane-${lane}-count`} value={counts?.count ?? 0} />
+                {label}
               </TabsTrigger>
             );
           })}
         </TabsList>
       </Tabs>
     </div>
-  );
-}
-
-interface LaneCountProps {
-  value: number;
-  testId: string;
-}
-
-function LaneCount({ value, testId }: LaneCountProps) {
-  return (
-    <span className="font-mono text-badge text-(--color-text-tertiary)" data-testid={testId}>
-      ({value})
-    </span>
   );
 }

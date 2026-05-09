@@ -46,3 +46,25 @@ export const Vertical: Story = {
     </div>
   ),
 };
+
+export const WithLabel: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <span className="text-sm text-muted-foreground">Earlier</span>
+      <Separator label="Replies" />
+      <span className="text-sm text-muted-foreground">Later</span>
+    </div>
+  ),
+};
+
+export const AccentLabel: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <span className="text-sm text-muted-foreground">Read</span>
+      <Separator label="New" tone="accent" />
+      <span className="text-sm text-muted-foreground">Unread</span>
+    </div>
+  ),
+};

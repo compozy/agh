@@ -19,7 +19,7 @@ describe("Empty / disabled / error state copy (`_design.md` §7.2 + §7.3)", () 
     render(<ThreadsEmpty />);
     expect(screen.getByText("No threads yet.")).toBeInTheDocument();
     expect(
-      screen.getByText("Start the first one — agents and humans both join.")
+      screen.getByText("Start the first one; agents and humans both join.")
     ).toBeInTheDocument();
   });
 
@@ -48,7 +48,7 @@ describe("Empty / disabled / error state copy (`_design.md` §7.2 + §7.3)", () 
   it("DirectEmpty matches the empty-direct copy verbatim", () => {
     render(<DirectEmpty />);
     expect(screen.getByText("Quiet so far.")).toBeInTheDocument();
-    expect(screen.getByText("Send the first message — they'll be notified.")).toBeInTheDocument();
+    expect(screen.getByText("Send the first message; they'll be notified.")).toBeInTheDocument();
   });
 
   it("DaemonDown renders the unreachable error copy verbatim", () => {

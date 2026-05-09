@@ -1,17 +1,6 @@
-import {
-  AlertCircle,
-  Bot,
-  Clock3,
-  Loader2,
-  Lock,
-  Pencil,
-  Play,
-  Search,
-  Trash2,
-  Zap,
-} from "lucide-react";
+import { AlertCircle, Bot, Clock3, Lock, Pencil, Play, Search, Trash2, Zap } from "lucide-react";
 
-import { Button, CodeBlock, Empty, Metric, Pill, Section, type MetricTone } from "@agh/ui";
+import { Button, CodeBlock, Empty, Metric, Pill, Section, Spinner, type MetricTone } from "@agh/ui";
 
 import { KindChip } from "@/systems/network";
 import { AutomationRunHistory } from "./automation-run-history";
@@ -80,7 +69,7 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
   const completed = runs.filter(run => run.status === "completed").length;
   const lastCompleted = terminal.find(run => run.status === "completed" || run.status === "failed");
 
-  let successRateValue = "—";
+  let successRateValue = "--";
   let successRateTone: MetricTone = "default";
   if (terminal.length > 0) {
     const pct = (completed / terminal.length) * 100;
@@ -88,7 +77,7 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
     successRateTone = pct >= 90 ? "success" : pct >= 70 ? "default" : "warning";
   }
 
-  const lastRunValue = lastCompleted ? formatRelativeTime(lastCompleted.started_at) : "—";
+  const lastRunValue = lastCompleted ? formatRelativeTime(lastCompleted.started_at) : "--";
   const lastRunSubtext = lastCompleted ? formatDateTime(lastCompleted.started_at) : undefined;
 
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
@@ -135,9 +124,9 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
   const mode = job.schedule?.mode ?? "manual";
   const expression =
     job.schedule?.mode === "cron"
-      ? (job.schedule.expr ?? "—")
+      ? (job.schedule.expr ?? "--")
       : job.schedule?.mode === "every"
-        ? (job.schedule.interval ?? "—")
+        ? (job.schedule.interval ?? "--")
         : job.schedule?.mode === "at"
           ? formatDateTime(job.schedule.time)
           : "Manual";
@@ -146,7 +135,7 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
     <Section
       label="Schedule"
       right={
-        <Pill mono tone="accent" className="normal-case">
+        <Pill mono uppercase={false} tone="accent">
           {mode}
         </Pill>
       }
@@ -242,7 +231,7 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
             Fire ID
           </span>
           <p className="mt-1 break-all font-mono text-xs text-(--color-text-secondary)">
-            {scheduler.last_fire_id || "—"}
+            {scheduler.last_fire_id || "--"}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -278,7 +267,7 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
             Event
           </span>
-          <Pill mono className="normal-case" tone="info">
+          <Pill mono uppercase={false} tone="info">
             {trigger.event}
           </Pill>
         </div>
@@ -291,12 +280,9 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {filters.map(([key, value]) => (
-                <Pill
-                  mono
-                  className="normal-case"
-                  key={`${key}=${value}`}
-                  tone="neutral"
-                >{`${key}=${value}`}</Pill>
+                <Pill mono uppercase={false} key={`${key}=${value}`} tone="neutral">
+                  {`${key}=${value}`}
+                </Pill>
               ))}
             </div>
           )}
@@ -308,7 +294,7 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
                 Endpoint
               </span>
               <p className="mt-1 font-mono text-small-body text-(--color-text-primary)">
-                {trigger.endpoint_slug ?? "—"}
+                {trigger.endpoint_slug ?? "--"}
               </p>
             </div>
             <div>
@@ -316,7 +302,7 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
                 Webhook id
               </span>
               <p className="mt-1 font-mono text-small-body text-(--color-text-primary)">
-                {trigger.webhook_id ?? "—"}
+                {trigger.webhook_id ?? "--"}
               </p>
             </div>
           </div>
@@ -324,7 +310,7 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         <div className="flex flex-wrap items-center gap-2">
           <Bot className="size-3.5 text-(--color-text-tertiary)" />
           <span className="text-small-body text-(--color-text-secondary)">Dispatches to</span>
-          <Pill mono className="normal-case" tone="neutral">
+          <Pill mono uppercase={false} tone="neutral">
             {trigger.agent_name}
           </Pill>
         </div>
@@ -339,7 +325,7 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
       label={isTrigger ? "Prompt template" : "Prompt"}
       right={
         isTrigger ? (
-          <Pill mono tone="info" className="normal-case">
+          <Pill mono uppercase={false} tone="info">
             GO TEMPLATE
           </Pill>
         ) : undefined
@@ -398,7 +384,7 @@ export function AutomationDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="automation-detail-loading"
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -469,7 +455,7 @@ export function AutomationDetailPanel({
               ) : null}
             </div>
             <p className="text-xs text-(--color-text-secondary)">
-              {`Agent: ${item.agent_name} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+              {`Agent: ${item.agent_name} / Scope: ${automationScopeLabel(item.scope)} / Updated ${formatDate(item.updated_at)}`}
             </p>
           </div>
 
@@ -482,7 +468,7 @@ export function AutomationDetailPanel({
               type="button"
               variant="outline"
             >
-              {isTogglePending ? "Saving…" : item.enabled ? "Disable" : "Enable"}
+              {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
             </Button>
             {isJob && onTriggerNow ? (
               <Button
@@ -493,7 +479,7 @@ export function AutomationDetailPanel({
                 type="button"
               >
                 <Play className="size-3.5" />
-                {isTriggerPending ? "Queuing…" : "Run now"}
+                {isTriggerPending ? "Queuing..." : "Run now"}
               </Button>
             ) : null}
             {isDynamic ? (
@@ -518,7 +504,7 @@ export function AutomationDetailPanel({
                 variant="destructive"
               >
                 <Trash2 className="size-3.5" />
-                {isDeleting ? "Deleting…" : "Delete"}
+                {isDeleting ? "Deleting..." : "Delete"}
               </Button>
             ) : null}
           </div>

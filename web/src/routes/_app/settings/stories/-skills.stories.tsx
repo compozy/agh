@@ -32,7 +32,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty shell state — the marketplace registry has been edited so the policy
+ * Dirty shell state -- the marketplace registry has been edited so the policy
  * section's save controls enable.
  */
 export const Dirty: Story = {
@@ -50,7 +50,7 @@ export const Dirty: Story = {
 };
 
 /**
- * Disabled-skills empty branch when nothing has been opted out — exercises
+ * Disabled-skills empty branch when nothing has been opted out -- exercises
  * the @agh/ui Empty primitive for the no-skills state.
  */
 export const DisabledEmpty: Story = {

@@ -166,8 +166,15 @@ describe("KnowledgeListPanel", () => {
   it("Should render the selection indicator only on the selected row", () => {
     renderPanel({ selectedMemoryKey: "workspace:project-context.md" });
     const selected = screen.getByTestId("memory-item-workspace:project-context.md");
-    expect(within(selected).getByTestId("memory-active-indicator")).toBeInTheDocument();
+    expect(
+      within(selected).getByText("Project Context").closest('[data-slot="item"]')
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      selected.querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
+    ).not.toBeNull();
     const unselected = screen.getByTestId("memory-item-global:user-role.md");
-    expect(within(unselected).queryByTestId("memory-active-indicator")).not.toBeInTheDocument();
+    expect(
+      unselected.querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
+    ).toBeNull();
   });
 });

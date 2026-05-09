@@ -13,7 +13,7 @@ describe("Composer", () => {
     render(
       <Composer
         onSubmit={onSubmit}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="thread"
       />
@@ -30,7 +30,7 @@ describe("Composer", () => {
     render(
       <Composer
         onSubmit={onSubmit}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="thread"
       />
@@ -48,7 +48,7 @@ describe("Composer", () => {
     render(
       <Composer
         onSubmit={vi.fn()}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="thread"
       />
@@ -70,7 +70,7 @@ describe("Composer", () => {
         disabled
         disabledReason="Network is off."
         onSubmit={onSubmit}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="thread"
       />

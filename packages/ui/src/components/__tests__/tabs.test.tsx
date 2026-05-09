@@ -53,4 +53,21 @@ describe("Tabs", () => {
     const list = container.querySelector("[data-slot=tabs-list]") as HTMLElement | null;
     expect(list).toHaveAttribute("data-variant", "line");
   });
+
+  it("Should render count and live label slots inside a trigger", () => {
+    const { container } = render(
+      <Tabs defaultValue="runs">
+        <TabsList variant="line">
+          <TabsTrigger count={3} liveLabel="Live" value="runs">
+            Runs
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="runs">Panel</TabsContent>
+      </Tabs>
+    );
+
+    expect(screen.getByRole("tab", { name: /runs3live/i })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="tabs-trigger-count"]')).toHaveTextContent("3");
+    expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
+  });
 });

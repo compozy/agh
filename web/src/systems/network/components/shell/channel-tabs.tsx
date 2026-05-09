@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@agh/ui";
 
 export type ChannelTab = "threads" | "directs" | "activity";
 
@@ -51,53 +51,31 @@ function buildTabs({
   ];
 }
 
-function CountChip({ count }: { count: number }) {
-  return (
-    <span
-      aria-label={`${count} entries`}
-      className="font-mono text-badge text-(--color-text-tertiary)"
-    >
-      {count}
-    </span>
-  );
-}
-
 export function ChannelTabs({ channel, activeTab, threadCount, directCount }: ChannelTabsProps) {
   const tabs = buildTabs({ threadCount, directCount });
 
   return (
-    <nav
+    <Tabs
       aria-label={`Surfaces for #${channel}`}
-      className="flex items-center gap-1 border-b border-(--color-divider) px-5"
+      className="gap-0 border-b border-(--color-divider) px-5"
       data-testid="network-channel-tabs"
-      role="tablist"
+      value={activeTab}
     >
-      {tabs.map(tab => (
-        <Link
-          aria-current={tab.tab === activeTab ? "page" : undefined}
-          aria-selected={tab.tab === activeTab}
-          className={cn(
-            "relative flex h-9 items-center gap-2 px-3 text-small-body focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
-            tab.tab === activeTab
-              ? "text-(--color-text-primary)"
-              : "text-(--color-text-secondary) hover:text-(--color-text-primary)"
-          )}
-          data-testid={tab.testId}
-          key={tab.tab}
-          params={{ channel }}
-          role="tab"
-          to={tab.to}
-        >
-          <span className="capitalize">{tab.label}</span>
-          {tab.count != null ? <CountChip count={tab.count} /> : null}
-          {tab.tab === activeTab ? (
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute right-3 bottom-0 left-3 h-[2px] bg-accent"
-            />
-          ) : null}
-        </Link>
-      ))}
-    </nav>
+      <TabsList variant="line" className="h-9 bg-transparent p-0">
+        {tabs.map(tab => (
+          <TabsTrigger
+            aria-current={tab.tab === activeTab ? "page" : undefined}
+            className="h-9 gap-2 px-3 text-small-body group-data-horizontal/tabs:after:bottom-0"
+            count={tab.count ?? undefined}
+            data-testid={tab.testId}
+            key={tab.tab}
+            render={<Link params={{ channel }} to={tab.to} />}
+            value={tab.tab}
+          >
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }

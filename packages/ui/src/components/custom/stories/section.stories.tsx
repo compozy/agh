@@ -21,6 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
+  args: {},
   render: () => (
     <div className="w-[520px]">
       <Section label="Routes">
@@ -35,6 +36,7 @@ export const Basic: Story = {
 };
 
 export const WithRightSlot: Story = {
+  args: {},
   render: () => (
     <div className="w-[520px]">
       <Section
@@ -49,7 +51,20 @@ export const WithRightSlot: Story = {
         }
       >
         <p className="text-sm text-[color:var(--color-text-secondary)]">
-          Dense operational rows go here — replay, inspect, or open detail.
+          Dense operational rows go here: replay, inspect, or open detail.
+        </p>
+      </Section>
+    </div>
+  ),
+};
+
+export const WithNote: Story = {
+  args: {},
+  render: () => (
+    <div className="w-[520px]">
+      <Section label="Runtime" note="Read-only daemon state" divided>
+        <p className="text-sm text-[color:var(--color-text-secondary)]">
+          Use note for compact section context without creating a local wrapper.
         </p>
       </Section>
     </div>
@@ -57,11 +72,12 @@ export const WithRightSlot: Story = {
 };
 
 export const BodyOnly: Story = {
+  args: {},
   render: () => (
     <div className="w-[520px]">
       <Section>
         <p className="text-sm text-[color:var(--color-text-secondary)]">
-          Section with no eyebrow — used when the surrounding layout supplies the heading.
+          Section with no eyebrow; the surrounding layout supplies the heading.
         </p>
       </Section>
     </div>

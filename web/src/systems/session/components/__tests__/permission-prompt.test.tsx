@@ -10,6 +10,21 @@ vi.mock("@/lib/utils", () => ({
 }));
 
 vi.mock("@agh/ui", () => ({
+  Alert: ({ children, ...props }: Record<string, unknown>) => (
+    <div {...props}>{children as React.ReactNode}</div>
+  ),
+  AlertActions: ({ children, ...props }: Record<string, unknown>) => (
+    <div {...props}>{children as React.ReactNode}</div>
+  ),
+  AlertDescription: ({ children, ...props }: Record<string, unknown>) => (
+    <div {...props}>{children as React.ReactNode}</div>
+  ),
+  AlertMeta: ({ children, ...props }: Record<string, unknown>) => (
+    <div {...props}>{children as React.ReactNode}</div>
+  ),
+  AlertTitle: ({ children, ...props }: Record<string, unknown>) => (
+    <h3 {...props}>{children as React.ReactNode}</h3>
+  ),
   Button: ({
     children,
     onClick,
@@ -32,6 +47,25 @@ vi.mock("@agh/ui", () => ({
   CardTitle: ({ children }: Record<string, unknown>) => <h3>{children as React.ReactNode}</h3>,
   CardContent: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
   CardFooter: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
+  CodeBlock: ({ code, ...props }: Record<string, unknown>) => (
+    <pre {...props}>{code as React.ReactNode}</pre>
+  ),
+  MetadataList: Object.assign(
+    ({ children, ...props }: Record<string, unknown>) => (
+      <dl {...props}>{children as React.ReactNode}</dl>
+    ),
+    {
+      Row: ({ children, ...props }: Record<string, unknown>) => (
+        <div {...props}>{children as React.ReactNode}</div>
+      ),
+      Term: ({ children, ...props }: Record<string, unknown>) => (
+        <dt {...props}>{children as React.ReactNode}</dt>
+      ),
+      Value: ({ children, ...props }: Record<string, unknown>) => (
+        <dd {...props}>{children as React.ReactNode}</dd>
+      ),
+    }
+  ),
 }));
 
 vi.mock("../../adapters/session-api", () => ({

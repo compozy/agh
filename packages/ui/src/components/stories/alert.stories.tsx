@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TriangleAlertIcon } from "lucide-react";
 
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "../alert";
+import {
+  Alert,
+  AlertAction,
+  AlertActions,
+  AlertDescription,
+  AlertMeta,
+  AlertTitle,
+} from "../alert";
 import { Button } from "../button";
 
 const meta: Meta<typeof Alert> = {
@@ -95,6 +102,31 @@ export const Accent: Story = {
     <Alert variant="accent" role="status">
       <AlertTitle>New agent available</AlertTitle>
       <AlertDescription>claude-opus-4-7 is ready to install.</AlertDescription>
+    </Alert>
+  ),
+};
+
+export const WithMetaAndActions: Story = {
+  args: {},
+  render: () => (
+    <Alert variant="warning" role="status">
+      <TriangleAlertIcon />
+      <AlertTitle>Provider missing</AlertTitle>
+      <AlertDescription>
+        This session was started with a provider that is no longer visible.
+      </AlertDescription>
+      <AlertMeta>
+        <span>session sess_123</span>
+        <span>agent claude-code</span>
+      </AlertMeta>
+      <AlertActions>
+        <Button size="sm" variant="ghost">
+          Dismiss
+        </Button>
+        <Button size="sm" variant="outline">
+          Retry
+        </Button>
+      </AlertActions>
     </Alert>
   ),
 };

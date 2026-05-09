@@ -2,8 +2,16 @@ import { useCallback, useState } from "react";
 import { ShieldAlert, Check, X, ShieldCheck, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button, Card, CardContent, CardFooter, CardHeader, CardTitle } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import {
+  Alert,
+  AlertActions,
+  AlertDescription,
+  AlertMeta,
+  AlertTitle,
+  Button,
+  CodeBlock,
+  MetadataList,
+} from "@agh/ui";
 import type { PermissionRequest } from "../types";
 import type { PermissionDecision } from "../adapters/session-api";
 import { approveSession } from "../adapters/session-api";
@@ -37,45 +45,47 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
 
   return (
     <div className="px-4 py-2" data-testid="permission-prompt">
-      <Card className={cn("border-(--color-warning) bg-(--color-warning-tint)", "")}>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <ShieldAlert className="size-4 text-(--color-warning)" />
-            Permission Required
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 pb-3">
-          <div className="flex flex-col gap-1 text-xs">
-            <div className="flex gap-2">
-              <span className="font-medium text-(--color-text-tertiary)">Tool:</span>
-              <span className="font-mono">{permission.toolName}</span>
-            </div>
-            {permission.action && (
-              <div className="flex gap-2">
-                <span className="font-medium text-(--color-text-tertiary)">Action:</span>
-                <span>{permission.action}</span>
-              </div>
-            )}
-            {permission.resource && (
-              <div className="flex gap-2">
-                <span className="font-medium text-(--color-text-tertiary)">Resource:</span>
-                <span className="truncate font-mono">{permission.resource}</span>
-              </div>
-            )}
-          </div>
+      <Alert className="max-w-3xl px-3 py-3" variant="warning">
+        <ShieldAlert className="size-4" />
+        <AlertTitle>Permission Required</AlertTitle>
+        <AlertDescription>
+          The agent is requesting permission before it continues this turn.
+        </AlertDescription>
+        <AlertMeta>
+          <MetadataList className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <MetadataList.Row>
+              <MetadataList.Term>Tool</MetadataList.Term>
+              <MetadataList.Value className="font-mono">{permission.toolName}</MetadataList.Value>
+            </MetadataList.Row>
+            {permission.action ? (
+              <MetadataList.Row>
+                <MetadataList.Term>Action</MetadataList.Term>
+                <MetadataList.Value>{permission.action}</MetadataList.Value>
+              </MetadataList.Row>
+            ) : null}
+            {permission.resource ? (
+              <MetadataList.Row>
+                <MetadataList.Term>Resource</MetadataList.Term>
+                <MetadataList.Value className="truncate font-mono">
+                  {permission.resource}
+                </MetadataList.Value>
+              </MetadataList.Row>
+            ) : null}
+          </MetadataList>
+        </AlertMeta>
+        <div className="mt-2 group-has-[>svg]/alert:col-start-2">
           {Object.keys(permission.toolInput).length > 0 && (
-            <pre
-              className={cn(
-                "max-h-32 overflow-auto rounded-md p-2 text-eyebrow leading-relaxed",
-                "bg-(--color-surface) text-(--color-text-secondary)"
-              )}
+            <CodeBlock
+              code={JSON.stringify(permission.toolInput, null, 2)}
+              copyable={false}
               data-testid="permission-tool-input"
-            >
-              {JSON.stringify(permission.toolInput, null, 2)}
-            </pre>
+              showPrompt={false}
+              tone="warning"
+              truncateLines={6}
+            />
           )}
-        </CardContent>
-        <CardFooter className="flex flex-wrap gap-2 pt-0">
+        </div>
+        <AlertActions>
           <Button
             variant="default"
             size="sm"
@@ -116,8 +126,8 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
             <ShieldOff className="size-3.5" />
             Reject Always
           </Button>
-        </CardFooter>
-      </Card>
+        </AlertActions>
+      </Alert>
     </div>
   );
 }

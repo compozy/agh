@@ -23,7 +23,7 @@ function SettingsPageActions({ slug, restart, secondaryAction }: SettingsPageAct
         onClick={() => restart.trigger()}
       >
         <RefreshCw className="size-3.5" />
-        {restart.isTriggerPending || restart.isPolling ? "Restarting…" : "Restart daemon"}
+        {restart.isTriggerPending || restart.isPolling ? "Restarting..." : "Restart daemon"}
       </Button>
     </div>
   );

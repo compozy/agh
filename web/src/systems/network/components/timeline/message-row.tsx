@@ -1,4 +1,4 @@
-import { Button } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -103,12 +103,14 @@ export function MessageRow({
           <span className="truncate text-sm font-semibold text-(--color-text-primary)">
             {displayName}
           </span>
-          <span
-            className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
+          <Pill
             data-testid="network-message-role-chip"
+            mono
+            size="xs"
+            tone={role === "agent" ? "info" : role === "human" ? "neutral" : "warning"}
           >
             {role}
-          </span>
+          </Pill>
           <time
             className="text-xs text-(--color-text-tertiary)"
             data-testid="network-message-timestamp"

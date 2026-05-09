@@ -52,6 +52,7 @@ const pendingDecision: MemoryDecision = {
 };
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDecisionsSection
@@ -64,6 +65,7 @@ export const Default: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDecisionsSection decisions={[]} error={null} isLoading />
@@ -72,6 +74,7 @@ export const Loading: Story = {
 };
 
 export const ErrorState: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDecisionsSection
@@ -84,6 +87,7 @@ export const ErrorState: Story = {
 };
 
 export const Empty: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <KnowledgeDecisionsSection decisions={[]} error={null} isLoading={false} />

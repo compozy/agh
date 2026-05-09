@@ -1,7 +1,16 @@
 import { Activity } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Empty, Skeleton } from "@agh/ui";
+import {
+  Empty,
+  Eyebrow,
+  Item,
+  ItemContent,
+  ItemFooter,
+  ItemTitle,
+  Skeleton,
+  SkeletonRows,
+} from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -14,7 +23,7 @@ export interface InspectorActivityFeedProps {
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
   isLoading?: boolean;
   className?: string;
-  /** Caps the rendered feed — `_design.md` §5.8.3 inspector "LAST 10 TRANSITIONS". */
+  /** Caps the rendered feed - `_design.md` §5.8.3 inspector "LAST 10 TRANSITIONS". */
   limit?: number;
 }
 
@@ -70,18 +79,15 @@ function buildEntries(
 
 function ActivitySkeleton() {
   return (
-    <ul
+    <SkeletonRows
       aria-hidden="true"
-      className="flex flex-col"
+      count={3}
       data-testid="network-inspector-activity-skeleton"
+      rowClassName="border-b border-(--color-divider) px-4 py-3"
     >
-      {[0, 1, 2].map(index => (
-        <li className="flex flex-col gap-2 border-b border-(--color-divider) px-4 py-3" key={index}>
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-3 w-3/4" />
-        </li>
-      ))}
-    </ul>
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-3 w-3/4" />
+    </SkeletonRows>
   );
 }
 
@@ -114,44 +120,38 @@ export function InspectorActivityFeed({
   }
 
   return (
-    <ul
+    <div
       aria-label="Recent transitions"
       className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
       data-testid="network-inspector-activity-feed"
+      role="list"
     >
-      {entries.map(({ entry, href }) =>
-        entry.kind === "thread" ? (
-          <li className="border-b border-(--color-divider) last:border-b-0" key={entry.id}>
-            <Link
-              className="flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-              data-testid={`network-inspector-activity-${entry.id}`}
-              params={{ channel, threadId: href }}
-              to="/network/$channel/threads/$threadId"
-            >
-              <div className="flex items-center justify-between gap-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-                <span>{entry.title}</span>
-                <span>{formatNetworkRelativeTime(entry.timestamp)}</span>
-              </div>
-              <p className="line-clamp-2 text-xs text-(--color-text-secondary)">{entry.preview}</p>
-            </Link>
-          </li>
-        ) : (
-          <li className="border-b border-(--color-divider) last:border-b-0" key={entry.id}>
-            <Link
-              className="flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-              data-testid={`network-inspector-activity-${entry.id}`}
-              params={{ channel, directId: href }}
-              to="/network/$channel/directs/$directId"
-            >
-              <div className="flex items-center justify-between gap-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-                <span>{entry.title}</span>
-                <span>{formatNetworkRelativeTime(entry.timestamp)}</span>
-              </div>
-              <p className="line-clamp-2 text-xs text-(--color-text-secondary)">{entry.preview}</p>
-            </Link>
-          </li>
-        )
-      )}
-    </ul>
+      {entries.map(({ entry, href }) => (
+        <Item
+          className="rounded-none border-b border-(--color-divider) px-4 py-3 last:border-b-0"
+          data-testid={`network-inspector-activity-${entry.id}`}
+          key={entry.id}
+          render={
+            entry.kind === "thread" ? (
+              <Link params={{ channel, threadId: href }} to="/network/$channel/threads/$threadId" />
+            ) : (
+              <Link params={{ channel, directId: href }} to="/network/$channel/directs/$directId" />
+            )
+          }
+          role="listitem"
+          selectable
+        >
+          <ItemContent>
+            <ItemFooter>
+              <ItemTitle className="min-w-0 text-xs">
+                <span className="truncate">{entry.title}</span>
+              </ItemTitle>
+              <Eyebrow weight="medium">{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
+            </ItemFooter>
+            <p className="line-clamp-2 text-xs text-(--color-text-secondary)">{entry.preview}</p>
+          </ItemContent>
+        </Item>
+      ))}
+    </div>
   );
 }

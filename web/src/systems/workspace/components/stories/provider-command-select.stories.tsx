@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
@@ -45,6 +46,36 @@ export const Selected: Story = {
       return <ProviderCommandSelect options={providerOptions} value={value} onChange={setValue} />;
     }
     return <Harness />;
+  },
+};
+
+/**
+ * Selected provider with the popover opened so the grouped command list is visible.
+ */
+export const SelectedOpen: Story = {
+  tags: ["play-fn"],
+  args: {},
+  render: () => {
+    function Harness() {
+      const [value, setValue] = useState<string | null>("codex");
+      return (
+        <ProviderCommandSelect
+          options={providerOptions}
+          value={value}
+          onChange={setValue}
+          triggerTestId="provider-command-select-trigger"
+        />
+      );
+    }
+    return <Harness />;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = await canvas.findByTestId("provider-command-select-trigger");
+    await userEvent.click(trigger);
+    await waitFor(async () => {
+      await expect(within(document.body).getByTestId("provider-command-input")).toBeInTheDocument();
+    });
   },
 };
 

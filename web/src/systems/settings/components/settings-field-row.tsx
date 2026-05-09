@@ -1,6 +1,6 @@
 import { cloneElement, isValidElement, type ReactNode, useId } from "react";
 
-import { Field, cn } from "@agh/ui";
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, cn } from "@agh/ui";
 
 interface SettingsFieldRowProps {
   label: string;
@@ -65,13 +65,13 @@ function SettingsFieldRow({
 
   let renderedControl = control;
   let renderedLabel: ReactNode = (
-    <span
+    <FieldLabel
       id={labelId}
       className="text-sm font-medium text-(--color-text-primary)"
       data-testid={testId ? `${testId}-label` : undefined}
     >
       {label}
-    </span>
+    </FieldLabel>
   );
 
   if (controlElement) {
@@ -98,14 +98,14 @@ function SettingsFieldRow({
       });
       if (supportsNativeLabelAssociation) {
         renderedLabel = (
-          <label
+          <FieldLabel
             htmlFor={controlId}
             id={labelId}
             className="text-sm font-medium text-(--color-text-primary)"
             data-testid={testId ? `${testId}-label` : undefined}
           >
             {label}
-          </label>
+          </FieldLabel>
         );
       }
     }
@@ -120,7 +120,7 @@ function SettingsFieldRow({
       )}
       data-testid={testId}
     >
-      <div className="flex min-w-0 flex-col gap-1.5">
+      <FieldContent className="min-w-0 gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           {renderedLabel}
           {hint ? (
@@ -130,19 +130,19 @@ function SettingsFieldRow({
           ) : null}
         </div>
         {description ? (
-          <span
+          <FieldDescription
             id={descriptionId}
             className="max-w-136 text-xs leading-5 text-(--color-text-secondary)"
           >
             {description}
-          </span>
+          </FieldDescription>
         ) : null}
         {error ? (
-          <span id={errorId} className="text-xs text-(--color-danger)">
+          <FieldError id={errorId} className="text-xs text-(--color-danger)">
             {error}
-          </span>
+          </FieldError>
         ) : null}
-      </div>
+      </FieldContent>
       <div className="flex min-w-0 items-start lg:justify-self-start">
         <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 lg:w-auto [&_input]:max-w-full [&_select]:max-w-full">
           {renderedControl}

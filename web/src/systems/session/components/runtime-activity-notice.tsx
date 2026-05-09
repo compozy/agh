@@ -1,6 +1,6 @@
 import { Activity, AlertTriangle, Clock, Wrench } from "lucide-react";
 
-import { Pill, cn } from "@agh/ui";
+import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill, cn } from "@agh/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../types";
 
@@ -82,45 +82,20 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
   const meta = activityMeta(activity);
 
   return (
-    <div
+    <Alert
       role={isWarning ? "alert" : "status"}
       data-testid="runtime-activity-notice"
       data-tone={isWarning ? "warning" : "progress"}
-      className={cn(
-        "my-2 flex max-w-3xl items-start gap-2 rounded-md border px-3 py-2",
-        "text-xs",
-        isWarning
-          ? "border-(--color-warning)/35 bg-(--color-warning-tint)"
-          : "border-accent/25 bg-(--color-accent-tint)"
-      )}
+      className="my-2 max-w-3xl px-3 py-2"
+      variant={isWarning ? "warning" : "accent"}
     >
-      <Icon
-        aria-hidden="true"
-        className={cn(
-          "mt-0.5 size-3.5 shrink-0",
-          isWarning ? "text-(--color-warning)" : "text-accent"
-        )}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-medium text-(--color-text-primary)">{title}</span>
-          {meta ? (
-            <span
-              data-testid="runtime-activity-meta"
-              className="font-mono text-badge tracking-mono text-(--color-text-tertiary) uppercase"
-            >
-              {meta}
-            </span>
-          ) : null}
-        </div>
-        <p
-          data-testid="runtime-activity-detail"
-          className="mt-1 truncate text-(--color-text-secondary)"
-        >
-          {detail}
-        </p>
-      </div>
-    </div>
+      <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <AlertTitle>{title}</AlertTitle>
+      {meta ? <AlertMeta data-testid="runtime-activity-meta">{meta}</AlertMeta> : null}
+      <AlertDescription className="truncate" data-testid="runtime-activity-detail">
+        {detail}
+      </AlertDescription>
+    </Alert>
   );
 }
 

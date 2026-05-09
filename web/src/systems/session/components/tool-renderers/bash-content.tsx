@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
 
+import { CodeBlock } from "@agh/ui";
+
 import type { UIMessage } from "../../types";
 
 const MAX_OUTPUT_LINES = 200;
@@ -38,23 +40,14 @@ export function BashContent({ message }: { message: UIMessage }) {
 
   return (
     <div className="space-y-1.5 text-xs" data-testid="bash-content">
-      {!!command && (
-        <div className="rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow whitespace-pre-wrap wrap-break-word">
-          <span className="text-(--color-text-tertiary)/40 select-none">$ </span>
-          <span className="text-(--color-text-secondary)">{String(command)}</span>
-        </div>
-      )}
+      {!!command && <CodeBlock code={String(command)} copyable={false} truncateLines={4} />}
       {result && (
         <div>
           {result.stderr && (
-            <pre className="max-h-48 overflow-auto rounded-md bg-(--color-danger-tint) px-3 py-2 font-mono text-eyebrow text-(--color-danger) whitespace-pre-wrap wrap-break-word">
-              {result.stderr}
-            </pre>
+            <CodeBlock code={result.stderr} copyable={false} showPrompt={false} tone="danger" />
           )}
           {displayText && (
-            <pre className="max-h-48 overflow-auto rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow text-(--color-text-tertiary) whitespace-pre-wrap wrap-break-word">
-              {displayText}
-            </pre>
+            <CodeBlock code={displayText} copyable={false} showPrompt={false} truncateLines={20} />
           )}
           {isTruncated && (
             <button

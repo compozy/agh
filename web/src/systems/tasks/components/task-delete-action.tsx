@@ -1,15 +1,7 @@
 import { useCallback, useState, type ComponentProps } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@agh/ui";
+import { Button, ConfirmDialog, DialogTrigger, Spinner } from "@agh/ui";
 
 type ButtonSize = ComponentProps<typeof Button>["size"];
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
@@ -49,64 +41,40 @@ export function TaskDeleteAction({
   }, [onDelete, taskId]);
 
   return (
-    <>
-      <Button
-        data-testid={triggerTestId}
-        disabled={isPending}
-        onClick={() => setOpen(true)}
-        size={size}
-        type="button"
-        variant={triggerVariant}
+    <ConfirmDialog
+      cancelButtonProps={{ "data-testid": cancelTestId, disabled: isPending }}
+      cancelLabel="Cancel"
+      confirmButtonProps={{ "data-testid": confirmTestId }}
+      confirmIcon={isPending ? Spinner : Trash2}
+      confirmLabel={isPending ? "Deleting" : "Delete task"}
+      contentProps={{ "data-testid": dialogTestId, showCloseButton: !isPending }}
+      description={
+        <>
+          This permanently removes <strong>{taskTitle}</strong> and its stored runs, events, and
+          triage state. Delete is blocked while the task still has child tasks or active runs.
+        </>
+      }
+      isPending={isPending}
+      onConfirm={handleConfirm}
+      onOpenChange={setOpen}
+      open={open}
+      title="Delete task?"
+      tone="danger"
+    >
+      <DialogTrigger
+        render={
+          <Button
+            data-testid={triggerTestId}
+            disabled={isPending}
+            size={size}
+            type="button"
+            variant={triggerVariant}
+          />
+        }
       >
-        {isPending ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <Trash2 className="size-3.5" />
-        )}
+        {isPending ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
         {triggerLabel}
-      </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md" data-testid={dialogTestId} showCloseButton={!isPending}>
-          <DialogHeader>
-            <DialogTitle>Delete task?</DialogTitle>
-            <DialogDescription>
-              This permanently removes <strong>{taskTitle}</strong> and its stored runs, events, and
-              triage state. Delete is blocked while the task still has child tasks or active runs.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              data-testid={cancelTestId}
-              disabled={isPending}
-              onClick={() => setOpen(false)}
-              type="button"
-              variant="ghost"
-            >
-              Cancel
-            </Button>
-            <Button
-              data-testid={confirmTestId}
-              disabled={isPending}
-              onClick={handleConfirm}
-              type="button"
-              variant="destructive"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Deleting
-                </>
-              ) : (
-                <>
-                  <Trash2 className="size-3.5" />
-                  Delete task
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      </DialogTrigger>
+    </ConfirmDialog>
   );
 }

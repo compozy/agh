@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Pencil, Plus } from "lucide-react";
 
 import {
   Button,
@@ -13,6 +13,7 @@ import {
   PageHeader,
   PillGroup,
   Section,
+  Spinner,
   type PillGroupItem,
   Textarea,
 } from "@agh/ui";
@@ -137,7 +138,7 @@ export function TaskEditorSurface({
     >
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 border-b border-(--color-divider) px-6 py-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)"
+        className="flex items-center gap-2 border-b border-(--color-divider) px-6 py-2 text-eyebrow text-(--color-text-label)"
       >
         {task ? (
           <Link
@@ -210,9 +211,7 @@ export function TaskEditorSurface({
                       >
                         Title
                       </FieldLabel>
-                      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-                        Required
-                      </span>
+                      <span className="text-badge text-(--color-text-tertiary)">Required</span>
                     </div>
                     <Input
                       className="h-10"
@@ -462,9 +461,7 @@ export function TaskEditorSurface({
                   ) : null}
 
                   <div className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3">
-                    <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                      Read-only context
-                    </p>
+                    <p className="text-badge text-(--color-text-label)">Read-only context</p>
                     <dl className="mt-3 space-y-2 text-small-body text-(--color-text-secondary)">
                       <ContextRow label="Scope" value={draft.scope} />
                       <ContextRow label="Parent task" value={draft.parentTaskId || "None"} />
@@ -512,7 +509,7 @@ export function TaskEditorSurface({
                   type="button"
                   variant="outline"
                 >
-                  {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  {isSubmitting ? <Spinner className="size-4" /> : null}
                   Save draft
                 </Button>
               ) : null}
@@ -522,7 +519,7 @@ export function TaskEditorSurface({
                 disabled={!canSubmit || isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+                {isSubmitting ? <Spinner className="size-4" /> : null}
                 {isCreateMode
                   ? template?.preview.enqueueOnSubmit
                     ? "Create & enqueue"
@@ -540,9 +537,7 @@ export function TaskEditorSurface({
 function ContextRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-        {label}
-      </dt>
+      <dt className="text-badge text-(--color-text-label)">{label}</dt>
       <dd className="truncate text-(--color-text-primary)">{value}</dd>
     </div>
   );

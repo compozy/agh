@@ -40,6 +40,14 @@ const itemVariants = cva(
         outline: "border-border",
         muted: "border-transparent bg-muted/50",
       },
+      selectable: {
+        true: "relative text-left hover:bg-[color:var(--color-hover)] focus-visible:border-[color:var(--color-accent)] focus-visible:ring-[color:var(--color-accent)]/40",
+        false: "",
+      },
+      selected: {
+        true: "bg-[color:var(--color-surface)]",
+        false: "",
+      },
       size: {
         default: "gap-2.5 px-3 py-2.5",
         sm: "gap-2.5 px-3 py-2.5",
@@ -49,23 +57,60 @@ const itemVariants = cva(
     defaultVariants: {
       variant: "default",
       size: "default",
+      selectable: false,
+      selected: false,
     },
   }
 );
 
+type ItemIndicator = "rail" | "dot" | "none";
+type ItemAs = "div" | "button";
+
+interface ItemProps extends useRender.ComponentProps<"div">, VariantProps<typeof itemVariants> {
+  as?: ItemAs;
+  indicator?: ItemIndicator;
+}
+
 function Item({
+  as = "div",
   className,
+  indicator = "none",
   variant = "default",
   size = "default",
+  selected = false,
+  selectable = false,
   render,
+  children,
   ...props
-}: useRender.ComponentProps<"div"> & VariantProps<typeof itemVariants>) {
+}: ItemProps) {
+  const isButton = as === "button";
+  const selectedState = Boolean(selected);
+  const selectableState = Boolean(selectable || selectedState || indicator !== "none");
+  const itemChildren = (
+    <>
+      {indicator !== "none" ? <ItemSelectionIndicator kind={indicator} /> : null}
+      {children}
+    </>
+  );
+
   return useRender({
-    defaultTagName: "div",
+    defaultTagName: as,
     props: mergeProps<"div">(
       {
-        className: cn(itemVariants({ variant, size, className })),
-      },
+        className: cn(
+          itemVariants({
+            variant,
+            size,
+            selectable: selectableState,
+            selected: selectedState,
+            className,
+          })
+        ),
+        children: itemChildren,
+        "aria-pressed": isButton && selectableState ? selectedState : undefined,
+        "data-selected": selectedState ? "true" : undefined,
+        type: isButton ? "button" : undefined,
+      } as Record<string, unknown>,
       props
     ),
     render,
@@ -73,8 +118,37 @@ function Item({
       slot: "item",
       variant,
       size,
+      selected: selectedState,
+      selectable: selectableState,
     },
   });
+}
+
+interface ItemSelectionIndicatorProps extends React.ComponentProps<"span"> {
+  kind?: ItemIndicator;
+}
+
+function ItemSelectionIndicator({
+  className,
+  kind = "rail",
+  ...props
+}: ItemSelectionIndicatorProps) {
+  if (kind === "none") return null;
+
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="item-selection-indicator"
+      data-indicator={kind}
+      className={cn(
+        kind === "rail"
+          ? "absolute top-2 bottom-2 left-0 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          : "size-1.5 shrink-0 rounded-full bg-[color:var(--color-accent)]",
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
 const itemMediaVariants = cva(
@@ -176,6 +250,7 @@ function ItemFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
   Item,
+  ItemSelectionIndicator,
   ItemMedia,
   ItemContent,
   ItemActions,
@@ -186,3 +261,4 @@ export {
   ItemHeader,
   ItemFooter,
 };
+export type { ItemAs, ItemIndicator, ItemProps, ItemSelectionIndicatorProps };

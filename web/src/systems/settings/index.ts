@@ -141,7 +141,7 @@ export type {
   SettingsRestartStore,
 } from "./stores/settings-restart-store";
 
-// Hooks — reads
+// Hooks -- reads
 export {
   useSettingsAutomation,
   useSettingsGeneral,
@@ -162,7 +162,7 @@ export {
   useSettingsProviders,
 } from "./hooks/use-settings-collections";
 
-// Hooks — mutations
+// Hooks -- mutations
 export {
   useDeleteSettingsSandbox,
   useDeleteSettingsHook,
@@ -183,5 +183,5 @@ export {
   useUpdateSettingsSkills,
 } from "./hooks/use-settings-mutations";
 
-// Hooks — restart
+// Hooks -- restart
 export { useSettingsRestart } from "./hooks/use-settings-restart";

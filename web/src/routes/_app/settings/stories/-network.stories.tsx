@@ -31,7 +31,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty shell state — the listener port has been edited so the save-bar reads
+ * Dirty shell state -- the listener port has been edited so the save-bar reads
  * Unsaved changes + the Save button enables.
  */
 export const Dirty: Story = {

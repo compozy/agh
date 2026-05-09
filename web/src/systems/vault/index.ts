@@ -21,6 +21,7 @@ export {
 
 // Query infrastructure
 export { vaultKeys } from "./lib/query-keys";
+export { vaultNamespaceTone } from "./lib/vault-tones";
 export {
   sessionVaultSecretsOptions,
   vaultSecretDetailOptions,

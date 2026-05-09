@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, ChevronRight, Play } from "lucide-react";
+import { ArrowUpRight, Play } from "lucide-react";
 
-import { Button, Pill, PageHeader } from "@agh/ui";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  Button,
+  PageHeader,
+  Pill,
+} from "@agh/ui";
 
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatRelativeTime, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
@@ -68,32 +78,36 @@ export function TaskRunDetailHeader({
       className="flex flex-col border-b border-(--color-divider)"
       data-testid="task-run-detail-header"
     >
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-1 px-6 py-2.5 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)"
-        data-testid="task-run-detail-breadcrumb"
-      >
-        <Link
-          className="hover:text-(--color-text-secondary)"
-          data-testid="task-run-detail-breadcrumb-tasks"
-          to="/tasks"
-        >
-          Tasks
-        </Link>
-        <ChevronRight className="size-3 text-(--color-text-tertiary)" />
-        <Link
-          className="hover:text-(--color-text-secondary)"
-          data-testid="task-run-detail-breadcrumb-task"
-          params={{ id: task.id }}
-          to="/tasks/$id"
-        >
-          {identifier}
-        </Link>
-        <ChevronRight className="size-3 text-(--color-text-tertiary)" />
-        <span className="text-(--color-text-secondary)">{record.id}</span>
-      </nav>
-
       <PageHeader
+        breadcrumb={
+          <Breadcrumb data-testid="task-run-detail-breadcrumb">
+            <BreadcrumbList className="text-(--color-text-label)">
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  data-testid="task-run-detail-breadcrumb-tasks"
+                  render={<Link to="/tasks" />}
+                >
+                  Tasks
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  data-testid="task-run-detail-breadcrumb-task"
+                  render={<Link params={{ id: task.id }} to="/tasks/$id" />}
+                >
+                  {identifier}
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="text-(--color-text-secondary)">
+                  {record.id}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        }
         icon={Play}
         meta={
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -103,25 +117,26 @@ export function TaskRunDetailHeader({
               </Pill>
             ) : null}
             {linkedSessionID && linkedSessionAgent ? (
-              <Link
-                className="inline-flex items-center gap-1 rounded-md border border-(--color-divider) px-2.5 py-1 font-mono text-eyebrow uppercase tracking-mono text-accent hover:border-accent"
+              <Pill.Link
                 data-testid="task-run-detail-open-session"
-                params={{ name: linkedSessionAgent, id: linkedSessionID }}
-                to="/agents/$name/sessions/$id"
+                render={
+                  <Link
+                    params={{ name: linkedSessionAgent, id: linkedSessionID }}
+                    to="/agents/$name/sessions/$id"
+                  />
+                }
               >
                 Open session
                 <ArrowUpRight className="size-3" />
-              </Link>
+              </Pill.Link>
             ) : linkedSessionID ? (
-              <Link
-                className="inline-flex items-center gap-1 rounded-md border border-(--color-divider) px-2.5 py-1 font-mono text-eyebrow uppercase tracking-mono text-accent hover:border-accent"
+              <Pill.Link
                 data-testid="task-run-detail-open-session"
-                params={{ id: linkedSessionID }}
-                to="/session/$id"
+                render={<Link params={{ id: linkedSessionID }} to="/session/$id" />}
               >
                 Open session
                 <ArrowUpRight className="size-3" />
-              </Link>
+              </Pill.Link>
             ) : null}
             {canCancel && onCancelRun ? (
               <Button
@@ -154,19 +169,22 @@ export function TaskRunDetailHeader({
             </Pill>
           </span>
         }
+        statusRow={
+          <div
+            className="flex flex-wrap items-center gap-2 text-small-body text-(--color-text-secondary)"
+            data-testid="task-run-detail-meta"
+          >
+            <span>attempt {record.attempt}</span>
+            {record.session_id ? (
+              <span className="font-mono">session {record.session_id}</span>
+            ) : null}
+            {record.claimed_by?.ref ? <span>claimed by {record.claimed_by.ref}</span> : null}
+            {record.started_at ? (
+              <span>started {formatRelativeTime(record.started_at)}</span>
+            ) : null}
+          </div>
+        }
       />
-
-      <div
-        className="flex flex-wrap items-center gap-2 px-6 py-2.5 text-small-body text-(--color-text-secondary)"
-        data-testid="task-run-detail-meta"
-      >
-        <span>attempt {record.attempt}</span>
-        {record.session_id ? (
-          <span className="font-mono">· session {record.session_id}</span>
-        ) : null}
-        {record.claimed_by?.ref ? <span>· claimed by {record.claimed_by.ref}</span> : null}
-        {record.started_at ? <span>· started {formatRelativeTime(record.started_at)}</span> : null}
-      </div>
     </header>
   );
 }

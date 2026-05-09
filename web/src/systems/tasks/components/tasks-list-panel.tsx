@@ -1,6 +1,6 @@
 import { AlertCircle, ListChecks, Plus, Search } from "lucide-react";
 
-import { Button, Empty, PillGroup, SearchInput, Section } from "@agh/ui";
+import { Button, Empty, PillGroup, SearchInput, Section, Skeleton } from "@agh/ui";
 
 import type { TaskListItem, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
@@ -52,7 +52,7 @@ function getStatusHeadline(filter?: TaskStatus | null): string {
 }
 
 /**
- * Tasks list column — search + lane switcher + rows, consumed by the `SplitPane`
+ * Tasks list column -- search + lane switcher + rows, consumed by the `SplitPane`
  * list slot on `/tasks`. Composes `@agh/ui` `SearchInput`, `Pills`, `Section`, and
  * `Empty`; rows come from `TaskCard` (built on the shared `TasksListRow`).
  */
@@ -85,7 +85,7 @@ export function TasksListPanel({
         <SearchInput
           value={searchQuery}
           onChange={onSearchChange}
-          placeholder="Filter tasks…"
+          placeholder="Filter tasks..."
           data-testid="tasks-list-search-input"
         />
         <PillGroup
@@ -114,7 +114,7 @@ export function TasksListPanel({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between border-b border-(--color-divider) px-4 py-2 font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+      <div className="flex items-center justify-between border-b border-(--color-divider) px-4 py-2 text-badge text-(--color-text-label)">
         <span data-testid="tasks-list-headline">
           {getStatusHeadline(statusFilter)}
           {tasks.length > 0 ? <span className="ml-2">{tasks.length}</span> : null}
@@ -130,9 +130,9 @@ export function TasksListPanel({
                 className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-4"
                 key={index}
               >
-                <div className="h-2.5 w-20 rounded-full bg-(--color-surface-elevated)" />
-                <div className="mt-3 h-3.5 w-3/4 rounded-full bg-(--color-surface-elevated)" />
-                <div className="mt-2 h-2.5 w-1/2 rounded-full bg-(--color-surface-elevated)" />
+                <Skeleton className="h-2.5 w-20 rounded-full" />
+                <Skeleton className="mt-3 h-3.5 w-3/4 rounded-full" />
+                <Skeleton className="mt-2 h-2.5 w-1/2 rounded-full" />
               </div>
             ))}
           </div>

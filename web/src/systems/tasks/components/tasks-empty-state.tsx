@@ -1,7 +1,7 @@
 import { Globe, ListChecks, Plus, RefreshCcw, Sparkles, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Pill, Section } from "@agh/ui";
+import { Button, Empty, Eyebrow, Pill, Section } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
@@ -23,7 +23,7 @@ export interface TasksEmptyStateProps {
 }
 
 /**
- * Empty-state for the Tasks domain — composes `@agh/ui` `Empty` + `Section` +
+ * Empty-state for the Tasks domain -- composes `@agh/ui` `Empty` + `Section` +
  * template-card grid. The `Empty` action slot owns the primary CTA; the Section
  * below lists the six task templates.
  */
@@ -70,11 +70,7 @@ export function TasksEmptyState({
         <Section
           data-testid="tasks-empty-templates"
           label="Start from a template"
-          right={
-            <p className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
-              {TASK_TEMPLATES.length} templates
-            </p>
-          }
+          right={<Eyebrow>{TASK_TEMPLATES.length} templates</Eyebrow>}
         >
           <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr]">
             {TASK_TEMPLATES.map(template => (

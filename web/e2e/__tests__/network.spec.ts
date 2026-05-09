@@ -89,6 +89,18 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.threadTab).toHaveAttribute("aria-selected", "true");
   await expect(ui.threadsTab).toHaveAttribute("aria-label", `Threads in #${channelName}`);
   await expect(ui.threadList).toHaveAttribute("aria-label", `Threads in #${channelName}`);
+  await ui.channelInspectorToggle.click();
+  await expect(ui.inspector).toBeVisible();
+  await expect(ui.inspectorMembersTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorPanelMembers).toBeVisible();
+  await ui.inspectorWorkTab.click();
+  await expect(ui.inspectorWorkTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorPanelWork).toBeVisible();
+  await ui.inspectorActivityTab.click();
+  await expect(ui.inspectorActivityTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorPanelActivity).toBeVisible();
+  await ui.channelInspectorToggle.click();
+  await expect(ui.inspector).toHaveCount(0);
   await expect(ui.threadItem(operatorFlow.threadId)).toBeVisible();
   await expect(ui.threadItem(operatorFlow.threadId)).toContainText(
     browserNetworkOperatorFlowScenario.texts.say

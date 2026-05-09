@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, X } from "lucide-react";
+import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -6,10 +6,13 @@ import {
   AlertAction,
   AlertDescription,
   Button,
+  ConfirmDialog,
   Empty,
   Input,
   NativeSelect,
   NativeSelectOption,
+  PageShell,
+  Section,
   Textarea,
 } from "@agh/ui";
 
@@ -22,12 +25,9 @@ import {
 import type { SettingsProviderEntry } from "@/systems/settings";
 import {
   ProvidersGrid,
-  SettingsCollectionHeader,
-  SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSourceBadge,
   SettingsStatusLine,
@@ -68,13 +68,13 @@ function ProvidersSettingsPage() {
   }
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="providers"
       title="Providers"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-providers-status-line"
-          daemonAvailable
+          status="connected"
           items={[
             <span key="total" data-testid="settings-page-providers-total">
               {page.counts.total} providers
@@ -98,13 +98,13 @@ function ProvidersSettingsPage() {
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
-      <SettingsCollectionHeader
+      <Section
         data-testid="settings-page-providers-header-row"
-        eyebrow="Catalog"
-        summary={
+        label="Catalog"
+        note={
           <>{page.counts.total} providers shipped with the daemon or defined in config overlays</>
         }
-        action={
+        right={
           <Button
             type="button"
             variant="default"
@@ -152,7 +152,7 @@ function ProvidersSettingsPage() {
         onClose={page.closeDelete}
         onConfirm={page.confirmDelete}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -242,7 +242,7 @@ function ProviderEditor({
           description={
             isCreate
               ? "Lower-case identifier used in agent frontmatter and CLI flags."
-              : "Name is immutable — create a new provider to rename."
+              : "Name is immutable -- create a new provider to rename."
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
@@ -752,16 +752,15 @@ function ProviderDeleteDialog({
   const fallback = target?.fallback ?? null;
 
   return (
-    <SettingsDeleteDialog
+    <ConfirmDialog
       open={open}
-      slug="providers"
       title={target ? `Delete provider "${target.name}"?` : "Delete provider"}
       description={
         target
           ? "Removing the overlay keeps the provider config in other overlays or builtin definitions, if any."
           : null
       }
-      fallbackNote={
+      note={
         fallback ? (
           <div className="flex flex-col gap-1" data-testid="settings-providers-delete-builtin">
             <span className="font-medium">Builtin provider will be revealed</span>
@@ -773,8 +772,20 @@ function ProviderDeleteDialog({
         ) : null
       }
       error={error}
-      isDeleting={isDeleting}
+      isPending={isDeleting}
+      cancelLabel="Cancel"
       confirmLabel="Delete overlay"
+      confirmIcon={Trash2}
+      contentProps={{ "data-testid": "settings-providers-delete" }}
+      noteProps={{ "data-testid": "settings-providers-delete-fallback" }}
+      errorProps={{ "data-testid": "settings-providers-delete-error" }}
+      cancelButtonProps={{
+        "data-testid": "settings-providers-delete-cancel",
+        disabled: isDeleting,
+      }}
+      confirmButtonProps={{
+        "data-testid": "settings-providers-delete-confirm",
+      }}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();

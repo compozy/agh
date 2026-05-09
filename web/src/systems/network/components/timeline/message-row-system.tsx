@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Eyebrow } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 import type { NetworkConversationMessage } from "../../types";
@@ -45,9 +47,7 @@ export function MessageRowSystem({ message, className }: MessageRowSystemProps) 
     >
       <span aria-hidden="true" className="block h-px w-9 shrink-0 bg-(--color-divider)" />
       <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2 font-mono text-xs text-(--color-text-secondary)">
-        <span className="text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-          {message.kind}
-        </span>
+        <Eyebrow weight="medium">{message.kind}</Eyebrow>
         <span className={cn("min-w-0", expanded ? "" : "truncate")}>{summary}</span>
       </span>
       <time

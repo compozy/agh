@@ -184,9 +184,9 @@ export const Disconnected: Story = {
   },
 };
 
-export const Reconnecting: Story = {
+export const Connecting: Story = {
   args: {
-    connectionStatus: "reconnecting",
+    connectionStatus: "connecting",
   },
 };
 

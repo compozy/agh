@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 
-import type { PillTone } from "@agh/ui";
-
-import type { ConnectionStatus } from "@/components/connection-indicator";
+import type { ConnectionStatus, PillTone } from "@agh/ui";
 
 import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/daemon";
@@ -88,12 +86,21 @@ function deriveDaemonStatus(
     };
   }
 
-  if (connectionStatus === "reconnecting") {
+  if (connectionStatus === "connecting") {
     return {
       key: "unknown",
       tone: "neutral",
-      label: "Reconnecting",
+      label: "Connecting",
       description: "Re-establishing the connection to the local daemon.",
+    };
+  }
+
+  if (connectionStatus === "error") {
+    return {
+      key: "disconnected",
+      tone: "danger",
+      label: "Connection error",
+      description: "The daemon health endpoint did not return a usable response.",
     };
   }
 

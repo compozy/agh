@@ -88,7 +88,7 @@ function Frame({ children }: FrameProps) {
 }
 
 /**
- * Default — table of sessions sorted by last activity with status chips and metadata.
+ * Default -- table of sessions sorted by last activity with status chips and metadata.
  */
 export const Default: Story = {
   args: {},
@@ -100,7 +100,7 @@ export const Default: Story = {
 };
 
 /**
- * One session has a failure payload — surfaces the FAILED chip via the danger tone.
+ * One session has a failure payload -- surfaces the FAILED chip via the danger tone.
  */
 export const WithFailure: Story = {
   args: { sessions: fraudSessionsWithFailure },
@@ -112,7 +112,7 @@ export const WithFailure: Story = {
 };
 
 /**
- * Empty state — no sessions for the agent yet.
+ * Empty state -- no sessions for the agent yet.
  */
 export const Empty: Story = {
   args: { sessions: [] },

@@ -1,6 +1,6 @@
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { Empty } from "@agh/ui";
+import { BlockLoading, Empty, Eyebrow } from "@agh/ui";
 
 import { formatRelativeTime } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -22,12 +22,12 @@ export function TasksDashboardView({
 }: TasksDashboardViewProps) {
   if (isLoading && !dashboard) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
+      <BlockLoading
+        label="Loading tasks dashboard"
+        size="md"
+        surface="bare"
         data-testid="tasks-dashboard-loading"
-      >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
+      />
     );
   }
 
@@ -75,13 +75,13 @@ export function TasksDashboardView({
 
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
-      <div className="flex items-center justify-between gap-2 border-t border-(--color-divider) pt-3 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
-        <span data-testid="tasks-dashboard-freshness">
+      <div className="flex items-center justify-between gap-2 border-t border-(--color-divider) pt-3">
+        <Eyebrow data-testid="tasks-dashboard-freshness">
           {freshness.stale ? "Stale" : "Fresh"} · {freshnessLabel}
-        </span>
-        <span>
+        </Eyebrow>
+        <Eyebrow>
           {dashboard.totals.tasks_total} tasks · {dashboard.totals.runs_total} runs
-        </span>
+        </Eyebrow>
       </div>
     </div>
   );

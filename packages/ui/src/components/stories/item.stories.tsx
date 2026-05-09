@@ -12,6 +12,7 @@ import {
   ItemGroup,
   ItemMedia,
   ItemSeparator,
+  ItemSelectionIndicator,
   ItemTitle,
 } from "../item";
 
@@ -124,6 +125,74 @@ export const Compact: Story = {
           </Item>
         ))}
       </ItemGroup>
+    </div>
+  ),
+};
+
+export const SelectableRail: Story = {
+  args: {},
+  render: () => (
+    <div className="w-[32rem]">
+      <ItemGroup>
+        {agents.slice(0, 2).map((agent, index) => (
+          <Item
+            key={agent.id}
+            as="button"
+            selectable
+            selected={index === 0}
+            indicator={index === 0 ? "rail" : "none"}
+            className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+          >
+            <ItemMedia variant="icon">
+              <agent.icon />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{agent.title}</ItemTitle>
+              <ItemDescription>{agent.description}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Badge variant="secondary">{agent.badge}</Badge>
+            </ItemActions>
+          </Item>
+        ))}
+      </ItemGroup>
+    </div>
+  ),
+};
+
+export const SelectableDot: Story = {
+  args: {},
+  render: () => (
+    <div className="w-[32rem]">
+      <Item as="button" selectable selected indicator="dot" variant="outline">
+        <ItemContent>
+          <ItemTitle>Queued review</ItemTitle>
+          <ItemDescription>Dot indicator keeps the selection signal inline.</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Badge variant="secondary">selected</Badge>
+        </ItemActions>
+      </Item>
+    </div>
+  ),
+};
+
+export const SelectedActive: Story = {
+  args: {},
+  render: () => (
+    <div className="w-[32rem]">
+      <Item as="button" selectable selected variant="outline">
+        <ItemSelectionIndicator kind="rail" />
+        <ItemMedia variant="icon">
+          <CpuIcon />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>Claude Code</ItemTitle>
+          <ItemDescription>
+            Selected row with an explicitly composed indicator slot.
+          </ItemDescription>
+        </ItemContent>
+      </Item>
     </div>
   ),
 };

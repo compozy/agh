@@ -86,7 +86,7 @@ function collectActiveAgentNames(sessions: SessionPayload[] | undefined): Set<st
 
 // Computed once at mount and handed to useTree's initialState.expandedItems.
 // Headless-tree treats initialState as a seed value, so route changes after the
-// tree has mounted MUST NOT silently auto-expand a different category — operator
+// tree has mounted MUST NOT silently auto-expand a different category -- operator
 // expansion intent wins from that point on. The TechSpec accepts initial-only
 // expansion; URL/config persistence is intentionally out of scope.
 function deriveInitialExpanded(

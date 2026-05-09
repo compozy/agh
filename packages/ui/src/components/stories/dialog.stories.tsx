@@ -58,10 +58,12 @@ function BasicDialog() {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <BasicDialog />,
 };
 
 export const ReducedMotion: Story = {
+  args: {},
   parameters: {
     docs: {
       description: {
@@ -78,6 +80,7 @@ export const ReducedMotion: Story = {
 };
 
 export const OpenAndFocus: Story = {
+  args: {},
   render: () => <BasicDialog />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -96,6 +99,7 @@ export const OpenAndFocus: Story = {
 };
 
 export const HiddenCloseButton: Story = {
+  args: {},
   render: () => (
     <Dialog>
       <DialogTrigger render={<Button variant="outline">Open</Button>} />
@@ -104,6 +108,119 @@ export const HiddenCloseButton: Story = {
         <DialogDescription>The close button is hidden.</DialogDescription>
         <DialogFooter>
           <DialogClose render={<Button>Got it</Button>} />
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ),
+};
+
+export const RuledHeader: Story = {
+  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '`DialogHeader variant="ruled"` adds the panel-tone background and `border-b border-(--color-divider)` rule with the canonical `px-5 py-4` rhythm. Pair with `DialogContent unframed` so the dialog body owns its own padding.',
+      },
+    },
+  },
+  render: () => (
+    <Dialog defaultOpen>
+      <DialogContent unframed className="max-w-md" data-testid="ruled-header-dialog">
+        <DialogHeader variant="ruled">
+          <DialogTitle>Add workspace</DialogTitle>
+          <DialogDescription>
+            Pick the global home directory or register a manual workspace path.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-5 py-5 text-sm text-[color:var(--color-text-secondary)]">
+          Body content lives below the rule.
+        </div>
+      </DialogContent>
+    </Dialog>
+  ),
+};
+
+export const RuledFooter: Story = {
+  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '`DialogFooter variant="ruled"` matches the header rule with `border-t border-(--color-divider)` and `px-5 py-3` rhythm so callers can compose flush primary/secondary actions inside `DialogContent unframed`.',
+      },
+    },
+  },
+  render: () => (
+    <Dialog defaultOpen>
+      <DialogContent unframed className="max-w-md" data-testid="ruled-footer-dialog">
+        <div className="px-5 py-5">
+          <DialogTitle className="text-base font-medium">Discard draft?</DialogTitle>
+          <DialogDescription className="mt-2">
+            This task draft has not been saved. Discarding will remove it from the inbox.
+          </DialogDescription>
+        </div>
+        <DialogFooter variant="ruled">
+          <DialogClose render={<Button variant="ghost">Cancel</Button>} />
+          <DialogClose render={<Button>Discard</Button>} />
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ),
+};
+
+export const Unframed: Story = {
+  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`DialogContent unframed` removes the default `gap-4 p-4` chrome. Useful when the consumer composes its own header, body, and footer padding (typically alongside the ruled header/footer variants).",
+      },
+    },
+  },
+  render: () => (
+    <Dialog defaultOpen>
+      <DialogContent unframed className="max-w-md" data-testid="unframed-dialog">
+        <div
+          data-testid="unframed-body"
+          className="flex flex-col gap-3 px-5 py-5 text-sm text-[color:var(--color-text-secondary)]"
+        >
+          <DialogTitle className="text-base font-medium text-[color:var(--color-text-primary)]">
+            Composed body
+          </DialogTitle>
+          <p>The host owns gutters and rhythm -- the dialog ships only the canvas + border.</p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  ),
+};
+
+export const RuledFull: Story = {
+  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story: "Ruled header + ruled footer + unframed body -- the canonical AGH dialog chrome.",
+      },
+    },
+  },
+  render: () => (
+    <Dialog defaultOpen>
+      <DialogContent unframed className="max-w-md" data-testid="ruled-full-dialog">
+        <DialogHeader variant="ruled">
+          <DialogTitle>Connect workspace</DialogTitle>
+          <DialogDescription>
+            Confirm the workspace path before AGH starts the daemon.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-5 py-5">
+          <Label htmlFor="ruled-full-name">Workspace path</Label>
+          <Input id="ruled-full-name" defaultValue="/Users/pedro/Dev/agh" />
+        </div>
+        <DialogFooter variant="ruled">
+          <DialogClose render={<Button variant="ghost">Cancel</Button>} />
+          <DialogClose render={<Button>Connect</Button>} />
         </DialogFooter>
       </DialogContent>
     </Dialog>

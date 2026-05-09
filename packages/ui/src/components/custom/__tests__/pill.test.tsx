@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MotionConfig } from "motion/react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Pill, type PillTone } from "../pill";
@@ -134,6 +134,24 @@ describe("Pill", () => {
     const pill = screen.getByText("label");
     expect(pill.className).toContain("custom");
     expect(pill.className).toContain("bg-(--color-neutral-tint)");
+  });
+
+  it("Should expose Pill.Link as an accessible anchor chip", async () => {
+    const user = userEvent.setup();
+    const handle = vi.fn((event: MouseEvent<HTMLAnchorElement>) => event.preventDefault());
+    render(
+      <Pill.Link href="/tasks/task-1" onClick={handle}>
+        Open task
+      </Pill.Link>
+    );
+
+    const link = screen.getByRole("link", { name: /open task/i });
+    expect(link).toHaveAttribute("href", "/tasks/task-1");
+    expect(link).toHaveAttribute("data-slot", "pill");
+    expect(link).toHaveAttribute("data-tone", "accent");
+    expect(link).toHaveAttribute("data-mono", "true");
+    await user.click(link);
+    expect(handle).toHaveBeenCalledTimes(1);
   });
 });
 

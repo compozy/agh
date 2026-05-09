@@ -1,17 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, GitBranch } from "lucide-react";
 
-import {
-  Empty,
-  Pill,
-  Section,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@agh/ui";
+import { Empty, LinkedRecordTable, Pill } from "@agh/ui";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
@@ -56,63 +46,55 @@ export function TasksDetailDependenciesPanel({
   }
 
   return (
-    <Section
+    <LinkedRecordTable
       aria-label="Task dependencies"
       className="w-full gap-6 px-6 py-5"
+      columns={["Title", "Owner"]}
       data-testid="tasks-detail-dependencies-panel"
     >
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead />
-            <TableHead>Title</TableHead>
-            <TableHead>Owner</TableHead>
-            <TableHead className="w-8" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {dependencies.map(dep => {
-            const target = dep.depends_on;
-            const signal = taskStatusSignal(target.status);
-            return (
-              <TableRow data-testid={`tasks-detail-dependencies-item-${target.id}`} key={target.id}>
-                <TableCell className="w-8 pl-4">
-                  <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-                </TableCell>
-                <TableCell className="max-w-[360px]">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <span className="truncate text-small-body text-(--color-text-primary)">
-                      {target.title}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
-                      <Pill mono>
-                        {taskShortId({ id: target.id, identifier: target.identifier })}
-                      </Pill>
-                      <Pill tone={pillToneFromLegacyTone(taskStatusTone(target.status))}>
-                        {taskStatusLabel(target.status)}
-                      </Pill>
-                    </div>
+      <LinkedRecordTable.Body>
+        {dependencies.map(dep => {
+          const target = dep.depends_on;
+          const signal = taskStatusSignal(target.status);
+          return (
+            <LinkedRecordTable.Row
+              data-testid={`tasks-detail-dependencies-item-${target.id}`}
+              key={target.id}
+            >
+              <LinkedRecordTable.Cell className="w-8 pl-4">
+                <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+              </LinkedRecordTable.Cell>
+              <LinkedRecordTable.Cell className="max-w-[360px]">
+                <LinkedRecordTable.Title>
+                  <span className="truncate text-small-body text-(--color-text-primary)">
+                    {target.title}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
+                    <Pill mono>
+                      {taskShortId({ id: target.id, identifier: target.identifier })}
+                    </Pill>
+                    <Pill tone={pillToneFromLegacyTone(taskStatusTone(target.status))}>
+                      {taskStatusLabel(target.status)}
+                    </Pill>
                   </div>
-                </TableCell>
-                <TableCell className="text-xs text-(--color-text-secondary)">
-                  {taskOwnerLabel(target.owner)}
-                </TableCell>
-                <TableCell className="w-8 pr-4">
-                  <Link
-                    aria-label={`Open dependency ${target.identifier ?? target.id}`}
-                    className="inline-flex items-center gap-1 font-mono text-badge uppercase tracking-mono text-accent hover:underline"
-                    data-testid={`tasks-detail-dependencies-link-${target.id}`}
-                    params={{ id: target.id }}
-                    to="/tasks/$id"
-                  >
-                    Open <ChevronRight className="size-3" />
-                  </Link>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </Section>
+                </LinkedRecordTable.Title>
+              </LinkedRecordTable.Cell>
+              <LinkedRecordTable.Cell className="text-xs text-(--color-text-secondary)">
+                {taskOwnerLabel(target.owner)}
+              </LinkedRecordTable.Cell>
+              <LinkedRecordTable.OpenCell>
+                <Pill.Link
+                  aria-label={`Open dependency ${target.identifier ?? target.id}`}
+                  data-testid={`tasks-detail-dependencies-link-${target.id}`}
+                  render={<Link params={{ id: target.id }} to="/tasks/$id" />}
+                >
+                  Open <ChevronRight className="size-3" />
+                </Pill.Link>
+              </LinkedRecordTable.OpenCell>
+            </LinkedRecordTable.Row>
+          );
+        })}
+      </LinkedRecordTable.Body>
+    </LinkedRecordTable>
   );
 }

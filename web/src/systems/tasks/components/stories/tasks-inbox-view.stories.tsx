@@ -92,7 +92,7 @@ const POPULATED: TaskInboxView = buildInboxFixture({
             identifier: "TASK-103",
             scope: "workspace",
             status: "failed",
-            title: "Bridge delivery failed — slack#alerts",
+            title: "Bridge delivery failed -- slack#alerts",
             owner: { kind: "agent_session", ref: "codex" },
           },
           run: {

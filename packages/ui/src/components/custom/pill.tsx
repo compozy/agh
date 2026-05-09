@@ -108,6 +108,12 @@ export interface PillProps
   uppercase?: boolean;
 }
 
+export type PillLinkProps = Omit<PillProps, "active" | "render" | "solid"> &
+  Omit<React.ComponentProps<"a">, keyof PillProps | "color"> & {
+    render?: PillProps["render"];
+    solid?: PillProps["solid"];
+  };
+
 function Pill({
   tone: toneProp,
   size: sizeProp,
@@ -194,7 +200,33 @@ function PillDot({
   );
 }
 
-const PillRoot = Pill as typeof Pill & { Dot: typeof PillDot };
-PillRoot.Dot = PillDot;
+function PillLink({
+  tone = "accent",
+  size = "sm",
+  mono = true,
+  uppercase = true,
+  className,
+  render,
+  children,
+  ...props
+}: PillLinkProps) {
+  return (
+    <Pill
+      tone={tone}
+      size={size}
+      mono={mono}
+      uppercase={uppercase}
+      className={cn("hover:border-(--color-accent) hover:text-(--color-accent)", className)}
+      render={render ?? <a />}
+      {...props}
+    >
+      {children}
+    </Pill>
+  );
+}
 
-export { PillRoot as Pill, PillDot, pillVariants };
+const PillRoot = Pill as typeof Pill & { Dot: typeof PillDot; Link: typeof PillLink };
+PillRoot.Dot = PillDot;
+PillRoot.Link = PillLink;
+
+export { PillRoot as Pill, PillDot, PillLink, pillVariants };

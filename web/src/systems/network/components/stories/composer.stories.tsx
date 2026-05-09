@@ -25,7 +25,7 @@ export const Default: Story = {
     <PanelSurface className="min-h-[180px] p-0">
       <Composer
         onSubmit={({ reset }) => reset()}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="story-default"
       />
@@ -39,7 +39,7 @@ export const Submitting: Story = {
       <Composer
         isSending
         onSubmit={() => undefined}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="story-submitting"
       />
@@ -55,7 +55,7 @@ export const Disabled: Story = {
         disabled
         disabledReason="Network is off."
         onSubmit={() => undefined}
-        placeholder="Reply…"
+        placeholder="Reply..."
         sendLabel="Send to #ops"
         testIdSuffix="story-disabled"
       />

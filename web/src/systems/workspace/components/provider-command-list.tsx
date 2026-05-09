@@ -1,13 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@agh/ui";
+import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup } from "@agh/ui";
 
 import type { SessionProviderOption } from "../types";
 
@@ -62,7 +55,6 @@ export interface ProviderCommandListProps {
   options: SessionProviderOption[];
   isSelected: (option: SessionProviderOption) => boolean;
   onSelect: (option: SessionProviderOption) => void;
-  searchPlaceholder?: string;
   emptyState?: ReactNode;
   itemTestId?: (option: SessionProviderOption) => string;
 }
@@ -71,49 +63,45 @@ export function ProviderCommandList({
   options,
   isSelected,
   onSelect,
-  searchPlaceholder = "Search providers...",
   emptyState = "No providers match your search.",
   itemTestId,
 }: ProviderCommandListProps) {
   const groups = useMemo(() => bucketByHarness(options), [options]);
 
   return (
-    <Command>
-      <CommandInput placeholder={searchPlaceholder} data-testid="provider-command-input" />
-      <CommandList>
-        <CommandEmpty data-testid="provider-command-empty">{emptyState}</CommandEmpty>
-        {groups.map(group => (
-          <CommandGroup
-            key={group.key}
-            heading={group.heading}
-            data-testid={`provider-command-group-${group.key}`}
-          >
-            {group.options.map(option => {
-              const selected = isSelected(option);
-              return (
-                <CommandItem
-                  key={option.name}
-                  value={providerSearchKey(option)}
-                  onSelect={() => onSelect(option)}
-                  data-checked={selected ? "true" : "false"}
-                  data-testid={
-                    itemTestId ? itemTestId(option) : `provider-command-item-${option.name}`
-                  }
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-sm text-foreground">
-                      {option.display_name?.trim() || option.name}
-                    </span>
-                    <span className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                      {option.harness ?? "acp"}
-                    </span>
-                  </div>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        ))}
-      </CommandList>
-    </Command>
+    <CommandList>
+      <CommandEmpty data-testid="provider-command-empty">{emptyState}</CommandEmpty>
+      {groups.map(group => (
+        <CommandSelectGroup
+          key={group.key}
+          heading={group.heading}
+          data-testid={`provider-command-group-${group.key}`}
+        >
+          {group.options.map(option => {
+            const selected = isSelected(option);
+            return (
+              <CommandItem
+                key={option.name}
+                value={providerSearchKey(option)}
+                onSelect={() => onSelect(option)}
+                data-checked={selected ? "true" : "false"}
+                data-testid={
+                  itemTestId ? itemTestId(option) : `provider-command-item-${option.name}`
+                }
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="truncate text-sm text-(--color-text-primary)">
+                    {option.display_name?.trim() || option.name}
+                  </span>
+                  <span className="font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)">
+                    {option.harness ?? "acp"}
+                  </span>
+                </div>
+              </CommandItem>
+            );
+          })}
+        </CommandSelectGroup>
+      ))}
+    </CommandList>
   );
 }

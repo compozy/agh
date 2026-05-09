@@ -1,20 +1,19 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SettingsPageShell } from "../settings-page-shell";
+import { PageShell, Section } from "@agh/ui";
 import { SettingsSaveBar } from "../settings-save-bar";
-import { SettingsSectionCard } from "../settings-section-card";
 
-describe("SettingsPageShell", () => {
+describe("PageShell", () => {
   it("renders the SETTINGS eyebrow + H1 title + actions slot", () => {
     render(
-      <SettingsPageShell
+      <PageShell
         slug="general"
         title="General"
         actions={<button data-testid="header-action">Restart</button>}
       >
         <p>body</p>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     const eyebrow = screen.getByTestId("settings-page-general-eyebrow");
@@ -27,7 +26,7 @@ describe("SettingsPageShell", () => {
 
   it("renders the banner, scroll body, and footer as separate layout bands", () => {
     render(
-      <SettingsPageShell
+      <PageShell
         slug="general"
         title="General"
         banner={<div data-testid="shell-banner">banner</div>}
@@ -42,7 +41,7 @@ describe("SettingsPageShell", () => {
         }
       >
         <div data-testid="shell-body-content">content</div>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     expect(screen.getByTestId("settings-page-general-header")).toBeInTheDocument();
@@ -59,7 +58,7 @@ describe("SettingsPageShell", () => {
 
   it("keeps the save bar outside of the scroll body", () => {
     render(
-      <SettingsPageShell
+      <PageShell
         slug="network"
         title="Network"
         footer={
@@ -73,7 +72,7 @@ describe("SettingsPageShell", () => {
         }
       >
         <div data-testid="shell-network-body-content">content</div>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     const body = screen.getByTestId("settings-page-network-body");
@@ -85,9 +84,9 @@ describe("SettingsPageShell", () => {
 
   it("omits the banner slot and footer when no content is provided", () => {
     render(
-      <SettingsPageShell slug="memory" title="Memory">
+      <PageShell slug="memory" title="Memory">
         <span>body</span>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     expect(screen.queryByTestId("settings-page-memory-banner-slot")).not.toBeInTheDocument();
@@ -96,13 +95,13 @@ describe("SettingsPageShell", () => {
 
   it("renders a status line region when provided", () => {
     render(
-      <SettingsPageShell
+      <PageShell
         slug="general"
         title="General"
         statusLine={<span data-testid="shell-status">daemon ok</span>}
       >
         <span>body</span>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     expect(screen.getByTestId("settings-page-general-status")).toContainElement(
@@ -112,9 +111,9 @@ describe("SettingsPageShell", () => {
 
   it("allows overriding the eyebrow prefix", () => {
     render(
-      <SettingsPageShell slug="general" title="General" eyebrow="Admin">
+      <PageShell slug="general" title="General" eyebrow="Admin">
         <span>body</span>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     expect(screen.getByTestId("settings-page-general-eyebrow")).toHaveTextContent(
@@ -124,9 +123,9 @@ describe("SettingsPageShell", () => {
 
   it("uses the mono tracking token and responsive shell spacing", () => {
     render(
-      <SettingsPageShell slug="general" title="General">
+      <PageShell slug="general" title="General">
         <span>body</span>
-      </SettingsPageShell>
+      </PageShell>
     );
 
     const eyebrow = screen.getByTestId("settings-page-general-eyebrow");
@@ -141,9 +140,9 @@ describe("SettingsPageShell", () => {
 
   it("uses the mono tracking token for section-card eyebrows", () => {
     render(
-      <SettingsSectionCard eyebrow="Runtime">
+      <Section divided label="Runtime">
         <span>content</span>
-      </SettingsSectionCard>
+      </Section>
     );
 
     expect(screen.getByText("Runtime").className).toContain("tracking-mono");

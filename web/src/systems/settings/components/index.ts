@@ -1,5 +1,3 @@
-export { SettingsCollectionHeader } from "./settings-collection-header";
-export { SettingsDeleteDialog } from "./settings-delete-dialog";
 export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
 export { ProviderCard, providerStateTone } from "./provider-card";
@@ -10,12 +8,9 @@ export { SettingsPageActions } from "./settings-page-actions";
 export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsFieldRow } from "./settings-field-row";
 export { SettingsNumberInput } from "./settings-number-input";
-export { SettingsPageShell } from "./settings-page-shell";
 export { SettingsRestartBanner } from "./settings-restart-banner";
 export type { RestartBannerState } from "./settings-restart-banner";
 export { SettingsSaveBar } from "./settings-save-bar";
-export { SettingsSectionCard } from "./settings-section-card";
-export { SettingsStatGrid, SettingsStatItem } from "./settings-stat-grid";
 export { SettingsSourceBadge } from "./settings-source-badge";
 export type { SettingsSource } from "./settings-source-badge";
 export { SettingsStatusLine } from "./settings-status-line";

@@ -190,6 +190,20 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.getByText("Add workspace")).toBeInTheDocument();
   });
 
+  it("renders the ruled DialogHeader chrome on the unframed dialog content", () => {
+    renderDialog({ open: true });
+    const dialog = screen.getByTestId("workspace-setup-dialog");
+    expect(dialog.dataset.frame).toBe("unframed");
+
+    const header = dialog.querySelector('[data-slot="dialog-header"]') as HTMLElement | null;
+    expect(header).not.toBeNull();
+    expect(header?.dataset.variant).toBe("ruled");
+    expect(header?.className).toContain("border-b");
+    expect(header?.className).toContain("[color:var(--color-divider)]");
+    expect(header?.className).toContain("px-5");
+    expect(header?.className).toContain("py-4");
+  });
+
   it("does not mount the dialog body when `open` is false", () => {
     renderDialog({ open: false });
     expect(screen.queryByTestId("workspace-setup-dialog-body")).not.toBeInTheDocument();

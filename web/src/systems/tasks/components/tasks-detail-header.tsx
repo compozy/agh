@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { ListChecks, Radio } from "lucide-react";
 
-import { Button, Pill, PageHeader } from "@agh/ui";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  Button,
+  PageHeader,
+  Pill,
+} from "@agh/ui";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
@@ -40,7 +50,7 @@ export interface TasksDetailHeaderProps {
 }
 
 /**
- * Detail page header — `PageHeader` with task title, `Pill.Dot`, short id `Pill`,
+ * Detail page header -- `PageHeader` with task title, `Pill.Dot`, short id `Pill`,
  * status pills, and action buttons (edit, cancel, publish, enqueue) in the meta
  * slot. The eyebrow row below surfaces secondary metadata (owner, origin,
  * created-by, last update, priority + approval pills).
@@ -108,7 +118,7 @@ export function TasksDetailHeader({
             {channelLabel ? (
               <Pill
                 data-testid="tasks-detail-coordination"
-                title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
+                title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
                 tone={pillToneFromLegacyTone("violet")}
               >
                 <span className="inline-flex items-center gap-1">
@@ -118,6 +128,26 @@ export function TasksDetailHeader({
               </Pill>
             ) : null}
           </span>
+        }
+        breadcrumb={
+          <Breadcrumb data-testid="tasks-detail-breadcrumb">
+            <BreadcrumbList className="text-(--color-text-label)">
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  data-testid="tasks-detail-breadcrumb-tasks"
+                  render={<Link to="/tasks" />}
+                >
+                  Tasks
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="text-(--color-text-secondary)">
+                  {identifier}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         }
         meta={
           <div
@@ -179,51 +209,36 @@ export function TasksDetailHeader({
             ) : null}
           </div>
         }
+        statusRow={
+          <div
+            className="flex flex-wrap items-center gap-2 text-small-body text-(--color-text-secondary)"
+            data-testid="tasks-detail-meta"
+          >
+            {record.priority ? (
+              <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
+                {taskPriorityLabel(record.priority)}
+              </Pill>
+            ) : null}
+            {taskHasApprovalPending(record) ? (
+              <Pill tone="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
+            ) : null}
+            <span>Owner {taskOwnerLabel(record.owner)}</span>
+            <span>Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
+            <span>
+              Created by{" "}
+              <span className="text-(--color-text-primary)">
+                {record.created_by?.ref ?? "unknown"}
+              </span>
+            </span>
+            <span>Updated {formatRelativeTime(record.updated_at)}</span>
+          </div>
+        }
+        subtitle={
+          <span data-testid="tasks-detail-lifecycle-hint">
+            {taskLifecyclePhaseDescription(lifecyclePhase)}
+          </span>
+        }
       />
-
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-1.5 px-4 pb-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)"
-        data-testid="tasks-detail-breadcrumb"
-      >
-        <Link
-          className="hover:text-(--color-text-secondary)"
-          data-testid="tasks-detail-breadcrumb-tasks"
-          to="/tasks"
-        >
-          Tasks
-        </Link>
-        <span aria-hidden="true">›</span>
-        <span className="text-(--color-text-secondary)">{identifier}</span>
-      </nav>
-
-      <div
-        className="flex flex-wrap items-center gap-2 px-4 pb-3 text-small-body text-(--color-text-secondary)"
-        data-testid="tasks-detail-meta"
-      >
-        {record.priority ? (
-          <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
-            {taskPriorityLabel(record.priority)}
-          </Pill>
-        ) : null}
-        {taskHasApprovalPending(record) ? (
-          <Pill tone="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
-        ) : null}
-        <span>Owner {taskOwnerLabel(record.owner)}</span>
-        <span>· Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
-        <span>
-          · Created by{" "}
-          <span className="text-(--color-text-primary)">{record.created_by?.ref ?? "unknown"}</span>
-        </span>
-        <span>· Updated {formatRelativeTime(record.updated_at)}</span>
-      </div>
-
-      <p
-        className="px-4 pb-3 text-xs text-(--color-text-tertiary)"
-        data-testid="tasks-detail-lifecycle-hint"
-      >
-        {taskLifecyclePhaseDescription(lifecyclePhase)}
-      </p>
     </header>
   );
 }

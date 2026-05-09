@@ -73,7 +73,7 @@ describe("SettingsSaveBar", () => {
 
     const save = screen.getByTestId("settings-page-general-save");
     expect(save).toBeDisabled();
-    expect(save).toHaveTextContent("Saving…");
+    expect(save).toHaveTextContent("Saving...");
 
     rerender(
       <SettingsSaveBar

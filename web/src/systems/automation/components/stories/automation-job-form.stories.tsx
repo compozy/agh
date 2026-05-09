@@ -54,10 +54,12 @@ function AutomationJobFormHarness({
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <AutomationJobFormHarness activeWorkspaceId={storyDefaultWorkspaceId} />,
 };
 
 export const ValidationState: Story = {
+  args: {},
   render: () => (
     <AutomationJobFormHarness
       activeWorkspaceId={null}

@@ -1,9 +1,16 @@
 import { AlertTriangle, Home, ServerOff } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Empty, Metric, Pill, PageHeader, Section, Skeleton } from "@agh/ui";
-
-import { ConnectionIndicator } from "@/components/connection-indicator";
+import {
+  ConnectionIndicator,
+  Empty,
+  Metric,
+  Pill,
+  PageHeader,
+  Section,
+  Skeleton,
+  StatusCard,
+} from "@agh/ui";
 import { type HomeMetricEntry, type HomePageView, useHomePage } from "@/hooks/routes/use-home-page";
 
 export const Route = createFileRoute("/_app/")({
@@ -89,32 +96,23 @@ function DaemonStatusSection({ page }: { page: HomePageView }) {
       {isDisconnected ? (
         <DisconnectedCard description={page.daemonStatus.description} />
       ) : (
-        <div
-          className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4"
+        <StatusCard
           data-testid="home-daemon-card"
           data-status={page.daemonStatus.key}
+          tone={page.daemonStatus.tone}
         >
-          <div className="flex items-center gap-3">
-            <Pill.Dot
-              data-testid="home-daemon-status-dot"
-              data-status={page.daemonStatus.key}
-              size="md"
-              tone={page.daemonStatus.tone}
-            />
-            <span
-              className="text-item-title font-semibold tracking-tight text-(--color-text-primary)"
-              data-testid="home-daemon-status-label"
-            >
-              {page.daemonStatus.label}
-            </span>
-          </div>
-          <p
-            className="text-small-body leading-5 text-(--color-text-secondary)"
-            data-testid="home-daemon-status-description"
-          >
+          <StatusCard.Header
+            dotProps={{
+              "data-testid": "home-daemon-status-dot",
+              "data-status": page.daemonStatus.key,
+            }}
+            label={page.daemonStatus.label}
+            labelProps={{ "data-testid": "home-daemon-status-label" }}
+          />
+          <StatusCard.Body data-testid="home-daemon-status-description">
             {page.daemonStatus.description}
-          </p>
-        </div>
+          </StatusCard.Body>
+        </StatusCard>
       )}
     </Section>
   );

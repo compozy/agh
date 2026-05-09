@@ -1,8 +1,18 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ArrowUpRight, ChevronRight, Loader2, Users } from "lucide-react";
+import { AlertCircle, ArrowUpRight, ChevronRight, Users } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, Pill } from "@agh/ui";
+import {
+  BlockLoading,
+  Empty,
+  Item,
+  ItemContent,
+  ItemFooter,
+  ItemGroup,
+  ItemHeader,
+  ItemMedia,
+  Pill,
+} from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import type { MultiAgentAgent, MultiAgentLiveState } from "@/hooks/routes/use-task-detail-page";
@@ -18,12 +28,12 @@ import type { TaskTimelineItem } from "../types";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 /**
- * Window (in ms) during which an agent is considered "freshly active" — only
+ * Window (in ms) during which an agent is considered "freshly active" -- only
  * then does its StatusDot pulse. Keeps decorative motion off idle rows.
  */
 const LIVE_FRESHNESS_MS = 2_000;
 
-/** Per-card event strip depth — collapsed view links to the Events tab for the rest. */
+/** Per-card event strip depth -- collapsed view links to the Events tab for the rest. */
 const AGENT_TIMELINE_DEPTH = 5;
 
 export interface TasksMultiAgentPanelProps {
@@ -37,7 +47,7 @@ export interface TasksMultiAgentPanelProps {
 }
 
 /**
- * Agents tab — one card per agent in the tree, keyed by the live/idle state of
+ * Agents tab -- one card per agent in the tree, keyed by the live/idle state of
  * its active run. Each card shows a compact 5-event strip sourced from the
  * shared timeline. The interleaved cross-agent view used to live here; that
  * responsibility has moved to the Events tab (`TasksTimelinePanel`).
@@ -53,12 +63,12 @@ export function TasksMultiAgentPanel({
 }: TasksMultiAgentPanelProps) {
   if (state === "loading") {
     return (
-      <div
-        className="flex min-h-[240px] flex-1 items-center justify-center"
+      <BlockLoading
+        label="Loading agent tree"
+        size="md"
+        surface="bare"
         data-testid="tasks-multi-agent-loading"
-      >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
+      />
     );
   }
 
@@ -109,13 +119,11 @@ export function TasksMultiAgentPanel({
           data-testid="tasks-multi-agent-empty"
         />
       ) : (
-        <ul className="flex flex-col gap-3" data-testid="tasks-multi-agent-agents">
+        <ItemGroup className="gap-3" data-testid="tasks-multi-agent-agents">
           {agents.map(agent => (
-            <li key={agent.node.task.id}>
-              <TasksMultiAgentAgentCard agent={agent} timeline={timeline} />
-            </li>
+            <TasksMultiAgentAgentCard agent={agent} key={agent.node.task.id} timeline={timeline} />
           ))}
-        </ul>
+        </ItemGroup>
       )}
 
       {state === "no-active" ? (
@@ -155,20 +163,25 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
   const statusTone = taskStatusTone(task.status);
 
   return (
-    <article
+    <Item
+      as="div"
       className={cn(
-        "relative flex flex-col gap-3 rounded-xl border border-(--color-divider) bg-(--color-surface) py-3 pr-4 transition-colors",
-        agent.isLive ? "border-l-2 border-l-accent pl-4" : "border-l-2 border-l-transparent pl-4"
+        "relative flex-col gap-3 rounded-xl border-(--color-divider) bg-(--color-surface) py-3 pr-4"
       )}
       data-depth={depthIndent}
       data-is-live={agent.isLive ? "true" : "false"}
       data-is-root={agent.isRoot ? "true" : "false"}
       data-testid={`tasks-multi-agent-agent-${task.id}`}
+      indicator={agent.isLive ? "rail" : "none"}
+      selected={agent.isLive}
+      variant="outline"
       style={depthIndent > 0 ? { marginLeft: `${depthIndent * 16}px` } : undefined}
     >
-      <div className="flex items-start justify-between gap-3">
+      <ItemHeader className="items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <AgentAvatar label={agent.label} isLive={agent.isLive} />
+          <ItemMedia>
+            <AgentAvatar label={agent.label} isLive={agent.isLive} />
+          </ItemMedia>
           <div className="min-w-0 flex-1">
             <div
               className="flex flex-wrap items-center gap-2"
@@ -230,76 +243,71 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
             ) : null}
           </div>
         </div>
-      </div>
+      </ItemHeader>
 
       {agentEventsTop.length > 0 ? (
-        <ul
+        <ItemContent
           className="flex flex-col gap-1 border-t border-(--color-divider) pt-3 font-mono text-eyebrow text-(--color-text-secondary)"
           data-testid={`tasks-multi-agent-agent-events-${task.id}`}
         >
           {agentEventsTop.map(event => (
-            <li
+            <div
               className="flex items-baseline gap-2"
               data-testid={`tasks-multi-agent-agent-event-${event.event_id}`}
               key={event.event_id}
+              role="listitem"
             >
               <span className="shrink-0 text-(--color-text-tertiary)">
                 {formatEventTime(event.timestamp)}
               </span>
               <span className="truncate text-(--color-text-secondary)">{event.event_type}</span>
-            </li>
+            </div>
           ))}
           {overflow > 0 ? (
-            <li className="pt-0.5">
-              <Link
-                className="inline-flex items-center gap-1 text-eyebrow uppercase tracking-mono text-accent hover:underline"
+            <div className="pt-0.5" role="listitem">
+              <Pill.Link
                 data-testid={`tasks-multi-agent-agent-events-more-${task.id}`}
-                params={{ id: task.id }}
-                to="/tasks/$id"
+                render={<Link params={{ id: task.id }} to="/tasks/$id" />}
               >
                 +{overflow} more
-              </Link>
-            </li>
+              </Pill.Link>
+            </div>
           ) : null}
-        </ul>
+        </ItemContent>
       ) : null}
 
-      <div
+      <ItemFooter
         className="flex flex-wrap items-center justify-end gap-3 border-t border-(--color-divider) pt-3"
         data-testid={`tasks-multi-agent-agent-actions-${task.id}`}
       >
         {run?.session_id ? (
-          <Link
-            className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary) hover:text-accent"
+          <Pill.Link
+            tone="neutral"
             data-testid={`tasks-multi-agent-agent-session-${task.id}`}
-            params={{ id: run.session_id }}
-            to="/session/$id"
+            render={<Link params={{ id: run.session_id }} to="/session/$id" />}
           >
             Open session <ArrowUpRight className="size-3" />
-          </Link>
+          </Pill.Link>
         ) : null}
         {run?.id ? (
-          <Link
-            className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-accent hover:underline"
+          <Pill.Link
             data-testid={`tasks-multi-agent-agent-run-${task.id}`}
-            params={{ id: task.id, runId: run.id }}
-            to="/tasks/$id/runs/$runId"
+            render={<Link params={{ id: task.id, runId: run.id }} to="/tasks/$id/runs/$runId" />}
           >
             Open run <ArrowUpRight className="size-3" />
-          </Link>
+          </Pill.Link>
         ) : null}
         {!agent.isRoot ? (
-          <Link
-            className="inline-flex items-center gap-1 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary) hover:text-accent"
+          <Pill.Link
+            tone="neutral"
             data-testid={`tasks-multi-agent-agent-task-${task.id}`}
-            params={{ id: task.id }}
-            to="/tasks/$id"
+            render={<Link params={{ id: task.id }} to="/tasks/$id" />}
           >
             Open task <ChevronRight className="size-3" />
-          </Link>
+          </Pill.Link>
         ) : null}
-      </div>
-    </article>
+      </ItemFooter>
+    </Item>
   );
 }
 

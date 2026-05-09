@@ -2,7 +2,7 @@ import { AlertCircle, Loader2, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Switch } from "@agh/ui";
+import { Button, Input, PageShell, Section, Switch } from "@agh/ui";
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
 import {
@@ -10,10 +10,8 @@ import {
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsSectionCard,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -75,13 +73,13 @@ export function MemorySettingsPage() {
     envelope.actions.consolidate.available && envelope.health.dream_enabled && draft.dream.enabled;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="memory"
       title="Memory"
       statusLine={
         <SettingsStatusLine
           data-testid={`${TEST_PREFIX}-status-line`}
-          daemonAvailable={health.available}
+          status={health.available ? "connected" : "error"}
           items={[
             <span key="files">{health.file_count} memory files</span>,
             <span key="last" data-testid={`${TEST_PREFIX}-last-consolidated`}>
@@ -177,7 +175,7 @@ export function MemorySettingsPage() {
         setValidationError={setValidationError}
       />
       <WorkspaceIdentitySection draft={draft} setDraft={setDraft} />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -193,7 +191,7 @@ interface ValidatedSectionProps extends DraftSectionProps {
 
 function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Memory system">
+    <Section divided label="Memory system">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-enabled`}
         label="Memory persistence"
@@ -226,7 +224,7 @@ function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -237,8 +235,9 @@ function ProviderResilienceSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsSectionCard
-      eyebrow="Memory provider"
+    <Section
+      divided
+      label="Memory provider"
       note="circuit-breaker policy when an external memory provider is configured"
     >
       <SettingsFieldRow
@@ -319,7 +318,7 @@ function ProviderResilienceSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -331,8 +330,9 @@ function ControllerSection({
 }: ValidatedSectionProps) {
   const allowOrigins = draft.controller.policy.allow_origins.join(", ");
   return (
-    <SettingsSectionCard
-      eyebrow="Write controller"
+    <Section
+      divided
+      label="Write controller"
       note="lexical/entity-only ADD / UPDATE / DELETE / NOOP / REJECT pipeline"
     >
       <SettingsFieldRow
@@ -456,7 +456,7 @@ function ControllerSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -468,10 +468,7 @@ function ControllerLLMSection({
 }: ValidatedSectionProps) {
   const llmDisabled = !draft.controller.llm.enabled;
   return (
-    <SettingsSectionCard
-      eyebrow="Controller LLM tiebreaker"
-      note="entity-slot ambiguity escalations"
-    >
+    <Section divided label="Controller LLM tiebreaker" note="entity-slot ambiguity escalations">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-llm-enabled`}
         label="LLM tiebreaker"
@@ -611,7 +608,7 @@ function ControllerLLMSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -622,8 +619,9 @@ function RecallSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsSectionCard
-      eyebrow="Recall pipeline"
+    <Section
+      divided
+      label="Recall pipeline"
       note="deterministic FTS5 + scope-shadow + freshness banner"
     >
       <SettingsFieldRow
@@ -917,7 +915,7 @@ function RecallSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -928,7 +926,7 @@ function DecisionsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Decisions retention" note="memory_decisions WAL housekeeping">
+    <Section divided label="Decisions retention" note="memory_decisions WAL housekeeping">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-prune-after`}
         label="Prune after applied (days)"
@@ -988,7 +986,7 @@ function DecisionsSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -1000,7 +998,7 @@ function ExtractorSection({
 }: ValidatedSectionProps) {
   const extractorDisabled = !draft.extractor.enabled;
   return (
-    <SettingsSectionCard eyebrow="Extractor" note="post-message proposal generation">
+    <Section divided label="Extractor" note="post-message proposal generation">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-enabled`}
         label="Extractor"
@@ -1194,7 +1192,7 @@ function ExtractorSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -1217,10 +1215,11 @@ function DreamSection({
 }: DreamSectionProps) {
   const dreamDisabled = !draft.dream.enabled;
   return (
-    <SettingsSectionCard
-      eyebrow="Memory dreaming"
+    <Section
+      divided
+      label="Memory dreaming"
       note="background recall-signal scoring + curated promotion"
-      headerAction={
+      right={
         <Button
           type="button"
           variant="outline"
@@ -1418,7 +1417,7 @@ function DreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-gate-min-score`}
         label="Gate · min score"
-        description="Promotion score threshold (0–1)"
+        description="Promotion score threshold (0-1)"
         error={validationErrors.dreamGateMinScore ?? undefined}
         control={
           <SettingsDecimalInput
@@ -1588,7 +1587,7 @@ function DreamSection({
           {actionMessage}
         </p>
       ) : null}
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -1599,7 +1598,7 @@ function SessionLedgerSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Session ledger" note="forensic JSONL ledger materialization">
+    <Section divided label="Session ledger" note="forensic JSONL ledger materialization">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-format`}
         label="Ledger format"
@@ -1727,7 +1726,7 @@ function SessionLedgerSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -1738,7 +1737,7 @@ function DailyLogsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Daily logs" note="rotation, dreaming window, and archival">
+    <Section divided label="Daily logs" note="rotation, dreaming window, and archival">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-max-bytes`}
         label="Max bytes per file"
@@ -1912,7 +1911,7 @@ function DailyLogsSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -1923,7 +1922,7 @@ function FileCapsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="File caps" note="MEMORY.md projection ceilings">
+    <Section divided label="File caps" note="MEMORY.md projection ceilings">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-file-max-lines`}
         label="Max lines"
@@ -1966,13 +1965,13 @@ function FileCapsSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
 function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Workspace identity" note=".agh/workspace.toml lifecycle">
+    <Section divided label="Workspace identity" note=".agh/workspace.toml lifecycle">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-toml-path`}
         label="Workspace toml path"
@@ -2003,6 +2002,6 @@ function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }

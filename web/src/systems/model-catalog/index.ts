@@ -38,6 +38,13 @@ export {
   type ModelOption,
   type ReasoningOption,
 } from "./lib/derive-active-session-options";
+export {
+  modelAvailabilityLabel,
+  modelAvailabilityTone,
+  modelRefreshStateTone,
+  providerHealthTone,
+  providerStateTone,
+} from "./lib/model-catalog-tones";
 
 // Hooks
 export { useProviderModelStatus, useProviderModels } from "./hooks/use-provider-models";

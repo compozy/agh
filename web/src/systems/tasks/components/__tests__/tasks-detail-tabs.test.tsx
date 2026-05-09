@@ -20,8 +20,14 @@ describe("TasksDetailTabs", () => {
     );
 
     expect(screen.getByTestId("tasks-detail-tabs")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-detail-tab-count-runs")).toHaveTextContent("3");
-    expect(screen.getByTestId("tasks-detail-tab-live-timeline")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("tasks-detail-tab-runs").querySelector('[data-slot="tabs-trigger-count"]')
+    ).toHaveTextContent("3");
+    expect(
+      screen
+        .getByTestId("tasks-detail-tab-timeline")
+        .querySelector('[data-slot="tabs-trigger-live"]')
+    ).toBeInTheDocument();
     expect(screen.getByTestId("tasks-detail-tab-children")).toHaveAttribute(
       "aria-selected",
       "false"

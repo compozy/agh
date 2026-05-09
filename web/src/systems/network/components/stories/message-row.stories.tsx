@@ -24,7 +24,7 @@ const meta: Meta<typeof MessageRow> = {
     docs: {
       description: {
         component:
-          "Three message-row variants — full, collapsed continuation, system — per `_design.md` §5.2. Avatar gutter is 36px in the channel timeline and 32px in the thread overlay; never circular.",
+          "Three message-row variants - full, collapsed continuation, system - per `_design.md` §5.2. Avatar gutter is 36px in the channel timeline and 32px in the thread overlay; never circular.",
       },
     },
   },

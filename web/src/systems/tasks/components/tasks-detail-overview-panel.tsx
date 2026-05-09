@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Radio } from "lucide-react";
 
-import { Metric, Pill, Section } from "@agh/ui";
+import { MetadataList, Metric, Pill, Section } from "@agh/ui";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
@@ -21,7 +21,7 @@ export interface TasksDetailOverviewPanelProps {
 }
 
 /**
- * Overview tab — three `Metric` cards across the top (children / dependencies /
+ * Overview tab -- three `Metric` cards across the top (children / dependencies /
  * runs), then a `Section` for the active run (when present), then a `Section`
  * for the task description. DESIGN.md §4 Metric + Section composition.
  */
@@ -72,14 +72,14 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
           data-testid="tasks-detail-active-run"
           label="Active Run"
           right={
-            <Link
-              className="font-mono text-eyebrow uppercase tracking-mono text-accent hover:underline"
+            <Pill.Link
               data-testid="tasks-detail-active-run-link"
-              params={{ id: record.id, runId: activeRun.id }}
-              to="/tasks/$id/runs/$runId"
+              render={
+                <Link params={{ id: record.id, runId: activeRun.id }} to="/tasks/$id/runs/$runId" />
+              }
             >
               Open run
-            </Link>
+            </Pill.Link>
           }
         >
           <div className="flex flex-col gap-2 rounded-xl border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3">
@@ -92,7 +92,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
               {activeChannelLabel ? (
                 <Pill
                   data-testid="tasks-detail-active-run-channel"
-                  title="Coordination channel is bound to the active run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
+                  title="Coordination channel is bound to the active run. Channel messages support coordination only -- claim, heartbeat, and terminal status stay in the task service."
                   tone={pillToneFromLegacyTone("violet")}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -102,19 +102,25 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
                 </Pill>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-small-body text-(--color-text-secondary)">
-              <span>
+            <MetadataList className="gap-y-2">
+              <MetadataList.Row label="Attempt">
                 attempt {activeRun.attempt}
                 {activeRun.max_attempts ? ` of ${activeRun.max_attempts}` : ""}
-              </span>
+              </MetadataList.Row>
               {activeRun.session_id ? (
-                <span className="font-mono">session {activeRun.session_id}</span>
+                <MetadataList.Row label="Session">
+                  <span className="font-mono">session {activeRun.session_id}</span>
+                </MetadataList.Row>
               ) : null}
-              <span>queued {formatRelativeTime(activeRun.queued_at)}</span>
+              <MetadataList.Row label="Queued">
+                {formatRelativeTime(activeRun.queued_at)}
+              </MetadataList.Row>
               {activeRun.started_at ? (
-                <span>started {formatRelativeTime(activeRun.started_at)}</span>
+                <MetadataList.Row label="Started">
+                  {formatRelativeTime(activeRun.started_at)}
+                </MetadataList.Row>
               ) : null}
-            </div>
+            </MetadataList>
           </div>
         </Section>
       ) : (

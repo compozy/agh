@@ -1,7 +1,16 @@
-import { AlertCircle, Clock3, Loader2, Zap } from "lucide-react";
+import { AlertCircle, Clock3, Zap } from "lucide-react";
 
-import { Empty, Pill, SearchInput } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import {
+  Empty,
+  Item,
+  ItemActions,
+  ItemDescription,
+  ItemHeader,
+  ItemTitle,
+  Pill,
+  SearchInput,
+  Spinner,
+} from "@agh/ui";
 
 import {
   automationScopeLabel,
@@ -52,51 +61,40 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
   const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
 
   return (
-    <button
-      aria-pressed={isSelected}
-      className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
-        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isSelected && "bg-(--color-surface)"
-      )}
-      data-state={isSelected ? "selected" : undefined}
+    <Item
+      as="button"
+      selected={isSelected}
+      selectable
+      indicator={isSelected ? "rail" : "none"}
+      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
       data-testid={`automation-item-${job.id}`}
       onClick={onSelect}
-      type="button"
     >
-      {isSelected ? (
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
-          data-testid="automation-active-indicator"
-        />
-      ) : null}
-
-      <div className="flex items-start justify-between gap-3">
+      <ItemHeader className="items-start gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot tone={enabledTone} />
-          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <ItemTitle className="truncate text-small-body font-medium text-(--color-text-primary)">
             {job.name}
-          </span>
+          </ItemTitle>
         </div>
         <span className="shrink-0 font-mono text-badge uppercase tracking-widest text-accent">
           {formatRelativeTime(job.next_run)}
         </span>
-      </div>
+      </ItemHeader>
 
-      <p className="truncate text-xs text-(--color-text-secondary)">
+      <ItemDescription className="truncate text-xs text-(--color-text-secondary)">
         {describeSchedule(job.schedule)}
-      </p>
+      </ItemDescription>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <ItemActions className="flex-wrap gap-1.5">
         <Pill mono tone={sourceBadgeTone(job.source)}>
           {automationSourceLabel(job.source)}
         </Pill>
         <Pill mono tone={scopeBadgeTone(job.scope)}>
           {automationScopeLabel(job.scope)}
         </Pill>
-      </div>
-    </button>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -110,51 +108,40 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
   const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
 
   return (
-    <button
-      aria-pressed={isSelected}
-      className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
-        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isSelected && "bg-(--color-surface)"
-      )}
-      data-state={isSelected ? "selected" : undefined}
+    <Item
+      as="button"
+      selected={isSelected}
+      selectable
+      indicator={isSelected ? "rail" : "none"}
+      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
       data-testid={`automation-item-${trigger.id}`}
       onClick={onSelect}
-      type="button"
     >
-      {isSelected ? (
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
-          data-testid="automation-active-indicator"
-        />
-      ) : null}
-
-      <div className="flex items-start justify-between gap-3">
+      <ItemHeader className="items-start gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot tone={enabledTone} />
-          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <ItemTitle className="truncate text-small-body font-medium text-(--color-text-primary)">
             {trigger.name}
-          </span>
+          </ItemTitle>
         </div>
-        <Pill mono className="shrink-0 normal-case" tone="info">
+        <Pill mono uppercase={false} className="shrink-0" tone="info">
           {trigger.event}
         </Pill>
-      </div>
+      </ItemHeader>
 
-      <p className="line-clamp-2 text-xs text-(--color-text-secondary)">
+      <ItemDescription className="line-clamp-2 text-xs text-(--color-text-secondary)">
         {formatPromptPreview(trigger.prompt)}
-      </p>
+      </ItemDescription>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <ItemActions className="flex-wrap gap-1.5">
         <Pill mono tone={sourceBadgeTone(trigger.source)}>
           {automationSourceLabel(trigger.source)}
         </Pill>
         <Pill mono tone={scopeBadgeTone(trigger.scope)}>
           {automationScopeLabel(trigger.scope)}
         </Pill>
-      </div>
-    </button>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -205,10 +192,7 @@ export function AutomationListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="automation-list-loading"
           >
-            <Loader2
-              aria-hidden="true"
-              className="size-5 animate-spin text-(--color-text-tertiary)"
-            />
+            <Spinner className="size-5 text-(--color-text-tertiary)" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div

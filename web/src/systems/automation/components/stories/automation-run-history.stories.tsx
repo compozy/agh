@@ -17,6 +17,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <CenteredSurface>
       <div className="w-full max-w-3xl">
@@ -27,6 +28,7 @@ export const Default: Story = {
 };
 
 export const Empty: Story = {
+  args: {},
   render: () => (
     <CenteredSurface>
       <div className="w-full max-w-3xl">
@@ -37,6 +39,7 @@ export const Empty: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <CenteredSurface>
       <div className="w-full max-w-3xl">
@@ -47,6 +50,7 @@ export const Loading: Story = {
 };
 
 export const ErrorState: Story = {
+  args: {},
   render: () => (
     <CenteredSurface>
       <div className="w-full max-w-3xl">

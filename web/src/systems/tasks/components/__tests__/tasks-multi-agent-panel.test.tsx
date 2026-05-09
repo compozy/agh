@@ -203,7 +203,7 @@ describe("TasksMultiAgentPanel", () => {
 
     expect(screen.getByTestId("tasks-multi-agent-header")).toHaveTextContent("Agents");
     expect(screen.getByTestId("tasks-multi-agent-summary")).toHaveTextContent("1 running · 1 idle");
-    // The old top-right "N AGENTS LIVE" pill has been deleted — hierarchy
+    // The old top-right "N AGENTS LIVE" pill has been deleted -- hierarchy
     // lives in the subtitle now.
     expect(screen.queryByTestId("tasks-multi-agent-live-count")).not.toBeInTheDocument();
   });

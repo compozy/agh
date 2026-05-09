@@ -118,7 +118,7 @@ function SettingsSaveBar({
           data-testid={`settings-page-${slug}-save`}
         >
           {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-          {isSaving ? "Saving…" : "Save changes"}
+          {isSaving ? "Saving..." : "Save changes"}
         </Button>
       </div>
     </div>

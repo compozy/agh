@@ -1,6 +1,15 @@
 import { Users } from "lucide-react";
 
-import { Empty, Skeleton } from "@agh/ui";
+import {
+  Empty,
+  Eyebrow,
+  Item,
+  ItemContent,
+  ItemMedia,
+  ItemTitle,
+  Skeleton,
+  SkeletonRows,
+} from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -15,24 +24,18 @@ export interface InspectorMembersListProps {
 
 function MembersSkeleton() {
   return (
-    <ul
+    <SkeletonRows
       aria-hidden="true"
-      className="flex flex-col"
+      count={3}
       data-testid="network-inspector-members-skeleton"
+      rowClassName="flex-row items-center gap-3 border-b border-(--color-divider) px-4 py-3"
     >
-      {[0, 1, 2].map(index => (
-        <li
-          className="flex items-center gap-3 border-b border-(--color-divider) px-4 py-3"
-          key={index}
-        >
-          <Skeleton className="size-8 rounded-md" />
-          <div className="flex flex-col gap-1.5">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-2.5 w-16" />
-          </div>
-        </li>
-      ))}
-    </ul>
+      <Skeleton className="size-8 rounded-md" />
+      <div className="flex flex-col gap-1.5">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-2.5 w-16" />
+      </div>
+    </SkeletonRows>
   );
 }
 
@@ -60,35 +63,36 @@ export function InspectorMembersList({
   }
 
   return (
-    <ul
+    <div
       aria-label="Channel members"
       className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
       data-testid="network-inspector-members-list"
+      role="list"
     >
       {members.map(member => (
-        <li
-          className="flex items-center gap-3 border-b border-(--color-divider) px-4 py-3 last:border-b-0"
+        <Item
+          className="rounded-none border-b border-(--color-divider) px-4 py-3 last:border-b-0"
           data-testid={`network-inspector-member-${member.peerId}`}
           key={member.peerId}
+          role="listitem"
         >
-          <MessageAvatar
-            initialFrom={member.displayName || member.peerId}
-            seed={member.peerId}
-            sizePx={32}
-          />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <ItemMedia>
+            <MessageAvatar
+              initialFrom={member.displayName || member.peerId}
+              seed={member.peerId}
+              sizePx={32}
+            />
+          </ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="min-w-0 text-small-body">
               {member.displayName || `@${member.peerId}`}
-            </span>
-            <span
-              className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
-              data-testid={`network-inspector-member-role-${member.peerId}`}
-            >
+            </ItemTitle>
+            <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`} weight="medium">
               {member.role === "agent" ? "AGENT" : "HUMAN"}
-            </span>
-          </div>
-        </li>
+            </Eyebrow>
+          </ItemContent>
+        </Item>
       ))}
-    </ul>
+    </div>
   );
 }

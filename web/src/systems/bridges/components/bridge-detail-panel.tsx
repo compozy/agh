@@ -1,26 +1,33 @@
 import {
   AlertCircle,
-  Loader2,
   Pencil,
   Power,
   RotateCw,
   SendHorizontal,
+  Trash2,
   Waypoints,
 } from "lucide-react";
 
 import {
   Button,
   CodeBlock,
+  ConfirmDialog,
+  DataSurface,
+  DialogTrigger,
   Empty,
+  Eyebrow,
   Field,
   FieldContent,
   FieldDescription,
   FieldTitle,
   Input,
+  MetadataList,
   Metric,
+  PageHeader,
   Pill,
   type PillTone,
   Section,
+  Spinner,
   Table,
   TableBody,
   TableCell,
@@ -84,6 +91,11 @@ interface BridgeMetrics {
   successTone: "default" | "accent" | "success" | "warning" | "danger";
 }
 
+const METADATA_TILE_CLASS =
+  "rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3";
+const METADATA_TERM_CLASS = "mb-2 text-(--color-text-label)";
+const METADATA_VALUE_CLASS = "text-small-body text-(--color-text-primary)";
+
 function statusToPillTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
   switch (bridgeStatusTone(status)) {
@@ -111,7 +123,7 @@ function computeBridgeMetrics(
   const total = backlog + failures + dropped + active;
   const successLike = active;
 
-  let successRate = "—";
+  let successRate = "--";
   let successTone: BridgeMetrics["successTone"] = "default";
   if (total > 0) {
     const pct = (successLike / total) * 100;
@@ -126,25 +138,6 @@ function computeBridgeMetrics(
     successRate,
     successTone,
   };
-}
-
-function BridgeStateFallback({ children, testId }: { children: React.ReactNode; testId: string }) {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6" data-testid={testId}>
-      {children}
-    </div>
-  );
-}
-
-function BridgeDetailFact({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
-      <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-        {label}
-      </p>
-      <div className="mt-2 text-small-body text-(--color-text-primary)">{value}</div>
-    </div>
-  );
 }
 
 interface SecretSlotCardProps {
@@ -172,9 +165,7 @@ function SecretSlotCard({
       data-testid={`bridge-secret-binding-${slot.name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-primary)">
-          {slot.name}
-        </span>
+        <Eyebrow tone="accent">{slot.name}</Eyebrow>
         <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
           {slot.required === false ? "OPTIONAL" : "REQUIRED"}
         </Pill>
@@ -219,16 +210,37 @@ function SecretSlotCard({
           >
             Save
           </Button>
-          <Button
-            data-testid={`delete-bridge-secret-${slot.name}`}
-            disabled={!binding || isSecretBindingPending}
-            onClick={() => onDelete?.(slot.name)}
-            size="sm"
-            type="button"
-            variant="outline"
+          <ConfirmDialog
+            cancelButtonProps={{
+              "data-testid": `cancel-delete-bridge-secret-${slot.name}`,
+              disabled: isSecretBindingPending,
+            }}
+            cancelLabel="Cancel"
+            confirmButtonProps={{
+              "data-testid": `confirm-delete-bridge-secret-${slot.name}`,
+            }}
+            confirmIcon={Trash2}
+            confirmLabel="Delete binding"
+            description={`This removes the stored vault binding for ${slot.name}. The provider will not receive this secret until a replacement is saved.`}
+            isPending={isSecretBindingPending}
+            onConfirm={() => onDelete?.(slot.name)}
+            title="Delete secret binding?"
+            tone="danger"
           >
-            Delete
-          </Button>
+            <DialogTrigger
+              render={
+                <Button
+                  data-testid={`delete-bridge-secret-${slot.name}`}
+                  disabled={!binding || isSecretBindingPending}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                />
+              }
+            >
+              Delete
+            </DialogTrigger>
+          </ConfirmDialog>
         </div>
       </div>
     </article>
@@ -288,15 +300,11 @@ function BridgeEventStreamSection({
   if (isRoutesLoading) {
     return (
       <Section label="Event stream">
-        <div
-          className="flex min-h-28 items-center justify-center rounded-md border border-(--color-divider) bg-(--color-surface)"
+        <DataSurface.Loading
           data-testid="bridge-routes-loading"
-        >
-          <Loader2
-            aria-hidden="true"
-            className="size-4 animate-spin text-(--color-text-tertiary)"
-          />
-        </div>
+          label="Loading bridge routes"
+          size="sm"
+        />
       </Section>
     );
   }
@@ -324,20 +332,20 @@ function BridgeEventStreamSection({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Status
+              <TableHead>
+                <Eyebrow>Status</Eyebrow>
               </TableHead>
-              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Agent
+              <TableHead>
+                <Eyebrow>Agent</Eyebrow>
               </TableHead>
-              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Target
+              <TableHead>
+                <Eyebrow>Target</Eyebrow>
               </TableHead>
-              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Scope
+              <TableHead>
+                <Eyebrow>Scope</Eyebrow>
               </TableHead>
-              <TableHead className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Last activity
+              <TableHead>
+                <Eyebrow>Last activity</Eyebrow>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -361,7 +369,9 @@ function BridgeEventStreamSection({
                       {route.agent_name}
                     </div>
                     <div className="mt-1 break-all font-mono text-eyebrow text-(--color-text-tertiary)">
-                      <span className="uppercase tracking-mono">SESSION</span>{" "}
+                      <Eyebrow className="mr-1" weight="semibold">
+                        Session
+                      </Eyebrow>
                       <span>{route.session_id}</span>
                     </div>
                   </div>
@@ -395,31 +405,66 @@ function BridgeConfigurationSection({
 }) {
   return (
     <Section label="Configuration">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <BridgeDetailFact
+      <MetadataList className="grid gap-3 lg:grid-cols-2">
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
           label="Provider"
-          value={`${bridge.platform} / ${bridge.extension_name}`}
-        />
-        <BridgeDetailFact
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {bridge.platform} / {bridge.extension_name}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
           label="Workspace"
-          value={
-            bridge.scope === "workspace"
-              ? (workspaceName ?? bridge.workspace_id ?? "Unavailable")
-              : "Global scope"
-          }
-        />
-        <BridgeDetailFact
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {bridge.scope === "workspace"
+            ? (workspaceName ?? bridge.workspace_id ?? "Unavailable")
+            : "Global scope"}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
           label="Routing policy"
-          value={describeBridgeRoutingPolicy(bridge.routing_policy)}
-        />
-        <BridgeDetailFact
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {describeBridgeRoutingPolicy(bridge.routing_policy)}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
           label="Delivery defaults"
-          value={describeBridgeDeliveryDefaults(bridge.delivery_defaults)}
-        />
-        <BridgeDetailFact label="DM policy" value={describeBridgeDmPolicy(bridge.dm_policy)} />
-        <BridgeDetailFact label="Created" value={formatBridgeDateTime(bridge.created_at)} />
-        <BridgeDetailFact label="Updated" value={formatBridgeDateTime(bridge.updated_at)} />
-      </div>
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {describeBridgeDeliveryDefaults(bridge.delivery_defaults)}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
+          label="DM policy"
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {describeBridgeDmPolicy(bridge.dm_policy)}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
+          label="Created"
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {formatBridgeDateTime(bridge.created_at)}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
+          label="Updated"
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {formatBridgeDateTime(bridge.updated_at)}
+        </MetadataList.Row>
+      </MetadataList>
     </Section>
   );
 }
@@ -449,16 +494,24 @@ function BridgeProviderRuntimeSection({
 }: BridgeProviderRuntimeSectionProps) {
   return (
     <Section label="Provider runtime">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <BridgeDetailFact
+      <MetadataList className="grid gap-3 lg:grid-cols-2">
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
           label="Manifest schema"
-          value={describeBridgeProviderConfigSchema(provider?.config_schema)}
-        />
-        <BridgeDetailFact
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {describeBridgeProviderConfigSchema(provider?.config_schema)}
+        </MetadataList.Row>
+        <MetadataList.Row
+          className={METADATA_TILE_CLASS}
           label="Secret slots"
-          value={provider?.secret_slots?.length ? provider.secret_slots.length : "None declared"}
-        />
-      </div>
+          termProps={{ className: METADATA_TERM_CLASS }}
+          valueProps={{ className: METADATA_VALUE_CLASS }}
+        >
+          {provider?.secret_slots?.length ? provider.secret_slots.length : "None declared"}
+        </MetadataList.Row>
+      </MetadataList>
 
       {provider?.description ? (
         <p className="mt-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body leading-relaxed text-(--color-text-secondary)">
@@ -483,15 +536,15 @@ function BridgeProviderRuntimeSection({
         </div>
       ) : isSecretBindingsLoading ? (
         <div className="mt-3 flex items-center gap-2 text-small-body text-(--color-text-tertiary)">
-          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-          <span>Loading secret bindings…</span>
+          <Spinner aria-label="Loading secret bindings" className="size-4" />
+          <span>Loading secret bindings...</span>
         </div>
       ) : null}
 
       <div className="mt-3">
-        <p className="mb-2 font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+        <Eyebrow className="mb-2 block" tone="neutral">
           Provider config
-        </p>
+        </Eyebrow>
         {providerConfig ? (
           <CodeBlock
             code={providerConfig}
@@ -532,33 +585,10 @@ function BridgeDetailHeader({
   const pulse = effectiveStatus === "starting";
 
   return (
-    <header className="border-b border-(--color-divider) px-6 py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="inline-flex size-8 items-center justify-center rounded-md border border-(--color-divider) bg-(--color-surface) text-accent"
-            >
-              <Waypoints className="size-4" />
-            </span>
-            <Pill.Dot pulse={pulse} tone={statusTone} />
-            <h2 className="text-item-title font-semibold tracking-tight text-(--color-text-primary)">
-              {bridge.display_name}
-            </h2>
-            <Pill mono tone={statusTone}>
-              {effectiveStatus}
-            </Pill>
-            <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
-              {bridge.scope}
-            </Pill>
-          </div>
-          <p className="text-xs text-(--color-text-secondary)">
-            {bridge.platform} · {bridge.extension_name}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+    <PageHeader
+      className="px-6 py-4"
+      controls={
+        <>
           <Button
             data-testid="edit-bridge-btn"
             disabled={isLifecyclePending}
@@ -605,9 +635,25 @@ function BridgeDetailHeader({
               Enable
             </Button>
           )}
-        </div>
-      </div>
-    </header>
+        </>
+      }
+      icon={Waypoints}
+      statusRow={
+        <>
+          <span className="flex items-center gap-2">
+            <Pill.Dot pulse={pulse} tone={statusTone} />
+            <Pill mono tone={statusTone}>
+              {effectiveStatus}
+            </Pill>
+          </span>
+          <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
+            {bridge.scope}
+          </Pill>
+        </>
+      }
+      subtitle={`${bridge.platform} / ${bridge.extension_name}`}
+      title={bridge.display_name}
+    />
   );
 }
 
@@ -636,37 +682,30 @@ export function BridgeDetailPanel({
   secretInputValues = {},
   workspaceName,
 }: BridgeDetailPanelProps) {
-  if (isLoading) {
+  if (isLoading || error || !bridge) {
+    const state = isLoading ? "loading" : error ? "error" : "empty";
     return (
-      <BridgeStateFallback testId="bridge-detail-loading">
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </BridgeStateFallback>
-    );
-  }
-
-  if (error) {
-    return (
-      <BridgeStateFallback testId="bridge-detail-error">
-        <Empty
+      <DataSurface state={state} className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <DataSurface.Loading
+          data-testid="bridge-detail-loading"
+          label="Loading bridge"
+          surface="bare"
+        />
+        <DataSurface.Error
           className="max-w-md"
-          description={error.message ?? "Failed to load bridge details"}
+          data-testid="bridge-detail-error"
+          description={error?.message ?? "Failed to load bridge details"}
           icon={AlertCircle}
           title="Unable to load bridge"
         />
-      </BridgeStateFallback>
-    );
-  }
-
-  if (!bridge) {
-    return (
-      <BridgeStateFallback testId="bridge-detail-empty">
-        <Empty
+        <DataSurface.Empty
           className="max-w-md"
+          data-testid="bridge-detail-empty"
           description={emptyMessage}
           icon={Waypoints}
           title="Select a bridge"
         />
-      </BridgeStateFallback>
+      </DataSurface>
     );
   }
 
@@ -721,9 +760,9 @@ export function BridgeDetailPanel({
 
         <div className="flex items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-5 py-4">
           <div className="space-y-1">
-            <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+            <Eyebrow className="block" tone="neutral">
               Test delivery
-            </p>
+            </Eyebrow>
             <p className="text-small-body text-(--color-text-secondary)">
               Resolve the outbound target using bridge defaults plus any explicit target override.
             </p>

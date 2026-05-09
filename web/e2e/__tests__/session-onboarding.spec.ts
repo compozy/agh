@@ -19,8 +19,8 @@ const browserLifecycleFixture = path.resolve(
 const browserLifecycleAgent = "browser-lifecycle-agent";
 const browserLifecyclePrompt = "run browser lifecycle flow";
 
-function browserLifecycleSessionPath(sessionId: string): string {
-  return `/agents/${browserLifecycleAgent}/sessions/${sessionId}`;
+function browserLifecycleSessionPath(agentName: string, sessionId: string): string {
+  return `/agents/${agentName}/sessions/${sessionId}`;
 }
 
 test.use({
@@ -58,6 +58,24 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
+  await expect(appPage.getByTestId("session-create-dialog")).toHaveAttribute(
+    "data-frame",
+    "unframed"
+  );
+  await expect(
+    appPage.getByTestId("session-create-dialog").locator('[data-slot="dialog-header"]')
+  ).toHaveAttribute("data-variant", "ruled");
+  await expect(
+    appPage.getByTestId("session-create-dialog").locator('[data-slot="dialog-footer"]')
+  ).toHaveAttribute("data-variant", "ruled");
+
+  await appPage.getByTestId("session-create-model-select").click();
+  await expect(appPage.getByTestId("model-command-input")).toBeVisible();
+  await appPage.getByTestId("model-command-input").fill("browser-e2e-model");
+  await appPage.getByTestId("model-command-input").press("Enter");
+  await expect(appPage.getByTestId("session-create-model-select")).toContainText(
+    "browser-e2e-model"
+  );
 
   const createResponsePromise = appPage.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
@@ -71,7 +89,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toBe(browserLifecycleSessionPath(sessionId));
+    .toBe(browserLifecycleSessionPath(browserLifecycleAgent, sessionId));
   await expect(ui.chatHeader).toBeVisible();
   await expect(ui.composerTextarea).toBeVisible();
   await expect(ui.stopButton).toBeVisible();
@@ -80,6 +98,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await ui.composerTextarea.press("Enter");
 
   await expect(ui.permissionPrompt).toBeVisible();
+  await expect(appPage.getByTestId("permission-reject-once")).toBeVisible();
   await expect(ui.chatView).toContainText(browserLifecyclePrompt);
   await expect(ui.chatView).toContainText("Streaming response started.");
 

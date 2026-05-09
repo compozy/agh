@@ -1,6 +1,6 @@
-import { AlertCircle, Loader2, Plus } from "lucide-react";
+import { AlertCircle, Plus } from "lucide-react";
 
-import { Button, Section, Pill } from "@agh/ui";
+import { BlockLoading, Button, Section, Pill } from "@agh/ui";
 
 import type { KanbanColumnGroup, TaskKanbanColumnId } from "../lib/task-grouping";
 import { formatAttemptLabel, taskOwnerLabel } from "../lib/task-formatters";
@@ -37,9 +37,13 @@ export function TasksKanbanBoard({
 }: TasksKanbanBoardProps) {
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="tasks-kanban-loading">
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
+      <BlockLoading
+        className="flex-1"
+        label="Loading kanban board"
+        size="md"
+        surface="bare"
+        data-testid="tasks-kanban-loading"
+      />
     );
   }
 
@@ -168,16 +172,13 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
   const footer = (
     <div className="flex min-w-0 flex-col gap-1 text-eyebrow">
       {isLive && activeRun ? (
-        <span
-          className="font-mono text-badge uppercase tracking-mono text-accent"
-          data-testid={`tasks-kanban-card-live-${task.id}`}
-        >
+        <span className="text-badge text-accent" data-testid={`tasks-kanban-card-live-${task.id}`}>
           ● LIVE · {formatAttemptLabel(activeRun.attempt, activeRun.max_attempts) ?? "running"}
         </span>
       ) : null}
       {isBlocked ? (
         <span
-          className="font-mono text-badge uppercase tracking-mono text-(--color-warning)"
+          className="text-badge text-(--color-warning)"
           data-testid={`tasks-kanban-card-blocked-${task.id}`}
         >
           ● Blocked
@@ -185,7 +186,7 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
       ) : null}
       {failedRunError ? (
         <span
-          className="font-mono text-badge uppercase tracking-mono text-(--color-danger)"
+          className="text-badge text-(--color-danger)"
           data-testid={`tasks-kanban-card-error-${task.id}`}
         >
           {failedRunError}

@@ -17,10 +17,13 @@ describe("WorkChip silence rules (`_design.md` §6.6)", () => {
       render(<WorkChip state={state} />);
       const chip = screen.getByTestId("network-work-chip");
       expect(chip).toHaveAttribute("data-state", state);
+      expect(chip).toHaveAttribute("data-slot", "pill");
       const cls = chip.className;
       if (state === "failed") {
+        expect(chip).toHaveAttribute("data-tone", "danger");
         expect(cls).toContain("color-danger");
       } else {
+        expect(chip).toHaveAttribute("data-tone", "warning");
         expect(cls).toContain("color-warning");
       }
     }

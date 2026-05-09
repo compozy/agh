@@ -6,7 +6,10 @@ import { cn } from "../../lib/utils";
 
 export interface SectionProps extends React.ComponentProps<"section"> {
   label?: React.ReactNode;
+  note?: React.ReactNode;
   right?: React.ReactNode;
+  divided?: boolean;
+  bodyClassName?: string;
 }
 
 function hasSectionContent(content: React.ReactNode): boolean {
@@ -14,44 +17,72 @@ function hasSectionContent(content: React.ReactNode): boolean {
 }
 
 /**
- * Section shell — mono eyebrow + optional right-aligned slot + children.
+ * Section shell: mono eyebrow + optional right-aligned slot + children.
  * Mirrors `Section` in `docs/design/web-inspiration/src/primitives.jsx`.
  */
-function Section({ label, right, className, children, ...props }: SectionProps) {
+function Section({
+  label,
+  note,
+  right,
+  divided = false,
+  bodyClassName,
+  className,
+  children,
+  ...props
+}: SectionProps) {
   const hasLabel = hasSectionContent(label);
+  const hasNote = hasSectionContent(note);
   const hasRight = hasSectionContent(right);
+  const hasChildren = hasSectionContent(children);
 
   return (
     <section
       data-slot="section"
-      className={cn("flex min-w-0 flex-col gap-3", className)}
+      className={cn(
+        "flex min-w-0 flex-col gap-3",
+        divided && "border-t border-[color:var(--color-divider)] pt-5 first:border-t-0 first:pt-0",
+        className
+      )}
       {...props}
     >
-      {hasLabel || hasRight ? (
+      {hasLabel || hasNote || hasRight ? (
         <header
           data-slot="section-head"
-          className="flex items-center justify-between gap-3 border-b border-[color:var(--color-divider)] pb-2"
+          className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] pb-2 lg:flex-row lg:items-start lg:justify-between"
         >
-          {hasLabel ? (
-            <h2
-              data-slot="section-label"
-              className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]"
-            >
-              {label}
-            </h2>
-          ) : (
-            <span />
-          )}
+          <div className="flex min-w-0 flex-col gap-2">
+            {hasLabel ? (
+              <h2
+                data-slot="section-label"
+                className="font-mono text-[11px] font-semibold uppercase tracking-mono text-[color:var(--color-text-label)]"
+              >
+                {label}
+              </h2>
+            ) : null}
+            {hasNote ? (
+              <div
+                data-slot="section-note"
+                className="max-w-152 text-small-body text-[color:var(--color-text-secondary)]"
+              >
+                {note}
+              </div>
+            ) : null}
+          </div>
           {hasRight ? (
-            <div data-slot="section-right" className="flex items-center gap-2">
+            <div
+              data-slot="section-right"
+              className="flex w-full items-center gap-2 self-start lg:w-auto lg:shrink-0"
+            >
               {right}
             </div>
           ) : null}
         </header>
       ) : null}
-      <div data-slot="section-body" className="flex min-w-0 flex-col">
-        {children}
-      </div>
+      {hasChildren ? (
+        <div data-slot="section-body" className={cn("flex min-w-0 flex-col", bodyClassName)}>
+          {children}
+        </div>
+      ) : null}
     </section>
   );
 }

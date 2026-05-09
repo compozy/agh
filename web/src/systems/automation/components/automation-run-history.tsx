@@ -1,10 +1,11 @@
-import { AlertCircle, History, Loader2 } from "lucide-react";
+import { AlertCircle, History } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
   Empty,
   Pill,
   Section,
+  Spinner,
   Table,
   TableBody,
   TableCell,
@@ -52,10 +53,7 @@ export function AutomationRunHistory({
           className="flex min-h-28 items-center justify-center rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-8"
           data-testid="automation-run-history-loading"
         >
-          <Loader2
-            aria-hidden="true"
-            className="size-4 animate-spin text-(--color-text-tertiary)"
-          />
+          <Spinner className="text-(--color-text-tertiary)" />
         </div>
       ) : error ? (
         <div className="flex justify-center px-2 py-6" data-testid="automation-run-history-error">

@@ -1,12 +1,12 @@
-import { Loader2 } from "lucide-react";
-
 import {
   Button,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Eyebrow,
   Field,
   FieldContent,
   FieldDescription,
@@ -14,10 +14,16 @@ import {
   FieldSet,
   FieldTitle,
   Input,
+  Item,
+  ItemContent,
+  ItemGroup,
+  ItemHeader,
+  MetadataList,
   Pill,
   NativeSelect,
   NativeSelectOption,
   Section,
+  Spinner,
   Switch,
   Textarea,
 } from "@agh/ui";
@@ -73,6 +79,7 @@ export function BridgeCreateDialog({
       <DialogContent
         className="gap-0 p-0 text-(--color-text-primary) sm:max-w-4xl"
         showCloseButton={false}
+        unframed
       >
         <form
           className="flex max-h-[min(80vh,900px)] flex-col"
@@ -82,7 +89,7 @@ export function BridgeCreateDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
+          <DialogHeader variant="ruled">
             <DialogTitle>Create Bridge</DialogTitle>
             <DialogDescription>
               Select an installed provider, configure provider-owned runtime settings separately
@@ -135,54 +142,55 @@ export function BridgeCreateDialog({
                     separate from generic routing and delivery defaults.
                   </p>
 
-                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
-                      <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                        Config schema
-                      </p>
-                      <p
-                        className="mt-2 text-small-body text-(--color-text-primary)"
-                        data-testid="bridge-provider-config-schema"
-                      >
-                        {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
-                      </p>
-                    </div>
+                  <MetadataList className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <MetadataList.Row
+                      className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3"
+                      label="Config schema"
+                      termProps={{ className: "mb-2 text-(--color-text-label)" }}
+                      valueProps={{
+                        className: "text-small-body text-(--color-text-primary)",
+                        "data-testid": "bridge-provider-config-schema",
+                      }}
+                    >
+                      {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
+                    </MetadataList.Row>
 
                     <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                          Secret slots
-                        </p>
+                        <Eyebrow tone="neutral">Secret slots</Eyebrow>
                         <Pill mono>{selectedProvider.secret_slots?.length ?? 0}</Pill>
                       </div>
                       {selectedProvider.secret_slots?.length ? (
-                        <ul className="mt-3 space-y-2" data-testid="bridge-provider-secret-slots">
+                        <ItemGroup
+                          className="mt-3 gap-2"
+                          data-testid="bridge-provider-secret-slots"
+                        >
                           {selectedProvider.secret_slots.map(slot => (
-                            <li
+                            <Item
                               key={slot.name}
                               className="rounded-md border border-(--color-divider) bg-(--color-surface-panel) px-3 py-2"
                             >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-primary)">
-                                  {slot.name}
-                                </span>
-                                <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
-                                  {slot.required === false ? "OPTIONAL" : "REQUIRED"}
-                                </Pill>
-                              </div>
-                              <p className="mt-2 text-xs leading-relaxed text-(--color-text-secondary)">
-                                {describeBridgeSecretSlot(slot)}
-                              </p>
-                            </li>
+                              <ItemContent>
+                                <ItemHeader className="justify-start">
+                                  <Eyebrow tone="accent">{slot.name}</Eyebrow>
+                                  <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
+                                    {slot.required === false ? "OPTIONAL" : "REQUIRED"}
+                                  </Pill>
+                                </ItemHeader>
+                                <p className="text-xs leading-relaxed text-(--color-text-secondary)">
+                                  {describeBridgeSecretSlot(slot)}
+                                </p>
+                              </ItemContent>
+                            </Item>
                           ))}
-                        </ul>
+                        </ItemGroup>
                       ) : (
                         <p className="mt-3 text-small-body leading-relaxed text-(--color-text-secondary)">
                           This provider does not declare secret slot requirements in its manifest.
                         </p>
                       )}
                     </div>
-                  </div>
+                  </MetadataList>
 
                   <FieldGroup className="mt-4 gap-4">
                     <Field>
@@ -462,7 +470,7 @@ export function BridgeCreateDialog({
             </FieldSet>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+          <DialogFooter variant="ruled">
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Cancel
             </Button>
@@ -474,14 +482,14 @@ export function BridgeCreateDialog({
             >
               {isPending ? (
                 <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Creating…
+                  <Spinner className="size-3.5" />
+                  Creating...
                 </>
               ) : (
                 "Create Bridge"
               )}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

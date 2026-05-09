@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
+import { CodeBlock } from "@agh/ui";
+
 import type { UIMessage } from "../../types";
 import { GenericContent } from "./generic-content";
 
@@ -28,10 +30,12 @@ export function WriteContent({ message }: { message: UIMessage }) {
         <div className="font-mono text-eyebrow text-(--color-text-tertiary)">{filePath}</div>
       )}
       {content && (
-        <pre className="max-h-48 overflow-auto rounded-md bg-(--color-surface) px-3 py-2 font-mono text-eyebrow text-(--color-text-tertiary) whitespace-pre-wrap wrap-break-word">
-          {displayContent}
-          {isTruncated ? "\u2026" : ""}
-        </pre>
+        <CodeBlock
+          code={`${displayContent}${isTruncated ? "\u2026" : ""}`}
+          copyable={false}
+          showPrompt={false}
+          truncateLines={16}
+        />
       )}
       {isTruncated && (
         <button

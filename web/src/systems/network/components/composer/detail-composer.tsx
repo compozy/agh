@@ -58,7 +58,7 @@ export function DetailComposer(props: DetailComposerProps) {
   const disabled = props.disabledReason != null;
 
   const placeholder =
-    props.surface === "thread" ? "Reply…" : `Message ${props.peerLabel ?? "@peer"}…`;
+    props.surface === "thread" ? "Reply..." : `Message ${props.peerLabel ?? "@peer"}...`;
   const sendLabel =
     props.surface === "thread"
       ? `Send to #${props.channel}`

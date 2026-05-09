@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { Button } from "@agh/ui";
+import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ export interface WorkBannerProps {
    * Optional breakdown of open-work counts by lifecycle state. When provided,
    * the banner renders the explicit "needs input · working" segments instead of
    * the legacy summary message. `useOpenWork` derives this client-side from the
-   * already-loaded message stream — see `_design.md` §5.8.2.
+   * already-loaded message stream - see `_design.md` §5.8.2.
    */
   needsInputCount?: number;
   workingCount?: number;
@@ -57,13 +57,13 @@ export function WorkBanner({
   const fading = phase === "fading";
 
   return (
-    <div
+    <Alert
       aria-live="polite"
       className={cn(
-        "flex h-9 items-center justify-between gap-3 overflow-hidden border-b border-(--color-divider) px-5 transition-[opacity,max-height] duration-200 ease-out",
+        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
         escalate
-          ? "bg-(--color-warning) text-(--color-canvas)"
-          : "bg-(--color-warning-tint) text-(--color-warning)",
+          ? "bg-(--color-warning) text-(--color-canvas) *:data-[slot=alert-description]:text-(--color-canvas)"
+          : null,
         fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
         className
       )}
@@ -71,29 +71,35 @@ export function WorkBanner({
       data-state={fading ? "fading" : "visible"}
       data-testid="network-work-banner"
       role="status"
+      variant="warning"
     >
-      <p className="truncate text-small-body font-medium" data-testid="network-work-banner-message">
+      <AlertDescription
+        className="truncate text-small-body font-medium"
+        data-testid="network-work-banner-message"
+      >
         {message}
-      </p>
+      </AlertDescription>
       {onView ? (
-        <Button
-          aria-label="View open work"
-          className={cn(
-            "h-7 px-2 text-xs font-medium",
-            escalate
-              ? "text-(--color-canvas) hover:bg-(--color-canvas)/10"
-              : "text-(--color-warning) hover:bg-(--color-warning-tint)/40"
-          )}
-          data-testid="network-work-banner-view"
-          onClick={onView}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          view
-        </Button>
+        <AlertActions className="mt-0">
+          <Button
+            aria-label="View open work"
+            className={cn(
+              "h-7 px-2 text-xs font-medium",
+              escalate
+                ? "text-(--color-canvas) hover:bg-(--color-canvas)/10"
+                : "text-(--color-warning) hover:bg-(--color-warning-tint)/40"
+            )}
+            data-testid="network-work-banner-view"
+            onClick={onView}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            view
+          </Button>
+        </AlertActions>
       ) : null}
-    </div>
+    </Alert>
   );
 }
 

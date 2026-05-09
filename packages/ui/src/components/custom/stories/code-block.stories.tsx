@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
-import { CodeBlock } from "../code-block";
+import { CodeBlock, CopyIconButton } from "../code-block";
 
 const meta: Meta<typeof CodeBlock> = {
   title: "components/custom/CodeBlock",
@@ -136,4 +136,32 @@ export const CopyInteraction: Story = {
       }
     }
   },
+};
+
+export const WarningToneTruncated: Story = {
+  args: {
+    code: [
+      "First warning line",
+      "Second warning line",
+      "Third warning line",
+      "Fourth warning line",
+    ].join("\n"),
+    showPrompt: false,
+    tone: "warning",
+    truncateLines: 2,
+  },
+};
+
+export const StandaloneCopyButton: Story = {
+  args: {
+    code: "agh network status",
+  },
+  render: args => (
+    <div className="flex items-center gap-3 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3">
+      <span className="font-mono text-small-body text-[color:var(--color-text-secondary)]">
+        {args.code}
+      </span>
+      <CopyIconButton value={args.code} />
+    </div>
+  ),
 };

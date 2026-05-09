@@ -14,7 +14,7 @@ export function DirectEmpty({ className }: DirectEmptyProps) {
     <Empty
       className={className}
       data-testid="network-direct-empty"
-      description="Send the first message — they'll be notified."
+      description="Send the first message; they'll be notified."
       fill={false}
       icon={MessageCircle}
       title="Quiet so far."

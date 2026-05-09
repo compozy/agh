@@ -1,6 +1,16 @@
 import { Link } from "@tanstack/react-router";
 
-import { Skeleton } from "@agh/ui";
+import {
+  Eyebrow,
+  Item,
+  ItemContent,
+  ItemFooter,
+  ItemHeader,
+  ItemMedia,
+  ItemTitle,
+  Skeleton,
+  SkeletonRows,
+} from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -44,61 +54,71 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
   const lastActivity = formatNetworkRelativeTime(direct.last_activity_at ?? null);
 
   return (
-    <Link
+    <Item
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-start gap-3 border-b border-(--color-divider) px-5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
-        active ? "bg-(--color-accent-tint)" : "hover:bg-(--color-hover)"
+        "rounded-none border-b border-(--color-divider) px-5 py-3",
+        active ? "bg-(--color-accent-tint)" : null
       )}
       data-testid={`network-direct-list-row-${direct.direct_id}`}
-      params={{ channel, directId: direct.direct_id }}
-      to="/network/$channel/directs/$directId"
+      indicator={active ? "rail" : "none"}
+      render={
+        <Link
+          params={{ channel, directId: direct.direct_id }}
+          to="/network/$channel/directs/$directId"
+        />
+      }
+      selectable
+      selected={active}
     >
-      <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={36} />
+      <ItemMedia>
+        <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={36} />
+      </ItemMedia>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-semibold text-(--color-text-primary)">
-            @{otherPeerId}
-          </p>
+      <ItemContent>
+        <ItemHeader className="items-center justify-start">
+          <ItemTitle className="min-w-0">@{otherPeerId}</ItemTitle>
           {role ? (
-            <span
-              className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
+            <Eyebrow
               data-testid={`network-direct-list-row-role-${direct.direct_id}`}
+              weight="medium"
             >
               {role === "agent" ? "AGENT" : "HUMAN"}
-            </span>
+            </Eyebrow>
           ) : null}
-        </div>
+        </ItemHeader>
         <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
           {direct.last_message_preview ?? "No messages yet."}
         </p>
-      </div>
+      </ItemContent>
 
-      <span
-        className="shrink-0 self-start font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
-        data-testid={`network-direct-list-row-time-${direct.direct_id}`}
-      >
-        {lastActivity}
-      </span>
-    </Link>
+      <ItemFooter className="basis-auto self-start">
+        <Eyebrow
+          className="shrink-0"
+          data-testid={`network-direct-list-row-time-${direct.direct_id}`}
+          weight="medium"
+        >
+          {lastActivity}
+        </Eyebrow>
+      </ItemFooter>
+    </Item>
   );
 }
 
 function DirectsListSkeleton() {
   return (
-    <div className="space-y-0" data-testid="network-direct-list-skeleton">
-      {[0, 1, 2].map(index => (
-        <div className="flex gap-3 border-b border-(--color-divider) px-5 py-3" key={index}>
-          <Skeleton className="size-9 rounded-chip" />
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Skeleton className="h-3 w-1/3" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/3" />
-          </div>
-        </div>
-      ))}
-    </div>
+    <SkeletonRows
+      count={3}
+      data-testid="network-direct-list-skeleton"
+      rowClassName="flex-row gap-3 border-b border-(--color-divider) px-5 py-3"
+    >
+      <Skeleton className="size-9 rounded-chip" />
+      <div className="flex flex-1 flex-col gap-1.5">
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-2/3" />
+      </div>
+    </SkeletonRows>
   );
 }
 

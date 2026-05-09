@@ -41,6 +41,7 @@ export const networkOperatorTestIds = {
   channelNameInput: "network-channel-name-input",
   channelHeader: "network-channel-header",
   channelIdentityMix: "network-channel-identity-mix",
+  channelInspectorToggle: "network-channel-inspector-toggle",
   channelTabs: "network-channel-tabs",
   createDialog: "network-create-channel-dialog",
   createSubmit: "network-create-channel-submit",
@@ -49,6 +50,13 @@ export const networkOperatorTestIds = {
   directsTab: "network-directs-tab",
   directTab: "network-tab-directs",
   messageList: "network-timeline",
+  inspector: "network-inspector",
+  inspectorActivityTab: "network-inspector-tab-activity",
+  inspectorMembersTab: "network-inspector-tab-members",
+  inspectorPanelActivity: "network-inspector-panel-activity",
+  inspectorPanelMembers: "network-inspector-panel-members",
+  inspectorPanelWork: "network-inspector-panel-work",
+  inspectorWorkTab: "network-inspector-tab-work",
   navNetwork: "nav-network",
   newDirectButton: "network-directs-new-direct",
   newDirectDialog: "network-new-direct-dialog",
@@ -101,10 +109,13 @@ export const bridgeOperatorTestIds = {
   bridgeTestDeliveryDialog: "bridge-test-delivery-dialog",
   bridgeTestDeliveryResult: "bridge-test-delivery-result",
   createBridgeButton: "create-bridge-btn",
+  createDisplayNameInput: "bridge-display-name-input",
+  createProviderConfigInput: "bridge-provider-config-input",
   editBridgeButton: "edit-bridge-btn",
   enableBridgeButton: "enable-bridge-btn",
   navBridges: "nav-bridges",
   openTestDeliveryButton: "open-test-delivery-btn",
+  submitBridgeCreate: "submit-bridge-create",
   submitBridgeEdit: "submit-bridge-edit",
   submitTestDelivery: "submit-test-delivery",
   testDeliveryMessage: "test-delivery-message",
@@ -123,6 +134,7 @@ export interface NetworkOperatorSelectors {
   channelNameInput: Locator;
   channelHeader: Locator;
   channelIdentityMix: Locator;
+  channelInspectorToggle: Locator;
   channelTabs: Locator;
   createDialog: Locator;
   createSubmit: Locator;
@@ -132,6 +144,13 @@ export interface NetworkOperatorSelectors {
   directsTab: Locator;
   directTab: Locator;
   messageList: Locator;
+  inspector: Locator;
+  inspectorActivityTab: Locator;
+  inspectorMembersTab: Locator;
+  inspectorPanelActivity: Locator;
+  inspectorPanelMembers: Locator;
+  inspectorPanelWork: Locator;
+  inspectorWorkTab: Locator;
   navNetwork: Locator;
   newDirectButton: Locator;
   newDirectDialog: Locator;
@@ -179,7 +198,11 @@ export interface BridgeOperatorSelectors {
   appSidebar: Locator;
   createBridgeButton: Locator;
   createDialog: Locator;
+  createDisplayNameInput: Locator;
+  createProviderConfigInput: Locator;
+  confirmDeleteSecret(bindingName: string): Locator;
   detailPanel: Locator;
+  deleteSecret(bindingName: string): Locator;
   editBridgeButton: Locator;
   editDialog: Locator;
   editDisplayNameInput: Locator;
@@ -199,6 +222,7 @@ export interface BridgeOperatorSelectors {
   searchInput: Locator;
   secretBinding(bindingName: string): Locator;
   secretEnvInput(bindingName: string): Locator;
+  submitBridgeCreate: Locator;
   submitBridgeEdit: Locator;
   submitTestDelivery: Locator;
   testDeliveryDialog: Locator;
@@ -415,6 +439,9 @@ export const tasksOperatorTestIds = {
   detailBreadcrumbTasks: "tasks-detail-breadcrumb-tasks",
   detailContent: "tasks-detail-content",
   detailCoordination: "tasks-detail-coordination",
+  detailDelete: "tasks-detail-delete",
+  detailDeleteConfirm: "tasks-detail-delete-confirm",
+  detailDeleteDialog: "tasks-detail-delete-dialog",
   detailEnqueue: "tasks-detail-enqueue",
   detailLifecycle: "tasks-detail-lifecycle",
   detailLifecycleHint: "tasks-detail-lifecycle-hint",
@@ -476,6 +503,9 @@ export interface TasksOperatorSelectors {
   detailBreadcrumbTasks: Locator;
   detailContent: Locator;
   detailCoordination: Locator;
+  detailDelete: Locator;
+  detailDeleteConfirm: Locator;
+  detailDeleteDialog: Locator;
   detailEnqueue: Locator;
   detailLifecycle: Locator;
   detailLifecycleHint: Locator;
@@ -565,6 +595,7 @@ export function networkOperatorSelectors(
     channelNameInput: page.getByTestId(networkOperatorTestIds.channelNameInput),
     channelHeader: page.getByTestId(networkOperatorTestIds.channelHeader),
     channelIdentityMix: page.getByTestId(networkOperatorTestIds.channelIdentityMix),
+    channelInspectorToggle: page.getByTestId(networkOperatorTestIds.channelInspectorToggle),
     channelTabs: page.getByTestId(networkOperatorTestIds.channelTabs),
     createDialog: page.getByTestId(networkOperatorTestIds.createDialog),
     createSubmit: page.getByTestId(networkOperatorTestIds.createSubmit),
@@ -574,6 +605,13 @@ export function networkOperatorSelectors(
     directsTab: page.getByTestId(networkOperatorTestIds.directsTab),
     directTab: page.getByTestId(networkOperatorTestIds.directTab),
     messageList: page.getByTestId(networkOperatorTestIds.messageList),
+    inspector: page.getByTestId(networkOperatorTestIds.inspector),
+    inspectorActivityTab: page.getByTestId(networkOperatorTestIds.inspectorActivityTab),
+    inspectorMembersTab: page.getByTestId(networkOperatorTestIds.inspectorMembersTab),
+    inspectorPanelActivity: page.getByTestId(networkOperatorTestIds.inspectorPanelActivity),
+    inspectorPanelMembers: page.getByTestId(networkOperatorTestIds.inspectorPanelMembers),
+    inspectorPanelWork: page.getByTestId(networkOperatorTestIds.inspectorPanelWork),
+    inspectorWorkTab: page.getByTestId(networkOperatorTestIds.inspectorWorkTab),
     navNetwork: page.getByTestId(networkOperatorTestIds.navNetwork),
     newDirectButton: page.getByTestId(networkOperatorTestIds.newDirectButton),
     newDirectDialog: page.getByTestId(networkOperatorTestIds.newDirectDialog),
@@ -627,7 +665,12 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     appSidebar: page.getByTestId(bridgeOperatorTestIds.appSidebar),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
+    createDisplayNameInput: page.getByTestId(bridgeOperatorTestIds.createDisplayNameInput),
+    createProviderConfigInput: page.getByTestId(bridgeOperatorTestIds.createProviderConfigInput),
+    confirmDeleteSecret: (bindingName: string) =>
+      page.getByTestId(`confirm-delete-bridge-secret-${bindingName}`),
     detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
+    deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
     editBridgeButton: page.getByTestId(bridgeOperatorTestIds.editBridgeButton),
     editDialog: page.getByTestId(bridgeOperatorTestIds.bridgeEditDialog),
     editDisplayNameInput: page.getByTestId("bridge-edit-display-name-input"),
@@ -649,6 +692,7 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
       page.getByTestId(`bridge-secret-binding-${bindingName}`),
     secretEnvInput: (bindingName: string) =>
       page.getByTestId(`bridge-secret-env-input-${bindingName}`),
+    submitBridgeCreate: page.getByTestId(bridgeOperatorTestIds.submitBridgeCreate),
     submitBridgeEdit: page.getByTestId(bridgeOperatorTestIds.submitBridgeEdit),
     submitTestDelivery: page.getByTestId(bridgeOperatorTestIds.submitTestDelivery),
     testDeliveryDialog: page.getByTestId(bridgeOperatorTestIds.bridgeTestDeliveryDialog),
@@ -788,6 +832,9 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     detailBreadcrumbTasks: page.getByTestId(tasksOperatorTestIds.detailBreadcrumbTasks),
     detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
     detailCoordination: page.getByTestId(tasksOperatorTestIds.detailCoordination),
+    detailDelete: page.getByTestId(tasksOperatorTestIds.detailDelete),
+    detailDeleteConfirm: page.getByTestId(tasksOperatorTestIds.detailDeleteConfirm),
+    detailDeleteDialog: page.getByTestId(tasksOperatorTestIds.detailDeleteDialog),
     detailEnqueue: page.getByTestId(tasksOperatorTestIds.detailEnqueue),
     detailLifecycle: page.getByTestId(tasksOperatorTestIds.detailLifecycle),
     detailLifecycleHint: page.getByTestId(tasksOperatorTestIds.detailLifecycleHint),

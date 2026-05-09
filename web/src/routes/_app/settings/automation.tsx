@@ -2,19 +2,15 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Switch } from "@agh/ui";
+import { Button, Input, Metric, MetricGrid, PageShell, Section, Switch } from "@agh/ui";
 import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
 import type { SettingsAutomationSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsSectionCard,
-  SettingsStatGrid,
-  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -75,13 +71,13 @@ function AutomationSettingsPage() {
   const runtime = envelope.runtime;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="automation"
       title="Automation"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-automation-status-line"
-          daemonAvailable={runtime.available}
+          status={runtime.available ? "connected" : "error"}
           items={[
             <span key="jobs">
               {runtime.job_enabled}/{runtime.job_total} jobs active
@@ -117,13 +113,13 @@ function AutomationSettingsPage() {
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
 function OperationalLinksRow() {
   return (
-    <SettingsSectionCard eyebrow="Operational" note="manage jobs, triggers, and run history">
+    <Section divided label="Operational" note="manage jobs, triggers, and run history">
       <div
         className="flex flex-wrap gap-2"
         data-testid="settings-page-automation-operational-links"
@@ -145,51 +141,51 @@ function OperationalLinksRow() {
           Open Triggers
         </Link>
       </div>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
 function ManagerSummarySection({ runtime }: { runtime: AutomationRuntime }) {
-  const nextFire = runtime.next_fire ? new Date(runtime.next_fire).toLocaleString() : "—";
+  const nextFire = runtime.next_fire ? new Date(runtime.next_fire).toLocaleString() : "--";
   const lastSynced = runtime.last_synced_at
     ? new Date(runtime.last_synced_at).toLocaleString()
-    : "—";
+    : "--";
 
   return (
-    <SettingsSectionCard eyebrow="Manager" note="read-only">
-      <SettingsStatGrid className="xl:grid-cols-3">
-        <SettingsStatItem
+    <Section divided label="Manager" note="read-only">
+      <MetricGrid columns={3}>
+        <Metric
           label="Engine"
           value={runtime.running ? "running" : "stopped"}
-          testId="settings-page-automation-runtime-engine"
+          data-testid="settings-page-automation-runtime-engine"
         />
-        <SettingsStatItem
+        <Metric
           label="Scheduler"
           value={runtime.scheduler_running ? "running" : "stopped"}
-          testId="settings-page-automation-runtime-scheduler"
+          data-testid="settings-page-automation-runtime-scheduler"
         />
-        <SettingsStatItem
+        <Metric
           label="Jobs (enabled/total)"
           value={`${runtime.job_enabled} / ${runtime.job_total}`}
-          testId="settings-page-automation-runtime-jobs"
+          data-testid="settings-page-automation-runtime-jobs"
         />
-        <SettingsStatItem
+        <Metric
           label="Triggers (enabled/total)"
           value={`${runtime.trigger_enabled} / ${runtime.trigger_total}`}
-          testId="settings-page-automation-runtime-triggers"
+          data-testid="settings-page-automation-runtime-triggers"
         />
-        <SettingsStatItem
+        <Metric
           label="Next fire"
           value={nextFire}
-          testId="settings-page-automation-runtime-next-fire"
+          data-testid="settings-page-automation-runtime-next-fire"
         />
-        <SettingsStatItem
+        <Metric
           label="Last synced"
           value={lastSynced}
-          testId="settings-page-automation-runtime-last-synced"
+          data-testid="settings-page-automation-runtime-last-synced"
         />
-      </SettingsStatGrid>
-    </SettingsSectionCard>
+      </MetricGrid>
+    </Section>
   );
 }
 
@@ -200,7 +196,7 @@ interface DraftSectionProps {
 
 function EngineSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsSectionCard eyebrow="Engine" note="persisted to config.toml">
+    <Section divided label="Engine" note="persisted to config.toml">
       <SettingsFieldRow
         data-testid="settings-page-automation-enabled"
         label="Automation engine"
@@ -228,7 +224,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -242,7 +238,7 @@ function LimitsSection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <SettingsSectionCard eyebrow="Limits" note="resource caps">
+    <Section divided label="Limits" note="resource caps">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
         label="Max concurrent jobs"
@@ -311,6 +307,6 @@ function LimitsSection({
           </div>
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }

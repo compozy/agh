@@ -37,6 +37,7 @@ export const Default: Story = {
 };
 
 export const Tones: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       {TONES.map(tone => (
@@ -49,6 +50,7 @@ export const Tones: Story = {
 };
 
 export const TonesSans: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       {TONES.map(tone => (
@@ -61,6 +63,7 @@ export const TonesSans: Story = {
 };
 
 export const SolidEmphasis: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       {TONES.map(tone => (
@@ -80,6 +83,7 @@ export const SolidEmphasis: Story = {
 };
 
 export const Sizes: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-3">
       <Pill mono size="xs" tone="neutral">
@@ -104,6 +108,7 @@ export const Sizes: Story = {
 };
 
 export const MonoLowercaseIdentifier: Story = {
+  args: {},
   render: () => (
     <Pill mono uppercase={false}>
       agh-network/v0
@@ -119,6 +124,7 @@ export const MonoLowercaseIdentifier: Story = {
 };
 
 export const WithDot: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       <Pill mono tone="success">
@@ -138,6 +144,7 @@ export const WithDot: Story = {
 };
 
 export const KindChipReplacement: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       {Object.keys(KIND_DOT_COLORS).map(kind => (
@@ -158,6 +165,7 @@ export const KindChipReplacement: Story = {
 };
 
 export const ToggleInteractive: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       <Pill mono active render={<button type="button" />}>
@@ -181,7 +189,20 @@ export const ToggleInteractive: Story = {
   },
 };
 
+export const LinkChip: Story = {
+  args: {},
+  render: () => <Pill.Link href="/tasks/task-102">Open task</Pill.Link>,
+  parameters: {
+    docs: {
+      description: {
+        story: "`Pill.Link` renders the same semantic pill chrome as an accessible anchor.",
+      },
+    },
+  },
+};
+
 export const ConnectionIndicator: Story = {
+  args: {},
   render: () => (
     <div className="flex flex-col gap-2">
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
@@ -215,6 +236,7 @@ export const ConnectionIndicator: Story = {
 };
 
 export const StandaloneDots: Story = {
+  args: {},
   render: () => (
     <div className="flex items-center gap-6" data-testid="pill-dots">
       {TONES.map(tone => (
@@ -239,6 +261,7 @@ export const StandaloneDots: Story = {
 };
 
 export const DotSizes: Story = {
+  args: {},
   render: () => (
     <div className="flex items-center gap-6">
       <div className="flex items-center gap-2">

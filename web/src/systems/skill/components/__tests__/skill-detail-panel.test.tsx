@@ -189,6 +189,9 @@ describe("SkillDetailPanel", () => {
       </UIProvider>
     );
     expect(screen.getByTestId("content-body")).toHaveTextContent("# Hello");
+    expect(
+      screen.getByTestId("content-body").querySelector('[data-slot="code-block"]')
+    ).toBeInTheDocument();
   });
 
   it("Should retry content fetch when retry-view-content-btn is clicked", async () => {

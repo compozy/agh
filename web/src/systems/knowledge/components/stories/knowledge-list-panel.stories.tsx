@@ -92,6 +92,7 @@ const defaultMemories: KnowledgeMemoryItem[] = [
 ];
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -106,6 +107,7 @@ export const Default: Story = {
 };
 
 export const Empty: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -120,6 +122,7 @@ export const Empty: Story = {
 };
 
 export const SearchActive: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -136,6 +139,7 @@ export const SearchActive: Story = {
 };
 
 export const SearchEmpty: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -152,6 +156,7 @@ export const SearchEmpty: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -167,6 +172,7 @@ export const Loading: Story = {
 };
 
 export const ErrorState: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -182,6 +188,7 @@ export const ErrorState: Story = {
 };
 
 export const AgentScopeOnly: Story = {
+  args: {},
   render: () => (
     <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
@@ -196,6 +203,7 @@ export const AgentScopeOnly: Story = {
 };
 
 export const RowSelect: Story = {
+  args: {},
   tags: ["play-fn"],
   render: () => (
     <PanelSurface className="max-w-[360px]">

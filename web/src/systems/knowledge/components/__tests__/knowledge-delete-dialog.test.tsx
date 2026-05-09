@@ -36,7 +36,7 @@ describe("KnowledgeDeleteDialog", () => {
       </UIProvider>
     );
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
-    expect(screen.getByText(/project-context\.md/)).toBeInTheDocument();
+    expect(screen.getAllByText(/project-context\.md/).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/workspace scope/)).toBeInTheDocument();
   });
 
@@ -55,8 +55,32 @@ describe("KnowledgeDeleteDialog", () => {
         />
       </UIProvider>
     );
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user.md");
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
     expect(onConfirm).toHaveBeenCalled();
+  });
+
+  it("Should block confirm until the filename is typed", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <UIProvider reducedMotion="always">
+        <KnowledgeDeleteDialog
+          filename="user.md"
+          isPending={false}
+          onConfirm={onConfirm}
+          onOpenChange={vi.fn()}
+          open
+          scope="global"
+        />
+      </UIProvider>
+    );
+    expect(screen.getByTestId("confirm-delete-memory-btn")).toBeDisabled();
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user");
+    expect(screen.getByTestId("confirm-delete-memory-btn")).toBeDisabled();
+    await user.clear(screen.getByTestId("knowledge-delete-confirm-typing"));
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user.md");
+    expect(screen.getByTestId("confirm-delete-memory-btn")).toBeEnabled();
   });
 
   it("Should call onOpenChange(false) when cancel is clicked", async () => {
@@ -75,7 +99,10 @@ describe("KnowledgeDeleteDialog", () => {
       </UIProvider>
     );
     await user.click(screen.getByTestId("cancel-delete-memory-btn"));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenChange).toHaveBeenCalledWith(
+      false,
+      expect.objectContaining({ reason: "close-press" })
+    );
   });
 
   it("Should disable the confirm button while a delete is pending", () => {

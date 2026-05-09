@@ -1,13 +1,10 @@
 import { useMemo, useState } from "react";
-import { ChevronsUpDown, Cpu } from "lucide-react";
+import { Cpu } from "lucide-react";
 
-import { cn, Popover, PopoverContent, PopoverTrigger } from "@agh/ui";
+import { CommandSelect, CommandSelectShell, CommandSelectTrigger } from "@agh/ui";
 
 import { ProviderCommandList } from "./provider-command-list";
 import type { SessionProviderOption } from "../types";
-
-const TRIGGER_BASE =
-  "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none outline-none transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/50";
 
 export interface ProviderCommandSelectProps {
   options: SessionProviderOption[];
@@ -42,34 +39,37 @@ export function ProviderCommandSelect({
   };
 
   return (
-    <Popover open={open} onOpenChange={next => setOpen(next)}>
-      <PopoverTrigger
-        type="button"
+    <CommandSelect open={open} onOpenChange={next => setOpen(next)}>
+      <CommandSelectTrigger
         id={triggerId}
         aria-haspopup="listbox"
         aria-expanded={open}
         data-testid={triggerTestId}
         disabled={disabled}
-        className={cn(TRIGGER_BASE, className)}
+        className={className}
+        selected={Boolean(selected)}
       >
         {selected ? (
           <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <Cpu aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate text-sm text-foreground">
+            <Cpu aria-hidden="true" className="size-3.5 shrink-0 text-(--color-text-secondary)" />
+            <span className="truncate text-sm text-(--color-text-primary)">
               {selected.display_name?.trim() || selected.name}
             </span>
-            <span className="font-mono text-badge uppercase tracking-mono text-muted-foreground">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-secondary)">
               {selected.harness ?? "acp"}
             </span>
           </span>
         ) : (
-          <span className="truncate text-muted-foreground">{placeholder}</span>
+          <span className="truncate text-(--color-text-secondary)">{placeholder}</span>
         )}
-        <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-(--anchor-width) min-w-72 p-0">
+      </CommandSelectTrigger>
+      <CommandSelectShell
+        className="min-w-72"
+        inputPlaceholder="Search providers..."
+        inputProps={{ "data-testid": "provider-command-input" }}
+      >
         <ProviderCommandList options={options} isSelected={isSelected} onSelect={handleSelect} />
-      </PopoverContent>
-    </Popover>
+      </CommandSelectShell>
+    </CommandSelect>
   );
 }

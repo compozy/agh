@@ -1,7 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CodeBlock } from "../code-block";
+import { CodeBlock, CopyIconButton } from "../code-block";
 
 function installClipboard() {
   const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
@@ -147,5 +147,31 @@ describe("CodeBlock", () => {
       vi.advanceTimersByTime(1);
     });
     expect(button.getAttribute("data-copied")).toBeNull();
+  });
+
+  it("Should apply tone and line truncation attributes", () => {
+    const { container } = render(
+      <CodeBlock
+        code={"one\ntwo\nthree\nfour"}
+        showPrompt={false}
+        tone="warning"
+        truncateLines={2}
+      />
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
+    const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
+    expect(root).toHaveAttribute("data-tone", "warning");
+    expect(root?.className).toContain("ring-[color:var(--color-warning)]/35");
+    expect(pre?.className).toContain("max-h-[calc(var(--code-block-lines)*1.6em+2rem)]");
+    expect(pre?.style.getPropertyValue("--code-block-lines")).toBe("2");
+  });
+
+  it("Should export CopyIconButton as a standalone copy primitive", async () => {
+    const { container } = render(<CopyIconButton value="copy me" />);
+    const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
+    fireEvent.click(button);
+    await waitFor(() => {
+      expect(clipboard.writeText).toHaveBeenCalledWith("copy me");
+    });
   });
 });

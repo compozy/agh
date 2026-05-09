@@ -56,10 +56,12 @@ function AutomationTriggerFormHarness({
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <AutomationTriggerFormHarness activeWorkspaceId={storyDefaultWorkspaceId} />,
 };
 
 export const ValidationState: Story = {
+  args: {},
   render: () => (
     <AutomationTriggerFormHarness
       activeWorkspaceId={null}

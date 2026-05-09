@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { ItemInstance } from "@headless-tree/core";
-import { Bot, Loader2, TriangleAlert } from "lucide-react";
+import { Bot, TriangleAlert } from "lucide-react";
 
-import { cn, Pill, Tree, TreeItem, TreeItemLabel } from "@agh/ui";
+import { cn, Empty, Pill, Spinner, Tree, TreeItem, TreeItemLabel } from "@agh/ui";
 
 import {
   ACTIVE_NAV_INDICATOR_CLASS,
@@ -36,13 +36,14 @@ export function AgentCategoryTree({
 
   if (agentsLoading) {
     return (
-      <div
+      <Empty
+        icon={<Spinner className="size-4" />}
+        title="Loading agents..."
+        titleAs="span"
+        fill={false}
         data-testid="agents-loading"
-        className="flex items-center gap-2 px-3 py-2 text-xs text-(--color-text-tertiary)"
-      >
-        <Loader2 aria-hidden="true" className="size-3 animate-spin" />
-        <span>Loading agents...</span>
-      </div>
+        className="items-start gap-2 px-3 py-2 text-left"
+      />
     );
   }
 
@@ -52,25 +53,27 @@ export function AgentCategoryTree({
 
   if (agentsError) {
     return (
-      <div
+      <Empty
+        icon={TriangleAlert}
+        title="Could not load agents. Retry once the daemon is reachable."
+        titleAs="span"
+        fill={false}
         data-testid="agents-error"
-        className="flex items-center gap-2 px-3 py-2 text-xs text-(--color-text-tertiary)"
-      >
-        <TriangleAlert aria-hidden="true" className="size-3" />
-        <span>Could not load agents. Retry once the daemon is reachable.</span>
-      </div>
+        className="items-start gap-2 px-3 py-2 text-left"
+      />
     );
   }
 
   if (!agents || agents.length === 0) {
     return (
-      <div
+      <Empty
+        icon={Bot}
+        title="Run `agh install` to bootstrap AGH"
+        titleAs="span"
+        fill={false}
         data-testid="agents-empty"
-        className="flex items-center gap-2 px-3 py-2 text-xs text-(--color-text-tertiary)"
-      >
-        <Bot aria-hidden="true" className="size-3" />
-        <span>Run `agh install` to bootstrap AGH</span>
-      </div>
+        className="items-start gap-2 px-3 py-2 text-left"
+      />
     );
   }
 

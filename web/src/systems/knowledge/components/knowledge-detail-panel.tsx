@@ -1,7 +1,7 @@
-import { AlertCircle, BookOpen, Loader2, Pencil, Trash2 } from "lucide-react";
+import { AlertCircle, BookOpen, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Button, CodeBlock, Empty, Pill, Section } from "@agh/ui";
+import { Button, CodeBlock, Empty, Pill, Section, Spinner } from "@agh/ui";
 
 import {
   formatKnowledgeDateTime,
@@ -130,7 +130,7 @@ function KnowledgeDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="knowledge-detail-loading"
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-(--color-text-tertiary)" />
       </div>
     );
   }
@@ -157,12 +157,7 @@ function KnowledgeDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="knowledge-detail-empty"
       >
-        <Empty
-          className="max-w-md"
-          description="Select a memory to view details"
-          icon={BookOpen}
-          title="Select a memory to view details"
-        />
+        <Empty className="max-w-md" icon={BookOpen} title="Select a memory to view details" />
       </div>
     );
   }
@@ -271,7 +266,7 @@ function KnowledgeDetailPanel({
                 data-testid={`metadata-row-${row.key}`}
                 key={row.key}
               >
-                <dt className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
+                <dt className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)">
                   {row.key}
                 </dt>
                 <dd className="min-w-0 text-right">

@@ -20,6 +20,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+  args: {},
   render: args => (
     <CenteredSurface className="gap-3">
       <AgentIcon {...args} className="size-5" />
@@ -29,6 +30,7 @@ export const Default: Story = {
 };
 
 export const Providers: Story = {
+  args: {},
   render: () => (
     <CenteredSurface className="gap-4">
       {agentFixtures.map(agent => (

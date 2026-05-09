@@ -24,7 +24,7 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("renders lane tabs with muted inline `(N)` counts — no bg-colored count pills, no unread dot", () => {
+  it("renders lane tabs with muted inline `(N)` counts -- no bg-colored count pills, no unread dot", () => {
     const inbox = buildInboxFixture({
       total: 7,
       unread_total: 3,
@@ -67,9 +67,15 @@ describe("TasksInboxView", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={inbox} />);
 
     expect(screen.getByTestId("tasks-inbox-lane-tabs")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-lane-all-count")).toHaveTextContent("(7)");
-    expect(screen.getByTestId("tasks-inbox-lane-my_work-count")).toHaveTextContent("(4)");
-    // Unread totals live at the row level (accent left-rail) — not as dots on
+    expect(
+      screen.getByTestId("tasks-inbox-lane-all").querySelector('[data-slot="tabs-trigger-count"]')
+    ).toHaveTextContent("7");
+    expect(
+      screen
+        .getByTestId("tasks-inbox-lane-my_work")
+        .querySelector('[data-slot="tabs-trigger-count"]')
+    ).toHaveTextContent("4");
+    // Unread totals live at the row level (accent left-rail) -- not as dots on
     // the lane tabs.
     expect(screen.queryByTestId("tasks-inbox-lane-my_work-unread")).not.toBeInTheDocument();
     expect(screen.getByTestId("tasks-inbox-totals")).toHaveTextContent("3 unread");

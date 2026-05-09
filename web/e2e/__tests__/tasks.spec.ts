@@ -22,6 +22,8 @@ const tasksSessionAgentName = "browser-lifecycle-agent";
 const createdDraftDescription =
   "Use the shared browser lane to capture fresh Tasks evidence for task_19.";
 const createdDraftTitle = "Draft Tasks browser evidence rollout";
+const deleteDraftDescription = "Exercise the shared delete confirmation dialog from Tasks e2e.";
+const deleteDraftTitle = "Draft Tasks delete confirmation smoke";
 
 function tasksSessionPath(sessionId: string): string {
   return `/agents/${tasksSessionAgentName}/sessions/${sessionId}`;
@@ -228,4 +230,57 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     })
     .toBe(false);
   await browserArtifacts.captureScreenshot("tasks-inbox-approval-approved", appPage);
+
+  await tasksUI.openCreate.click();
+  await expect(appPage).toHaveURL(/\/tasks\/new$/);
+  await expect(tasksUI.createEditorSurface).toBeVisible();
+  await tasksUI.createTitle.fill(deleteDraftTitle);
+  await tasksUI.createDescription.fill(deleteDraftDescription);
+  await tasksUI.createSaveDraft.click();
+  await expect(tasksUI.createEditorSurface).toBeHidden();
+
+  let deleteDraftId = "";
+  await expect
+    .poll(async () => {
+      const payload = await runtime.requestJSON<{
+        tasks: Array<{ id: string; status: string; title: string }>;
+      }>(`/api/tasks?include_drafts=true&query=${encodeURIComponent(deleteDraftTitle)}&limit=10`);
+      const deleteTask = payload.tasks.find(task => task.title === deleteDraftTitle);
+      deleteDraftId = deleteTask?.id ?? "";
+      return deleteTask?.status ?? "";
+    })
+    .toBe("draft");
+
+  if (deleteDraftId === "") {
+    throw new Error(`Expected a deletable draft task for "${deleteDraftTitle}".`);
+  }
+
+  await expect(tasksUI.taskCard(deleteDraftId)).toBeVisible();
+  await tasksUI.taskCard(deleteDraftId).click();
+  await expect(tasksUI.detailContent).toContainText(deleteDraftTitle);
+  await tasksUI.detailDelete.click();
+  await expect(tasksUI.detailDeleteDialog).toBeVisible();
+  await expect(tasksUI.detailDeleteDialog).toContainText(deleteDraftTitle);
+
+  const deleteResponsePromise = appPage.waitForResponse(response => {
+    return (
+      response.request().method() === "DELETE" &&
+      response.url().endsWith(`/api/tasks/${encodeURIComponent(deleteDraftId)}`)
+    );
+  });
+  await tasksUI.detailDeleteConfirm.click();
+  const deleteResponse = await deleteResponsePromise;
+  expect(deleteResponse.ok()).toBeTruthy();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
+  await expect
+    .poll(async () => {
+      const payload = await runtime.requestJSON<{
+        tasks: Array<{ id: string; title: string }>;
+      }>(`/api/tasks?include_drafts=true&query=${encodeURIComponent(deleteDraftTitle)}&limit=10`);
+      return payload.tasks.some(
+        task => task.id === deleteDraftId || task.title === deleteDraftTitle
+      );
+    })
+    .toBe(false);
+  await browserArtifacts.captureScreenshot("tasks-draft-deleted", appPage);
 });

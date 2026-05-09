@@ -6,10 +6,7 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
+  CatalogCard,
   Empty,
   Pill,
   PillGroup,
@@ -36,49 +33,40 @@ interface MarketplaceViewProps {
   onSearchChange?: (query: string) => void;
 }
 
-interface MarketplaceCardProps {
+interface SkillCatalogItemProps {
   skill: SkillPayload;
   isInstalled: boolean;
   onInstall?: () => void;
   isInstalling: boolean;
 }
 
-function MarketplaceCard({ skill, isInstalled, onInstall, isInstalling }: MarketplaceCardProps) {
+function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: SkillCatalogItemProps) {
   const author = deriveSkillAuthor(skill);
   const tags = deriveSkillTags(skill);
   const downloads = skill.metadata?.downloads;
 
   return (
-    <Card className="flex flex-col gap-3" data-testid={`marketplace-row-${skill.name}`} size="sm">
-      <CardHeader>
-        <div className="flex items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-(--color-surface-elevated) text-accent"
-          >
-            <Wrench className="size-4" />
-          </span>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="truncate text-small-body font-medium text-(--color-text-primary)">
-              {skill.name}
-            </span>
-            <div className="flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
-              {author ? <span>{`@${author}`}</span> : null}
-              {skill.version ? <span>{`v${skill.version}`}</span> : null}
-              {downloads !== undefined && downloads !== null ? (
-                <span className="inline-flex items-center gap-1">
-                  <Download aria-hidden="true" className="size-3" />
-                  {String(downloads)}
-                </span>
-              ) : null}
-            </div>
-          </div>
+    <CatalogCard data-testid={`marketplace-row-${skill.name}`}>
+      <div className="flex items-start gap-3">
+        <CatalogCard.Logo>
+          <Wrench className="size-4" />
+        </CatalogCard.Logo>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <CatalogCard.Title>{skill.name}</CatalogCard.Title>
+          <CatalogCard.Meta>
+            {author ? <span>{`@${author}`}</span> : null}
+            {skill.version ? <span>{`v${skill.version}`}</span> : null}
+            {downloads !== undefined && downloads !== null ? (
+              <span className="inline-flex items-center gap-1">
+                <Download aria-hidden="true" className="size-3" />
+                {String(downloads)}
+              </span>
+            ) : null}
+          </CatalogCard.Meta>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <p className="text-small-body leading-6 text-(--color-text-secondary)">
-          {skill.description}
-        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <CatalogCard.Description>{skill.description}</CatalogCard.Description>
         {tags.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {tags.map(tag => (
@@ -94,8 +82,8 @@ function MarketplaceCard({ skill, isInstalled, onInstall, isInstalling }: Market
             ))}
           </div>
         ) : null}
-      </CardContent>
-      <CardFooter className="bg-transparent">
+      </div>
+      <CatalogCard.Actions>
         {isInstalled ? (
           <Pill mono data-testid={`installed-pill-${skill.name}`} tone="success">
             INSTALLED
@@ -122,8 +110,8 @@ function MarketplaceCard({ skill, isInstalled, onInstall, isInstalling }: Market
             <span>Metadata only</span>
           </div>
         )}
-      </CardFooter>
-    </Card>
+      </CatalogCard.Actions>
+    </CatalogCard>
   );
 }
 
@@ -209,7 +197,7 @@ function MarketplaceView({
             data-testid="marketplace-grid"
           >
             {filtered.map(skill => (
-              <MarketplaceCard
+              <SkillCatalogItem
                 isInstalled={installedSkillNames.has(skill.name)}
                 isInstalling={isInstalling}
                 key={skill.name}

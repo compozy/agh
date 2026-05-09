@@ -1,6 +1,18 @@
-import { AlertCircle, Loader2, Waypoints } from "lucide-react";
+import { AlertCircle, Waypoints } from "lucide-react";
 
-import { Empty, Pill, SearchInput, type PillTone } from "@agh/ui";
+import {
+  BlockLoading,
+  Empty,
+  Eyebrow,
+  Item,
+  ItemFooter,
+  ItemHeader,
+  ItemTitle,
+  ListGroup,
+  Pill,
+  SearchInput,
+  type PillTone,
+} from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 import { KindChip } from "@/systems/network";
@@ -51,39 +63,30 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
   const effectiveStatus = health?.status ?? bridge.status;
 
   return (
-    <button
-      aria-pressed={isSelected}
+    <Item
+      as="button"
       className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-(--color-divider) px-4 py-3 text-left transition-colors",
-        "hover:bg-(--color-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isSelected && "bg-(--color-surface)"
+        "rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-4 py-3"
       )}
-      data-state={isSelected ? "selected" : undefined}
       data-testid={`bridge-item-${bridge.id}`}
+      indicator={isSelected ? "rail" : "none"}
       onClick={onSelect}
-      type="button"
+      selected={isSelected}
+      selectable
     >
-      {isSelected ? (
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"
-          data-testid="bridge-active-indicator"
-        />
-      ) : null}
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <ItemHeader>
+        <ItemTitle>
           <Pill.Dot pulse={pulse} tone={tone} />
           <span className="truncate text-small-body font-medium text-(--color-text-primary)">
             {bridge.display_name}
           </span>
-        </div>
-        <span className="shrink-0 font-mono text-badge uppercase tracking-widest text-(--color-text-tertiary)">
+        </ItemTitle>
+        <Eyebrow className="shrink-0" weight="semibold">
           {formatBridgeRelativeTime(health?.last_success_at)}
-        </span>
-      </div>
+        </Eyebrow>
+      </ItemHeader>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <ItemFooter className="flex-wrap justify-start gap-1.5">
         <KindChip kind={bridge.platform} />
         <Pill mono tone="neutral">
           {effectiveStatus}
@@ -93,8 +96,8 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
             {health.route_count} routes
           </span>
         ) : null}
-      </div>
-    </button>
+      </ItemFooter>
+    </Item>
   );
 }
 
@@ -146,7 +149,7 @@ export function BridgeListPanel({
         <SearchInput
           data-testid="bridge-search-input"
           onChange={onSearchChange}
-          placeholder="Search bridges…"
+          placeholder="Search bridges..."
           value={searchQuery}
         />
         <p className="text-xs text-(--color-text-secondary)" data-testid="bridge-list-summary">
@@ -156,15 +159,12 @@ export function BridgeListPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center px-6 py-10"
+          <BlockLoading
+            className="min-h-full rounded-none border-0"
             data-testid="bridge-list-loading"
-          >
-            <Loader2
-              aria-hidden="true"
-              className="size-5 animate-spin text-(--color-text-tertiary)"
-            />
-          </div>
+            label="Loading bridges"
+            surface="bare"
+          />
         ) : errorMessage && isEmpty ? (
           <div
             className="flex min-h-full items-center justify-center p-4"
@@ -196,19 +196,15 @@ export function BridgeListPanel({
         ) : (
           <div data-testid="bridge-list-groups">
             {groups.map(group => (
-              <div
+              <ListGroup
+                count={group.items.length}
                 data-testid={`bridge-list-group-${group.extensionName}-${group.platform}`}
+                headerProps={{
+                  "data-testid": `bridge-list-group-header-${group.extensionName}-${group.platform}`,
+                }}
                 key={`${group.extensionName}::${group.platform}`}
+                label={group.platform}
               >
-                <div
-                  className="flex items-center justify-between gap-2 border-b border-(--color-divider) bg-(--color-surface-panel) px-4 py-2"
-                  data-testid={`bridge-list-group-header-${group.extensionName}-${group.platform}`}
-                >
-                  <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                    {group.platform}
-                  </span>
-                  <Pill mono>{group.items.length}</Pill>
-                </div>
                 {group.items.map(bridge => (
                   <BridgeListItem
                     bridge={bridge}
@@ -218,7 +214,7 @@ export function BridgeListPanel({
                     onSelect={() => onSelectBridge(bridge.id)}
                   />
                 ))}
-              </div>
+              </ListGroup>
             ))}
           </div>
         )}

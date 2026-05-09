@@ -1,4 +1,4 @@
-import { Loader2, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import type { FormEvent } from "react";
 
 import {
@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   Empty,
@@ -15,6 +16,7 @@ import {
   Input,
   Pill,
   Section,
+  Spinner,
   Textarea,
 } from "@agh/ui";
 import { AgentCommandMultiSelect, type AgentPayload } from "@/systems/agent";
@@ -74,7 +76,7 @@ export function NetworkCreateChannelDialog({
             <Field>
               <FieldLabel htmlFor="network-channel-name">Channel name</FieldLabel>
               <FieldDescription>
-                Dot-notation encouraged — e.g. coord.core, ops.alerts.
+                Dot-notation encouraged; e.g. coord.core, ops.alerts.
               </FieldDescription>
               <Input
                 className="h-10 font-mono"
@@ -136,7 +138,7 @@ export function NetworkCreateChannelDialog({
             </Section>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+          <DialogFooter className="border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
             <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel
             </Button>
@@ -145,10 +147,10 @@ export function NetworkCreateChannelDialog({
               disabled={!canSubmit || isSubmitting}
               type="submit"
             >
-              {isSubmitting ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
+              {isSubmitting ? <Spinner aria-hidden="true" className="size-4" /> : null}
               Create channel
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, Loader2, Radio } from "lucide-react";
+import { AlertCircle, Radio } from "lucide-react";
 
-import { Button, CodeBlock, Metric, Pill, Section } from "@agh/ui";
+import { BlockLoading, Button, CodeBlock, Metric, Pill, Section } from "@agh/ui";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
@@ -85,12 +85,13 @@ export function TasksDetailPreviewPanel({
 
   if (isLoading && !detail) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
+      <BlockLoading
+        className="flex-1"
+        label="Loading task preview"
+        size="md"
+        surface="bare"
         data-testid="tasks-detail-preview-loading"
-      >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
+      />
     );
   }
 
@@ -181,7 +182,7 @@ export function TasksDetailPreviewPanel({
             {channelLabel ? (
               <Pill
                 data-testid="tasks-detail-preview-coordination"
-                title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
+                title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
                 tone={pillToneFromLegacyTone("violet")}
               >
                 <span className="inline-flex items-center gap-1">
@@ -288,14 +289,12 @@ export function TasksDetailPreviewPanel({
         data-testid="tasks-detail-preview-overview"
         label="Overview"
         right={
-          <Link
-            className="font-mono text-eyebrow uppercase tracking-mono text-accent hover:underline"
+          <Pill.Link
             data-testid="tasks-detail-preview-deeplink"
-            params={{ id: record.id }}
-            to="/tasks/$id"
+            render={<Link params={{ id: record.id }} to="/tasks/$id" />}
           >
             Open detail
-          </Link>
+          </Pill.Link>
         }
       >
         {description ? (
@@ -333,7 +332,7 @@ function buildPreviewCode({ record, description, ownerLabel }: BuildPreviewCodeP
   const scope = record.scope ?? "workspace";
   const owner = ownerLabel.toLowerCase().replace(/\s+/g, "-");
   const origin = record.origin?.kind ?? "unknown";
-  const prompt = (description ?? "").trim() || "—";
+  const prompt = (description ?? "").trim() || "--";
   return [
     `# scope    ${scope}`,
     `# owner    ${owner}`,

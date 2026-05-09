@@ -2,7 +2,7 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, Pill } from "@agh/ui";
+import { Button, Eyebrow, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 import { pillToneFromLegacyTone } from "@/lib/pill-variant";
@@ -67,15 +67,12 @@ export function TasksInboxItem({
         {taskStatusLabel(task.status)}
       </Pill>
       {run ? (
-        <span
-          className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
-          data-testid={`tasks-inbox-item-run-${taskId}`}
-        >
+        <Eyebrow data-testid={`tasks-inbox-item-run-${taskId}`}>
           run {run.id}
           {typeof run.attempt === "number"
             ? ` · ${formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}`
             : ""}
-        </span>
+        </Eyebrow>
       ) : null}
     </>
   );
@@ -111,16 +108,14 @@ export function TasksInboxItem({
     <TasksListRow
       className={cn(
         "rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) py-3 pr-4",
-        "border-l-2 pl-4",
-        unread
-          ? 'border-l-accent **:data-[slot="tasks-list-row-title"]:font-semibold'
-          : "border-l-transparent"
+        unread && '**:data-[slot="tasks-list-row-title"]:font-semibold'
       )}
       data-lane={lane}
       data-unread={unread ? "true" : "false"}
       footer={footer}
       lane={lane}
       onSelect={onOpen ? handleSelect : undefined}
+      rail={unread}
       task={task as unknown as TaskListItem}
       testId={`tasks-inbox-item-${taskId}`}
       trailing={trailing}
@@ -177,7 +172,7 @@ function InboxItemFooter({
   pendingDismissId,
   pendingMarkReadId,
 }: InboxItemFooterProps) {
-  const ownerLabel = item.task.owner?.ref ?? "—";
+  const ownerLabel = item.task.owner?.ref ?? "--";
 
   return (
     <>
@@ -307,9 +302,9 @@ interface ActionButtonProps {
   pending: boolean;
   testId: string;
   /**
-   * `primary` — solid accent CTA (max one per card).
-   * `ghost` — neutral secondary action.
-   * `destructive-ghost` — ghost with `text-danger`. Solid-filled destructive
+   * `primary` -- solid accent CTA (max one per card).
+   * `ghost` -- neutral secondary action.
+   * `destructive-ghost` -- ghost with `text-danger`. Solid-filled destructive
    * buttons only belong inside a confirmation dialog, not inline on a row.
    */
   variant: "primary" | "ghost" | "destructive-ghost";

@@ -14,9 +14,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { cn, Logo, Sidebar, SidebarSectionLabel } from "@agh/ui";
+import {
+  cn,
+  ConnectionIndicator,
+  type ConnectionStatus,
+  Logo,
+  Sidebar,
+  SidebarSectionLabel,
+} from "@agh/ui";
 
-import { ConnectionIndicator, type ConnectionStatus } from "@/components/connection-indicator";
 import {
   ACTIVE_NAV_INDICATOR_CLASS,
   ACTIVE_NAV_ROW_CLASS,

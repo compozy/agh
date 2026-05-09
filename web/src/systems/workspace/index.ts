@@ -20,6 +20,14 @@ export { useActiveWorkspace } from "./hooks/use-active-workspace";
 export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-workspaces";
 
 // Components
+export { OptionCard } from "./components/option-card";
+export type {
+  OptionCardDensity,
+  OptionCardHeaderProps,
+  OptionCardIconProps,
+  OptionCardProps,
+  OptionCardTone,
+} from "./components/option-card";
 export { ProviderCommandList } from "./components/provider-command-list";
 export type { ProviderCommandListProps } from "./components/provider-command-list";
 export { ProviderCommandSelect } from "./components/provider-command-select";

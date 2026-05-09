@@ -33,7 +33,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty policy draft — the marketplace registry input has been edited so the
+ * Dirty policy draft -- the marketplace registry input has been edited so the
  * policy save-bar reads dirty and enables the save button.
  */
 export const Dirty: Story = {

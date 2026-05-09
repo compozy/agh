@@ -1,7 +1,18 @@
-import { AlertCircle, Check, KeyRound, Loader2, Plus, RefreshCw, X } from "lucide-react";
+import { AlertCircle, Check, KeyRound, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Alert, AlertAction, AlertDescription, Button, Empty, Input } from "@agh/ui";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  BlockLoading,
+  Button,
+  ConfirmDialog,
+  Empty,
+  Input,
+  PageShell,
+  Section,
+} from "@agh/ui";
 
 import {
   useSettingsVaultPage,
@@ -11,11 +22,8 @@ import {
   type VaultNamespaceFilter,
 } from "@/hooks/routes/use-settings-vault-page";
 import {
-  SettingsCollectionHeader,
-  SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
-  SettingsPageShell,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 import { VAULT_NAMESPACES, VaultSecretsTable, type VaultSecret } from "@/systems/vault";
@@ -28,24 +36,17 @@ function VaultSettingsPage() {
   const page = useSettingsVaultPage();
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-vault-loading"
-      >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
-    );
+    return <BlockLoading className="flex-1" data-testid="settings-page-vault-loading" />;
   }
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="vault"
       title="Vault"
       statusLine={
         <SettingsStatusLine
-          daemonAvailable={!page.queryError}
           daemonLabel={page.queryError ? "vault unavailable" : "vault available"}
+          status={page.queryError ? "error" : "connected"}
           data-testid="settings-page-vault-status-line"
           items={[
             <span key="total" data-testid="settings-page-vault-total">
@@ -78,11 +79,11 @@ function VaultSettingsPage() {
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
-      <SettingsCollectionHeader
-        eyebrow="Secrets"
+      <Section
+        label="Secrets"
         data-testid="settings-page-vault-header-row"
-        summary={<>{page.counts.total} redacted metadata records exposed by the daemon vault</>}
-        action={
+        note={<>{page.counts.total} redacted metadata records exposed by the daemon vault</>}
+        right={
           <Button
             type="button"
             variant="default"
@@ -139,7 +140,7 @@ function VaultSettingsPage() {
         onClose={page.closeDelete}
         onConfirm={page.confirmDelete}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -309,9 +310,8 @@ function VaultDeleteDialog({
   onConfirm,
 }: VaultDeleteDialogProps) {
   return (
-    <SettingsDeleteDialog
+    <ConfirmDialog
       open={target !== null}
-      slug="vault"
       title="Delete vault secret?"
       description={
         target ? (
@@ -322,8 +322,20 @@ function VaultDeleteDialog({
         ) : null
       }
       error={error}
-      isDeleting={isDeleting}
+      isPending={isDeleting}
+      cancelLabel="Cancel"
       confirmLabel="Delete secret"
+      confirmIcon={Trash2}
+      contentProps={{ "data-testid": "settings-vault-delete" }}
+      descriptionProps={{ "data-testid": "settings-vault-delete-description" }}
+      errorProps={{ "data-testid": "settings-vault-delete-error" }}
+      cancelButtonProps={{
+        "data-testid": "settings-vault-delete-cancel",
+        disabled: isDeleting,
+      }}
+      confirmButtonProps={{
+        "data-testid": "settings-vault-delete-confirm",
+      }}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();

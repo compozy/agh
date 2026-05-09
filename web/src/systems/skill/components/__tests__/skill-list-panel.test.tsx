@@ -63,7 +63,12 @@ describe("SkillListPanel", () => {
     const user = userEvent.setup();
     renderPanel({ selectedSkillName: "beta", onSelectSkill: onSelect });
     expect(
-      within(screen.getByTestId("skill-item-beta")).getByTestId("skill-active-indicator")
+      within(screen.getByTestId("skill-item-beta")).getByTestId(/^skill-status-dot-/)
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("skill-item-beta")
+        .querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
     ).toBeInTheDocument();
 
     await user.click(screen.getByTestId("skill-item-alpha"));

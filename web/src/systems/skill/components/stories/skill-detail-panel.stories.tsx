@@ -4,6 +4,7 @@ import { expect, userEvent, within } from "storybook/test";
 
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { PanelSurface } from "@/storybook/story-layout";
+import { primarySkillFixture, skillContentFixtures } from "@/systems/skill/mocks/fixtures";
 
 import { SkillDetailPanel } from "../skill-detail-panel";
 
@@ -114,8 +115,29 @@ export const ErrorState: Story = {
   ),
 };
 
+export const WithLoadedContent: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface>
+      <SkillDetailPanel
+        content={skillContentFixtures[primarySkillFixture.name]}
+        contentError={null}
+        error={null}
+        isActionPending={false}
+        isContentLoading={false}
+        isLoading={false}
+        onDisable={() => undefined}
+        onEnable={() => undefined}
+        onRetryContent={() => undefined}
+        onViewContent={() => undefined}
+        skill={primarySkillFixture}
+      />
+    </PanelSurface>
+  ),
+};
+
 /**
- * Interaction test — toggling the Switch surfaces disable/enable call.
+ * Interaction test: toggling the Switch surfaces disable/enable call.
  */
 export const ToggleSwitch: Story = {
   tags: ["play-fn"],

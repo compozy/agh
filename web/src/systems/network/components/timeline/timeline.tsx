@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from "react";
 
-import { Skeleton } from "@agh/ui";
+import { Skeleton, SkeletonRows } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -47,16 +47,14 @@ function TimelineSkeleton({ density }: TimelineSkeletonProps) {
       data-testid="network-timeline-skeleton"
       role="status"
     >
-      {[0, 1, 2, 3, 4].map(index => (
-        <div key={index} className="flex gap-3">
-          <Skeleton className={cn("rounded-chip", density === "overlay" ? "size-8" : "size-9")} />
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-3.5 w-full max-w-md" />
-            <Skeleton className="h-3.5 w-3/4 max-w-88" />
-          </div>
+      <SkeletonRows count={5} className="gap-4" rowClassName="flex-row gap-3">
+        <Skeleton className={cn("rounded-chip", density === "overlay" ? "size-8" : "size-9")} />
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-3.5 w-full max-w-md" />
+          <Skeleton className="h-3.5 w-3/4 max-w-88" />
         </div>
-      ))}
+      </SkeletonRows>
     </div>
   );
 }

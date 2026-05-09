@@ -73,7 +73,7 @@ export const Error: Story = {
 };
 
 /**
- * Dirty shell state — the default-agent field has been edited so the save-bar
+ * Dirty shell state -- the default-agent field has been edited so the save-bar
  * reads Unsaved changes + the Save button enables.
  */
 export const Dirty: Story = {
@@ -88,8 +88,8 @@ export const Dirty: Story = {
 };
 
 /**
- * Saving shell state — the PATCH endpoint hangs so the Save button shows the
- * spinner + Saving… label for the story.
+ * Saving shell state -- the PATCH endpoint hangs so the Save button shows the
+ * spinner + Saving... label for the story.
  */
 export const Saving: Story = {
   args: {},
@@ -113,7 +113,7 @@ export const Saving: Story = {
 };
 
 /**
- * Restart-warning banner — mutation recorded as restart-required.
+ * Restart-warning banner -- mutation recorded as restart-required.
  */
 export const RestartWarning: Story = {
   args: {},
@@ -127,7 +127,7 @@ export const RestartWarning: Story = {
 };
 
 /**
- * Restart-polling banner — operation started, status still pending, spinner
+ * Restart-polling banner -- operation started, status still pending, spinner
  * visible in the banner.
  */
 export const RestartPolling: Story = {
@@ -160,7 +160,7 @@ export const RestartPolling: Story = {
 };
 
 /**
- * Restart-success banner — operation completed, Dismiss button visible.
+ * Restart-success banner -- operation completed, Dismiss button visible.
  */
 export const RestartSuccess: Story = {
   args: {},
@@ -181,7 +181,7 @@ export const RestartSuccess: Story = {
 };
 
 /**
- * Restart-failure banner — operation failed with a reason suffix + Dismiss.
+ * Restart-failure banner -- operation failed with a reason suffix + Dismiss.
  */
 export const RestartFailure: Story = {
   args: {},

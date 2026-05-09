@@ -1,3 +1,5 @@
+import { Pill, type PillTone } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 import {
@@ -9,7 +11,7 @@ import {
 import { formatElapsedSeconds, useElapsedSeconds } from "../../lib/use-elapsed";
 
 export interface WorkChipProps {
-  /** Network work state — silent for `submitted` / `completed` per `_design.md` §6.6. */
+  /** Network work state - silent for `submitted` / `completed` per `_design.md` §6.6. */
   state: string | null | undefined;
   /** When set + state is `working`, the chip ticks with elapsed seconds. */
   startedAt?: string | null;
@@ -19,13 +21,13 @@ export interface WorkChipProps {
   ariaLabel?: string;
 }
 
-const STATE_BG: Record<NetworkWorkState, string | null> = {
+const STATE_TONE: Record<NetworkWorkState, PillTone | null> = {
   submitted: null,
-  working: "bg-(--color-warning-tint) text-(--color-warning)",
-  needs_input: "bg-(--color-warning-tint) text-(--color-warning) motion-safe:animate-pulse",
+  working: "warning",
+  needs_input: "warning",
   completed: null,
-  failed: "bg-(--color-danger-tint) text-(--color-danger)",
-  canceled: "text-(--color-text-tertiary)",
+  failed: "danger",
+  canceled: "neutral",
 };
 
 export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: WorkChipProps) {
@@ -43,39 +45,41 @@ export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: Wo
   const label = formatNetworkWorkStateLabel(state);
   const elapsedText = state === "working" && startedAt ? formatElapsedSeconds(elapsed) : "";
   const text = elapsedText ? `${label} · ${elapsedText}` : label;
-  const bg = STATE_BG[state];
+  const tone = STATE_TONE[state] ?? "neutral";
+  const stateClassName = cn(
+    state === "needs_input" && "motion-safe:animate-pulse",
+    state === "canceled" && "bg-transparent text-(--color-text-tertiary)"
+  );
 
   if (onClick) {
     return (
-      <button
+      <Pill
         aria-label={ariaLabel ?? text}
-        className={cn(
-          "inline-flex items-center gap-1 rounded-chip px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono",
-          bg,
-          className
-        )}
+        className={cn(stateClassName, className)}
         data-testid="network-work-chip"
         data-state={state}
+        mono
         onClick={onClick}
-        type="button"
+        render={<button />}
+        size="xs"
+        tone={tone}
       >
         {text}
-      </button>
+      </Pill>
     );
   }
 
   return (
-    <span
+    <Pill
       aria-label={ariaLabel ?? text}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-chip px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono",
-        bg,
-        className
-      )}
+      className={cn(stateClassName, className)}
       data-testid="network-work-chip"
       data-state={state}
+      mono
+      size="xs"
+      tone={tone}
     >
       {text}
-    </span>
+    </Pill>
   );
 }

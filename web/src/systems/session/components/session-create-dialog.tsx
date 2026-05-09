@@ -141,11 +141,12 @@ function SessionCreateDialog({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-xl"
+        className="text-(--color-text-primary) sm:max-w-xl"
         data-testid="session-create-dialog"
         showCloseButton={!isSubmitting}
+        unframed
       >
-        <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
+        <DialogHeader variant="ruled">
           <DialogTitle>Start a new session</DialogTitle>
           <DialogDescription>
             {workspaceSelected
@@ -319,7 +320,7 @@ function SessionCreateDialog({
             ) : null}
           </div>
 
-          <DialogFooter className="mx-0 mb-0 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+          <DialogFooter variant="ruled">
             <Button
               data-testid="session-create-dialog-cancel"
               disabled={isSubmitting}

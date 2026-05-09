@@ -1,13 +1,17 @@
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
+  Alert,
+  AlertDescription,
   Button,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  Spinner,
 } from "@agh/ui";
 
 type EditorMode = "create" | "edit";
@@ -51,10 +55,11 @@ function SettingsEditorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="grid w-[calc(100%-2rem)] max-w-xl gap-4 sm:max-w-2xl"
+        unframed
         data-testid={`settings-${slug}-editor`}
         data-mode={mode}
       >
-        <DialogHeader>
+        <DialogHeader variant="ruled">
           <DialogTitle data-testid={`settings-${slug}-editor-title`}>{title}</DialogTitle>
           {description ? (
             <DialogDescription data-testid={`settings-${slug}-editor-description`}>
@@ -77,31 +82,26 @@ function SettingsEditorDialog({
 
         <div className="flex flex-col gap-2" data-testid={`settings-${slug}-editor-feedback`}>
           {error ? (
-            <div
-              className="flex items-start gap-2 rounded-md border border-(--color-danger) bg-(--color-danger-tint) px-3 py-2 text-xs text-(--color-danger)"
-              role="alert"
-              data-testid={`settings-${slug}-editor-error`}
-            >
+            <Alert variant="destructive" data-testid={`settings-${slug}-editor-error`}>
               <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-              <span>{error}</span>
-            </div>
+              <AlertDescription className="text-xs">{error}</AlertDescription>
+            </Alert>
           ) : null}
           {!error && warnings && warnings.length > 0 ? (
-            <ul
-              className="flex flex-col gap-1 rounded-md border border-(--color-warning) bg-(--color-warning-tint) px-3 py-2 text-xs text-(--color-warning)"
-              data-testid={`settings-${slug}-editor-warnings`}
-            >
-              {warnings.map(warning => (
-                <li key={warning} className="flex items-start gap-1.5">
-                  <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-                  <span>{warning}</span>
-                </li>
-              ))}
-            </ul>
+            <Alert variant="warning" data-testid={`settings-${slug}-editor-warnings`}>
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <AlertDescription>
+                <ul className="flex flex-col gap-1 text-xs">
+                  {warnings.map(warning => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
           ) : null}
         </div>
 
-        <div className="flex items-center justify-end gap-2">
+        <DialogFooter variant="ruled">
           <Button
             type="button"
             variant="ghost"
@@ -120,10 +120,10 @@ function SettingsEditorDialog({
             disabled={!canSave || isSaving}
             data-testid={`settings-${slug}-editor-save`}
           >
-            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-            {isSaving ? "Saving…" : computedSaveLabel}
+            {isSaving ? <Spinner className="size-3.5" /> : null}
+            {isSaving ? "Saving..." : computedSaveLabel}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

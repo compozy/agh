@@ -1,3 +1,5 @@
+import { Eyebrow, PageHeader } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 import type { NetworkPresenceState } from "../../hooks/use-network-presence";
@@ -62,23 +64,24 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-direct-room"
     >
-      <header
-        className="flex h-12 items-center gap-3 border-b border-(--color-divider) px-5"
+      <PageHeader
+        className="px-5 py-2.5"
         data-testid="network-direct-identity-row"
-      >
-        {otherPeerId ? (
-          <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={32} />
-        ) : null}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h1 className="truncate text-base font-semibold text-(--color-text-primary)">
-            {otherPeerId ? `@${otherPeerId}` : "Direct room"}
-          </h1>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-            agent
+        meta={
+          <>
+            <Eyebrow weight="medium">agent</Eyebrow>
+            <PresenceDot state={room.presence.state} />
+          </>
+        }
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            {otherPeerId ? (
+              <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={32} />
+            ) : null}
+            <span className="truncate">{otherPeerId ? `@${otherPeerId}` : "Direct room"}</span>
           </span>
-          <PresenceDot state={room.presence.state} />
-        </div>
-      </header>
+        }
+      />
 
       {detailError ? (
         <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">

@@ -2,19 +2,15 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Switch } from "@agh/ui";
+import { Button, Input, Metric, MetricGrid, PageShell, Section, Switch } from "@agh/ui";
 import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page";
 import type { SettingsNetworkSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsSectionCard,
-  SettingsStatGrid,
-  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -77,13 +73,13 @@ function NetworkSettingsPage() {
   const runtime = envelope.runtime;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="network"
       title="Network"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-network-status-line"
-          daemonAvailable={runtime.available}
+          status={runtime.available ? "connected" : "error"}
           items={[
             <span key="status">
               {runtime.status ?? (runtime.enabled ? "enabled" : "disabled")}
@@ -124,16 +120,13 @@ function NetworkSettingsPage() {
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
 function OperationalLinksRow() {
   return (
-    <SettingsSectionCard
-      eyebrow="Operational"
-      note="inspect channels, peers, and live message flow"
-    >
+    <Section divided label="Operational" note="inspect channels, peers, and live message flow">
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
         <Link
           to="/network"
@@ -144,7 +137,7 @@ function OperationalLinksRow() {
           Open Network
         </Link>
       </div>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -152,53 +145,53 @@ function RuntimeStatusSection({ runtime }: { runtime: NetworkRuntime }) {
   const listener =
     runtime.listener_host && runtime.listener_port
       ? `${runtime.listener_host}:${runtime.listener_port}`
-      : "—";
+      : "--";
 
   return (
-    <SettingsSectionCard eyebrow="Runtime" note="read-only">
-      <SettingsStatGrid>
-        <SettingsStatItem
+    <Section divided label="Runtime" note="read-only">
+      <MetricGrid>
+        <Metric
           label="Status"
           value={runtime.status ?? (runtime.enabled ? "enabled" : "disabled")}
-          testId="settings-page-network-runtime-status"
+          data-testid="settings-page-network-runtime-status"
         />
-        <SettingsStatItem
+        <Metric
           label="Listener"
           value={listener}
-          testId="settings-page-network-runtime-listener"
+          data-testid="settings-page-network-runtime-listener"
         />
-        <SettingsStatItem
+        <Metric
           label="Local peers"
           value={String(runtime.local_peers)}
-          testId="settings-page-network-runtime-local-peers"
+          data-testid="settings-page-network-runtime-local-peers"
         />
-        <SettingsStatItem
+        <Metric
           label="Remote peers"
           value={String(runtime.remote_peers)}
-          testId="settings-page-network-runtime-remote-peers"
+          data-testid="settings-page-network-runtime-remote-peers"
         />
-        <SettingsStatItem
+        <Metric
           label="Channels"
           value={String(runtime.channels)}
-          testId="settings-page-network-runtime-channels"
+          data-testid="settings-page-network-runtime-channels"
         />
-        <SettingsStatItem
+        <Metric
           label="Queued messages"
           value={String(runtime.queued_messages)}
-          testId="settings-page-network-runtime-queued-messages"
+          data-testid="settings-page-network-runtime-queued-messages"
         />
-        <SettingsStatItem
+        <Metric
           label="Queued sessions"
           value={String(runtime.queued_sessions)}
-          testId="settings-page-network-runtime-queued-sessions"
+          data-testid="settings-page-network-runtime-queued-sessions"
         />
-        <SettingsStatItem
+        <Metric
           label="Delivery workers"
           value={String(runtime.delivery_workers)}
-          testId="settings-page-network-runtime-delivery-workers"
+          data-testid="settings-page-network-runtime-delivery-workers"
         />
-      </SettingsStatGrid>
-    </SettingsSectionCard>
+      </MetricGrid>
+    </Section>
   );
 }
 
@@ -217,7 +210,7 @@ function ListenerSection({
   onPortValidityChange: (message: string | null) => void;
 }) {
   return (
-    <SettingsSectionCard eyebrow="Listener" note="topology requires restart">
+    <Section divided label="Listener" note="topology requires restart">
       <SettingsFieldRow
         data-testid="settings-page-network-enabled"
         label="Embedded network"
@@ -264,7 +257,7 @@ function ListenerSection({
           />
         }
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -278,7 +271,7 @@ function DeliverySection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <SettingsSectionCard eyebrow="Delivery" note="queue limits and retention">
+    <Section divided label="Delivery" note="queue limits and retention">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <NumberField
           label="Greet interval"
@@ -316,7 +309,7 @@ function DeliverySection({
           onChange={value => setDraft({ ...draft, max_replay_age: value })}
         />
       </div>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 

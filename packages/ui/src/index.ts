@@ -16,14 +16,16 @@ export {
 export type { CardProps, CardSize } from "./components/card";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
-export { Separator } from "./components/separator";
-export { Skeleton } from "./components/skeleton";
+export { Separator, type SeparatorProps } from "./components/separator";
+export { Skeleton, SkeletonRows, type SkeletonRowsProps } from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export {
   Alert,
   AlertTitle,
   AlertDescription,
   AlertAction,
+  AlertActions,
+  AlertMeta,
   alertVariants,
   type AlertProps,
 } from "./components/alert";
@@ -48,6 +50,15 @@ export { Kbd, KbdGroup } from "./components/kbd";
 export { UIProvider, type UIProviderProps } from "./components/custom/ui-provider";
 export { Logo, type LogoProps, type LogoVariant } from "./components/custom/logo";
 export {
+  KindIcon,
+  providerKindIconRegistry,
+  type KindIconProps,
+  type KindIconRegistry,
+  type KindIconRegistryEntry,
+  type KindIconSize,
+  type KindIconTone,
+} from "./components/custom/kind-icon";
+export {
   Dialog,
   DialogClose,
   DialogContent,
@@ -58,6 +69,10 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  type DialogChromeVariant,
+  type DialogContentProps,
+  type DialogFooterProps,
+  type DialogHeaderProps,
 } from "./components/dialog";
 export {
   Popover,
@@ -78,7 +93,14 @@ export {
   SheetTrigger,
 } from "./components/sheet";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
-export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants } from "./components/tabs";
+export {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  tabsListVariants,
+  type TabsTriggerProps,
+} from "./components/tabs";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {
   Select,
@@ -162,12 +184,16 @@ export {
   type SplitPaneProps,
 } from "./components/custom/split-pane";
 export { PageHeader, type PageHeaderProps } from "./components/custom/page-header";
+export { PageShell, type PageShellProps } from "./components/custom/page-shell";
+export { Eyebrow, type EyebrowProps, type EyebrowWeight } from "./components/custom/eyebrow";
 export {
   Pill,
   PillDot,
+  PillLink,
   pillVariants,
   type PillProps,
   type PillDotProps,
+  type PillLinkProps,
   type PillTone,
   type PillSize,
 } from "./components/custom/pill";
@@ -190,7 +216,114 @@ export {
   type WireCardProps,
 } from "./components/custom/wire-card";
 export { TypingDots, type TypingDotsProps } from "./components/custom/typing-dots";
-export { CodeBlock, type CodeBlockProps } from "./components/custom/code-block";
+export {
+  CodeBlock,
+  CopyIconButton,
+  type CodeBlockProps,
+  type CodeBlockTone,
+  type CopyIconButtonProps,
+} from "./components/custom/code-block";
+export {
+  BlockLoading,
+  type BlockLoadingProps,
+  type BlockLoadingSize,
+  type BlockLoadingSurface,
+} from "./components/custom/block-loading";
+export {
+  DataSurface,
+  DataSurfaceContent,
+  DataSurfaceEmpty,
+  DataSurfaceError,
+  DataSurfaceLoading,
+  resolveDataSurfaceState,
+  type DataSurfaceContentProps,
+  type DataSurfaceEmptyProps,
+  type DataSurfaceErrorProps,
+  type DataSurfaceLoadingProps,
+  type DataSurfaceProps,
+  type DataSurfaceState,
+} from "./components/custom/data-surface";
+export {
+  ConnectionIndicator,
+  type ConnectionIndicatorDotProps,
+  type ConnectionIndicatorLabelProps,
+  type ConnectionIndicatorProps,
+  type ConnectionStatus,
+} from "./components/custom/connection-indicator";
+export {
+  StatusCard,
+  type StatusCardActionProps,
+  type StatusCardBodyProps,
+  type StatusCardFooterProps,
+  type StatusCardHeaderProps,
+  type StatusCardProps,
+  type StatusCardTone,
+} from "./components/custom/status-card";
+export {
+  ConfirmDialog,
+  type ConfirmDialogNoteTone,
+  type ConfirmDialogProps,
+  type ConfirmDialogTone,
+} from "./components/custom/confirm-dialog";
+export {
+  CatalogCard,
+  type CatalogCardActionsProps,
+  type CatalogCardDescriptionProps,
+  type CatalogCardLogoProps,
+  type CatalogCardMetaProps,
+  type CatalogCardProps,
+  type CatalogCardTitleProps,
+  type CatalogCardTone,
+} from "./components/custom/catalog-card";
+export {
+  ListGroup,
+  ListGroupHeader,
+  ListGroupItems,
+  ListGroupRoot,
+  type ListGroupHeaderProps,
+  type ListGroupItemsProps,
+  type ListGroupProps,
+} from "./components/custom/list-group";
+export {
+  CommandSelect,
+  CommandSelectChip,
+  CommandSelectChipStrip,
+  CommandSelectGroup,
+  CommandSelectShell,
+  CommandSelectTrigger,
+  type CommandSelectChipProps,
+  type CommandSelectChipStripProps,
+  type CommandSelectGroupProps,
+  type CommandSelectProps,
+  type CommandSelectShellProps,
+  type CommandSelectTriggerProps,
+} from "./components/custom/command-select";
+export {
+  MetadataList,
+  MetadataListRoot,
+  MetadataListRow,
+  MetadataListTerm,
+  MetadataListValue,
+  type MetadataListProps,
+  type MetadataListRowProps,
+  type MetadataListTermProps,
+  type MetadataListValueProps,
+} from "./components/custom/metadata-list";
+export {
+  LinkedRecordTable,
+  LinkedRecordTableBody,
+  LinkedRecordTableCell,
+  LinkedRecordTableOpenCell,
+  LinkedRecordTableRoot,
+  LinkedRecordTableRow,
+  LinkedRecordTableTitle,
+  type LinkedRecordTableBodyProps,
+  type LinkedRecordTableCellProps,
+  type LinkedRecordTableOpenCellProps,
+  type LinkedRecordTableProps,
+  type LinkedRecordTableRowProps,
+  type LinkedRecordTableTitleProps,
+} from "./components/custom/linked-record-table";
 export {
   ChatMessageBubble,
   type ChatMessageBubbleProps,
@@ -203,6 +336,11 @@ export {
   type ToolCallStatus,
 } from "./components/custom/tool-call-card";
 export { Metric, type MetricProps, type MetricTone } from "./components/custom/metric";
+export {
+  MetricGrid,
+  type MetricGridColumns,
+  type MetricGridProps,
+} from "./components/custom/metric-grid";
 export {
   Avatar,
   AvatarBadge,
@@ -256,7 +394,12 @@ export {
   ItemHeader,
   ItemMedia,
   ItemSeparator,
+  ItemSelectionIndicator,
   ItemTitle,
+  type ItemAs,
+  type ItemIndicator,
+  type ItemProps,
+  type ItemSelectionIndicatorProps,
 } from "./components/item";
 export { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "./components/native-select";
 export { Tree, TreeItem, TreeItemLabel, TreeDragLine } from "./components/reui/tree";

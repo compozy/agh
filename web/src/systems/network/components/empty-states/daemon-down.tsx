@@ -1,6 +1,6 @@
 import { ServerCrash } from "lucide-react";
 
-import { Button, Empty } from "@agh/ui";
+import { Button, ConnectionIndicator, Empty } from "@agh/ui";
 
 export interface DaemonDownProps {
   onRetry?: () => void;
@@ -30,7 +30,12 @@ export function DaemonDown({ onRetry, className }: DaemonDownProps) {
       data-testid="network-daemon-down"
       description="Make sure the AGH daemon is running."
       icon={ServerCrash}
-      title="Network is unreachable."
+      title={
+        <span className="inline-flex flex-col items-center gap-2">
+          <ConnectionIndicator status="error" />
+          <span>Network is unreachable.</span>
+        </span>
+      }
     />
   );
 }

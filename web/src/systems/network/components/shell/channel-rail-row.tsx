@@ -1,12 +1,9 @@
 import { Hash, Star } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
+import { Item, ItemContent, ItemMedia, ItemTitle } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
-import {
-  ACTIVE_NAV_INDICATOR_CLASS,
-  ACTIVE_NAV_ROW_CLASS,
-  NAV_ROW_CLASS,
-} from "@/components/sidebar-nav-classes";
 import type { NetworkChannelSummary } from "../../types";
 
 export interface ChannelRailRowProps {
@@ -31,29 +28,35 @@ export function ChannelRailRow({
       className="group relative flex items-center"
       data-testid={`network-channel-row-${channel.channel}`}
     >
-      <Link
+      <Item
         aria-current={active ? "page" : undefined}
         className={cn(
-          NAV_ROW_CLASS,
-          "min-w-0 flex-1 pr-7",
-          active && ACTIVE_NAV_ROW_CLASS,
+          "min-w-0 flex-1 rounded-mono-badge border-transparent py-1 pr-7 pl-2 text-small-body",
           !active && hasUnread && "font-semibold text-(--color-text-primary)"
         )}
         data-active={active}
         data-testid={`network-channel-link-${channel.channel}`}
-        params={{ channel: channel.channel }}
-        to="/network/$channel/threads"
+        indicator={active ? "rail" : "none"}
+        render={<Link params={{ channel: channel.channel }} to="/network/$channel/threads" />}
+        selectable
+        selected={active}
+        size="xs"
       >
-        {active ? <span aria-hidden="true" className={ACTIVE_NAV_INDICATOR_CLASS} /> : null}
-        <Hash
-          aria-hidden="true"
-          className={cn(
-            "size-3.5 shrink-0",
-            active ? "text-(--color-text-primary)" : "text-(--color-text-tertiary)"
-          )}
-        />
-        <span className="min-w-0 truncate">{channel.channel}</span>
-      </Link>
+        <ItemMedia>
+          <Hash
+            aria-hidden="true"
+            className={cn(
+              "size-3.5 shrink-0",
+              active ? "text-(--color-text-primary)" : "text-(--color-text-tertiary)"
+            )}
+          />
+        </ItemMedia>
+        <ItemContent className="min-w-0">
+          <ItemTitle className="min-w-0 text-small-body">
+            <span className="truncate">{channel.channel}</span>
+          </ItemTitle>
+        </ItemContent>
+      </Item>
 
       <button
         aria-label={ariaLabel}

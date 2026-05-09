@@ -1,6 +1,6 @@
-import { AlertCircle, Loader2, Search } from "lucide-react";
+import { AlertCircle, Search } from "lucide-react";
 
-import { Empty, SearchInput, Switch } from "@agh/ui";
+import { BlockLoading, Empty, Eyebrow, SearchInput, Switch } from "@agh/ui";
 
 import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
 
@@ -84,32 +84,28 @@ export function TasksInboxView({
           className="h-9 min-w-[220px] flex-1"
           data-testid="tasks-inbox-search"
           onChange={next => onSearchChange(next)}
-          placeholder="Search inbox…"
+          placeholder="Search inbox..."
           value={searchQuery}
         />
-        <label
-          className="inline-flex items-center gap-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary)"
-          data-testid="tasks-inbox-unread-toggle"
-        >
+        <label className="inline-flex items-center gap-2" data-testid="tasks-inbox-unread-toggle">
           <Switch checked={unreadOnly} onCheckedChange={onToggleUnread} />
-          Unread only
+          <Eyebrow tone="neutral" className="text-(--color-text-secondary)">
+            Unread only
+          </Eyebrow>
         </label>
-        <span
-          className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)"
-          data-testid="tasks-inbox-totals"
-        >
+        <Eyebrow data-testid="tasks-inbox-totals">
           {inbox?.unread_total ?? 0} unread · {inbox?.archived_total ?? 0} archived
-        </span>
+        </Eyebrow>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {isLoading && !inbox ? (
-          <div
-            className="flex min-h-full items-center justify-center py-10"
+          <BlockLoading
+            label="Loading inbox"
+            size="md"
+            surface="bare"
             data-testid="tasks-inbox-loading"
-          >
-            <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-          </div>
+          />
         ) : errorMessage && !inbox ? (
           <Empty
             icon={AlertCircle}
@@ -133,10 +129,12 @@ export function TasksInboxView({
                 data-testid={`tasks-inbox-group-${group.lane}`}
                 key={group.lane}
               >
-                <header className="flex items-baseline gap-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
-                  <span>{taskInboxLaneLabel(group.lane)}</span>
+                <header className="flex items-baseline gap-2">
+                  <Eyebrow>{taskInboxLaneLabel(group.lane)}</Eyebrow>
                   <span aria-hidden="true">·</span>
-                  <span data-testid={`tasks-inbox-group-count-${group.lane}`}>({group.count})</span>
+                  <Eyebrow data-testid={`tasks-inbox-group-count-${group.lane}`}>
+                    ({group.count})
+                  </Eyebrow>
                 </header>
                 <div className="flex flex-col gap-2">
                   {(group.items ?? []).map(item => (

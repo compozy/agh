@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Trash2 } from "lucide-react";
 import { fn } from "storybook/test";
 
-import { Input, Pill } from "@agh/ui";
+import { ConfirmDialog, Input, Pill } from "@agh/ui";
 
-import { SettingsDeleteDialog } from "../settings-delete-dialog";
 import { SettingsEditorDialog } from "../settings-editor-dialog";
 import { SettingsFieldRow } from "../settings-field-row";
 
@@ -54,15 +54,18 @@ export const Editor: Story = {
 export const Delete: Story = {
   args: {},
   render: () => (
-    <SettingsDeleteDialog
+    <ConfirmDialog
       open
-      slug="providers"
       title="Delete provider overlay"
       description="This removes the workspace override; built-in provider defaults remain available."
-      fallbackNote="The provider falls back to the built-in config after deletion."
-      isDeleting={false}
+      note="The provider falls back to the built-in config after deletion."
+      isPending={false}
+      cancelLabel="Cancel"
       onConfirm={fn()}
       onOpenChange={fn()}
+      confirmIcon={Trash2}
+      confirmLabel="Delete"
+      contentProps={{ "data-testid": "settings-providers-delete" }}
     />
   ),
 };

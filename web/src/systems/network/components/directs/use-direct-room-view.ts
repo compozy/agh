@@ -26,7 +26,7 @@ export interface UseDirectRoomViewResult {
 }
 
 /**
- * Composition hook for `<DirectRoom>` — keeps the component under the
+ * Composition hook for `<DirectRoom>` - keeps the component under the
  * `compozy-react(max-component-complexity)` cap by holding all state, query,
  * and mutation hooks here.
  */

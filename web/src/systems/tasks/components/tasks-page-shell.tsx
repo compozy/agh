@@ -13,7 +13,7 @@ interface TasksPageShellProps {
 }
 
 /**
- * Tasks domain chrome — composes `@agh/ui` `PageHeader` (icon + title + count +
+ * Tasks domain chrome -- composes `@agh/ui` `PageHeader` (icon + title + count +
  * controls + meta) above a flex body. View-switching `Pills`, filter toggles,
  * and create CTAs slot through `controls` / `meta`; the body slot holds the list,
  * Kanban, Dashboard, or Inbox views.

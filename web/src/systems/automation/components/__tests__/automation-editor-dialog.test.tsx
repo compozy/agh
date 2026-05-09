@@ -108,7 +108,12 @@ describe("AutomationEditorDialog", () => {
 
     render(<JobEditorHarness onCancel={onCancel} onSubmit={onSubmit} />);
 
-    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    const dialog = screen.getByTestId("automation-editor-dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAttribute("data-frame", "unframed");
+    const header = dialog.querySelector('[data-slot="dialog-header"]');
+    expect(header).not.toBeNull();
+    expect(header).toHaveAttribute("data-variant", "ruled");
     expect(screen.getByText("Create job")).toBeInTheDocument();
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 

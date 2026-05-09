@@ -2,6 +2,7 @@ import type { FormEvent } from "react";
 
 import {
   Button,
+  DialogFooter,
   Field,
   FieldContent,
   FieldDescription,
@@ -330,7 +331,7 @@ export function AutomationJobForm({
         </Section>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+      <DialogFooter variant="ruled">
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>
@@ -342,7 +343,7 @@ export function AutomationJobForm({
         >
           {isPending ? "Saving..." : mode === "create" ? "Create Job" : "Save Changes"}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

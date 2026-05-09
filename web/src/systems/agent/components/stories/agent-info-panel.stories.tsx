@@ -50,7 +50,7 @@ function Frame({ children }: FrameProps) {
 }
 
 /**
- * Default — three MCP servers rendered as compact rows with transport chips.
+ * Default -- three MCP servers rendered as compact rows with transport chips.
  */
 export const Default: Story = {
   args: {},
@@ -62,7 +62,7 @@ export const Default: Story = {
 };
 
 /**
- * Empty state — agent declares no MCP servers.
+ * Empty state -- agent declares no MCP servers.
  */
 export const Empty: Story = {
   args: { agent: { ...primaryAgentFixture, mcp_servers: [] } },

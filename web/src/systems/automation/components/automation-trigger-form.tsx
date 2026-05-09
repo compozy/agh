@@ -4,6 +4,10 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 import {
   Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  DialogFooter,
   Field,
   FieldContent,
   FieldDescription,
@@ -227,30 +231,32 @@ export function AutomationTriggerForm({
           </div>
         </Section>
 
-        <section className="rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
-          <button
-            className="flex w-full items-center justify-between gap-3 text-left"
-            data-testid="trigger-governance-toggle"
-            onClick={() => setGovernanceExpanded(current => !current)}
-            type="button"
-          >
-            <span className="flex items-center gap-2">
-              {governanceExpanded ? (
-                <ChevronDown aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
-              ) : (
-                <ChevronRight aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
-              )}
-              <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
-                Governance
+        <Collapsible open={governanceExpanded} onOpenChange={setGovernanceExpanded}>
+          <section className="rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+            <CollapsibleTrigger
+              className="flex w-full items-center justify-between gap-3 text-left"
+              data-testid="trigger-governance-toggle"
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                {governanceExpanded ? (
+                  <ChevronDown aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
+                ) : (
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="size-4 text-(--color-text-tertiary)"
+                  />
+                )}
+                <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
+                  Governance
+                </span>
               </span>
-            </span>
-            <span className="text-small-body text-(--color-text-secondary)">
-              Optional retry and rate limit settings
-            </span>
-          </button>
+              <span className="text-small-body text-(--color-text-secondary)">
+                Optional retry and rate limit settings
+              </span>
+            </CollapsibleTrigger>
 
-          {governanceExpanded ? (
-            <div className="mt-4 space-y-4">
+            <CollapsibleContent className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 <Field>
                   <FieldTitle>Retry policy</FieldTitle>
@@ -363,12 +369,12 @@ export function AutomationTriggerForm({
                   </FieldDescription>
                 </FieldContent>
               </Field>
-            </div>
-          ) : null}
-        </section>
+            </CollapsibleContent>
+          </section>
+        </Collapsible>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+      <DialogFooter variant="ruled">
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>
@@ -380,7 +386,7 @@ export function AutomationTriggerForm({
         >
           {isPending ? "Saving..." : mode === "create" ? "Create Trigger" : "Save Changes"}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

@@ -5,7 +5,11 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
-import { automationRunFixtures, primaryAutomationTriggerFixture } from "@/systems/automation/mocks";
+import {
+  automationRunFixtures,
+  primaryAutomationJobFixture,
+  primaryAutomationTriggerFixture,
+} from "@/systems/automation/mocks";
 
 import { AutomationDetailPanel } from "../automation-detail-panel";
 
@@ -31,10 +35,12 @@ function AutomationDetailPanelFromPage() {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <AutomationDetailPanelFromPage />,
 };
 
 export const Error: Story = {
+  args: {},
   parameters: {
     ...storybookMswParameters({
       automation: [
@@ -51,6 +57,7 @@ export const Error: Story = {
 };
 
 export const TriggerDefault: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <AutomationDetailPanel
@@ -77,6 +84,7 @@ export const TriggerDefault: Story = {
 };
 
 export const TriggerHook: Story = {
+  args: {},
   tags: ["play-fn"],
   render: () => <AutomationDetailPanelFromPage />,
   play: async ({ canvasElement }) => {
@@ -84,4 +92,54 @@ export const TriggerHook: Story = {
     await userEvent.tab();
     await expect(canvas.findByTestId("automation-detail-panel")).resolves.toBeDefined();
   },
+};
+
+export const Loading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface>
+      <AutomationDetailPanel
+        emptyState={null}
+        error={null}
+        isDeleting={false}
+        isLoading
+        isTogglePending={false}
+        isTriggerPending={false}
+        item={undefined}
+        kind="jobs"
+        onDelete={fn()}
+        onEdit={fn()}
+        onToggleEnabled={fn()}
+        onTriggerNow={fn()}
+        runs={[]}
+        runsError={null}
+        runsLoading={false}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const Deleting: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface>
+      <AutomationDetailPanel
+        emptyState={null}
+        error={null}
+        isDeleting
+        isLoading={false}
+        isTogglePending={false}
+        isTriggerPending={false}
+        item={primaryAutomationJobFixture}
+        kind="jobs"
+        onDelete={fn()}
+        onEdit={fn()}
+        onToggleEnabled={fn()}
+        onTriggerNow={fn()}
+        runs={automationRunFixtures.filter(run => run.job_id === primaryAutomationJobFixture.id)}
+        runsError={null}
+        runsLoading={false}
+      />
+    </PanelSurface>
+  ),
 };

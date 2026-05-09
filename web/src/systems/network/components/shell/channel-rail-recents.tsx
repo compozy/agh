@@ -1,9 +1,18 @@
 import { AtSign, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { SidebarSectionLabel, Skeleton } from "@agh/ui";
+import {
+  Eyebrow,
+  Item,
+  ItemContent,
+  ItemFooter,
+  ItemMedia,
+  ItemTitle,
+  SidebarSectionLabel,
+  Skeleton,
+  SkeletonRows,
+} from "@agh/ui";
 import { cn } from "@/lib/utils";
-import { NAV_ROW_CLASS } from "@/components/sidebar-nav-classes";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkRecentEntry } from "../../types";
@@ -24,60 +33,87 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
 
   if (entry.surface === "thread") {
     return (
-      <Link
-        className={cn(NAV_ROW_CLASS, "py-1 text-xs")}
+      <Item
+        className="rounded-mono-badge border-transparent py-1 text-xs"
         data-testid={`network-recents-thread-${entry.containerId}`}
-        params={{ channel: entry.channel, threadId: entry.containerId }}
-        to="/network/$channel/threads/$threadId"
+        render={
+          <Link
+            params={{ channel: entry.channel, threadId: entry.containerId }}
+            to="/network/$channel/threads/$threadId"
+          />
+        }
+        selectable
+        size="xs"
       >
+        <ItemMedia>
+          <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
+        </ItemMedia>
+        <ItemContent className="min-w-0">
+          <ItemTitle
+            className={cn(
+              "min-w-0 text-xs",
+              entry.hasUnread
+                ? "font-semibold text-(--color-text-primary)"
+                : "text-(--color-text-secondary)"
+            )}
+          >
+            <span className="truncate">{entry.preview}</span>
+            <Eyebrow className="shrink-0" weight="medium">
+              #{entry.channel}
+            </Eyebrow>
+          </ItemTitle>
+        </ItemContent>
+        {timestampLabel ? (
+          <ItemFooter className="basis-auto">
+            <Eyebrow className="shrink-0" weight="medium">
+              {timestampLabel}
+            </Eyebrow>
+          </ItemFooter>
+        ) : null}
+      </Item>
+    );
+  }
+
+  return (
+    <Item
+      className="rounded-mono-badge border-transparent py-1 text-xs"
+      data-testid={`network-recents-direct-${entry.containerId}`}
+      render={
+        <Link
+          params={{ channel: entry.channel, directId: entry.containerId }}
+          to="/network/$channel/directs/$directId"
+        />
+      }
+      selectable
+      size="xs"
+    >
+      <ItemMedia>
         <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
-        <span
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle
           className={cn(
-            "min-w-0 flex-1 truncate",
+            "min-w-0 text-xs",
             entry.hasUnread
               ? "font-semibold text-(--color-text-primary)"
               : "text-(--color-text-secondary)"
           )}
         >
-          <span>{entry.preview}</span>
-          <span className="px-1 text-(--color-text-tertiary)">·</span>
-          <span className="font-mono text-(--color-text-tertiary)">#{entry.channel}</span>
-        </span>
-        {timestampLabel ? (
-          <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
-            {timestampLabel}
-          </span>
-        ) : null}
-      </Link>
-    );
-  }
-
-  return (
-    <Link
-      className={cn(NAV_ROW_CLASS, "py-1 text-xs")}
-      data-testid={`network-recents-direct-${entry.containerId}`}
-      params={{ channel: entry.channel, directId: entry.containerId }}
-      to="/network/$channel/directs/$directId"
-    >
-      <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate",
-          entry.hasUnread
-            ? "font-semibold text-(--color-text-primary)"
-            : "text-(--color-text-secondary)"
-        )}
-      >
-        <span>{entry.preview}</span>
-        <span className="px-1 text-(--color-text-tertiary)">in</span>
-        <span className="font-mono text-(--color-text-tertiary)">#{entry.channel}</span>
-      </span>
+          <span className="truncate">{entry.preview}</span>
+          <span className="text-(--color-text-tertiary)">in</span>
+          <Eyebrow className="shrink-0" weight="medium">
+            #{entry.channel}
+          </Eyebrow>
+        </ItemTitle>
+      </ItemContent>
       {timestampLabel ? (
-        <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
-          {timestampLabel}
-        </span>
+        <ItemFooter className="basis-auto">
+          <Eyebrow className="shrink-0" weight="medium">
+            {timestampLabel}
+          </Eyebrow>
+        </ItemFooter>
       ) : null}
-    </Link>
+    </Item>
   );
 }
 
@@ -87,11 +123,13 @@ export function ChannelRailRecents({ recents, isLoading }: ChannelRailRecentsPro
       <SidebarSectionLabel>{RECENTS_HEADING}</SidebarSectionLabel>
       <div className="space-y-0.5">
         {isLoading && recents.length === 0 ? (
-          <div className="space-y-1.5 px-2 py-1" data-testid="network-recents-loading">
+          <SkeletonRows
+            count={3}
+            className="gap-1.5 px-2 py-1"
+            data-testid="network-recents-loading"
+          >
             <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-5/6" />
-            <Skeleton className="h-3 w-2/3" />
-          </div>
+          </SkeletonRows>
         ) : recents.length === 0 ? (
           <p
             className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"

@@ -1,10 +1,9 @@
-import { Loader2 } from "lucide-react";
-
 import {
   Button,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   Field,
@@ -18,6 +17,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   Section,
+  Spinner,
   Textarea,
 } from "@agh/ui";
 import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
@@ -64,6 +64,7 @@ export function BridgeTestDeliveryDialog({
       <DialogContent
         className="gap-0 p-0 text-(--color-text-primary) sm:max-w-2xl"
         showCloseButton={false}
+        unframed
       >
         <form
           className="flex max-h-[min(80vh,760px)] flex-col"
@@ -74,7 +75,7 @@ export function BridgeTestDeliveryDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
+          <DialogHeader variant="ruled">
             <DialogTitle>Test Delivery</DialogTitle>
             <DialogDescription>
               Resolve the outbound target for {bridgeName ?? "the selected bridge"} using the saved
@@ -212,21 +213,21 @@ export function BridgeTestDeliveryDialog({
             </FieldGroup>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+          <DialogFooter variant="ruled">
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Close
             </Button>
             <Button data-testid="submit-test-delivery" disabled={isPending} size="sm" type="submit">
               {isPending ? (
                 <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Resolving…
+                  <Spinner className="size-3.5" />
+                  Resolving...
                 </>
               ) : (
                 "Resolve Target"
               )}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

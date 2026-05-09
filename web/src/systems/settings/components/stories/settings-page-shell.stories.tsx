@@ -1,18 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { Button, Input } from "@agh/ui";
+import { Button, Input, Metric, MetricGrid, PageShell, Section } from "@agh/ui";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import { settingsProvidersCollectionFixture } from "@/systems/settings/mocks";
 
-import { SettingsCollectionHeader } from "../settings-collection-header";
 import { SettingsFieldRow } from "../settings-field-row";
 import { SettingsPageActions } from "../settings-page-actions";
-import { SettingsPageShell } from "../settings-page-shell";
-import { SettingsSectionCard } from "../settings-section-card";
 import { SettingsSourceBadge } from "../settings-source-badge";
-import { SettingsStatGrid, SettingsStatItem } from "../settings-stat-grid";
 import { SettingsStatusLine } from "../settings-status-line";
 import type { RestartBannerState } from "../settings-restart-banner";
 
@@ -31,9 +27,9 @@ const restart: RestartBannerState = {
   dismiss: fn(),
 };
 
-const meta: Meta<typeof SettingsPageShell> = {
-  title: "systems/settings/SettingsPageShell",
-  component: SettingsPageShell,
+const meta: Meta<typeof PageShell> = {
+  title: "systems/settings/PageShell",
+  component: PageShell,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -61,12 +57,12 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {},
   render: () => (
-    <SettingsPageShell
+    <PageShell
       slug="providers"
       title="Providers"
       statusLine={
         <SettingsStatusLine
-          daemonAvailable
+          status="connected"
           items={["3 configured", "1 workspace override"]}
           data-testid="settings-story-status"
         />
@@ -78,25 +74,26 @@ export const Default: Story = {
         </div>
       }
     >
-      <SettingsCollectionHeader
-        eyebrow="Provider sources"
-        summary="Effective config merged from built-in and workspace sources."
-        action={
+      <Section
+        label="Provider sources"
+        note="Effective config merged from built-in and workspace sources."
+        right={
           <Button type="button" variant="outline" size="sm">
             Add provider
           </Button>
         }
       />
-      <SettingsStatGrid>
-        <SettingsStatItem label="Providers" value="12" detail="3 workspace scoped" />
-        <SettingsStatItem label="Native auth" value="4" detail="2 need login" />
-        <SettingsStatItem label="Catalogs" value="9" detail="1 stale source" />
-        <SettingsStatItem label="Defaults" value="1" detail="codex" />
-      </SettingsStatGrid>
-      <SettingsSectionCard
-        eyebrow="Codex"
+      <MetricGrid>
+        <Metric label="Providers" value="12" subtext="3 workspace scoped" />
+        <Metric label="Native auth" value="4" subtext="2 need login" />
+        <Metric label="Catalogs" value="9" subtext="1 stale source" />
+        <Metric label="Defaults" value="1" subtext="codex" />
+      </MetricGrid>
+      <Section
+        divided
+        label="Codex"
         note="Provider settings are rendered as field rows so descriptions and validation stay aligned."
-        headerAction={
+        right={
           <SettingsSourceBadge
             source={
               settingsProvidersCollectionFixture.providers[0]!.source_metadata.effective_source
@@ -119,8 +116,8 @@ export const Default: Story = {
           error="Model id is required when model catalog fallback is disabled."
           control={<Input aria-invalid defaultValue="" />}
         />
-      </SettingsSectionCard>
-    </SettingsPageShell>
+      </Section>
+    </PageShell>
   ),
 };
 
@@ -130,22 +127,20 @@ export const Default: Story = {
 export const DaemonUnavailable: Story = {
   args: {},
   render: () => (
-    <SettingsPageShell
+    <PageShell
       slug="observability"
       title="Observability"
       statusLine={
-        <SettingsStatusLine
-          daemonAvailable={false}
-          items={["last check failed", "retry from the daemon"]}
-        />
+        <SettingsStatusLine items={["last check failed", "retry from the daemon"]} status="error" />
       }
     >
-      <SettingsSectionCard
-        eyebrow="Runtime state"
+      <Section
+        divided
+        label="Runtime state"
         note="Controls are read-only until daemon health recovers."
       >
         <SettingsFieldRow label="Trace level" control={<Input defaultValue="info" disabled />} />
-      </SettingsSectionCard>
-    </SettingsPageShell>
+      </Section>
+    </PageShell>
   ),
 };

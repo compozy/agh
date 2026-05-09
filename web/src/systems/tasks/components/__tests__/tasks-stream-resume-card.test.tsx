@@ -14,7 +14,7 @@ describe("TasksStreamResumeCard", () => {
         streamState="idle"
       />
     );
-    expect(screen.getByTestId("tasks-stream-resume-latest")).toHaveTextContent("—");
+    expect(screen.getByTestId("tasks-stream-resume-latest")).toHaveTextContent("--");
     expect(screen.getByTestId("tasks-stream-resume-seed")).toHaveTextContent("0");
     expect(screen.getByTestId("tasks-stream-resume-status")).toHaveTextContent(
       "awaiting first frame"

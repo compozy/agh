@@ -101,7 +101,7 @@ const failedSessions: SessionPayload[] = [
 ];
 
 /**
- * Default — agent has one active session; runtime accumulates from `activity.elapsed_seconds`.
+ * Default -- agent has one active session; runtime accumulates from `activity.elapsed_seconds`.
  */
 export const Default: Story = {
   args: { sessions: displayRichSessions },
@@ -125,7 +125,7 @@ export const WithFailure: Story = {
 };
 
 /**
- * Empty state — no sessions yet, every metric falls back to the em-dash placeholder.
+ * Empty state -- no sessions yet, every metric falls back to the em-dash placeholder.
  */
 export const Empty: Story = {
   args: { sessions: [] },

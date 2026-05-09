@@ -24,6 +24,18 @@ const secrets: VaultSecret[] = [
   },
 ];
 
+const denseSecrets = Array.from(
+  { length: 8 },
+  (_, index): VaultSecret => ({
+    ref: `vault:sessions/session_launch_coordination/generated_secret_${index + 1}`,
+    namespace: "sessions",
+    kind: index % 2 === 0 ? "api_key" : "webhook",
+    present: true,
+    created_at: "2026-04-17T18:00:00Z",
+    updated_at: "2026-04-17T18:14:00Z",
+  })
+);
+
 const meta: Meta<typeof SessionVaultPanel> = {
   title: "systems/vault/SessionVaultPanel",
   component: SessionVaultPanel,
@@ -86,5 +98,15 @@ export const ErrorState: Story = {
   args: {
     secrets: [],
     error: new Error("Vault metadata endpoint returned 503."),
+  },
+};
+
+/**
+ * Dense state exercises Item rows and truncation inside the inspector panel.
+ */
+export const Dense: Story = {
+  args: {
+    secrets: denseSecrets,
+    sessionId: "session_launch_coordination",
   },
 };

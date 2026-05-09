@@ -15,6 +15,7 @@ import type { AssistantState } from "@assistant-ui/react";
 import {
   Button,
   Empty,
+  MetadataList,
   Metric,
   Pill,
   ScrollArea,
@@ -820,7 +821,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
     },
     {
       label: "Stopped",
-      value: meta.stopped_at ? formatLedgerTimestamp(meta.stopped_at) : "—",
+      value: meta.stopped_at ? formatLedgerTimestamp(meta.stopped_at) : "--",
       testId: "stopped-at",
       mono: true,
     },
@@ -843,17 +844,15 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
           Forensic
         </span>
       </div>
-      <dl className="grid grid-cols-1 gap-x-3 gap-y-1.5">
+      <MetadataList>
         {items.map(item => (
-          <div
+          <MetadataList.Row
             key={item.testId}
             data-testid={`session-inspector-memory-meta-${item.testId}`}
-            className="flex items-baseline justify-between gap-2"
+            className="items-baseline justify-between gap-2"
           >
-            <dt className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
-              {item.label}
-            </dt>
-            <dd
+            <MetadataList.Term>{item.label}</MetadataList.Term>
+            <MetadataList.Value
               className={cn(
                 "min-w-0 flex-1 break-all text-right text-xs text-(--color-text-primary)",
                 item.mono ? "font-mono text-eyebrow" : null
@@ -861,10 +860,10 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
               data-testid={`session-inspector-memory-meta-${item.testId}-value`}
             >
               {item.value}
-            </dd>
-          </div>
+            </MetadataList.Value>
+          </MetadataList.Row>
         ))}
-      </dl>
+      </MetadataList>
     </section>
   );
 }

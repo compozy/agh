@@ -7,12 +7,15 @@ import {
   AlertAction,
   AlertDescription,
   Button,
+  ConfirmDialog,
   Empty,
   Input,
   Pill,
   NativeSelect,
   NativeSelectOption,
+  PageShell,
   PillGroup,
+  Section,
   Table,
   TableBody,
   TableCell,
@@ -35,12 +38,9 @@ import type {
   SettingsWriteTarget,
 } from "@/systems/settings";
 import {
-  SettingsCollectionHeader,
-  SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
   SettingsSourceBadge,
   SettingsStatusLine,
@@ -88,13 +88,13 @@ function MCPServersSettingsPage() {
       : `${page.counts.total} overrides · scoped to ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="mcp-servers"
       title="MCP Servers"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-mcp-servers-status-line"
-          daemonAvailable
+          status="connected"
           items={[
             <span key="total" data-testid="settings-page-mcp-servers-total">
               {page.counts.total} servers
@@ -127,11 +127,11 @@ function MCPServersSettingsPage() {
         onSelectWorkspace={page.selectWorkspace}
       />
 
-      <SettingsCollectionHeader
+      <Section
         data-testid="settings-page-mcp-servers-header-row"
-        eyebrow={scopeEyebrow}
-        summary={scopeSummary}
-        action={
+        label={scopeEyebrow}
+        note={scopeSummary}
+        right={
           <Button
             type="button"
             variant="default"
@@ -185,7 +185,7 @@ function MCPServersSettingsPage() {
         onClose={page.closeDelete}
         onConfirm={page.confirmDelete}
       />
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -489,7 +489,7 @@ function MCPServerEditor({
           description={
             isCreate
               ? "Lower-case identifier injected into agents as the MCP server name."
-              : "Name is immutable — remove the server and add a new one to rename."
+              : "Name is immutable -- remove the server and add a new one to rename."
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
@@ -779,9 +779,8 @@ function MCPServerDeleteDialog({
   const effective = target?.source_metadata.effective_source;
 
   return (
-    <SettingsDeleteDialog
+    <ConfirmDialog
       open={open}
-      slug="mcp-servers"
       title={target ? `Delete MCP server "${target.name}"?` : "Delete MCP server"}
       description={
         target
@@ -790,7 +789,7 @@ function MCPServerDeleteDialog({
             : `Removes the definition from the selected target (${targetLabel(selectedTarget)}). Other sources for this server remain untouched.`
           : null
       }
-      fallbackNote={
+      note={
         target ? (
           <div className="flex flex-col gap-2">
             {effective ? (
@@ -818,7 +817,7 @@ function MCPServerDeleteDialog({
               </div>
             ) : (
               <span data-testid="settings-mcp-servers-delete-no-shadowed">
-                No other sources define this server — it will be fully removed after delete.
+                No other sources define this server -- it will be fully removed after delete.
               </span>
             )}
             <div
@@ -849,8 +848,20 @@ function MCPServerDeleteDialog({
         ) : null
       }
       error={error}
-      isDeleting={isDeleting}
+      isPending={isDeleting}
+      cancelLabel="Cancel"
       confirmLabel="Delete definition"
+      confirmIcon={Trash2}
+      contentProps={{ "data-testid": "settings-mcp-servers-delete" }}
+      noteProps={{ "data-testid": "settings-mcp-servers-delete-fallback" }}
+      errorProps={{ "data-testid": "settings-mcp-servers-delete-error" }}
+      cancelButtonProps={{
+        "data-testid": "settings-mcp-servers-delete-cancel",
+        disabled: isDeleting,
+      }}
+      confirmButtonProps={{
+        "data-testid": "settings-mcp-servers-delete-confirm",
+      }}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();

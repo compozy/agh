@@ -43,7 +43,7 @@ describe("SettingsPageActions", () => {
     );
     const btn = screen.getByTestId("settings-page-general-restart-action");
     expect(btn).toBeDisabled();
-    expect(btn).toHaveTextContent("Restarting…");
+    expect(btn).toHaveTextContent("Restarting...");
   });
 
   it("disables the Restart action while polling", () => {

@@ -10,7 +10,7 @@ export interface KindChipProps extends Omit<React.ComponentProps<"span">, "child
 }
 
 /**
- * Protocol kind marker — transparent surface, neutral border + tertiary
+ * Protocol kind marker - transparent surface, neutral border + tertiary
  * label, leading 7px colored dot keyed off the protocol kind. Unknown kinds
  * (platform names, event ids) render without a dot. Composes `Pill` + `Pill.Dot`.
  */

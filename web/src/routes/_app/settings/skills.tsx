@@ -8,7 +8,9 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  PageShell,
   PillGroup,
+  Section,
   Switch,
   Table,
   TableBody,
@@ -26,9 +28,7 @@ import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsPageActions,
-  SettingsPageShell,
   SettingsRestartBanner,
-  SettingsSectionCard,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 import type { WorkspacePayload } from "@/systems/workspace";
@@ -75,13 +75,13 @@ function SkillsSettingsPage() {
   const { envelope, draft, setDraft, restart } = page;
 
   return (
-    <SettingsPageShell
+    <PageShell
       slug="skills"
       title="Skills"
       statusLine={
         <SettingsStatusLine
           data-testid="settings-page-skills-status-line"
-          daemonAvailable={envelope.runtime_available}
+          status={envelope.runtime_available ? "connected" : "error"}
           items={[
             <span key="discovered">{envelope.discovered_count} discovered</span>,
             <span key="disabled">{envelope.disabled_count} disabled</span>,
@@ -143,7 +143,7 @@ function SkillsSettingsPage() {
       ) : (
         <AgentScopePolicyNotice />
       )}
-    </SettingsPageShell>
+    </PageShell>
   );
 }
 
@@ -187,8 +187,9 @@ function ScopeSelector({
   }
 
   return (
-    <SettingsSectionCard
-      eyebrow="Scope"
+    <Section
+      divided
+      label="Scope"
       note="agent scope only changes logical disabled skills for one effective agent"
     >
       <div
@@ -251,13 +252,13 @@ function ScopeSelector({
           />
         </div>
       ) : null}
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
 function OperationalLinksRow() {
   return (
-    <SettingsSectionCard eyebrow="Operational" note="manage runtime state outside of settings">
+    <Section divided label="Operational" note="manage runtime state outside of settings">
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
         <Link
           to="/skills"
@@ -268,7 +269,7 @@ function OperationalLinksRow() {
           Open Skills
         </Link>
       </div>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -308,14 +309,15 @@ function DisabledSkillsSection({
   const candidates = Array.from(new Set([...baseline, ...disabled])).sort();
 
   return (
-    <SettingsSectionCard
-      eyebrow="Disabled skills"
+    <Section
+      divided
+      label="Disabled skills"
       note={
         selection.scope === "agent"
           ? `applies immediately · scoped to ${selectedAgent?.name ?? selection.agentName}${selectedWorkspaceContext ? ` via ${selectedWorkspaceContext.name}` : ""}`
           : "applies immediately · no restart required"
       }
-      headerAction={
+      right={
         <SaveControls
           slug="disabled"
           saveLabel="Apply"
@@ -385,14 +387,15 @@ function DisabledSkillsSection({
           </Table>
         </div>
       )}
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
 function AgentScopePolicyNotice() {
   return (
-    <SettingsSectionCard
-      eyebrow="Marketplace & policy"
+    <Section
+      divided
+      label="Marketplace & policy"
       note="read-only in agent scope"
       data-testid="settings-page-skills-agent-policy-note"
     >
@@ -400,7 +403,7 @@ function AgentScopePolicyNotice() {
         Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
         poll interval, and marketplace allowlists remain global settings.
       </p>
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -428,10 +431,11 @@ function PolicySection({
   onReset,
 }: PolicySectionProps) {
   return (
-    <SettingsSectionCard
-      eyebrow="Marketplace & policy"
+    <Section
+      divided
+      label="Marketplace & policy"
       note="restart required to apply"
-      headerAction={
+      right={
         <SaveControls
           slug="policy"
           saveLabel="Save"
@@ -526,7 +530,7 @@ function PolicySection({
         value={draft.allowed_marketplace_hooks ?? []}
         onChange={value => setDraft({ ...draft, allowed_marketplace_hooks: value })}
       />
-    </SettingsSectionCard>
+    </Section>
   );
 }
 
@@ -647,7 +651,7 @@ function SaveControls({
         data-testid={`settings-page-skills-${slug}-save`}
       >
         {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-        {isSaving ? "Saving…" : saveLabel}
+        {isSaving ? "Saving..." : saveLabel}
       </Button>
     </div>
   );

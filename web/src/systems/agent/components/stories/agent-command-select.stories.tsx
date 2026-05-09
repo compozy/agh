@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
+import { Command, CommandInput } from "@agh/ui";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { storyAgentNames } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
@@ -161,9 +162,13 @@ export const NoMatch: Story = {
  * the single and multi-select controls.
  */
 export const CommandList: StoryObj<typeof AgentCommandList> = {
+  args: {},
   render: () => (
     <Frame>
-      <AgentCommandList agents={groupedAgents} isSelected={() => false} onSelect={fn()} />
+      <Command>
+        <CommandInput placeholder="Search agents..." data-testid="agent-command-input" />
+        <AgentCommandList agents={groupedAgents} isSelected={() => false} onSelect={fn()} />
+      </Command>
     </Frame>
   ),
 };
@@ -173,6 +178,7 @@ export const CommandList: StoryObj<typeof AgentCommandList> = {
  * picked item with `data-checked=true`, and surfaces a selected count.
  */
 export const MultiSelect: StoryObj<typeof AgentCommandMultiSelect> = {
+  args: {},
   render: () => {
     function Harness() {
       const [value, setValue] = useState<string[]>([storyAgentNames.cto]);
