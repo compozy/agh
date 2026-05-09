@@ -110,14 +110,14 @@ export function ChannelHeader({
         icon={Hash}
         subtitle={
           <span className="truncate" data-testid="network-channel-meta">
-            {metaSegments.map((segment, index) => (
-              <span key={`${segment}-${index}`}>
-                {index > 0 ? (
+            {metaSegments.map(segment => (
+              <span key={segment}>
+                {segment !== metaSegments[0] ? (
                   <span aria-hidden="true" className="mx-2 text-(--color-text-tertiary)">
                     /
                   </span>
                 ) : null}
-                <span data-testid={`network-channel-meta-${index}`}>{segment}</span>
+                <span data-testid={`network-channel-meta-${segment}`}>{segment}</span>
               </span>
             ))}
           </span>

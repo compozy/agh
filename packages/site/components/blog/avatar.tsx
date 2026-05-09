@@ -7,9 +7,9 @@ export interface AvatarProps {
 }
 
 const sizeClass: Record<NonNullable<AvatarProps["size"]>, string> = {
-  sm: "h-7 w-7 text-xs",
-  md: "h-9 w-9 text-sm",
-  lg: "h-11 w-11 text-base",
+  sm: "size-7 text-xs",
+  md: "size-9 text-sm",
+  lg: "size-11 text-base",
 };
 
 export function Avatar({ initial, size = "sm", className }: AvatarProps) {

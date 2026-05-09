@@ -1,16 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotionConfig } from "motion/react";
 import { PanelLeftIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
+import { useInitialState } from "./use-initial-state";
 
 const SIDEBAR_RAIL_WIDTH = 44;
 const SIDEBAR_PANEL_WIDTH_DEFAULT = 240;
 const SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT = 768;
-const SIDEBAR_MOTION_DURATION = 0.2;
-const SIDEBAR_MOTION_EASE = [0.4, 0, 0.2, 1] as const;
 
 export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onChange"> {
   rail?: React.ReactNode;
@@ -55,16 +53,13 @@ function Sidebar({
   ...props
 }: SidebarProps) {
   const isControlled = collapsedProp !== undefined;
-  const [uncontrolled, setUncontrolled] = React.useState(defaultCollapsed);
+  const [uncontrolled, setUncontrolled] = useInitialState(defaultCollapsed);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const userCollapsed = isControlled ? Boolean(collapsedProp) : uncontrolled;
   const narrow = useNarrowViewport(collapseBreakpoint);
   const panelVisible = narrow ? mobileOpen : !userCollapsed;
   const effectivelyCollapsed = !panelVisible;
-
-  const reducedMotion = useReducedMotionConfig();
-  const duration = reducedMotion ? 0 : SIDEBAR_MOTION_DURATION;
 
   const setCollapsed = React.useCallback(
     (next: boolean) => {
@@ -166,12 +161,10 @@ function Sidebar({
           <PanelLeftIcon aria-hidden="true" className="size-3.5" />
         </button>
       </div>
-      <motion.div
+      <div
         ref={panelRef}
         data-slot="sidebar-panel"
-        initial={false}
-        animate={{ width: panelVisible ? panelWidth : 0 }}
-        transition={{ duration, ease: SIDEBAR_MOTION_EASE }}
+        style={{ width: panelVisible ? panelWidth : 0 }}
         className={cn(
           "flex min-h-0 flex-col overflow-hidden bg-[color:var(--color-canvas-deep)]",
           panelVisible ? "visible pointer-events-auto" : "pointer-events-none invisible",
@@ -197,13 +190,13 @@ function Sidebar({
             </div>
           ) : null}
         </div>
-      </motion.div>
+      </div>
     </aside>
   );
 }
 
 /**
- * Canonical uppercase section heading used inside sidebar/panel columns —
+ * Canonical uppercase section heading used inside sidebar/panel columns ,
  * mirrors `.sidebar-section-label` in
  * `docs/design/web-inspiration/styles/app.css`.
  */

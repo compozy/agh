@@ -141,7 +141,7 @@ function SessionComposer({
             aria-label="Session prompt"
             data-testid="composer-textarea"
             disabled={!canPrompt}
-            placeholder={canPrompt ? "Send a message..." : "Session is not active"}
+            placeholder={canPrompt ? "Send a message…" : "Session is not active"}
             rows={1}
             maxRows={12}
             submitMode="enter"
@@ -254,7 +254,7 @@ function SessionComposer({
 
 function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center px-4 py-12">
+    <div className="mx-auto flex size-full max-w-3xl items-center justify-center px-4 py-12">
       <div className="max-w-md text-center">
         <p className="font-mono text-eyebrow tracking-badge text-(--color-text-tertiary) uppercase">
           {agentName}

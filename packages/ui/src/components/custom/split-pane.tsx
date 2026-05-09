@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AnimatePresence, motion, useReducedMotionConfig } from "motion/react";
+import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { ChevronLeftIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
@@ -100,7 +100,7 @@ function SplitPane({
             </div>
           ) : null}
           <AnimatePresence initial={false} mode="wait">
-            <motion.div
+            <m.div
               key={hasDetail ? "detail" : "empty"}
               data-slot={hasDetail ? "split-pane-detail-body" : "split-pane-detail-empty"}
               initial={{ opacity: 0 }}
@@ -110,7 +110,7 @@ function SplitPane({
               className="flex min-h-0 min-w-0 flex-1 flex-col"
             >
               {hasDetail ? detail : detailEmpty}
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </div>
       ) : null}

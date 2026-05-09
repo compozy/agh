@@ -107,7 +107,7 @@ export const WithSubmenu: Story = {
       <DropdownMenuContent>
         <DropdownMenuItem>Execute</DropdownMenuItem>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Agent…</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger>Agent...</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             <DropdownMenuItem>claude-code</DropdownMenuItem>
             <DropdownMenuItem>codex</DropdownMenuItem>

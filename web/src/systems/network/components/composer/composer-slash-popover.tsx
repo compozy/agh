@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
 import { Command, CommandEmpty, CommandItem, CommandList, CommandShortcut } from "@agh/ui";
 
@@ -57,6 +57,7 @@ export function ComposerSlashPopover({
   className,
 }: ComposerSlashPopoverProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const closePopover = useEffectEvent(onClose);
 
   useEffect(() => {
     if (!open) {
@@ -65,12 +66,12 @@ export function ComposerSlashPopover({
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        closePopover();
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;

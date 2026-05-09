@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
 export interface TypingDotsProps extends React.ComponentProps<"span"> {}
 
 /**
- * Three-dot typing indicator — mirrors `.typing-dots` in
+ * Three-dot typing indicator , mirrors `.typing-dots` in
  * `docs/design/web-inspiration/styles/app.css`. Relies on the
  * `typing-bounce` keyframes declared in `packages/ui/src/tokens.css`.
  */

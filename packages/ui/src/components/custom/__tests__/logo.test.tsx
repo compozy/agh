@@ -11,7 +11,7 @@ describe("Logo", () => {
     expect(logo).toHaveAttribute("data-slot", "logo");
     expect(logo).toHaveAttribute("data-variant", "logo");
     expect(logo).toHaveAttribute("viewBox", "0 0 972 386");
-    expect(logo.querySelector('g[transform="translate(0 30.6388)"]')).not.toBeNull();
+    expect(logo.querySelector('g[transform="translate(0 30.64)"]')).not.toBeNull();
     expect(logo.querySelector('g[transform="translate(429 0)"]')).not.toBeNull();
   });
 

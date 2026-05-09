@@ -54,7 +54,7 @@ const quickItems = [
 export const Default: Story = {
   render: () => (
     <Command className="w-[24rem] border">
-      <CommandInput placeholder="Type a command or search…" />
+      <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Navigate">
@@ -83,7 +83,7 @@ export const Default: Story = {
 export const WithShortcuts: Story = {
   render: () => (
     <Command className="w-[24rem] border">
-      <CommandInput placeholder="Jump to…" />
+      <CommandInput placeholder="Jump to..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Suggestions">
@@ -118,7 +118,7 @@ export const KeyboardNavigation: Story = {
   },
   render: () => (
     <Command className="w-[24rem] border">
-      <CommandInput placeholder="Search…" aria-label="Search palette" />
+      <CommandInput placeholder="Search..." aria-label="Search palette" />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Navigate">

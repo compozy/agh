@@ -13,7 +13,7 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Blog");
     expect(metadata.description).toBe(
-      "Field notes from the runtime — protocol design, engineering, and release receipts."
+      "Field notes from the runtime , protocol design, engineering, and release receipts."
     );
     expect(metadata.alternates?.canonical).toBe("/blog/");
     expect(metadata.openGraph?.title).toBe("Blog");

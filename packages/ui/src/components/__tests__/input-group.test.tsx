@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from "../input-group";
@@ -30,7 +30,7 @@ describe("InputGroup", () => {
     expect(addon?.getAttribute("data-align")).toBe("inline-end");
   });
 
-  it("Should focus the input when the addon container is clicked", () => {
+  it("Should focus the input when the addon container receives mouse down", () => {
     render(
       <InputGroup>
         <InputGroupAddon data-testid="addon">@</InputGroupAddon>
@@ -38,7 +38,7 @@ describe("InputGroup", () => {
       </InputGroup>
     );
     const addon = screen.getByTestId("addon");
-    addon.click();
+    fireEvent.mouseDown(addon);
     const input = document.querySelector<HTMLInputElement>('[data-slot="input-group-control"]');
     expect(document.activeElement).toBe(input);
   });

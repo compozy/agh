@@ -28,7 +28,7 @@ export function WorkInspector({
 }: WorkInspectorProps) {
   const body =
     isLoading && entries.length === 0 ? (
-      <p className="px-4 py-6 text-small-body text-(--color-text-tertiary)">Loading...</p>
+      <p className="px-4 py-6 text-small-body text-(--color-text-tertiary)">Loading…</p>
     ) : entries.length === 0 ? (
       <div className="flex justify-center px-4 py-6">
         <Empty

@@ -35,10 +35,11 @@ function ComboboxInputGroupAddon({ className, ...props }: React.ComponentProps<"
         "order-last flex h-auto cursor-text items-center justify-center gap-2 pr-3 text-sm font-medium text-[color:var(--color-text-tertiary)] select-none group-data-[disabled=true]/combobox-input-group:opacity-50 has-[>button]:mr-[-0.3rem] [&>svg:not([class*='size-'])]:size-4",
         className
       )}
-      onClick={event => {
+      onMouseDown={event => {
         if ((event.target as HTMLElement).closest("button")) {
           return;
         }
+        event.preventDefault();
         event.currentTarget.parentElement?.querySelector("input")?.focus();
       }}
       {...props}
@@ -51,7 +52,7 @@ function ComboboxInputControl({ className, ...props }: React.ComponentProps<"inp
     <input
       data-slot="combobox-input-control"
       className={cn(
-        "h-full w-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 py-0 text-sm text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)] selection:bg-[color:var(--color-accent-tint-strong)] selection:text-[color:var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50",
+        "size-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 py-0 text-sm text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)] selection:bg-[color:var(--color-accent-tint-strong)] selection:text-[color:var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}

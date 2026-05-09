@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Database, ShieldCheck, Terminal } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
@@ -5,7 +6,7 @@ import { SectionFrame } from "./primitives/section-frame";
 
 const FEATURES = [
   {
-    icon: <Database className="h-4 w-4" />,
+    icon: <Database className="size-4" />,
     eyebrow: "Sessions",
     title: "Durable sessions in SQLite",
     description:
@@ -16,7 +17,7 @@ const FEATURES = [
     },
   },
   {
-    icon: <Terminal className="h-4 w-4" />,
+    icon: <Terminal className="size-4" />,
     eyebrow: "Surfaces",
     title: "Three operator surfaces, one daemon",
     description:
@@ -24,7 +25,7 @@ const FEATURES = [
     cite: { href: "/runtime/core/operations/daemon", label: "daemon surfaces" },
   },
   {
-    icon: <ShieldCheck className="h-4 w-4" />,
+    icon: <ShieldCheck className="size-4" />,
     eyebrow: "Permissions",
     title: "Permission modes with an audit trail",
     description:
@@ -57,11 +58,14 @@ export function RuntimeSection() {
             </p>
           </div>
           <div className="absolute bottom-0 left-0 invisible lg:visible">
-            <img
+            <Image
               src="/images/runtime/illustration_1.png"
               alt="AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
-              loading="lazy"
+              width={848}
+              height={636}
               decoding="async"
+              sizes="424px"
+              unoptimized
               className="max-w-[424px] select-none object-contain opacity-95"
             />
           </div>

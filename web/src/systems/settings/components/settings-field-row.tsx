@@ -39,10 +39,14 @@ function SettingsFieldRow({
   const errorId = error ? `${baseId}-error` : undefined;
 
   const mergeAttributeTokens = (...values: Array<string | undefined>) => {
-    const tokens = values
-      .flatMap(value => value?.split(" ") ?? [])
-      .map(value => value.trim())
-      .filter(Boolean);
+    const tokens: string[] = [];
+    for (const value of values) {
+      if (!value) continue;
+      for (const token of value.split(" ")) {
+        const trimmed = token.trim();
+        if (trimmed) tokens.push(trimmed);
+      }
+    }
     return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
   };
 

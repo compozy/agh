@@ -64,7 +64,7 @@ export const InstalledEmpty: Story = {
 };
 
 /**
- * Detail panel populated — functionally identical to InstalledPopulated thanks
+ * Detail panel populated , functionally identical to InstalledPopulated thanks
  * to auto-selection, but retained as a distinct story for the detail state.
  */
 export const DetailOpen: Story = {

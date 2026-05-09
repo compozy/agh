@@ -86,7 +86,7 @@ function ActivitySkeleton() {
       rowClassName="border-b border-(--color-divider) px-4 py-3"
     >
       <Skeleton className="h-3 w-24" />
-      <Skeleton className="h-3 w-3/4" />
+      <Skeleton className="size-3/4" />
     </SkeletonRows>
   );
 }

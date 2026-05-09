@@ -153,7 +153,9 @@ function MarketplaceView({
           data-testid="marketplace-search-input"
           onChange={handleSearchChange}
           placeholder={
-            isBrowseOnly ? "Filter installed marketplace skills…" : "Search skills on marketplace…"
+            isBrowseOnly
+              ? "Filter installed marketplace skills..."
+              : "Search skills on marketplace..."
           }
           value={search}
         />

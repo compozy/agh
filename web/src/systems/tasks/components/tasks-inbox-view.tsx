@@ -87,8 +87,16 @@ export function TasksInboxView({
           placeholder="Search inbox..."
           value={searchQuery}
         />
-        <label className="inline-flex items-center gap-2" data-testid="tasks-inbox-unread-toggle">
-          <Switch checked={unreadOnly} onCheckedChange={onToggleUnread} />
+        <label
+          className="inline-flex items-center gap-2"
+          data-testid="tasks-inbox-unread-toggle"
+          htmlFor="tasks-inbox-unread-only"
+        >
+          <Switch
+            checked={unreadOnly}
+            id="tasks-inbox-unread-only"
+            onCheckedChange={onToggleUnread}
+          />
           <Eyebrow tone="neutral" className="text-(--color-text-secondary)">
             Unread only
           </Eyebrow>
@@ -98,7 +106,7 @@ export function TasksInboxView({
         </Eyebrow>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto p-4">
         {isLoading && !inbox ? (
           <BlockLoading
             label="Loading inbox"

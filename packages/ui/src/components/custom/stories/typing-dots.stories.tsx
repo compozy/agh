@@ -10,7 +10,7 @@ const meta: Meta<typeof TypingDots> = {
     docs: {
       description: {
         component:
-          "Three-dot typing indicator — mirrors `.typing-dots` in `docs/design/web-inspiration/styles/app.css`. Relies on the `typing-bounce` keyframes in `packages/ui/src/tokens.css`.",
+          "Three-dot typing indicator , mirrors `.typing-dots` in `docs/design/web-inspiration/styles/app.css`. Relies on the `typing-bounce` keyframes in `packages/ui/src/tokens.css`.",
       },
     },
   },
@@ -23,7 +23,7 @@ export const Default: Story = {
   render: () => (
     <span className="inline-flex items-center gap-2 font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
       <TypingDots />
-      <span>codex@laptop is typing…</span>
+      <span>codex@laptop is typing...</span>
     </span>
   ),
 };

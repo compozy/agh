@@ -32,7 +32,7 @@ function openMemoryTab() {
   fireEvent.click(screen.getByTestId("session-inspector-tab-memory"));
 }
 
-describe("SessionInspector — Memory v2 forensic ledger surface", () => {
+describe("SessionInspector , Memory v2 forensic ledger surface", () => {
   it("Should render lineage meta and ledger events when the ledger is materialized", () => {
     const ledger = makeLedger();
 

@@ -49,7 +49,7 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
   const isLoading = peersQuery.isLoading;
 
   if (isLoading) {
-    return <p className="px-2 py-3 text-xs text-(--color-text-tertiary)">Loading peers...</p>;
+    return <p className="px-2 py-3 text-xs text-(--color-text-tertiary)">Loading peers…</p>;
   }
 
   if (candidates.length === 0) {
@@ -70,7 +70,7 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
         {candidates.map(peer => (
           <CommandItem
             aria-selected={peer.peer_id === selectedPeerId ? "true" : "false"}
-            className="justify-between rounded-chip px-2 py-2"
+            className="justify-between rounded-chip p-2"
             data-testid={`network-new-direct-peer-${peer.peer_id}`}
             disabled={disabled}
             key={peer.peer_id}

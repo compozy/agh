@@ -207,7 +207,7 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
 
   return (
     <Section aria-label="Run activity" data-testid="task-run-detail-activity" label="Activity">
-      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-4 py-4">
+      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-4">
         <MetadataList className="gap-y-2">
           {lastEventType ? (
             <MetadataList.Row label="Last event">

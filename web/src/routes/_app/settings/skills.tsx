@@ -458,7 +458,12 @@ function PolicySection({
           <Switch
             data-testid="settings-page-skills-enabled-switch"
             checked={draft.enabled}
-            onCheckedChange={checked => setDraft({ ...draft, enabled: checked })}
+            onCheckedChange={checked =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, enabled: checked };
+              })
+            }
           />
         }
       />
@@ -473,7 +478,12 @@ function PolicySection({
             data-testid="settings-page-skills-poll-interval-input"
             value={draft.poll_interval ?? ""}
             placeholder="5m"
-            onChange={event => setDraft({ ...draft, poll_interval: event.target.value })}
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, poll_interval: event.target.value };
+              })
+            }
           />
         }
       />
@@ -488,9 +498,12 @@ function PolicySection({
             data-testid="settings-page-skills-marketplace-registry-input"
             value={draft.marketplace.registry ?? ""}
             onChange={event =>
-              setDraft({
-                ...draft,
-                marketplace: { ...draft.marketplace, registry: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  marketplace: { ...current.marketplace, registry: event.target.value },
+                };
               })
             }
           />
@@ -508,9 +521,12 @@ function PolicySection({
             value={draft.marketplace.base_url ?? ""}
             placeholder="https://"
             onChange={event =>
-              setDraft({
-                ...draft,
-                marketplace: { ...draft.marketplace, base_url: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  marketplace: { ...current.marketplace, base_url: event.target.value },
+                };
               })
             }
           />
@@ -521,14 +537,24 @@ function PolicySection({
         description="Comma-separated list of marketplace MCP packages that may be installed"
         testId="settings-page-skills-allowed-mcp"
         value={draft.allowed_marketplace_mcp ?? []}
-        onChange={value => setDraft({ ...draft, allowed_marketplace_mcp: value })}
+        onChange={value =>
+          setDraft(prev => {
+            const current = prev ?? draft;
+            return { ...current, allowed_marketplace_mcp: value };
+          })
+        }
       />
       <AllowListField
         label="Allowed hook installs"
         description="Comma-separated list of marketplace hook packages that may be installed"
         testId="settings-page-skills-allowed-hooks"
         value={draft.allowed_marketplace_hooks ?? []}
-        onChange={value => setDraft({ ...draft, allowed_marketplace_hooks: value })}
+        onChange={value =>
+          setDraft(prev => {
+            const current = prev ?? draft;
+            return { ...current, allowed_marketplace_hooks: value };
+          })
+        }
       />
     </Section>
   );
@@ -557,10 +583,13 @@ function AllowListField({ label, description, testId, value, onChange }: AllowLi
           placeholder="none"
           onChange={event =>
             onChange(
-              event.target.value
-                .split(",")
-                .map(entry => entry.trim())
-                .filter(entry => entry.length > 0)
+              event.target.value.split(",").reduce<string[]>((entries, entry) => {
+                const trimmed = entry.trim();
+                if (trimmed.length > 0) {
+                  entries.push(trimmed);
+                }
+                return entries;
+              }, [])
             )
           }
         />

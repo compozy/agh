@@ -26,19 +26,21 @@ interface KnowledgeDetailPanelProps {
   memory: KnowledgeMemoryItem | undefined;
   content: string | undefined;
   scope?: KnowledgeScope;
-  isLoading: boolean;
+  status: {
+    isLoading: boolean;
+    isDeletePending: boolean;
+    isEditPending?: boolean;
+    isDecisionsLoading?: boolean;
+  };
   error: Error | null;
   onDelete: (memory: KnowledgeMemoryItem) => Promise<void>;
-  isDeletePending: boolean;
   deleteError?: string | null;
   onEdit?: (
     memory: KnowledgeMemoryItem,
     input: { content: string; description?: string }
   ) => Promise<void>;
-  isEditPending?: boolean;
   editError?: string | null;
   decisions?: MemoryDecision[];
-  isDecisionsLoading?: boolean;
   decisionsError?: Error | null;
 }
 
@@ -104,18 +106,16 @@ function KnowledgeDetailPanel({
   memory,
   content,
   scope,
-  isLoading,
+  status,
   error,
   onDelete,
-  isDeletePending,
   deleteError,
   onEdit,
-  isEditPending = false,
   editError,
   decisions,
-  isDecisionsLoading = false,
   decisionsError = null,
 }: KnowledgeDetailPanelProps) {
+  const { isLoading, isDeletePending, isEditPending = false, isDecisionsLoading = false } = status;
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 

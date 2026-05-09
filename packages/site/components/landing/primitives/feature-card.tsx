@@ -29,7 +29,7 @@ export function FeatureCard({
       )}
     >
       {icon ? (
-        <div className="flex h-10 w-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) text-accent">
+        <div className="flex size-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) text-accent">
           {icon}
         </div>
       ) : null}
@@ -46,7 +46,7 @@ export function FeatureCard({
           className="mt-auto inline-flex items-center gap-1 pt-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary) transition-colors hover:text-accent"
         >
           {cite.label ?? "source"}
-          <ArrowUpRight aria-hidden className="h-3 w-3" />
+          <ArrowUpRight aria-hidden className="size-3" />
         </Link>
       ) : null}
     </article>

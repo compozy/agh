@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
@@ -35,7 +35,7 @@ interface TypedTreeContext<T> {
 }
 
 function useTreeContext<T>(): TypedTreeContext<T> {
-  return useContext(TreeContext) as TypedTreeContext<T>;
+  return use(TreeContext) as TypedTreeContext<T>;
 }
 
 function optionalFeatureCall<T, K extends keyof ItemInstance<T>>(

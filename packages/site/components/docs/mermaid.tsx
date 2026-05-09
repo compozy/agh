@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useReducer, useRef } from "react";
 
 let mermaidLoader: Promise<typeof import("mermaid").default> | null = null;
 
@@ -49,29 +49,36 @@ function loadMermaid() {
 export function Mermaid({ chart, caption }: { chart: string; caption?: string }) {
   const reactId = useId();
   const diagramId = `agh-mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const [svg, setSVG] = useState("");
-  const [error, setError] = useState("");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [state, dispatch] = useReducer(
+    (_state: { svg: string; error: string }, nextState: { svg?: string; error?: string }) => ({
+      svg: nextState.svg ?? "",
+      error: nextState.error ?? "",
+    }),
+    { svg: "", error: "" }
+  );
 
   useEffect(() => {
     let active = true;
 
-    setSVG("");
-    setError("");
+    dispatch({});
 
     void loadMermaid()
-      .then(async mermaid => {
-        const rendered = await mermaid.render(diagramId, chart);
+      .then(mermaid => {
         if (!active) return;
-        setSVG(
-          rendered.svg.replace(
-            "<svg ",
-            '<svg aria-hidden="true" class="agh-mermaid-svg" data-theme="agh" '
-          )
-        );
+        return mermaid.render(diagramId, chart).then(rendered => {
+          if (!active) return;
+          dispatch({
+            svg: rendered.svg.replace(
+              "<svg ",
+              '<svg aria-hidden="true" class="agh-mermaid-svg" data-theme="agh" '
+            ),
+          });
+        });
       })
       .catch(err => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : String(err));
+        dispatch({ error: err instanceof Error ? err.message : String(err) });
       });
 
     return () => {
@@ -79,16 +86,32 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
     };
   }, [chart, diagramId]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.replaceChildren();
+    if (!state.svg) return;
+
+    const parsed = new DOMParser().parseFromString(state.svg, "image/svg+xml");
+    const parseError = parsed.querySelector("parsererror");
+    if (parseError) {
+      dispatch({ error: parseError.textContent ?? "Mermaid SVG parse failed." });
+      return;
+    }
+
+    container.append(document.importNode(parsed.documentElement, true));
+  }, [state.svg]);
+
   return (
     <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-(--color-divider) bg-(--color-surface) p-4">
-      {svg ? (
+      {state.svg ? (
         <div
+          ref={containerRef}
           aria-label={caption ? `Diagram: ${caption}` : "Mermaid diagram"}
           className="agh-mermaid [&_svg]:h-auto [&_svg]:max-w-full"
           role="img"
-          dangerouslySetInnerHTML={{ __html: svg }}
         />
-      ) : error ? (
+      ) : state.error ? (
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-mono text-accent">
             Diagram source
@@ -99,10 +122,10 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
           <pre className="mt-4 overflow-x-auto rounded-md border border-(--color-divider) bg-(--color-canvas-deep) p-3 text-xs leading-6 text-(--color-text-secondary)">
             <code>{chart}</code>
           </pre>
-          <p className="mt-3 text-sm leading-6 text-(--color-text-tertiary)">{error}</p>
+          <p className="mt-3 text-sm leading-6 text-(--color-text-tertiary)">{state.error}</p>
         </div>
       ) : (
-        <p className="text-sm leading-6 text-(--color-text-secondary)">Rendering diagram...</p>
+        <p className="text-sm leading-6 text-(--color-text-secondary)">Rendering diagram…</p>
       )}
 
       {caption ? (

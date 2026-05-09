@@ -95,7 +95,7 @@ export function StorybookGeneralDraftDirtySetup() {
 /**
  * Programmatically dirties a settings field by typing `value` into the
  * input matching `testId`. Generic version of `StorybookGeneralDraftDirtySetup`
- * — reusable across every settings sub-route's dirty story state.
+ * , reusable across every settings sub-route's dirty story state.
  */
 export function StorybookFieldDirtySetup({ testId, value }: { testId: string; value: string }) {
   useEffect(() => {

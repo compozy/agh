@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 
 import { cn } from "../lib/utils";
+import { useInitialState } from "./use-initial-state";
 
 type PopoverActionsRef = React.RefObject<PopoverPrimitive.Root.Actions | null>;
 
@@ -16,7 +17,7 @@ interface PopoverMotionContextValue {
 const PopoverMotionContext = React.createContext<PopoverMotionContextValue | null>(null);
 
 function usePopoverMotion(): PopoverMotionContextValue {
-  const ctx = React.useContext(PopoverMotionContext);
+  const ctx = React.use(PopoverMotionContext);
   if (!ctx) {
     throw new Error("Popover.* components must be used inside <Popover>.");
   }
@@ -33,7 +34,7 @@ function Popover({
   ...props
 }: PopoverRootProps) {
   const actionsRef = React.useRef<PopoverPrimitive.Root.Actions | null>(null);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
 
@@ -96,7 +97,7 @@ function PopoverContent({
             <PopoverPrimitive.Popup
               data-slot="popover-content"
               render={
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}

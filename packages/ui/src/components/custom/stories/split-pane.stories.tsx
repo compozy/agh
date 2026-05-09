@@ -69,7 +69,7 @@ function ListColumn({
               type="button"
               data-active={selected === row.id}
               onClick={() => onSelect(row.id)}
-              className="flex w-full flex-col gap-1 border-b border-border px-3 py-3 text-left transition-colors hover:bg-[color:var(--color-hover)] data-[active=true]:bg-[color:var(--color-surface-panel)]"
+              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-[color:var(--color-hover)] data-[active=true]:bg-[color:var(--color-surface-panel)]"
             >
               <span className="text-[13px] font-medium text-foreground">{row.name}</span>
               <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
@@ -93,7 +93,7 @@ function DetailView({ row }: { row: Row }) {
         </span>
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-4 text-sm text-muted-foreground">
-        Detail view for run {row.id} — event timeline, artifacts, diff.
+        Detail view for run {row.id} , event timeline, artifacts, diff.
       </div>
     </div>
   );
@@ -195,7 +195,7 @@ export const ReducedMotion: Story = {
     docs: {
       description: {
         story:
-          "With `UIProvider reducedMotion='always'` the detail swap is instant — motion drops the opacity transition.",
+          "With `UIProvider reducedMotion='always'` the detail swap is instant , motion drops the opacity transition.",
       },
     },
   },

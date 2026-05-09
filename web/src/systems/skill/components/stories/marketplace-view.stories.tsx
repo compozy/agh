@@ -34,6 +34,51 @@ function MarketplaceViewFromPage() {
   );
 }
 
+function DisabledInstallMarketplaceView() {
+  const page = useSkillsPage();
+  return (
+    <PanelSurface>
+      <MarketplaceView
+        installUnavailableReason="Daemon does not support marketplace installs"
+        installedSkillNames={new Set()}
+        isInstalling={false}
+        onInstall={undefined}
+        skills={page.skills}
+      />
+    </PanelSurface>
+  );
+}
+
+function BrowseOnlyMarketplaceView() {
+  const page = useSkillsPage();
+  return (
+    <PanelSurface>
+      <MarketplaceView
+        installUnavailableReason="Remote marketplace search and install are not available in this view yet."
+        installedSkillNames={new Set(page.skills.map(skill => skill.name))}
+        isInstalling={false}
+        onInstall={undefined}
+        skills={page.skills}
+      />
+    </PanelSurface>
+  );
+}
+
+function AllInstalledMarketplaceView() {
+  const page = useSkillsPage();
+  return (
+    <PanelSurface>
+      <MarketplaceView
+        installUnavailableReason="Marketplace install is not implemented yet"
+        installedSkillNames={new Set(page.skills.map(skill => skill.name))}
+        isInstalling={false}
+        onInstall={() => undefined}
+        skills={page.skills}
+      />
+    </PanelSurface>
+  );
+}
+
 export const Default: Story = {
   render: () => <MarketplaceViewFromPage />,
 };
@@ -52,55 +97,16 @@ export const ErrorState: Story = {
 };
 
 export const DisabledInstall: Story = {
-  render: () => {
-    const page = useSkillsPage();
-    return (
-      <PanelSurface>
-        <MarketplaceView
-          installUnavailableReason="Daemon does not support marketplace installs"
-          installedSkillNames={new Set()}
-          isInstalling={false}
-          onInstall={undefined}
-          skills={page.skills}
-        />
-      </PanelSurface>
-    );
-  },
+  render: () => <DisabledInstallMarketplaceView />,
 };
 
 export const BrowseOnlyWithReason: Story = {
   args: {},
-  render: () => {
-    const page = useSkillsPage();
-    return (
-      <PanelSurface>
-        <MarketplaceView
-          installUnavailableReason="Remote marketplace search and install are not available in this view yet."
-          installedSkillNames={new Set(page.skills.map(skill => skill.name))}
-          isInstalling={false}
-          onInstall={undefined}
-          skills={page.skills}
-        />
-      </PanelSurface>
-    );
-  },
+  render: () => <BrowseOnlyMarketplaceView />,
 };
 
 export const AllInstalled: Story = {
-  render: () => {
-    const page = useSkillsPage();
-    return (
-      <PanelSurface>
-        <MarketplaceView
-          installUnavailableReason="Marketplace install is not implemented yet"
-          installedSkillNames={new Set(page.skills.map(skill => skill.name))}
-          isInstalling={false}
-          onInstall={() => undefined}
-          skills={page.skills}
-        />
-      </PanelSurface>
-    );
-  },
+  render: () => <AllInstalledMarketplaceView />,
 };
 
 /**

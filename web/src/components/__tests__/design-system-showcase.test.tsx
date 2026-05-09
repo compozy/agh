@@ -26,7 +26,7 @@ function renderShowcase() {
 
 /**
  * Tokens that the showcase intentionally surfaces as discrete swatches. Shadcn
- * theme aliases (`--background`, `--primary`, …) re-map to these AGH tokens
+ * theme aliases (`--background`, `--primary`, ...) re-map to these AGH tokens
  * and are covered by the primitives themselves rather than the swatch wall.
  */
 function extractAghTokens(source: string): string[] {

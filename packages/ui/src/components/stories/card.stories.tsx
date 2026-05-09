@@ -84,7 +84,7 @@ export const ActiveRail: Story = {
       <Card activeRail size="sm">
         <CardHeader>
           <CardTitle>Agent · claude-sonnet</CardTitle>
-          <CardDescription>Run in-flight — 2 events in the last second.</CardDescription>
+          <CardDescription>Run in-flight , 2 events in the last second.</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
@@ -95,7 +95,7 @@ export const ActiveRail: Story = {
       <Card size="sm">
         <CardHeader>
           <CardTitle>Agent · codex</CardTitle>
-          <CardDescription>Idle — last activity 4m ago.</CardDescription>
+          <CardDescription>Idle , last activity 4m ago.</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">Idle cards stay fully neutral.</p>

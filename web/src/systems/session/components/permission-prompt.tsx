@@ -45,7 +45,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
 
   return (
     <div className="px-4 py-2" data-testid="permission-prompt">
-      <Alert className="max-w-3xl px-3 py-3" variant="warning">
+      <Alert className="max-w-3xl p-3" variant="warning">
         <ShieldAlert className="size-4" />
         <AlertTitle>Permission Required</AlertTitle>
         <AlertDescription>

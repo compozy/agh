@@ -316,10 +316,12 @@ function useAutomationJobsPage() {
   const detailPanelProps = {
     emptyState,
     error: jobDetailQuery.error,
-    isDeleting: deleteJobMutation.isPending,
-    isLoading: jobDetailQuery.isLoading,
-    isTogglePending: updateJobMutation.isPending,
-    isTriggerPending: triggerJobMutation.isPending,
+    state: {
+      isDeleting: deleteJobMutation.isPending,
+      isLoading: jobDetailQuery.isLoading,
+      isTogglePending: updateJobMutation.isPending,
+      isTriggerPending: triggerJobMutation.isPending,
+    },
     item: selectedJob,
     kind: "jobs" as const,
     onDelete: () => {
@@ -519,10 +521,12 @@ function useAutomationTriggersPage() {
   const detailPanelProps = {
     emptyState,
     error: triggerDetailQuery.error,
-    isDeleting: deleteTriggerMutation.isPending,
-    isLoading: triggerDetailQuery.isLoading,
-    isTogglePending: updateTriggerMutation.isPending,
-    isTriggerPending: false,
+    state: {
+      isDeleting: deleteTriggerMutation.isPending,
+      isLoading: triggerDetailQuery.isLoading,
+      isTogglePending: updateTriggerMutation.isPending,
+      isTriggerPending: false,
+    },
     item: selectedTrigger,
     kind: "triggers" as const,
     onDelete: () => {

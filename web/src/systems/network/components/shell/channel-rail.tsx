@@ -27,9 +27,11 @@ export interface ChannelRailProps {
   unpinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   recents: ReadonlyArray<NetworkRecentEntry>;
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
-  isChannelsLoading: boolean;
-  isRecentsLoading: boolean;
-  isDirectsLoading: boolean;
+  loading: {
+    channels: boolean;
+    recents: boolean;
+    directs: boolean;
+  };
   activeChannel: string | null;
   activeDirectId: string | null;
   selfPeerId: string | null;
@@ -89,9 +91,7 @@ export function ChannelRail({
   unpinnedChannels,
   recents,
   directs,
-  isChannelsLoading,
-  isRecentsLoading,
-  isDirectsLoading,
+  loading,
   activeChannel,
   activeDirectId,
   selfPeerId,
@@ -99,6 +99,11 @@ export function ChannelRail({
   onTogglePinned,
   hasUnread,
 }: ChannelRailProps) {
+  const {
+    channels: isChannelsLoading,
+    recents: isRecentsLoading,
+    directs: isDirectsLoading,
+  } = loading;
   const hasAnyChannel = pinnedChannels.length + unpinnedChannels.length > 0;
   const hasAnyDirect = directs.length > 0;
 
@@ -116,7 +121,7 @@ export function ChannelRail({
             <div className="space-y-1.5 px-2 py-1" data-testid="network-channels-loading">
               <Skeleton className="h-4 w-3/4" />
               <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="size-4/5" />
               <Skeleton className="h-4 w-1/2" />
               <Skeleton className="h-4 w-3/5" />
             </div>
@@ -166,7 +171,7 @@ export function ChannelRail({
             <div className="space-y-1.5 px-2 py-1" data-testid="network-rail-directs-loading">
               <Skeleton className="h-4 w-3/4" />
               <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="size-4/5" />
             </div>
           ) : !hasAnyDirect ? (
             <p

@@ -36,7 +36,7 @@ export function FinalCta() {
             rel="noopener noreferrer"
             className="mt-1 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:text-accent"
           >
-            <Star aria-hidden className="h-3.5 w-3.5" />
+            <Star aria-hidden className="size-3.5" />
             Star on GitHub
           </a>
         </div>

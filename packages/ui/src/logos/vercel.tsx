@@ -9,7 +9,7 @@ export function VercelLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
       height="222"
       xmlns="http://www.w3.org/2000/svg"
       preserveAspectRatio="xMidYMid"
-      className={className || "w-8 h-8"}
+      className={className || "size-8"}
     >
       <title>Vercel</title>
       <path fill="currentColor" d="m128 0 128 221.705H0z" />

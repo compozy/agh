@@ -20,7 +20,7 @@ export const FONTS = {
 export function truncate(value: string | undefined, max: number): string {
   if (!value) return "";
   if (value.length <= max) return value;
-  return `${value.slice(0, max - 1).trimEnd()}…`;
+  return `${value.slice(0, max - 1).trimEnd()}...`;
 }
 
 export function formatBlogDate(iso: string | undefined): string {

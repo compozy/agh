@@ -211,7 +211,7 @@ export const ReducedMotion: Story = {
     docs: {
       description: {
         story:
-          "With `UIProvider reducedMotion='always'` the collapse transition is instant — motion drops the width animation.",
+          "With `UIProvider reducedMotion='always'` the collapse transition is instant , motion drops the width animation.",
       },
     },
   },

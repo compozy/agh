@@ -101,7 +101,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                 })
               )}
             >
-              <GithubLogo aria-hidden className="h-4 w-4" />
+              <GithubLogo aria-hidden className="size-4" />
             </a>
           )}
         </div>

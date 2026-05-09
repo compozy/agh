@@ -45,6 +45,14 @@ function CodeBlock({
   ...props
 }: CodeBlockProps) {
   const lines = React.useMemo(() => code.split("\n"), [code]);
+  const displayLines = React.useMemo(() => {
+    const seen = new Map<string, number>();
+    return lines.map(line => {
+      const count = seen.get(line) ?? 0;
+      seen.set(line, count + 1);
+      return { id: `${line || "blank"}-${count}`, line };
+    });
+  }, [lines]);
   const clampedLines =
     typeof truncateLines === "number" && Number.isFinite(truncateLines) && truncateLines > 0
       ? Math.floor(truncateLines)
@@ -91,10 +99,10 @@ function CodeBlock({
         )}
       >
         <code data-slot="code-block-code">
-          {lines.map((line, index) => {
+          {displayLines.map(({ id, line }) => {
             const withPrompt = showPrompt && shouldRenderPrompt(line);
             return (
-              <span key={`${index}-${line}`} data-slot="code-block-line" className="block">
+              <span key={id} data-slot="code-block-line" className="block">
                 {withPrompt ? (
                   <span
                     data-slot="code-block-prompt"
@@ -125,20 +133,26 @@ function CopyIconButton({
   ...props
 }: CopyIconButtonProps) {
   const [copied, setCopied] = React.useState(false);
-  const [copyFeedbackKey, setCopyFeedbackKey] = React.useState(0);
+  const copyFeedbackTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  React.useEffect(() => {
-    if (copyFeedbackKey === 0) return;
-    const timer = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-    return () => clearTimeout(timer);
-  }, [copyFeedbackKey]);
+  React.useEffect(
+    () => () => {
+      if (copyFeedbackTimerRef.current) {
+        clearTimeout(copyFeedbackTimerRef.current);
+      }
+    },
+    []
+  );
 
   const handleCopy = React.useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      setCopyFeedbackKey(current => current + 1);
+      if (copyFeedbackTimerRef.current) {
+        clearTimeout(copyFeedbackTimerRef.current);
+      }
+      copyFeedbackTimerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     } catch {
       // Some browsers block clipboard access in insecure contexts.
     }

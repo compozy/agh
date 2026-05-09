@@ -29,7 +29,7 @@ function KnowledgeDecisionsSection({
           className="flex items-center gap-2 px-1 py-3 text-xs text-(--color-text-tertiary)"
           data-testid="knowledge-decisions-loading"
         >
-          <Spinner /> Loading decisions...
+          <Spinner /> Loading decisions…
         </div>
       ) : error ? (
         <Empty

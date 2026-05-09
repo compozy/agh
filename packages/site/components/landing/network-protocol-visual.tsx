@@ -57,7 +57,7 @@ const STEPS: Step[] = [
     to: "B",
     kind: "say",
     direction: "->",
-    payload: `{ surface: "direct", direct_id: "direct_…", work_id: "work_deploy_staging", to: "deployer", body: { text: "deploy staging" } }`,
+    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_deploy_staging", to: "deployer", body: { text: "deploy staging" } }`,
     hint: "Structured task is delegated peer-to-peer in a restricted direct room.",
   },
   {
@@ -73,7 +73,7 @@ const STEPS: Step[] = [
     to: "A",
     kind: "receipt",
     direction: "<-",
-    payload: `{ ok: true, url: "https://staging.agh…" }`,
+    payload: `{ ok: true, url: "https://staging.agh..." }`,
     hint: "Delegation completes with an auditable receipt.",
   },
 ];
@@ -177,8 +177,8 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       aria-label="agh-network/v0 seven-step delegation sequence"
       className="min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) outline-none focus:ring-1 focus:ring-accent"
     >
-      {/* Header — lane labels */}
-      <div className="grid grid-cols-3 gap-2 border-b border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:gap-4 sm:px-4 md:px-6">
+      {/* Header , lane labels */}
+      <div className="grid grid-cols-3 gap-2 border-b border-(--color-divider) bg-(--color-surface) p-3 sm:gap-4 sm:px-4 md:px-6">
         <LaneHeader title="Agent A" subtitle="coder · desk-01" />
         <LaneHeader title="AGH Network" subtitle="agh-network/v0 · nats" accent />
         <LaneHeader title="Agent B" subtitle="deployer · ci-runner-03" />
@@ -186,7 +186,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
 
       {/* Body */}
       <div className="relative">
-        {/* Lane lines — purely decorative vertical rulers */}
+        {/* Lane lines , purely decorative vertical rulers */}
         <div className="pointer-events-none absolute inset-y-0 left-0 grid w-full grid-cols-3 gap-2 px-3 sm:gap-4 sm:px-4 md:px-6">
           <div className="relative flex justify-center">
             <div className="h-full w-px bg-(--color-divider)" />
@@ -205,14 +205,14 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
             const isPast = !showAll && i < state.step;
             const visible = showAll || i <= state.step;
             return (
-              <li key={i}>
+              <li key={`${step.kind}-${step.from}-${step.to}-${step.direction}-${step.payload}`}>
                 <button
                   type="button"
                   onClick={() => dispatch({ type: "seek", step: i })}
                   aria-current={isCurrent ? "step" : undefined}
                   aria-label={`Step ${i + 1} of ${STEPS.length}: ${step.kind} ${directionGlyph(step.direction, step.from, step.to)}`}
                   className={cn(
-                    "group grid w-full grid-cols-[24px_1fr] items-start gap-3 rounded-icon-well border border-transparent px-2 py-2 text-left transition-all",
+                    "group grid w-full grid-cols-[24px_1fr] items-start gap-3 rounded-icon-well border border-transparent p-2 text-left transition-all",
                     visible ? "opacity-100" : "pointer-events-none opacity-30",
                     isCurrent && "border-accent/55 bg-accent-tint/80",
                     isPast && "opacity-60"
@@ -220,7 +220,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
                 >
                   <span
                     className={cn(
-                      "mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full font-mono text-badge font-semibold",
+                      "mt-1 inline-flex size-5 items-center justify-center rounded-full font-mono text-badge font-semibold",
                       isCurrent
                         ? "bg-accent text-white"
                         : "bg-(--color-surface-elevated) text-(--color-text-tertiary)"
@@ -275,8 +275,8 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
         </ol>
       </div>
 
-      {/* Footer — controls + kind footnote */}
-      <div className="flex min-w-0 flex-col gap-3 border-t border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:px-4 md:flex-row md:items-center md:justify-between md:px-6">
+      {/* Footer , controls + kind footnote */}
+      <div className="flex min-w-0 flex-col gap-3 border-t border-(--color-divider) bg-(--color-surface) p-3 sm:px-4 md:flex-row md:items-center md:justify-between md:px-6">
         <p className="min-w-0 font-mono text-eyebrow text-(--color-text-tertiary)">
           <span className="text-accent">capability</span> transfers full capability artifacts.{" "}
           <span className="text-accent">say</span> is free-form operator chat.

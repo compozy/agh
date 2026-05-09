@@ -53,7 +53,11 @@ interface BridgeCreateDialogProps {
   providers: BridgeProvider[];
 }
 
-export function BridgeCreateDialog({
+export function BridgeCreateDialog(props: BridgeCreateDialogProps) {
+  return renderBridgeCreateDialog(props);
+}
+
+function renderBridgeCreateDialog({
   activeWorkspaceId,
   activeWorkspaceName,
   draft,
@@ -70,8 +74,7 @@ export function BridgeCreateDialog({
     selectedProvider &&
     isBridgeProviderSelectable(selectedProvider) &&
     draft.displayName.trim() &&
-    !providerConfigError &&
-    (draft.scope === "global" || activeWorkspaceId)
+    !providerConfigError
   );
 
   return (
@@ -81,14 +84,7 @@ export function BridgeCreateDialog({
         showCloseButton={false}
         unframed
       >
-        <form
-          className="flex max-h-[min(80vh,900px)] flex-col"
-          data-testid="bridge-create-dialog"
-          onSubmit={event => {
-            event.preventDefault();
-            onSubmit();
-          }}
-        >
+        <div className="flex max-h-[min(80vh,900px)] flex-col" data-testid="bridge-create-dialog">
           <DialogHeader variant="ruled">
             <DialogTitle>Create Bridge</DialogTitle>
             <DialogDescription>
@@ -97,7 +93,7 @@ export function BridgeCreateDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="flex-1 overflow-y-auto p-5">
             <FieldSet className="gap-6">
               <Section label="Provider">
                 <p className="text-small-body text-(--color-text-secondary)">
@@ -478,19 +474,20 @@ export function BridgeCreateDialog({
               data-testid="submit-bridge-create"
               disabled={!canSubmit || isPending}
               size="sm"
-              type="submit"
+              onClick={onSubmit}
+              type="button"
             >
               {isPending ? (
                 <>
                   <Spinner className="size-3.5" />
-                  Creating...
+                  Creating…
                 </>
               ) : (
                 "Create Bridge"
               )}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

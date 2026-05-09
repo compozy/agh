@@ -24,7 +24,7 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
+          <span className="inline-block size-1.5 rounded-full bg-success" />
           <MonoEyebrow tracking="wide">Changelog</MonoEyebrow>
         </div>
         <Link

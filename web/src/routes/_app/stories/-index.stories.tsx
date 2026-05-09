@@ -13,7 +13,7 @@ import { daemonHealthFixture } from "@/systems/daemon/mocks/fixtures";
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/home",
-    "Full app-shell route stories for the home dashboard — daemon status + key metrics — and the onboarding branch."
+    "Full app-shell route stories for the home dashboard , daemon status + key metrics , and the onboarding branch."
   ),
 };
 
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Healthy daemon — green StatusDot, connected pill, populated metric grid.
+ * Healthy daemon , green StatusDot, connected pill, populated metric grid.
  */
 export const Default: Story = {
   args: {},
@@ -30,7 +30,7 @@ export const Default: Story = {
 };
 
 /**
- * Daemon responded but reported a non-healthy status — warning StatusDot, still
+ * Daemon responded but reported a non-healthy status , warning StatusDot, still
  * connected pill, metrics still populated from the partial payload.
  */
 export const Degraded: Story = {
@@ -57,7 +57,7 @@ export const Degraded: Story = {
 };
 
 /**
- * Daemon unreachable — danger StatusDot, disconnected pill, recovery hint card
+ * Daemon unreachable , danger StatusDot, disconnected pill, recovery hint card
  * via Empty + ConnectionIndicator composition.
  */
 export const Disconnected: Story = {
@@ -76,7 +76,7 @@ export const Disconnected: Story = {
 };
 
 /**
- * First paint with slow network — skeletons in the daemon and metric sections.
+ * First paint with slow network , skeletons in the daemon and metric sections.
  */
 export const Loading: Story = {
   args: {},
@@ -107,7 +107,7 @@ export const Loading: Story = {
 };
 
 /**
- * Workspaces fetch fails — Empty error card replaces the dashboard body.
+ * Workspaces fetch fails , Empty error card replaces the dashboard body.
  */
 export const Error: Story = {
   args: {},

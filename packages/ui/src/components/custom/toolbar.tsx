@@ -9,7 +9,7 @@ export interface ToolbarProps extends React.ComponentProps<"div"> {
 }
 
 /**
- * Horizontal toolbar shell — flex row with wrap on narrow viewports.
+ * Horizontal toolbar shell , flex row with wrap on narrow viewports.
  * Composition-first: host decides which children (SearchInput, PillGroup, Button, etc.) go inside.
  */
 function Toolbar({ className, sticky, ...props }: ToolbarProps) {

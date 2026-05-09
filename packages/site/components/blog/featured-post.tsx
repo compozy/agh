@@ -124,7 +124,7 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
       <div className="flex items-center justify-between">
         <MonoEyebrow tracking="wide">agh-network/v0</MonoEyebrow>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
+          <span className="inline-block size-1.5 rounded-full bg-accent" />
           <MonoEyebrow tone="accent" tracking="wide">
             ALPHA
           </MonoEyebrow>
@@ -161,8 +161,8 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
           <MonoEyebrow tone="neutral">{trace.length} events</MonoEyebrow>
         </div>
         <ul className="mt-3 flex flex-col gap-2">
-          {trace.map((row, idx) => (
-            <li key={idx} className="flex items-center gap-3">
+          {trace.map(row => (
+            <li key={`${row.t}-${row.kind}`} className="flex items-center gap-3">
               <span className="w-16 font-mono text-badge text-(--color-text-tertiary)">
                 {row.t}
               </span>

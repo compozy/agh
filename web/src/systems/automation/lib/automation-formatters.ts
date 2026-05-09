@@ -168,7 +168,7 @@ export function formatPromptPreview(prompt: string, maxLength = 72): string {
     return normalized;
   }
 
-  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}...`;
 }
 
 export function automationStatusTone(

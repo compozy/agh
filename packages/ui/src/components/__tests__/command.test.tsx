@@ -16,7 +16,7 @@ import {
 function PaletteExample({ onSelect = () => {} }: { onSelect?: (value: string) => void }) {
   return (
     <Command>
-      <CommandInput placeholder="Search…" aria-label="Search" />
+      <CommandInput placeholder="Search..." aria-label="Search" />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
         <CommandGroup heading="Navigate">
@@ -77,7 +77,7 @@ describe("Command", () => {
     render(
       <CommandDialog open>
         <Command>
-          <CommandInput placeholder="Search…" aria-label="Search" />
+          <CommandInput placeholder="Search..." aria-label="Search" />
           <CommandList>
             <CommandItem value="a">Option A</CommandItem>
           </CommandList>

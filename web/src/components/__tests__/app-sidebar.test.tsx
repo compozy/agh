@@ -108,7 +108,7 @@ describe("AppSidebar", () => {
   });
 
   describe("Header", () => {
-    it("does not render a sidebar header slot — workspace identity lives in the rail", () => {
+    it("does not render a sidebar header slot , workspace identity lives in the rail", () => {
       renderSidebar(makeProps());
       expect(screen.queryByTestId("sidebar-workspace-name")).not.toBeInTheDocument();
       expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
@@ -349,7 +349,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  describe("Nav — Section structure", () => {
+  describe("Nav , Section structure", () => {
     it("renders Dashboard, Agents, Operate, Catalog, and System section labels in order", () => {
       renderSidebar(makeProps());
       const labels = screen.getAllByTestId("sidebar-section-label");

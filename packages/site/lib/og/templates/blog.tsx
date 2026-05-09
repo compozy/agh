@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
 import { SymbolGlyph } from "../logo";
 import { COLORS, FONTS, formatBlogDate, SIZE, truncate } from "../tokens";
@@ -10,6 +11,29 @@ export interface RenderBlogOGInput {
   date?: string;
   author?: string;
 }
+
+const canvasStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  background: COLORS.canvas,
+  color: COLORS.textPrimary,
+  fontFamily: FONTS.inter,
+  padding: "72px",
+};
+
+const metaStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  gap: "20px",
+  fontFamily: FONTS.mono,
+  fontSize: "18px",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
+};
 
 export async function renderBlogOG({
   title,
@@ -25,19 +49,7 @@ export async function renderBlogOG({
   const trimmedSlug = slug.replace(/^posts\//, "");
 
   return new ImageResponse(
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        background: COLORS.canvas,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.inter,
-        padding: "72px",
-      }}
-    >
+    <div style={canvasStyle}>
       <div
         style={{
           display: "flex",
@@ -68,18 +80,7 @@ export async function renderBlogOG({
             agh
           </div>
         </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: "20px",
-            fontFamily: FONTS.mono,
-            fontSize: "18px",
-            letterSpacing: "0.14em",
-            fontWeight: 500,
-          }}
-        >
+        <div style={metaStyle}>
           <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>AGH BLOG</span>
           {formattedDate ? (
             <>
@@ -175,7 +176,7 @@ export async function renderBlogOG({
               fontSize: "16px",
               color: COLORS.textTertiary,
               fontWeight: 500,
-              letterSpacing: "0.12em",
+              letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}
           >

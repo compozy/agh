@@ -56,7 +56,7 @@ export function useActiveNetworkSession(
       };
     }
     if (detailQuery.isLoading && !detailQuery.data) {
-      return { session: null, disabledReason: "Loading channel…", isLoading: true };
+      return { session: null, disabledReason: "Loading channel...", isLoading: true };
     }
     const detail = detailQuery.data ?? null;
     const peer = pickLocalPeer(detail);

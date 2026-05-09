@@ -11,7 +11,7 @@ const meta: Meta<typeof WireCard> = {
     docs: {
       description: {
         component:
-          "Bordered protocol card — mirrors `.wire-card` (head/body/foot) in `docs/design/web-inspiration/styles/app.css`. Used to embed wire-protocol payloads (recipes, receipts, capabilities) inside message threads.",
+          "Bordered protocol card , mirrors `.wire-card` (head/body/foot) in `docs/design/web-inspiration/styles/app.css`. Used to embed wire-protocol payloads (recipes, receipts, capabilities) inside message threads.",
       },
     },
   },

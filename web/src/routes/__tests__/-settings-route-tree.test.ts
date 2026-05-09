@@ -14,7 +14,7 @@ function findChildById(node: RouteLike, id: string): RouteLike | undefined {
   return getChildren(node).find(child => child.options?.id === id);
 }
 
-describe("route tree — settings subtree", () => {
+describe("route tree , settings subtree", () => {
   it("mounts a /_app/settings shell containing the default index child", () => {
     const appRoute = findChildById(routeTree as unknown as RouteLike, "/_app");
     expect(appRoute, "expected /_app to be registered under root").toBeDefined();

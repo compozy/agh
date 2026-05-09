@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Database, FileCode2, Layers, Network, Plug } from "lucide-react";
 
 const cardBase =
@@ -36,11 +37,14 @@ function RuntimeCard() {
       className={`${cardBase} min-h-[540px] md:min-h-[560px] lg:col-span-3 lg:col-start-1 lg:row-start-1 lg:min-h-0`}
     >
       <div className="absolute inset-x-0 bottom-0 top-[0%] pointer-events-none">
-        <img
+        <Image
           src="/images/bento-illustrations/runtime-v2.png"
           alt="AGH runtime device showing durable agent sessions and status indicators."
-          loading="eager"
+          fill
+          priority
           decoding="async"
+          sizes="(min-width: 1024px) 50vw, 100vw"
+          unoptimized
           className={`${imageBase} object-cover`}
         />
       </div>
@@ -48,7 +52,7 @@ function RuntimeCard() {
 
       <div className="relative z-10 max-w-84">
         <div className={labelBase}>
-          <Database className="h-4 w-4" />
+          <Database className="size-4" />
           <span>Runtime</span>
         </div>
         <h3
@@ -72,11 +76,14 @@ function NetworkCard() {
       className={`${cardBase} min-h-[420px] md:col-span-2 md:min-h-[500px] lg:col-span-3 lg:col-start-4 lg:row-start-1 lg:min-h-0`}
     >
       <div className="absolute inset-0 pointer-events-none">
-        <img
+        <Image
           src="/images/bento-illustrations/network-v2.png"
           alt="AGH network diagram showing discovery, delegation, receipt, and peers."
-          loading="eager"
+          fill
+          priority
           decoding="async"
+          sizes="(min-width: 1024px) 50vw, 100vw"
+          unoptimized
           className={`${imageBase} object-contain object-[40%_100%]`}
         />
       </div>
@@ -84,7 +91,7 @@ function NetworkCard() {
 
       <div className="relative z-10 max-w-120">
         <div className={labelBase}>
-          <Network className="h-4 w-4" />
+          <Network className="size-4" />
           <span>Network</span>
         </div>
         <h3
@@ -107,11 +114,13 @@ function BridgesCard() {
       className={`${cardBase} min-h-[360px] md:min-h-[390px] lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:min-h-0`}
     >
       <div className="absolute inset-0 pointer-events-none">
-        <img
+        <Image
           src="/images/bento-illustrations/bridges-v2.png"
           alt="Bridge events from Slack, Discord, and Telegram entering an AGH device."
-          loading="lazy"
+          fill
           decoding="async"
+          sizes="(min-width: 1024px) 33vw, 100vw"
+          unoptimized
           className={`${imageBase} object-cover object-[10%_20%]`}
         />
       </div>
@@ -119,7 +128,7 @@ function BridgesCard() {
 
       <div className="relative z-10 max-w-[18rem]">
         <div className={labelBase}>
-          <Plug className="h-4 w-4" />
+          <Plug className="size-4" />
           <span>Bridges</span>
         </div>
         <h3
@@ -142,13 +151,13 @@ function MemoryCard() {
       className={`${cardBase} min-h-[390px] lg:col-span-2 lg:col-start-3 lg:row-start-2 lg:min-h-0`}
     >
       <div className="absolute inset-x-0 bottom-0 top-[18%] pointer-events-none">
-        <img
+        <Image
           src="/images/bento-illustrations/memory-v2.png"
           alt="Skill document carrying deployment intent into AGH memory."
-          width={1076}
-          height={1462}
-          loading="lazy"
+          fill
           decoding="async"
+          sizes="(min-width: 1024px) 33vw, 100vw"
+          unoptimized
           className={`${imageBase} object-cover object-[50%_80%]`}
         />
       </div>
@@ -156,7 +165,7 @@ function MemoryCard() {
 
       <div className="relative z-10 max-w-68">
         <div className={labelBase}>
-          <FileCode2 className="h-4 w-4" />
+          <FileCode2 className="size-4" />
           <span>Memory</span>
         </div>
         <h3
@@ -179,11 +188,13 @@ function ExtensibilityCard() {
       className={`${cardBase} min-h-[390px] lg:col-span-2 lg:col-start-5 lg:row-start-2 lg:min-h-0`}
     >
       <div className="absolute inset-0 -bottom-30 pointer-events-none">
-        <img
+        <Image
           src="/images/bento-illustrations/extensibility-v2.png"
           alt="AGH daemon device with five pluggable extension cartridges — hooks, skills, tools, automation, extensions — snapping into the runtime."
-          loading="lazy"
+          fill
           decoding="async"
+          sizes="(min-width: 1024px) 33vw, 100vw"
+          unoptimized
           className={`${imageBase} object-cover object-[10%_10%]`}
         />
       </div>
@@ -191,7 +202,7 @@ function ExtensibilityCard() {
 
       <div className="relative z-10 max-w-84">
         <div className={labelBase}>
-          <Layers className="h-4 w-4" />
+          <Layers className="size-4" />
           <span>Extensibility</span>
         </div>
         <h3

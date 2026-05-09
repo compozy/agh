@@ -37,7 +37,7 @@ function resolveTitleTag(title: React.ReactNode): EmptyTitleTag {
 }
 
 /**
- * Empty state primitive — centered icon well + title + description + optional action.
+ * Empty state primitive , centered icon well + title + description + optional action.
  * Mirrors `Empty` in `docs/design/web-inspiration/src/primitives.jsx` and DESIGN.md §4 "Empty State".
  * `icon` accepts either a Lucide-style component reference or a pre-rendered ReactNode.
  */

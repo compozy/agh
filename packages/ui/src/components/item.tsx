@@ -68,6 +68,7 @@ type ItemAs = "div" | "button";
 
 interface ItemProps extends useRender.ComponentProps<"div">, VariantProps<typeof itemVariants> {
   as?: ItemAs;
+  disabled?: boolean;
   indicator?: ItemIndicator;
 }
 

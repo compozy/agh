@@ -318,7 +318,7 @@ export const settingsHooksExtensionsTestIds = {
   restartBanner: "settings-page-hooks-extensions-restart-banner",
 } as const;
 
-export interface SettingsShellSelectors {
+interface SettingsShellSelectors {
   navSettings: Locator;
   shell: Locator;
   shellOutlet: Locator;
@@ -328,7 +328,7 @@ export interface SettingsShellSelectors {
   sectionActive(slug: string): Locator;
 }
 
-export interface SettingsGeneralSelectors {
+interface SettingsGeneralSelectors {
   page: Locator;
   pageHeader: Locator;
   resetButton: Locator;
@@ -342,7 +342,7 @@ export interface SettingsGeneralSelectors {
   sessionTimeoutInput: Locator;
 }
 
-export interface SettingsSkillsSelectors {
+interface SettingsSkillsSelectors {
   page: Locator;
   pageHeader: Locator;
   disabledList: Locator;
@@ -357,7 +357,7 @@ export interface SettingsSkillsSelectors {
   restartBanner: Locator;
 }
 
-export interface SettingsProvidersSelectors {
+interface SettingsProvidersSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
   card(name: string): Locator;
@@ -378,7 +378,7 @@ export interface SettingsProvidersSelectors {
   restartBanner: Locator;
 }
 
-export interface SettingsMCPServersSelectors {
+interface SettingsMCPServersSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
   create: Locator;
@@ -401,7 +401,7 @@ export interface SettingsMCPServersSelectors {
   scopeWorkspace(workspaceId: string): Locator;
 }
 
-export interface SettingsHooksExtensionsSelectors {
+interface SettingsHooksExtensionsSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
   extensionsList: Locator;

@@ -5,7 +5,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 /**
- * Bordered protocol card — mirrors `.wire-card` (head/body/foot) in
+ * Bordered protocol card , mirrors `.wire-card` (head/body/foot) in
  * `docs/design/web-inspiration/styles/app.css`. Used to embed wire-protocol
  * payloads (recipes, receipts, capability descriptors) inside message
  * threads. Pair with {@link WireCardHead} / {@link WireCardFoot}.

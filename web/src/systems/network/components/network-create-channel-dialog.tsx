@@ -72,7 +72,7 @@ export function NetworkCreateChannelDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-5 px-5 py-5">
+          <div className="space-y-5 p-5">
             <Field>
               <FieldLabel htmlFor="network-channel-name">Channel name</FieldLabel>
               <FieldDescription>
@@ -95,7 +95,7 @@ export function NetworkCreateChannelDialog({
               </FieldDescription>
               <Textarea
                 aria-required="true"
-                className="min-h-24 border-(--color-divider) bg-(--color-surface-panel) px-3 py-3 text-small-body leading-6"
+                className="min-h-24 border-(--color-divider) bg-(--color-surface-panel) p-3 text-small-body leading-6"
                 data-testid="network-channel-purpose-input"
                 id="network-channel-purpose"
                 onChange={event => onPurposeChange(event.target.value)}

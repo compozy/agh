@@ -39,10 +39,12 @@ import { TaskDeleteAction } from "./task-delete-action";
 
 export interface TasksDetailHeaderProps {
   detail: TaskDetailView;
-  isDeletePending?: boolean;
-  isPublishPending?: boolean;
-  isCancelPending?: boolean;
-  isEnqueuePending?: boolean;
+  pending?: {
+    delete?: boolean;
+    publish?: boolean;
+    cancel?: boolean;
+    enqueue?: boolean;
+  };
   onDelete?: (taskId: string) => void;
   onPublish?: () => void;
   onCancel?: () => void;
@@ -57,15 +59,16 @@ export interface TasksDetailHeaderProps {
  */
 export function TasksDetailHeader({
   detail,
-  isDeletePending = false,
-  isPublishPending = false,
-  isCancelPending = false,
-  isEnqueuePending = false,
+  pending,
   onDelete,
   onPublish,
   onCancel,
   onEnqueueRun,
 }: TasksDetailHeaderProps) {
+  const isDeletePending = pending?.delete ?? false;
+  const isPublishPending = pending?.publish ?? false;
+  const isCancelPending = pending?.cancel ?? false;
+  const isEnqueuePending = pending?.enqueue ?? false;
   const record = detail.task;
   const identifier = taskShortId(record);
   const isDraft = taskIsDraft(record);

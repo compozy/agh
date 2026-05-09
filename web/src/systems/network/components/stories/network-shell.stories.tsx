@@ -80,10 +80,8 @@ function NetworkShellHarness({
         directs={networkDirectRoomsFixture}
         hasUnread={() => true}
         inspectorOpen={false}
-        isChannelsLoading={false}
-        isDirectsLoading={false}
+        loading={{ channels: false, directs: false, recents: false }}
         isPinned={(channel: string) => pinnedSet.has(channel)}
-        isRecentsLoading={false}
         onInspectorToggle={() => undefined}
         onTogglePinned={() => undefined}
         openWorkCount={2}

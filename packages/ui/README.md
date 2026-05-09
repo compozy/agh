@@ -34,6 +34,12 @@ If it reads session events, hits a TanStack query, consumes the `agh-openapi` ty
 
 Every exported identifier from [`./src/index.ts`](./src/index.ts) is listed here by name. Each primitive group links to its colocated Storybook file under [`./src/components/stories/`](./src/components/stories/).
 
+Recent compound export aliases are part of the public surface too: `EyebrowWeight`,
+`DataSurfaceContentProps`, `DataSurfaceEmptyProps`, `DataSurfaceErrorProps`,
+`DataSurfaceLoadingProps`, `LinkedRecordTableRoot`, `LinkedRecordTableBodyProps`,
+`LinkedRecordTableCellProps`, `LinkedRecordTableOpenCellProps`, `LinkedRecordTableRowProps`,
+`LinkedRecordTableTitleProps`.
+
 ### Foundations
 
 Provider plumbing, typography atoms, and the `cn` class-merger.

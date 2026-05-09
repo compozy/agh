@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { AnimatePresence, motion, type Variants } from "motion/react";
+import { AnimatePresence, m, type Variants } from "motion/react";
 import { XIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
+import { useInitialState } from "./use-initial-state";
 
 type SheetSide = "top" | "right" | "bottom" | "left";
 
@@ -20,7 +21,7 @@ interface SheetMotionContextValue {
 const SheetMotionContext = React.createContext<SheetMotionContextValue | null>(null);
 
 function useSheetMotion(): SheetMotionContextValue {
-  const ctx = React.useContext(SheetMotionContext);
+  const ctx = React.use(SheetMotionContext);
   if (!ctx) {
     throw new Error("Sheet.* components must be used inside <Sheet>.");
   }
@@ -37,7 +38,7 @@ function Sheet({
   ...props
 }: SheetRootProps) {
   const actionsRef = React.useRef<SheetPrimitive.Root.Actions | null>(null);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
 
@@ -81,7 +82,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       render={
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -147,7 +148,7 @@ function SheetContent({
             data-slot="sheet-content"
             data-side={side}
             render={
-              <motion.div
+              <m.div
                 variants={SIDE_VARIANTS[side]}
                 initial="hidden"
                 animate="visible"

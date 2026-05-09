@@ -4,21 +4,21 @@ import { SectionHeader } from "./primitives/section-header";
 
 const CARDS = [
   {
-    icon: <Terminal className="h-4 w-4" />,
+    icon: <Terminal className="size-4" />,
     eyebrow: "Local",
     title: "Run on the host when isolation is not needed",
     description:
       "The local backend keeps the same tool path and filesystem expectations while still recording sandbox metadata on the session.",
   },
   {
-    icon: <Cloud className="h-4 w-4" />,
+    icon: <Cloud className="size-4" />,
     eyebrow: "Daytona",
     title: "Move a workspace into a remote sandbox",
     description:
       "Daytona profiles create or reattach cloud sandboxes from an image or snapshot, then connect AGH through the provider tool host.",
   },
   {
-    icon: <RefreshCcw className="h-4 w-4" />,
+    icon: <RefreshCcw className="size-4" />,
     eyebrow: "Sync",
     title: "Control how files move",
     description:
@@ -116,7 +116,7 @@ export function SandboxSection() {
               className="rounded-(--radius-card) border border-(--color-divider) bg-(--color-canvas) p-5"
             >
               <div className="flex items-center gap-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-mono-badge border border-(--color-divider) text-accent">
+                <span className="inline-flex size-8 items-center justify-center rounded-mono-badge border border-(--color-divider) text-accent">
                   {card.icon}
                 </span>
                 <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">

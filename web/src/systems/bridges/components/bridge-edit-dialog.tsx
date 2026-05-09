@@ -43,7 +43,11 @@ interface BridgeEditDialogProps {
   provider?: BridgeProvider;
 }
 
-export function BridgeEditDialog({
+export function BridgeEditDialog(props: BridgeEditDialogProps) {
+  return renderBridgeEditDialog(props);
+}
+
+function renderBridgeEditDialog({
   allowProviderDefaultDmPolicy,
   bridgeName,
   draft,
@@ -64,14 +68,7 @@ export function BridgeEditDialog({
         showCloseButton={false}
         unframed
       >
-        <form
-          className="flex max-h-[min(80vh,900px)] flex-col"
-          data-testid="bridge-edit-dialog"
-          onSubmit={event => {
-            event.preventDefault();
-            onSubmit();
-          }}
-        >
+        <div className="flex max-h-[min(80vh,900px)] flex-col" data-testid="bridge-edit-dialog">
           <DialogHeader variant="ruled">
             <DialogTitle>Edit Bridge</DialogTitle>
             <DialogDescription>
@@ -80,7 +77,7 @@ export function BridgeEditDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="flex-1 overflow-y-auto p-5">
             <FieldSet className="gap-6">
               <FieldGroup className="grid gap-4 lg:grid-cols-2">
                 <Field>
@@ -360,19 +357,20 @@ export function BridgeEditDialog({
               data-testid="submit-bridge-edit"
               disabled={!canSubmit || isPending}
               size="sm"
-              type="submit"
+              onClick={onSubmit}
+              type="button"
             >
               {isPending ? (
                 <>
                   <Spinner className="size-3.5" />
-                  Saving...
+                  Saving…
                 </>
               ) : (
                 "Save Changes"
               )}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

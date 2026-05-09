@@ -142,14 +142,16 @@ export function KnowledgePage() {
             deleteError={page.deleteError}
             editError={page.editError}
             error={page.contentError}
-            isDecisionsLoading={page.isDecisionsLoading}
-            isDeletePending={page.isDeletePending}
-            isEditPending={page.isEditPending}
-            isLoading={page.isContentLoading}
             memory={page.selectedMemory}
             onDelete={page.handleDelete}
             onEdit={page.handleEdit}
             scope={page.selectedScope}
+            status={{
+              isDecisionsLoading: page.isDecisionsLoading,
+              isDeletePending: page.isDeletePending,
+              isEditPending: page.isEditPending,
+              isLoading: page.isContentLoading,
+            }}
           />
         }
         list={

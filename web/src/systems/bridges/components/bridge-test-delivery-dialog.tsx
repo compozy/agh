@@ -66,14 +66,9 @@ export function BridgeTestDeliveryDialog({
         showCloseButton={false}
         unframed
       >
-        <form
+        <div
           className="flex max-h-[min(80vh,760px)] flex-col"
           data-testid="bridge-test-delivery-dialog"
-          onSubmit={event => {
-            event.preventDefault();
-            if (isPending) return;
-            onSubmit();
-          }}
         >
           <DialogHeader variant="ruled">
             <DialogTitle>Test Delivery</DialogTitle>
@@ -83,7 +78,7 @@ export function BridgeTestDeliveryDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="flex-1 overflow-y-auto p-5">
             <FieldGroup className="gap-4">
               <Field>
                 <FieldContent>
@@ -217,18 +212,24 @@ export function BridgeTestDeliveryDialog({
             <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Close
             </Button>
-            <Button data-testid="submit-test-delivery" disabled={isPending} size="sm" type="submit">
+            <Button
+              data-testid="submit-test-delivery"
+              disabled={isPending}
+              onClick={onSubmit}
+              size="sm"
+              type="button"
+            >
               {isPending ? (
                 <>
                   <Spinner className="size-3.5" />
-                  Resolving...
+                  Resolving…
                 </>
               ) : (
                 "Resolve Target"
               )}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -66,12 +66,11 @@ function SettingsSourceBadge({
           data-testid={testId ? `${testId}-shadowed` : undefined}
         >
           <span className="uppercase">shadows</span>
-          {shadowed.map((entry, index) => (
+          {shadowed.map(entry => (
             <Pill
               mono
               tone="neutral"
-              // biome-ignore lint/suspicious/noArrayIndexKey: source list is stable per read
-              key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.workspace_id ?? ""}-${index}`}
+              key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.workspace_id ?? ""}`}
             >
               {sourceLabel(entry)}
             </Pill>

@@ -39,7 +39,7 @@ const ConnectionIndicatorContext = React.createContext<{
 } | null>(null);
 
 function useConnectionIndicatorContext(status?: ConnectionStatus) {
-  const context = React.useContext(ConnectionIndicatorContext);
+  const context = React.use(ConnectionIndicatorContext);
   if (status !== undefined) return { label: undefined, status };
   if (context) return context;
   return { label: undefined, status: "disconnected" as const };

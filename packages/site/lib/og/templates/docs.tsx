@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
 import { SymbolGlyph } from "../logo";
 import { COLORS, FONTS, SIZE, truncate } from "../tokens";
@@ -17,6 +18,50 @@ const TREE_LABELS: Record<DocsTree, { eyebrow: string; chip: string }> = {
   protocol: { eyebrow: "AGH NETWORK PROTOCOL", chip: "PROTOCOL" },
 };
 
+const canvasStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+  background: COLORS.canvas,
+  color: COLORS.textPrimary,
+  fontFamily: FONTS.inter,
+  padding: "80px",
+};
+
+const metaStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  gap: "20px",
+  fontFamily: FONTS.mono,
+  fontSize: "20px",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
+};
+
+const titleStyle: CSSProperties = {
+  fontFamily: FONTS.inter,
+  fontSize: "64px",
+  lineHeight: 0.98,
+  letterSpacing: "-0.04em",
+  color: COLORS.textPrimary,
+  fontWeight: 600,
+  maxWidth: "1000px",
+};
+
+const chipBaseStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  padding: "8px 14px",
+  borderRadius: "5px",
+  fontFamily: FONTS.mono,
+  fontSize: "16px",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  fontWeight: 500,
+};
+
 export async function renderDocsOG({
   tree,
   title,
@@ -29,18 +74,7 @@ export async function renderDocsOG({
   const safeDescription = truncate(description, 165);
 
   return new ImageResponse(
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        background: COLORS.canvas,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.inter,
-        padding: "80px",
-      }}
-    >
+    <div style={canvasStyle}>
       <div
         style={{
           display: "flex",
@@ -52,18 +86,7 @@ export async function renderDocsOG({
         }}
       >
         <SymbolGlyph size={56} radius={14} />
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: "20px",
-            fontFamily: FONTS.mono,
-            fontSize: "20px",
-            letterSpacing: "0.14em",
-            fontWeight: 500,
-          }}
-        >
+        <div style={metaStyle}>
           <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>{labels.eyebrow}</span>
           <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
           <span style={{ color: COLORS.textTertiary }}>{path}</span>
@@ -81,19 +104,7 @@ export async function renderDocsOG({
           paddingBottom: "40px",
         }}
       >
-        <div
-          style={{
-            fontFamily: FONTS.inter,
-            fontSize: "64px",
-            lineHeight: 0.98,
-            letterSpacing: "-0.04em",
-            color: COLORS.textPrimary,
-            fontWeight: 600,
-            maxWidth: "1000px",
-          }}
-        >
-          {safeTitle}
-        </div>
+        <div style={titleStyle}>{safeTitle}</div>
         {safeDescription ? (
           <div
             style={{
@@ -166,17 +177,9 @@ function Chip({ children, accent = false }: ChipProps) {
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "8px 14px",
+        ...chipBaseStyle,
         border: `1px solid ${accent ? COLORS.accent : COLORS.border}`,
-        borderRadius: "5px",
-        fontFamily: FONTS.mono,
-        fontSize: "16px",
-        letterSpacing: "0.14em",
-        textTransform: "uppercase",
         color: accent ? COLORS.accent : COLORS.textSecondary,
-        fontWeight: 500,
       }}
     >
       {children}

@@ -73,8 +73,8 @@ export function DocsHeader(props: ComponentProps<"header">) {
         </div>
 
         <nav className="flex flex-1 items-center justify-start gap-6 empty:hidden max-lg:hidden">
-          {mainItems.map((item, i) => (
-            <NavbarLinkItem key={i} item={item} />
+          {mainItems.map(item => (
+            <NavbarLinkItem key={getLinkItemKey(item)} item={item} />
           ))}
         </nav>
 
@@ -89,11 +89,11 @@ export function DocsHeader(props: ComponentProps<"header">) {
         )}
 
         <div className="flex items-center md:gap-2">
-          {iconItems.map((item, i) => {
+          {iconItems.map(item => {
             const iconItem = item as Extract<LinkItemType, { type: "icon" }>;
             return (
               <LinkItem
-                key={i}
+                key={getLinkItemKey(iconItem)}
                 item={iconItem as WithUrl}
                 aria-label={iconItem.label}
                 className={cn(
@@ -162,7 +162,7 @@ function DocsHeaderTabs({ tabs }: { tabs: LayoutTab[] }) {
         const isSelected = selectedIdx === i;
         return (
           <Link
-            key={i}
+            key={url}
             href={url}
             className={cn(
               "inline-flex border-b-2 border-transparent transition-colors items-center pb-1.5 font-medium gap-2 text-fd-muted-foreground text-sm text-nowrap hover:text-fd-accent-foreground",
@@ -178,6 +178,13 @@ function DocsHeaderTabs({ tabs }: { tabs: LayoutTab[] }) {
       })}
     </div>
   );
+}
+
+function getLinkItemKey(item: LinkItemType) {
+  if ("url" in item && item.url) return item.url;
+  if ("label" in item && typeof item.label === "string") return item.label;
+  if ("text" in item && typeof item.text === "string") return item.text;
+  return item.type;
 }
 
 function NavbarLinkItem({ item }: { item: LinkItemType }) {

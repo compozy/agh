@@ -13,7 +13,7 @@ const SUBSYSTEMS = [
 
 /**
  * 240×320 SVG showing the AGH daemon and its five subsystems with a subtle
- * highlight cycling through them — communicates "the daemon has real internals"
+ * highlight cycling through them , communicates "the daemon has real internals"
  * without re-rendering the full architecture diagram.
  */
 export function RuntimeMicroDiagram({ className }: { className?: string }) {
@@ -28,7 +28,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
       )}
       aria-hidden="true"
     >
-      <svg aria-hidden="true" focusable="false" viewBox="0 0 240 320" className="h-full w-full">
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 240 320" className="size-full">
         {/* Daemon box */}
         <rect
           x={20}

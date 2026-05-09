@@ -166,7 +166,8 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
     <Item
       as="div"
       className={cn(
-        "relative flex-col gap-3 rounded-xl border-(--color-divider) bg-(--color-surface) py-3 pr-4"
+        "relative flex-col gap-3 rounded-xl border-(--color-divider) bg-(--color-surface) py-3 pr-4",
+        agent.isLive ? "border-l-2 border-l-accent" : "border-l-2 border-l-transparent"
       )}
       data-depth={depthIndent}
       data-is-live={agent.isLive ? "true" : "false"}

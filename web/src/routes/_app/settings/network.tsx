@@ -220,7 +220,12 @@ function ListenerSection({
             aria-label="Embedded network"
             data-testid="settings-page-network-enabled-switch"
             checked={draft.enabled}
-            onCheckedChange={checked => setDraft({ ...draft, enabled: checked })}
+            onCheckedChange={checked =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, enabled: checked };
+              })
+            }
           />
         }
       />
@@ -238,7 +243,12 @@ function ListenerSection({
             data-testid="settings-page-network-port-input"
             value={draft.port}
             onValidityChange={onPortValidityChange}
-            onValueChange={value => setDraft({ ...draft, port: value })}
+            onValueChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, port: value };
+              })
+            }
           />
         }
       />
@@ -253,7 +263,12 @@ function ListenerSection({
             data-testid="settings-page-network-default-channel-input"
             value={draft.default_channel ?? ""}
             placeholder="agh"
-            onChange={event => setDraft({ ...draft, default_channel: event.target.value })}
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, default_channel: event.target.value };
+              })
+            }
           />
         }
       />
@@ -280,7 +295,12 @@ function DeliverySection({
           testId="settings-page-network-greet-interval"
           value={draft.greet_interval}
           onValidityChange={setValidationError("greetInterval")}
-          onChange={value => setDraft({ ...draft, greet_interval: value })}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, greet_interval: value };
+            })
+          }
         />
         <NumberField
           label="Max payload"
@@ -289,7 +309,12 @@ function DeliverySection({
           testId="settings-page-network-max-payload"
           value={draft.max_payload}
           onValidityChange={setValidationError("maxPayload")}
-          onChange={value => setDraft({ ...draft, max_payload: value })}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, max_payload: value };
+            })
+          }
         />
         <NumberField
           label="Max queue depth"
@@ -297,7 +322,12 @@ function DeliverySection({
           testId="settings-page-network-max-queue-depth"
           value={draft.max_queue_depth}
           onValidityChange={setValidationError("maxQueueDepth")}
-          onChange={value => setDraft({ ...draft, max_queue_depth: value })}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, max_queue_depth: value };
+            })
+          }
         />
         <NumberField
           label="Max replay age"
@@ -306,7 +336,12 @@ function DeliverySection({
           testId="settings-page-network-max-replay-age"
           value={draft.max_replay_age}
           onValidityChange={setValidationError("maxReplayAge")}
-          onChange={value => setDraft({ ...draft, max_replay_age: value })}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, max_replay_age: value };
+            })
+          }
         />
       </div>
     </Section>

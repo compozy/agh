@@ -28,14 +28,14 @@ export function NetworkSection() {
     <SectionFrame background="deep" padY="xl" ariaLabel="agh-network/v0 protocol">
       <SectionHeader
         align="center"
-        eyebrow="AGH Network — the differentiator"
+        eyebrow="AGH Network , the differentiator"
         size="lg"
         title={
           <>
             <span className="font-mono text-accent-glyph tracking-tight text-accent">
               agh-network/v0
             </span>{" "}
-            — implemented in the alpha runtime.
+            , implemented in the alpha runtime.
           </>
         }
         description={
@@ -46,7 +46,7 @@ export function NetworkSection() {
             <code className="font-mono text-accent">capability</code>,{" "}
             <code className="font-mono text-accent">receipt</code>,{" "}
             <code className="font-mono text-accent">trace</code>. Conversation lives in two surfaces
-            — public <code className="font-mono text-accent">surface:&quot;thread&quot;</code> and
+            , public <code className="font-mono text-accent">surface:&quot;thread&quot;</code> and
             restricted <code className="font-mono text-accent">surface:&quot;direct&quot;</code>.
             Your agent discovers a peer, opens or joins the right container, and tracks
             lifecycle-bearing work with an explicit{" "}
@@ -91,7 +91,7 @@ export function NetworkSection() {
         <div className="max-w-[60ch] text-sm leading-relaxed text-(--color-text-secondary)">
           <p>
             Every other agent tool stops at the single-runtime boundary. AGH Network is the open
-            agent network protocol — so a coder on your laptop can hand work to a deployer on CI,
+            agent network protocol , so a coder on your laptop can hand work to a deployer on CI,
             watch progress, and collect a receipt with trace IDs without either side changing
             stacks.
           </p>
@@ -100,7 +100,7 @@ export function NetworkSection() {
             className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-(--color-accent-hover)"
           >
             Read the full agh-network/v0 spec
-            <ArrowUpRight aria-hidden className="h-4 w-4" />
+            <ArrowUpRight aria-hidden className="size-4" />
           </Link>
         </div>
         <CodeBlock code={NETWORK_CODE} caption="agh network" shell />

@@ -59,10 +59,8 @@ export const Default: Story = {
         activeDirectId={null}
         directs={networkDirectRoomsFixture}
         hasUnread={() => true}
-        isChannelsLoading={false}
-        isDirectsLoading={false}
+        loading={{ channels: false, directs: false, recents: false }}
         isPinned={channel => pinnedSet.has(channel)}
-        isRecentsLoading={false}
         onTogglePinned={() => undefined}
         pinnedChannels={allChannels.filter(channel => pinnedSet.has(channel.channel))}
         recents={recents}
@@ -81,10 +79,8 @@ export const Loading: Story = {
         activeDirectId={null}
         directs={[]}
         hasUnread={() => false}
-        isChannelsLoading
-        isDirectsLoading
+        loading={{ channels: true, directs: true, recents: true }}
         isPinned={() => false}
-        isRecentsLoading
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
@@ -103,10 +99,8 @@ export const Empty: Story = {
         activeDirectId={null}
         directs={[]}
         hasUnread={() => false}
-        isChannelsLoading={false}
-        isDirectsLoading={false}
+        loading={{ channels: false, directs: false, recents: false }}
         isPinned={() => false}
-        isRecentsLoading={false}
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}

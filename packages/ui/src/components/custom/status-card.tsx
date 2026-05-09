@@ -27,7 +27,8 @@ type StatusCardActionProps = React.ComponentProps<"div">;
 const StatusCardContext = React.createContext<{ tone: StatusCardTone } | null>(null);
 
 function useStatusCardTone(tone?: StatusCardTone): StatusCardTone {
-  return tone ?? React.useContext(StatusCardContext)?.tone ?? "neutral";
+  const context = React.use(StatusCardContext);
+  return tone ?? context?.tone ?? "neutral";
 }
 
 function StatusCard({ tone = "neutral", className, children, ...props }: StatusCardProps) {

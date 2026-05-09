@@ -236,7 +236,12 @@ function CaptureSection({
           <Switch
             data-testid="settings-page-observability-enabled-switch"
             checked={draft.enabled}
-            onCheckedChange={checked => setDraft({ ...draft, enabled: checked })}
+            onCheckedChange={checked =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, enabled: checked };
+              })
+            }
           />
         }
       />
@@ -248,7 +253,12 @@ function CaptureSection({
           errorMessage={validationErrors.retentionDays ?? undefined}
           suffix="days"
           onValidityChange={setValidationError("retentionDays")}
-          onChange={value => setDraft({ ...draft, retention_days: value })}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, retention_days: value };
+            })
+          }
         />
         <NumberField
           label="Max global bytes"
@@ -257,7 +267,12 @@ function CaptureSection({
           errorMessage={validationErrors.maxGlobalBytes ?? undefined}
           suffix="bytes"
           onValidityChange={setValidationError("maxGlobalBytes")}
-          onChange={value => setDraft({ ...draft, max_global_bytes: value })}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, max_global_bytes: value };
+            })
+          }
         />
       </div>
       <UsageBreakdown globalBytes={globalBytes} sessionBytes={sessionBytes} cap={cap} />
@@ -285,9 +300,12 @@ function TranscriptsSection({
             data-testid="settings-page-observability-transcripts-enabled-switch"
             checked={draft.transcripts.enabled}
             onCheckedChange={checked =>
-              setDraft({
-                ...draft,
-                transcripts: { ...draft.transcripts, enabled: checked },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  transcripts: { ...current.transcripts, enabled: checked },
+                };
               })
             }
           />
@@ -302,9 +320,12 @@ function TranscriptsSection({
           suffix="bytes"
           onValidityChange={setValidationError("segmentBytes")}
           onChange={value =>
-            setDraft({
-              ...draft,
-              transcripts: { ...draft.transcripts, segment_bytes: value },
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return {
+                ...current,
+                transcripts: { ...current.transcripts, segment_bytes: value },
+              };
             })
           }
         />
@@ -316,12 +337,15 @@ function TranscriptsSection({
           suffix="bytes"
           onValidityChange={setValidationError("maxBytesPerSession")}
           onChange={value =>
-            setDraft({
-              ...draft,
-              transcripts: {
-                ...draft.transcripts,
-                max_bytes_per_session: value,
-              },
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return {
+                ...current,
+                transcripts: {
+                  ...current.transcripts,
+                  max_bytes_per_session: value,
+                },
+              };
             })
           }
         />

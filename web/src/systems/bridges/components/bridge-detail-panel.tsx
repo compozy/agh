@@ -62,11 +62,13 @@ interface BridgeDetailPanelProps {
   emptyMessage?: string;
   error: Error | null;
   health: BridgeHealth | undefined;
-  isLifecyclePending?: boolean;
-  isLoading: boolean;
-  isRoutesLoading: boolean;
-  isSecretBindingPending?: boolean;
-  isSecretBindingsLoading?: boolean;
+  state: {
+    isLifecyclePending?: boolean;
+    isLoading: boolean;
+    isRoutesLoading: boolean;
+    isSecretBindingPending?: boolean;
+    isSecretBindingsLoading?: boolean;
+  };
   onDeleteSecretBinding?: (bindingName: string) => void;
   onDisableBridge?: () => void;
   onEnableBridge?: () => void;
@@ -95,6 +97,8 @@ const METADATA_TILE_CLASS =
   "rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3";
 const METADATA_TERM_CLASS = "mb-2 text-(--color-text-label)";
 const METADATA_VALUE_CLASS = "text-small-body text-(--color-text-primary)";
+const EMPTY_SECRET_BINDINGS: BridgeSecretBinding[] = [];
+const EMPTY_SECRET_INPUT_VALUES: Record<string, string> = {};
 
 function statusToPillTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
@@ -537,7 +541,7 @@ function BridgeProviderRuntimeSection({
       ) : isSecretBindingsLoading ? (
         <div className="mt-3 flex items-center gap-2 text-small-body text-(--color-text-tertiary)">
           <Spinner aria-label="Loading secret bindings" className="size-4" />
-          <span>Loading secret bindings...</span>
+          <span>Loading secret bindings…</span>
         </div>
       ) : null}
 
@@ -662,11 +666,7 @@ export function BridgeDetailPanel({
   emptyMessage = "Select a bridge to inspect configuration, routes, and delivery health.",
   error,
   health,
-  isLifecyclePending = false,
-  isLoading,
-  isRoutesLoading,
-  isSecretBindingPending = false,
-  isSecretBindingsLoading = false,
+  state,
   onDeleteSecretBinding,
   onDisableBridge,
   onEnableBridge,
@@ -678,10 +678,17 @@ export function BridgeDetailPanel({
   provider,
   restartRequired = false,
   routes,
-  secretBindings = [],
-  secretInputValues = {},
+  secretBindings = EMPTY_SECRET_BINDINGS,
+  secretInputValues = EMPTY_SECRET_INPUT_VALUES,
   workspaceName,
 }: BridgeDetailPanelProps) {
+  const {
+    isLifecyclePending = false,
+    isLoading,
+    isRoutesLoading,
+    isSecretBindingPending = false,
+    isSecretBindingsLoading = false,
+  } = state;
   if (isLoading || error || !bridge) {
     const state = isLoading ? "loading" : error ? "error" : "empty";
     return (

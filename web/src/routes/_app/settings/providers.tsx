@@ -168,7 +168,11 @@ interface ProviderEditorProps {
   onSave: () => void;
 }
 
-function ProviderEditor({
+function ProviderEditor(props: ProviderEditorProps) {
+  return renderProviderEditor(props);
+}
+
+function renderProviderEditor({
   editor,
   isValid,
   isSaving,
@@ -595,7 +599,7 @@ function AdditionalCredentialSlotsEditor({
                 <div
                   className="grid gap-2 rounded-md border border-(--color-divider) p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
                   data-testid={`settings-providers-editor-credential-slot-${index}`}
-                  key={`${slot.name}-${index}`}
+                  key={slot.name || slot.target_env || slot.secret_ref || slot.kind}
                 >
                   <Input
                     className="font-mono"
@@ -777,6 +781,7 @@ function ProviderDeleteDialog({
       confirmLabel="Delete overlay"
       confirmIcon={Trash2}
       contentProps={{ "data-testid": "settings-providers-delete" }}
+      titleProps={{ "data-testid": "settings-providers-delete-title" }}
       noteProps={{ "data-testid": "settings-providers-delete-fallback" }}
       errorProps={{ "data-testid": "settings-providers-delete-error" }}
       cancelButtonProps={{

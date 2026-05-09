@@ -58,10 +58,10 @@ describe("TasksExecutionProfileCard", () => {
   it("disables edit and delete when active run blocks profile mutation", () => {
     render(
       <TasksExecutionProfileCard
-        hasActiveRun
         onDeleteProfile={async () => noopAsync<void>()}
         onSetProfile={async () => noopAsync<void>()}
         profile={buildTaskExecutionProfileFixture()}
+        state={{ hasActiveRun: true }}
         taskId="task_001"
       />
     );

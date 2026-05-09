@@ -2,12 +2,12 @@ import process from "node:process";
 
 import { isLikelyViteDevHTML } from "./artifacts";
 
-export interface RuntimeModeAttach {
+interface RuntimeModeAttach {
   kind: "attach";
   baseURL: string;
 }
 
-export interface RuntimeModeLaunch {
+interface RuntimeModeLaunch {
   kind: "launch";
 }
 
@@ -18,12 +18,6 @@ export interface RuntimeConfigInput {
   networkEnabled?: boolean;
   port: number;
   socketPath: string;
-}
-
-export interface WorkspacePayload {
-  id: string;
-  root_dir: string;
-  name: string;
 }
 
 export function resolveRuntimeMode(env: NodeJS.ProcessEnv = process.env): RuntimeMode {
@@ -88,7 +82,7 @@ export function assertDaemonServedHTML(html: string, baseURL: string): void {
   }
 }
 
-export function ensureLeadingSlash(value: string): string {
+function ensureLeadingSlash(value: string): string {
   return value.startsWith("/") ? value : `/${value}`;
 }
 

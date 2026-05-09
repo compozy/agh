@@ -38,6 +38,22 @@ function PillGroupHarness() {
   );
 }
 
+function SmallPillGroupHarness() {
+  const [value, setValue] = useState<"a" | "b" | "c">("a");
+  return (
+    <PillGroup
+      value={value}
+      onChange={setValue}
+      size="sm"
+      items={[
+        { value: "a", label: "Alpha" },
+        { value: "b", label: "Beta" },
+        { value: "c", label: "Gamma" },
+      ]}
+    />
+  );
+}
+
 export const Default: Story = {
   render: () => <PillGroupHarness />,
 };
@@ -59,21 +75,7 @@ export const Selection: Story = {
 };
 
 export const SizeSm: Story = {
-  render: () => {
-    const [value, setValue] = useState<"a" | "b" | "c">("a");
-    return (
-      <PillGroup
-        value={value}
-        onChange={setValue}
-        size="sm"
-        items={[
-          { value: "a", label: "Alpha" },
-          { value: "b", label: "Beta" },
-          { value: "c", label: "Gamma" },
-        ]}
-      />
-    );
-  },
+  render: () => <SmallPillGroupHarness />,
 };
 
 export const DisabledItem: Story = {

@@ -21,7 +21,7 @@ const APPROACHES: Approach[] = [
     approach: "Letta",
     focus: "Memory-first stateful agents",
     agentModel: "Letta agents in cloud or self-host",
-    coordination: "None — single agent",
+    coordination: "None , single agent",
     deployment: "Cloud-hosted or self-host",
     agents: "1 (managed)",
     crossRuntime: false,
@@ -48,7 +48,7 @@ const APPROACHES: Approach[] = [
     approach: "AGH",
     focus: "Run + connect real agent CLIs",
     agentModel: "Your existing ACP agents",
-    coordination: "agh-network/v0 — implemented",
+    coordination: "agh-network/v0 , implemented",
     deployment: "Local-first, single binary",
     agents: `${PROVIDERS.length} ACP drivers`,
     crossRuntime: true,
@@ -97,7 +97,7 @@ export function Comparison() {
           <div
             key={row.approach}
             className={cn(
-              "grid gap-3 border-t border-(--color-divider) px-5 py-5 first:border-t-0 md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:items-center md:gap-4",
+              "grid gap-3 border-t border-(--color-divider) p-5 first:border-t-0 md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:items-center md:gap-4",
               row.highlight && "border-l-4 border-l-accent bg-accent-tint/40"
             )}
           >
@@ -132,16 +132,16 @@ export function Comparison() {
               <span
                 aria-label={row.crossRuntime ? "Cross-runtime: yes" : "Cross-runtime: no"}
                 className={cn(
-                  "inline-flex h-6 w-6 items-center justify-center rounded-mono-badge",
+                  "inline-flex size-6 items-center justify-center rounded-mono-badge",
                   row.crossRuntime
                     ? "bg-(--color-success-tint) text-success"
                     : "bg-(--color-surface-elevated) text-(--color-text-tertiary)"
                 )}
               >
                 {row.crossRuntime ? (
-                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                  <Check className="size-3.5" strokeWidth={3} />
                 ) : (
-                  <Minus className="h-3.5 w-3.5" strokeWidth={3} />
+                  <Minus className="size-3.5" strokeWidth={3} />
                 )}
               </span>
             </div>

@@ -105,9 +105,7 @@ describe("TasksDetailHeader", () => {
     render(
       <TasksDetailHeader
         detail={buildDetail({ status: "in_progress" })}
-        isCancelPending
-        isDeletePending
-        isEnqueuePending
+        pending={{ cancel: true, delete: true, enqueue: true }}
         onDelete={() => {}}
         onCancel={() => {}}
         onEnqueueRun={() => {}}

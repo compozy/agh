@@ -174,7 +174,7 @@ function PillDot({
   style,
   ...props
 }: PillDotProps) {
-  const ctx = React.useContext(PillContext);
+  const ctx = React.use(PillContext);
   const reduced = useReducedMotionConfig();
   const shouldAnimate = pulse && !reduced;
   const effectiveSize: "sm" | "md" =
@@ -206,6 +206,7 @@ function PillLink({
   mono = true,
   uppercase = true,
   className,
+  href,
   render,
   children,
   ...props
@@ -217,7 +218,7 @@ function PillLink({
       mono={mono}
       uppercase={uppercase}
       className={cn("hover:border-(--color-accent) hover:text-(--color-accent)", className)}
-      render={render ?? <a />}
+      render={render ?? <a href={href ?? "#"} />}
       {...props}
     >
       {children}

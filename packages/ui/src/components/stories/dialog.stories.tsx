@@ -133,7 +133,7 @@ export const RuledHeader: Story = {
             Pick the global home directory or register a manual workspace path.
           </DialogDescription>
         </DialogHeader>
-        <div className="px-5 py-5 text-sm text-[color:var(--color-text-secondary)]">
+        <div className="p-5 text-sm text-[color:var(--color-text-secondary)]">
           Body content lives below the rule.
         </div>
       </DialogContent>
@@ -154,7 +154,7 @@ export const RuledFooter: Story = {
   render: () => (
     <Dialog defaultOpen>
       <DialogContent unframed className="max-w-md" data-testid="ruled-footer-dialog">
-        <div className="px-5 py-5">
+        <div className="p-5">
           <DialogTitle className="text-base font-medium">Discard draft?</DialogTitle>
           <DialogDescription className="mt-2">
             This task draft has not been saved. Discarding will remove it from the inbox.
@@ -184,7 +184,7 @@ export const Unframed: Story = {
       <DialogContent unframed className="max-w-md" data-testid="unframed-dialog">
         <div
           data-testid="unframed-body"
-          className="flex flex-col gap-3 px-5 py-5 text-sm text-[color:var(--color-text-secondary)]"
+          className="flex flex-col gap-3 p-5 text-sm text-[color:var(--color-text-secondary)]"
         >
           <DialogTitle className="text-base font-medium text-[color:var(--color-text-primary)]">
             Composed body
@@ -214,7 +214,7 @@ export const RuledFull: Story = {
             Confirm the workspace path before AGH starts the daemon.
           </DialogDescription>
         </DialogHeader>
-        <div className="px-5 py-5">
+        <div className="p-5">
           <Label htmlFor="ruled-full-name">Workspace path</Label>
           <Input id="ruled-full-name" defaultValue="/Users/pedro/Dev/agh" />
         </div>

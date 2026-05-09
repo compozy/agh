@@ -191,7 +191,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
               {calls.map((call, index) => (
                 <TableRow
                   data-testid={`skill-recent-call-row-${index}`}
-                  key={`${call.label}-${index}`}
+                  key={`${call.label}-${call.timestamp ?? call.status}`}
                 >
                   <TableCell>
                     <Pill.Dot

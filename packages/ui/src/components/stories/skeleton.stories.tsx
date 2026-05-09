@@ -48,7 +48,7 @@ export const Rows: Story = {
     <SkeletonRows count={4} rowClassName="border-b border-border px-4 py-3">
       <Skeleton className="h-3.5 w-2/3" />
       <Skeleton className="h-3 w-full" />
-      <Skeleton className="h-3 w-3/4" />
+      <Skeleton className="size-3/4" />
     </SkeletonRows>
   ),
 };

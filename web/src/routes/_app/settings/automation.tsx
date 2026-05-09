@@ -205,7 +205,12 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
           <Switch
             data-testid="settings-page-automation-enabled-switch"
             checked={draft.enabled}
-            onCheckedChange={checked => setDraft({ ...draft, enabled: checked })}
+            onCheckedChange={checked =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, enabled: checked };
+              })
+            }
           />
         }
       />
@@ -220,7 +225,12 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
             data-testid="settings-page-automation-timezone-input"
             value={draft.timezone ?? ""}
             placeholder="UTC"
-            onChange={event => setDraft({ ...draft, timezone: event.target.value })}
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, timezone: event.target.value };
+              })
+            }
           />
         }
       />
@@ -253,9 +263,12 @@ function LimitsSection({
             value={draft.max_concurrent_jobs}
             onValidityChange={setValidationError("maxConcurrentJobs")}
             onValueChange={value =>
-              setDraft({
-                ...draft,
-                max_concurrent_jobs: value,
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  max_concurrent_jobs: value,
+                };
               })
             }
           />
@@ -276,12 +289,15 @@ function LimitsSection({
               value={draft.default_fire_limit.max}
               onValidityChange={setValidationError("defaultFireLimitMax")}
               onValueChange={value =>
-                setDraft({
-                  ...draft,
-                  default_fire_limit: {
-                    ...draft.default_fire_limit,
-                    max: value,
-                  },
+                setDraft(prev => {
+                  const current = prev ?? draft;
+                  return {
+                    ...current,
+                    default_fire_limit: {
+                      ...current.default_fire_limit,
+                      max: value,
+                    },
+                  };
                 })
               }
             />
@@ -295,12 +311,15 @@ function LimitsSection({
               value={draft.default_fire_limit.window ?? ""}
               placeholder="1m"
               onChange={event =>
-                setDraft({
-                  ...draft,
-                  default_fire_limit: {
-                    ...draft.default_fire_limit,
-                    window: event.target.value,
-                  },
+                setDraft(prev => {
+                  const current = prev ?? draft;
+                  return {
+                    ...current,
+                    default_fire_limit: {
+                      ...current.default_fire_limit,
+                      window: event.target.value,
+                    },
+                  };
                 })
               }
             />

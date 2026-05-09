@@ -63,7 +63,7 @@ function externalUrls(content: string): string[] {
 }
 
 function parseConcreteUrl(url: string): URL | null {
-  if (url.includes("...") || url.includes("…")) {
+  if (url.includes("...") || url.includes("...")) {
     return null;
   }
   return new URL(url);

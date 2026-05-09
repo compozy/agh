@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
@@ -16,7 +17,7 @@ const STEPS = [
     eyebrow: "Plain files",
     title: "Memory as scoped Markdown",
     description:
-      "Typed files — user, feedback, project, reference — resolve across global, workspace, and agent tiers. Version them. Diff them. Port them across providers.",
+      "Typed files: user, feedback, project, reference. They resolve across global, workspace, and agent tiers. Version them. Diff them. Port them across providers.",
   },
   {
     eyebrow: "Dream consolidation",
@@ -28,7 +29,7 @@ const STEPS = [
     eyebrow: "Agent-managed",
     title: "Same surface for you and the agent",
     description:
-      "agh memory write | search | dream trigger works from CLI, HTTP, and UDS. Operators inspect the same files agents write — no privileged path.",
+      "agh memory write | search | dream trigger works from CLI, HTTP, and UDS. Operators inspect the same files agents write; no privileged path.",
   },
 ];
 
@@ -62,15 +63,18 @@ export function MemoryDreamSection() {
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-(--color-accent-hover)"
             >
               Read the memory and dream guide
-              <ArrowUpRight aria-hidden className="h-4 w-4" />
+              <ArrowUpRight aria-hidden className="size-4" />
             </Link>
           </div>
           <div className="mt-12 hidden lg:block">
-            <img
+            <Image
               src="/images/runtime/memory-dream-landing-v1.png"
               alt="AGH memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
-              loading="lazy"
+              width={800}
+              height={640}
               decoding="async"
+              sizes="400px"
+              unoptimized
               className="block w-full max-w-[400px] select-none object-contain opacity-95"
             />
           </div>

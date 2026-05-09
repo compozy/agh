@@ -17,14 +17,14 @@ export interface SearchInputProps extends Omit<
 }
 
 /**
- * Search field — mirrors `.search-input` in
+ * Search field , mirrors `.search-input` in
  * `docs/design/web-inspiration/styles/app.css`. Compact 28px row, panel-tone
  * surface, soft tertiary focus border (no accent ring), bordered kbd hint.
  */
 function SearchInput({
   value,
   onChange,
-  placeholder = "Search…",
+  placeholder = "Search...",
   kbd,
   className,
   containerClassName,

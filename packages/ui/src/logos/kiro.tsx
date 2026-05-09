@@ -6,7 +6,7 @@ export function KiroLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
       {...props}
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
-      className={className || "w-8 h-8"}
+      className={className || "size-8"}
     >
       <title>Kiro Logo</title>
       <circle cx="12" cy="12" r="11" fill="#7A5CFA" />

@@ -88,9 +88,9 @@ export function HeroChatComposition({
           <div style={main}>
             <div style={scrollWrap}>
               <div style={scrollInner}>
-                {conv.agents.map((a, idx) => (
+                {conv.agents.map(a => (
                   <MessageAgent
-                    key={`${a.id}-${idx}`}
+                    key={`${a.id}-${a.timestamp}`}
                     agent={a.id}
                     timestamp={a.timestamp}
                     labelStart={a.labelStart}

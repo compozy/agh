@@ -65,12 +65,12 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
             <section key={key}>
               <MonoBadge tone={sectionTone[key]}>{sectionLabel[key]}</MonoBadge>
               <ul className="mt-4 flex flex-col gap-2.5">
-                {release[key].map((item, idx) => (
+                {release[key].map(item => (
                   <li
-                    key={`${key}-${idx}`}
+                    key={`${key}-${item}`}
                     className="flex items-start gap-3 font-sans text-item-title leading-7 text-(--color-text-secondary)"
                   >
-                    <span className="mt-2 inline-block h-1 w-1 shrink-0 rounded-sm bg-accent" />
+                    <span className="mt-2 inline-block size-1 shrink-0 rounded-sm bg-accent" />
                     <span>{item}</span>
                   </li>
                 ))}

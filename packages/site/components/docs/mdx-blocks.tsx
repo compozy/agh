@@ -33,7 +33,7 @@ export function OperatorNote({
   return (
     <aside
       role="note"
-      className="not-prose rounded-xl border border-(--color-divider) bg-(--color-surface) px-5 py-5 md:px-6"
+      className="not-prose rounded-xl border border-(--color-divider) bg-(--color-surface) p-5 md:px-6"
     >
       <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
         {label}
@@ -55,7 +55,7 @@ export function RouteRow({ href, label, title, description, meta }: RouteRowProp
   return (
     <Link
       href={href}
-      className="group grid gap-3 border-t border-(--color-divider) px-5 py-5 transition-colors first:border-t-0 hover:bg-(--color-hover) md:grid-cols-[132px_minmax(0,1fr)_150px] md:items-center md:px-6"
+      className="group grid gap-3 border-t border-(--color-divider) p-5 transition-colors first:border-t-0 hover:bg-(--color-hover) md:grid-cols-[132px_minmax(0,1fr)_150px] md:items-center md:px-6"
     >
       <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
         {label}
@@ -130,7 +130,7 @@ export function Workflow({ children }: { children: ReactNode }) {
 
 export function WorkflowStep({ title, children }: WorkflowStepProps) {
   return (
-    <section className="grid min-w-0 gap-4 border-t border-(--color-divider) px-5 py-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
+    <section className="grid min-w-0 gap-4 border-t border-(--color-divider) p-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
       <div className="flex size-10 items-center justify-center rounded-lg border border-(--color-divider) bg-(--color-surface-elevated)">
         <CheckCircle2 className="size-4 text-accent" />
       </div>

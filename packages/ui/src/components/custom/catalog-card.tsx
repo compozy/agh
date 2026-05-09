@@ -61,7 +61,9 @@ function CatalogCardLogo({ tone = "accent", className, ...props }: CatalogCardLo
 
 function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
   return (
-    <h3
+    <div
+      role="heading"
+      aria-level={3}
       data-slot="catalog-card-title"
       className={cn(
         "min-w-0 truncate text-small-body font-medium text-(--color-text-primary)",

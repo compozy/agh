@@ -73,6 +73,7 @@ export function BridgeProviderCard({
       as={onSelect ? "button" : "div"}
       className={className}
       data-testid={`bridge-provider-card-${buildBridgeProviderKey(provider)}`}
+      disabled={Boolean(onSelect && !selectable)}
       onClick={selectable ? onSelect : undefined}
       selected={selected}
       selectable={Boolean(onSelect && selectable)}

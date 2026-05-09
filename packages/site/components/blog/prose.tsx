@@ -216,7 +216,7 @@ export function WireCard({ kind, rows, protocol = "v0" }: WireCardProps) {
       <div className="border-b border-(--color-divider) bg-(--color-canvas-deep) px-3 py-1.5 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
         kind={kind} · {protocol}
       </div>
-      <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 px-3 py-3 font-mono text-eyebrow leading-7">
+      <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 p-3 font-mono text-eyebrow leading-7">
         {rows.map(row => (
           <div key={row.label} className="contents">
             <span className="text-(--color-text-tertiary)">{row.label}</span>

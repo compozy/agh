@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 
 import { cn } from "../lib/utils";
+import { useInitialState } from "./use-initial-state";
 
 function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
@@ -20,7 +21,7 @@ interface TooltipMotionContextValue {
 const TooltipMotionContext = React.createContext<TooltipMotionContextValue | null>(null);
 
 function useTooltipMotion(): TooltipMotionContextValue {
-  const ctx = React.useContext(TooltipMotionContext);
+  const ctx = React.use(TooltipMotionContext);
   if (!ctx) {
     throw new Error("Tooltip.* components must be used inside <Tooltip>.");
   }
@@ -37,7 +38,7 @@ function Tooltip({
   ...props
 }: TooltipRootProps) {
   const actionsRef = React.useRef<TooltipPrimitive.Root.Actions | null>(null);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
 
@@ -100,7 +101,7 @@ function TooltipContent({
             <TooltipPrimitive.Popup
               data-slot="tooltip-content"
               render={
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}

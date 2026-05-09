@@ -4,7 +4,7 @@ import { PROVIDERS } from "./supported-agents";
 
 const signalItems = [
   {
-    label: "agh-network/v0 — alpha runtime",
+    label: "agh-network/v0 , alpha runtime",
     detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
   },
   {
@@ -24,7 +24,7 @@ const signalItems = [
 export function Hero() {
   return (
     <section className="relative overflow-hidden border-b border-(--color-divider) px-4 pt-8 pb-16 md:pt-12 md:pb-20">
-      {/* Background mesh — restored and faded so it textures the whole hero. */}
+      {/* Background mesh , restored and faded so it textures the whole hero. */}
       <div
         className="pointer-events-none absolute inset-0 bg-size-[100%_auto] bg-position-[0%_0%] bg-no-repeat opacity-20 mix-blend-screen"
         style={{ backgroundImage: "url('/hero-bg.webp')" }}
@@ -45,8 +45,8 @@ export function Hero() {
             </h1>
 
             <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-(--color-text-secondary) md:text-lg">
-              AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy,
-              tools, and automation — connected on agh-network/v0 channels where they find each
+              AGH runs the agent CLIs you already use as durable sessions , with memory, autonomy,
+              tools, and automation , connected on agh-network/v0 channels where they find each
               other, share capabilities, and close work with receipts.
             </p>
 

@@ -58,7 +58,7 @@ describe("Hero", () => {
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("agh-network/v0 — alpha runtime")).toBeDefined();
+    expect(screen.getByText("agh-network/v0 , alpha runtime")).toBeDefined();
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers supported`)).toBeDefined();
     expect(screen.getByText("Tool registry, one control path")).toBeDefined();
     expect(screen.getByText("Single binary, no infra")).toBeDefined();
@@ -416,7 +416,7 @@ describe("AutonomyKernelSection", () => {
     expect(
       screen
         .getByAltText(
-          "AGH autonomy storyboard — task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
+          "AGH autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
         )
         .getAttribute("src")
     ).toBe("/images/runtime/autonomy-overview-storyboard-v1.png");

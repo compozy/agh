@@ -32,7 +32,15 @@ function currentSchedule(draft: CreateAutomationJobRequest) {
   return draft.schedule ?? { mode: "cron" as const, expr: "0 9 * * *" };
 }
 
-export function AutomationJobForm({
+function currentIsoTimestamp(): string {
+  return new Date().toISOString();
+}
+
+export function AutomationJobForm(props: AutomationJobFormProps) {
+  return renderAutomationJobForm(props);
+}
+
+function renderAutomationJobForm({
   activeWorkspaceId,
   draft,
   isPending,
@@ -64,7 +72,7 @@ export function AutomationJobForm({
       data-testid="automation-job-form"
       onSubmit={handleSubmit}
     >
-      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+      <div className="flex-1 space-y-6 overflow-y-auto p-5">
         <Section label="Core">
           <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -157,7 +165,7 @@ export function AutomationJobForm({
                   } else {
                     onChange({
                       ...draft,
-                      schedule: { mode: "at", time: schedule.time ?? new Date().toISOString() },
+                      schedule: { mode: "at", time: schedule.time ?? currentIsoTimestamp() },
                     });
                   }
                 }}

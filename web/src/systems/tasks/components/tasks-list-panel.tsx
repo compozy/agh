@@ -13,6 +13,14 @@ const LANE_ITEMS = [
   { value: "watched" as const, label: "Watched", testId: "tasks-list-lane-watched" },
 ];
 
+const TASK_LIST_SKELETON_IDS = [
+  "task-list-skeleton-1",
+  "task-list-skeleton-2",
+  "task-list-skeleton-3",
+  "task-list-skeleton-4",
+  "task-list-skeleton-5",
+];
+
 export interface TasksListPanelProps {
   tasks: TaskListItem[];
   totalCount: number;
@@ -124,11 +132,11 @@ export function TasksListPanel({
 
       <div className="flex-1 overflow-y-auto">
         {isLoading && isEmpty ? (
-          <div className="space-y-3 px-4 py-4" data-testid="tasks-list-loading">
-            {Array.from({ length: 5 }, (_, index) => (
+          <div className="space-y-3 p-4" data-testid="tasks-list-loading">
+            {TASK_LIST_SKELETON_IDS.map(id => (
               <div
-                className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-4"
-                key={index}
+                className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-4"
+                key={id}
               >
                 <Skeleton className="h-2.5 w-20 rounded-full" />
                 <Skeleton className="mt-3 h-3.5 w-3/4 rounded-full" />

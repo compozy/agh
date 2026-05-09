@@ -91,10 +91,8 @@ function Harness({ pinnedIds = ["alpha"], togglePinned = () => undefined }: Harn
       activeDirectId={null}
       directs={[]}
       hasUnread={() => true}
-      isChannelsLoading={false}
-      isDirectsLoading={false}
+      loading={{ channels: false, directs: false, recents: false }}
       isPinned={channel => pinnedSet.has(channel)}
-      isRecentsLoading={false}
       onTogglePinned={togglePinned}
       pinnedChannels={channels.filter(channel => pinnedSet.has(channel.channel))}
       recents={recents}
@@ -145,10 +143,8 @@ describe("ChannelRail", () => {
         activeDirectId={null}
         directs={[]}
         hasUnread={() => false}
-        isChannelsLoading={false}
-        isDirectsLoading={false}
+        loading={{ channels: false, directs: false, recents: false }}
         isPinned={() => false}
-        isRecentsLoading={false}
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}

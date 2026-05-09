@@ -24,11 +24,13 @@ import type { TaskExecutionProfile, TaskExecutionProfileSetRequest } from "../ty
 export interface TasksExecutionProfileCardProps {
   taskId: string;
   profile: TaskExecutionProfile | null;
-  isLoading?: boolean;
+  state?: {
+    isLoading?: boolean;
+    hasActiveRun?: boolean;
+    isSetPending?: boolean;
+    isDeletePending?: boolean;
+  };
   errorMessage?: string | null;
-  hasActiveRun?: boolean;
-  isSetPending?: boolean;
-  isDeletePending?: boolean;
   onSetProfile: (data: TaskExecutionProfileSetRequest) => Promise<void>;
   onDeleteProfile: () => Promise<void>;
 }
@@ -75,14 +77,41 @@ function PillRow({ label, value, tone }: PillRowProps) {
 export function TasksExecutionProfileCard({
   taskId,
   profile,
-  isLoading = false,
   errorMessage = null,
-  hasActiveRun = false,
-  isSetPending = false,
-  isDeletePending = false,
+  state,
   onSetProfile,
   onDeleteProfile,
 }: TasksExecutionProfileCardProps) {
+  const {
+    isLoading = false,
+    hasActiveRun = false,
+    isSetPending = false,
+    isDeletePending = false,
+  } = state ?? {};
+  return TasksExecutionProfileCardView({
+    taskId,
+    profile,
+    errorMessage,
+    state: { isLoading, hasActiveRun, isSetPending, isDeletePending },
+    onSetProfile,
+    onDeleteProfile,
+  });
+}
+
+function TasksExecutionProfileCardView({
+  taskId,
+  profile,
+  errorMessage,
+  state,
+  onSetProfile,
+  onDeleteProfile,
+}: TasksExecutionProfileCardProps) {
+  const {
+    isLoading = false,
+    hasActiveRun = false,
+    isSetPending = false,
+    isDeletePending = false,
+  } = state ?? {};
   const editor = useProfileEditor({ taskId, profile, onSetProfile });
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -299,96 +328,134 @@ export function TasksExecutionProfileCard({
         </div>
       ) : null}
 
-      <Dialog open={editor.open} onOpenChange={editor.setOpen}>
-        <DialogContent
-          className="max-w-2xl"
-          data-testid="tasks-execution-profile-editor-dialog"
-          showCloseButton={!isSetPending}
-        >
-          <DialogHeader>
-            <DialogTitle>{editorTitle}</DialogTitle>
-            <DialogDescription>
-              Profile JSON must match the typed task execution profile contract. The runtime rejects
-              edits while this task has an active run.
-            </DialogDescription>
-          </DialogHeader>
-          <textarea
-            aria-label="Execution profile JSON"
-            className="min-h-[280px] w-full rounded-xl border border-(--color-divider) bg-(--color-surface) p-3 font-mono text-xs text-(--color-text-primary) focus:outline-none focus:ring-1 focus:ring-accent"
-            data-testid="tasks-execution-profile-editor-input"
-            disabled={isSetPending}
-            onChange={event => editor.setValue(event.target.value)}
-            spellCheck={false}
-            value={editor.value}
-          />
-          {editor.error ? (
-            <p
-              className="text-xs text-(--color-danger)"
-              data-testid="tasks-execution-profile-editor-error"
-            >
-              {editor.error}
-            </p>
-          ) : null}
-          <DialogFooter className="gap-2">
-            <Button
-              data-testid="tasks-execution-profile-editor-cancel"
-              disabled={isSetPending}
-              onClick={() => editor.setOpen(false)}
-              type="button"
-              variant="ghost"
-            >
-              Cancel
-            </Button>
-            <Button
-              data-testid="tasks-execution-profile-editor-submit"
-              disabled={isSetPending}
-              onClick={editor.submit}
-              type="button"
-              variant="default"
-            >
-              {isSetPending ? <Spinner className="size-3.5" /> : null}
-              Save profile
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent
-          className="max-w-md"
-          data-testid="tasks-execution-profile-delete-dialog"
-          showCloseButton={!isDeletePending}
-        >
-          <DialogHeader>
-            <DialogTitle>Delete execution profile?</DialogTitle>
-            <DialogDescription>
-              This removes the task-owned execution profile. Workspace defaults will apply on the
-              next session start. Delete is rejected while this task has an active run.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              data-testid="tasks-execution-profile-delete-cancel"
-              disabled={isDeletePending}
-              onClick={() => setDeleteOpen(false)}
-              type="button"
-              variant="ghost"
-            >
-              Cancel
-            </Button>
-            <Button
-              data-testid="tasks-execution-profile-delete-confirm"
-              disabled={isDeletePending}
-              onClick={handleDeleteConfirm}
-              type="button"
-              variant="destructive"
-            >
-              {isDeletePending ? <Spinner className="size-3.5" /> : null}
-              Delete profile
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExecutionProfileEditorDialog
+        editor={editor}
+        isSetPending={isSetPending}
+        title={editorTitle}
+      />
+      <ExecutionProfileDeleteDialog
+        deleteOpen={deleteOpen}
+        isDeletePending={isDeletePending}
+        onConfirm={handleDeleteConfirm}
+        setDeleteOpen={setDeleteOpen}
+      />
     </Section>
+  );
+}
+
+function ExecutionProfileEditorDialog({
+  editor,
+  isSetPending,
+  title,
+}: {
+  editor: ReturnType<typeof useProfileEditor>;
+  isSetPending: boolean;
+  title: string;
+}) {
+  return (
+    <Dialog open={editor.open} onOpenChange={editor.setOpen}>
+      <DialogContent
+        className="max-w-2xl"
+        data-testid="tasks-execution-profile-editor-dialog"
+        showCloseButton={!isSetPending}
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            Profile JSON must match the typed task execution profile contract. The runtime rejects
+            edits while this task has an active run.
+          </DialogDescription>
+        </DialogHeader>
+        <textarea
+          aria-label="Execution profile JSON"
+          className="min-h-[280px] w-full rounded-xl border border-(--color-divider) bg-(--color-surface) p-3 font-mono text-xs text-(--color-text-primary) focus:outline-none focus:ring-1 focus:ring-accent"
+          data-testid="tasks-execution-profile-editor-input"
+          disabled={isSetPending}
+          onChange={event => editor.setValue(event.target.value)}
+          spellCheck={false}
+          value={editor.value}
+        />
+        {editor.error ? (
+          <p
+            className="text-xs text-(--color-danger)"
+            data-testid="tasks-execution-profile-editor-error"
+          >
+            {editor.error}
+          </p>
+        ) : null}
+        <DialogFooter className="gap-2">
+          <Button
+            data-testid="tasks-execution-profile-editor-cancel"
+            disabled={isSetPending}
+            onClick={() => editor.setOpen(false)}
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            data-testid="tasks-execution-profile-editor-submit"
+            disabled={isSetPending}
+            onClick={editor.submit}
+            type="button"
+            variant="default"
+          >
+            {isSetPending ? <Spinner className="size-3.5" /> : null}
+            Save profile
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ExecutionProfileDeleteDialog({
+  deleteOpen,
+  isDeletePending,
+  onConfirm,
+  setDeleteOpen,
+}: {
+  deleteOpen: boolean;
+  isDeletePending: boolean;
+  onConfirm: () => Promise<void>;
+  setDeleteOpen: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <DialogContent
+        className="max-w-md"
+        data-testid="tasks-execution-profile-delete-dialog"
+        showCloseButton={!isDeletePending}
+      >
+        <DialogHeader>
+          <DialogTitle>Delete execution profile?</DialogTitle>
+          <DialogDescription>
+            This removes the task-owned execution profile. Workspace defaults will apply on the next
+            session start. Delete is rejected while this task has an active run.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button
+            data-testid="tasks-execution-profile-delete-cancel"
+            disabled={isDeletePending}
+            onClick={() => setDeleteOpen(false)}
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            data-testid="tasks-execution-profile-delete-confirm"
+            disabled={isDeletePending}
+            onClick={onConfirm}
+            type="button"
+            variant="destructive"
+          >
+            {isDeletePending ? <Spinner className="size-3.5" /> : null}
+            Delete profile
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

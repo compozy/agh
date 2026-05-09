@@ -12,7 +12,7 @@ const meta: Meta<typeof Empty> = {
     docs: {
       description: {
         component:
-          "Empty state — icon well + muted title + optional description + optional action(s).",
+          "Empty state , icon well + muted title + optional description + optional action(s).",
       },
     },
   },

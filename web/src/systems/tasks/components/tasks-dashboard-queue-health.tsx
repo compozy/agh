@@ -53,13 +53,13 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
           data-testid="tasks-dashboard-queue-chart"
           style={{ gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))` }}
         >
-          {series.map((bucket, index) => {
+          {series.map(bucket => {
             const pct = (bucket.value / maxValue) * 100;
             return (
               <span
                 className="rounded-sm"
-                data-testid={`tasks-dashboard-queue-bar-${index}`}
-                key={`${bucket.label}-${index}`}
+                data-testid={`tasks-dashboard-queue-bar-${bucket.label}`}
+                key={bucket.label}
                 style={{
                   background: bucket.warn
                     ? "var(--color-accent)"

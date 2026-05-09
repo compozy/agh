@@ -53,7 +53,7 @@ export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
         }
         aria-live="polite"
         className={cn(
-          "absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md text-(--color-text-tertiary) opacity-0 transition-opacity hover:text-(--color-text-primary) focus-visible:opacity-100 group-hover:opacity-100",
+          "absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md text-(--color-text-tertiary) opacity-0 transition-opacity hover:text-(--color-text-primary) focus-visible:opacity-100 group-hover:opacity-100",
           copyState === "failed" && "text-(--color-danger) hover:text-(--color-danger)"
         )}
       >

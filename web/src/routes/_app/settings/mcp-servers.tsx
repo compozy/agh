@@ -640,8 +640,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
           data-testid="settings-mcp-servers-editor-args-list"
         >
           {args.map((arg, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: args list is ordered and stable per edit
-            <div key={index} className="flex items-center gap-2">
+            <div key={arg} className="flex items-center gap-2">
               <Input
                 className="flex-1 font-mono"
                 data-testid={`settings-mcp-servers-editor-args-input-${index}`}
@@ -700,8 +699,7 @@ function EnvEditor({
           data-testid="settings-mcp-servers-editor-env-list"
         >
           {env.map((pair, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: env list is ordered and stable per edit
-            <div key={index} className="flex items-center gap-2">
+            <div key={`${pair.key}-${pair.value}`} className="flex items-center gap-2">
               <Input
                 className="w-44 font-mono"
                 data-testid={`settings-mcp-servers-editor-env-key-${index}`}

@@ -139,12 +139,19 @@ function AgentSessionsSkeleton() {
       role="status"
       aria-live="polite"
     >
-      {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-9 w-full rounded-md" />
+      {AGENT_SESSION_SKELETON_IDS.map(id => (
+        <Skeleton key={id} className="h-9 w-full rounded-md" />
       ))}
     </div>
   );
 }
+
+const AGENT_SESSION_SKELETON_IDS = [
+  "agent-session-skeleton-1",
+  "agent-session-skeleton-2",
+  "agent-session-skeleton-3",
+  "agent-session-skeleton-4",
+];
 
 function formatDuration(seconds: number | undefined | null): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "--";

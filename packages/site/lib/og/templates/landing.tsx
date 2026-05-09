@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import type { CSSProperties } from "react";
 import { siteConfig } from "@/lib/site-config";
 import { loadOGFonts } from "../fonts";
 import { LogoLockup, SymbolGlyph } from "../logo";
@@ -19,24 +20,55 @@ const FOOTER_RAIL = [
   { label: "LOCAL-FIRST RUNTIME", color: COLORS.textSecondary, lowercase: false },
 ] as const;
 
+const canvasStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  background: COLORS.canvas,
+  color: COLORS.textPrimary,
+  fontFamily: FONTS.inter,
+  padding: "72px",
+};
+
+const eyebrowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "20px",
+  fontFamily: FONTS.mono,
+  fontSize: "18px",
+  letterSpacing: "0.06em",
+  color: COLORS.textSecondary,
+  fontWeight: 500,
+};
+
+const symbolTileStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "120px",
+  height: "120px",
+  background: COLORS.surface,
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: "28px",
+};
+
+const footerRailItemStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  fontFamily: FONTS.mono,
+  fontSize: "16px",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
+};
+
 export async function renderLandingOG(): Promise<ImageResponse> {
   const fonts = await loadOGFonts();
   const subhead = deriveSubhead(siteConfig.description);
 
   return new ImageResponse(
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        background: COLORS.canvas,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.inter,
-        padding: "72px",
-      }}
-    >
+    <div style={canvasStyle}>
       <div
         style={{
           display: "flex",
@@ -47,34 +79,12 @@ export async function renderLandingOG(): Promise<ImageResponse> {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
           <LogoLockup height={64} letteringFill={COLORS.textPrimary} />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "20px",
-              fontFamily: FONTS.mono,
-              fontSize: "18px",
-              letterSpacing: "0.16em",
-              color: COLORS.textSecondary,
-              fontWeight: 500,
-            }}
-          >
+          <div style={eyebrowStyle}>
             <span style={{ width: "96px", height: "1px", background: COLORS.border }} />
             <span>{EYEBROW}</span>
           </div>
         </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "120px",
-            height: "120px",
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: "28px",
-          }}
-        >
+        <div style={symbolTileStyle}>
           <SymbolGlyph size={72} radius={20} />
         </div>
       </div>
@@ -126,16 +136,11 @@ export async function renderLandingOG(): Promise<ImageResponse> {
           <div
             key={entry.label}
             style={{
-              display: "flex",
-              alignItems: "center",
+              ...footerRailItemStyle,
               paddingLeft: idx === 0 ? "0" : "32px",
               paddingRight: idx === FOOTER_RAIL.length - 1 ? "0" : "32px",
               borderLeft: idx === 0 ? "none" : `1px solid ${COLORS.border}`,
-              fontFamily: FONTS.mono,
-              fontSize: "16px",
-              letterSpacing: "0.14em",
               color: entry.color,
-              fontWeight: 500,
               textTransform: entry.lowercase ? "lowercase" : "uppercase",
             }}
           >

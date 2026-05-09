@@ -510,7 +510,7 @@ describe("BridgesPage", () => {
     mockActiveWorkspaceName = "";
     rerender(<BridgesPage />);
 
-    fireEvent.submit(screen.getByTestId("bridge-create-dialog"));
+    await user.click(screen.getByTestId("submit-bridge-create"));
 
     expect(mockCreateBridgeMutateAsync).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(

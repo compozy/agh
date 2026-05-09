@@ -63,10 +63,12 @@ export const TriggerDefault: Story = {
       <AutomationDetailPanel
         emptyState={null}
         error={null}
-        isDeleting={false}
-        isLoading={false}
-        isTogglePending={false}
-        isTriggerPending={false}
+        state={{
+          isDeleting: false,
+          isLoading: false,
+          isTogglePending: false,
+          isTriggerPending: false,
+        }}
         item={primaryAutomationTriggerFixture}
         kind="triggers"
         onDelete={fn()}
@@ -101,10 +103,12 @@ export const Loading: Story = {
       <AutomationDetailPanel
         emptyState={null}
         error={null}
-        isDeleting={false}
-        isLoading
-        isTogglePending={false}
-        isTriggerPending={false}
+        state={{
+          isDeleting: false,
+          isLoading: true,
+          isTogglePending: false,
+          isTriggerPending: false,
+        }}
         item={undefined}
         kind="jobs"
         onDelete={fn()}
@@ -126,10 +130,12 @@ export const Deleting: Story = {
       <AutomationDetailPanel
         emptyState={null}
         error={null}
-        isDeleting
-        isLoading={false}
-        isTogglePending={false}
-        isTriggerPending={false}
+        state={{
+          isDeleting: true,
+          isLoading: false,
+          isTogglePending: false,
+          isTriggerPending: false,
+        }}
         item={primaryAutomationJobFixture}
         kind="jobs"
         onDelete={fn()}

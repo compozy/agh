@@ -1,0 +1,25 @@
+{
+    "ignore": {
+        "files": [
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "**/*.stories.ts",
+            "**/*.stories.tsx",
+            "**/__tests__/**",
+            "e2e/**",
+            "web/e2e/**",
+            "public/mockServiceWorker.js",
+            "web/public/mockServiceWorker.js",
+            "velite.config.ts",
+            "packages/site/velite.config.ts",
+            "source.config.ts",
+            "packages/site/source.config.ts",
+            ".source/**",
+            ".velite/**"
+        ]
+    },
+    "lint": true,
+    "deadCode": true,
+    "diff": false,
+    "failOn": "warning"
+}

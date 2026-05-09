@@ -13,7 +13,7 @@ import {
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/agents/session",
-    "Nested session chat route under an agent. Mirrors the previous routes/app/session stories — transcript hydration, stopped session, permission prompt, loading and not-found behaviors — through the canonical /agents/$name/sessions/$id URL."
+    "Nested session chat route under an agent. Mirrors the previous routes/app/session stories , transcript hydration, stopped session, permission prompt, loading and not-found behaviors , through the canonical /agents/$name/sessions/$id URL."
   ),
 };
 
@@ -76,7 +76,7 @@ export const PendingPermission: Story = {
 };
 
 /**
- * Not-found session behavior — toast fires and navigation falls back to the parent agent route.
+ * Not-found session behavior , toast fires and navigation falls back to the parent agent route.
  */
 export const NotFoundRedirect: Story = {
   args: {},

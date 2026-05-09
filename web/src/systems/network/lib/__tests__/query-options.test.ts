@@ -54,7 +54,7 @@ function requireRetry(
   return retry;
 }
 
-describe("network query options — surface isolation", () => {
+describe("network query options , surface isolation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

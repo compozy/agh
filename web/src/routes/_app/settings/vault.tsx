@@ -162,11 +162,12 @@ function VaultFilterBar({
       className="grid gap-4 rounded-lg border border-(--color-divider) bg-(--color-surface-panel) p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
       data-testid="settings-page-vault-filters"
     >
-      <label className="flex min-w-0 flex-col gap-2">
+      <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
         <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
           Namespace
         </span>
         <select
+          id="settings-page-vault-namespace"
           value={namespace}
           onChange={event => onNamespaceChange(event.target.value as VaultNamespaceFilter)}
           className="h-9 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 text-sm text-(--color-text-primary) outline-none"
@@ -180,11 +181,12 @@ function VaultFilterBar({
           ))}
         </select>
       </label>
-      <label className="flex min-w-0 flex-col gap-2">
+      <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
         <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
           Prefix
         </span>
         <Input
+          id="settings-page-vault-prefix"
           value={prefix}
           onChange={event => onPrefixChange(event.target.value)}
           placeholder="vault:sessions/sess_123/"

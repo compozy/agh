@@ -255,7 +255,7 @@ function CuratedModels({ provider }: { provider: SettingsProviderEntry }) {
   if (models.length === 0) {
     return <EmptyValue />;
   }
-  const ids = models.map(model => model.id).filter(Boolean);
+  const ids = models.flatMap(model => (model.id ? [model.id] : []));
   if (ids.length === 0) {
     return <EmptyValue />;
   }

@@ -98,7 +98,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
   return (
     <button
       className={cn(
-        "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border px-5 py-5 text-left transition-colors",
+        "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border p-5 text-left transition-colors",
         isBlank
           ? "border-dashed border-divider/60 hover:border-(--color-text-label)"
           : "border-(--color-divider) bg-(--color-surface) hover:border-(--color-text-label)"

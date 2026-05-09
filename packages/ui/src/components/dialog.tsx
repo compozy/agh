@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { XIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
+import { useInitialState } from "./use-initial-state";
 
 type DialogActionsRef = React.RefObject<DialogPrimitive.Root.Actions | null>;
 
@@ -18,7 +19,7 @@ interface DialogMotionContextValue {
 const DialogMotionContext = React.createContext<DialogMotionContextValue | null>(null);
 
 function useDialogMotion(): DialogMotionContextValue {
-  const ctx = React.useContext(DialogMotionContext);
+  const ctx = React.use(DialogMotionContext);
   if (!ctx) {
     throw new Error("Dialog.* components must be used inside <Dialog>.");
   }
@@ -35,7 +36,7 @@ function Dialog({
   ...props
 }: DialogRootProps) {
   const actionsRef = React.useRef<DialogPrimitive.Root.Actions | null>(null);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
 
@@ -77,7 +78,7 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
   const overlayRender = React.useMemo(
     () => (
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -137,7 +138,7 @@ function DialogContent({
   }, [actionsRef]);
   const popupRender = React.useMemo(
     () => (
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}

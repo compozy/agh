@@ -26,49 +26,49 @@ const BRIDGES: Bridge[] = [
   {
     id: "slack",
     name: "Slack",
-    logo: <SlackLogo aria-hidden className="h-7 w-7" />,
+    logo: <SlackLogo aria-hidden className="size-7" />,
     status: "alpha",
   },
   {
     id: "discord",
     name: "Discord",
-    logo: <DiscordLogo aria-hidden className="h-7 w-7" />,
+    logo: <DiscordLogo aria-hidden className="size-7" />,
     status: "alpha",
   },
   {
     id: "telegram",
     name: "Telegram",
-    logo: <TelegramLogo aria-hidden className="h-7 w-7" />,
+    logo: <TelegramLogo aria-hidden className="size-7" />,
     status: "alpha",
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
-    logo: <WhatsAppLogo aria-hidden className="h-7 w-7" />,
+    logo: <WhatsAppLogo aria-hidden className="size-7" />,
     status: "planned",
   },
   {
     id: "teams",
     name: "Microsoft Teams",
-    logo: <MicrosoftTeamsLogo aria-hidden className="h-7 w-7" />,
+    logo: <MicrosoftTeamsLogo aria-hidden className="size-7" />,
     status: "planned",
   },
   {
     id: "google-chat",
     name: "Google Chat",
-    logo: <GoogleChatLogo aria-hidden className="h-7 w-7" />,
+    logo: <GoogleChatLogo aria-hidden className="size-7" />,
     status: "planned",
   },
   {
     id: "github",
     name: "GitHub",
-    logo: <GithubLogo aria-hidden className="h-7 w-7 text-(--color-text-primary)" />,
+    logo: <GithubLogo aria-hidden className="size-7 text-(--color-text-primary)" />,
     status: "planned",
   },
   {
     id: "linear",
     name: "Linear",
-    logo: <LinearLogo aria-hidden className="h-7 w-7" mode="dark" />,
+    logo: <LinearLogo aria-hidden className="size-7" mode="dark" />,
     status: "planned",
   },
 ];
@@ -80,7 +80,7 @@ export function BridgesSection() {
         align="start"
         eyebrow="Bridges"
         title="Your users work in these channels. Your agents can meet them there."
-        description="Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime — the bridge adapter runs inside the daemon."
+        description="Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime , the bridge adapter runs inside the daemon."
       />
 
       <ul className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -88,7 +88,7 @@ export function BridgesSection() {
           <li key={bridge.id}>
             <article className="group relative flex h-full flex-col items-start gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) p-5 transition-colors hover:border-accent/35">
               <div className="flex items-center justify-between self-stretch">
-                <div className="flex h-10 w-10 items-center justify-center">{bridge.logo}</div>
+                <div className="flex size-10 items-center justify-center">{bridge.logo}</div>
                 {bridge.status === "alpha" ? (
                   <Pill mono tone="accent">
                     alpha
@@ -123,7 +123,7 @@ export function BridgesSection() {
           <FlowArrow label="webhook" />
           <FlowNode title="agh daemon" sub="verify · route" highlight />
           <FlowArrow label="session" />
-          <FlowNode title="Agent" sub="claude / codex / …" />
+          <FlowNode title="Agent" sub="claude / codex / ..." />
           <FlowArrow label="stream" />
           <FlowNode title="Thread reply" sub="streamed updates" />
         </div>
@@ -140,14 +140,14 @@ export function BridgesSection() {
           className="inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-small-body font-medium text-accent transition-colors hover:bg-(--color-accent-tint)"
         >
           Configure Slack, Discord, or Telegram
-          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
         <Link
           href="/runtime/core/extensions"
           className="inline-flex items-center gap-2 rounded-lg border border-(--color-divider) px-4 py-2 text-small-body font-medium text-(--color-text-primary) transition-colors hover:border-accent/35 hover:text-accent"
         >
           Build a bridge adapter
-          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
       </div>
     </SectionFrame>
@@ -187,7 +187,7 @@ function FlowArrow({ label }: { label: string }) {
       <span className="font-mono text-micro uppercase tracking-mono text-(--color-text-tertiary)">
         {label}
       </span>
-      <ArrowRight aria-hidden className="h-4 w-4 text-accent" />
+      <ArrowRight aria-hidden className="size-4 text-accent" />
     </div>
   );
 }

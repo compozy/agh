@@ -33,10 +33,12 @@ export interface AutomationDetailEmptyState {
 interface AutomationDetailPanelProps {
   emptyState?: AutomationDetailEmptyState | null;
   error: Error | null;
-  isDeleting: boolean;
-  isLoading: boolean;
-  isTogglePending: boolean;
-  isTriggerPending: boolean;
+  state: {
+    isDeleting: boolean;
+    isLoading: boolean;
+    isTogglePending: boolean;
+    isTriggerPending: boolean;
+  };
   item: AutomationJob | AutomationTrigger | undefined;
   kind: "jobs" | "triggers";
   onDelete: () => void;
@@ -364,10 +366,7 @@ function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }
 export function AutomationDetailPanel({
   emptyState,
   error,
-  isDeleting,
-  isLoading,
-  isTogglePending,
-  isTriggerPending,
+  state,
   item,
   kind,
   onDelete,
@@ -378,6 +377,7 @@ export function AutomationDetailPanel({
   runsError,
   runsLoading,
 }: AutomationDetailPanelProps) {
+  const { isDeleting, isLoading, isTogglePending, isTriggerPending } = state;
   if (isLoading) {
     return (
       <div

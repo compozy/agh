@@ -108,7 +108,7 @@ describe("automation formatter helpers", () => {
     ).toBe("2m 14s");
     expect(
       formatPromptPreview("Review the session transcript and summarize follow-up actions.", 20)
-    ).toBe("Review the session…");
+    ).toBe("Review the session...");
     expect(automationStatusTone("running")).toBe("accent");
     expect(automationStatusTone("completed")).toBe("success");
     expect(automationStatusTone("enabled")).toBe("success");

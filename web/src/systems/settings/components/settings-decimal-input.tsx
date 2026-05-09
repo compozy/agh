@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 
 import { Input } from "@agh/ui";
 
@@ -64,18 +64,10 @@ function SettingsDecimalInput({
 }: SettingsDecimalInputProps) {
   const [rawValue, setRawValue] = useState(() => formatNumber(value, precision));
 
-  useEffect(() => {
-    setRawValue(formatNumber(value, precision));
-  }, [precision, value]);
-
   const validationMessage = useMemo(
     () => validateDecimalInput(rawValue, min, max),
     [max, min, rawValue]
   );
-
-  useEffect(() => {
-    onValidityChange?.(validationMessage);
-  }, [onValidityChange, validationMessage]);
 
   return (
     <Input
@@ -89,6 +81,7 @@ function SettingsDecimalInput({
         setRawValue(nextRawValue);
 
         const nextValidationMessage = validateDecimalInput(nextRawValue, min, max);
+        onValidityChange?.(nextValidationMessage);
         if (nextValidationMessage) {
           return;
         }

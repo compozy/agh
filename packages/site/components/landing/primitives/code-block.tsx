@@ -53,6 +53,10 @@ export function CodeBlock({
   }
 
   const lines = code.split("\n");
+  const displayLines = lines.map((line, index) => ({
+    id: `${index}:${line}`,
+    line,
+  }));
 
   return (
     <div
@@ -95,10 +99,10 @@ export function CodeBlock({
           ) : null}
         </div>
       )}
-      <pre className="overflow-x-auto px-4 py-4 font-mono text-small-body leading-7 text-(--color-text-primary)">
+      <pre className="overflow-x-auto p-4 font-mono text-small-body leading-7 text-(--color-text-primary)">
         <code>
-          {lines.map((line, i) => (
-            <div key={i} className={line === "" ? "h-[1.1em]" : undefined}>
+          {displayLines.map(({ id, line }) => (
+            <div key={id} className={line === "" ? "h-[1.1em]" : undefined}>
               {shell && line !== "" && !line.startsWith("#") ? (
                 <span className="select-none text-accent">$ </span>
               ) : null}

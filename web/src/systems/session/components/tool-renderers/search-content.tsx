@@ -30,12 +30,10 @@ export function SearchContent({ message }: { message: UIMessage }) {
       )}
       {lines.length > 0 ? (
         <div className="rounded-md border border-(--color-divider) overflow-hidden">
-          {lines.slice(0, 20).map((line, i) => (
+          {lines.slice(0, 20).map(line => (
             <div
-              key={i}
-              className={`flex items-center gap-2 px-3 py-1 text-eyebrow ${
-                i > 0 ? "border-t border-(--color-divider)" : ""
-              }`}
+              key={line}
+              className="flex items-center gap-2 border-t border-(--color-divider) px-3 py-1 text-eyebrow first:border-t-0"
             >
               <FileText className="size-3 shrink-0 text-(--color-text-tertiary)/20" />
               <span className="truncate text-(--color-text-tertiary) font-mono" title={line}>

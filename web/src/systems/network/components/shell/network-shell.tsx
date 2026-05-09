@@ -16,9 +16,11 @@ export interface NetworkShellProps {
   unpinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   recents: ReadonlyArray<NetworkRecentEntry>;
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
-  isChannelsLoading: boolean;
-  isRecentsLoading: boolean;
-  isDirectsLoading: boolean;
+  loading: {
+    channels: boolean;
+    recents: boolean;
+    directs: boolean;
+  };
   activeChannel: NetworkChannelSummary | null;
   activeChannelDetail: NetworkChannel | null;
   activeTab: ChannelTab;
@@ -43,9 +45,7 @@ export function NetworkShell({
   unpinnedChannels,
   recents,
   directs,
-  isChannelsLoading,
-  isRecentsLoading,
-  isDirectsLoading,
+  loading,
   activeChannel,
   activeChannelDetail,
   activeTab,
@@ -71,10 +71,8 @@ export function NetworkShell({
         activeDirectId={activeDirectId}
         directs={directs}
         hasUnread={hasUnread}
-        isChannelsLoading={isChannelsLoading}
-        isDirectsLoading={isDirectsLoading}
+        loading={loading}
         isPinned={isPinned}
-        isRecentsLoading={isRecentsLoading}
         onTogglePinned={onTogglePinned}
         pinnedChannels={pinnedChannels}
         recents={recents}

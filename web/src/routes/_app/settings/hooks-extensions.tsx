@@ -377,7 +377,7 @@ function ExtensionsSection({
           data-testid="settings-page-hooks-extensions-extensions-loading"
         >
           <Loader2 className="size-3.5 animate-spin" />
-          Loading extensions...
+          Loading extensions…
         </div>
       ) : extensions.length === 0 ? (
         <Empty
@@ -536,10 +536,7 @@ function PolicySection({
       note="restart required to apply"
       right={
         <SaveControls
-          isDirty={isDirty}
-          isSaving={isSaving}
-          isInvalid={isInvalid}
-          canMutate={canMutate}
+          state={{ isDirty, isSaving, isInvalid, canMutate }}
           error={error}
           warnings={warnings}
           onSave={onSave}
@@ -559,9 +556,12 @@ function PolicySection({
             value={draft.marketplace.registry ?? ""}
             disabled={!canMutate}
             onChange={event =>
-              setDraft({
-                ...draft,
-                marketplace: { ...draft.marketplace, registry: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  marketplace: { ...current.marketplace, registry: event.target.value },
+                };
               })
             }
           />
@@ -580,9 +580,12 @@ function PolicySection({
             placeholder="https://"
             disabled={!canMutate}
             onChange={event =>
-              setDraft({
-                ...draft,
-                marketplace: { ...draft.marketplace, base_url: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  marketplace: { ...current.marketplace, base_url: event.target.value },
+                };
               })
             }
           />
@@ -605,12 +608,15 @@ function PolicySection({
             value={draft.resources.max_scope ?? "workspace"}
             disabled={!canMutate}
             onChange={event =>
-              setDraft({
-                ...draft,
-                resources: {
-                  ...draft.resources,
-                  max_scope: event.target.value as PolicyConfig["resources"]["max_scope"],
-                },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  resources: {
+                    ...current.resources,
+                    max_scope: event.target.value as PolicyConfig["resources"]["max_scope"],
+                  },
+                };
               })
             }
           >
@@ -635,9 +641,12 @@ function PolicySection({
         onRequestsValidityChange={setValidationError("snapshotRateRequests")}
         onQueueValidityChange={setValidationError("snapshotRateQueue")}
         onChange={next =>
-          setDraft({
-            ...draft,
-            resources: { ...draft.resources, snapshot_rate_limit: next },
+          setDraft(prev => {
+            const current = prev ?? draft;
+            return {
+              ...current,
+              resources: { ...current.resources, snapshot_rate_limit: next },
+            };
           })
         }
       />
@@ -654,9 +663,12 @@ function PolicySection({
         onRequestsValidityChange={setValidationError("operatorRateRequests")}
         onQueueValidityChange={setValidationError("operatorRateQueue")}
         onChange={next =>
-          setDraft({
-            ...draft,
-            resources: { ...draft.resources, operator_write_rate_limit: next },
+          setDraft(prev => {
+            const current = prev ?? draft;
+            return {
+              ...current,
+              resources: { ...current.resources, operator_write_rate_limit: next },
+            };
           })
         }
       />
@@ -784,26 +796,20 @@ function RateLimitRow({
 }
 
 interface SaveControlsProps {
-  isDirty: boolean;
-  isSaving: boolean;
-  isInvalid: boolean;
-  canMutate: boolean;
+  state: {
+    isDirty: boolean;
+    isSaving: boolean;
+    isInvalid: boolean;
+    canMutate: boolean;
+  };
   error: string | null;
   warnings?: string[];
   onSave: () => void;
   onReset: () => void;
 }
 
-function SaveControls({
-  isDirty,
-  isSaving,
-  isInvalid,
-  canMutate,
-  error,
-  warnings,
-  onSave,
-  onReset,
-}: SaveControlsProps) {
+function SaveControls({ state, error, warnings, onSave, onReset }: SaveControlsProps) {
+  const { isDirty, isSaving, isInvalid, canMutate } = state;
   const disabled = !isDirty || isSaving || isInvalid || !canMutate;
   return (
     <div
@@ -868,7 +874,7 @@ function SaveControls({
         data-testid="settings-page-hooks-extensions-policy-save"
       >
         {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-        {isSaving ? "Saving..." : "Save policy"}
+        {isSaving ? "Saving…" : "Save policy"}
       </Button>
     </div>
   );

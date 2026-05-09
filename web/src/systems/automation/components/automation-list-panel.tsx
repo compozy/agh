@@ -178,7 +178,7 @@ export function AutomationListPanel({
         <SearchInput
           data-testid="automation-search-input"
           onChange={onSearchChange}
-          placeholder={kind === "jobs" ? "Search jobs…" : "Search triggers…"}
+          placeholder={kind === "jobs" ? "Search jobs..." : "Search triggers..."}
           value={searchQuery}
         />
         <p className="text-xs text-(--color-text-secondary)" data-testid="automation-list-summary">

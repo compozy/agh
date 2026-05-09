@@ -74,21 +74,26 @@ interface TaskEditorSurfaceProps {
   task?: TaskRecord | null;
 }
 
-export function TaskEditorSurface({
-  mode,
-  draft,
-  onDraftChange,
-  onSubmit,
-  canSubmit = true,
-  isSubmitting = false,
-  workspaceName,
-  templateId,
-  template,
-  onTemplateChange,
-  task = null,
-}: TaskEditorSurfaceProps) {
+export function TaskEditorSurface(props: TaskEditorSurfaceProps) {
+  const { draft, onDraftChange, onSubmit } = props;
   const form = useTasksCreateModalForm({ draft, onDraftChange, onSubmit });
+  return renderTaskEditorSurface(props, form);
+}
 
+function renderTaskEditorSurface(
+  {
+    mode,
+    draft,
+    canSubmit = true,
+    isSubmitting = false,
+    workspaceName,
+    templateId,
+    template,
+    onTemplateChange,
+    task = null,
+  }: TaskEditorSurfaceProps,
+  form: ReturnType<typeof useTasksCreateModalForm>
+) {
   const isCreateMode = mode === "create";
   const title = isCreateMode ? "New task" : "Edit task";
   const description = isCreateMode
@@ -184,7 +189,7 @@ export function TaskEditorSurface({
 
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.submitForm}>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.85fr)]">
+          <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.85fr)]">
             <div className="flex min-w-0 flex-col gap-6">
               <Section label="Task contract">
                 <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5">

@@ -29,8 +29,7 @@ export const Default: Story = {
         bridge={bridgeDetailFixture.bridge}
         error={null}
         health={bridgeDetailFixture.health}
-        isLoading={false}
-        isRoutesLoading={false}
+        state={{ isLoading: false, isRoutesLoading: false }}
         onOpenTestDelivery={() => undefined}
         provider={bridgeProvidersFixture[0]}
         routes={bridgeRoutesFixture}
@@ -53,8 +52,7 @@ export const Disabled: Story = {
         }}
         error={null}
         health={{ ...bridgeDetailFixture.health, status: "disabled" }}
-        isLoading={false}
-        isRoutesLoading={false}
+        state={{ isLoading: false, isRoutesLoading: false }}
         onOpenTestDelivery={() => undefined}
         provider={bridgeProvidersFixture[0]}
         routes={[]}
@@ -73,8 +71,7 @@ export const NoRoutes: Story = {
         bridge={bridgeDetailFixture.bridge}
         error={null}
         health={bridgeDetailFixture.health}
-        isLoading={false}
-        isRoutesLoading={false}
+        state={{ isLoading: false, isRoutesLoading: false }}
         onOpenTestDelivery={() => undefined}
         provider={bridgeProvidersFixture[0]}
         routes={[]}
@@ -93,8 +90,7 @@ export const Error: Story = {
         bridge={undefined}
         error={new globalThis.Error("Failed to load bridge details")}
         health={undefined}
-        isLoading={false}
-        isRoutesLoading={false}
+        state={{ isLoading: false, isRoutesLoading: false }}
         onOpenTestDelivery={() => undefined}
         routes={[]}
       />

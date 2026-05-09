@@ -50,7 +50,7 @@ export const ToolCallCard = memo(
           <TooltipTrigger className={cn("min-w-0 cursor-default truncate", toneClass)}>
             {card.summary}
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[min(56rem,calc(100vw-2rem))] px-0 py-0">
+          <TooltipContent side="bottom" className="max-w-[min(56rem,calc(100vw-2rem))] p-0">
             <div className="overflow-x-auto px-2 py-1.5 font-mono text-eyebrow whitespace-nowrap">
               {card.fullSummary}
             </div>

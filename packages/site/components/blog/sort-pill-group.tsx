@@ -1,20 +1,28 @@
 "use client";
 
 import { cn } from "@agh/ui";
-import { useState } from "react";
+import { useReducer } from "react";
 
 export type SortKey = "newest" | "oldest";
 
 export interface SortPillGroupProps {
-  initial?: SortKey;
+  defaultValue?: SortKey;
   onChange?: (key: SortKey) => void;
   className?: string;
 }
 
 const labels: Record<SortKey, string> = { newest: "NEWEST", oldest: "OLDEST" };
 
-export function SortPillGroup({ initial = "newest", onChange, className }: SortPillGroupProps) {
-  const [active, setActive] = useState<SortKey>(initial);
+function activeSortReducer(_: SortKey, next: SortKey): SortKey {
+  return next;
+}
+
+export function SortPillGroup({
+  defaultValue = "newest",
+  onChange,
+  className,
+}: SortPillGroupProps) {
+  const [active, setActive] = useReducer(activeSortReducer, defaultValue);
   return (
     <div
       className={cn(

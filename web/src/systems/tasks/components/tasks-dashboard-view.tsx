@@ -61,7 +61,7 @@ export function TasksDashboardView({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-4"
+      className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4"
       data-testid="tasks-dashboard-view"
     >
       <TasksDashboardCards dashboard={dashboard} />

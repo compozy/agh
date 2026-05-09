@@ -14,32 +14,32 @@ type E2EFixtures = {
 
 export const test = base.extend<E2EFixtures>({
   runtimeOptions: [{}, { option: true }],
-  runtime: async ({ browserName: _browserName, runtimeOptions }, use, testInfo) => {
+  runtime: async ({ browserName: _browserName, runtimeOptions }, provide, testInfo) => {
     const runtime = await createBrowserRuntime({
       artifactRootDir: testInfo.outputPath("agh-artifacts"),
       ...runtimeOptions,
     });
     try {
-      await use(runtime);
+      await provide(runtime);
     } finally {
       await runtime.dispose();
     }
   },
   browserArtifacts: [
-    async ({ context, runtime }, use) => {
+    async ({ context, runtime }, provide) => {
       const session = await BrowserArtifactSession.start({
         collector: runtime.artifactCollector,
         context,
         qaOutputRootDir: process.env.AGH_E2E_QA_OUTPUT_DIR,
       });
-      await use(session);
+      await provide(session);
       await session.persist();
     },
     { auto: true },
   ],
-  appPage: async ({ page, runtime }, use) => {
+  appPage: async ({ page, runtime }, provide) => {
     await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-    await use(page);
+    await provide(page);
   },
 });
 

@@ -86,7 +86,7 @@ describe("AppHomePage", () => {
         key,
         tone,
         label: key,
-        description: "—",
+        description: ",",
       },
     });
 

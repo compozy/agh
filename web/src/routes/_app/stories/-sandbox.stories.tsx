@@ -31,7 +31,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty editor state — the new-sandbox dialog is open with the name field
+ * Dirty editor state , the new-sandbox dialog is open with the name field
  * pre-filled so the Create button enables for the story.
  */
 export const Dirty: Story = {

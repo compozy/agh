@@ -156,7 +156,7 @@ function SessionCreateDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-5 px-5 py-5">
+          <div className="space-y-5 p-5">
             <Field>
               <FieldLabel htmlFor="session-create-agent">Agent</FieldLabel>
               <FieldDescription>
@@ -403,7 +403,7 @@ function CatalogStatusLine({
   if (stale) {
     return (
       <p className="mt-1 text-xs text-(--color-warning)" data-testid="session-create-catalog-stale">
-        Some models are stale — refresh to confirm availability.
+        Some models are stale , refresh to confirm availability.
       </p>
     );
   }
@@ -413,7 +413,7 @@ function CatalogStatusLine({
         className="mt-1 text-xs text-(--color-text-tertiary)"
         data-testid="session-create-catalog-empty"
       >
-        No catalog models — type a model name to continue.
+        No catalog models , type a model name to continue.
       </p>
     );
   }

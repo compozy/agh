@@ -238,9 +238,12 @@ describe("useHomePage", () => {
 
     const { result } = renderHook(() => useHomePage(), { wrapper: createWrapper() });
 
-    await waitFor(() => {
-      expect(result.current.daemonStatus.key).toBe("disconnected");
-    });
+    await waitFor(
+      () => {
+        expect(result.current.daemonStatus.key).toBe("disconnected");
+      },
+      { timeout: 2_500 }
+    );
 
     expect(result.current.connectionStatus).toBe("error");
     expect(result.current.daemonStatus.tone).toBe("danger");

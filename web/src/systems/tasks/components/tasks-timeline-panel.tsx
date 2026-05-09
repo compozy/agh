@@ -16,8 +16,6 @@ export interface TasksTimelinePanelProps {
   isLive?: boolean;
   onLoadMore?: () => void;
   canLoadMore?: boolean;
-  /** Initial view mode. Defaults to `interleaved` (the single-run detail default). */
-  defaultViewMode?: TasksTimelineViewMode;
 }
 
 const FAILURE_EVENT_TYPES = new Set([
@@ -167,9 +165,8 @@ export function TasksTimelinePanel({
   isLive = false,
   onLoadMore,
   canLoadMore = false,
-  defaultViewMode = "interleaved",
 }: TasksTimelinePanelProps) {
-  const [viewMode, setViewMode] = useState<TasksTimelineViewMode>(defaultViewMode);
+  const [viewMode, setViewMode] = useState<TasksTimelineViewMode>("interleaved");
 
   const groups = useMemo<TimelineGroup[]>(() => {
     if (viewMode === "by_agent") return groupByAgent(items);

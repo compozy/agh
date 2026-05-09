@@ -1,5 +1,5 @@
 import { Pencil } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useReducer } from "react";
 
 import {
   Button,
@@ -30,6 +30,10 @@ interface KnowledgeEditDialogProps {
   onConfirm: (input: { content: string; description?: string }) => Promise<void>;
 }
 
+function stringReducer(_: string, next: string): string {
+  return next;
+}
+
 function KnowledgeEditDialog({
   open,
   onOpenChange,
@@ -41,15 +45,20 @@ function KnowledgeEditDialog({
   error,
   onConfirm,
 }: KnowledgeEditDialogProps) {
-  const [content, setContent] = useState(initialContent);
-  const [description, setDescription] = useState(initialDescription ?? "");
+  const [content, setContent] = useReducer(stringReducer, initialContent);
+  const [description, setDescription] = useReducer(stringReducer, initialDescription ?? "");
 
-  useEffect(() => {
-    if (open) {
+  if (!open) {
+    return null;
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
       setContent(initialContent);
       setDescription(initialDescription ?? "");
     }
-  }, [open, initialContent, initialDescription]);
+    onOpenChange(next);
+  };
 
   const handleSubmit = async () => {
     const trimmedDescription = description.trim();
@@ -63,7 +72,7 @@ function KnowledgeEditDialog({
     isPending || content.trim().length === 0 || content === (initialContent ?? "");
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
         className="sm:max-w-2xl"
         data-testid="knowledge-edit-dialog"

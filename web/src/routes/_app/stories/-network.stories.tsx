@@ -42,7 +42,7 @@ export const DirectsTab: Story = {
 };
 
 /**
- * Activity tab for the hero channel — read-only cross-surface feed.
+ * Activity tab for the hero channel , read-only cross-surface feed.
  */
 export const ActivityTab: Story = {
   args: {},

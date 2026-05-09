@@ -6,7 +6,7 @@ import { ScrollArea, ScrollBar } from "../scroll-area";
 describe("ScrollArea", () => {
   it("Should render the root and viewport wrapper with stable data-slots", () => {
     const { container } = render(
-      <ScrollArea className="h-24 w-24">
+      <ScrollArea className="size-24">
         <div className="h-96">long content</div>
       </ScrollArea>
     );
@@ -16,7 +16,7 @@ describe("ScrollArea", () => {
 
   it("Should render a custom track/thumb when a scrollbar is kept mounted", () => {
     const { container } = render(
-      <ScrollArea className="h-24 w-24">
+      <ScrollArea className="size-24">
         <ul>
           {Array.from({ length: 30 }, (_, i) => (
             <li key={i}>Item {i}</li>

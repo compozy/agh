@@ -9,7 +9,7 @@ export interface CardProps extends React.ComponentProps<"div"> {
   /**
    * Renders a 2px accent left-rail to flag attention-demanding or in-flight
    * state. The rail replaces the ad-hoc `border-[color:var(--color-accent)]`
-   * pattern the Tasks domain used to paint around the whole perimeter — accent
+   * pattern the Tasks domain used to paint around the whole perimeter , accent
    * should read as a pointer, not a frame. Defaults to `false`.
    */
   activeRail?: boolean;

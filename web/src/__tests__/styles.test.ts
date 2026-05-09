@@ -37,7 +37,7 @@ function collectTsxFiles(dir: string): string[] {
   return results;
 }
 
-describe("Design Token System — styles.css", () => {
+describe("Design Token System , styles.css", () => {
   const css = readStyles();
   const tokens = readTokens();
 
@@ -189,7 +189,7 @@ describe("Design Token System — styles.css", () => {
   });
 });
 
-describe("Component files — no legacy token references", () => {
+describe("Component files , no legacy token references", () => {
   const componentFiles = collectTsxFiles(SRC_ROOT);
 
   it("finds component files to check", () => {

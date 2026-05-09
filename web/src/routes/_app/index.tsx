@@ -43,7 +43,7 @@ function AppHomePage() {
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
         {header}
-        <div className="flex flex-col gap-6 px-6 py-6" data-testid="home-loading">
+        <div className="flex flex-col gap-6 p-6" data-testid="home-loading">
           <DaemonStatusSkeleton />
           <MetricsSkeleton />
         </div>
@@ -55,7 +55,7 @@ function AppHomePage() {
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
         {header}
-        <div className="flex flex-1 items-start px-6 py-6" data-testid="home-error">
+        <div className="flex flex-1 items-start p-6" data-testid="home-error">
           <Empty
             className="max-w-xl"
             description={page.errorMessage ?? "Unable to load workspace data from the daemon."}
@@ -70,7 +70,7 @@ function AppHomePage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
       {header}
-      <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 py-6" data-testid="home-body">
+      <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6" data-testid="home-body">
         <DaemonStatusSection page={page} />
         <OverviewSection page={page} />
       </div>

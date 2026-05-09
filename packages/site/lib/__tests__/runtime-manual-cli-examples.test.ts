@@ -224,7 +224,7 @@ describe("manual site CLI examples", () => {
 
   it("does not advertise removed wire vocabulary inside active docs code blocks", () => {
     // Scan only fenced code blocks (executable / structural examples). Narrative may still mention
-    // a legacy term in a "we removed this" tombstone sentence — that is fine. Code blocks must
+    // a legacy term in a "we removed this" tombstone sentence , that is fine. Code blocks must
     // contain only current vocabulary so copy-paste evidence stays truthful.
     const networkScopedPaths: RegExp[] = [
       /^runtime\/core\/network\//,

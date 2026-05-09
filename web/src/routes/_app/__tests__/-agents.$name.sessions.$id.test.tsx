@@ -154,7 +154,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   };
 }
 
-describe("Nested agent session route — resume failure UX", () => {
+describe("Nested agent session route , resume failure UX", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockResume.mutate.mockReset();

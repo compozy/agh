@@ -35,6 +35,8 @@ import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 type ThreadMessageState = AssistantState["thread"]["messages"][number];
+const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
+const EMPTY_INSPECTOR_FILES: InspectorFileEntry[] = [];
 
 export type InspectorTraceKind =
   | "start"
@@ -191,15 +193,12 @@ function toolStatusFromPart(part: ThreadMessageState["parts"][number]): Inspecto
 }
 
 function getTextPartText(message: ThreadMessageState): string {
-  return message.content
-    .filter(
-      (
-        part
-      ): part is Extract<ThreadMessageState["content"][number], { type: "text" | "reasoning" }> =>
-        part.type === "text" || part.type === "reasoning"
-    )
-    .map(part => part.text)
-    .join("");
+  return message.content.reduce((text, part) => {
+    if (part.type !== "text" && part.type !== "reasoning") {
+      return text;
+    }
+    return `${text}${part.text}`;
+  }, "");
 }
 
 function traceLabelFromMessage(message: ThreadMessageState): string {
@@ -437,7 +436,7 @@ function InspectorBody({
         </TabsList>
         <ScrollArea className="flex-1 min-h-0">
           <div
-            className="flex min-h-full flex-col gap-4 px-4 py-4"
+            className="flex min-h-full flex-col gap-4 p-4"
             data-testid="session-inspector-top-panel"
             data-active-tab={topTab}
           >
@@ -490,7 +489,7 @@ function InspectorBody({
         </TabsList>
         <ScrollArea className="flex-1 min-h-0">
           <div
-            className="flex min-h-full flex-col gap-4 px-4 py-4"
+            className="flex min-h-full flex-col gap-4 p-4"
             data-testid="session-inspector-bottom-panel"
             data-active-tab={bottomTab}
           >
@@ -522,10 +521,10 @@ export function SessionInspector({
   sessionId,
   usage,
   memory,
-  vaultSecrets = [],
+  vaultSecrets = EMPTY_VAULT_SECRETS,
   vaultIsLoading = false,
   vaultError = null,
-  files,
+  files = EMPTY_INSPECTOR_FILES,
   totalTraceEvents,
   traceLimit = TRACE_LIMIT_DEFAULT,
   onViewAllTrace,
@@ -677,7 +676,7 @@ function UsageSection({ usage }: UsageSectionProps) {
             tone={deltaTone(usage?.tokensInDelta)}
             detail={deltaLabel(usage?.tokensInDelta)}
             data-testid="session-inspector-usage-tokens-in"
-            className="px-3 py-3"
+            className="p-3"
           />
           <Metric
             label="Tokens out"
@@ -685,7 +684,7 @@ function UsageSection({ usage }: UsageSectionProps) {
             tone={deltaTone(usage?.tokensOutDelta)}
             detail={deltaLabel(usage?.tokensOutDelta)}
             data-testid="session-inspector-usage-tokens-out"
-            className="px-3 py-3"
+            className="p-3"
           />
           <Metric
             label="Total cost"
@@ -693,7 +692,7 @@ function UsageSection({ usage }: UsageSectionProps) {
             tone={deltaTone(usage?.costDelta)}
             detail={deltaLabel(usage?.costDelta)}
             data-testid="session-inspector-usage-cost"
-            className="px-3 py-3"
+            className="p-3"
           />
           <Metric
             label="Est. rate"
@@ -703,7 +702,7 @@ function UsageSection({ usage }: UsageSectionProps) {
                 : "—"
             }
             data-testid="session-inspector-usage-rate"
-            className="px-3 py-3"
+            className="p-3"
           />
         </div>
       ) : (
@@ -1009,10 +1008,10 @@ export function SessionInspectorDrawer({
   sessionId,
   usage,
   memory,
-  vaultSecrets = [],
+  vaultSecrets = EMPTY_VAULT_SECRETS,
   vaultIsLoading = false,
   vaultError = null,
-  files,
+  files = EMPTY_INSPECTOR_FILES,
   totalTraceEvents,
   traceLimit = TRACE_LIMIT_DEFAULT,
   onViewAllTrace,

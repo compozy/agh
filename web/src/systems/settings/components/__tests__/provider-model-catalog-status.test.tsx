@@ -95,7 +95,7 @@ describe("ProviderModelCatalogStatus", () => {
     mockStatusQuery.isLoading = true;
     const { rerender } = renderStatus();
     expect(screen.getByTestId("provider-catalog-loading")).toHaveTextContent(
-      "Loading catalog status..."
+      "Loading catalog status…"
     );
 
     mockStatusQuery.isLoading = false;

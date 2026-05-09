@@ -215,7 +215,7 @@ export const memoryDeleteFixture: MemoryDeleteResponse = {
 
 // Backwards-compat alias retained for callers that still consume the legacy
 // "mutation" fixture name. Prefer the explicit fixtures above going forward.
-export const memoryMutationFixture: MemoryDeleteResponse = memoryDeleteFixture;
+export const memoryMutationFixture: MemoryDeleteResponse = { ...memoryDeleteFixture };
 
 export const memoryDreamTriggerFixture: MemoryDreamTriggerResponse = {
   triggered: true,

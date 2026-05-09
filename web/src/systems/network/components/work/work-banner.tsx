@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
 
@@ -24,6 +24,18 @@ export interface WorkBannerProps {
 }
 
 type BannerPhase = "hidden" | "visible" | "fading";
+type BannerAction = { type: "show" } | { type: "fade" } | { type: "hide" };
+
+function bannerPhaseReducer(phase: BannerPhase, action: BannerAction): BannerPhase {
+  switch (action.type) {
+    case "show":
+      return "visible";
+    case "fade":
+      return phase === "hidden" ? "hidden" : "fading";
+    case "hide":
+      return "hidden";
+  }
+}
 
 export function WorkBanner({
   openCount,
@@ -33,17 +45,20 @@ export function WorkBanner({
   onView,
   className,
 }: WorkBannerProps) {
-  const [phase, setPhase] = useState<BannerPhase>(openCount > 0 ? "visible" : "hidden");
+  const [phase, dispatchPhase] = useReducer(
+    bannerPhaseReducer,
+    openCount > 0 ? "visible" : "hidden"
+  );
 
   useEffect(() => {
     if (openCount > 0) {
-      setPhase("visible");
+      dispatchPhase({ type: "show" });
       return undefined;
     }
 
-    setPhase(prev => (prev === "hidden" ? "hidden" : "fading"));
+    dispatchPhase({ type: "fade" });
     const timer = setTimeout(() => {
-      setPhase("hidden");
+      dispatchPhase({ type: "hide" });
     }, TOTAL_HIDE_BUDGET_MS);
     return () => clearTimeout(timer);
   }, [openCount]);

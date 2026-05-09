@@ -6,7 +6,7 @@ import { Section, type SectionProps } from "./section";
 
 interface LinkedRecordTableProps extends Omit<SectionProps, "children" | "label"> {
   label?: React.ReactNode;
-  columns?: readonly React.ReactNode[];
+  columns?: readonly string[];
   empty?: React.ReactNode;
   children?: React.ReactNode;
 }
@@ -39,8 +39,8 @@ function LinkedRecordTableRoot({
           <TableHeader>
             <TableRow>
               <TableHead className="w-8" />
-              {columns.map((column, index) => (
-                <TableHead key={index}>{column}</TableHead>
+              {columns.map(column => (
+                <TableHead key={column}>{column}</TableHead>
               ))}
               <TableHead className="w-8" />
             </TableRow>

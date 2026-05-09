@@ -68,12 +68,12 @@ export function SiteFooter() {
               rel="noreferrer noopener"
               aria-label="AGH on GitHub"
               className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-full border border-(--color-divider) text-(--color-text-secondary) transition-colors",
+                "inline-flex size-9 items-center justify-center rounded-full border border-(--color-divider) text-(--color-text-secondary) transition-colors",
                 "hover:border-(--color-text-secondary) hover:text-(--color-text-primary)",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               )}
             >
-              <GithubLogo aria-hidden className="h-4 w-4" />
+              <GithubLogo aria-hidden className="size-4" />
             </a>
           </div>
 

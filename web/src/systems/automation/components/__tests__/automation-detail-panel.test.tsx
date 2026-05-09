@@ -91,10 +91,13 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
     <AutomationDetailPanel
       emptyState={null}
       error={null}
-      isDeleting={false}
-      isLoading={false}
-      isTogglePending={false}
-      isTriggerPending={false}
+      state={{
+        isDeleting: false,
+        isLoading: false,
+        isTogglePending: false,
+        isTriggerPending: false,
+        ...overrides.state,
+      }}
       item={jobFixture}
       kind="jobs"
       onDelete={onDelete}
@@ -113,7 +116,15 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
 
 describe("AutomationDetailPanel", () => {
   it("renders loading state", () => {
-    renderPanel({ isLoading: true, item: undefined });
+    renderPanel({
+      state: {
+        isDeleting: false,
+        isLoading: true,
+        isTogglePending: false,
+        isTriggerPending: false,
+      },
+      item: undefined,
+    });
     expect(screen.getByTestId("automation-detail-loading")).toBeInTheDocument();
   });
 

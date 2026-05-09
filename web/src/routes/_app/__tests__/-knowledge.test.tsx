@@ -359,6 +359,7 @@ describe("KnowledgePage", () => {
 
     await user.click(screen.getByTestId("memory-item-global:user_role.md"));
     await user.click(screen.getByTestId("delete-memory-btn"));
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user_role.md");
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(mockDeleteMutateAsync).toHaveBeenCalledWith({
@@ -503,6 +504,7 @@ describe("KnowledgePage", () => {
 
     await user.click(screen.getByTestId("memory-item-global:user_role.md"));
     await user.click(screen.getByTestId("delete-memory-btn"));
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), "user_role.md");
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(await screen.findByTestId("knowledge-delete-error")).toHaveTextContent("Delete failed");

@@ -199,7 +199,7 @@ describe("TaskDetailRoute", () => {
     expect(screen.getByTestId("tasks-multi-agent-agent-task_abc")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-multi-agent-agent-task_child")).toBeInTheDocument();
     // The "N agents live" pill and interleaved-timeline banner have been
-    // removed — summary text + tab badge carry the signal instead.
+    // removed , summary text + tab badge carry the signal instead.
     expect(screen.getByTestId("tasks-multi-agent-summary")).toHaveTextContent(/running/);
     expect(screen.queryByTestId("tasks-multi-agent-live-count")).not.toBeInTheDocument();
     expect(screen.queryByTestId("tasks-multi-agent-timeline-live")).not.toBeInTheDocument();

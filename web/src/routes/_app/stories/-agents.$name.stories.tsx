@@ -52,7 +52,7 @@ const complianceAgentRoute = `/agents/${storyAgentNames.compliance}`;
 const missingAgentRoute = "/agents/ghost-risk-agent";
 
 /**
- * Default agent detail page for the payout-operations agent — sessions table, status pill, stats grid.
+ * Default agent detail page for the payout-operations agent , sessions table, status pill, stats grid.
  */
 export const Default: Story = {
   args: {},
@@ -67,7 +67,7 @@ export const Default: Story = {
 };
 
 /**
- * Agent that has no sessions yet — empty state inside the sessions panel + IDLE status pill.
+ * Agent that has no sessions yet , empty state inside the sessions panel + IDLE status pill.
  */
 export const NoSessions: Story = {
   args: {},
@@ -110,7 +110,7 @@ export const SessionsLoading: Story = {
 };
 
 /**
- * Agent detail loading branch — `/api/agents/:name` is in flight while the shell stays mounted.
+ * Agent detail loading branch , `/api/agents/:name` is in flight while the shell stays mounted.
  */
 export const AgentLoading: Story = {
   args: {},
@@ -157,7 +157,7 @@ export const NotFound: Story = {
 };
 
 /**
- * Failed-session branch — at least one session has a populated failure payload, surfacing the FAILED chip.
+ * Failed-session branch , at least one session has a populated failure payload, surfacing the FAILED chip.
  */
 export const WithFailedSession: Story = {
   args: {},
@@ -198,7 +198,7 @@ export const WithFailedSession: Story = {
 };
 
 /**
- * Live agents list returning many agents — confirms the sidebar still resolves the active row when the
+ * Live agents list returning many agents , confirms the sidebar still resolves the active row when the
  * detail route's agent is deeper in the list.
  */
 export const ManyAgents: Story = {

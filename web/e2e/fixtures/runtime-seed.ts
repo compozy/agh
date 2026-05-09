@@ -44,7 +44,7 @@ export interface WorkspacePayload {
   name: string;
 }
 
-export interface SeededSessionPayload {
+interface SeededSessionPayload {
   id: string;
   agent_name: string;
   workspace_id: string;
@@ -52,18 +52,18 @@ export interface SeededSessionPayload {
   name?: string | null;
 }
 
-export interface BrowserMockAgentSeed {
+interface BrowserMockAgentSeed {
   fixturePath: string;
   fixtureAgent?: string;
   agentName?: string;
   category_path?: string[];
 }
 
-export interface BrowserWorkspaceSeed {
+interface BrowserWorkspaceSeed {
   rootDir: string;
 }
 
-export interface BrowserSessionSeed {
+interface BrowserSessionSeed {
   agentName: string;
   workspaceRootDir?: string;
 }
@@ -79,7 +79,7 @@ export interface BrowserAutomationOperatorFlowSeed {
   timeoutMs?: number;
 }
 
-export interface BridgeAdapterMarkerPaths {
+interface BridgeAdapterMarkerPaths {
   crashOnce: string;
   delivery: string;
   handshake: string;
@@ -120,12 +120,12 @@ export interface BrowserBridgeOperatorFlowResult {
   provider: BridgeProvider;
 }
 
-export interface BrowserSettingsProviderSeed {
+interface BrowserSettingsProviderSeed {
   name: string;
   settings: SettingsProviderRequest["settings"];
 }
 
-export interface BrowserSettingsMCPServerSeed {
+interface BrowserSettingsMCPServerSeed {
   name: string;
   scope?: "global" | "workspace";
   server: SettingsMCPServerRequest["server"];
@@ -134,7 +134,7 @@ export interface BrowserSettingsMCPServerSeed {
   workspaceRootDir?: string;
 }
 
-export interface BrowserSettingsHookSeed {
+interface BrowserSettingsHookSeed {
   name: string;
   declaration: SettingsHookRequest["declaration"];
 }
@@ -225,7 +225,7 @@ export interface BrowserNetworkOperatorFlowSeed {
   timeoutMs?: number;
 }
 
-export interface BrowserNetworkOperatorFlowParticipant extends SeededSessionPayload {
+interface BrowserNetworkOperatorFlowParticipant extends SeededSessionPayload {
   peerId: string;
 }
 

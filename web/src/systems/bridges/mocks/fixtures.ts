@@ -143,8 +143,8 @@ export const bridgeDetailFixture: BridgeDetailResponse = {
   },
 };
 
-export const createBridgeFixture: CreateBridgeResponse = bridgeDetailFixture;
-export const updateBridgeFixture: UpdateBridgeResponse = bridgeDetailFixture;
+export const createBridgeFixture: CreateBridgeResponse = { ...bridgeDetailFixture };
+export const updateBridgeFixture: UpdateBridgeResponse = { ...bridgeDetailFixture };
 
 export const testBridgeDeliveryFixture: TestBridgeDeliveryResponse = {
   delivery_target: {

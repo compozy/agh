@@ -60,12 +60,14 @@ function renderDetail(props: Partial<React.ComponentProps<typeof KnowledgeDetail
     memory: MEMORY,
     content: "# User Role\n\nBody content.",
     scope: "global",
-    isLoading: false,
+    status: {
+      isDecisionsLoading: false,
+      isDeletePending: false,
+      isLoading: false,
+    },
     error: null,
     onDelete: vi.fn(),
-    isDeletePending: false,
     decisions: [],
-    isDecisionsLoading: false,
     decisionsError: null,
     ...props,
   };
@@ -87,7 +89,10 @@ describe("KnowledgeDetailPanel", () => {
   });
 
   it("Should render the loading spinner when isLoading is true", () => {
-    renderDetail({ isLoading: true, content: undefined });
+    renderDetail({
+      status: { isDecisionsLoading: false, isDeletePending: false, isLoading: true },
+      content: undefined,
+    });
     expect(screen.getByTestId("knowledge-detail-loading")).toBeInTheDocument();
   });
 
@@ -148,7 +153,9 @@ describe("KnowledgeDetailPanel", () => {
   });
 
   it("Should disable the delete button while a delete is pending", () => {
-    renderDetail({ isDeletePending: true });
+    renderDetail({
+      status: { isDecisionsLoading: false, isDeletePending: true, isLoading: false },
+    });
     expect(screen.getByTestId("delete-memory-btn")).toBeDisabled();
   });
 
@@ -214,7 +221,9 @@ describe("KnowledgeDetailPanel", () => {
   });
 
   it("Should render the decisions loading state while decisions are loading", () => {
-    renderDetail({ isDecisionsLoading: true });
+    renderDetail({
+      status: { isDecisionsLoading: true, isDeletePending: false, isLoading: false },
+    });
     expect(screen.getByTestId("knowledge-decisions-loading")).toBeInTheDocument();
   });
 });

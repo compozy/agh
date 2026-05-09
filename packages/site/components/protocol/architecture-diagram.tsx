@@ -23,6 +23,10 @@ const controlNotes = [
  * `mdx-components.tsx`.
  */
 export function ArchitectureDiagram() {
+  return renderArchitectureDiagram();
+}
+
+function renderArchitectureDiagram() {
   return (
     <section className="bg-(--color-surface) px-4 py-16 md:py-20">
       <div className="mx-auto max-w-(--site-layout-width)">

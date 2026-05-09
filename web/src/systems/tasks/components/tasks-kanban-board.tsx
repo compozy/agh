@@ -60,7 +60,7 @@ export function TasksKanbanBoard({
 
   return (
     <div
-      className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-4 py-4"
+      className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4"
       data-testid="tasks-kanban-board"
       role="list"
     >

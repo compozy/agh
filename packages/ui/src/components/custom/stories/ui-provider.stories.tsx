@@ -34,7 +34,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default configuration — `reducedMotion='user'` defers to the OS preference.
+ * Default configuration , `reducedMotion='user'` defers to the OS preference.
  */
 export const Default: Story = {
   args: { reducedMotion: "user" },
@@ -65,7 +65,7 @@ export const ReducedMotionAlways: Story = {
 };
 
 /**
- * Explicit opt-out — `reducedMotion='never'` keeps motion enabled even when
+ * Explicit opt-out , `reducedMotion='never'` keeps motion enabled even when
  * the OS requests reduced motion. Verified by the probe reporting `false`.
  */
 export const ReducedMotionNever: Story = {

@@ -6,7 +6,7 @@ const MANIFEST_VERSION = 1;
 const TEMP_DIR_PREFIX = "agh-playwright-artifacts-";
 const VITE_DEV_MARKERS = ["/@vite/client", "/src/main.tsx", "vite.svg"];
 
-export const browserArtifactSpecs = {
+const browserArtifactSpecs = {
   browser_trace: { relativePath: "browser_trace.zip", isDir: false },
   browser_screenshots: { relativePath: "browser_screenshots", isDir: true },
   browser_console: { relativePath: "browser_console.json", isDir: false },

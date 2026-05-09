@@ -10,12 +10,12 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
   label: React.ReactNode;
   value: React.ReactNode;
   /**
-   * Small inline detail baseline-aligned with the value — mono micro-unit (e.g. "+12%").
+   * Small inline detail baseline-aligned with the value , mono micro-unit (e.g. "+12%").
    * Mirrors `detail` in `docs/design/web-inspiration/src/primitives.jsx`.
    */
   detail?: React.ReactNode;
   /**
-   * Secondary line rendered below the value — Inter 13px per DESIGN.md §4 "Metric Cards With Subtext".
+   * Secondary line rendered below the value , Inter 13px per DESIGN.md §4 "Metric Cards With Subtext".
    */
   subtext?: React.ReactNode;
   tone?: MetricTone;
@@ -30,7 +30,7 @@ const VALUE_COLOR: Record<MetricTone, string> = {
 };
 
 /**
- * Metric card — mono eyebrow label + Inter 24px/700 value + optional inline detail
+ * Metric card , mono eyebrow label + Inter 24px/700 value + optional inline detail
  * or subtext line. Surface container with 12px radius; semantic tone colors the value.
  * Per DESIGN.md §4 "Metric Cards" and mock `docs/design/web-inspiration/src/primitives.jsx`.
  */

@@ -85,11 +85,13 @@ function normalizeKind(kind: string): string {
   return kind.trim().toLowerCase();
 }
 
-function renderEntry(
-  entry: KindIconRegistryEntry | undefined,
-  fallback: LucideIcon,
-  className: string
-) {
+interface KindIconGlyphPropsForEntry {
+  className: string;
+  entry: KindIconRegistryEntry | undefined;
+  fallback: LucideIcon;
+}
+
+function KindIconGlyph({ className, entry, fallback }: KindIconGlyphPropsForEntry) {
   if (typeof entry === "function") {
     const Icon = entry;
     return <Icon aria-hidden="true" className={className} />;
@@ -132,7 +134,7 @@ function KindIcon<K extends string = string>({
       )}
       {...props}
     >
-      {renderEntry(entry, fallback, KIND_ICON_GLYPH_CLASS)}
+      <KindIconGlyph className={KIND_ICON_GLYPH_CLASS} entry={entry} fallback={fallback} />
     </span>
   );
 }

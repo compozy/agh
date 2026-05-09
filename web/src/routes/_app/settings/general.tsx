@@ -309,9 +309,12 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
             data-testid="settings-page-general-default-agent-input"
             value={draft.defaults.agent}
             onChange={event =>
-              setDraft({
-                ...draft,
-                defaults: { ...draft.defaults, agent: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  defaults: { ...current.defaults, agent: event.target.value },
+                };
               })
             }
           />
@@ -329,9 +332,12 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
             value={draft.defaults.provider ?? ""}
             placeholder="auto"
             onChange={event =>
-              setDraft({
-                ...draft,
-                defaults: { ...draft.defaults, provider: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  defaults: { ...current.defaults, provider: event.target.value },
+                };
               })
             }
           />
@@ -349,9 +355,12 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
             value={draft.defaults.sandbox ?? ""}
             placeholder="local"
             onChange={event =>
-              setDraft({
-                ...draft,
-                defaults: { ...draft.defaults, sandbox: event.target.value },
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  defaults: { ...current.defaults, sandbox: event.target.value },
+                };
               })
             }
           />
@@ -369,7 +378,12 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-general-permissions-group"
         aria-label="Tool approval policy"
         value={draft.permissions.mode}
-        onChange={mode => setDraft({ ...draft, permissions: { mode } })}
+        onChange={mode =>
+          setDraft(prev => {
+            const current = prev ?? draft;
+            return { ...current, permissions: { mode } };
+          })
+        }
         items={PERMISSION_MODES.map(mode => ({
           value: mode,
           label: mode,
@@ -409,9 +423,12 @@ function SessionSection({
               value={parseSessionTimeoutSeconds(draft.session_timeout)}
               onValidityChange={onTimeoutValidityChange}
               onValueChange={value =>
-                setDraft({
-                  ...draft,
-                  session_timeout: formatSessionTimeout(value),
+                setDraft(prev => {
+                  const current = prev ?? draft;
+                  return {
+                    ...current,
+                    session_timeout: formatSessionTimeout(value),
+                  };
                 })
               }
             />

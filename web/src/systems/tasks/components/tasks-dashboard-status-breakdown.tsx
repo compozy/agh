@@ -33,7 +33,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
         <ItemGroup className="gap-2 pt-2">
           {entries.map(entry => (
             <Item
-              className="justify-between gap-3 px-0 py-0"
+              className="justify-between gap-3 p-0"
               data-testid={`tasks-dashboard-status-row-${entry.status}`}
               key={entry.status}
             >

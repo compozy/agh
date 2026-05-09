@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { AlertCircle, Plus, Radio, Trash2, TriangleAlert } from "lucide-react";
 
 import {
@@ -143,6 +143,57 @@ export function TasksBridgeNotificationsCard({
     }
   };
 
+  return renderTasksBridgeNotificationsCard({
+    createError,
+    createOpen,
+    deleteTarget,
+    errorMessage,
+    form,
+    handleCreateOpenChange,
+    handleCreateSubmit,
+    handleDeleteConfirm,
+    isCreatePending,
+    isDeletePending,
+    isLoading,
+    setDeleteTarget,
+    setForm,
+    subscriptions,
+  });
+}
+
+interface TasksBridgeNotificationsCardViewProps {
+  createError: string | null;
+  createOpen: boolean;
+  deleteTarget: TaskBridgeNotificationSubscription | null;
+  errorMessage: string | null;
+  form: CreateFormState;
+  handleCreateOpenChange: (open: boolean) => void;
+  handleCreateSubmit: () => Promise<void>;
+  handleDeleteConfirm: () => Promise<void>;
+  isCreatePending: boolean;
+  isDeletePending: boolean;
+  isLoading: boolean;
+  setDeleteTarget: (target: TaskBridgeNotificationSubscription | null) => void;
+  setForm: Dispatch<SetStateAction<CreateFormState>>;
+  subscriptions: readonly TaskBridgeNotificationSubscription[];
+}
+
+function renderTasksBridgeNotificationsCard({
+  createError,
+  createOpen,
+  deleteTarget,
+  errorMessage,
+  form,
+  handleCreateOpenChange,
+  handleCreateSubmit,
+  handleDeleteConfirm,
+  isCreatePending,
+  isDeletePending,
+  isLoading,
+  setDeleteTarget,
+  setForm,
+  subscriptions,
+}: TasksBridgeNotificationsCardViewProps) {
   return (
     <Section
       aria-label="Bridge notification subscriptions"
@@ -346,7 +397,9 @@ export function TasksBridgeNotificationsCard({
                 data-testid="tasks-bridge-notifications-create-bridge-instance-id"
                 disabled={isCreatePending}
                 id="bridge-instance-id"
-                onChange={event => setForm({ ...form, bridgeInstanceId: event.target.value })}
+                onChange={event =>
+                  setForm(prev => ({ ...prev, bridgeInstanceId: event.target.value }))
+                }
                 placeholder="bridge_instance_alpha"
                 value={form.bridgeInstanceId}
               />
@@ -356,10 +409,10 @@ export function TasksBridgeNotificationsCard({
                 <Label htmlFor="scope-select">Scope</Label>
                 <Select
                   onValueChange={value =>
-                    setForm({
-                      ...form,
+                    setForm(prev => ({
+                      ...prev,
                       scope: value as TaskBridgeNotificationSubscriptionScope,
-                    })
+                    }))
                   }
                   value={form.scope}
                 >
@@ -379,10 +432,10 @@ export function TasksBridgeNotificationsCard({
                 <Label htmlFor="delivery-mode-select">Delivery mode</Label>
                 <Select
                   onValueChange={value =>
-                    setForm({
-                      ...form,
+                    setForm(prev => ({
+                      ...prev,
                       deliveryMode: value as TaskBridgeNotificationDeliveryMode,
-                    })
+                    }))
                   }
                   value={form.deliveryMode}
                 >
@@ -406,7 +459,9 @@ export function TasksBridgeNotificationsCard({
                   data-testid="tasks-bridge-notifications-create-workspace-id"
                   disabled={isCreatePending || form.scope !== "workspace"}
                   id="workspace-id"
-                  onChange={event => setForm({ ...form, workspaceId: event.target.value })}
+                  onChange={event =>
+                    setForm(prev => ({ ...prev, workspaceId: event.target.value }))
+                  }
                   placeholder="ws_default"
                   value={form.workspaceId}
                 />
@@ -417,7 +472,7 @@ export function TasksBridgeNotificationsCard({
                   data-testid="tasks-bridge-notifications-create-peer-id"
                   disabled={isCreatePending}
                   id="peer-id"
-                  onChange={event => setForm({ ...form, peerId: event.target.value })}
+                  onChange={event => setForm(prev => ({ ...prev, peerId: event.target.value }))}
                   placeholder="peer_observer"
                   value={form.peerId}
                 />
@@ -430,7 +485,7 @@ export function TasksBridgeNotificationsCard({
                   data-testid="tasks-bridge-notifications-create-group-id"
                   disabled={isCreatePending}
                   id="group-id"
-                  onChange={event => setForm({ ...form, groupId: event.target.value })}
+                  onChange={event => setForm(prev => ({ ...prev, groupId: event.target.value }))}
                   placeholder="group_observers"
                   value={form.groupId}
                 />
@@ -441,7 +496,7 @@ export function TasksBridgeNotificationsCard({
                   data-testid="tasks-bridge-notifications-create-thread-id"
                   disabled={isCreatePending}
                   id="thread-id"
-                  onChange={event => setForm({ ...form, threadId: event.target.value })}
+                  onChange={event => setForm(prev => ({ ...prev, threadId: event.target.value }))}
                   placeholder="thread_launch"
                   value={form.threadId}
                 />
@@ -453,7 +508,9 @@ export function TasksBridgeNotificationsCard({
                 data-testid="tasks-bridge-notifications-create-subscription-id"
                 disabled={isCreatePending}
                 id="subscription-id"
-                onChange={event => setForm({ ...form, subscriptionId: event.target.value })}
+                onChange={event =>
+                  setForm(prev => ({ ...prev, subscriptionId: event.target.value }))
+                }
                 placeholder="bsub_001"
                 value={form.subscriptionId}
               />

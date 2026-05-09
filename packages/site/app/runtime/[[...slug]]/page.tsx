@@ -27,11 +27,13 @@ function buildActionUrls(slug: string[], relativePath: string | undefined) {
 }
 
 function humanize(segment: string): string {
-  return segment
-    .split("-")
-    .filter(part => part.length > 0)
-    .map(part => part[0].toUpperCase() + part.slice(1))
-    .join(" ");
+  const words: string[] = [];
+  for (const part of segment.split("-")) {
+    if (part.length > 0) {
+      words.push(part[0].toUpperCase() + part.slice(1));
+    }
+  }
+  return words.join(" ");
 }
 
 function buildBreadcrumbs(slug: string[], pageTitle: string): BreadcrumbItem[] {

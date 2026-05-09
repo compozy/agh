@@ -159,7 +159,7 @@ const TOKEN_GROUPS: TokenGroup[] = [
   {
     id: "backgrounds",
     label: "Backgrounds",
-    caption: "Flat depth steps — canvas → surface → elevated, never shadows.",
+    caption: "Flat depth steps: canvas → surface → elevated, never shadows.",
     swatches: [
       { token: "--color-canvas", value: "#141312", role: "App background", kind: "color" },
       {
@@ -398,8 +398,8 @@ interface ShowcaseSection {
 }
 
 const SECTIONS: ShowcaseSection[] = [
-  { id: "foundations", label: "Foundations — Tokens", anchor: "#2-color-palette--roles" },
-  { id: "typography", label: "Foundations — Typography", anchor: "#3-typography-rules" },
+  { id: "foundations", label: "Foundations: Tokens", anchor: "#2-color-palette--roles" },
+  { id: "typography", label: "Foundations: Typography", anchor: "#3-typography-rules" },
   { id: "buttons", label: "Buttons & Pills", anchor: "#buttons" },
   { id: "inputs", label: "Inputs & Search", anchor: "#inputs" },
   {
@@ -519,7 +519,7 @@ function FoundationsTokenSection() {
     <Section
       id="foundations"
       data-testid="section-foundations"
-      label={<SectionLink section={SECTIONS[0]}>Foundations — Tokens</SectionLink>}
+      label={<SectionLink section={SECTIONS[0]}>Foundations: Tokens</SectionLink>}
       right={<Pill mono>tokens.css</Pill>}
     >
       <div className="flex flex-col gap-6 pt-4">
@@ -615,7 +615,7 @@ function TypographySection() {
     <Section
       id="typography"
       data-testid="section-typography"
-      label={<SectionLink section={SECTIONS[1]}>Foundations — Typography</SectionLink>}
+      label={<SectionLink section={SECTIONS[1]}>Foundations: Typography</SectionLink>}
       right={<Pill mono>Inter · JetBrains Mono · NuixyberNext</Pill>}
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
@@ -626,11 +626,11 @@ function TypographySection() {
           <CardContent className="flex flex-col gap-3">
             <p className="text-xl font-bold leading-7 tracking-tight">Runtime sessions overview</p>
             <p className="text-base leading-7 text-(--color-text-secondary)">
-              Body · Inter 16px regular — the default reading text for operator UI. Line-height
+              Body · Inter 16px regular, the default reading text for operator UI. Line-height
               1.5–1.7 keeps dense dashboards breathable without resorting to oversized padding.
             </p>
             <p className="text-small-body leading-small-body text-(--color-text-tertiary)">
-              Small body · Inter 13px — helper text, captions, meta rows.
+              Small body · Inter 13px, helper text, captions, meta rows.
             </p>
           </CardContent>
         </Card>
@@ -1068,7 +1068,7 @@ function OverlaysSection() {
           </TabsList>
           <TabsContent value="overview">
             <p className="text-sm text-(--color-text-secondary)">
-              Tabs host section switches — Base UI driven, motion-free.
+              Tabs host section switches: Base UI driven, motion-free.
             </p>
           </TabsContent>
           <TabsContent value="events">
@@ -1086,7 +1086,7 @@ function OverlaysSection() {
           <AccordionItem value="item-1">
             <AccordionTrigger>Can I rewind a session?</AccordionTrigger>
             <AccordionContent>
-              Yes — every session is fully replayable from its event store.
+              Yes, every session is fully replayable from its event store.
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="item-2">

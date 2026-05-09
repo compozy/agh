@@ -25,7 +25,7 @@ export function ProviderModelCatalogStatus({
     return (
       <div className="flex items-center gap-2 text-xs text-(--color-text-tertiary)">
         <Loader2 className="size-3.5 animate-spin" />
-        <span data-testid={`${testId}-loading`}>Loading catalog status...</span>
+        <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
       </div>
     );
   }
@@ -57,7 +57,7 @@ export function ProviderModelCatalogStatus({
           {sources.map(source => (
             <Item
               key={source.source_id}
-              className="gap-1.5 rounded-none border-0 px-0 py-0"
+              className="gap-1.5 rounded-none border-0 p-0"
               size="xs"
               data-testid={`${testId}-source-${source.source_id}`}
             >

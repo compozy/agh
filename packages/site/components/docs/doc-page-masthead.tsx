@@ -15,11 +15,13 @@ function toLabel(value?: string) {
     return "Overview";
   }
 
-  return value
-    .split("-")
-    .filter(part => part.length > 0)
-    .map(part => part[0].toUpperCase() + part.slice(1))
-    .join(" ");
+  const words: string[] = [];
+  for (const part of value.split("-")) {
+    if (part.length > 0) {
+      words.push(part[0].toUpperCase() + part.slice(1));
+    }
+  }
+  return words.join(" ");
 }
 
 function resolveRuntimeSection(slug: string[]) {

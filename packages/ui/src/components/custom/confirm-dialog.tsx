@@ -41,6 +41,7 @@ interface ConfirmDialogProps {
   confirmIcon?: React.ComponentType<{ className?: string }>;
   className?: string;
   contentProps?: Omit<React.ComponentProps<typeof DialogContent>, "children"> & DataAttributes;
+  titleProps?: React.ComponentProps<typeof DialogTitle> & DataAttributes;
   descriptionProps?: React.ComponentProps<typeof DialogDescription> & DataAttributes;
   cancelButtonProps?: React.ComponentProps<typeof Button> & DataAttributes;
   confirmButtonProps?: React.ComponentProps<typeof Button> & DataAttributes;
@@ -75,6 +76,7 @@ function ConfirmDialog({
   confirmIcon: ConfirmIcon,
   className,
   contentProps,
+  titleProps,
   descriptionProps,
   cancelButtonProps,
   confirmButtonProps,
@@ -96,6 +98,7 @@ function ConfirmDialog({
   }, [open]);
 
   const { className: contentClassName, ...restContentProps } = contentProps ?? {};
+  const { className: titleClassName, ...restTitleProps } = titleProps ?? {};
   const { className: descriptionClassName, ...restDescriptionProps } = descriptionProps ?? {};
   const { className: noteClassName, ...restNoteProps } = noteProps ?? {};
   const { className: errorClassName, ...restErrorProps } = errorProps ?? {};
@@ -111,7 +114,9 @@ function ConfirmDialog({
         className={cn("sm:max-w-md", className, contentClassName)}
       >
         <DialogHeader variant="ruled">
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle {...restTitleProps} className={titleClassName}>
+            {title}
+          </DialogTitle>
           {description ? (
             <DialogDescription
               {...restDescriptionProps}
@@ -170,9 +175,7 @@ function ConfirmDialog({
         ) : null}
         <DialogFooter variant="ruled">
           <DialogClose
-            render={
-              <Button autoFocus size="sm" type="button" variant="ghost" {...cancelButtonProps} />
-            }
+            render={<Button size="sm" type="button" variant="ghost" {...cancelButtonProps} />}
           >
             {cancelLabel}
           </DialogClose>

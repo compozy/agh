@@ -44,8 +44,10 @@ function formatFilterText(filter?: AutomationTriggerFilter): string {
 function parseFilterText(text: string): AutomationTriggerFilter {
   return text
     .split("\n")
-    .map(line => line.trim())
-    .filter(Boolean)
+    .flatMap(line => {
+      const trimmed = line.trim();
+      return trimmed ? [trimmed] : [];
+    })
     .reduce<AutomationTriggerFilter>((accumulator, line) => {
       const separatorIndex = line.indexOf("=");
       if (separatorIndex === -1) {
@@ -61,18 +63,10 @@ function parseFilterText(text: string): AutomationTriggerFilter {
     }, {});
 }
 
-export function AutomationTriggerForm({
-  activeWorkspaceId,
-  draft,
-  isPending,
-  mode,
-  onCancel,
-  onChange,
-  onSubmit,
-}: AutomationTriggerFormProps) {
+export function AutomationTriggerForm(props: AutomationTriggerFormProps) {
+  const { draft, isPending, mode, onSubmit } = props;
   const [governanceExpanded, setGovernanceExpanded] = useState(mode === "edit");
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
-
   const canSubmit =
     draft.name.trim() !== "" &&
     draft.agent_name.trim() !== "" &&
@@ -86,13 +80,44 @@ export function AutomationTriggerForm({
     onSubmit();
   };
 
+  return renderAutomationTriggerForm({
+    ...props,
+    canSubmit,
+    governanceExpanded,
+    handleSubmit,
+    retry,
+    setGovernanceExpanded,
+  });
+}
+
+interface AutomationTriggerFormViewProps extends AutomationTriggerFormProps {
+  canSubmit: boolean;
+  governanceExpanded: boolean;
+  handleSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  retry: ReturnType<typeof retryDraftForStrategy>;
+  setGovernanceExpanded: (open: boolean) => void;
+}
+
+function renderAutomationTriggerForm({
+  activeWorkspaceId,
+  draft,
+  isPending,
+  mode,
+  onCancel,
+  onChange,
+  canSubmit,
+  governanceExpanded,
+  handleSubmit,
+  retry,
+  setGovernanceExpanded,
+}: AutomationTriggerFormViewProps) {
   return (
     <form
       className="flex max-h-[min(84vh,960px)] flex-col"
       data-testid="automation-trigger-form"
       onSubmit={handleSubmit}
     >
-      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+      <div className="flex-1 space-y-6 overflow-y-auto p-5">
         <Section label="Core">
           <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
             <div className="grid gap-4 md:grid-cols-2">

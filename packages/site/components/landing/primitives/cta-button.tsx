@@ -9,7 +9,7 @@ type ButtonVariantsProps = Parameters<typeof buttonVariants>[0];
 const VARIANT_PROPS: Record<Variant, ButtonVariantsProps> = {
   // Primary uses the design system's default (accent bg + foreground text).
   primary: { variant: "default", size: "lg" },
-  // Ghost maps to outline — more visible than ui's hover-only ghost on dark bg.
+  // Ghost maps to outline , more visible than ui's hover-only ghost on dark bg.
   ghost: { variant: "outline", size: "lg" },
 };
 

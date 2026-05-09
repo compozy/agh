@@ -89,10 +89,12 @@ function TaskDetailRoute() {
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-detail-content">
       <TasksDetailHeader
         detail={detail}
-        isCancelPending={page.isCancelPending}
-        isDeletePending={deleteMutation.isPending}
-        isEnqueuePending={page.isEnqueuePending}
-        isPublishPending={page.isPublishPending}
+        pending={{
+          cancel: page.isCancelPending,
+          delete: deleteMutation.isPending,
+          enqueue: page.isEnqueuePending,
+          publish: page.isPublishPending,
+        }}
         onCancel={page.handleCancelTask}
         onDelete={handleDeleteTask}
         onEnqueueRun={page.handleEnqueueRun}
@@ -158,11 +160,13 @@ function TaskDetailRoute() {
             profile={{
               taskId: id,
               profile: orchestration.profile,
-              isLoading: orchestration.profileLoading,
               errorMessage: orchestration.profileError?.message ?? null,
-              hasActiveRun,
-              isSetPending: orchestration.isSetProfilePending,
-              isDeletePending: orchestration.isDeleteProfilePending,
+              state: {
+                hasActiveRun,
+                isDeletePending: orchestration.isDeleteProfilePending,
+                isLoading: orchestration.profileLoading,
+                isSetPending: orchestration.isSetProfilePending,
+              },
               onSetProfile: orchestration.handleSetProfile,
               onDeleteProfile: orchestration.handleDeleteProfile,
             }}

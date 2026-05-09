@@ -37,11 +37,11 @@ function Harness(props: { initial?: string; placeholder?: string; kbd?: React.Re
 }
 
 export const Basic: Story = {
-  render: () => <Harness placeholder="Search sessions…" />,
+  render: () => <Harness placeholder="Search sessions..." />,
 };
 
 export const WithKbdHint: Story = {
-  render: () => <Harness placeholder="Search…" kbd={<Kbd>⌘K</Kbd>} />,
+  render: () => <Harness placeholder="Search..." kbd={<Kbd>⌘K</Kbd>} />,
 };
 
 export const Typing: Story = {
