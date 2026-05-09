@@ -112,53 +112,92 @@ function formatDiagnostics({ child, label, stderrLines = [] }: ProcessDiagnostic
   ].join("; ");
 }
 
-async function nextMessage(
-  rl: readline.Interface,
-  diagnostics: ProcessDiagnostics
-): Promise<Record<string, unknown>> {
-  return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error(`timed out ${formatDiagnostics(diagnostics)}`));
-    }, diagnostics.timeoutMs ?? messageTimeoutMs);
+interface LineWaiter {
+  accept: (line: string) => void;
+}
 
-    const cleanup = (): void => {
-      clearTimeout(timeout);
-      rl.off("line", onLine);
-      rl.off("close", onClose);
-      diagnostics.child.off("exit", onExit);
-      diagnostics.child.off("error", onError);
-    };
-    const onLine = (line: string): void => {
-      cleanup();
-      try {
-        resolve(JSON.parse(line) as Record<string, unknown>);
-      } catch (error) {
-        reject(
-          error instanceof Error
-            ? new Error(`invalid JSON ${formatDiagnostics(diagnostics)}: ${error.message}`)
-            : new Error(`invalid JSON ${formatDiagnostics(diagnostics)}: ${String(error)}`)
-        );
+class BufferedMessageReader {
+  private readonly queuedLines: string[] = [];
+  private readonly waiters: LineWaiter[] = [];
+  private closed = false;
+
+  public constructor(private readonly rl: readline.Interface) {
+    this.rl.on("line", line => {
+      const waiter = this.waiters.shift();
+      if (waiter) {
+        waiter.accept(line);
+        return;
       }
-    };
-    const onClose = (): void => {
-      cleanup();
-      reject(new Error(`stdout closed ${formatDiagnostics(diagnostics)}`));
-    };
-    const onExit = (): void => {
-      cleanup();
-      reject(new Error(`child exited ${formatDiagnostics(diagnostics)}`));
-    };
-    const onError = (error: Error): void => {
-      cleanup();
-      reject(new Error(`child process error ${formatDiagnostics(diagnostics)}: ${error.message}`));
-    };
+      this.queuedLines.push(line);
+    });
+    this.rl.on("close", () => {
+      this.closed = true;
+    });
+  }
 
-    rl.once("line", onLine);
-    rl.once("close", onClose);
-    diagnostics.child.once("exit", onExit);
-    diagnostics.child.once("error", onError);
-  });
+  public async next(diagnostics: ProcessDiagnostics): Promise<Record<string, unknown>> {
+    const line = await this.nextLine(diagnostics);
+    try {
+      return JSON.parse(line) as Record<string, unknown>;
+    } catch (error) {
+      throw error instanceof Error
+        ? new Error(`invalid JSON ${formatDiagnostics(diagnostics)}: ${error.message}`)
+        : new Error(`invalid JSON ${formatDiagnostics(diagnostics)}: ${String(error)}`);
+    }
+  }
+
+  private async nextLine(diagnostics: ProcessDiagnostics): Promise<string> {
+    const queued = this.queuedLines.shift();
+    if (queued !== undefined) {
+      return queued;
+    }
+    if (this.closed) {
+      throw new Error(`stdout closed ${formatDiagnostics(diagnostics)}`);
+    }
+
+    return await new Promise((resolve, reject) => {
+      const waiter: LineWaiter = {
+        accept: line => {
+          cleanup();
+          resolve(line);
+        },
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error(`timed out ${formatDiagnostics(diagnostics)}`));
+      }, diagnostics.timeoutMs ?? messageTimeoutMs);
+
+      const cleanup = (): void => {
+        clearTimeout(timeout);
+        const waiterIndex = this.waiters.indexOf(waiter);
+        if (waiterIndex !== -1) {
+          this.waiters.splice(waiterIndex, 1);
+        }
+        this.rl.off("close", onClose);
+        diagnostics.child.off("exit", onExit);
+        diagnostics.child.off("error", onError);
+      };
+      const onClose = (): void => {
+        cleanup();
+        reject(new Error(`stdout closed ${formatDiagnostics(diagnostics)}`));
+      };
+      const onExit = (): void => {
+        cleanup();
+        reject(new Error(`child exited ${formatDiagnostics(diagnostics)}`));
+      };
+      const onError = (error: Error): void => {
+        cleanup();
+        reject(
+          new Error(`child process error ${formatDiagnostics(diagnostics)}: ${error.message}`)
+        );
+      };
+
+      this.waiters.push(waiter);
+      this.rl.once("close", onClose);
+      diagnostics.child.once("exit", onExit);
+      diagnostics.child.once("error", onError);
+    });
+  }
 }
 
 async function waitForStderrLine(
@@ -274,7 +313,8 @@ describe("SDK integration", () => {
       const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
         stdio: ["pipe", "pipe", "pipe"],
       });
-      const stdout = readline.createInterface({ input: child.stdout });
+      const stdoutInterface = readline.createInterface({ input: child.stdout });
+      const stdout = new BufferedMessageReader(stdoutInterface);
       const stderr = readline.createInterface({ input: child.stderr });
       const stderrLines: string[] = [];
       stderr.on("line", line => {
@@ -315,7 +355,7 @@ describe("SDK integration", () => {
         );
 
         const diagnostics = { child, label: "initialize response", stderrLines };
-        const initializeResponse = await nextMessage(stdout, diagnostics);
+        const initializeResponse = await stdout.next(diagnostics);
         expect(initializeResponse).toMatchObject({
           id: 1,
           result: expect.objectContaining({
@@ -323,7 +363,7 @@ describe("SDK integration", () => {
           }),
         });
 
-        const sessionsListRequest = await nextMessage(stdout, {
+        const sessionsListRequest = await stdout.next({
           ...diagnostics,
           label: "sessions/list request",
         });
@@ -356,7 +396,7 @@ describe("SDK integration", () => {
             },
           })}\n`
         );
-        const storeResponse = await nextMessage(stdout, {
+        const storeResponse = await stdout.next({
           ...diagnostics,
           label: "memory/store response",
         });
@@ -373,7 +413,7 @@ describe("SDK integration", () => {
             params: {},
           })}\n`
         );
-        const healthResponse = await nextMessage(stdout, {
+        const healthResponse = await stdout.next({
           ...diagnostics,
           label: "health_check response",
         });
@@ -388,7 +428,7 @@ describe("SDK integration", () => {
           /ready sessions.*1/
         );
       } finally {
-        await terminateChild(child, [stdout, stderr]);
+        await terminateChild(child, [stdoutInterface, stderr]);
       }
     },
     integrationTimeoutMs
@@ -423,7 +463,8 @@ describe("SDK integration", () => {
       const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
         stdio: ["pipe", "pipe", "pipe"],
       });
-      const stdout = readline.createInterface({ input: child.stdout });
+      const stdoutInterface = readline.createInterface({ input: child.stdout });
+      const stdout = new BufferedMessageReader(stdoutInterface);
       const stderr = readline.createInterface({ input: child.stderr });
       const stderrLines: string[] = [];
       stderr.on("line", line => {
@@ -464,7 +505,7 @@ describe("SDK integration", () => {
           })}\n`
         );
 
-        await expect(nextMessage(stdout, diagnostics)).resolves.toMatchObject({
+        await expect(stdout.next(diagnostics)).resolves.toMatchObject({
           id: 1,
           result: {
             accepted_capabilities: { provides: ["tool.provider"] },
@@ -481,7 +522,7 @@ describe("SDK integration", () => {
           })}\n`
         );
         await expect(
-          nextMessage(stdout, { ...diagnostics, label: "provide_tools response" })
+          stdout.next({ ...diagnostics, label: "provide_tools response" })
         ).resolves.toMatchObject({
           id: 2,
           result: {
@@ -510,7 +551,7 @@ describe("SDK integration", () => {
           })}\n`
         );
         await expect(
-          nextMessage(stdout, { ...diagnostics, label: "tools/call response" })
+          stdout.next({ ...diagnostics, label: "tools/call response" })
         ).resolves.toMatchObject({
           id: 3,
           result: {
@@ -523,7 +564,7 @@ describe("SDK integration", () => {
           },
         });
       } finally {
-        await terminateChild(child, [stdout, stderr]);
+        await terminateChild(child, [stdoutInterface, stderr]);
       }
     },
     integrationTimeoutMs

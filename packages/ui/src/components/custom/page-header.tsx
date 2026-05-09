@@ -50,7 +50,10 @@ function PageHeader({
           {breadcrumb}
         </div>
       ) : null}
-      <div data-slot="page-header-main" className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+      <div
+        data-slot="page-header-main"
+        className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
+      >
         <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
           {Icon ? (
             <span

@@ -7,7 +7,7 @@ This README is the contributor guide. Read it before adding, editing, or moving 
 ## Canonical references
 
 - [`DESIGN.md`](../../DESIGN.md) — authoritative written spec for tokens, typography, component shapes, voice, iconography, and motion. Always open this first.
-- [`docs/design/design-system/README.md`](../../docs/design/design-system/README.md) — prose-first brand + structural guide mirrored by the sections below.
+- [`DESIGN.md`](../../DESIGN.md) — prose-first brand + structural guide mirrored by the sections below.
 - [`.agents/skills/agh-design/SKILL.md`](../../.agents/skills/agh-design/SKILL.md) — Claude-invocable skill that enforces the same brand rules when generating artifacts.
 - [`./src/tokens.css`](./src/tokens.css) — the runtime token file. Every primitive pulls from here — never invent values.
 - [`./src/index.ts`](./src/index.ts) — authoritative export list. This file is the surface contract; if an identifier is not here, `web/` cannot import it.
@@ -18,7 +18,7 @@ The original redesign ADR files are not checked into this repo. The active decis
 package live in the maintained docs below.
 
 - [DESIGN.md](../../DESIGN.md) — authoritative token, typography, spacing, and flat-depth rules.
-- [docs/design/design-system/README.md](../../docs/design/design-system/README.md) — prose rationale for the AGH design system and its structural rules.
+- [DESIGN.md](../../DESIGN.md) — prose rationale for the AGH design system and its structural rules.
 - [src/index.ts](./src/index.ts) — the package surface contract and primitive boundary.
 - [Motion vs. CSS decision rules](./README.md#motion-vs-css-decision-rules) — current animation guidance kept alongside the package docs.
 

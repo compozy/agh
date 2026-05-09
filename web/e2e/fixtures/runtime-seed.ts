@@ -109,7 +109,7 @@ export interface BrowserAutomationOperatorFlowSeed {
   timeoutMs?: number;
 }
 
-interface BridgeAdapterMarkerPaths {
+export interface BridgeAdapterMarkerPaths {
   crashOnce: string;
   delivery: string;
   handshake: string;
@@ -150,12 +150,12 @@ export interface BrowserBridgeOperatorFlowResult {
   provider: BridgeProvider;
 }
 
-interface BrowserSettingsProviderSeed {
+export interface BrowserSettingsProviderSeed {
   name: string;
   settings: SettingsProviderRequest["settings"];
 }
 
-interface BrowserSettingsMCPServerSeed {
+export interface BrowserSettingsMCPServerSeed {
   name: string;
   scope?: "global" | "workspace";
   server: SettingsMCPServerRequest["server"];
@@ -164,7 +164,7 @@ interface BrowserSettingsMCPServerSeed {
   workspaceRootDir?: string;
 }
 
-interface BrowserSettingsHookSeed {
+export interface BrowserSettingsHookSeed {
   name: string;
   declaration: SettingsHookRequest["declaration"];
 }

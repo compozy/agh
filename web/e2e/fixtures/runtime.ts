@@ -32,7 +32,7 @@ const DAEMON_BINARY_ENV_VAR = "AGH_TEST_DAEMON_BIN";
 
 let daemonBinaryPromise: Promise<string> | undefined;
 
-interface RuntimePaths {
+export interface RuntimePaths {
   homeDir: string;
   configFile: string;
   daemonSocket: string;
