@@ -18,7 +18,8 @@ function validateIntegerInput(rawValue: string, min: number): string | null {
     return "Enter a value.";
   }
 
-  if (!/^\d+$/.test(trimmed)) {
+  const integerPattern = min < 0 ? /^-?\d+$/ : /^\d+$/;
+  if (!integerPattern.test(trimmed)) {
     return "Enter a whole number.";
   }
 
@@ -46,7 +47,7 @@ function SettingsNumberInput({
       {...props}
       type="text"
       inputMode="numeric"
-      pattern="[0-9]*"
+      pattern={min < 0 ? "-?[0-9]*" : "[0-9]*"}
       value={rawValue}
       aria-invalid={validationMessage ? true : undefined}
       onChange={event => {

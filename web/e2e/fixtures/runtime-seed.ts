@@ -1,5 +1,16 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -26,6 +37,8 @@ import type {
   SettingsMCPServerTarget,
   SettingsMutationResult,
   SettingsProviderRequest,
+  SettingsSandboxEntry,
+  SettingsSandboxRequest,
   SettingsSkillsSection,
 } from "@/systems/settings";
 import type {
@@ -68,7 +81,24 @@ interface BrowserSessionSeed {
   workspaceRootDir?: string;
 }
 
+export interface BrowserSkillSeed {
+  body: string;
+  description: string;
+  marketplace?: {
+    hashOverride?: string;
+    installedAt?: string;
+    registry?: string;
+    slug: string;
+    version?: string;
+  };
+  metadata?: Record<string, unknown>;
+  name: string;
+  resources?: Record<string, string>;
+  version?: string;
+}
+
 export interface BrowserRuntimeSeed {
+  skills?: BrowserSkillSeed[];
   mockAgents?: BrowserMockAgentSeed[];
   workspace?: BrowserWorkspaceSeed;
   session?: BrowserSessionSeed;
@@ -166,6 +196,15 @@ export interface BrowserSettingsFixturesResult {
   };
   initialDisabledSkills?: string[];
   workspace?: WorkspacePayload;
+}
+
+export interface BrowserSandboxProfileSeed {
+  name: string;
+  profile: SettingsSandboxRequest["profile"];
+}
+
+export interface BrowserSandboxProfilesResult {
+  sandboxes: SettingsSandboxEntry[];
 }
 
 type BrowserBridgeOperatorSeedRuntime = Pick<
@@ -440,6 +479,11 @@ export async function seedBrowserRuntimeHome(
   paths: BrowserRuntimeSeedPaths,
   seed: BrowserRuntimeSeed | undefined
 ): Promise<void> {
+  const skills = seed?.skills ?? [];
+  if (skills.length > 0) {
+    await seedBrowserSkills(paths.homeDir, skills);
+  }
+
   const mockAgents = seed?.mockAgents ?? [];
   if (mockAgents.length === 0) {
     return;
@@ -463,6 +507,158 @@ export async function seedBrowserRuntimeHome(
       "utf8"
     );
   }
+}
+
+async function seedBrowserSkills(homeDir: string, skills: BrowserSkillSeed[]): Promise<void> {
+  const skillsDir = path.join(homeDir, "skills");
+  await mkdir(skillsDir, { recursive: true });
+
+  for (const skill of skills) {
+    const skillName = normalizeSeedSkillName(skill.name);
+    const skillDir = path.join(skillsDir, skillName);
+    await mkdir(skillDir, { recursive: true });
+
+    const skillFile = path.join(skillDir, "SKILL.md");
+    await writeFile(skillFile, renderSeedSkillDocument(skill), { encoding: "utf8", mode: 0o600 });
+    await chmod(skillFile, 0o600);
+
+    for (const [relativePath, content] of Object.entries(skill.resources ?? {})) {
+      const target = resolveSeedSkillPath(skillDir, relativePath);
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, content, { encoding: "utf8", mode: 0o600 });
+      await chmod(target, 0o600);
+    }
+
+    if (skill.marketplace) {
+      const hash = await computeSeedSkillDirectoryHash(skillDir);
+      const sidecar = {
+        hash: skill.marketplace.hashOverride ?? hash,
+        registry: skill.marketplace.registry ?? "clawhub",
+        slug: skill.marketplace.slug,
+        version: skill.marketplace.version ?? skill.version ?? "",
+        installed_at: skill.marketplace.installedAt ?? "2026-05-09T00:00:00Z",
+      };
+      await writeFile(
+        path.join(skillDir, ".agh-meta.json"),
+        `${JSON.stringify(sidecar, null, 2)}\n`,
+        {
+          encoding: "utf8",
+          mode: 0o600,
+        }
+      );
+      await chmod(path.join(skillDir, ".agh-meta.json"), 0o600);
+    }
+  }
+}
+
+function normalizeSeedSkillName(name: string): string {
+  const trimmed = name.trim();
+  if (!/^[A-Za-z0-9._-]+$/.test(trimmed)) {
+    throw new Error(`browser skill seed name ${JSON.stringify(name)} is invalid`);
+  }
+  return trimmed;
+}
+
+function resolveSeedSkillPath(skillDir: string, relativePath: string): string {
+  const target = path.resolve(skillDir, relativePath);
+  const relative = path.relative(skillDir, target);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`browser skill seed resource ${relativePath} escapes ${skillDir}`);
+  }
+  return target;
+}
+
+function renderSeedSkillDocument(skill: BrowserSkillSeed): string {
+  const lines = [
+    "---",
+    `name: ${JSON.stringify(normalizeSeedSkillName(skill.name))}`,
+    `description: ${JSON.stringify(skill.description)}`,
+  ];
+  if (skill.version?.trim()) {
+    lines.push(`version: ${JSON.stringify(skill.version.trim())}`);
+  }
+  if (skill.metadata && Object.keys(skill.metadata).length > 0) {
+    lines.push("metadata:");
+    lines.push(...renderSeedYAMLMap(skill.metadata, 2));
+  }
+  lines.push("---", "", skill.body.trim(), "");
+  return lines.join("\n");
+}
+
+function renderSeedYAMLMap(value: Record<string, unknown>, indent: number): string[] {
+  return Object.entries(value).flatMap(([key, entry]) => renderSeedYAMLEntry(key, entry, indent));
+}
+
+function renderSeedYAMLEntry(key: string, value: unknown, indent: number): string[] {
+  const prefix = " ".repeat(indent);
+  if (Array.isArray(value)) {
+    return [
+      `${prefix}${key}:`,
+      ...value.map(item => `${" ".repeat(indent + 2)}- ${renderSeedYAMLScalar(item)}`),
+    ];
+  }
+  if (value && typeof value === "object") {
+    return [`${prefix}${key}:`, ...renderSeedYAMLMap(value as Record<string, unknown>, indent + 2)];
+  }
+  return [`${prefix}${key}: ${renderSeedYAMLScalar(value)}`];
+}
+
+function renderSeedYAMLScalar(value: unknown): string {
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value === null || value === undefined) {
+    return "null";
+  }
+  return JSON.stringify(value);
+}
+
+async function computeSeedSkillDirectoryHash(skillDir: string): Promise<string> {
+  const entries = await collectSeedSkillFiles(skillDir, skillDir);
+  const hash = createHash("sha256");
+
+  for (const relativePath of entries.sort()) {
+    const absolutePath = path.join(skillDir, relativePath);
+    const info = await stat(absolutePath);
+    if (!info.isFile()) {
+      throw new Error(`browser skill seed hash only supports regular files: ${absolutePath}`);
+    }
+
+    hash.update(
+      `file:${relativePath.split(path.sep).join("/")}\nmode:${formatSeedFileMode(info.mode)}\n`
+    );
+    hash.update(await readFile(absolutePath));
+    hash.update(Buffer.from([0]));
+  }
+
+  return hash.digest("hex");
+}
+
+async function collectSeedSkillFiles(rootDir: string, currentDir: string): Promise<string[]> {
+  const entries = await readdir(currentDir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    if (entry.name === ".agh-meta.json") {
+      continue;
+    }
+    const absolutePath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectSeedSkillFiles(rootDir, absolutePath)));
+      continue;
+    }
+    if (!entry.isFile()) {
+      throw new Error(`browser skill seed hash only supports files: ${absolutePath}`);
+    }
+    files.push(path.relative(rootDir, absolutePath));
+  }
+  return files;
+}
+
+function formatSeedFileMode(mode: number): string {
+  return `0${(mode & 0o777).toString(8).padStart(3, "0")}`;
 }
 
 export async function applyBrowserRuntimeSeed(
@@ -729,6 +925,31 @@ export async function seedBrowserNetworkOperatorFlow(
     traceId: browserNetworkOperatorFlowScenario.traceId,
     workId: browserNetworkOperatorFlowScenario.workId,
   };
+}
+
+export async function seedBrowserSandboxProfiles(
+  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
+  profiles: BrowserSandboxProfileSeed[]
+): Promise<BrowserSandboxProfilesResult> {
+  const sandboxes: SettingsSandboxEntry[] = [];
+
+  for (const seed of profiles) {
+    const name = seed.name.trim();
+    if (name === "") {
+      throw new Error("sandbox profile seed requires a non-empty name");
+    }
+
+    const payload = await runtime.requestJSON<{ sandbox: SettingsSandboxEntry }>(
+      `/api/settings/sandboxes/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ profile: seed.profile }),
+      }
+    );
+    sandboxes.push(payload.sandbox);
+  }
+
+  return { sandboxes };
 }
 
 export async function seedBrowserAutomationOperatorFlow(

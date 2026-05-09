@@ -48,6 +48,16 @@ const mockEditReset = vi.fn();
 let mockEditPending = false;
 let mockEditError: Error | null = null;
 
+const mockWriteMutateAsync = vi.fn();
+const mockWriteReset = vi.fn();
+let mockWritePending = false;
+let mockWriteError: Error | null = null;
+
+const mockRevertMutateAsync = vi.fn();
+const mockRevertReset = vi.fn();
+let mockRevertPending = false;
+let mockRevertError: Error | null = null;
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -144,6 +154,18 @@ vi.mock("@/systems/knowledge", async () => {
       reset: mockEditReset,
       isPending: mockEditPending,
       error: mockEditError,
+    }),
+    useWriteMemory: () => ({
+      mutateAsync: mockWriteMutateAsync,
+      reset: mockWriteReset,
+      isPending: mockWritePending,
+      error: mockWriteError,
+    }),
+    useRevertMemoryDecision: () => ({
+      mutateAsync: mockRevertMutateAsync,
+      reset: mockRevertReset,
+      isPending: mockRevertPending,
+      error: mockRevertError,
     }),
   };
 });
@@ -268,12 +290,40 @@ describe("KnowledgePage", () => {
     mockDeleteError = null;
     mockEditPending = false;
     mockEditError = null;
+    mockWritePending = false;
+    mockWriteError = null;
+    mockRevertPending = false;
+    mockRevertError = null;
     mockDeleteMutateAsync.mockReset();
     mockDeleteMutateAsync.mockResolvedValue(undefined);
     mockDeleteReset.mockReset();
     mockEditMutateAsync.mockReset();
     mockEditMutateAsync.mockResolvedValue(undefined);
     mockEditReset.mockReset();
+    mockWriteMutateAsync.mockReset();
+    mockWriteMutateAsync.mockResolvedValue({
+      applied: true,
+      decision: {
+        id: "dec_write",
+        candidate_hash: "h",
+        op: "add",
+        scope: "global",
+        source: "rule",
+        confidence: 1,
+        decided_at: "2026-04-25T21:03:00Z",
+        target_filename: "new-entry.md",
+        frontmatter: {
+          filename: "new-entry.md",
+          mod_time: "2026-04-25T21:03:00Z",
+          name: "New Entry",
+          type: "user",
+        },
+      },
+    });
+    mockWriteReset.mockReset();
+    mockRevertMutateAsync.mockReset();
+    mockRevertMutateAsync.mockResolvedValue({ reverted: true });
+    mockRevertReset.mockReset();
   });
 
   it("Should default to the GLOBAL scope and render the global memory list", () => {
@@ -397,6 +447,30 @@ describe("KnowledgePage", () => {
     });
   });
 
+  it("Should open the create dialog and submit a scoped controller write", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId("tab-workspace"));
+    await user.click(screen.getByTestId("create-memory-btn"));
+    await user.selectOptions(screen.getByTestId("knowledge-create-type"), "project");
+    await user.type(screen.getByTestId("knowledge-create-name"), "Launch Memory");
+    await user.type(screen.getByTestId("knowledge-create-description"), "workspace contract");
+    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
+    await user.click(screen.getByTestId("confirm-create-memory-btn"));
+
+    expect(mockWriteMutateAsync).toHaveBeenCalledWith({
+      scope: "workspace",
+      workspace_id: "ws_test",
+      agent_name: undefined,
+      agent_tier: undefined,
+      type: "project",
+      name: "Launch Memory",
+      description: "workspace contract",
+      content: "Use the launch playbook.",
+    });
+  });
+
   it("Should show the controller decisions section with returned decisions", async () => {
     const user = userEvent.setup();
     mockMemoryContent = "content";
@@ -426,6 +500,40 @@ describe("KnowledgePage", () => {
     expect(screen.getByTestId("knowledge-decisions-list")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-decision-dec_1")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-decision-op-dec_1")).toHaveTextContent("UPDATE");
+  });
+
+  it("Should revert an applied controller decision from the detail panel", async () => {
+    const user = userEvent.setup();
+    mockMemoryContent = "content";
+    mockDecisions = [
+      {
+        id: "dec_1",
+        candidate_hash: "h",
+        op: "update",
+        scope: "global",
+        source: "rule",
+        confidence: 0.9,
+        decided_at: "2026-04-25T21:03:00Z",
+        applied_at: "2026-04-25T21:03:02Z",
+        target_filename: "user_role.md",
+        frontmatter: {
+          filename: "user_role.md",
+          mod_time: "2026-04-25T21:00:00Z",
+          name: "User Role",
+          type: "user",
+        },
+      },
+    ];
+
+    renderPage();
+
+    await user.click(screen.getByTestId("memory-item-global:user_role.md"));
+    await user.click(screen.getByTestId("revert-memory-decision-dec_1"));
+
+    expect(mockRevertMutateAsync).toHaveBeenCalledWith({
+      decisionID: "dec_1",
+      body: { reason: "operator reverted from Knowledge" },
+    });
   });
 
   it("Should show empty decisions state when no decisions are returned", () => {

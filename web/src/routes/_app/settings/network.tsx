@@ -239,7 +239,7 @@ function ListenerSection({
           <SettingsNumberInput
             aria-label="Listener port"
             className="w-28"
-            min={0}
+            min={-1}
             data-testid="settings-page-network-port-input"
             value={draft.port}
             onValidityChange={onPortValidityChange}

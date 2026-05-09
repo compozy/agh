@@ -15,10 +15,18 @@ const deleteMutateAsync = vi.fn();
 const deleteReset = vi.fn();
 const editMutateAsync = vi.fn();
 const editReset = vi.fn();
+const writeMutateAsync = vi.fn();
+const writeReset = vi.fn();
+const revertMutateAsync = vi.fn();
+const revertReset = vi.fn();
 let mockDeletePending = false;
 let mockDeleteError: Error | null = null;
 let mockEditPending = false;
 let mockEditError: Error | null = null;
+let mockWritePending = false;
+let mockWriteError: Error | null = null;
+let mockRevertPending = false;
+let mockRevertError: Error | null = null;
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
@@ -53,6 +61,18 @@ vi.mock("@/systems/knowledge", async () => {
       isPending: mockEditPending,
       mutateAsync: editMutateAsync,
       reset: editReset,
+    }),
+    useWriteMemory: () => ({
+      error: mockWriteError,
+      isPending: mockWritePending,
+      mutateAsync: writeMutateAsync,
+      reset: writeReset,
+    }),
+    useRevertMemoryDecision: () => ({
+      error: mockRevertError,
+      isPending: mockRevertPending,
+      mutateAsync: revertMutateAsync,
+      reset: revertReset,
     }),
   };
 });
@@ -118,6 +138,10 @@ describe("useKnowledgePage", () => {
     mockDeleteError = null;
     mockEditPending = false;
     mockEditError = null;
+    mockWritePending = false;
+    mockWriteError = null;
+    mockRevertPending = false;
+    mockRevertError = null;
     useMemoriesMock.mockImplementation(selector => {
       if (!selector) {
         return { data: [], isLoading: false, error: null };
@@ -150,8 +174,34 @@ describe("useKnowledgePage", () => {
     editReset.mockImplementation(() => {
       mockEditError = null;
     });
+    writeReset.mockImplementation(() => {
+      mockWriteError = null;
+    });
+    revertReset.mockImplementation(() => {
+      mockRevertError = null;
+    });
     deleteMutateAsync.mockResolvedValue(undefined);
     editMutateAsync.mockResolvedValue(undefined);
+    writeMutateAsync.mockResolvedValue({
+      applied: true,
+      decision: {
+        id: "dec_write",
+        candidate_hash: "h",
+        op: "add",
+        scope: "workspace",
+        source: "rule",
+        confidence: 1,
+        decided_at: "2026-04-25T21:05:00Z",
+        target_filename: "launch-memory.md",
+        frontmatter: {
+          filename: "launch-memory.md",
+          mod_time: "2026-04-25T21:05:00Z",
+          name: "Launch Memory",
+          type: "project",
+        },
+      },
+    });
+    revertMutateAsync.mockResolvedValue(undefined);
   });
 
   it("Should default to the global scope and load global memories on mount", async () => {
@@ -166,7 +216,6 @@ describe("useKnowledgePage", () => {
       { scope: "global" },
       expect.objectContaining({ enabled: true })
     );
-    expect(result.current.selector).toEqual({ scope: "global" });
   });
 
   it("Should switch to workspace scope and pass the active workspace id to the list query", async () => {
@@ -302,6 +351,35 @@ describe("useKnowledgePage", () => {
     });
   });
 
+  it("Should write a new memory using the active selector and select the created filename", async () => {
+    const { result } = renderHook(() => useKnowledgePage());
+
+    act(() => {
+      result.current.setActiveScope("workspace");
+    });
+
+    await act(async () => {
+      await result.current.handleCreate({
+        type: "project",
+        name: "Launch Memory",
+        description: "workspace contract",
+        content: "Use the launch playbook.",
+      });
+    });
+
+    expect(writeMutateAsync).toHaveBeenCalledWith({
+      scope: "workspace",
+      workspace_id: "ws_signalforge",
+      agent_name: undefined,
+      agent_tier: undefined,
+      type: "project",
+      name: "Launch Memory",
+      description: "workspace contract",
+      content: "Use the launch playbook.",
+    });
+    expect(result.current.createOpen).toBe(false);
+  });
+
   it("Should expose the controller decisions for the selected memory", async () => {
     useMemoryDecisionsMock.mockReturnValue({
       data: {
@@ -351,6 +429,36 @@ describe("useKnowledgePage", () => {
     });
 
     expect(result.current.decisions[0]?.id).toBe("dec_match");
+  });
+
+  it("Should revert an applied decision through the decision mutation", async () => {
+    const decision = {
+      id: "dec_match",
+      candidate_hash: "h",
+      op: "update" as const,
+      scope: "global" as const,
+      source: "rule" as const,
+      confidence: 0.9,
+      decided_at: "2026-04-25T21:03:00Z",
+      applied_at: "2026-04-25T21:03:01Z",
+      target_filename: "operator-playbook-0425.md",
+      frontmatter: {
+        filename: "operator-playbook-0425.md",
+        mod_time: "2026-04-25T21:00:00Z",
+        name: "Operator Playbook 0425",
+        type: "reference" as const,
+      },
+    };
+    const { result } = renderHook(() => useKnowledgePage());
+
+    await act(async () => {
+      await result.current.handleRevertDecision(decision);
+    });
+
+    expect(revertMutateAsync).toHaveBeenCalledWith({
+      decisionID: "dec_match",
+      body: { reason: "operator reverted from Knowledge" },
+    });
   });
 
   it("Should clear delete error when the user changes the selected memory", async () => {

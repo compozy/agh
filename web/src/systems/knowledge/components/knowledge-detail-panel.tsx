@@ -42,6 +42,9 @@ interface KnowledgeDetailPanelProps {
   editError?: string | null;
   decisions?: MemoryDecision[];
   decisionsError?: Error | null;
+  onRevertDecision?: (decision: MemoryDecision) => Promise<void>;
+  revertingDecisionId?: string | null;
+  revertError?: string | null;
 }
 
 interface MetadataRow {
@@ -114,6 +117,9 @@ function KnowledgeDetailPanel({
   editError,
   decisions,
   decisionsError = null,
+  onRevertDecision,
+  revertingDecisionId = null,
+  revertError = null,
 }: KnowledgeDetailPanelProps) {
   const { isLoading, isDeletePending, isEditPending = false, isDecisionsLoading = false } = status;
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -285,6 +291,9 @@ function KnowledgeDetailPanel({
           decisions={decisions}
           error={decisionsError}
           isLoading={isDecisionsLoading}
+          onRevertDecision={onRevertDecision}
+          revertError={revertError}
+          revertingDecisionId={revertingDecisionId}
         />
       </div>
 

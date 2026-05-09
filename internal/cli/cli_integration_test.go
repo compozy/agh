@@ -2709,8 +2709,14 @@ type lockedBuffer struct {
 }
 
 func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
-	secretStore, _ := store.(integrationBridgeSecretStore)
-	taskSubscriptions, _ := store.(bridgepkg.BridgeTaskSubscriptionStore)
+	secretStore, ok := store.(integrationBridgeSecretStore)
+	if !ok {
+		secretStore = nil
+	}
+	taskSubscriptions, taskSubscriptionsOK := store.(bridgepkg.BridgeTaskSubscriptionStore)
+	if !taskSubscriptionsOK {
+		taskSubscriptions = nil
+	}
 	return &integrationBridgeService{
 		Service:           bridgepkg.NewRegistry(store),
 		store:             secretStore,

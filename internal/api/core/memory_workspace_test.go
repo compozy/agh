@@ -612,6 +612,288 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should revert workspace decisions through the workspace-bound store", func(t *testing.T) {
+		t.Parallel()
+
+		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := store.CloseRecallSignalRecorders(ctx); err != nil {
+				t.Fatalf("CloseRecallSignalRecorders() error = %v", err)
+			}
+		})
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+		}
+		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != identity.WorkspaceID {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      identity.WorkspaceID,
+						Name:    "workspace",
+						RootDir: workspaceRoot,
+					},
+					WorkspaceID: identity.WorkspaceID,
+				}, nil
+			},
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != identity.WorkspaceID {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.Workspace{
+					ID:      identity.WorkspaceID,
+					Name:    "workspace",
+					RootDir: workspaceRoot,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			workspaces,
+			store,
+			nil,
+		)
+		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
+			Scope:       memcontract.ScopeWorkspace,
+			WorkspaceID: identity.WorkspaceID,
+			Type:        memcontract.TypeProject,
+			Name:        "Workspace Revert",
+			Content:     "Original workspace body.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(write request) error = %v", err)
+		}
+		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
+		if writeResp.Code != http.StatusOK {
+			t.Fatalf("write status = %d, want %d; body=%s", writeResp.Code, http.StatusOK, writeResp.Body.String())
+		}
+		var writePayload contract.MemoryMutationDecisionResponse
+		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
+
+		editBody, err := json.Marshal(contract.MemoryEditRequest{
+			Scope:       memcontract.ScopeWorkspace,
+			WorkspaceID: identity.WorkspaceID,
+			Type:        memcontract.TypeProject,
+			Name:        "Workspace Revert",
+			Content:     "Edited workspace body.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(edit request) error = %v", err)
+		}
+		editResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/memory/"+writePayload.Decision.TargetFilename,
+			editBody,
+		)
+		if editResp.Code != http.StatusOK {
+			t.Fatalf("edit status = %d, want %d; body=%s", editResp.Code, http.StatusOK, editResp.Body.String())
+		}
+		var editPayload contract.MemoryMutationDecisionResponse
+		testutil.DecodeJSONResponse(t, editResp, &editPayload)
+		if editPayload.Decision.Scope != memcontract.ScopeWorkspace {
+			t.Fatalf("edit decision scope = %q, want workspace", editPayload.Decision.Scope)
+		}
+
+		revertResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/memory/decisions/"+editPayload.Decision.ID+"/revert",
+			[]byte(`{"reason":"operator revert"}`),
+		)
+		if revertResp.Code != http.StatusOK {
+			t.Fatalf(
+				"revert status = %d, want %d; body=%s",
+				revertResp.Code,
+				http.StatusOK,
+				revertResp.Body.String(),
+			)
+		}
+		var revertPayload contract.MemoryDecisionRevertResponse
+		testutil.DecodeJSONResponse(t, revertResp, &revertPayload)
+		if !revertPayload.Reverted || revertPayload.Decision.ID != editPayload.Decision.ID {
+			t.Fatalf("revert payload = %#v, want reverted edit decision", revertPayload)
+		}
+
+		readResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/memory/"+editPayload.Decision.TargetFilename+"?scope=workspace&workspace_id="+url.QueryEscape(
+				identity.WorkspaceID,
+			),
+			nil,
+		)
+		if readResp.Code != http.StatusOK {
+			t.Fatalf("read status = %d, want %d; body=%s", readResp.Code, http.StatusOK, readResp.Body.String())
+		}
+		var readPayload contract.MemoryEntryResponse
+		testutil.DecodeJSONResponse(t, readResp, &readPayload)
+		if !strings.Contains(readPayload.Memory.Content, "Original workspace body.") {
+			t.Fatalf("reverted content = %q, want original workspace body", readPayload.Memory.Content)
+		}
+	})
+
+	t.Run("Should revert agent workspace-tier decisions through the workspace-bound store", func(t *testing.T) {
+		t.Parallel()
+
+		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := store.CloseRecallSignalRecorders(ctx); err != nil {
+				t.Fatalf("CloseRecallSignalRecorders() error = %v", err)
+			}
+		})
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+		}
+		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != identity.WorkspaceID {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      identity.WorkspaceID,
+						Name:    "workspace",
+						RootDir: workspaceRoot,
+					},
+					WorkspaceID: identity.WorkspaceID,
+				}, nil
+			},
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != identity.WorkspaceID {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.Workspace{
+					ID:      identity.WorkspaceID,
+					Name:    "workspace",
+					RootDir: workspaceRoot,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			workspaces,
+			store,
+			nil,
+		)
+		agentName := "coder"
+		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
+			Scope:       memcontract.ScopeAgent,
+			WorkspaceID: identity.WorkspaceID,
+			AgentName:   agentName,
+			AgentTier:   memcontract.AgentTierWorkspace,
+			Type:        memcontract.TypeProject,
+			Name:        "Agent Workspace Revert",
+			Content:     "Original agent workspace body.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(write request) error = %v", err)
+		}
+		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
+		if writeResp.Code != http.StatusOK {
+			t.Fatalf("write status = %d, want %d; body=%s", writeResp.Code, http.StatusOK, writeResp.Body.String())
+		}
+		var writePayload contract.MemoryMutationDecisionResponse
+		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
+
+		editBody, err := json.Marshal(contract.MemoryEditRequest{
+			Scope:       memcontract.ScopeAgent,
+			WorkspaceID: identity.WorkspaceID,
+			AgentName:   agentName,
+			AgentTier:   memcontract.AgentTierWorkspace,
+			Type:        memcontract.TypeProject,
+			Name:        "Agent Workspace Revert",
+			Content:     "Edited agent workspace body.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(edit request) error = %v", err)
+		}
+		editResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/memory/"+writePayload.Decision.TargetFilename,
+			editBody,
+		)
+		if editResp.Code != http.StatusOK {
+			t.Fatalf("edit status = %d, want %d; body=%s", editResp.Code, http.StatusOK, editResp.Body.String())
+		}
+		var editPayload contract.MemoryMutationDecisionResponse
+		testutil.DecodeJSONResponse(t, editResp, &editPayload)
+		if editPayload.Decision.Scope != memcontract.ScopeAgent ||
+			editPayload.Decision.AgentTier != memcontract.AgentTierWorkspace {
+			t.Fatalf("edit decision = %#v, want agent workspace-tier decision", editPayload.Decision)
+		}
+
+		revertResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/memory/decisions/"+editPayload.Decision.ID+"/revert",
+			[]byte(`{"reason":"operator revert"}`),
+		)
+		if revertResp.Code != http.StatusOK {
+			t.Fatalf(
+				"revert status = %d, want %d; body=%s",
+				revertResp.Code,
+				http.StatusOK,
+				revertResp.Body.String(),
+			)
+		}
+		var revertPayload contract.MemoryDecisionRevertResponse
+		testutil.DecodeJSONResponse(t, revertResp, &revertPayload)
+		if !revertPayload.Reverted || revertPayload.Decision.ID != editPayload.Decision.ID {
+			t.Fatalf("revert payload = %#v, want reverted edit decision", revertPayload)
+		}
+
+		readResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/memory/"+editPayload.Decision.TargetFilename+"?scope=agent&agent_name="+
+				url.QueryEscape(agentName)+
+				"&agent_tier=workspace&workspace_id="+url.QueryEscape(identity.WorkspaceID),
+			nil,
+		)
+		if readResp.Code != http.StatusOK {
+			t.Fatalf("read status = %d, want %d; body=%s", readResp.Code, http.StatusOK, readResp.Body.String())
+		}
+		var readPayload contract.MemoryEntryResponse
+		testutil.DecodeJSONResponse(t, readResp, &readPayload)
+		if !strings.Contains(readPayload.Memory.Content, "Original agent workspace body.") {
+			t.Fatalf("reverted content = %q, want original agent workspace body", readPayload.Memory.Content)
+		}
+	})
+
 	t.Run("Should reset reload list daily logs and create ad-hoc notes", func(t *testing.T) {
 		t.Parallel()
 

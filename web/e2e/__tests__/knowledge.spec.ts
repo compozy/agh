@@ -1,120 +1,620 @@
-import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
-interface MemoryMutationResponse {
-  applied: boolean;
-  decision: {
-    target_filename?: string;
+import type { Page } from "@playwright/test";
+
+import { knowledgeOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
+import type { BrowserRuntime } from "../fixtures/runtime";
+import { expect, test } from "../fixtures/test";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+
+const execFileAsync = promisify(execFile);
+const memoryRecallFixture = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "internal",
+  "testutil",
+  "acpmock",
+  "testdata",
+  "memory_recall_fixture.json"
+);
+const memoryRecallAgentName = "memory-recall-agent";
+const sensitivePattern =
+  /agh_claim_[a-z0-9._-]+|["']claim_token["']\s*:\s*["']?[a-z0-9._-]{8,}|(?:authorization\s*:\s*bearer|bearer)\s+["']?[a-z0-9._-]{8,}|(?:api[_-]?key|bearer[_-]?token|mcp[_-]?auth|oauth[_-]?(?:access(?:[_-]?token)?|client(?:[_-]?secret)?|refresh(?:[_-]?token)?|secret|token)|pkce[_-]?(?:challenge|secret|verifier)|provider[_-]?credential|telegram-bot-token)\s*[:=]\s*["']?[a-z0-9._:-]{8,}|\b\d{6,}:[a-z0-9_-]{20,}/i;
+
+interface MemoryHeader {
+  filename: string;
+  name: string;
+  scope: "global" | "workspace" | "agent";
+  type: "user" | "feedback" | "project" | "reference";
+  workspace_id?: string;
+}
+
+interface MemoryEntry {
+  memory: {
+    content: string;
+    summary: MemoryHeader;
   };
 }
 
-const createdMemoryName = "Browser Knowledge Evidence";
-const createdMemoryDescription = "Seeded by Playwright to verify knowledge list and detail chrome.";
-const createdMemoryContent = "Initial browser evidence content for the Knowledge UI migration.";
-const editedMemoryContent =
-  "Edited browser evidence content after the Knowledge edit dialog round trip.";
+interface MemoriesResponse {
+  memories: MemoryHeader[];
+}
 
-test("operator can inspect, edit, and delete a created knowledge memory", async ({
+interface MemorySearchResponse {
+  results: Array<{
+    memory: MemoryHeader;
+    score: number;
+    snippet?: string;
+  }>;
+}
+
+interface MemoryMutationResponse {
+  applied?: boolean;
+  decision: {
+    id: string;
+    op: string;
+    scope: "global" | "workspace" | "agent";
+    target_filename?: string;
+    frontmatter: {
+      filename: string;
+      name: string;
+      type: MemoryHeader["type"];
+    };
+  };
+  reverted?: boolean;
+}
+
+interface SessionEnvelope {
+  session: {
+    acp_session_id?: string;
+    id: string;
+  };
+}
+
+interface DiagnosticsRecord {
+  lifecycle_event?: string;
+  prompt_index: number;
+  prompt: string;
+  session_id?: string;
+}
+
+interface TranscriptMessage {
+  parts?: TranscriptMessagePart[];
+  role?: string;
+}
+
+interface TranscriptMessagePart {
+  text?: string;
+  type?: string;
+}
+
+test.use({
+  runtimeOptions: {
+    seed: {
+      mockAgents: [
+        {
+          agentName: memoryRecallAgentName,
+          fixtureAgent: memoryRecallAgentName,
+          fixturePath: memoryRecallFixture,
+        },
+      ],
+    },
+  },
+});
+
+test("operator creates edits reverts searches recalls and deletes workspace knowledge with parity evidence", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const created = await runtime.requestJSON<MemoryMutationResponse>("/api/memory", {
-    method: "POST",
-    body: JSON.stringify({
-      scope: "global",
-      type: "user",
-      name: createdMemoryName,
-      description: createdMemoryDescription,
-      content: createdMemoryContent,
-    }),
-  });
-
-  if (!created.applied || !created.decision.target_filename) {
-    throw new Error("Expected memory creation to apply and return a target filename.");
+  if (!runtime.paths) {
+    throw new Error("Knowledge browser E2E requires launch-mode runtime paths.");
   }
 
-  const filename = created.decision.target_filename;
-  const memoryItemTestId = `memory-item-global:${filename}`;
+  const knowledgeUI = knowledgeOperatorSelectors(appPage);
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(knowledgeUI);
 
-  await useGlobalWorkspaceIfPrompted({
-    appSidebar: appPage.getByTestId("app-sidebar"),
-    workspaceOnboarding: appPage.getByTestId("workspace-onboarding"),
-    workspaceUseGlobal: appPage.getByTestId("workspace-use-global"),
-  });
+  await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
+  await expect(knowledgeUI.shell).toBeVisible();
+  await expect(knowledgeUI.tabGlobal).toHaveAttribute("aria-pressed", "true");
+  await knowledgeUI.tabWorkspace.click();
+  await expect(knowledgeUI.tabWorkspace).toHaveAttribute("aria-pressed", "true");
 
-  await appPage.getByTestId("nav-knowledge").click();
-  await expect(appPage).toHaveURL(/\/knowledge$/);
-  await expect(appPage.getByTestId("knowledge-shell")).toBeVisible();
-  await expect(appPage.getByTestId("knowledge-list-panel")).toBeVisible();
-  await expect(appPage.getByTestId("knowledge-group-global")).toBeVisible();
-  await expect(appPage.getByTestId("knowledge-group-header-global")).toContainText("GLOBAL");
+  const marker = `browser-knowledge-${randomUUID().slice(0, 8)}`;
+  const memoryName = `Browser Knowledge ${marker}`;
+  const originalContent = `Remember me: auth migration uses sessions and workspace-scoped recall. ${marker}`;
+  const editedContent = `Remember me: auth migration uses sessions after browser edit and revert. ${marker}`;
 
-  const createdItem = appPage.getByTestId(memoryItemTestId);
-  await expect(createdItem).toBeVisible();
-  await expect(createdItem).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    createdItem.locator('[data-slot="item-selection-indicator"][data-indicator="rail"]')
-  ).toBeVisible();
-  await expect(appPage.getByTestId("knowledge-detail-panel")).toContainText(createdMemoryName);
-  await expect(appPage.getByTestId("content-preview")).toContainText(createdMemoryContent);
-  await browserArtifacts.captureScreenshot("knowledge-created-detail", appPage);
-
-  await appPage.getByTestId("edit-memory-btn").click();
-  const editDialog = appPage.getByTestId("knowledge-edit-dialog");
-  await expect(editDialog).toBeVisible();
-  await expect(editDialog).toHaveAttribute("data-frame", "unframed");
-  await expect(editDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
+  const createResponsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/memory")
+  );
+  await knowledgeUI.createButton.click();
+  await expect(knowledgeUI.createDialog).toBeVisible();
+  await expect(knowledgeUI.createDialog).toHaveAttribute("data-frame", "unframed");
+  await expect(knowledgeUI.createDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
     "data-variant",
     "ruled"
   );
-  await expect(editDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
+  await expect(knowledgeUI.createDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
     "data-variant",
     "ruled"
   );
-  await expect(appPage.getByTestId("knowledge-edit-description")).toHaveValue(
-    createdMemoryDescription
-  );
-  await appPage.getByTestId("knowledge-edit-content").fill(editedMemoryContent);
+  await knowledgeUI.createType.selectOption("project");
+  await knowledgeUI.createName.fill(memoryName);
+  await knowledgeUI.createDescription.fill("browser-created workspace recall contract");
+  await knowledgeUI.createContent.fill(originalContent);
+  await knowledgeUI.confirmCreateMemory.click();
+  const createPayload = (await (await createResponsePromise).json()) as MemoryMutationResponse;
+  expect(JSON.stringify(createPayload)).not.toMatch(sensitivePattern);
+  const filename =
+    createPayload.decision.target_filename ?? createPayload.decision.frontmatter.filename;
+  expect(filename).toMatch(/\.md$/);
+  await expect(knowledgeUI.createDialog).toBeHidden();
+  await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible({ timeout: 20_000 });
+  await knowledgeUI.item(`workspace:${filename}`).click();
+  await expect(knowledgeUI.detailPanel).toContainText(memoryName);
+  await expect(knowledgeUI.contentPreview).toContainText(originalContent);
 
-  const editResponsePromise = appPage.waitForResponse(response => {
-    return (
+  await knowledgeUI.searchInput.fill("auth migration sessions");
+  await expect(knowledgeUI.searchInfo).toContainText("Recall");
+  await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible();
+
+  const httpEntry = await readMemoryHTTP(runtime, filename, workspace.id);
+  const udsEntry = await requestOperatorJSONOrThrow<MemoryEntry>(
+    runtime,
+    memoryReadPath(filename, workspace.id)
+  );
+  const cliEntry = await memoryCLI<MemoryEntry>(runtime, [
+    "memory",
+    "show",
+    filename,
+    "--scope",
+    "workspace",
+    "--workspace",
+    workspace.id,
+  ]);
+  expect(httpEntry.memory.content).toBe(originalContent);
+  expect(udsEntry.memory.content).toBe(originalContent);
+  expect(cliEntry.memory.content).toBe(originalContent);
+
+  const editResponsePromise = appPage.waitForResponse(
+    response =>
       response.request().method() === "PATCH" &&
-      response.url().endsWith(`/api/memory/${encodeURIComponent(filename)}`)
-    );
+      response.url().includes(`/api/memory/${encodeURIComponent(filename)}`)
+  );
+  await knowledgeUI.editButton.click();
+  await expect(knowledgeUI.editDialog).toBeVisible();
+  await expect(knowledgeUI.editDialog).toHaveAttribute("data-frame", "unframed");
+  await expect(knowledgeUI.editDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
+    "data-variant",
+    "ruled"
+  );
+  await expect(knowledgeUI.editDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
+    "data-variant",
+    "ruled"
+  );
+  await knowledgeUI.editDescription.fill("browser-edited workspace recall contract");
+  await knowledgeUI.editContent.fill(editedContent);
+  await knowledgeUI.confirmEditMemory.click();
+  const editPayload = (await (await editResponsePromise).json()) as MemoryMutationResponse;
+  expect(editPayload.decision.op).toBe("update");
+  expect(JSON.stringify(editPayload)).not.toMatch(sensitivePattern);
+  await expect(knowledgeUI.editDialog).toBeHidden();
+  await expect(knowledgeUI.contentPreview).toContainText(editedContent);
+
+  await expect(knowledgeUI.revertDecision(editPayload.decision.id)).toBeVisible({
+    timeout: 20_000,
   });
-  await appPage.getByTestId("confirm-edit-memory-btn").click();
-  const editResponse = await editResponsePromise;
-  expect(editResponse.ok()).toBeTruthy();
-  await expect(editDialog).toBeHidden();
-  await expect(appPage.getByTestId("content-preview")).toContainText(editedMemoryContent);
-
-  await appPage.getByTestId("delete-memory-btn").click();
-  const deleteDialog = appPage.getByTestId("knowledge-delete-dialog");
-  await expect(deleteDialog).toBeVisible();
-  await expect(deleteDialog).toHaveAttribute("data-frame", "unframed");
-  await expect(deleteDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
+  const revertResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/memory/decisions/${editPayload.decision.id}/revert`)
   );
-  await expect(deleteDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
-  await expect(appPage.getByTestId("confirm-delete-memory-btn")).toBeDisabled();
-  await appPage.getByTestId("knowledge-delete-confirm-typing").fill(filename);
-  await expect(appPage.getByTestId("confirm-delete-memory-btn")).toBeEnabled();
+  await knowledgeUI.revertDecision(editPayload.decision.id).click();
+  const revertPayload = (await (await revertResponsePromise).json()) as MemoryMutationResponse;
+  expect(revertPayload.reverted).toBe(true);
+  expect(JSON.stringify(revertPayload)).not.toMatch(sensitivePattern);
+  await expect(knowledgeUI.contentPreview).toContainText(originalContent);
+  await expect(knowledgeUI.contentPreview).not.toContainText("after browser edit and revert");
 
-  const deleteResponsePromise = appPage.waitForResponse(response => {
-    return (
+  await assertKnowledgeViewportAndDialogMatrix(appPage, browserArtifacts, knowledgeUI);
+
+  const parity = await captureKnowledgeParity(runtime, filename, workspace.id, marker);
+  await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
+  await browserArtifacts.captureScreenshot("knowledge-workspace-detail", appPage);
+  await browserArtifacts.persist(appPage);
+  const routeState = await readRouteState(runtime);
+  expect(routeState).toMatchObject({
+    knowledge_detail_visible: true,
+    knowledge_item_count: expect.any(Number),
+    knowledge_scope: "workspace",
+    knowledge_search_active: true,
+    knowledge_view_visible: true,
+  });
+
+  const recalledSession = await createSessionThroughBrowser(
+    appPage,
+    sessionUI,
+    memoryRecallAgentName
+  );
+  await sessionUI.composerTextarea.fill("remember me");
+  await sessionUI.composerTextarea.press("Enter");
+  await expect(sessionUI.chatView).toContainText("qa-memory acknowledged", { timeout: 30_000 });
+  const recalledACPSessionID = await acpSessionIDForSession(runtime, recalledSession.session.id);
+  const recalledPrompt = await promptForSession(
+    runtime,
+    memoryRecallAgentName,
+    recalledACPSessionID
+  );
+  expect(recalledPrompt).toContain("Relevant durable memory for this turn:");
+  expect(recalledPrompt).toContain("auth migration uses sessions");
+  expect(recalledPrompt).toContain(marker);
+  expect(recalledPrompt).toContain("\n\nUser message:\nremember me");
+  expect(recalledPrompt).not.toMatch(sensitivePattern);
+  await assertStoredUserMessageClean(runtime, recalledSession.session.id);
+
+  await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
+  await knowledgeUI.tabWorkspace.click();
+  await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible();
+  await knowledgeUI.item(`workspace:${filename}`).click();
+  const deleteResponsePromise = appPage.waitForResponse(
+    response =>
       response.request().method() === "DELETE" &&
       response.url().includes(`/api/memory/${encodeURIComponent(filename)}`)
-    );
-  });
-  await appPage.getByTestId("confirm-delete-memory-btn").click();
-  const deleteResponse = await deleteResponsePromise;
-  expect(deleteResponse.ok()).toBeTruthy();
-  await expect(deleteDialog).toBeHidden();
-  await expect(createdItem).toBeHidden();
-  await browserArtifacts.captureScreenshot("knowledge-deleted", appPage);
+  );
+  await knowledgeUI.deleteButton.click();
+  await expect(knowledgeUI.deleteDialog).toBeVisible();
+  await expect(knowledgeUI.deleteDialog).toHaveAttribute("data-frame", "unframed");
+  await expect(knowledgeUI.deleteDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
+    "data-variant",
+    "ruled"
+  );
+  await expect(knowledgeUI.deleteDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
+    "data-variant",
+    "ruled"
+  );
+  await knowledgeUI.confirmDeleteMemory.click();
+  const deletePayload = (await (await deleteResponsePromise).json()) as MemoryMutationResponse;
+  expect(deletePayload.decision.op).toBe("delete");
+  expect(JSON.stringify(deletePayload)).not.toMatch(sensitivePattern);
+  await expect(knowledgeUI.item(`workspace:${filename}`)).toBeHidden({ timeout: 20_000 });
+
+  const listAfterDelete = await runtime.requestJSON<MemoriesResponse>(
+    `/api/memory?scope=workspace&workspace_id=${encodeURIComponent(workspace.id)}`
+  );
+  expect(listAfterDelete.memories.some(memory => memory.filename === filename)).toBe(false);
+  const searchAfterDelete = await searchMemory(runtime, workspace.id, marker);
+  expect(searchAfterDelete.results.some(result => result.memory.filename === filename)).toBe(false);
+
+  const postDeleteSession = await createSessionThroughBrowser(
+    appPage,
+    sessionUI,
+    memoryRecallAgentName
+  );
+  await sessionUI.composerTextarea.fill("remember me");
+  await sessionUI.composerTextarea.press("Enter");
+  await expect(sessionUI.chatView).toContainText("qa-memory acknowledged", { timeout: 30_000 });
+  const postDeleteACPSessionID = await acpSessionIDForSession(
+    runtime,
+    postDeleteSession.session.id
+  );
+  const postDeletePrompt = await promptForSession(
+    runtime,
+    memoryRecallAgentName,
+    postDeleteACPSessionID
+  );
+  expect(postDeletePrompt).not.toContain(marker);
+  expect(postDeletePrompt).not.toContain("auth migration uses sessions");
+  expect((await appPage.textContent("body")) ?? "").not.toMatch(sensitivePattern);
+  await expect(
+    readFileIfExists(runtime.artifactCollector.artifactPath("browser_route_state"))
+  ).resolves.not.toMatch(sensitivePattern);
+  await expect(
+    readFileIfExists(runtime.artifactCollector.artifactPath("browser_api_snapshots"))
+  ).resolves.not.toMatch(sensitivePattern);
 });
+
+async function createSessionThroughBrowser(
+  page: Page,
+  ui: ReturnType<typeof sessionLifecycleSelectors>,
+  agentName: string
+): Promise<SessionEnvelope> {
+  await page.goto(new URL(`/agents/${agentName}`, page.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(ui.agentPageNewSession).toBeVisible();
+  await ui.agentPageNewSession.click();
+  await expect(page.getByTestId("session-create-dialog")).toBeVisible();
+  const createResponsePromise = page.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+  );
+  await page.getByTestId("session-create-dialog-submit").click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBe(true);
+  const session = (await createResponse.json()) as SessionEnvelope;
+  await expect
+    .poll(() => new URL(page.url()).pathname)
+    .toBe(`/agents/${agentName}/sessions/${session.session.id}`);
+  await expect(ui.chatHeader).toBeVisible();
+  await expect(ui.composerTextarea).toBeVisible();
+  return session;
+}
+
+async function assertKnowledgeViewportAndDialogMatrix(
+  page: Page,
+  browserArtifacts: { captureScreenshot: (name: string, page?: Page) => Promise<unknown> },
+  ui: ReturnType<typeof knowledgeOperatorSelectors>
+): Promise<void> {
+  const viewports = [
+    { name: "desktop", width: 1280, height: 900 },
+    { name: "tablet", width: 768, height: 900 },
+    { name: "mobile", width: 375, height: 812 },
+  ];
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await expect(ui.shell).toBeVisible();
+    await expect(ui.listPanel).toBeVisible();
+    await expect(ui.detailPanel).toBeVisible();
+    await browserArtifacts.captureScreenshot(`knowledge-${viewport.name}-detail`, page);
+  }
+
+  await ui.editButton.click();
+  await expect(ui.editDialog).toBeVisible();
+  await browserArtifacts.captureScreenshot("knowledge-edit-dialog-responsive", page);
+  await page.keyboard.press("Escape");
+  await expect(ui.editDialog).toBeHidden();
+
+  await ui.deleteButton.click();
+  await expect(ui.deleteDialog).toBeVisible();
+  await browserArtifacts.captureScreenshot("knowledge-delete-dialog-responsive", page);
+  await page.keyboard.press("Escape");
+  await expect(ui.deleteDialog).toBeHidden();
+
+  await ui.createButton.click();
+  await expect(ui.createDialog).toBeVisible();
+  await browserArtifacts.captureScreenshot("knowledge-create-dialog-responsive", page);
+  await ui.cancelCreateMemory.click();
+  await expect(ui.createDialog).toBeHidden();
+}
+
+async function captureKnowledgeParity(
+  runtime: BrowserRuntime,
+  filename: string,
+  workspaceID: string,
+  marker: string
+) {
+  const httpEntry = await readMemoryHTTP(runtime, filename, workspaceID);
+  const udsEntry = await requestOperatorJSONOrThrow<MemoryEntry>(
+    runtime,
+    memoryReadPath(filename, workspaceID)
+  );
+  const httpList = await runtime.requestJSON<MemoriesResponse>(
+    `/api/memory?scope=workspace&workspace_id=${encodeURIComponent(workspaceID)}`
+  );
+  const udsList = await requestOperatorJSONOrThrow<MemoriesResponse>(
+    runtime,
+    `/api/memory?scope=workspace&workspace_id=${encodeURIComponent(workspaceID)}`
+  );
+  const httpSearch = await searchMemory(runtime, workspaceID, marker);
+  const udsSearch = await requestOperatorJSONOrThrow<MemorySearchResponse>(
+    runtime,
+    "/api/memory/search",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        query_text: marker,
+        scope: "workspace",
+        workspace_id: workspaceID,
+        top_k: 5,
+      }),
+    }
+  );
+  const cliList = await memoryCLI<MemoriesResponse>(runtime, [
+    "memory",
+    "list",
+    "--scope",
+    "workspace",
+    "--workspace",
+    workspaceID,
+  ]);
+  const cliSearch = await memoryCLI<MemorySearchResponse>(runtime, [
+    "memory",
+    "search",
+    marker,
+    "--scope",
+    "workspace",
+    "--workspace",
+    workspaceID,
+  ]);
+
+  expect(httpEntry.memory.content).toContain(marker);
+  expect(udsEntry.memory.content).toContain(marker);
+  expect(httpList.memories.some(memory => memory.filename === filename)).toBe(true);
+  expect(udsList.memories.some(memory => memory.filename === filename)).toBe(true);
+  expect(cliList.memories.some(memory => memory.filename === filename)).toBe(true);
+  expect(httpSearch.results.some(result => result.memory.filename === filename)).toBe(true);
+  expect(udsSearch.results.some(result => result.memory.filename === filename)).toBe(true);
+  expect(cliSearch.results.some(result => result.memory.filename === filename)).toBe(true);
+
+  return {
+    cliList,
+    cliSearch,
+    httpEntry,
+    httpList,
+    httpSearch,
+    udsEntry,
+    udsList,
+    udsSearch,
+  };
+}
+
+async function readMemoryHTTP(
+  runtime: BrowserRuntime,
+  filename: string,
+  workspaceID: string
+): Promise<MemoryEntry> {
+  return await runtime.requestJSON<MemoryEntry>(memoryReadPath(filename, workspaceID));
+}
+
+function memoryReadPath(filename: string, workspaceID: string): string {
+  return `/api/memory/${encodeURIComponent(filename)}?scope=workspace&workspace_id=${encodeURIComponent(
+    workspaceID
+  )}`;
+}
+
+async function searchMemory(
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  queryText: string
+): Promise<MemorySearchResponse> {
+  return await runtime.requestJSON<MemorySearchResponse>("/api/memory/search", {
+    method: "POST",
+    body: JSON.stringify({
+      query_text: queryText,
+      scope: "workspace",
+      workspace_id: workspaceID,
+      top_k: 5,
+    }),
+  });
+}
+
+async function memoryCLI<T>(runtime: BrowserRuntime, args: string[]): Promise<T> {
+  if (!runtime.paths) {
+    throw new Error("memory CLI checks require launch-mode runtime paths.");
+  }
+  const { stdout } = await execFileAsync(runtime.paths.cliShim, [...args, "-o", "json"], {
+    env: cliEnv(runtime.paths),
+  });
+  expect(stdout).not.toMatch(sensitivePattern);
+  return JSON.parse(stdout) as T;
+}
+
+async function requestOperatorJSONOrThrow<T>(
+  runtime: BrowserRuntime,
+  pathname: string,
+  init?: RequestInit
+): Promise<T> {
+  if (!runtime.requestOperatorJSON) {
+    throw new Error("operator UDS parity checks require requestOperatorJSON.");
+  }
+  return await runtime.requestOperatorJSON<T>(pathname, init);
+}
+
+async function promptDiagnostics(
+  runtime: BrowserRuntime,
+  agentName: string
+): Promise<DiagnosticsRecord[]> {
+  if (!runtime.paths) {
+    throw new Error("prompt diagnostics require launch-mode runtime paths.");
+  }
+  const diagnosticsPath = path.join(runtime.paths.homeDir, "logs", "acpmock", `${agentName}.jsonl`);
+  await expect.poll(() => readFileIfExists(diagnosticsPath)).not.toBe("");
+  const text = await readFile(diagnosticsPath, "utf8");
+  return text
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => JSON.parse(line) as DiagnosticsRecord)
+    .filter(record => !record.lifecycle_event && record.prompt_index > 0);
+}
+
+async function promptForSession(
+  runtime: BrowserRuntime,
+  agentName: string,
+  acpSessionID: string
+): Promise<string> {
+  let prompt = "";
+  await expect
+    .poll(async () => {
+      const records = await promptDiagnostics(runtime, agentName);
+      const record = [...records]
+        .reverse()
+        .find(candidate => candidate.session_id === acpSessionID);
+      prompt = record?.prompt ?? "";
+      return prompt !== "";
+    })
+    .toBe(true);
+  return prompt;
+}
+
+async function acpSessionIDForSession(runtime: BrowserRuntime, sessionID: string): Promise<string> {
+  let acpSessionID = "";
+  await expect
+    .poll(async () => {
+      const detail = await runtime.requestJSON<SessionEnvelope>(
+        `/api/sessions/${encodeURIComponent(sessionID)}`
+      );
+      acpSessionID = detail.session.acp_session_id ?? "";
+      return acpSessionID !== "";
+    })
+    .toBe(true);
+  return acpSessionID;
+}
+
+async function assertStoredUserMessageClean(
+  runtime: BrowserRuntime,
+  sessionID: string
+): Promise<void> {
+  let userMessage: TranscriptMessage | undefined;
+  await expect
+    .poll(async () => {
+      const transcript = await runtime.requestJSON<{ messages: TranscriptMessage[] }>(
+        `/api/sessions/${encodeURIComponent(sessionID)}/transcript`
+      );
+      userMessage = transcript.messages.find(message => message.role === "user");
+      return transcriptMessageText(userMessage);
+    })
+    .toBe("remember me");
+  const serialized = JSON.stringify(userMessage ?? {});
+  expect(serialized).not.toContain("Relevant durable memory for this turn:");
+  expect(serialized).not.toMatch(sensitivePattern);
+}
+
+function transcriptMessageText(message: TranscriptMessage | undefined): string {
+  if (!message?.parts) {
+    return "";
+  }
+  return message.parts
+    .filter(part => part.type === "text")
+    .map(part => part.text ?? "")
+    .join("");
+}
+
+async function readRouteState(runtime: BrowserRuntime): Promise<Record<string, unknown>> {
+  return JSON.parse(
+    await readFile(runtime.artifactCollector.artifactPath("browser_route_state"), "utf8")
+  ) as Record<string, unknown>;
+}
+
+async function readFileIfExists(filePath: string): Promise<string> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch (error) {
+    const maybeNodeError = error as NodeJS.ErrnoException;
+    if (maybeNodeError.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  }
+}
+
+function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    AGH_HOME: paths.homeDir,
+    HOME: paths.homeDir,
+    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+  };
+}

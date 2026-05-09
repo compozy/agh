@@ -6,18 +6,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useDeleteMemory,
   useEditMemory,
+  useRevertMemoryDecision,
   useTriggerMemoryDream,
+  useWriteMemory,
 } from "@/systems/knowledge/hooks/use-knowledge-actions";
 import {
+  memoryDecisionRevertFixture,
   memoryDeleteFixture,
   memoryDreamTriggerFixture,
   memoryEditFixture,
+  memoryWriteFixture,
 } from "@/systems/knowledge/mocks";
 
 vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
   listMemories: vi.fn(),
   listMemoryDecisions: vi.fn(),
   readMemory: vi.fn(),
+  revertMemoryDecision: vi.fn(),
   searchMemory: vi.fn(),
   deleteMemory: vi.fn(),
   editMemory: vi.fn(),
@@ -28,7 +33,9 @@ vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
 import {
   deleteMemory,
   editMemory,
+  revertMemoryDecision,
   triggerMemoryDream,
+  writeMemory,
 } from "@/systems/knowledge/adapters/knowledge-api";
 
 describe("useDeleteMemory", () => {
@@ -163,6 +170,93 @@ describe("useEditMemory", () => {
     });
 
     expect(result.current.error).toBe(failure);
+  });
+});
+
+describe("useWriteMemory", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should call writeMemory and invalidate the knowledge cache on settle", async () => {
+    vi.mocked(writeMemory).mockResolvedValue(memoryWriteFixture);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useWriteMemory(), { wrapper });
+
+    act(() => {
+      result.current.mutate({
+        scope: "workspace",
+        workspace_id: "ws_launch",
+        type: "project",
+        name: "Launch Memory",
+        content: "memory body",
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(writeMemory).toHaveBeenCalledWith({
+      scope: "workspace",
+      workspace_id: "ws_launch",
+      type: "project",
+      name: "Launch Memory",
+      content: "memory body",
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
+  });
+});
+
+describe("useRevertMemoryDecision", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should call revertMemoryDecision and invalidate cache on settle", async () => {
+    vi.mocked(revertMemoryDecision).mockResolvedValue(memoryDecisionRevertFixture);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useRevertMemoryDecision(), { wrapper });
+
+    act(() => {
+      result.current.mutate({
+        decisionID: "dec_edit_fixture",
+        body: { reason: "operator reverted from Knowledge" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(revertMemoryDecision).toHaveBeenCalledWith("dec_edit_fixture", {
+      reason: "operator reverted from Knowledge",
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
   });
 });
 

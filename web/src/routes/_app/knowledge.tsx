@@ -1,9 +1,13 @@
-import { AlertCircle, BookOpen, Loader2 } from "lucide-react";
+import { AlertCircle, BookOpen, Loader2, Plus } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Empty, Input, PageHeader, PillGroup, SplitPane } from "@agh/ui";
+import { Button, Empty, Input, PageHeader, PillGroup, SplitPane } from "@agh/ui";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
-import { KnowledgeDetailPanel, KnowledgeListPanel } from "@/systems/knowledge";
+import {
+  KnowledgeCreateDialog,
+  KnowledgeDetailPanel,
+  KnowledgeListPanel,
+} from "@/systems/knowledge";
 
 export const Route = createFileRoute("/_app/knowledge")({
   component: KnowledgePage,
@@ -54,6 +58,17 @@ export function KnowledgePage() {
     <div className="flex flex-wrap items-center gap-3">
       {scopePills}
       {agentControls}
+      <Button
+        data-testid="create-memory-btn"
+        disabled={!page.canCreateMemory}
+        onClick={() => page.setCreateOpen(true)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <Plus className="size-3.5" />
+        Create
+      </Button>
     </div>
   );
 
@@ -145,6 +160,9 @@ export function KnowledgePage() {
             memory={page.selectedMemory}
             onDelete={page.handleDelete}
             onEdit={page.handleEdit}
+            onRevertDecision={page.handleRevertDecision}
+            revertError={page.revertError}
+            revertingDecisionId={page.revertingDecisionId}
             scope={page.selectedScope}
             status={{
               isDecisionsLoading: page.isDecisionsLoading,
@@ -165,6 +183,15 @@ export function KnowledgePage() {
             selectedMemoryKey={page.effectiveSelectedMemoryKey}
           />
         }
+      />
+      <KnowledgeCreateDialog
+        defaultType={page.createDefaultType}
+        error={page.createError}
+        isPending={page.isCreatePending}
+        onConfirm={page.handleCreate}
+        onOpenChange={page.setCreateOpen}
+        open={page.createOpen}
+        scope={page.activeScope}
       />
     </div>
   );

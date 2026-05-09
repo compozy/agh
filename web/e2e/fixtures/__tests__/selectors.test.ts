@@ -17,6 +17,10 @@ import {
   settingsProvidersTestIds,
   settingsShellTestIds,
   settingsSkillsTestIds,
+  sandboxOperatorSelectors,
+  sandboxOperatorTestIds,
+  skillsOperatorSelectors,
+  skillsOperatorTestIds,
   sessionLifecycleSelectors,
   sessionLifecycleTestIds,
   tasksOperatorSelectors,
@@ -41,7 +45,7 @@ describe("session lifecycle selectors", () => {
     expect(selectors.workspaceUseGlobal).toBe(
       `locator:${sessionLifecycleTestIds.workspaceUseGlobal}`
     );
-    expect(selectors.chatView).toBe("role:main:undefined");
+    expect(selectors.chatView).toBe(`locator:${sessionLifecycleTestIds.chatView}`);
     expect(selectors.composerTextarea).toBe("role:textbox:Session prompt");
     expect(selectors.composerSendButton).toBe("role:button:Send message");
     expect(selectors.permissionPrompt).toBe(`locator:${sessionLifecycleTestIds.permissionPrompt}`);
@@ -141,10 +145,46 @@ describe("bridge operator selectors", () => {
     expect(selectors.listPanel).toBe(`locator:${bridgeOperatorTestIds.bridgeListPanel}`);
     expect(selectors.detailPanel).toBe(`locator:${bridgeOperatorTestIds.bridgeDetailPanel}`);
     expect(selectors.createDialog).toBe(`locator:${bridgeOperatorTestIds.bridgeCreateDialog}`);
+    expect(selectors.createDisplayNameInput).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeDisplayNameInput}`
+    );
+    expect(selectors.createProviderConfigInput).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeProviderConfigInput}`
+    );
+    expect(selectors.createProviderConfigError).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeProviderConfigError}`
+    );
+    expect(selectors.createScopeSelect).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeScopeSelect}`
+    );
+    expect(selectors.createDeliveryModeSelect).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeDeliveryModeSelect}`
+    );
+    expect(selectors.createDeliveryPeerInput).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeDeliveryPeerInput}`
+    );
+    expect(selectors.createDeliveryThreadInput).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeDeliveryThreadInput}`
+    );
+    expect(selectors.createRoutingIncludePeer).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeRoutingIncludePeer}`
+    );
+    expect(selectors.createRoutingIncludeThread).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeRoutingIncludeThread}`
+    );
+    expect(selectors.submitBridgeCreate).toBe(
+      `locator:${bridgeOperatorTestIds.submitBridgeCreate}`
+    );
     expect(selectors.editDialog).toBe(`locator:${bridgeOperatorTestIds.bridgeEditDialog}`);
     expect(selectors.editBridgeButton).toBe(`locator:${bridgeOperatorTestIds.editBridgeButton}`);
+    expect(selectors.disableBridgeButton).toBe(
+      `locator:${bridgeOperatorTestIds.disableBridgeButton}`
+    );
     expect(selectors.enableBridgeButton).toBe(
       `locator:${bridgeOperatorTestIds.enableBridgeButton}`
+    );
+    expect(selectors.restartBridgeButton).toBe(
+      `locator:${bridgeOperatorTestIds.restartBridgeButton}`
     );
     expect(selectors.restartRequired).toBe(
       `locator:${bridgeOperatorTestIds.bridgeRestartRequired}`
@@ -166,9 +206,94 @@ describe("bridge operator selectors", () => {
     expect(selectors.secretBinding("bot_token")).toBe("locator:bridge-secret-binding-bot_token");
     expect(selectors.secretEnvInput("bot_token")).toBe("locator:bridge-secret-env-input-bot_token");
     expect(selectors.saveSecret("bot_token")).toBe("locator:save-bridge-secret-bot_token");
+    expect(selectors.deleteSecret("bot_token")).toBe("locator:delete-bridge-secret-bot_token");
     expect(selectors.route("sess_bridge_01")).toBe("locator:bridge-route-sess_bridge_01");
   });
 });
+
+describe("skills operator selectors", () => {
+  it("maps the Skills catalog, detail, marketplace, and workspace guard surfaces to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const selectors = skillsOperatorSelectors({
+      getByTestId,
+    });
+
+    expect(selectors.appSidebar).toBe(`locator:${skillsOperatorTestIds.appSidebar}`);
+    expect(selectors.contentBody).toBe(`locator:${skillsOperatorTestIds.contentBody}`);
+    expect(selectors.detailPanel).toBe(`locator:${skillsOperatorTestIds.detailPanel}`);
+    expect(selectors.enabledSwitch).toBe(`locator:${skillsOperatorTestIds.enabledSwitch}`);
+    expect(selectors.enabledToggle).toBe(`locator:${skillsOperatorTestIds.enabledToggle}`);
+    expect(selectors.listPanel).toBe(`locator:${skillsOperatorTestIds.listPanel}`);
+    expect(selectors.marketplaceEmpty).toBe(`locator:${skillsOperatorTestIds.marketplaceEmpty}`);
+    expect(selectors.marketplaceGrid).toBe(`locator:${skillsOperatorTestIds.marketplaceGrid}`);
+    expect(selectors.marketplaceReadonlyNotice).toBe(
+      `locator:${skillsOperatorTestIds.marketplaceReadonlyNotice}`
+    );
+    expect(selectors.marketplaceSearchInput).toBe(
+      `locator:${skillsOperatorTestIds.marketplaceSearchInput}`
+    );
+    expect(selectors.marketplaceView).toBe(`locator:${skillsOperatorTestIds.marketplaceView}`);
+    expect(selectors.navSkills).toBe(`locator:${skillsOperatorTestIds.navSkills}`);
+    expect(selectors.searchInput).toBe(`locator:${skillsOperatorTestIds.searchInput}`);
+    expect(selectors.shell).toBe(`locator:${skillsOperatorTestIds.shell}`);
+    expect(selectors.tabInstalled).toBe(`locator:${skillsOperatorTestIds.tabInstalled}`);
+    expect(selectors.tabMarketplace).toBe(`locator:${skillsOperatorTestIds.tabMarketplace}`);
+    expect(selectors.viewFullContent).toBe(`locator:${skillsOperatorTestIds.viewFullContent}`);
+    expect(selectors.workspaceOnboarding).toBe(
+      `locator:${skillsOperatorTestIds.workspaceOnboarding}`
+    );
+    expect(selectors.workspaceUseGlobal).toBe(
+      `locator:${skillsOperatorTestIds.workspaceUseGlobal}`
+    );
+    expect(selectors.item("browser-context-skill")).toBe(
+      "locator:skill-item-browser-context-skill"
+    );
+    expect(selectors.marketplaceRow("browser-marketplace-skill")).toBe(
+      "locator:marketplace-row-browser-marketplace-skill"
+    );
+  });
+});
+
+describe("sandbox operator selectors", () => {
+  it("maps the sandbox profile lifecycle surfaces to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const selectors = sandboxOperatorSelectors({
+      getByTestId,
+    });
+
+    expect(selectors.appSidebar).toBe(`locator:${sandboxOperatorTestIds.appSidebar}`);
+    expect(selectors.navSandbox).toBe(`locator:${sandboxOperatorTestIds.navSandbox}`);
+    expect(selectors.shell).toBe(`locator:${sandboxOperatorTestIds.shell}`);
+    expect(selectors.total).toBe(`locator:${sandboxOperatorTestIds.total}`);
+    expect(selectors.workspaceReferences).toBe(
+      `locator:${sandboxOperatorTestIds.workspaceReferences}`
+    );
+    expect(selectors.createButton).toBe(`locator:${sandboxOperatorTestIds.createButton}`);
+    expect(selectors.editor).toBe(`locator:${sandboxOperatorTestIds.editor}`);
+    expect(selectors.editorNameInput).toBe(`locator:${sandboxOperatorTestIds.editorNameInput}`);
+    expect(selectors.editorBackendInput).toBe(
+      `locator:${sandboxOperatorTestIds.editorBackendInput}`
+    );
+    expect(selectors.editorSave).toBe(`locator:${sandboxOperatorTestIds.editorSave}`);
+    expect(selectors.deleteDialog).toBe(`locator:${sandboxOperatorTestIds.deleteDialog}`);
+    expect(selectors.deleteConfirm).toBe(`locator:${sandboxOperatorTestIds.deleteConfirm}`);
+    expect(selectors.deleteUsage).toBe(`locator:${sandboxOperatorTestIds.deleteUsage}`);
+    expect(selectors.actionResult).toBe(`locator:${sandboxOperatorTestIds.actionResult}`);
+    expect(selectors.profile("browser-local-sandbox")).toBe(
+      "locator:sandbox-page-card-browser-local-sandbox"
+    );
+    expect(selectors.profileMetadata("browser-local-sandbox")).toBe(
+      "locator:sandbox-page-card-browser-local-sandbox-profile"
+    );
+    expect(selectors.editProfile("browser-local-sandbox")).toBe(
+      "locator:sandbox-page-card-browser-local-sandbox-edit"
+    );
+    expect(selectors.deleteProfile("browser-local-sandbox")).toBe(
+      "locator:sandbox-page-card-browser-local-sandbox-delete"
+    );
+  });
+});
+
 describe("settings operator selectors", () => {
   it("maps shell, restart-aware sections, collection rows, and hooks/extensions toggles to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);

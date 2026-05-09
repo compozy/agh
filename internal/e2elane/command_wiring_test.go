@@ -235,9 +235,14 @@ func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) 
 			command: "bun run codegen-check && bun run test:e2e:nightly:raw",
 		},
 		{
-			name:    "Should allow nightly browser lane to pass with no tests",
+			name:    "Should gate nightly browser coverage before Playwright runs",
+			script:  "test:e2e:nightly:check",
+			command: "bun run e2e/scripts/check-nightly-coverage.ts",
+		},
+		{
+			name:    "Should fail nightly browser lane when expected tests are absent",
 			script:  "test:e2e:nightly:raw",
-			command: "playwright test --grep @nightly --pass-with-no-tests",
+			command: "bun run test:e2e:nightly:check && playwright test --grep @nightly",
 		},
 	}
 

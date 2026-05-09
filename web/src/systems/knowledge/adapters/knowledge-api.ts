@@ -8,6 +8,8 @@ import {
 import type {
   KnowledgeSelector,
   MemoryDecisionOp,
+  MemoryDecisionRevertRequest,
+  MemoryDecisionRevertResponse,
   MemoryDecisionsResponse,
   MemoryDeleteResponse,
   MemoryDreamTriggerResponse,
@@ -203,6 +205,31 @@ export async function listMemoryDecisions(
     );
   }
   return requireResponseData(data, response, "Failed to load memory decisions");
+}
+
+export async function revertMemoryDecision(
+  decisionID: string,
+  body: MemoryDecisionRevertRequest = {},
+  signal?: AbortSignal
+): Promise<MemoryDecisionRevertResponse> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/memory/decisions/{decision_id}/revert",
+    {
+      params: { path: { decision_id: decisionID } },
+      body,
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new KnowledgeApiError(`Memory decision not found: ${decisionID}`, 404);
+    }
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage(`Failed to revert memory decision "${decisionID}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to revert memory decision "${decisionID}"`);
 }
 
 export async function triggerMemoryDream(

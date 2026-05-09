@@ -277,6 +277,253 @@ describe("captureRouteState", () => {
     });
   });
 
+  it("captures knowledge route scope, dialogs, decisions, and selected item", async () => {
+    window.history.replaceState({}, "", "/knowledge");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <main data-testid="knowledge-shell">
+        <button data-testid="tab-global" aria-pressed="false"></button>
+        <button data-testid="tab-workspace" aria-pressed="true"></button>
+        <button data-testid="tab-agent" aria-pressed="false"></button>
+        <aside data-testid="knowledge-list-panel">
+          <p data-testid="knowledge-search-info">Recall 1 of top-K</p>
+          <button data-testid="memory-item-workspace:launch-memory.md" data-state="selected">
+            Launch Memory
+          </button>
+          <button data-testid="memory-item-workspace:other-memory.md">Other Memory</button>
+        </aside>
+        <section data-testid="knowledge-detail-panel">
+          <article data-testid="knowledge-decision-dec_write"></article>
+          <button data-testid="revert-memory-decision-dec_write"></button>
+        </section>
+        <form data-testid="knowledge-create-dialog"></form>
+        <form data-testid="knowledge-edit-dialog"></form>
+        <form data-testid="knowledge-delete-dialog"></form>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/knowledge",
+      knowledge_create_dialog_open: true,
+      knowledge_decisions_count: 1,
+      knowledge_delete_dialog_open: true,
+      knowledge_detail_visible: true,
+      knowledge_edit_dialog_open: true,
+      knowledge_item_count: 2,
+      knowledge_revert_button_count: 1,
+      knowledge_scope: "workspace",
+      knowledge_search_active: true,
+      knowledge_selected_item: "Launch Memory",
+      knowledge_view_visible: true,
+    });
+  });
+
+  it("captures Skills route catalog, detail, enabled state, and marketplace context", async () => {
+    window.history.replaceState({}, "", "/skills");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <main data-testid="skills-shell">
+        <button data-testid="tab-installed" aria-selected="true"></button>
+        <button data-testid="tab-marketplace" aria-selected="false"></button>
+        <input data-testid="skill-search-input" value="browser-context" />
+        <aside data-testid="skill-list-panel">
+          <button data-testid="skill-item-browser-context-skill" data-state="selected">
+            Browser Context Skill
+          </button>
+          <button data-testid="skill-item-browser-other-skill">Other Skill</button>
+        </aside>
+        <section data-testid="skill-detail-panel">
+          <button data-testid="skill-enabled-toggle">Enabled</button>
+          <article data-testid="content-body">Skill content</article>
+        </section>
+      </main>
+    `;
+
+    const installedState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(installedState).toMatchObject({
+      pathname: "/skills",
+      skills_active_tab: "installed",
+      skills_content_visible: true,
+      skills_detail_visible: true,
+      skills_enabled_state: "enabled",
+      skills_item_count: 2,
+      skills_marketplace_count: 0,
+      skills_search_active: true,
+      skills_selected_item: "browser-context-skill",
+      skills_view_visible: true,
+    });
+
+    document.body.innerHTML = `
+      <main data-testid="skills-shell">
+        <button data-testid="tab-installed" aria-selected="false"></button>
+        <button data-testid="tab-marketplace" aria-selected="true"></button>
+        <input data-testid="marketplace-search-input" value="browser-marketplace" />
+        <section data-testid="marketplace-view">
+          <div data-testid="marketplace-readonly-notice">Installed marketplace metadata only</div>
+          <div data-testid="marketplace-grid">
+            <article data-testid="marketplace-row-browser-marketplace-skill">Installed</article>
+          </div>
+        </section>
+        <section data-testid="skill-detail-panel">
+          <button data-testid="skill-enabled-toggle">Disabled</button>
+        </section>
+      </main>
+    `;
+
+    const marketplaceState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(marketplaceState).toMatchObject({
+      pathname: "/skills",
+      skills_active_tab: "marketplace",
+      skills_content_visible: false,
+      skills_detail_visible: true,
+      skills_enabled_state: "disabled",
+      skills_item_count: 0,
+      skills_marketplace_count: 1,
+      skills_search_active: true,
+      skills_view_visible: true,
+    });
+    expect(marketplaceState.skills_selected_item).toBeUndefined();
+  });
+
+  it("captures sandbox route profile counts, dialogs, and restart state", async () => {
+    window.history.replaceState({}, "", "/sandbox");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <main data-testid="sandbox-shell">
+        <p data-testid="sandbox-page-total">2 profiles</p>
+        <p data-testid="sandbox-page-workspaces">1 workspace reference</p>
+        <table data-testid="sandbox-page-list">
+          <tbody>
+            <tr data-testid="sandbox-page-card-browser-local-sandbox">
+              <td data-testid="sandbox-page-card-browser-local-sandbox-profile">local / reuse</td>
+              <td data-testid="sandbox-page-card-browser-local-sandbox-source">CONFIG</td>
+              <td data-testid="sandbox-page-card-browser-local-sandbox-usage">1 workspace</td>
+            </tr>
+            <tr data-testid="sandbox-page-card-browser-blocked-sandbox"></tr>
+          </tbody>
+        </table>
+        <form data-testid="settings-sandbox-editor"></form>
+        <section data-testid="settings-sandboxes-delete"></section>
+        <section data-testid="sandbox-page-action-result"></section>
+        <section data-testid="settings-page-sandbox-restart-banner"></section>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/sandbox",
+      sandbox_action_result_visible: true,
+      sandbox_delete_dialog_open: true,
+      sandbox_editor_open: true,
+      sandbox_profile_count: 2,
+      sandbox_profile_names: ["browser-local-sandbox", "browser-blocked-sandbox"],
+      sandbox_restart_banner_visible: true,
+      sandbox_total_text: "2 profiles",
+      sandbox_view_visible: true,
+      sandbox_workspace_references_text: "1 workspace reference",
+    });
+  });
+
+  it("captures Settings route section, vault, provider, and restart state", async () => {
+    window.history.replaceState({}, "", "/settings/vault");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <main data-testid="settings-shell">
+        <nav data-testid="settings-section-nav">
+          <a data-testid="settings-section-general"></a>
+          <a data-testid="settings-section-vault"></a>
+          <a data-testid="settings-section-network"></a>
+        </nav>
+        <section data-testid="settings-page-vault-action-result"></section>
+        <form data-testid="settings-vault-editor"></form>
+        <section data-testid="settings-vault-delete"></section>
+        <section data-testid="settings-page-network-restart-banner"></section>
+        <footer data-testid="settings-page-network-save-bar"></footer>
+        <table data-testid="settings-page-vault-table">
+          <tr data-testid="vault-secrets-row"></tr>
+          <tr data-testid="vault-secrets-row"></tr>
+        </table>
+        <article data-testid="settings-page-providers-card-codex">
+          <button data-testid="settings-page-providers-card-codex-edit"></button>
+        </article>
+        <article data-testid="settings-page-providers-card-claude">
+          <button data-testid="settings-page-providers-card-claude-edit"></button>
+        </article>
+        <table>
+          <tbody>
+            <tr data-testid="settings-page-mcp-servers-row-filesystem">
+              <td><button data-testid="settings-page-mcp-servers-row-filesystem-delete"></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/settings/vault",
+      settings_action_result_visible: true,
+      settings_active_section: "vault",
+      settings_mcp_server_count: 1,
+      settings_provider_card_count: 2,
+      settings_restart_banner_visible: true,
+      settings_save_bar_visible: true,
+      settings_section_count: 3,
+      settings_vault_delete_dialog_open: true,
+      settings_vault_editor_open: true,
+      settings_vault_secret_count: 2,
+      settings_view_visible: true,
+    });
+  });
+
+  it("captures clean Settings section state without modal or restart affordances", async () => {
+    window.history.replaceState({}, "", "/settings/general");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <main data-testid="settings-shell">
+        <nav data-testid="settings-section-nav">
+          <a data-testid="settings-section-general"></a>
+          <a data-testid="settings-section-vault"></a>
+        </nav>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/settings/general",
+      settings_active_section: "general",
+      settings_mcp_server_count: 0,
+      settings_provider_card_count: 0,
+      settings_restart_banner_visible: false,
+      settings_save_bar_visible: false,
+      settings_section_count: 2,
+      settings_vault_delete_dialog_open: false,
+      settings_vault_editor_open: false,
+      settings_vault_secret_count: 0,
+      settings_view_visible: true,
+    });
+    expect(routeState.settings_action_result_visible).toBe(false);
+  });
+
   it("captures dashboard health and metric route context", async () => {
     window.history.replaceState({}, "", "/");
     document.title = "AGH";

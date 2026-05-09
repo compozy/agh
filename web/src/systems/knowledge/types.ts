@@ -6,6 +6,7 @@ export type MemoryWriteResponse = OperationResponse<"writeMemory", 200>;
 export type MemoryEditResponse = OperationResponse<"editMemory", 200>;
 export type MemoryDeleteResponse = OperationResponse<"deleteMemory", 200>;
 export type MemoryDreamTriggerResponse = OperationResponse<"triggerMemoryDream", 200>;
+export type MemoryDecisionRevertResponse = OperationResponse<"revertMemoryDecision", 200>;
 
 export type MemorySearchRequest = OperationRequestBody<"searchMemory">;
 export type MemorySearchResponse = OperationResponse<"searchMemory", 200>;
@@ -18,6 +19,7 @@ export type MemoryDecisionSource = MemoryDecision["source"];
 
 export type MemoryWriteRequest = OperationRequestBody<"writeMemory">;
 export type MemoryEditRequest = OperationRequestBody<"editMemory">;
+export type MemoryDecisionRevertRequest = OperationRequestBody<"revertMemoryDecision">;
 
 export type MemoryListQuery = NonNullable<OperationQuery<"listMemory">>;
 export type MemoryScope = MemoryListQuery["scope"];

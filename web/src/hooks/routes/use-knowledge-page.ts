@@ -9,6 +9,8 @@ import {
   useMemory,
   useMemoryDecisions,
   useMemorySearch,
+  useRevertMemoryDecision,
+  useWriteMemory,
   type EditMemoryParams,
   type KnowledgeAgentTier,
   type KnowledgeMemoryItem,
@@ -17,6 +19,8 @@ import {
   type MemoryDecision,
   type MemoryEditRequest,
   type MemoryHeader,
+  type MemoryType,
+  type MemoryWriteRequest,
 } from "@/systems/knowledge";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -69,6 +73,8 @@ function useKnowledgePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMemoryKey, setSelectedMemoryKey] = useState<string | null>(null);
   const [actionTargetKey, setActionTargetKey] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [revertingDecisionId, setRevertingDecisionId] = useState<string | null>(null);
 
   const trimmedAgentName = agentName.trim();
   const trimmedSearchQuery = searchQuery.trim();
@@ -122,6 +128,20 @@ function useKnowledgePage() {
     mutateAsync: editMemoryMutate,
     reset: resetEditMutation,
   } = useEditMemory();
+
+  const {
+    error: writeMutationError,
+    isPending: isCreatePending,
+    mutateAsync: writeMemoryMutate,
+    reset: resetWriteMutation,
+  } = useWriteMemory();
+
+  const {
+    error: revertMutationError,
+    isPending: isRevertPending,
+    mutateAsync: revertMemoryDecisionMutate,
+    reset: resetRevertMutation,
+  } = useRevertMemoryDecision();
 
   const listMemories = useMemo<KnowledgeMemoryItem[]>(() => {
     if (searchEnabled) {
@@ -196,7 +216,14 @@ function useKnowledgePage() {
     if (editMutationError !== null) {
       resetEditMutation();
     }
+    if (writeMutationError !== null) {
+      resetWriteMutation();
+    }
+    if (revertMutationError !== null) {
+      resetRevertMutation();
+    }
     setActionTargetKey(null);
+    setRevertingDecisionId(null);
   };
 
   const handleSetActiveScope = (nextScope: KnowledgeScope) => {
@@ -222,6 +249,40 @@ function useKnowledgePage() {
   const handleSetSelectedMemoryKey = (next: string | null) => {
     clearActionState();
     setSelectedMemoryKey(next);
+  };
+
+  const handleSetCreateOpen = (next: boolean) => {
+    if (next) {
+      resetWriteMutation();
+    }
+    setCreateOpen(next);
+  };
+
+  const handleCreate = async (input: {
+    type: MemoryType;
+    name: string;
+    description?: string;
+    content: string;
+  }) => {
+    if (!selector) {
+      return;
+    }
+    resetWriteMutation();
+    const body: MemoryWriteRequest = {
+      scope: selector.scope,
+      type: input.type,
+      name: input.name,
+      description: input.description,
+      content: input.content,
+      workspace_id: selector.workspaceId,
+      agent_name: selector.agentName,
+      agent_tier: selector.agentTier,
+    };
+    const response = await writeMemoryMutate(body);
+    const filename = response.decision.target_filename ?? response.decision.frontmatter.filename;
+    setSearchQuery("");
+    setSelectedMemoryKey(`${selector.scope}:${filename}`);
+    setCreateOpen(false);
   };
 
   const handleDelete = async (memory: KnowledgeMemoryItem) => {
@@ -258,6 +319,18 @@ function useKnowledgePage() {
     setActionTargetKey(prev => (prev === memoryKey ? null : prev));
   };
 
+  const handleRevertDecision = async (decision: MemoryDecision) => {
+    resetRevertMutation();
+    setRevertingDecisionId(decision.id);
+    await revertMemoryDecisionMutate({
+      decisionID: decision.id,
+      body: { reason: "operator reverted from Knowledge" },
+    });
+    const filename = decision.target_filename ?? decision.frontmatter.filename;
+    setSelectedMemoryKey(`${decision.scope}:${filename}`);
+    setRevertingDecisionId(prev => (prev === decision.id ? null : prev));
+  };
+
   const selectedTargetMatches = (() => {
     if (!selectedMemory) return false;
     const key = knowledgeMemoryKey(selectedMemory);
@@ -272,6 +345,12 @@ function useKnowledgePage() {
     selectedTargetMatches && editMutationError
       ? describeError(editMutationError, "Failed to edit knowledge entry")
       : null;
+  const createError = writeMutationError
+    ? describeError(writeMutationError, "Failed to create knowledge entry")
+    : null;
+  const revertError = revertMutationError
+    ? describeError(revertMutationError, "Failed to revert memory decision")
+    : null;
 
   const requiresWorkspace = activeScope === "workspace" && !activeWorkspaceId;
   const requiresAgentName = activeScope === "agent" && trimmedAgentName === "";
@@ -294,7 +373,6 @@ function useKnowledgePage() {
     setAgentTier: handleSetAgentTier,
     searchQuery,
     setSearchQuery: handleSetSearchQuery,
-    selectedMemoryKey: effectiveSelectedMemoryKey,
     setSelectedMemoryKey: handleSetSelectedMemoryKey,
     effectiveSelectedMemoryKey,
     memories: visibleMemories,
@@ -312,13 +390,23 @@ function useKnowledgePage() {
     handleEdit,
     isEditPending,
     editError,
+    createOpen,
+    setCreateOpen: handleSetCreateOpen,
+    handleCreate,
+    isCreatePending,
+    createError,
+    createDefaultType: (activeScope === "workspace" ? "project" : "user") as MemoryType,
+    canCreateMemory: Boolean(selector),
     decisions: decisionsForSelected,
     decisionsError: decisionsQuery.error,
     isDecisionsLoading: decisionsQuery.isLoading && Boolean(selectedMemory),
+    handleRevertDecision,
+    revertingDecisionId,
+    isRevertPending,
+    revertError,
     searchActive: searchEnabled,
     searchInfo,
     guardMessage,
-    selector,
   };
 }
 

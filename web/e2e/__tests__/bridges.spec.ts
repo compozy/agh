@@ -1,8 +1,23 @@
+import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
+import type { Page } from "@playwright/test";
+import type {
+  BridgeDetailResponse,
+  BridgeHealth,
+  BridgeRoute,
+  BridgeSecretBinding,
+  BridgeSummary,
+  TestBridgeDeliveryResponse,
+} from "@/systems/bridges";
+
+import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
+import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   browserBridgeOperatorFlowScenario,
   seedBrowserBridgeOperatorFlow,
@@ -22,6 +37,18 @@ const bridgeIngressFixture = path.resolve(
   "testdata",
   "bridge_ingress_fixture.json"
 );
+
+const execFileAsync = promisify(execFile);
+const bridgeRawSecret = "telegram-super-secret-token-09";
+const bridgeSensitiveValues = [
+  browserBridgeOperatorFlowScenario.secretBinding.value,
+  bridgeRawSecret,
+  "agh_claim_bridge_secret_09",
+  "mcp-auth-token-bridge-09",
+  "oauth-bridge-secret-09",
+  "pkce-bridge-secret-09",
+  "bridge-webhook-secret-09",
+] as const;
 
 const bridgeRuntimeEnv = {
   AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
@@ -209,5 +236,390 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   await expect
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
     .toContain("ready");
+  const routeSnapshots = await collectBridgeRouteSnapshots(runtime, seeded.bridge.id);
+  expect(routeSnapshots.http.routes.some(route => route.session_id === ingress.sessionId)).toBe(
+    true
+  );
+  expect(routeSnapshots.uds.routes.some(route => route.session_id === ingress.sessionId)).toBe(
+    true
+  );
+  expect(routeSnapshots.cliRoutes.some(route => route.session_id === ingress.sessionId)).toBe(true);
+  assertNoSensitiveText("seeded bridge route snapshots", JSON.stringify(routeSnapshots));
+  const routeState = await captureRouteState(appPage);
+  expect(routeState.bridge_view_visible).toBe(true);
+  expect(routeState.bridge_route_count).toBeGreaterThanOrEqual(1);
+  expect(routeState.bridge_detail_visible).toBe(true);
   await browserArtifacts.captureScreenshot("bridge-health-stream-updated", appPage);
 });
+
+test("operator creates a bridge, rotates secrets, diagnoses auth failure, and recovers after restart", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const bridgeUI = bridgeOperatorSelectors(appPage);
+  const seeded = await seedBrowserBridgeOperatorFlow(runtime, {
+    displayName: "Telegram Seed Provider Anchor",
+  });
+  const providerKey = `${seeded.provider.extension_name}::${seeded.provider.platform}`;
+  const createdName = "Telegram Browser Lifecycle";
+
+  await useGlobalWorkspaceIfPrompted(bridgeUI);
+  await bridgeUI.navBridges.click();
+  await expect(appPage).toHaveURL(/\/bridges$/);
+  await expect(bridgeUI.listPanel).toBeVisible();
+
+  await bridgeUI.createBridgeButton.click();
+  await expect(bridgeUI.createDialog).toBeVisible();
+  await expect(bridgeUI.providerCard(providerKey)).toBeVisible();
+  await bridgeUI.providerCard(providerKey).click();
+  await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
+
+  await bridgeUI.createProviderConfigInput.fill("{invalid-json");
+  await expect(bridgeUI.createProviderConfigError).toBeVisible();
+  await expect(bridgeUI.submitBridgeCreate).toBeDisabled();
+  await browserArtifacts.captureScreenshot("bridge-create-invalid-provider-config", appPage);
+
+  await bridgeUI.createProviderConfigInput.fill(
+    JSON.stringify(
+      {
+        mode: "bot",
+        webhook_url: "https://example.test/browser-bridge-lifecycle",
+      },
+      null,
+      2
+    )
+  );
+  await bridgeUI.createDisplayNameInput.fill(createdName);
+  await bridgeUI.createScopeSelect.selectOption("workspace");
+  await bridgeUI.createDeliveryModeSelect.selectOption("direct-send");
+  await bridgeUI.createDeliveryPeerInput.fill("telegram-peer-lifecycle");
+  await bridgeUI.createDeliveryThreadInput.fill("777");
+  await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
+  await bridgeUI.submitBridgeCreate.click();
+
+  await expect(bridgeUI.createDialog).toBeHidden();
+  const createdBridge = await waitForBridgeByName(runtime, createdName);
+  await bridgeUI.item(createdBridge.id).click();
+  await expect(bridgeUI.detailPanel).toContainText(createdName);
+  await expect(bridgeUI.detailPanel).toContainText("UNBOUND");
+  await browserArtifacts.captureScreenshot("bridge-created-unbound", appPage);
+
+  const initialSnapshots = await collectBridgeSnapshots(runtime, createdBridge.id);
+  expect(initialSnapshots.http.bridge.id).toBe(createdBridge.id);
+  expect(initialSnapshots.uds.bridge.id).toBe(createdBridge.id);
+  expect(initialSnapshots.cli.id).toBe(createdBridge.id);
+  expect(initialSnapshots.http.bridge.enabled).toBe(true);
+  expect(initialSnapshots.uds.bridge.enabled).toBe(true);
+  expect(initialSnapshots.cli.enabled).toBe(true);
+  expect(initialSnapshots.http.health.status).toBe("auth_required");
+  expect(initialSnapshots.uds.health.status).toBe("auth_required");
+  assertNoSensitiveText("initial bridge snapshots", JSON.stringify(initialSnapshots));
+
+  await bridgeUI
+    .secretEnvInput(browserBridgeOperatorFlowScenario.secretBinding.name)
+    .fill(bridgeRawSecret);
+  await expect(
+    bridgeUI.saveSecret(browserBridgeOperatorFlowScenario.secretBinding.name)
+  ).toBeEnabled();
+  await bridgeUI.saveSecret(browserBridgeOperatorFlowScenario.secretBinding.name).click();
+  await expect(
+    bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
+  ).toContainText("BOUND");
+  await expect(
+    bridgeUI.secretEnvInput(browserBridgeOperatorFlowScenario.secretBinding.name)
+  ).toHaveValue("");
+  await expect(bridgeUI.restartRequired).toBeVisible();
+
+  const boundSnapshots = await collectBridgeSnapshots(runtime, createdBridge.id);
+  expect(
+    boundSnapshots.httpBindings.bindings.some(
+      binding =>
+        binding.binding_name === browserBridgeOperatorFlowScenario.secretBinding.name &&
+        binding.secret_ref ===
+          `vault:bridges/${createdBridge.id}/${browserBridgeOperatorFlowScenario.secretBinding.name}`
+    )
+  ).toBe(true);
+  expect(
+    boundSnapshots.cliBindings.bindings.some(
+      binding => binding.binding_name === browserBridgeOperatorFlowScenario.secretBinding.name
+    )
+  ).toBe(true);
+  assertNoSensitiveText("bound secret snapshots", JSON.stringify(boundSnapshots));
+
+  await bridgeUI.restartBridgeButton.click();
+  await waitForBridgeStatus(runtime, createdBridge.id, "ready");
+  await expect
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
+    .toContain("ready");
+
+  await bridgeUI.disableBridgeButton.click();
+  await waitForBridgeStatus(runtime, createdBridge.id, "disabled");
+  await expect
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
+    .toContain("disabled");
+
+  await bridgeUI.enableBridgeButton.click();
+  await waitForBridgeStatus(runtime, createdBridge.id, "ready");
+  await bridgeUI.restartBridgeButton.click();
+  await waitForBridgeStatus(runtime, createdBridge.id, "ready");
+  await expect
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
+    .toContain("ready");
+  await browserArtifacts.captureScreenshot("bridge-ready-after-restart", appPage);
+
+  const delivery = await testBridgeDelivery(runtime, createdBridge.id);
+  expect(delivery.status).toBe("resolved");
+  expect(delivery.delivery_target.bridge_instance_id).toBe(createdBridge.id);
+  await browserArtifacts.captureScreenshot("bridge-created-outbound-resolved", appPage);
+
+  await bridgeUI.deleteSecret(browserBridgeOperatorFlowScenario.secretBinding.name).click();
+  await expect(
+    bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
+  ).toContainText("UNBOUND");
+  await expect(bridgeUI.restartRequired).toBeVisible();
+
+  await bridgeUI.restartBridgeButton.click();
+  const authRequired = await waitForBridgeStatus(runtime, createdBridge.id, "auth_required");
+  expect(authRequired.health.status).toBe("auth_required");
+  await expect
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
+    .toContain("auth_required");
+  await browserArtifacts.captureScreenshot("bridge-auth-required-after-secret-delete", appPage);
+
+  await bridgeUI
+    .secretEnvInput(browserBridgeOperatorFlowScenario.secretBinding.name)
+    .fill(bridgeRawSecret);
+  await bridgeUI.saveSecret(browserBridgeOperatorFlowScenario.secretBinding.name).click();
+  await expect(
+    bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
+  ).toContainText("BOUND");
+  await bridgeUI.restartBridgeButton.click();
+  await waitForBridgeStatus(runtime, createdBridge.id, "ready");
+  await expect
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
+    .toContain("ready");
+
+  await assertBridgeResponsive(appPage, bridgeUI, createdBridge.id);
+  const routeState = await captureRouteState(appPage);
+  expect(routeState.bridge_view_visible).toBe(true);
+  expect(routeState.bridge_selected_item).toBe(createdName);
+  expect(routeState.bridge_secret_binding_count).toBeGreaterThanOrEqual(1);
+  expect(routeState.bridge_route_count).toBeGreaterThanOrEqual(0);
+  expect(routeState.bridge_detail_visible).toBe(true);
+
+  await assertBridgeDeleteSurfaceAbsent(runtime);
+  await assertNoBridgeSensitiveLeaks(appPage, runtime, "final bridge browser/runtime evidence");
+});
+
+interface BridgeListResponse {
+  bridges: BridgeSummary[];
+}
+
+interface BridgeBindingsResponse {
+  bindings: BridgeSecretBinding[];
+}
+
+interface BridgeRoutesResponse {
+  routes: BridgeRoute[];
+}
+
+interface BridgeCLIRecord {
+  id: string;
+  display_name: string;
+  enabled: boolean;
+  platform: string;
+  status: string;
+}
+
+interface BridgeCLIBindingsResponse {
+  bindings: BridgeSecretBinding[];
+}
+
+interface BridgeCLIRoutesBundle {
+  bridge_routes: BridgeRoute[];
+}
+
+type BridgeCLIRoutesResponse = BridgeRoute[] | BridgeCLIRoutesBundle;
+
+async function waitForBridgeByName(
+  runtime: BrowserRuntime,
+  displayName: string
+): Promise<BridgeSummary> {
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    const payload = await runtime.requestJSON<BridgeListResponse>("/api/bridges");
+    const bridge = payload.bridges.find(candidate => candidate.display_name === displayName);
+    if (bridge) {
+      return bridge;
+    }
+    await delay(250);
+  }
+  throw new Error(`bridge ${displayName} was not present after wait`);
+}
+
+async function waitForBridgeStatus(
+  runtime: BrowserRuntime,
+  bridgeId: string,
+  status: BridgeHealth["status"]
+): Promise<BridgeDetailResponse> {
+  const deadline = Date.now() + 60_000;
+  let lastStatus: string | undefined;
+  while (Date.now() < deadline) {
+    const payload = await runtime.requestJSON<BridgeDetailResponse>(
+      `/api/bridges/${encodeURIComponent(bridgeId)}`
+    );
+    lastStatus = payload.health.status;
+    if (lastStatus === status) {
+      return payload;
+    }
+    await delay(250);
+  }
+  throw new Error(`bridge ${bridgeId} status is ${lastStatus ?? "unknown"}; expected ${status}`);
+}
+
+async function collectBridgeSnapshots(runtime: BrowserRuntime, bridgeId: string) {
+  const http = await runtime.requestJSON<BridgeDetailResponse>(
+    `/api/bridges/${encodeURIComponent(bridgeId)}`
+  );
+  const uds = await requestOperatorJSONOrThrow<BridgeDetailResponse>(
+    runtime,
+    `/api/bridges/${encodeURIComponent(bridgeId)}`
+  );
+  const httpBindings = await runtime.requestJSON<BridgeBindingsResponse>(
+    `/api/bridges/${encodeURIComponent(bridgeId)}/secret-bindings`
+  );
+  const udsBindings = await requestOperatorJSONOrThrow<BridgeBindingsResponse>(
+    runtime,
+    `/api/bridges/${encodeURIComponent(bridgeId)}/secret-bindings`
+  );
+  const cli = await bridgeCLI<BridgeCLIRecord>(runtime, ["bridge", "get", bridgeId]);
+  const cliBindings = await bridgeCLI<BridgeCLIBindingsResponse>(runtime, [
+    "bridge",
+    "secret-bindings",
+    "list",
+    bridgeId,
+  ]);
+
+  return { cli, cliBindings, http, httpBindings, uds, udsBindings };
+}
+
+async function collectBridgeRouteSnapshots(runtime: BrowserRuntime, bridgeId: string) {
+  const http = await runtime.requestJSON<BridgeRoutesResponse>(
+    `/api/bridges/${encodeURIComponent(bridgeId)}/routes`
+  );
+  const uds = await requestOperatorJSONOrThrow<BridgeRoutesResponse>(
+    runtime,
+    `/api/bridges/${encodeURIComponent(bridgeId)}/routes`
+  );
+  const cli = await bridgeCLI<BridgeCLIRoutesResponse>(runtime, ["bridge", "routes", bridgeId]);
+  const cliRoutes = Array.isArray(cli) ? cli : cli.bridge_routes;
+  return { cli, cliRoutes, http, uds };
+}
+
+async function testBridgeDelivery(
+  runtime: BrowserRuntime,
+  bridgeId: string
+): Promise<TestBridgeDeliveryResponse> {
+  return await runtime.requestJSON<TestBridgeDeliveryResponse>(
+    `/api/bridges/${encodeURIComponent(bridgeId)}/test-delivery`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: "Lifecycle delivery dry-run",
+        target: {
+          mode: "direct-send",
+          peer_id: "telegram-peer-lifecycle",
+          thread_id: "777",
+        },
+      }),
+    }
+  );
+}
+
+async function bridgeCLI<T>(runtime: BrowserRuntime, args: string[]): Promise<T> {
+  if (!runtime.paths) {
+    throw new Error("bridge CLI parity checks require launch-mode runtime paths");
+  }
+  const { stdout } = await execFileAsync(runtime.paths.cliShim, [...args, "-o", "json"], {
+    env: cliEnv(runtime.paths),
+    timeout: 30_000,
+  });
+  assertNoSensitiveText(`bridge CLI ${args.join(" ")}`, stdout);
+  return JSON.parse(stdout) as T;
+}
+
+async function requestOperatorJSONOrThrow<T>(
+  runtime: BrowserRuntime,
+  pathname: string,
+  init?: RequestInit
+): Promise<T> {
+  if (!runtime.requestOperatorJSON) {
+    throw new Error("bridge UDS parity checks require requestOperatorJSON");
+  }
+  return await runtime.requestOperatorJSON<T>(pathname, init);
+}
+
+async function assertBridgeResponsive(
+  appPage: Page,
+  bridgeUI: ReturnType<typeof bridgeOperatorSelectors>,
+  bridgeId: string
+): Promise<void> {
+  for (const viewport of [
+    { height: 900, name: "mobile", width: 375 },
+    { height: 900, name: "tablet", width: 768 },
+    { height: 900, name: "desktop", width: 1280 },
+  ]) {
+    await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
+    await expect(bridgeUI.listPanel).toBeVisible();
+    await expect(bridgeUI.detailPanel).toBeVisible();
+    await expect(bridgeUI.item(bridgeId)).toBeVisible();
+    await expect(bridgeUI.restartBridgeButton).toBeVisible();
+    await expect(bridgeUI.openTestDeliveryButton).toBeVisible();
+  }
+}
+
+async function assertBridgeDeleteSurfaceAbsent(runtime: BrowserRuntime): Promise<void> {
+  if (!runtime.paths) {
+    throw new Error("bridge delete surface check requires launch-mode runtime paths");
+  }
+  const { stdout } = await execFileAsync(runtime.paths.cliShim, ["bridge", "--help"], {
+    env: cliEnv(runtime.paths),
+    timeout: 30_000,
+  });
+  expect(stdout).toContain("create");
+  expect(stdout).toContain("secret-bindings");
+  expect(stdout).not.toMatch(/^\s+delete\s/m);
+}
+
+async function assertNoBridgeSensitiveLeaks(
+  page: Page,
+  runtime: BrowserRuntime,
+  label: string
+): Promise<void> {
+  assertNoSensitiveText(`${label}: page body`, await page.locator("body").textContent());
+  if (runtime.paths?.daemonLog) {
+    assertNoSensitiveText(`${label}: daemon log`, await readFile(runtime.paths.daemonLog, "utf8"));
+  }
+}
+
+function assertNoSensitiveText(label: string, text: string | null | undefined): void {
+  const content = text ?? "";
+  for (const value of bridgeSensitiveValues) {
+    expect(content, `${label} leaked ${value}`).not.toContain(value);
+  }
+}
+
+function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    AGH_HOME: paths.homeDir,
+    AGH_E2E_CLI_BIN: paths.cliShim,
+    HOME: paths.homeDir,
+    PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
+  };
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms));
+}

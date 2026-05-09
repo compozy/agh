@@ -1,6 +1,6 @@
-import { AlertCircle, History } from "lucide-react";
+import { AlertCircle, History, Loader2, RotateCcw } from "lucide-react";
 
-import { Empty, Pill, Section, Spinner } from "@agh/ui";
+import { Button, Empty, Pill, Section, Spinner } from "@agh/ui";
 
 import {
   decisionOpLabel,
@@ -15,13 +15,28 @@ interface KnowledgeDecisionsSectionProps {
   decisions: MemoryDecision[] | undefined;
   isLoading: boolean;
   error: Error | null;
+  onRevertDecision?: (decision: MemoryDecision) => Promise<void>;
+  revertingDecisionId?: string | null;
+  revertError?: string | null;
 }
 
 function KnowledgeDecisionsSection({
   decisions,
   isLoading,
   error,
+  onRevertDecision,
+  revertingDecisionId = null,
+  revertError = null,
 }: KnowledgeDecisionsSectionProps) {
+  const handleRevert = async (decision: MemoryDecision) => {
+    if (!onRevertDecision) return;
+    try {
+      await onRevertDecision(decision);
+    } catch {
+      // Error state is surfaced through `revertError`.
+    }
+  };
+
   return (
     <Section data-testid="knowledge-decisions-section" label="Recent controller decisions">
       {isLoading ? (
@@ -58,7 +73,7 @@ function KnowledgeDecisionsSection({
               data-testid={`knowledge-decision-${decision.id}`}
               key={decision.id}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Pill
                   mono
                   data-testid={`knowledge-decision-op-${decision.id}`}
@@ -76,6 +91,23 @@ function KnowledgeDecisionsSection({
                 <span className="ml-auto font-mono text-eyebrow uppercase tracking-badge text-(--color-text-tertiary)">
                   {formatKnowledgeDateTime(decision.decided_at)}
                 </span>
+                {onRevertDecision && decision.applied_at ? (
+                  <Button
+                    data-testid={`revert-memory-decision-${decision.id}`}
+                    disabled={revertingDecisionId === decision.id}
+                    onClick={() => void handleRevert(decision)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {revertingDecisionId === decision.id ? (
+                      <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="size-3.5" />
+                    )}
+                    Revert
+                  </Button>
+                ) : null}
               </div>
               {decision.reason ? (
                 <p className="text-xs text-(--color-text-secondary)">{decision.reason}</p>
@@ -97,6 +129,14 @@ function KnowledgeDecisionsSection({
                   </span>
                 ) : null}
               </div>
+              {revertError && revertingDecisionId === decision.id ? (
+                <p
+                  className="text-[12px] text-[color:var(--color-danger)]"
+                  data-testid={`knowledge-decision-revert-error-${decision.id}`}
+                >
+                  {revertError}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

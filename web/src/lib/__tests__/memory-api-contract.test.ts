@@ -30,6 +30,7 @@ describe("memory API generated contract types", () => {
     type ListQuery = NonNullable<OperationQuery<"listMemory">>;
     type WriteRequest = OperationRequestBody<"writeMemory">;
     type EditRequest = OperationRequestBody<"editMemory">;
+    type RevertRequest = OperationRequestBody<"revertMemoryDecision">;
     type RecallTracePath = OperationPath<"getMemoryRecallTrace">;
 
     expectTypeOf<ListQuery>().toMatchTypeOf<{
@@ -52,6 +53,7 @@ describe("memory API generated contract types", () => {
     expectTypeOf<Extract<keyof WriteRequest, "workspace">>().toEqualTypeOf<never>();
 
     expectTypeOf<EditRequest>().toMatchTypeOf<{ content: string; expected_hash?: string }>();
+    expectTypeOf<RevertRequest>().toMatchTypeOf<{ dry_run?: boolean; reason?: string }>();
     expectTypeOf<RecallTracePath>().toEqualTypeOf<{
       session_id: string;
       turn_seq: number;

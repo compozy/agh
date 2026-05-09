@@ -696,7 +696,12 @@ func (h *BaseHandlers) RevertMemoryDecision(c *gin.Context) {
 	}
 	reverted := false
 	if !req.DryRun {
-		result, err := h.MemoryStore.RevertDecision(c.Request.Context(), id)
+		store, err := h.memoryStoreForDecisionRecord(c.Request.Context(), record)
+		if err != nil {
+			h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
+			return
+		}
+		result, err := store.RevertDecision(c.Request.Context(), id)
 		if err != nil {
 			h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 			return
@@ -708,6 +713,52 @@ func (h *BaseHandlers) RevertMemoryDecision(c *gin.Context) {
 		Reverted: reverted,
 		DryRun:   req.DryRun,
 	})
+}
+
+func (h *BaseHandlers) memoryStoreForDecisionRecord(
+	ctx context.Context,
+	record memory.DecisionRecord,
+) (*memory.Store, error) {
+	if h.MemoryStore == nil {
+		return nil, errors.New("memory store is not configured")
+	}
+	scope := record.Decision.Frontmatter.Scope.Normalize()
+	if scope == memcontract.ScopeWorkspace {
+		workspace, err := h.workspaceForMemoryDecision(ctx, record.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		return h.MemoryStore.ForWorkspace(workspace.RootDir), nil
+	}
+	if scope == memcontract.ScopeAgent && record.AgentTier.Normalize() == memcontract.AgentTierWorkspace {
+		workspace, err := h.workspaceForMemoryDecision(ctx, record.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		return h.MemoryStore.ForWorkspace(workspace.RootDir), nil
+	}
+	return h.MemoryStore, nil
+}
+
+func (h *BaseHandlers) workspaceForMemoryDecision(
+	ctx context.Context,
+	workspaceID string,
+) (aghworkspace.Workspace, error) {
+	id := strings.TrimSpace(workspaceID)
+	if id == "" {
+		return aghworkspace.Workspace{}, errors.New("memory: decision workspace_id is required")
+	}
+	if h.Workspaces == nil {
+		return aghworkspace.Workspace{}, errors.New("memory: workspace service is not configured")
+	}
+	workspace, err := h.Workspaces.Get(ctx, id)
+	if err != nil {
+		return aghworkspace.Workspace{}, fmt.Errorf("memory: resolve decision workspace %q: %w", id, err)
+	}
+	if strings.TrimSpace(workspace.RootDir) == "" {
+		return aghworkspace.Workspace{}, fmt.Errorf("memory: decision workspace %q root_dir is required", id)
+	}
+	return workspace, nil
 }
 
 func (h *BaseHandlers) GetMemoryRecallTrace(c *gin.Context) {

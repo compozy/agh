@@ -12,6 +12,7 @@ const browserArtifactSpecs = {
   browser_console: { relativePath: "browser_console.json", isDir: false },
   browser_network: { relativePath: "browser_network.json", isDir: false },
   browser_api_snapshots: { relativePath: "browser_api_snapshots.json", isDir: false },
+  browser_transport_snapshots: { relativePath: "browser_transport_snapshots.json", isDir: false },
   browser_route_state: { relativePath: "browser_route_state.json", isDir: false },
 } as const;
 
@@ -97,6 +98,47 @@ export interface BrowserRouteState {
   home_uptime_value?: string;
   home_view_visible?: boolean;
   home_workspaces_value?: string;
+  knowledge_create_dialog_open?: boolean;
+  knowledge_decisions_count?: number;
+  knowledge_delete_dialog_open?: boolean;
+  knowledge_detail_visible?: boolean;
+  knowledge_edit_dialog_open?: boolean;
+  knowledge_item_count?: number;
+  knowledge_revert_button_count?: number;
+  knowledge_scope?: "global" | "workspace" | "agent";
+  knowledge_search_active?: boolean;
+  knowledge_selected_item?: string;
+  knowledge_view_visible?: boolean;
+  skills_active_tab?: "installed" | "marketplace";
+  skills_content_visible?: boolean;
+  skills_detail_visible?: boolean;
+  skills_enabled_state?: "enabled" | "disabled";
+  skills_item_count?: number;
+  skills_marketplace_count?: number;
+  skills_search_active?: boolean;
+  skills_selected_item?: string;
+  skills_view_visible?: boolean;
+  sandbox_action_result_visible?: boolean;
+  sandbox_delete_dialog_open?: boolean;
+  sandbox_editor_open?: boolean;
+  sandbox_empty_visible?: boolean;
+  sandbox_profile_count?: number;
+  sandbox_profile_names?: string[];
+  sandbox_restart_banner_visible?: boolean;
+  sandbox_total_text?: string;
+  sandbox_view_visible?: boolean;
+  sandbox_workspace_references_text?: string;
+  settings_action_result_visible?: boolean;
+  settings_active_section?: string;
+  settings_mcp_server_count?: number;
+  settings_provider_card_count?: number;
+  settings_restart_banner_visible?: boolean;
+  settings_save_bar_visible?: boolean;
+  settings_section_count?: number;
+  settings_vault_delete_dialog_open?: boolean;
+  settings_vault_editor_open?: boolean;
+  settings_vault_secret_count?: number;
+  settings_view_visible?: boolean;
   session_name?: string;
   tasks_active_mode?: "dashboard" | "inbox" | "kanban" | "list";
   tasks_children_count?: number;

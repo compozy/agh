@@ -8,6 +8,8 @@ export type {
   MemoryAgentTier,
   MemoryDecision,
   MemoryDecisionOp,
+  MemoryDecisionRevertRequest,
+  MemoryDecisionRevertResponse,
   MemoryDecisionsResponse,
   MemoryDecisionSource,
   MemoryDeleteResponse,
@@ -33,6 +35,7 @@ export {
   listMemories,
   listMemoryDecisions,
   readMemory,
+  revertMemoryDecision,
   searchMemory,
   triggerMemoryDream,
   writeMemory,
@@ -59,13 +62,16 @@ export {
 export {
   useDeleteMemory,
   useEditMemory,
+  useRevertMemoryDecision,
   useTriggerMemoryDream,
+  useWriteMemory,
   type EditMemoryParams,
 } from "./hooks/use-knowledge-actions";
 
 // Components
 export { KnowledgeListPanel } from "./components/knowledge-list-panel";
 export { KnowledgeDetailPanel } from "./components/knowledge-detail-panel";
+export { KnowledgeCreateDialog } from "./components/knowledge-create-dialog";
 export { KnowledgeDeleteDialog } from "./components/knowledge-delete-dialog";
 export { KnowledgeEditDialog } from "./components/knowledge-edit-dialog";
 export { KnowledgeDecisionsSection } from "./components/knowledge-decisions-section";

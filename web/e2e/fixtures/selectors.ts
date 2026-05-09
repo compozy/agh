@@ -149,20 +149,111 @@ export const bridgeOperatorTestIds = {
   bridgeSearchInput: "bridge-search-input",
   bridgeTestDeliveryDialog: "bridge-test-delivery-dialog",
   bridgeTestDeliveryResult: "bridge-test-delivery-result",
+  createBridgeDeliveryModeSelect: "bridge-delivery-mode-select",
+  createBridgeDeliveryPeerInput: "bridge-delivery-peer-input",
+  createBridgeDeliveryThreadInput: "bridge-delivery-thread-input",
+  createBridgeDisplayNameInput: "bridge-display-name-input",
+  createBridgeProviderConfigInput: "bridge-provider-config-input",
+  createBridgeProviderConfigError: "bridge-provider-config-error",
+  createBridgeRoutingIncludePeer: "bridge-routing-include-peer",
+  createBridgeRoutingIncludeThread: "bridge-routing-include-thread",
+  createBridgeScopeSelect: "bridge-scope-select",
   createBridgeButton: "create-bridge-btn",
-  createDisplayNameInput: "bridge-display-name-input",
-  createProviderConfigInput: "bridge-provider-config-input",
+  disableBridgeButton: "disable-bridge-btn",
   editBridgeButton: "edit-bridge-btn",
   enableBridgeButton: "enable-bridge-btn",
   navBridges: "nav-bridges",
   openTestDeliveryButton: "open-test-delivery-btn",
-  submitBridgeCreate: "submit-bridge-create",
+  restartBridgeButton: "restart-bridge-btn",
   submitBridgeEdit: "submit-bridge-edit",
+  submitBridgeCreate: "submit-bridge-create",
   submitTestDelivery: "submit-test-delivery",
   testDeliveryMessage: "test-delivery-message",
   testDeliveryModeSelect: "test-delivery-mode-select",
   testDeliveryPeerInput: "test-delivery-peer-input",
   testDeliveryThreadInput: "test-delivery-thread-input",
+  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
+  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
+} as const;
+
+export const knowledgeOperatorTestIds = {
+  appSidebar: sessionLifecycleTestIds.appSidebar,
+  cancelCreateMemory: "cancel-create-memory-btn",
+  confirmCreateMemory: "confirm-create-memory-btn",
+  confirmDeleteMemory: "confirm-delete-memory-btn",
+  confirmEditMemory: "confirm-edit-memory-btn",
+  contentPreview: "content-preview",
+  createButton: "create-memory-btn",
+  createContent: "knowledge-create-content",
+  createDescription: "knowledge-create-description",
+  createDialog: "knowledge-create-dialog",
+  createName: "knowledge-create-name",
+  createType: "knowledge-create-type",
+  deleteButton: "delete-memory-btn",
+  deleteDialog: "knowledge-delete-dialog",
+  detailPanel: "knowledge-detail-panel",
+  editButton: "edit-memory-btn",
+  editContent: "knowledge-edit-content",
+  editDescription: "knowledge-edit-description",
+  editDialog: "knowledge-edit-dialog",
+  guard: "knowledge-guard",
+  listPanel: "knowledge-list-panel",
+  navKnowledge: "nav-knowledge",
+  searchInput: "knowledge-search-input",
+  searchInfo: "knowledge-search-info",
+  shell: "knowledge-shell",
+  tabAgent: "tab-agent",
+  tabGlobal: "tab-global",
+  tabWorkspace: "tab-workspace",
+  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
+  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
+} as const;
+
+export const skillsOperatorTestIds = {
+  appSidebar: sessionLifecycleTestIds.appSidebar,
+  contentBody: "content-body",
+  detailPanel: "skill-detail-panel",
+  enabledSwitch: "skill-enabled-switch",
+  enabledToggle: "skill-enabled-toggle",
+  listPanel: "skill-list-panel",
+  marketplaceEmpty: "marketplace-empty",
+  marketplaceGrid: "marketplace-grid",
+  marketplaceReadonlyNotice: "marketplace-readonly-notice",
+  marketplaceSearchInput: "marketplace-search-input",
+  marketplaceView: "marketplace-view",
+  navSkills: "nav-skills",
+  searchInput: "skill-search-input",
+  shell: "skills-shell",
+  tabInstalled: "tab-installed",
+  tabMarketplace: "tab-marketplace",
+  viewFullContent: "view-full-content-btn",
+  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
+  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
+} as const;
+
+export const sandboxOperatorTestIds = {
+  actionResult: "sandbox-page-action-result",
+  actionResultDismiss: "sandbox-page-action-result-dismiss",
+  appSidebar: sessionLifecycleTestIds.appSidebar,
+  createButton: "sandbox-page-create",
+  deleteConfirm: "settings-sandboxes-delete-confirm",
+  deleteDialog: "settings-sandboxes-delete",
+  deleteUsage: "sandbox-delete-usage",
+  editor: "settings-sandbox-editor",
+  editorBackendInput: "sandbox-editor-backend-input",
+  editorError: "settings-sandbox-editor-error",
+  editorNameInput: "sandbox-editor-name-input",
+  editorPersistenceInput: "sandbox-editor-persistence-input",
+  editorRuntimeRootInput: "sandbox-editor-runtime-root-input",
+  editorSave: "settings-sandbox-editor-save",
+  editorSyncModeInput: "sandbox-editor-sync-mode-input",
+  empty: "sandbox-page-empty",
+  list: "sandbox-page-list",
+  navSandbox: "nav-sandbox",
+  restartBanner: "settings-page-sandbox-restart-banner",
+  shell: "sandbox-shell",
+  total: "sandbox-page-total",
+  workspaceReferences: "sandbox-page-workspaces",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
@@ -280,11 +371,18 @@ export interface BridgeOperatorSelectors {
   appSidebar: Locator;
   createBridgeButton: Locator;
   createDialog: Locator;
+  createDeliveryModeSelect: Locator;
+  createDeliveryPeerInput: Locator;
+  createDeliveryThreadInput: Locator;
   createDisplayNameInput: Locator;
+  createProviderConfigError: Locator;
   createProviderConfigInput: Locator;
-  confirmDeleteSecret(bindingName: string): Locator;
-  detailPanel: Locator;
+  createRoutingIncludePeer: Locator;
+  createRoutingIncludeThread: Locator;
+  createScopeSelect: Locator;
   deleteSecret(bindingName: string): Locator;
+  detailPanel: Locator;
+  disableBridgeButton: Locator;
   editBridgeButton: Locator;
   editDialog: Locator;
   editDisplayNameInput: Locator;
@@ -295,6 +393,7 @@ export interface BridgeOperatorSelectors {
   navBridges: Locator;
   openTestDeliveryButton: Locator;
   providerCard(providerKey: string): Locator;
+  restartBridgeButton: Locator;
   restartRequired: Locator;
   route(sessionId: string): Locator;
   saveSecret(bindingName: string): Locator;
@@ -313,6 +412,98 @@ export interface BridgeOperatorSelectors {
   testDeliveryPeerInput: Locator;
   testDeliveryResult: Locator;
   testDeliveryThreadInput: Locator;
+  workspaceOnboarding: Locator;
+  workspaceUseGlobal: Locator;
+}
+
+export interface KnowledgeOperatorSelectors {
+  appSidebar: Locator;
+  cancelCreateMemory: Locator;
+  confirmCreateMemory: Locator;
+  confirmDeleteMemory: Locator;
+  confirmEditMemory: Locator;
+  contentPreview: Locator;
+  createButton: Locator;
+  createContent: Locator;
+  createDescription: Locator;
+  createDialog: Locator;
+  createName: Locator;
+  createType: Locator;
+  deleteButton: Locator;
+  deleteDialog: Locator;
+  detailPanel: Locator;
+  editButton: Locator;
+  editContent: Locator;
+  editDescription: Locator;
+  editDialog: Locator;
+  guard: Locator;
+  item(memoryKey: string): Locator;
+  listPanel: Locator;
+  navKnowledge: Locator;
+  revertDecision(decisionId: string): Locator;
+  searchInput: Locator;
+  searchInfo: Locator;
+  shell: Locator;
+  tabAgent: Locator;
+  tabGlobal: Locator;
+  tabWorkspace: Locator;
+  workspaceOnboarding: Locator;
+  workspaceUseGlobal: Locator;
+}
+
+export interface SkillsOperatorSelectors {
+  appSidebar: Locator;
+  contentBody: Locator;
+  detailPanel: Locator;
+  enabledSwitch: Locator;
+  enabledToggle: Locator;
+  item(name: string): Locator;
+  listPanel: Locator;
+  marketplaceEmpty: Locator;
+  marketplaceGrid: Locator;
+  marketplaceReadonlyNotice: Locator;
+  marketplaceRow(name: string): Locator;
+  marketplaceSearchInput: Locator;
+  marketplaceView: Locator;
+  navSkills: Locator;
+  searchInput: Locator;
+  shell: Locator;
+  tabInstalled: Locator;
+  tabMarketplace: Locator;
+  viewFullContent: Locator;
+  workspaceOnboarding: Locator;
+  workspaceUseGlobal: Locator;
+}
+
+export interface SandboxOperatorSelectors {
+  actionResult: Locator;
+  actionResultDismiss: Locator;
+  appSidebar: Locator;
+  createButton: Locator;
+  deleteConfirm: Locator;
+  deleteDialog: Locator;
+  deleteProfile(name: string): Locator;
+  deleteUsage: Locator;
+  editProfile(name: string): Locator;
+  editor: Locator;
+  editorBackendInput: Locator;
+  editorError: Locator;
+  editorNameInput: Locator;
+  editorPersistenceInput: Locator;
+  editorRuntimeRootInput: Locator;
+  editorSave: Locator;
+  editorSyncModeInput: Locator;
+  empty: Locator;
+  list: Locator;
+  navSandbox: Locator;
+  profile(name: string): Locator;
+  profileMetadata(name: string): Locator;
+  profileSource(name: string): Locator;
+  profileUsage(name: string): Locator;
+  restartBanner: Locator;
+  shell: Locator;
+  total: Locator;
+  workspaceReferences: Locator;
   workspaceOnboarding: Locator;
   workspaceUseGlobal: Locator;
 }
@@ -665,7 +856,7 @@ export function sessionLifecycleSelectors(
     agentRow: (agentName: string) => page.getByTestId(`agent-row-${agentName}`),
     appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatHeader),
-    chatView: page.getByRole("main"),
+    chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
     composerSendButton: page.getByRole("button", { name: "Send message" }),
     composerTextarea: page.getByRole("textbox", { name: "Session prompt" }),
     permissionAllowOnce: page.getByTestId(sessionLifecycleTestIds.permissionAllowOnce),
@@ -732,6 +923,109 @@ export function networkOperatorSelectors(
     workspace: page.getByTestId(networkOperatorTestIds.workspace),
     workspaceOnboarding: page.getByTestId(networkOperatorTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(networkOperatorTestIds.workspaceUseGlobal),
+  };
+}
+
+export function knowledgeOperatorSelectors(
+  page: Pick<Page, "getByTestId">
+): KnowledgeOperatorSelectors {
+  return {
+    appSidebar: page.getByTestId(knowledgeOperatorTestIds.appSidebar),
+    cancelCreateMemory: page.getByTestId(knowledgeOperatorTestIds.cancelCreateMemory),
+    confirmCreateMemory: page.getByTestId(knowledgeOperatorTestIds.confirmCreateMemory),
+    confirmDeleteMemory: page.getByTestId(knowledgeOperatorTestIds.confirmDeleteMemory),
+    confirmEditMemory: page.getByTestId(knowledgeOperatorTestIds.confirmEditMemory),
+    contentPreview: page.getByTestId(knowledgeOperatorTestIds.contentPreview),
+    createButton: page.getByTestId(knowledgeOperatorTestIds.createButton),
+    createContent: page.getByTestId(knowledgeOperatorTestIds.createContent),
+    createDescription: page.getByTestId(knowledgeOperatorTestIds.createDescription),
+    createDialog: page.getByTestId(knowledgeOperatorTestIds.createDialog),
+    createName: page.getByTestId(knowledgeOperatorTestIds.createName),
+    createType: page.getByTestId(knowledgeOperatorTestIds.createType),
+    deleteButton: page.getByTestId(knowledgeOperatorTestIds.deleteButton),
+    deleteDialog: page.getByTestId(knowledgeOperatorTestIds.deleteDialog),
+    detailPanel: page.getByTestId(knowledgeOperatorTestIds.detailPanel),
+    editButton: page.getByTestId(knowledgeOperatorTestIds.editButton),
+    editContent: page.getByTestId(knowledgeOperatorTestIds.editContent),
+    editDescription: page.getByTestId(knowledgeOperatorTestIds.editDescription),
+    editDialog: page.getByTestId(knowledgeOperatorTestIds.editDialog),
+    guard: page.getByTestId(knowledgeOperatorTestIds.guard),
+    item: (memoryKey: string) => page.getByTestId(`memory-item-${memoryKey}`),
+    listPanel: page.getByTestId(knowledgeOperatorTestIds.listPanel),
+    navKnowledge: page.getByTestId(knowledgeOperatorTestIds.navKnowledge),
+    revertDecision: (decisionId: string) =>
+      page.getByTestId(`revert-memory-decision-${decisionId}`),
+    searchInput: page.getByTestId(knowledgeOperatorTestIds.searchInput),
+    searchInfo: page.getByTestId(knowledgeOperatorTestIds.searchInfo),
+    shell: page.getByTestId(knowledgeOperatorTestIds.shell),
+    tabAgent: page.getByTestId(knowledgeOperatorTestIds.tabAgent),
+    tabGlobal: page.getByTestId(knowledgeOperatorTestIds.tabGlobal),
+    tabWorkspace: page.getByTestId(knowledgeOperatorTestIds.tabWorkspace),
+    workspaceOnboarding: page.getByTestId(knowledgeOperatorTestIds.workspaceOnboarding),
+    workspaceUseGlobal: page.getByTestId(knowledgeOperatorTestIds.workspaceUseGlobal),
+  };
+}
+
+export function skillsOperatorSelectors(page: Pick<Page, "getByTestId">): SkillsOperatorSelectors {
+  return {
+    appSidebar: page.getByTestId(skillsOperatorTestIds.appSidebar),
+    contentBody: page.getByTestId(skillsOperatorTestIds.contentBody),
+    detailPanel: page.getByTestId(skillsOperatorTestIds.detailPanel),
+    enabledSwitch: page.getByTestId(skillsOperatorTestIds.enabledSwitch),
+    enabledToggle: page.getByTestId(skillsOperatorTestIds.enabledToggle),
+    item: (name: string) => page.getByTestId(`skill-item-${name}`),
+    listPanel: page.getByTestId(skillsOperatorTestIds.listPanel),
+    marketplaceEmpty: page.getByTestId(skillsOperatorTestIds.marketplaceEmpty),
+    marketplaceGrid: page.getByTestId(skillsOperatorTestIds.marketplaceGrid),
+    marketplaceReadonlyNotice: page.getByTestId(skillsOperatorTestIds.marketplaceReadonlyNotice),
+    marketplaceRow: (name: string) => page.getByTestId(`marketplace-row-${name}`),
+    marketplaceSearchInput: page.getByTestId(skillsOperatorTestIds.marketplaceSearchInput),
+    marketplaceView: page.getByTestId(skillsOperatorTestIds.marketplaceView),
+    navSkills: page.getByTestId(skillsOperatorTestIds.navSkills),
+    searchInput: page.getByTestId(skillsOperatorTestIds.searchInput),
+    shell: page.getByTestId(skillsOperatorTestIds.shell),
+    tabInstalled: page.getByTestId(skillsOperatorTestIds.tabInstalled),
+    tabMarketplace: page.getByTestId(skillsOperatorTestIds.tabMarketplace),
+    viewFullContent: page.getByTestId(skillsOperatorTestIds.viewFullContent),
+    workspaceOnboarding: page.getByTestId(skillsOperatorTestIds.workspaceOnboarding),
+    workspaceUseGlobal: page.getByTestId(skillsOperatorTestIds.workspaceUseGlobal),
+  };
+}
+
+export function sandboxOperatorSelectors(
+  page: Pick<Page, "getByTestId">
+): SandboxOperatorSelectors {
+  return {
+    actionResult: page.getByTestId(sandboxOperatorTestIds.actionResult),
+    actionResultDismiss: page.getByTestId(sandboxOperatorTestIds.actionResultDismiss),
+    appSidebar: page.getByTestId(sandboxOperatorTestIds.appSidebar),
+    createButton: page.getByTestId(sandboxOperatorTestIds.createButton),
+    deleteConfirm: page.getByTestId(sandboxOperatorTestIds.deleteConfirm),
+    deleteDialog: page.getByTestId(sandboxOperatorTestIds.deleteDialog),
+    deleteProfile: (name: string) => page.getByTestId(`sandbox-page-card-${name}-delete`),
+    deleteUsage: page.getByTestId(sandboxOperatorTestIds.deleteUsage),
+    editProfile: (name: string) => page.getByTestId(`sandbox-page-card-${name}-edit`),
+    editor: page.getByTestId(sandboxOperatorTestIds.editor),
+    editorBackendInput: page.getByTestId(sandboxOperatorTestIds.editorBackendInput),
+    editorError: page.getByTestId(sandboxOperatorTestIds.editorError),
+    editorNameInput: page.getByTestId(sandboxOperatorTestIds.editorNameInput),
+    editorPersistenceInput: page.getByTestId(sandboxOperatorTestIds.editorPersistenceInput),
+    editorRuntimeRootInput: page.getByTestId(sandboxOperatorTestIds.editorRuntimeRootInput),
+    editorSave: page.getByTestId(sandboxOperatorTestIds.editorSave),
+    editorSyncModeInput: page.getByTestId(sandboxOperatorTestIds.editorSyncModeInput),
+    empty: page.getByTestId(sandboxOperatorTestIds.empty),
+    list: page.getByTestId(sandboxOperatorTestIds.list),
+    navSandbox: page.getByTestId(sandboxOperatorTestIds.navSandbox),
+    profile: (name: string) => page.getByTestId(`sandbox-page-card-${name}`),
+    profileMetadata: (name: string) => page.getByTestId(`sandbox-page-card-${name}-profile`),
+    profileSource: (name: string) => page.getByTestId(`sandbox-page-card-${name}-source`),
+    profileUsage: (name: string) => page.getByTestId(`sandbox-page-card-${name}-usage`),
+    restartBanner: page.getByTestId(sandboxOperatorTestIds.restartBanner),
+    shell: page.getByTestId(sandboxOperatorTestIds.shell),
+    total: page.getByTestId(sandboxOperatorTestIds.total),
+    workspaceReferences: page.getByTestId(sandboxOperatorTestIds.workspaceReferences),
+    workspaceOnboarding: page.getByTestId(sandboxOperatorTestIds.workspaceOnboarding),
+    workspaceUseGlobal: page.getByTestId(sandboxOperatorTestIds.workspaceUseGlobal),
   };
 }
 
@@ -809,12 +1103,30 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     appSidebar: page.getByTestId(bridgeOperatorTestIds.appSidebar),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
-    createDisplayNameInput: page.getByTestId(bridgeOperatorTestIds.createDisplayNameInput),
-    createProviderConfigInput: page.getByTestId(bridgeOperatorTestIds.createProviderConfigInput),
-    confirmDeleteSecret: (bindingName: string) =>
-      page.getByTestId(`confirm-delete-bridge-secret-${bindingName}`),
-    detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
+    createDeliveryModeSelect: page.getByTestId(
+      bridgeOperatorTestIds.createBridgeDeliveryModeSelect
+    ),
+    createDeliveryPeerInput: page.getByTestId(bridgeOperatorTestIds.createBridgeDeliveryPeerInput),
+    createDeliveryThreadInput: page.getByTestId(
+      bridgeOperatorTestIds.createBridgeDeliveryThreadInput
+    ),
+    createDisplayNameInput: page.getByTestId(bridgeOperatorTestIds.createBridgeDisplayNameInput),
+    createProviderConfigError: page.getByTestId(
+      bridgeOperatorTestIds.createBridgeProviderConfigError
+    ),
+    createProviderConfigInput: page.getByTestId(
+      bridgeOperatorTestIds.createBridgeProviderConfigInput
+    ),
+    createRoutingIncludePeer: page.getByTestId(
+      bridgeOperatorTestIds.createBridgeRoutingIncludePeer
+    ),
+    createRoutingIncludeThread: page.getByTestId(
+      bridgeOperatorTestIds.createBridgeRoutingIncludeThread
+    ),
+    createScopeSelect: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeSelect),
     deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
+    detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
+    disableBridgeButton: page.getByTestId(bridgeOperatorTestIds.disableBridgeButton),
     editBridgeButton: page.getByTestId(bridgeOperatorTestIds.editBridgeButton),
     editDialog: page.getByTestId(bridgeOperatorTestIds.bridgeEditDialog),
     editDisplayNameInput: page.getByTestId("bridge-edit-display-name-input"),
@@ -825,6 +1137,7 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     navBridges: page.getByTestId(bridgeOperatorTestIds.navBridges),
     openTestDeliveryButton: page.getByTestId(bridgeOperatorTestIds.openTestDeliveryButton),
     providerCard: (providerKey: string) => page.getByTestId(`bridge-provider-card-${providerKey}`),
+    restartBridgeButton: page.getByTestId(bridgeOperatorTestIds.restartBridgeButton),
     restartRequired: page.getByTestId(bridgeOperatorTestIds.bridgeRestartRequired),
     route: (sessionId: string) => page.getByTestId(`bridge-route-${sessionId}`),
     saveSecret: (bindingName: string) => page.getByTestId(`save-bridge-secret-${bindingName}`),

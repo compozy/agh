@@ -186,6 +186,20 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ?.textContent?.trim() || undefined;
     const countByPrefix = (prefix: string) =>
       document.querySelectorAll(`[data-testid^="${prefix}"]`).length;
+    const countSettingsProviderCards = () =>
+      [
+        ...document.querySelectorAll<HTMLElement>('[data-testid^="settings-page-providers-card-"]'),
+      ].filter(element => element.querySelector('[data-testid$="-edit"]') !== null).length;
+    const countSettingsMCPServerRows = () =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-testid^="settings-page-mcp-servers-row-"]'
+        ),
+      ].filter(
+        element =>
+          element.tagName.toLowerCase() === "tr" ||
+          element.querySelector('[data-testid$="-delete"]') !== null
+      ).length;
     const readPathContainerId = (pattern: RegExp) => {
       const match = window.location.pathname.match(pattern);
       const value = match?.[1];
@@ -289,6 +303,39 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document.querySelector('[data-testid="task-editor-surface"]') !== null;
     const tasksReviewCount =
       countByPrefix("tasks-reviews-row-") + countByPrefix("tasks-run-reviews-row-");
+    const knowledgeScope = document.querySelector('[data-testid="tab-global"][aria-pressed="true"]')
+      ? "global"
+      : document.querySelector('[data-testid="tab-workspace"][aria-pressed="true"]')
+        ? "workspace"
+        : document.querySelector('[data-testid="tab-agent"][aria-pressed="true"]')
+          ? "agent"
+          : undefined;
+    const knowledgeSelectedItem =
+      document
+        .querySelector<HTMLElement>('[data-testid^="memory-item-"][data-state="selected"]')
+        ?.textContent?.trim() || undefined;
+    const skillsActiveTab = document.querySelector('[data-testid="marketplace-view"]')
+      ? "marketplace"
+      : document.querySelector('[data-testid="skill-list-panel"]')
+        ? "installed"
+        : undefined;
+    const skillsSelectedItem =
+      [...document.querySelectorAll<HTMLElement>('[data-testid^="skill-item-"]')]
+        .find(element => element.dataset.state === "selected")
+        ?.dataset.testid?.replace(/^skill-item-/, "") || undefined;
+    const skillsEnabledText = readText("skill-enabled-toggle")?.toLowerCase();
+    const skillsEnabledState = skillsEnabledText?.includes("disabled")
+      ? "disabled"
+      : skillsEnabledText?.includes("enabled")
+        ? "enabled"
+        : undefined;
+    const sandboxRows = [
+      ...document.querySelectorAll<HTMLElement>('tr[data-testid^="sandbox-page-card-"]'),
+    ];
+    const sandboxProfileNames = sandboxRows
+      .map(element => element.dataset.testid?.replace(/^sandbox-page-card-/, ""))
+      .filter((value): value is string => Boolean(value));
+    const settingsActiveSection = readPathContainerId(/\/settings\/([^/?#]+)/);
 
     return {
       url: window.location.href,
@@ -354,6 +401,71 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       home_uptime_value: readMetricValue("home-metric-uptime"),
       home_view_visible: document.querySelector('[data-testid="home-shell"]') !== null,
       home_workspaces_value: readMetricValue("home-metric-workspaces"),
+      knowledge_create_dialog_open:
+        document.querySelector('[data-testid="knowledge-create-dialog"]') !== null,
+      knowledge_decisions_count: countByPrefix("knowledge-decision-"),
+      knowledge_delete_dialog_open:
+        document.querySelector('[data-testid="knowledge-delete-dialog"]') !== null,
+      knowledge_detail_visible:
+        document.querySelector('[data-testid="knowledge-detail-panel"]') !== null,
+      knowledge_edit_dialog_open:
+        document.querySelector('[data-testid="knowledge-edit-dialog"]') !== null,
+      knowledge_item_count: countByPrefix("memory-item-"),
+      knowledge_revert_button_count: countByPrefix("revert-memory-decision-"),
+      knowledge_scope: knowledgeScope,
+      knowledge_search_active:
+        document.querySelector('[data-testid="knowledge-search-info"]') !== null,
+      knowledge_selected_item: knowledgeSelectedItem,
+      knowledge_view_visible: document.querySelector('[data-testid="knowledge-shell"]') !== null,
+      skills_active_tab: skillsActiveTab,
+      skills_content_visible: document.querySelector('[data-testid="content-body"]') !== null,
+      skills_detail_visible: document.querySelector('[data-testid="skill-detail-panel"]') !== null,
+      skills_enabled_state: skillsEnabledState,
+      skills_item_count: countByPrefix("skill-item-"),
+      skills_marketplace_count: countByPrefix("marketplace-row-"),
+      skills_search_active:
+        (document.querySelector<HTMLInputElement>('[data-testid="skill-search-input"]')?.value ??
+          document.querySelector<HTMLInputElement>('[data-testid="marketplace-search-input"]')
+            ?.value ??
+          "") !== "",
+      skills_selected_item: skillsSelectedItem,
+      skills_view_visible: document.querySelector('[data-testid="skills-shell"]') !== null,
+      sandbox_action_result_visible:
+        document.querySelector('[data-testid="sandbox-page-action-result"]') !== null,
+      sandbox_delete_dialog_open:
+        document.querySelector('[data-testid="settings-sandboxes-delete"]') !== null,
+      sandbox_editor_open:
+        document.querySelector('[data-testid="settings-sandbox-editor"]') !== null,
+      sandbox_empty_visible: document.querySelector('[data-testid="sandbox-page-empty"]') !== null,
+      sandbox_profile_count: sandboxRows.length,
+      sandbox_profile_names: sandboxProfileNames,
+      sandbox_restart_banner_visible:
+        document.querySelector('[data-testid="settings-page-sandbox-restart-banner"]') !== null,
+      sandbox_total_text: readText("sandbox-page-total"),
+      sandbox_view_visible: document.querySelector('[data-testid="sandbox-shell"]') !== null,
+      sandbox_workspace_references_text: readText("sandbox-page-workspaces"),
+      settings_action_result_visible:
+        document.querySelector('[data-testid^="settings-page-"][data-testid$="-action-result"]') !==
+        null,
+      settings_active_section: settingsActiveSection,
+      settings_mcp_server_count: countSettingsMCPServerRows(),
+      settings_provider_card_count: countSettingsProviderCards(),
+      settings_restart_banner_visible:
+        document.querySelector(
+          '[data-testid^="settings-page-"][data-testid$="-restart-banner"]'
+        ) !== null,
+      settings_save_bar_visible:
+        document.querySelector('[data-testid^="settings-page-"][data-testid$="-save-bar"]') !==
+        null,
+      settings_section_count: document.querySelectorAll(
+        '[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]'
+      ).length,
+      settings_vault_delete_dialog_open:
+        document.querySelector('[data-testid="settings-vault-delete"]') !== null,
+      settings_vault_editor_open:
+        document.querySelector('[data-testid="settings-vault-editor"]') !== null,
+      settings_vault_secret_count: countByPrefix("vault-secrets-row"),
+      settings_view_visible: document.querySelector('[data-testid="settings-shell"]') !== null,
       message_count: document.querySelectorAll(
         '[data-testid="message-bubble-user"], [data-testid="message-bubble-assistant"]'
       ).length,

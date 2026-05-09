@@ -8,12 +8,14 @@ import {
   listMemories,
   listMemoryDecisions,
   readMemory,
+  revertMemoryDecision,
   searchMemory,
   triggerMemoryDream,
   writeMemory,
 } from "@/systems/knowledge/adapters/knowledge-api";
 import {
   memoryDecisionsFixture,
+  memoryDecisionRevertFixture,
   memoryDeleteFixture,
   memoryDreamTriggerFixture,
   memoryEditFixture,
@@ -325,6 +327,31 @@ describe("listMemoryDecisions", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(listMemoryDecisions({ scope: "global" })).rejects.toThrow(KnowledgeApiError);
+  });
+});
+
+describe("revertMemoryDecision", () => {
+  it("Should POST the revert body to the decision-specific endpoint", async () => {
+    mockJsonResponse(memoryDecisionRevertFixture);
+
+    const result = await revertMemoryDecision("dec_edit_fixture", {
+      reason: "operator reverted from Knowledge",
+    });
+
+    expect(result).toEqual(memoryDecisionRevertFixture);
+    await expectFetchRequest({
+      body: { reason: "operator reverted from Knowledge" },
+      method: "POST",
+      path: "/api/memory/decisions/dec_edit_fixture/revert",
+    });
+  });
+
+  it("Should surface 404 for unknown decisions", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(revertMemoryDecision("missing_decision")).rejects.toThrow(
+      "Memory decision not found: missing_decision"
+    );
   });
 });
 

@@ -166,6 +166,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   const initialEndpointSlug = uniqueName("browser-trigger");
   const editedEndpointSlug = `${initialEndpointSlug}-v2`;
   const prompt = browserAutomationOperatorFlowScenario.trigger.prompt;
+  const editedPrompt = `{{ printf "Review payload %s for %s" (index .Data "payload") (index .Data "branch") }}`;
 
   await ui.createTriggerButton.click();
   await expect(ui.editorDialog).toBeVisible();
@@ -201,7 +202,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await ui.editAutomationButton.click();
   await expect(ui.editorDialog).toBeVisible();
   await ui.triggerNameInput.fill(editedName);
-  await ui.triggerPromptInput.fill(prompt);
+  await ui.triggerPromptInput.fill(editedPrompt);
   await ui.triggerEndpointSlugInput.fill(editedEndpointSlug);
   const updateResponse = appPage.waitForResponse(
     response =>
@@ -215,7 +216,9 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   const updated = await waitForTriggerByName(runtime, editedName);
   expect(updated.endpoint_slug).toBe(editedEndpointSlug);
+  expect(updated.prompt).toBe(editedPrompt);
   await expect(ui.detailPanel).toContainText(editedName);
+  await expect(ui.detailPanel).toContainText(editedPrompt);
 
   const endpoint = endpointFor(updated);
   const invalidSignature = await deliverWebhook(runtime, {
@@ -408,14 +411,17 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   expect(delivery.body).not.toMatch(sensitivePattern);
   const failedRun = await waitForLatestTriggerRun(runtime, trigger.id, "failed");
   expect(failedRun.attempt).toBeGreaterThan(1);
-  expect(failedRun.error || failedRun.delivery_error).toBeTruthy();
+  const failureMessage = `${failedRun.error ?? ""} ${failedRun.delivery_error ?? ""}`;
+  expect(failureMessage).toMatch(/peer disconnected before response|internal error/i);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.item(trigger.id).click();
   await expect(ui.run(failedRun.id)).toBeVisible();
   await expect(ui.run(failedRun.id)).toContainText("FAILED");
-  await expect(ui.run(failedRun.id)).toContainText(/disconnect|prompt|session|failed/i);
+  await expect(ui.run(failedRun.id)).toContainText(
+    /peer disconnected before response|internal error/i
+  );
 
   const parity = await captureTriggerParity(runtime, trigger.id, failedRun.id);
   expect(parity.httpRun.run.status).toBe("failed");
@@ -424,6 +430,14 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
   await browserArtifacts.captureScreenshot("triggers-failure-diagnostics", appPage);
+  await assertTriggerRunViewportMatrix(
+    appPage,
+    browserArtifacts,
+    runtime,
+    trigger.id,
+    failedRun.id,
+    "triggers-failure-diagnostics"
+  );
   await browserArtifacts.persist(appPage);
   const routeState = await readRouteState(runtime);
   expect(routeState).toMatchObject({
@@ -437,9 +451,87 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await deleteTriggerIfExists(runtime, trigger.id);
 });
 
+test("operator sees fire-limit rejection across browser and runtime surfaces", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const ui = automationOperatorSelectors(appPage);
+  const trigger = await createTrigger(
+    runtime,
+    triggerRequest({
+      fireLimit: { max: 1, window: "1h" },
+      name: uniqueName("triggers-fire-limit"),
+      prompt: browserAutomationOperatorFlowScenario.trigger.prompt,
+    })
+  );
+  const endpoint = endpointFor(trigger);
+
+  await ensureGlobalWorkspace(runtime);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(ui);
+  await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+  await expect(ui.triggersShell).toBeVisible();
+  await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
+  await ui.item(trigger.id).click();
+  await expect(ui.detailPanel).toContainText("1 fires / 1h");
+
+  const accepted = await deliverWebhook(runtime, {
+    deliveryID: uniqueName("delivery-fire-limit-first"),
+    endpoint,
+    payload: triggerPayload("deploy", "main"),
+    secret: webhookSecret,
+    wantStatus: 200,
+  });
+  const acceptedRunID = accepted.json?.result.runs?.[0]?.id;
+  expect(acceptedRunID).toBeTruthy();
+  const acceptedRun = await waitForTriggerRun(
+    runtime,
+    trigger.id,
+    acceptedRunID ?? "",
+    "completed"
+  );
+
+  const limited = await deliverWebhook(runtime, {
+    deliveryID: uniqueName("delivery-fire-limit-second"),
+    endpoint,
+    payload: triggerPayload("deploy", "main"),
+    secret: webhookSecret,
+    wantStatus: 409,
+  });
+  expect(limited.body).toMatch(/fire limit|limit/i);
+  expect(await triggerRunCount(runtime, trigger.id)).toBe(1);
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
+  await ui.item(trigger.id).click();
+  await expect(ui.run(acceptedRun.id)).toBeVisible();
+  await expect(ui.runHistory).toContainText("COMPLETED");
+  const parity = await captureTriggerParity(runtime, trigger.id, acceptedRun.id);
+  expect(parity.httpRuns.runs).toHaveLength(1);
+  expect(parity.cliHistory.runs).toHaveLength(1);
+  await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
+    fireLimit: { response: { status: limited.status }, parity },
+  });
+  await browserArtifacts.captureScreenshot("triggers-fire-limit-rejection", appPage);
+  await assertTriggerRunViewportMatrix(
+    appPage,
+    browserArtifacts,
+    runtime,
+    trigger.id,
+    acceptedRun.id,
+    "triggers-fire-limit-rejection"
+  );
+  await browserArtifacts.persist(appPage);
+  await assertNoTriggerSensitiveLeak(appPage, runtime, { limited, parity });
+  await deleteSessionIfExists(runtime, acceptedRun.session_id);
+  await deleteTriggerIfExists(runtime, trigger.id);
+});
+
 function triggerRequest(input: {
   agentName?: string;
   endpointSlug?: string;
+  fireLimit?: TriggerRequest["fire_limit"];
   filter?: Record<string, string>;
   name: string;
   prompt?: string;
@@ -452,7 +544,7 @@ function triggerRequest(input: {
     endpoint_slug: input.endpointSlug ?? uniqueName("browser-trigger"),
     event: "webhook",
     filter: input.filter ?? { "data.branch": "main" },
-    fire_limit: { max: 12, window: "1h" },
+    fire_limit: input.fireLimit ?? { max: 12, window: "1h" },
     name: input.name,
     prompt: input.prompt ?? browserAutomationOperatorFlowScenario.trigger.prompt,
     retry: input.retry ?? { strategy: "none", max_retries: 0, base_delay: "" },
@@ -736,6 +828,27 @@ async function assertTriggersViewportMatrix(
     );
     await appPage.keyboard.press("Escape");
     await expect(ui.editorDialog).toBeHidden();
+  }
+}
+
+async function assertTriggerRunViewportMatrix(
+  appPage: Page,
+  browserArtifacts: { captureScreenshot: (name: string, page?: Page) => Promise<unknown> },
+  runtime: BrowserRuntime,
+  triggerID: string,
+  runID: string,
+  prefix: string
+): Promise<void> {
+  const ui = automationOperatorSelectors(appPage);
+  for (const width of [375, 768, 1280]) {
+    await appPage.setViewportSize({ width, height: 820 });
+    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+    await expect(ui.triggersShell).toBeVisible();
+    await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
+    await ui.item(triggerID).click();
+    await expect(ui.runHistory).toBeVisible();
+    await expect(ui.run(runID)).toBeVisible();
+    await browserArtifacts.captureScreenshot(`${prefix}-viewport-${width}`, appPage);
   }
 }
 

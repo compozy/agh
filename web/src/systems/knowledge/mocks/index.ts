@@ -1,11 +1,11 @@
 export { handlers } from "./handlers";
 export {
+  memoryDecisionRevertFixture,
   memoryDecisionsFixture,
   memoryDeleteFixture,
   memoryDreamTriggerFixture,
   memoryEditFixture,
   memoryHeadersFixture,
-  memoryMutationFixture,
   memoryReadFixtures,
   memorySearchFixture,
   memoryWriteFixture,

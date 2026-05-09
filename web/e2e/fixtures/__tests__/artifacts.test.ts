@@ -139,4 +139,27 @@ describe("artifact collector", () => {
     expect(mirroredPath).toBe(path.join(qaOutputRoot, "qa", "screenshots", "tasks-dashboard.png"));
     expect(await readFile(mirroredPath, "utf8")).toBe("dashboard");
   });
+
+  it("records browser transport snapshots as first-class artifacts", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-transport-artifact-"));
+    const collector = await ArtifactCollector.create(rootDir);
+    const snapshot = {
+      scenarioID: "TC-HARNESS-001",
+      http: { status: "running" },
+      uds: { status: "running" },
+      cli: { status: "running" },
+    };
+
+    await collector.captureJSON("browser_transport_snapshots", snapshot);
+    const manifest = await collector.writeManifest();
+
+    expect(
+      JSON.parse(await readFile(collector.artifactPath("browser_transport_snapshots"), "utf8"))
+    ).toEqual(snapshot);
+    expect(manifest.artifacts).toContainEqual({
+      kind: "browser_transport_snapshots",
+      path: "browser_transport_snapshots.json",
+      media_type: "application/json",
+    });
+  });
 });
