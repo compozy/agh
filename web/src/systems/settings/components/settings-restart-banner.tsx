@@ -85,7 +85,7 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
           ) : null}
           {activeSessionLabel ? (
             <span
-              className="font-mono text-[10px] font-semibold tracking-[0.08em] text-[color:var(--color-text-label)]"
+              className="font-mono text-badge font-semibold tracking-badge text-(--color-text-label)"
               data-testid={`settings-page-${slug}-restart-banner-active-sessions`}
             >
               {activeSessionLabel}

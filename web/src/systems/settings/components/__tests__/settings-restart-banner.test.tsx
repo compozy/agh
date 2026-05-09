@@ -74,6 +74,12 @@ describe("SettingsRestartBanner", () => {
       screen.getByTestId("settings-page-observability-restart-banner-active-sessions")
     ).toHaveTextContent("2 active sessions");
     expect(
+      screen.getByTestId("settings-page-observability-restart-banner-active-sessions")
+    ).toHaveClass("font-mono", "text-badge", "font-semibold", "tracking-badge");
+    expect(
+      screen.getByTestId("settings-page-observability-restart-banner-active-sessions").className
+    ).toContain("text-(--color-text-label)");
+    expect(
       screen.queryByTestId("settings-page-observability-restart-banner-trigger")
     ).not.toBeInTheDocument();
   });

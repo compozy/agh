@@ -60,6 +60,34 @@ describe("KnowledgeCreateDialog", () => {
     });
   });
 
+  it("Should preserve in-progress draft input when defaultType changes while open", async () => {
+    const user = userEvent.setup();
+    const view = renderDialog();
+
+    await user.selectOptions(screen.getByTestId("knowledge-create-type"), "feedback");
+    await user.type(screen.getByTestId("knowledge-create-name"), "Launch Memory");
+    await user.type(screen.getByTestId("knowledge-create-description"), "workspace contract");
+    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
+
+    view.rerender(
+      <UIProvider reducedMotion="always">
+        <KnowledgeCreateDialog
+          open
+          onOpenChange={vi.fn()}
+          scope="workspace"
+          defaultType="reference"
+          isPending={false}
+          onConfirm={vi.fn()}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("knowledge-create-type")).toHaveValue("feedback");
+    expect(screen.getByTestId("knowledge-create-name")).toHaveValue("Launch Memory");
+    expect(screen.getByTestId("knowledge-create-description")).toHaveValue("workspace contract");
+    expect(screen.getByTestId("knowledge-create-content")).toHaveValue("Use the launch playbook.");
+  });
+
   it("Should surface the dialog error", () => {
     renderDialog({ error: "Write rejected" });
     expect(screen.getByTestId("knowledge-create-dialog-error")).toHaveTextContent("Write rejected");

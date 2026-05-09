@@ -56,7 +56,7 @@ function KnowledgeCreateDialog({
       setDescription("");
       setContent("");
     }
-  }, [defaultType, open]);
+  }, [open]);
 
   const handleSubmit = async () => {
     const trimmedDescription = description.trim();

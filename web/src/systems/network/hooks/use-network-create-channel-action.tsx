@@ -22,6 +22,7 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
     [agentsQuery.data]
   );
   const canCreateChannel =
+    enabled &&
     activeWorkspaceId != null &&
     createDraft.channelName.trim() !== "" &&
     createDraft.purpose.trim() !== "" &&
@@ -31,28 +32,26 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
     void navigate({ to: "/settings/network" });
   };
 
-  const handleCreateChannel = () => {
-    if (!activeWorkspaceId || !canCreateChannel) {
+  const handleCreateChannel = async () => {
+    if (!enabled || !activeWorkspaceId || !canCreateChannel) {
       return;
     }
 
-    void createChannel
-      .mutateAsync({
+    try {
+      const response = await createChannel.mutateAsync({
         agent_names: createDraft.selectedAgentNames,
         channel: createDraft.channelName.trim(),
         purpose: createDraft.purpose.trim(),
         workspace_id: activeWorkspaceId,
-      })
-      .then(response => {
-        const channel = response.channel.channel;
-        setCreateDraft(createNetworkChannelDraft());
-        setCreateOpen(false);
-        void navigate({ params: { channel }, to: "/network/$channel/threads" });
-      })
-      .catch(error => {
-        const message = error instanceof Error ? error.message : "Failed to create network channel";
-        toast.error(message);
       });
+      const channel = response.channel.channel;
+      setCreateDraft(createNetworkChannelDraft());
+      setCreateOpen(false);
+      void navigate({ params: { channel }, to: "/network/$channel/threads" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create network channel";
+      toast.error(message);
+    }
   };
 
   const action = enabled ? (
