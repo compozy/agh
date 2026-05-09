@@ -20,7 +20,7 @@ const browserLifecycleAgent = "browser-lifecycle-agent";
 const browserLifecyclePrompt = "run browser lifecycle flow";
 
 function browserLifecycleSessionPath(agentName: string, sessionId: string): string {
-  return `/agents/${agentName}/sessions/${sessionId}`;
+  return `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`;
 }
 
 test.use({

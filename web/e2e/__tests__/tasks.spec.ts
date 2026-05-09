@@ -21,12 +21,14 @@ const browserLifecycleFixture = path.resolve(
 const tasksSessionAgentName = "browser-lifecycle-agent";
 const createdDraftDescription =
   "Use the shared browser lane to capture fresh Tasks evidence for task_19.";
-const createdDraftTitle = "Draft Tasks browser evidence rollout";
 const deleteDraftDescription = "Exercise the shared delete confirmation dialog from Tasks e2e.";
-const deleteDraftTitle = "Draft Tasks delete confirmation smoke";
 
 function tasksSessionPath(sessionId: string): string {
   return `/agents/${tasksSessionAgentName}/sessions/${sessionId}`;
+}
+
+function uniqueDraftTitle(prefix: string): string {
+  return `${prefix} ${Date.now()}`;
 }
 
 test.use({
@@ -74,6 +76,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await expect(appPage).toHaveURL(/\/tasks\/new$/);
   await expect(tasksUI.createEditorSurface).toBeVisible();
   await tasksUI.createPriority("high").click();
+  const createdDraftTitle = uniqueDraftTitle("Draft Tasks browser evidence rollout");
   await tasksUI.createTitle.fill(createdDraftTitle);
   await tasksUI.createDescription.fill(createdDraftDescription);
   await expect(tasksUI.createSaveDraft).toBeEnabled();
@@ -234,6 +237,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.openCreate.click();
   await expect(appPage).toHaveURL(/\/tasks\/new$/);
   await expect(tasksUI.createEditorSurface).toBeVisible();
+  const deleteDraftTitle = uniqueDraftTitle("Draft Tasks delete confirmation smoke");
   await tasksUI.createTitle.fill(deleteDraftTitle);
   await tasksUI.createDescription.fill(deleteDraftDescription);
   await tasksUI.createSaveDraft.click();

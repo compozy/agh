@@ -36,18 +36,38 @@ test("operator can inspect installed skills and reach the skills surface from se
   await appPage.getByTestId("tab-marketplace").click();
   await expect(appPage.getByTestId("marketplace-view")).toBeVisible();
   const catalogCards = appPage.locator('[data-slot="catalog-card"]');
+  const marketplaceEmpty = appPage.getByTestId("marketplace-empty");
+  await expect
+    .poll(async () => {
+      if ((await catalogCards.count()) > 0) {
+        return "catalog";
+      }
+
+      return (await marketplaceEmpty.isVisible()) ? "empty" : "pending";
+    })
+    .toMatch(/catalog|empty/);
   if ((await catalogCards.count()) > 0) {
     await expect(catalogCards.first()).toBeVisible();
   } else {
-    await expect(appPage.getByTestId("marketplace-empty")).toBeVisible();
+    await expect(marketplaceEmpty).toBeVisible();
   }
 
   await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
   await expect(settingsUI.skills.page).toBeVisible();
+  const disabledSkillsEmpty = appPage.getByTestId("settings-page-skills-disabled-empty");
+  await expect
+    .poll(async () => {
+      if ((await settingsUI.skills.disabledList.count()) > 0) {
+        return "list";
+      }
+
+      return (await disabledSkillsEmpty.isVisible()) ? "empty" : "pending";
+    })
+    .toMatch(/list|empty/);
   if ((await settingsUI.skills.disabledList.count()) > 0) {
     await expect(settingsUI.skills.disabledList).toBeVisible();
   } else {
-    await expect(appPage.getByTestId("settings-page-skills-disabled-empty")).toBeVisible();
+    await expect(disabledSkillsEmpty).toBeVisible();
   }
   await settingsUI.skills.operationalLink.click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/skills");

@@ -10,7 +10,7 @@ import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
  * ADR-010 (manual operator control) and ADR-012 (task-run coordination
  * channels) bookends for the Tasks UI. These cases verify:
  *
- *   1. Creating a task is saved intent only , no run is queued, the lifecycle
+ *   1. Creating a task is saved intent only, no run is queued, the lifecycle
  *      pill reads "Saved intent", the runs panel reads as saved intent, and the
  *      Publish CTA tooltip names coordinator handoff.
  *   2. Publishing/starting moves the task into "Coordinator handoff" with a
@@ -55,7 +55,7 @@ test.use({
   },
 });
 
-test("creating a task is saved intent , no run is enqueued and labels never imply autonomy", async ({
+test("creating a task is saved intent, no run is enqueued and labels never imply autonomy", async ({
   appPage,
   runtime,
 }) => {

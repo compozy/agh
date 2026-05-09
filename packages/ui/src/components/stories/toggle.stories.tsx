@@ -12,7 +12,7 @@ const meta: Meta<typeof Toggle> = {
     docs: {
       description: {
         component:
-          "Two-state button backed by Base UI. Compose with icons or text , use `ToggleGroup` for mutually exclusive or multi-select clusters.",
+          "Two-state button backed by Base UI. Compose with icons or text, use `ToggleGroup` for mutually exclusive or multi-select clusters.",
       },
     },
   },

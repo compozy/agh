@@ -82,7 +82,7 @@ export const ErrorPlay: Story = {
     docs: {
       description: {
         story:
-          "Interaction test , clicking the trigger fires `toast.error` and the toast body renders with the danger message.",
+          "Interaction test, clicking the trigger fires `toast.error` and the toast body renders with the danger message.",
       },
     },
   },
