@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Eyebrow } from "./eyebrow";
 
 export interface DetailHeaderProps extends Omit<React.ComponentProps<"header">, "title"> {
   title: React.ReactNode;
@@ -33,12 +34,9 @@ function DetailHeader({
       {...props}
     >
       {crumbs ? (
-        <div
-          data-slot="detail-header-crumbs"
-          className="font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)"
-        >
+        <Eyebrow data-slot="detail-header-crumbs" case="upper" tone="muted">
           {crumbs}
-        </div>
+        </Eyebrow>
       ) : null}
       <div data-slot="detail-header-row" className="flex min-w-0 flex-wrap items-start gap-3">
         <div data-slot="detail-header-title-block" className="flex min-w-0 flex-col gap-1.5">

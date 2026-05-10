@@ -61,7 +61,7 @@ function ListGroupHeader({ label, count, actions, className, ...props }: ListGro
     >
       <span
         data-slot="list-group-label"
-        className="font-mono text-badge uppercase tracking-badge text-(--muted)"
+        className="font-mono text-badge uppercase tracking-mono text-(--muted)"
       >
         {label}
       </span>

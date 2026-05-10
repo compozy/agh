@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import {
   Empty,
+  Eyebrow,
   Item,
   ItemContent,
   ItemDescription,
@@ -88,9 +89,9 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
           <ItemTitle className="w-full">
             <span className="min-w-0 flex-1 truncate">{skill.name}</span>
             {skill.version ? (
-              <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--subtle)">
+              <Eyebrow case="upper" tone="subtle" size="badge" className="shrink-0">
                 v{skill.version}
-              </span>
+              </Eyebrow>
             ) : null}
           </ItemTitle>
         </ItemContent>

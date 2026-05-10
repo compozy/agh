@@ -1,3 +1,4 @@
+import { Eyebrow } from "@agh/ui";
 const controlNotes = [
   {
     label: "Operator surfaces",
@@ -32,9 +33,9 @@ function renderArchitectureDiagram() {
       <div className="mx-auto max-w-(--site-layout-width)">
         <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
           <div className="max-w-[540px]">
-            <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-tertiary)">
+            <Eyebrow case="upper" tone="muted" className="text-(--color-text-tertiary)">
               CONTROL PLANE
-            </p>
+            </Eyebrow>
             <h2 className="mt-5 text-site-protocol-title leading-none font-semibold tracking-tight text-(--color-text-primary)">
               One runtime for operator control and open coordination.
             </h2>
@@ -47,9 +48,9 @@ function renderArchitectureDiagram() {
 
           <div className="w-full lg:max-w-[420px]">
             <div className="rounded-xl bg-(--color-canvas) p-6 md:p-8">
-              <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-accent">
+              <Eyebrow case="upper" tone="muted" className="text-accent">
                 Reading guide
-              </p>
+              </Eyebrow>
               <div className="mt-6 flex flex-col gap-6">
                 {controlNotes.map(note => (
                   <div
@@ -70,9 +71,9 @@ function renderArchitectureDiagram() {
         <div className="mt-16 rounded-xl bg-(--color-canvas) p-6 md:p-10">
           <div className="flex flex-col gap-4 border-b border-(--color-divider) pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-accent">
+              <Eyebrow case="upper" tone="muted" className="text-accent">
                 Runtime map
-              </p>
+              </Eyebrow>
               <p className="mt-2 text-lg font-medium leading-tight text-(--color-text-primary)">
                 Operator surfaces feed one local daemon, which exposes AGH Network at the edge
               </p>

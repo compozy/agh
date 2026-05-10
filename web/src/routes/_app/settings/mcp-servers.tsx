@@ -9,6 +9,7 @@ import {
   Button,
   ConfirmDialog,
   Empty,
+  Eyebrow,
   Input,
   Pill,
   NativeSelect,
@@ -257,12 +258,14 @@ function ScopeSelector({
         }}
       />
       {workspaceScopeAvailable && workspaces.length === 0 && !isLoadingWorkspaces ? (
-        <span
-          className="font-mono text-badge uppercase tracking-mono text-(--subtle)"
+        <Eyebrow
+          case="upper"
+          tone="subtle"
+          size="badge"
           data-testid="settings-page-mcp-servers-scope-workspace-empty"
         >
           no workspaces yet
-        </span>
+        </Eyebrow>
       ) : null}
     </div>
   );

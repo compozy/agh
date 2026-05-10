@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 
 import {
   Button,
+  Eyebrow,
   Metric,
   MetricGrid,
   PageShell,
@@ -390,12 +391,14 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
           <span className="text-sm text-(--fg)">
             {logTail.available ? "Live log tail available" : "Log tail unavailable"}
           </span>
-          <span
-            className="font-mono text-badge uppercase tracking-mono text-(--muted)"
+          <Eyebrow
+            case="upper"
+            tone="muted"
+            size="badge"
             data-testid="settings-page-observability-log-tail-transport"
           >
             transport: {logTail.transport ?? "none"}
-          </span>
+          </Eyebrow>
         </div>
         {logTail.available && logTail.stream_url ? (
           <a
@@ -435,7 +438,9 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">{label}</span>
+      <Eyebrow case="upper" tone="muted" size="badge">
+        {label}
+      </Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           className="w-full"
@@ -446,9 +451,9 @@ function NumberField({
           onValueChange={onChange}
         />
         {suffix ? (
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             {suffix}
-          </span>
+          </Eyebrow>
         ) : null}
       </div>
       {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}
@@ -470,7 +475,9 @@ function UsageBreakdown({ globalBytes, sessionBytes, cap }: UsageBreakdownProps)
   return (
     <div className="flex flex-col gap-2" data-testid="settings-page-observability-usage-breakdown">
       <div className="flex items-center justify-between text-xs text-(--subtle)">
-        <span className="font-mono uppercase tracking-mono text-(--muted)">Usage breakdown</span>
+        <Eyebrow case="upper" tone="muted">
+          Usage breakdown
+        </Eyebrow>
       </div>
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-(--canvas-soft)">
         <div

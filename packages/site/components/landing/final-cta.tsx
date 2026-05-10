@@ -1,3 +1,4 @@
+import { Eyebrow } from "@agh/ui";
 import { Star } from "lucide-react";
 import { baseOptions } from "@/lib/layout.shared";
 import { CtaButton } from "./primitives/cta-button";
@@ -8,9 +9,9 @@ export function FinalCta() {
     <SectionFrame background="surface" padY="lg" className="border-b border-(--color-divider)">
       <div className="grid gap-8 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
-          <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
+          <Eyebrow case="upper" tone="muted" weight="semibold" className="text-accent">
             Ship it
-          </p>
+          </Eyebrow>
           <h2 className="mt-4 max-w-[18ch] text-site-cta-title leading-none font-normal tracking-tight text-(--color-text-primary)">
             Install AGH. Run a session. Join the network.
           </h2>
@@ -34,10 +35,10 @@ export function FinalCta() {
             href={baseOptions.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:text-accent"
+            className="mt-1 inline-flex items-center gap-2 text-(--color-text-secondary) transition-colors hover:text-accent"
           >
             <Star aria-hidden className="size-3.5" />
-            Star on GitHub
+            <Eyebrow case="upper">Star on GitHub</Eyebrow>
           </a>
         </div>
       </div>

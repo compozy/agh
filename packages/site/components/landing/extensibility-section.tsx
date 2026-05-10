@@ -4,6 +4,7 @@ import { ArrowUpRight, BookOpen, Box, FileCode2, Plug, Sparkles, Timer } from "l
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
+import { Eyebrow } from "@agh/ui";
 
 const EXTENSIONS_DOCS_HREF = "/runtime/core/extensions";
 
@@ -75,9 +76,15 @@ export function ExtensibilitySection() {
           <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-(--color-divider) text-(--color-text-secondary) transition-colors group-hover:border-accent group-hover:text-accent">
             <BookOpen aria-hidden className="size-5" />
           </span>
-          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+          <Eyebrow
+            case="upper"
+            tone="muted"
+            size="badge"
+            weight="semibold"
+            className="text-(--color-text-tertiary)"
+          >
             Reference
-          </p>
+          </Eyebrow>
           <h3 className="text-base font-medium leading-snug text-(--color-text-primary)">
             Every extensibility surface, in one reference.
           </h3>
@@ -108,9 +115,9 @@ export function ExtensibilitySection() {
             <code className="font-mono text-(--color-text-primary)">agh hooks list</code>, and{" "}
             <code className="font-mono text-(--color-text-primary)">agh extension list</code>.
           </p>
-          <p className="mt-4 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
+          <Eyebrow case="upper" tone="muted" className="mt-4 text-(--color-text-tertiary)">
             Contract on disk, not a plugin API.
-          </p>
+          </Eyebrow>
         </div>
         <Image
           src="/images/extensibility-skill-contract-v1.png"

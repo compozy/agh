@@ -1,3 +1,4 @@
+import { Eyebrow } from "@agh/ui";
 import {
   BlackboxLogo,
   ClaudeLogo,
@@ -109,9 +110,9 @@ export function SupportedAgents() {
     <SectionFrame background="canvas" padY="md" className="border-b border-(--color-divider)">
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         <div className="max-w-[40ch]">
-          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+          <Eyebrow case="upper" tone="muted" size="badge" weight="semibold" className="text-accent">
             Your CLI on the network
-          </p>
+          </Eyebrow>
           <p className="mt-2 text-base leading-snug text-(--color-text-primary)">
             AGH runs the CLIs you already use as durable sessions and joins them to the workplace as
             peers. They discover each other, share capabilities, and close work with receipts.
@@ -135,9 +136,14 @@ export function SupportedAgents() {
                 <span aria-hidden="true" className="flex size-6 items-center justify-center">
                   {provider.logo}
                 </span>
-                <span className="font-mono text-micro uppercase tracking-mono text-(--color-text-tertiary)">
+                <Eyebrow
+                  case="upper"
+                  tone="muted"
+                  size="micro"
+                  className="text-(--color-text-tertiary)"
+                >
                   {provider.id}
-                </span>
+                </Eyebrow>
               </div>
             </li>
           ))}

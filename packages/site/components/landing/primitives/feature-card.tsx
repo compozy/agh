@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { cn } from "@agh/ui/lib/utils";
+import { Eyebrow, cn } from "@agh/ui";
 
 interface FeatureCardProps {
   eyebrow?: string;
@@ -34,9 +34,9 @@ export function FeatureCard({
         </div>
       ) : null}
       {eyebrow ? (
-        <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+        <Eyebrow case="upper" tone="muted" size="badge" weight="semibold" className="text-accent">
           {eyebrow}
-        </p>
+        </Eyebrow>
       ) : null}
       <h3 className="text-base font-medium leading-snug text-(--color-text-primary)">{title}</h3>
       <p className="text-sm leading-relaxed text-(--color-text-secondary)">{description}</p>

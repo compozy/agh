@@ -1,3 +1,5 @@
+import { Eyebrow } from "@agh/ui";
+
 import { HeroPlayer } from "./hero-player";
 import { CtaButton } from "./primitives/cta-button";
 import { PROVIDERS } from "./supported-agents";
@@ -34,11 +36,11 @@ export function Hero() {
       <div className="relative mx-auto max-w-(--site-layout-width)">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
           <div className="order-2 lg:order-0 lg:pr-2">
-            <div className="flex items-center gap-3 font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-label)">
+            <Eyebrow case="upper" className="flex items-center gap-3 text-(--color-text-label)">
               <span className="text-accent">AGH</span>
               <span className="h-px w-10 bg-(--color-divider)" />
               <span>Artificial General Hivemind</span>
-            </div>
+            </Eyebrow>
 
             <h1 className="mt-6 max-w-[20ch] text-site-hero leading-none font-normal tracking-tight text-(--color-text-primary)">
               An open workplace for AI agents.

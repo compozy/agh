@@ -92,7 +92,7 @@ function KnowledgeCreateDialog({
           <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
             <div className="flex flex-col gap-1.5">
               <Label
-                className="font-mono text-badge uppercase tracking-badge text-(--muted)"
+                className="font-mono text-badge uppercase tracking-mono text-(--muted)"
                 htmlFor="knowledge-create-type"
               >
                 Type
@@ -111,7 +111,7 @@ function KnowledgeCreateDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label
-                className="font-mono text-badge uppercase tracking-badge text-(--muted)"
+                className="font-mono text-badge uppercase tracking-mono text-(--muted)"
                 htmlFor="knowledge-create-name"
               >
                 Name
@@ -127,7 +127,7 @@ function KnowledgeCreateDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label
-              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]"
+              className="font-mono text-badge uppercase tracking-mono text-(--muted)"
               htmlFor="knowledge-create-description"
             >
               Description
@@ -142,7 +142,7 @@ function KnowledgeCreateDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label
-              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]"
+              className="font-mono text-badge uppercase tracking-mono text-(--muted)"
               htmlFor="knowledge-create-content"
             >
               Content

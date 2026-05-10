@@ -1,4 +1,5 @@
 import { Check, Minus } from "lucide-react";
+import { Eyebrow } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
@@ -77,20 +78,35 @@ export function Comparison() {
       <div className="mt-10 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)">
         {/* Header row */}
         <div className="hidden border-b border-(--color-divider) px-5 py-4 md:grid md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:gap-4">
-          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+          <Eyebrow
+            case="upper"
+            tone="muted"
+            size="badge"
+            weight="semibold"
+            className="text-(--color-text-tertiary)"
+          >
             Approach
-          </p>
+          </Eyebrow>
           {DIMENSIONS.map(d => (
-            <p
+            <Eyebrow
               key={d.key}
-              className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)"
+              case="upper"
+              size="badge"
+              weight="semibold"
+              className="text-(--color-text-tertiary)"
             >
               {d.label}
-            </p>
+            </Eyebrow>
           ))}
-          <p className="text-right font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+          <Eyebrow
+            case="upper"
+            tone="muted"
+            size="badge"
+            weight="semibold"
+            className="text-right text-(--color-text-tertiary)"
+          >
             Cross-runtime
-          </p>
+          </Eyebrow>
         </div>
 
         {APPROACHES.map(row => (
@@ -113,9 +129,14 @@ export function Comparison() {
             </div>
             {DIMENSIONS.map(d => (
               <div key={d.key}>
-                <p className="font-mono text-badge font-medium uppercase tracking-mono text-(--color-text-tertiary) md:hidden">
+                <Eyebrow
+                  case="upper"
+                  tone="muted"
+                  size="badge"
+                  className="text-(--color-text-tertiary) md:hidden"
+                >
                   {d.label}
-                </p>
+                </Eyebrow>
                 <p
                   className={cn(
                     "text-small-body leading-6",

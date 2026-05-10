@@ -137,23 +137,26 @@ The kit's `tokens.css` declares only `--font-sans` and `--font-mono`. `--font-di
 
 The runtime kit and `@agh/ui` settle on **Inter-510** for almost every UI weight — a custom value between Medium (500) and SemiBold (600) that Inter Variable supports natively. Body text steps down to weight 400 only for the small body size. Pill `--mono` is the one JetBrains Mono row inside the operator UI ladder.
 
-| Role                                  | Family         | Size    | Weight | Tracking  | Notes                            |
-| ------------------------------------- | -------------- | ------- | ------ | --------- | -------------------------------- |
-| Body                                  | Inter          | 13.5 px | 400    | -0.006em  | Default reading text             |
-| Page H1                               | Inter          | 22 px   | 510    | -0.026em  | Top-level route title            |
-| Detail H1                             | Inter          | 24 px   | 510    | -0.028em  | Detail-page hero title           |
-| Topbar title                          | Inter          | 14 px   | 510    | -0.014em  | Shell topbar route title         |
-| Empty title                           | Inter          | 18 px   | 510    | -0.022em  | RouteState empty / loading title |
-| Sidebar label / table head / run-cell | Inter          | 10.5 px | 510    | 0.05em UC | UPPERCASE eyebrow scope          |
-| Pill default                          | Inter          | 11 px   | 510    | -0.005em  | Sentence case                    |
-| Pill `--mono`                         | JetBrains Mono | 10.5 px | 500    | 0         | Inline mono pills (ids)          |
-| Button                                | Inter          | 12 px   | 510    | -0.005em  | Primary / secondary button label |
+| Role                   | Family         | Size    | Weight | Tracking  | Notes                                                                                                                                                                                                    |
+| ---------------------- | -------------- | ------- | ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Body                   | Inter          | 13.5 px | 400    | -0.006em  | Default reading text                                                                                                                                                                                     |
+| Page H1                | Inter          | 22 px   | 510    | -0.026em  | Top-level route title                                                                                                                                                                                    |
+| Detail H1              | Inter          | 24 px   | 510    | -0.028em  | Detail-page hero title                                                                                                                                                                                   |
+| Topbar title           | Inter          | 14 px   | 510    | -0.014em  | Shell topbar route title                                                                                                                                                                                 |
+| Empty title            | Inter          | 18 px   | 510    | -0.022em  | RouteState empty / loading title                                                                                                                                                                         |
+| Eyebrow `case="upper"` | JetBrains Mono | 11 px   | 510    | 0.06em UC | UPPERCASE eyebrow scope — sidebar label, table head, run-cell, dashboard label, breadcrumb. Always rendered through `<Eyebrow>` (`@agh/ui`); never inlined. Tokens: `--text-eyebrow` + `--tracking-mono` |
+| Eyebrow `size="badge"` | JetBrains Mono | 10 px   | 510    | 0.06em UC | Denser eyebrow variant for chips and metadata badges. Tokens: `--text-badge` + `--tracking-mono`                                                                                                         |
+| Eyebrow `size="micro"` | JetBrains Mono | 9 px    | 510    | 0.06em UC | Tightest mono uppercase tier (live-tab counters, kbd hints). Tokens: `--text-micro` + `--tracking-mono`                                                                                                  |
+| Pill default           | Inter          | 11 px   | 510    | -0.005em  | Sentence case                                                                                                                                                                                            |
+| Pill `--mono`          | JetBrains Mono | 10.5 px | 500    | 0         | Inline mono pills (ids)                                                                                                                                                                                  |
+| Button                 | Inter          | 12 px   | 510    | -0.005em  | Primary / secondary button label                                                                                                                                                                         |
 
 ### Typography Principles
 
 - **Inter is the runtime ladder.** No Playfair, no NuixyberNext anywhere inside `web/` or `packages/ui` — those faces live in `packages/site` only.
 - **Inter weight 510 sits between Medium and SemiBold** — slightly punchier than 500 without the dense feel of 600. Body stays at 400.
 - **UPPERCASE is scoped.** Only sidebar labels, table heads, run-cell mono labels, and Eyebrow `case="upper"` go uppercase. Pill default, button labels, and copy stay sentence case (`Eyebrow case="sentence"` is the default).
+- **Eyebrow markup is mandatory.** Every uppercase mono label in `web/` and `packages/site` MUST render through `<Eyebrow>` (`@agh/ui`). Inlining `font-mono` + `uppercase` + a `text-*`/`tracking-*` tuple in product spans/paragraphs is forbidden — `@agh/ui` ships the structural primitives (`<Sidebar.SectionLabel>`, `<TableHead>`, `<MetadataList.Term>`, `<WireCardHead>`) for the cases that must inherit eyebrow typography on a non-span element. Canonical tracking is `--tracking-mono` (0.06em). Never reach for arbitrary values like `tracking-[0.05em]`, `text-[10.5px]`, or the legacy `--tracking-badge` (0.08em) for eyebrow text.
 - **Negative tracking on titles** (-0.014em to -0.028em) tightens the page-h1 / detail-h1 / topbar-title hierarchy. Body and small text use a slight negative tracking (-0.005em to -0.006em) for crisp ranges on the warm canvas.
 - **No bold UI weight.** The ladder tops out at 510. Body is 400, never bold.
 - **Signal text on tint surfaces** — text uses the full signal hex, the tint token sits behind. The color carries the meaning.

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Copy } from "lucide-react";
-import { Button } from "@agh/ui";
+import { Button, Eyebrow } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
 
 interface CodeBlockProps {
@@ -67,9 +67,14 @@ export function CodeBlock({
     >
       {(caption || language || copyable) && (
         <div className="flex min-w-0 items-start justify-between gap-3 border-b border-(--color-divider) px-4 py-2.5">
-          <span className="min-w-0 font-mono text-badge leading-relaxed font-medium uppercase tracking-mono text-(--color-text-tertiary) wrap-anywhere">
+          <Eyebrow
+            case="upper"
+            tone="muted"
+            size="badge"
+            className="min-w-0 leading-relaxed text-(--color-text-tertiary) wrap-anywhere"
+          >
             {caption ?? language ?? "shell"}
-          </span>
+          </Eyebrow>
           {copyable ? (
             <Button
               variant="ghost"

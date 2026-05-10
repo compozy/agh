@@ -1,3 +1,5 @@
+import { Eyebrow } from "@agh/ui";
+
 import { LLMCopyButton, OpenWithAI, ViewOptions } from "@/components/docs/page-actions";
 
 interface DocPageMastheadProps {
@@ -78,11 +80,16 @@ export function DocPageMasthead({
 
   return (
     <header className="not-prose border-b border-(--color-divider) pb-8">
-      <div className="flex flex-wrap items-center gap-3 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
+      <Eyebrow
+        case="upper"
+        size="badge"
+        weight="semibold"
+        className="flex flex-wrap items-center gap-3 text-(--color-text-label)"
+      >
         <span className="text-accent">{meta.eyebrow}</span>
         <span className="h-px w-8 bg-(--color-divider)" />
         <span>{meta.section}</span>
-      </div>
+      </Eyebrow>
 
       <div className="mt-5 flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-8">
         <h1 className="max-w-[12ch] font-display text-site-doc-title leading-none font-normal tracking-tight text-(--color-text-primary)">

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Cpu } from "lucide-react";
 
-import { CommandSelect, CommandSelectShell, CommandSelectTrigger } from "@agh/ui";
+import { CommandSelect, CommandSelectShell, CommandSelectTrigger, Eyebrow } from "@agh/ui";
 
 import { ProviderCommandList } from "./provider-command-list";
 import type { SessionProviderOption } from "../types";
@@ -55,9 +55,9 @@ export function ProviderCommandSelect({
             <span className="truncate text-sm text-(--fg)">
               {selected.display_name?.trim() || selected.name}
             </span>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted" size="badge">
               {selected.harness ?? "acp"}
-            </span>
+            </Eyebrow>
           </span>
         ) : (
           <span className="truncate text-(--muted)">{placeholder}</span>

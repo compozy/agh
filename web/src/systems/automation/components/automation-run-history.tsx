@@ -73,21 +73,11 @@ export function AutomationRunHistory({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="font-mono text-badge uppercase tracking-mono text-(--muted)">
-                  Status
-                </TableHead>
-                <TableHead className="font-mono text-badge uppercase tracking-mono text-(--muted)">
-                  Attempt
-                </TableHead>
-                <TableHead className="font-mono text-badge uppercase tracking-mono text-(--muted)">
-                  Started
-                </TableHead>
-                <TableHead className="font-mono text-badge uppercase tracking-mono text-(--muted)">
-                  Duration
-                </TableHead>
-                <TableHead className="font-mono text-badge uppercase tracking-mono text-(--muted)">
-                  Session
-                </TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Attempt</TableHead>
+                <TableHead>Started</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Session</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

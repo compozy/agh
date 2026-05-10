@@ -17,6 +17,7 @@ import {
 } from "@/lib/blog";
 import { categoryLabel } from "@/components/blog/format";
 import { blogMetadata } from "./metadata";
+import { Eyebrow } from "@agh/ui";
 
 export const metadata = blogMetadata;
 
@@ -59,7 +60,9 @@ export default function BlogIndexPage() {
               className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-small-body text-(--color-text-secondary) hover:text-(--color-text-primary)"
             >
               <Rss size={12} aria-hidden />
-              <span className="font-mono text-eyebrow uppercase tracking-mono">RSS</span>
+              <Eyebrow case="upper" tone="muted">
+                RSS
+              </Eyebrow>
             </Link>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { Cloud, RefreshCcw, Terminal } from "lucide-react";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
+import { Eyebrow } from "@agh/ui";
 
 const CARDS = [
   {
@@ -41,9 +42,15 @@ function SandboxDiagram() {
               key={label}
               className="rounded-md border border-(--color-divider) bg-(--color-canvas) px-3 py-2"
             >
-              <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
+              <Eyebrow
+                case="upper"
+                tone="muted"
+                size="badge"
+                weight="semibold"
+                className="text-(--color-text-label)"
+              >
                 {label}
-              </p>
+              </Eyebrow>
             </div>
           ))}
         </div>
@@ -119,9 +126,15 @@ export function SandboxSection() {
                 <span className="inline-flex size-8 items-center justify-center rounded-mono-badge border border-(--color-divider) text-accent">
                   {card.icon}
                 </span>
-                <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+                <Eyebrow
+                  case="upper"
+                  tone="muted"
+                  size="badge"
+                  weight="semibold"
+                  className="text-accent"
+                >
                   {card.eyebrow}
-                </p>
+                </Eyebrow>
               </div>
               <h3 className="mt-4 text-base font-medium leading-snug text-(--color-text-primary)">
                 {card.title}

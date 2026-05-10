@@ -187,6 +187,8 @@ export {
   Eyebrow,
   type EyebrowCase,
   type EyebrowProps,
+  type EyebrowSize,
+  type EyebrowTone,
   type EyebrowWeight,
 } from "./components/custom/eyebrow";
 export {

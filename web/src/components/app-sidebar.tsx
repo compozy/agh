@@ -223,7 +223,7 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
       <span
         aria-hidden="true"
         data-testid="workspace-switcher-avatar"
-        className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) font-mono text-[10.5px] font-medium tracking-[0.05em] text-(--fg)"
+        className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) font-mono text-eyebrow font-medium tracking-mono text-(--fg)"
       >
         {initial}
       </span>

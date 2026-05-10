@@ -8,11 +8,12 @@ import {
   AlertDescription,
   Button,
   Empty,
+  Eyebrow,
   Input,
-  Pill,
   NativeSelect,
   NativeSelectOption,
   PageShell,
+  Pill,
   Section,
   Switch,
   Table,
@@ -443,7 +444,12 @@ function ExtensionRow({
         <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate font-mono text-sm text-(--fg)">{entry.name}</span>
-          <span className="flex flex-wrap items-center gap-1.5 font-mono text-badge uppercase tracking-mono text-(--subtle)">
+          <Eyebrow
+            case="upper"
+            tone="subtle"
+            size="badge"
+            className="flex flex-wrap items-center gap-1.5"
+          >
             <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
             {entry.version ? (
               <Pill mono tone="neutral">
@@ -460,7 +466,7 @@ function ExtensionRow({
                 env missing
               </Pill>
             ) : null}
-          </span>
+          </Eyebrow>
           {entry.last_error ? (
             <span
               className="text-badge text-(--danger)"
@@ -768,7 +774,9 @@ function RateLimitRow({
             onValidityChange={onRequestsValidityChange}
             onValueChange={next => onChange({ ...value, requests: next })}
           />
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">per</span>
+          <Eyebrow case="upper" tone="muted" size="badge">
+            per
+          </Eyebrow>
           <Input
             className="w-20 font-mono"
             data-testid={`${testId}-window`}
@@ -777,7 +785,9 @@ function RateLimitRow({
             disabled={!canMutate}
             onChange={event => onChange({ ...value, window: event.target.value })}
           />
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">queue</span>
+          <Eyebrow case="upper" tone="muted" size="badge">
+            queue
+          </Eyebrow>
           <SettingsNumberInput
             min={0}
             className="w-16 font-mono"

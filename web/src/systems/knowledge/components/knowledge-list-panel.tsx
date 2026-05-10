@@ -2,6 +2,7 @@ import { AlertCircle, BookOpen } from "lucide-react";
 
 import {
   Empty,
+  Eyebrow,
   Item,
   ItemDescription,
   ItemFooter,
@@ -59,9 +60,9 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
     >
       <ItemHeader>
         <ItemTitle className="min-w-0 flex-1 text-small-body text-(--fg)">{memory.name}</ItemTitle>
-        <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--subtle)">
+        <Eyebrow case="upper" tone="subtle" size="badge" className="shrink-0">
           {formatKnowledgeRelativeTime(memory.mod_time)}
-        </span>
+        </Eyebrow>
       </ItemHeader>
       {memory.description ? (
         <ItemDescription className="basis-full truncate text-xs text-(--muted)">
@@ -138,12 +139,15 @@ function KnowledgeListPanel({
           value={searchQuery}
         />
         {searchInfo ? (
-          <p
-            className="mt-2 font-mono text-badge uppercase tracking-badge text-(--subtle)"
+          <Eyebrow
+            case="upper"
+            tone="subtle"
+            size="badge"
+            className="mt-2 block"
             data-testid="knowledge-search-info"
           >
             {searchInfo}
-          </p>
+          </Eyebrow>
         ) : null}
       </div>
 

@@ -86,7 +86,7 @@ function CatalogCardMeta({ className, ...props }: CatalogCardMetaProps) {
     <div
       data-slot="catalog-card-meta"
       className={cn(
-        "flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-badge text-(--subtle)",
+        "flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-mono text-(--subtle)",
         className
       )}
       {...props}

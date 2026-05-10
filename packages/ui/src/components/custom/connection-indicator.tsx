@@ -122,7 +122,7 @@ function ConnectionIndicatorLabel({
       className={cn(
         context.variant === "inline"
           ? "font-sans text-[12px] tracking-[-0.005em] text-(--muted)"
-          : "font-mono text-eyebrow font-medium uppercase tracking-(--tracking-badge) text-(--muted)",
+          : "font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)",
         className
       )}
       data-slot="connection-indicator-label"

@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Eyebrow } from "./eyebrow";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
 
@@ -51,18 +52,14 @@ function DashboardCard({
             <Icon className="size-3.5" />
           </span>
         ) : null}
-        <span
+        <Eyebrow
           data-slot="dashboard-card-label"
-          data-case={labelCase}
-          className={cn(
-            "min-w-0 truncate",
-            labelCase === "upper"
-              ? "font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)"
-              : "text-[12px] font-medium tracking-[-0.005em] text-(--muted)"
-          )}
+          case={labelCase}
+          tone="muted"
+          className="min-w-0 truncate"
         >
           {label}
-        </span>
+        </Eyebrow>
         {trailing ? (
           <span data-slot="dashboard-card-trailing" className="ml-auto inline-flex items-center">
             {trailing}

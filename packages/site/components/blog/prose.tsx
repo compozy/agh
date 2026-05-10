@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { Eyebrow, cn } from "@agh/ui";
 import { isValidElement, type ComponentProps, type ReactNode } from "react";
 
 function textFromNode(node: ReactNode): string {
@@ -173,14 +173,13 @@ export function Callout({ tone = "accent", eyebrow, children, className }: Callo
       )}
     >
       {eyebrow && (
-        <p
-          className={cn(
-            "font-mono text-eyebrow font-semibold uppercase tracking-badge",
-            calloutEyebrowToneClass[tone]
-          )}
+        <Eyebrow
+          case="upper"
+          weight="semibold"
+          className={cn("block tracking-badge", calloutEyebrowToneClass[tone])}
         >
           {eyebrow}
-        </p>
+        </Eyebrow>
       )}
       <div className="mt-3 font-sans text-item-title leading-7 text-(--color-text-primary)">
         {children}
@@ -213,9 +212,13 @@ export interface WireCardProps {
 export function WireCard({ kind, rows, protocol = "v0" }: WireCardProps) {
   return (
     <div className="mt-7 max-w-[520px] overflow-hidden rounded-md border border-(--color-divider) bg-(--color-surface)">
-      <div className="border-b border-(--color-divider) bg-(--color-canvas-deep) px-3 py-1.5 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+      <Eyebrow
+        case="upper"
+        size="badge"
+        className="block border-b border-(--color-divider) bg-(--color-canvas-deep) px-3 py-1.5 text-(--color-text-tertiary)"
+      >
         kind={kind} · {protocol}
-      </div>
+      </Eyebrow>
       <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 p-3 font-mono text-eyebrow leading-7">
         {rows.map(row => (
           <div key={row.label} className="contents">
@@ -225,12 +228,12 @@ export function WireCard({ kind, rows, protocol = "v0" }: WireCardProps) {
         ))}
       </div>
       <div className="flex items-center gap-3 border-t border-(--color-divider) bg-(--color-canvas-deep) px-3 py-1.5">
-        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+        <Eyebrow case="upper" tone="muted" size="badge" className="text-(--color-text-tertiary)">
           Inspect →
-        </span>
-        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+        </Eyebrow>
+        <Eyebrow case="upper" tone="muted" size="badge" className="text-(--color-text-tertiary)">
           Replay
-        </span>
+        </Eyebrow>
       </div>
     </div>
   );

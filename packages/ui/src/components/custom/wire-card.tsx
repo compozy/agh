@@ -39,7 +39,7 @@ function WireCardHead({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="wire-card-head"
       className={cn(
         "flex items-center gap-1.5 border-b border-(--line) bg-(--canvas) px-2.5 py-1.5",
-        "font-mono text-[10.5px] uppercase tracking-[0.06em] text-(--subtle)",
+        "font-mono text-eyebrow uppercase tracking-mono text-(--subtle)",
         className
       )}
     />
@@ -51,7 +51,7 @@ function WireCardBody({ className, ...props }: React.ComponentProps<"div">) {
     <div
       {...props}
       data-slot="wire-card-body"
-      className={cn("px-3 py-2 font-mono text-[11px]", className)}
+      className={cn("px-3 py-2 font-mono text-eyebrow", className)}
     />
   );
 }

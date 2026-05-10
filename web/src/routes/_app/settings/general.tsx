@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 
 import {
   Button,
+  Eyebrow,
   Input,
   Metric,
   MetricGrid,
@@ -445,9 +446,9 @@ function SessionSection({
                 })
               }
             />
-            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted" size="badge">
               seconds
-            </span>
+            </Eyebrow>
           </div>
         }
       />

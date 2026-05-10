@@ -59,6 +59,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Empty,
+  Eyebrow,
   Field,
   FieldDescription,
   FieldLabel,
@@ -76,9 +77,9 @@ import {
   KbdGroup,
   Label,
   Metric,
-  Pill,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   PillGroup,
   Popover,
   PopoverContent,
@@ -108,8 +109,8 @@ import {
   SheetTrigger,
   Sidebar,
   Skeleton,
-  SplitPane,
   Spinner,
+  SplitPane,
   Switch,
   Table,
   TableBody,
@@ -123,7 +124,6 @@ import {
   TabsTrigger,
   Textarea,
   Toaster,
-  toast,
   ToggleGroup,
   ToggleGroupItem,
   ToolCallCard,
@@ -131,6 +131,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  toast,
 } from "@agh/ui";
 import { KindChip } from "@/systems/network";
 
@@ -589,9 +590,9 @@ function FoundationsTokenSection() {
                 <h3 className="text-item-title font-medium text-(--fg)">{group.label}</h3>
                 <p className="mt-0.5 text-small-body text-(--muted)">{group.caption}</p>
               </div>
-              <span className="font-mono text-badge uppercase tracking-badge text-(--subtle)">
+              <Eyebrow case="upper" tone="subtle" size="badge">
                 {group.swatches.length} tokens
-              </span>
+              </Eyebrow>
             </header>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
               {group.swatches.map(swatch => (
@@ -615,9 +616,9 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
     >
       <TokenPreview swatch={swatch} />
       <div className="flex flex-col gap-0.5">
-        <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--subtle)">
+        <Eyebrow case="upper" tone="subtle">
           {swatch.token}
-        </span>
+        </Eyebrow>
         <span className="font-mono text-eyebrow text-(--muted)">{swatch.value}</span>
         {swatch.role ? <span className="text-xs text-(--muted)">{swatch.role}</span> : null}
       </div>
@@ -651,9 +652,9 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
       aria-hidden="true"
       className="flex h-14 w-full items-center justify-center rounded-md bg-(--elevated)"
     >
-      <span className="font-mono text-eyebrow uppercase tracking-badge text-(--muted)">
+      <Eyebrow case="upper" tone="muted">
         {swatch.value}
-      </span>
+      </Eyebrow>
     </div>
   );
 }
@@ -689,9 +690,9 @@ function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted">
               Eyebrow · JetBrains Mono 11/600 0.06em
-            </p>
+            </Eyebrow>
             <p className="font-mono text-sm leading-7 text-(--fg)">
               agh-network/v0 · run_id_01hq8…
             </p>
@@ -939,9 +940,9 @@ function StatusAndMetricSection() {
           <Spinner className="size-4 text-accent" />
           <Skeleton className="h-4 w-40" />
           <Separator orientation="vertical" className="h-6" />
-          <span className="font-mono text-eyebrow uppercase tracking-mono text-(--subtle)">
+          <Eyebrow case="upper" tone="subtle">
             spinners · skeletons · separators
-          </span>
+          </Eyebrow>
         </div>
         <Progress value={64} data-testid="showcase-progress">
           <ProgressLabel>Skill index rebuild</ProgressLabel>

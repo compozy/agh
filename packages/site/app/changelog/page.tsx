@@ -5,6 +5,7 @@ import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { ReleaseEntry } from "@/components/blog/release-entry";
 import { allReleases } from "@/lib/blog";
 import { changelogMetadata } from "./metadata";
+import { Eyebrow } from "@agh/ui";
 
 export const metadata = changelogMetadata;
 
@@ -33,7 +34,9 @@ export default function ChangelogPage() {
               className="inline-flex h-8 items-center gap-1.5 rounded-full border border-(--color-divider) px-3.5 font-sans text-small-body text-(--color-text-secondary) hover:text-(--color-text-primary)"
             >
               <Rss size={12} aria-hidden />
-              <span className="font-mono text-eyebrow uppercase tracking-mono">RSS</span>
+              <Eyebrow case="upper" tone="muted">
+                RSS
+              </Eyebrow>
             </Link>
           </div>
         </div>

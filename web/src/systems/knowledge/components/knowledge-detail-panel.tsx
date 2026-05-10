@@ -270,7 +270,7 @@ function KnowledgeDetailPanel({
                 data-testid={`metadata-row-${row.key}`}
                 key={row.key}
               >
-                <dt className="font-mono text-eyebrow uppercase tracking-badge text-(--muted)">
+                <dt className="font-mono text-eyebrow uppercase tracking-mono text-(--muted)">
                   {row.key}
                 </dt>
                 <dd className="min-w-0 text-right">

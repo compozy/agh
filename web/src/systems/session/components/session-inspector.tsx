@@ -15,6 +15,7 @@ import type { AssistantState } from "@assistant-ui/react";
 import {
   Button,
   Empty,
+  Eyebrow,
   MetadataList,
   Metric,
   Pill,
@@ -628,12 +629,15 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
         data-testid="session-inspector-trace-dot"
       />
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span
+        <Eyebrow
           data-testid="session-inspector-trace-timestamp"
-          className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--subtle)"
+          case="upper"
+          tone="subtle"
+          size="badge"
+          className="shrink-0"
         >
           {ts}
-        </span>
+        </Eyebrow>
         <Pill
           mono
           tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "neutral"}
@@ -839,9 +843,9 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
         <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
           LEDGER
         </Pill>
-        <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+        <Eyebrow case="upper" tone="muted" size="badge">
           Forensic
-        </span>
+        </Eyebrow>
       </div>
       <MetadataList>
         {items.map(item => (
@@ -880,9 +884,9 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       className="flex flex-col gap-2"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+        <Eyebrow case="upper" tone="muted" size="badge">
           Ledger events
-        </span>
+        </Eyebrow>
         <span
           className="font-mono text-badge text-(--subtle)"
           data-testid="session-inspector-memory-events-count"
@@ -908,12 +912,15 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
               data-testid="session-inspector-memory-event-row"
               className="flex items-center gap-2 py-2"
             >
-              <span
+              <Eyebrow
                 data-testid="session-inspector-memory-event-sequence"
-                className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--subtle)"
+                case="upper"
+                tone="subtle"
+                size="badge"
+                className="shrink-0"
               >
                 #{event.sequence}
-              </span>
+              </Eyebrow>
               <Pill mono tone="neutral" data-testid="session-inspector-memory-event-type">
                 {event.event_type}
               </Pill>
@@ -1043,9 +1050,9 @@ export function SessionInspectorDrawer({
         className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-(--canvas) p-0 sm:max-w-[360px]"
       >
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-(--line) px-4">
-          <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted">
             Inspector
-          </span>
+          </Eyebrow>
         </header>
         <InspectorBody
           traceEvents={traceEvents}

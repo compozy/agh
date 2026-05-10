@@ -76,9 +76,12 @@ describe("CodeBlock", () => {
     rerender(<CodeBlock code="agh start" language="shell" />);
     const eyebrow = container.querySelector<HTMLElement>('[data-slot="code-block-language"]');
     expect(eyebrow?.textContent).toBe("shell");
+    expect(eyebrow?.dataset.case).toBe("upper");
+    expect(eyebrow?.dataset.tone).toBe("subtle");
     expect(eyebrow?.className).toContain("uppercase");
     expect(eyebrow?.className).toContain("font-mono");
-    expect(eyebrow?.className).toContain("tracking-[0.06em]");
+    expect(eyebrow?.className).toContain("tracking-mono");
+    expect(eyebrow?.className).toContain("text-eyebrow");
   });
 
   it("Should hide the copy button when copyable is false", () => {

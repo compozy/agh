@@ -5,6 +5,7 @@ import { DateStamp } from "./date-stamp";
 import { BulletDivider } from "./divider";
 import { categoryLabel, formatReadingTime } from "./format";
 import { MonoEyebrow } from "./mono-eyebrow";
+import { Eyebrow } from "@agh/ui";
 
 export interface PostCardProps {
   post: Post;
@@ -23,9 +24,9 @@ export function PostCard({ post }: PostCardProps) {
       </h3>
       <p className="mt-3 text-sm leading-7 text-(--color-text-secondary)">{post.description}</p>
       <div className="mt-auto flex items-center justify-between border-t border-(--color-divider) pt-3.5">
-        <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
+        <Eyebrow case="upper" tone="muted" className="text-(--color-text-label)">
           {post.author}
-        </span>
+        </Eyebrow>
         <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
           <Clock size={11} aria-hidden />
           <span className="font-mono tracking-mono">

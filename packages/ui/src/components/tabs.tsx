@@ -82,7 +82,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
         <span
           aria-live="polite"
           data-slot="tabs-trigger-live"
-          className="inline-flex h-4 items-center gap-1 rounded-sm bg-(--accent-tint) px-1.5 font-mono text-[9px] uppercase tracking-(--tracking-mono) text-(--accent)"
+          className="inline-flex h-4 items-center gap-1 rounded-sm bg-(--accent-tint) px-1.5 font-mono text-micro uppercase tracking-mono text-(--accent)"
         >
           <span aria-hidden="true" className="size-1.5 rounded-full bg-(--accent)" />
           {liveLabel}

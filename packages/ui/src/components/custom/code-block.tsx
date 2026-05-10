@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
+import { Eyebrow } from "./eyebrow";
 
 export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "children"> {
   code: string;
@@ -66,12 +67,14 @@ function CodeBlock({
       {...props}
     >
       {language ? (
-        <span
+        <Eyebrow
           data-slot="code-block-language"
-          className="absolute top-3 left-5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--subtle)"
+          case="upper"
+          tone="subtle"
+          className="absolute top-3 left-5"
         >
           {language}
-        </span>
+        </Eyebrow>
       ) : null}
       {copyable ? (
         <CopyIconButton

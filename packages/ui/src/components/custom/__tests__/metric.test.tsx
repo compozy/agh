@@ -4,17 +4,19 @@ import { describe, expect, it } from "vitest";
 import { Metric, type MetricTone } from "../metric";
 
 describe("Metric", () => {
-  it("Should render label + value with the mock-specified typographic scale", () => {
+  it("Should render label as the canonical Eyebrow + value with the mock-specified typographic scale", () => {
     const { container } = render(<Metric label="Sessions" value="12" />);
     const root = container.querySelector<HTMLElement>('[data-slot="metric"]');
     expect(root).not.toBeNull();
 
     const label = container.querySelector<HTMLElement>('[data-slot="metric-label"]');
     expect(label?.textContent).toBe("Sessions");
+    expect(label?.dataset.case).toBe("upper");
+    expect(label?.dataset.tone).toBe("subtle");
     expect(label?.className).toContain("font-mono");
-    expect(label?.className).toContain("text-[11px]");
+    expect(label?.className).toContain("text-eyebrow");
     expect(label?.className).toContain("uppercase");
-    expect(label?.className).toContain("tracking-[0.06em]");
+    expect(label?.className).toContain("tracking-mono");
 
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
     expect(value?.textContent).toBe("12");
@@ -48,7 +50,7 @@ describe("Metric", () => {
     const detail = container.querySelector<HTMLElement>('[data-slot="metric-detail"]');
     expect(detail?.textContent).toBe("+4.2%");
     expect(detail?.className).toContain("font-mono");
-    expect(detail?.className).toContain("text-[11px]");
+    expect(detail?.className).toContain("text-eyebrow");
   });
 
   it("Should render the optional subtext line with Inter 13px secondary styling", () => {

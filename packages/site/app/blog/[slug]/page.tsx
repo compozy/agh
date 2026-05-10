@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
+import { Eyebrow } from "@agh/ui";
 import { AuthorMeta } from "@/components/blog/author-meta";
 import { ContinueReading } from "@/components/blog/continue-reading";
 import { DateStamp } from "@/components/blog/date-stamp";
@@ -103,7 +104,7 @@ export default async function BlogPostPage({ params }: PageProps) {
               <BulletDivider />
               <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
                 <Clock size={11} aria-hidden />
-                <span className="font-mono uppercase tracking-mono">{readingTime} read</span>
+                <Eyebrow case="upper">{readingTime} read</Eyebrow>
               </span>
             </div>
             <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-(--color-text-primary)">

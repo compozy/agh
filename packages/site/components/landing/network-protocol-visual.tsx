@@ -2,7 +2,7 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { ArrowLeftRight, Pause, Play } from "lucide-react";
-import { Button, Pill } from "@agh/ui";
+import { Button, Eyebrow, Pill } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
 import { AnimatedDiagram } from "./primitives/animated-diagram";
 import { KIND_MEANING, type NetworkKind } from "./primitives/network-kinds";
@@ -330,14 +330,14 @@ function LaneHeader({
 }) {
   return (
     <div className="min-w-0 text-center">
-      <p
-        className={cn(
-          "font-mono text-badge font-semibold uppercase tracking-mono",
-          accent ? "text-accent" : "text-(--color-text-tertiary)"
-        )}
+      <Eyebrow
+        case="upper"
+        size="badge"
+        weight="semibold"
+        className={cn(accent ? "text-accent" : "text-(--color-text-tertiary)")}
       >
         {title}
-      </p>
+      </Eyebrow>
       <p className="mt-0.5 font-mono text-eyebrow text-(--color-text-secondary) wrap-anywhere">
         {subtitle}
       </p>

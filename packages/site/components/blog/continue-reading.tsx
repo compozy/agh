@@ -1,4 +1,5 @@
 import type { Post } from "#site/content";
+import { Eyebrow } from "@agh/ui";
 import { ArrowUpRight, Clock } from "lucide-react";
 import Link from "next/link";
 import { BulletDivider } from "./divider";
@@ -55,9 +56,7 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
                 <div className="mt-5 flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
                     <Clock size={11} aria-hidden />
-                    <span className="font-mono uppercase tracking-mono">
-                      {formatReadingTime(post.metadata.readingTime)}
-                    </span>
+                    <Eyebrow case="upper">{formatReadingTime(post.metadata.readingTime)}</Eyebrow>
                   </span>
                   <Link
                     href={post.permalink}

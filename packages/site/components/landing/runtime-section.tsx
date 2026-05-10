@@ -3,6 +3,7 @@ import { Database, ShieldCheck, Terminal } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
+import { Eyebrow } from "@agh/ui";
 
 const FEATURES = [
   {
@@ -45,9 +46,9 @@ export function RuntimeSection() {
       <div className="grid gap-12 lg:grid-cols-[minmax(0,360px)_1fr] lg:items-start lg:gap-16">
         <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
           <div>
-            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
+            <Eyebrow case="upper" tone="muted" weight="semibold" className="text-accent">
               Runtime
-            </p>
+            </Eyebrow>
             <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-(--color-text-primary)">
               A daemon built for sessions, not chats.
             </h2>

@@ -207,7 +207,7 @@ function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div"
       {...props}
       data-slot="sidebar-section-label"
       className={cn(
-        "px-3 pt-3 pb-1.5 font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)",
+        "px-3 pt-3 pb-1.5 font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)",
         className
       )}
     />

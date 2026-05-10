@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Pill } from "@agh/ui";
+import { Eyebrow, Pill } from "@agh/ui";
 import {
   DiscordLogo,
   GithubLogo,
@@ -100,9 +100,14 @@ export function BridgesSection() {
                 )}
               </div>
               <p className="text-sm font-medium text-(--color-text-primary)">{bridge.name}</p>
-              <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+              <Eyebrow
+                case="upper"
+                tone="muted"
+                size="badge"
+                className="text-(--color-text-tertiary)"
+              >
                 bridge:{bridge.id}
-              </p>
+              </Eyebrow>
             </article>
           </li>
         ))}
@@ -111,9 +116,15 @@ export function BridgesSection() {
       {/* Flow strip */}
       <div className="mt-10 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) p-6">
         <div className="flex items-center justify-between border-b border-(--color-divider) pb-4">
-          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+          <Eyebrow
+            case="upper"
+            tone="muted"
+            size="badge"
+            weight="semibold"
+            className="text-(--color-text-tertiary)"
+          >
             How a bridge delivers a session
-          </p>
+          </Eyebrow>
           <Pill mono tone="accent">
             inside the daemon
           </Pill>
@@ -184,9 +195,9 @@ function FlowNode({
 function FlowArrow({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center">
-      <span className="font-mono text-micro uppercase tracking-mono text-(--color-text-tertiary)">
+      <Eyebrow case="upper" tone="muted" size="micro" className="text-(--color-text-tertiary)">
         {label}
-      </span>
+      </Eyebrow>
       <ArrowRight aria-hidden className="size-4 text-accent" />
     </div>
   );

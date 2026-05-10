@@ -2,6 +2,8 @@ import type { Toolkit, ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
 import { AlertCircle, Loader2 } from "lucide-react";
 
+import { Eyebrow } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
@@ -38,7 +40,9 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
         )}
       >
         <Loader2 className="size-3.5 animate-spin" />
-        <span className="font-mono uppercase tracking-badge">{part.toolName}</span>
+        <Eyebrow case="upper" tone="subtle" size="badge">
+          {part.toolName}
+        </Eyebrow>
         <span>preparing input</span>
       </div>
     );

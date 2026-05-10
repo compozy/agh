@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { Eyebrow } from "@agh/ui";
+
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { ProviderLogo } from "../provider-logo";
@@ -54,9 +56,9 @@ export const Registry: Story = {
             <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-(--elevated) ring-1 ring-(--line)">
               <ProviderLogo provider={provider} className="size-5" />
             </span>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted" size="badge">
               {provider}
-            </span>
+            </Eyebrow>
           </div>
         ))}
       </div>

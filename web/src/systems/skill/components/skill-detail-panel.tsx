@@ -5,6 +5,7 @@ import {
   Card,
   CodeBlock,
   Empty,
+  Eyebrow,
   Pill,
   Section,
   Spinner,
@@ -319,12 +320,9 @@ function SkillDetailPanel({
           label="Overview"
           right={
             <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
-              <span
-                className="font-mono text-eyebrow uppercase tracking-badge text-(--muted)"
-                id="skill-enabled-label"
-              >
+              <Eyebrow case="upper" tone="muted" id="skill-enabled-label">
                 {skill.enabled ? "Enabled" : "Disabled"}
-              </span>
+              </Eyebrow>
               <Switch
                 aria-labelledby="skill-enabled-label"
                 checked={skill.enabled}

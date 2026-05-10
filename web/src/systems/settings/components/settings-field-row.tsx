@@ -1,6 +1,14 @@
 import { cloneElement, isValidElement, type ReactNode, useId } from "react";
 
-import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, cn } from "@agh/ui";
+import {
+  Eyebrow,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  cn,
+} from "@agh/ui";
 
 interface SettingsFieldRowProps {
   label: string;
@@ -128,9 +136,9 @@ function SettingsFieldRow({
         <div className="flex flex-wrap items-center gap-2">
           {renderedLabel}
           {hint ? (
-            <span className="font-mono text-badge font-medium uppercase tracking-badge text-(--muted) lg:hidden">
+            <Eyebrow case="upper" tone="muted" size="badge" className="lg:hidden">
               {hint}
-            </span>
+            </Eyebrow>
           ) : null}
         </div>
         {description ? (
@@ -151,9 +159,9 @@ function SettingsFieldRow({
         <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 lg:w-auto [&_input]:max-w-full [&_select]:max-w-full">
           {renderedControl}
           {hint ? (
-            <span className="hidden font-mono text-badge font-medium uppercase tracking-badge text-(--muted) lg:inline">
+            <Eyebrow case="upper" tone="muted" size="badge" className="hidden lg:inline">
               {hint}
-            </span>
+            </Eyebrow>
           ) : null}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { Logo, cn } from "@agh/ui";
+import { Eyebrow, Logo, cn } from "@agh/ui";
 import { GithubLogo } from "@agh/ui/logos";
 import Link from "next/link";
 
@@ -96,12 +96,12 @@ export function SiteFooter() {
             target="_blank"
             rel="noreferrer noopener"
             className={cn(
-              "inline-flex items-center gap-2 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary) transition-colors",
+              "inline-flex items-center gap-2 text-(--color-text-tertiary) transition-colors",
               "hover:text-(--color-text-primary)",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm"
             )}
           >
-            <span>Alpha · Compozy on GitHub</span>
+            <Eyebrow case="upper">Alpha · Compozy on GitHub</Eyebrow>
             <span aria-hidden="true">→</span>
           </a>
         </div>

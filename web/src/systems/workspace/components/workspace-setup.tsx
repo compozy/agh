@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Eyebrow,
   Field,
   FieldDescription,
   FieldError,
@@ -140,9 +141,9 @@ function WorkspaceSetupContent({
         {globalCard}
         <div className="flex items-center gap-3 px-1">
           <div className="h-px flex-1 bg-(--line)" />
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             {WORKSPACE_SETUP_COPY.manual.dividerLabel}
-          </span>
+          </Eyebrow>
           <div className="h-px flex-1 bg-(--line)" />
         </div>
         {manualCard}
@@ -219,9 +220,9 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
             </div>
 
             <div className="rounded-2xl border border-(--line) bg-(--canvas-soft) p-4">
-              <p className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+              <Eyebrow case="upper" tone="muted" size="badge">
                 {copy.noteLabel}
-              </p>
+              </Eyebrow>
               <p className="mt-2 text-sm leading-6 text-(--muted)">{copy.noteBody}</p>
             </div>
           </div>

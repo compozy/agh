@@ -9,6 +9,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
   Button,
+  Eyebrow,
   Pill,
 } from "@agh/ui";
 
@@ -78,9 +79,11 @@ export function TaskRunDetailHeader({
       className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
       data-testid="task-run-detail-header"
     >
-      <div
+      <Eyebrow
         data-slot="page-header-breadcrumb"
-        className="min-w-0 font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)"
+        case="upper"
+        tone="muted"
+        className="min-w-0 block"
       >
         <Breadcrumb data-testid="task-run-detail-breadcrumb">
           <BreadcrumbList className="text-(--muted)">
@@ -107,7 +110,7 @@ export function TaskRunDetailHeader({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-      </div>
+      </Eyebrow>
       <div
         data-slot="page-header-main"
         className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"

@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { Gauge } from "lucide-react";
 
 import {
+  CommandEmpty,
+  CommandItem,
+  CommandList,
   CommandSelect,
   CommandSelectGroup,
   CommandSelectShell,
   CommandSelectTrigger,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
+  Eyebrow,
 } from "@agh/ui";
 
 import type { ReasoningOption } from "@/systems/model-catalog";
@@ -118,9 +119,9 @@ export function ReasoningCommandSelect({
                   <span className="truncate text-sm text-(--fg)">
                     {option.label || labelFor(option.value)}
                   </span>
-                  <span className="ml-auto font-mono text-badge uppercase tracking-mono text-(--muted)">
+                  <Eyebrow case="upper" tone="muted" size="badge" className="ml-auto">
                     {option.value}
-                  </span>
+                  </Eyebrow>
                 </div>
               </CommandItem>
             ))}

@@ -79,7 +79,7 @@ function AlertMeta({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-meta"
       className={cn(
-        "mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-(--tracking-mono) text-current/75 group-has-[>svg]/alert:col-start-2",
+        "mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-badge uppercase tracking-mono text-current/75 group-has-[>svg]/alert:col-start-2",
         className
       )}
       {...props}

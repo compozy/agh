@@ -2,6 +2,7 @@ import { AlertCircle, Clock3, Zap } from "lucide-react";
 
 import {
   Empty,
+  Eyebrow,
   Item,
   ItemActions,
   ItemDescription,
@@ -77,9 +78,9 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
             {job.name}
           </ItemTitle>
         </div>
-        <span className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--accent)">
+        <Eyebrow case="upper" tone="accent" size="badge" className="shrink-0">
           {formatRelativeTime(job.next_run)}
-        </span>
+        </Eyebrow>
       </ItemHeader>
 
       <ItemDescription className="truncate text-xs text-(--muted)">

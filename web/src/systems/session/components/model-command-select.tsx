@@ -2,13 +2,14 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import { Boxes } from "lucide-react";
 
 import {
+  CommandEmpty,
+  CommandItem,
+  CommandList,
   CommandSelect,
   CommandSelectGroup,
   CommandSelectShell,
   CommandSelectTrigger,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
+  Eyebrow,
   Pill,
 } from "@agh/ui";
 
@@ -125,9 +126,9 @@ export function ModelCommandSelect({
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate text-sm text-(--fg)">Use provider default</span>
                 {trimmedDefault ? (
-                  <span className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-(--muted)">
+                  <Eyebrow case="upper" tone="muted" size="badge" className="ml-auto truncate">
                     {trimmedDefault}
-                  </span>
+                  </Eyebrow>
                 ) : null}
               </div>
             </CommandItem>

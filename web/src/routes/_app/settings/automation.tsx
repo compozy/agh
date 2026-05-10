@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 
 import {
   Button,
+  Eyebrow,
   Input,
   Metric,
   MetricGrid,
@@ -320,9 +321,9 @@ function LimitsSection({
                 })
               }
             />
-            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted" size="badge">
               fires
-            </span>
+            </Eyebrow>
             <span className="text-xs text-(--subtle)">per</span>
             <Input
               className="w-24 font-mono"

@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Eyebrow } from "./eyebrow";
 
 export interface ContextBoxEntry {
   label: React.ReactNode;
@@ -19,12 +20,9 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
   return (
     <div data-slot="context-box-root" className={cn("flex flex-col gap-2", className)}>
       {title ? (
-        <div
-          data-slot="context-box-title"
-          className="font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)"
-        >
+        <Eyebrow data-slot="context-box-title" case="upper" tone="muted">
           {title}
-        </div>
+        </Eyebrow>
       ) : null}
       <dl
         data-slot="context-box"
@@ -37,7 +35,7 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
           <React.Fragment key={`${index}-${String(entry.label)}`}>
             <dt
               data-slot="context-box-label"
-              className="font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)"
+              className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)"
             >
               {entry.label}
             </dt>

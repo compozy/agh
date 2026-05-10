@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Network as NetworkIcon, Plus } from "lucide-react";
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 
-import { Button } from "@agh/ui";
+import { Button, Eyebrow } from "@agh/ui";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
@@ -80,9 +80,9 @@ function NetworkChannelDirectsRoute() {
         className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <span className="font-mono text-badge font-medium uppercase tracking-mono text-(--subtle)">
+        <Eyebrow case="upper" tone="subtle" size="badge">
           {subheaderLabel}
-        </span>
+        </Eyebrow>
         <Button
           aria-label="Open new direct room"
           data-testid="network-directs-new-direct"

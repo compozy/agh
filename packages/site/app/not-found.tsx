@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { Eyebrow } from "@agh/ui";
 
 export default function NotFound() {
   return (
     <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
       <section className="mx-auto w-full max-w-[760px] rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-8 md:p-10">
-        <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
+        <Eyebrow case="upper" tone="muted" weight="semibold" className="text-accent">
           Not found
-        </p>
+        </Eyebrow>
         <h1 className="mt-5 max-w-[12ch] text-site-error-title leading-none font-normal tracking-tight text-(--color-text-primary)">
           This route is not in the runtime.
         </h1>

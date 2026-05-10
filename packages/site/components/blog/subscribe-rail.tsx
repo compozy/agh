@@ -1,6 +1,7 @@
 import { ArrowUpRight, Rss } from "lucide-react";
 import Link from "next/link";
 import { MonoEyebrow } from "./mono-eyebrow";
+import { Eyebrow } from "@agh/ui";
 
 export function SubscribeRail() {
   return (
@@ -40,9 +41,9 @@ export function SubscribeRail() {
           <ArrowUpRight size={14} aria-hidden className="text-(--color-text-tertiary)" />
         </Link>
       </div>
-      <p className="mt-5 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
+      <Eyebrow case="upper" tone="muted" className="mt-5 text-(--color-text-tertiary)">
         /blog/feed.xml
-      </p>
+      </Eyebrow>
     </aside>
   );
 }

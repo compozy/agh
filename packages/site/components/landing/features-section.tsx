@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
+import { Eyebrow } from "@agh/ui";
 
 const FEATURES = [
   {
@@ -67,9 +68,15 @@ export function FeaturesSection() {
                 />
               </div>
               <div className="flex flex-1 flex-col pt-5">
-                <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+                <Eyebrow
+                  case="upper"
+                  tone="muted"
+                  size="badge"
+                  weight="semibold"
+                  className="text-accent"
+                >
                   {feature.eyebrow}
-                </p>
+                </Eyebrow>
                 <h3 className="mt-3 text-base font-medium leading-snug tracking-tight text-(--color-text-primary)">
                   {feature.title}
                 </h3>

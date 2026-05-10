@@ -60,7 +60,7 @@ function SearchInput({
         <span
           data-slot="search-input-kbd"
           aria-hidden="true"
-          className="hidden items-center rounded-(--radius-xs) border border-(--line) bg-(--canvas-soft) px-1 py-px font-mono text-[9px] uppercase text-(--subtle) sm:inline-flex"
+          className="hidden items-center rounded-(--radius-xs) border border-(--line) bg-(--canvas-soft) px-1 py-px font-mono text-micro uppercase tracking-mono text-(--subtle) sm:inline-flex"
         >
           {kbd}
         </span>

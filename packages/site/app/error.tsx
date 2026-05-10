@@ -1,5 +1,7 @@
 "use client";
 
+import { Eyebrow } from "@agh/ui";
+
 export default function Error({
   error,
   reset,
@@ -12,9 +14,9 @@ export default function Error({
   return (
     <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
       <section className="mx-auto w-full max-w-[760px] rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-8 md:p-10">
-        <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-danger)">
+        <Eyebrow case="upper" tone="muted" weight="semibold" className="text-(--color-danger)">
           Render failure
-        </p>
+        </Eyebrow>
         <h1 className="mt-5 max-w-[13ch] text-site-error-title leading-none font-normal tracking-tight text-(--color-text-primary)">
           The site hit a recoverable boundary.
         </h1>

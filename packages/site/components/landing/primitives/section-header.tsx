@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui/lib/utils";
+import { Eyebrow, cn } from "@agh/ui";
 import type { ReactNode } from "react";
 
 interface SectionHeaderProps {
@@ -29,9 +29,9 @@ export function SectionHeader({
   return (
     <div className={cn(maxWidth, alignClass, className)}>
       {eyebrow ? (
-        <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-tertiary)">
+        <Eyebrow case="upper" tone="muted" className="text-(--color-text-tertiary)">
           {eyebrow}
-        </p>
+        </Eyebrow>
       ) : null}
       <h2
         className={cn(

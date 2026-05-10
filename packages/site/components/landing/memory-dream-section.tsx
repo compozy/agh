@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
+import { Eyebrow } from "@agh/ui";
 
 const MEMORY_CODE = `agh memory write \\
   --name "Conversation language" \\
@@ -44,9 +45,9 @@ export function MemoryDreamSection() {
       <div className="grid min-w-0 gap-12 lg:grid-cols-[minmax(0,400px)_1fr] lg:items-start lg:gap-16">
         <div className="flex h-full min-w-0 flex-col justify-between lg:sticky lg:top-24">
           <div>
-            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
+            <Eyebrow case="upper" tone="muted" weight="semibold" className="text-accent">
               Memory
-            </p>
+            </Eyebrow>
             <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-(--color-text-primary)">
               Memory that compounds
               <br />
@@ -87,16 +88,25 @@ export function MemoryDreamSection() {
                 key={step.eyebrow}
                 className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 py-7 first:pt-0"
               >
-                <span
+                <Eyebrow
                   aria-hidden="true"
-                  className="font-mono text-xs font-semibold uppercase tracking-mono text-accent tabular-nums"
+                  case="upper"
+                  tone="muted"
+                  weight="semibold"
+                  className="text-accent tabular-nums"
                 >
                   {String(index + 1).padStart(2, "0")}
-                </span>
+                </Eyebrow>
                 <div className="min-w-0">
-                  <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+                  <Eyebrow
+                    case="upper"
+                    tone="muted"
+                    size="badge"
+                    weight="semibold"
+                    className="text-accent"
+                  >
                     {step.eyebrow}
-                  </p>
+                  </Eyebrow>
                   <h3 className="mt-2 text-base font-medium leading-snug text-(--color-text-primary)">
                     {step.title}
                   </h3>

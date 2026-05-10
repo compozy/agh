@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Eyebrow } from "./eyebrow";
 
 export type MetricTone = "default" | "accent" | "success" | "warning" | "danger";
 
@@ -53,12 +54,14 @@ function Metric({
       )}
       {...props}
     >
-      <span
+      <Eyebrow
         data-slot="metric-label"
-        className="block truncate font-mono text-[11px] font-medium uppercase leading-4 tracking-[0.06em] text-(--subtle)"
+        case="upper"
+        tone="subtle"
+        className="block truncate leading-4"
       >
         {label}
-      </span>
+      </Eyebrow>
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"
@@ -70,7 +73,7 @@ function Metric({
         {detail !== undefined ? (
           <span
             data-slot="metric-detail"
-            className="shrink-0 truncate font-mono text-[11px] leading-4 text-(--subtle)"
+            className="shrink-0 truncate font-mono text-eyebrow leading-4 text-(--subtle)"
           >
             {detail}
           </span>

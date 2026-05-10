@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Eyebrow,
 } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
@@ -254,9 +255,9 @@ function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
   return (
     <div className="mx-auto flex size-full max-w-3xl items-center justify-center px-4 py-12">
       <div className="max-w-md text-center">
-        <p className="font-mono text-eyebrow tracking-badge text-(--subtle) uppercase">
+        <Eyebrow case="upper" tone="subtle">
           {agentName}
-        </p>
+        </Eyebrow>
         <p className="mt-2 text-sm text-(--muted)">
           Start a conversation. The assistant thread replays persisted history and continues live
           over the daemon stream.

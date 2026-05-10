@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Eyebrow } from "@agh/ui";
 
 interface RouteRowProps {
   href: string;
@@ -35,9 +36,9 @@ export function OperatorNote({
       role="note"
       className="not-prose rounded-xl border border-(--color-divider) bg-(--color-surface) p-5 md:px-6"
     >
-      <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+      <Eyebrow case="upper" tone="muted" size="badge" weight="semibold" className="text-accent">
         {label}
-      </p>
+      </Eyebrow>
       <div className="mt-3 text-base leading-7 text-(--color-text-secondary)">{children}</div>
     </aside>
   );
@@ -57,9 +58,15 @@ export function RouteRow({ href, label, title, description, meta }: RouteRowProp
       href={href}
       className="group grid gap-3 border-t border-(--color-divider) p-5 transition-colors first:border-t-0 hover:bg-(--color-hover) md:grid-cols-[132px_minmax(0,1fr)_150px] md:items-center md:px-6"
     >
-      <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+      <Eyebrow
+        case="upper"
+        tone="muted"
+        size="badge"
+        weight="semibold"
+        className="text-(--color-text-tertiary)"
+      >
         {label}
-      </p>
+      </Eyebrow>
 
       <div className="min-w-0">
         <p className="text-lg font-semibold tracking-tight text-(--color-text-primary)">{title}</p>
@@ -93,13 +100,19 @@ export function GuideCard({ href, label, title, description, meta }: GuideCardPr
     >
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+          <Eyebrow case="upper" tone="muted" size="badge" weight="semibold" className="text-accent">
             {label}
-          </span>
+          </Eyebrow>
           {meta ? (
-            <span className="rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-2 py-1 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="badge"
+              weight="semibold"
+              className="rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-2 py-1 text-(--color-text-tertiary)"
+            >
               {meta}
-            </span>
+            </Eyebrow>
           ) : null}
         </div>
 

@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 
-import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup } from "@agh/ui";
+import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@agh/ui";
 
 import type { SessionProviderOption } from "../types";
 
@@ -93,9 +93,9 @@ export function ProviderCommandList({
                   <span className="truncate text-sm text-(--fg)">
                     {option.display_name?.trim() || option.name}
                   </span>
-                  <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+                  <Eyebrow case="upper" tone="muted" size="badge">
                     {option.harness ?? "acp"}
-                  </span>
+                  </Eyebrow>
                 </div>
               </CommandItem>
             );

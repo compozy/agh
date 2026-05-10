@@ -1,6 +1,16 @@
 import { AlertCircle, Bot, Clock3, Lock, Pencil, Play, Search, Trash2, Zap } from "lucide-react";
 
-import { Button, CodeBlock, Empty, Metric, Pill, Section, Spinner, type MetricTone } from "@agh/ui";
+import {
+  Button,
+  CodeBlock,
+  Empty,
+  Eyebrow,
+  Metric,
+  Pill,
+  Section,
+  Spinner,
+  type MetricTone,
+} from "@agh/ui";
 
 import { KindChip } from "@/systems/network";
 import { AutomationRunHistory } from "./automation-run-history";
@@ -211,42 +221,42 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
         data-testid="automation-job-scheduler"
       >
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             Next cursor
-          </span>
+          </Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">
             {formatDateTime(scheduler.next_run_at)}
           </p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             Last scheduled
-          </span>
+          </Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">
             {formatDateTime(scheduler.last_scheduled_at)}
           </p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             Fire ID
-          </span>
+          </Eyebrow>
           <p className="mt-1 break-all font-mono text-xs text-(--muted)">
             {scheduler.last_fire_id || "--"}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted" size="badge">
               Catch-up
-            </span>
+            </Eyebrow>
             <p className="mt-1 font-mono text-xs text-(--muted)">
               {scheduler.catch_up_policy ?? "skip_missed"}
             </p>
           </div>
           <div>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+            <Eyebrow case="upper" tone="muted" size="badge">
               Misfires
-            </span>
+            </Eyebrow>
             <p className="mt-1 font-mono text-xs text-(--muted)">{scheduler.misfire_count ?? 0}</p>
           </div>
         </div>
@@ -262,15 +272,17 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
     <Section label="Hook" right={<KindChip kind={trigger.event} />}>
       <div className="space-y-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">Event</span>
+          <Eyebrow case="upper" tone="muted" size="badge">
+            Event
+          </Eyebrow>
           <Pill mono uppercase={false} tone="info">
             {trigger.event}
           </Pill>
         </div>
         <div className="space-y-1.5">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             Filters
-          </span>
+          </Eyebrow>
           {filters.length === 0 ? (
             <p className="text-xs text-(--subtle)">No filters</p>
           ) : (
@@ -286,17 +298,17 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         {trigger.event === "webhook" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+              <Eyebrow case="upper" tone="muted" size="badge">
                 Endpoint
-              </span>
+              </Eyebrow>
               <p className="mt-1 font-mono text-small-body text-(--fg)">
                 {trigger.endpoint_slug ?? "--"}
               </p>
             </div>
             <div>
-              <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+              <Eyebrow case="upper" tone="muted" size="badge">
                 Webhook id
-              </span>
+              </Eyebrow>
               <p className="mt-1 font-mono text-small-body text-(--fg)">
                 {trigger.webhook_id ?? "--"}
               </p>
@@ -337,13 +349,15 @@ function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }
     <Section label="Governance">
       <div className="grid gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 md:grid-cols-2">
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">Retry</span>
+          <Eyebrow case="upper" tone="muted" size="badge">
+            Retry
+          </Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">{describeRetry(item.retry)}</p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             Fire limit
-          </span>
+          </Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">
             {describeFireLimit(item.fire_limit)}
           </p>

@@ -8,10 +8,11 @@ import {
   Button,
   ConfirmDialog,
   Empty,
+  Eyebrow,
   Input,
-  Pill,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   Section,
   Table,
   TableBody,
@@ -292,7 +293,9 @@ function SandboxRow({
 function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
-      <span className="font-mono text-micro uppercase tracking-mono text-(--muted)">{label}</span>
+      <Eyebrow case="upper" tone="muted" size="micro">
+        {label}
+      </Eyebrow>
       <span className="font-mono text-(--fg)">{value}</span>
     </span>
   );
@@ -496,9 +499,9 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
       className="rounded-md border border-(--line) bg-(--elevated) px-3 py-2 text-xs text-(--subtle)"
       data-testid="sandbox-editor-preserved"
     >
-      <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+      <Eyebrow case="upper" tone="muted" size="badge">
         preserved on save
-      </span>
+      </Eyebrow>
       <span className="ml-2">
         {preserved.join(", ")} -- edited outside this dialog and included as-is in the PUT replace.
       </span>

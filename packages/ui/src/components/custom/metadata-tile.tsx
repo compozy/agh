@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Eyebrow } from "./eyebrow";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
 
@@ -35,18 +36,14 @@ function MetadataTile({
     >
       <div data-slot="metadata-tile-head" className="flex min-w-0 items-center gap-1.5">
         {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 text-(--muted)" /> : null}
-        <span
+        <Eyebrow
           data-slot="metadata-tile-label"
-          data-case={labelCase}
-          className={cn(
-            "min-w-0 truncate",
-            labelCase === "upper"
-              ? "font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)"
-              : "text-[12px] font-medium text-(--muted)"
-          )}
+          case={labelCase}
+          tone="muted"
+          className="min-w-0 truncate"
         >
           {label}
-        </span>
+        </Eyebrow>
       </div>
       <div
         data-slot="metadata-tile-value"

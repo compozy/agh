@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 
 import {
   Button,
+  Eyebrow,
   Input,
   Metric,
   MetricGrid,
@@ -386,7 +387,9 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">{label}</span>
+      <Eyebrow case="upper" tone="muted" size="badge">
+        {label}
+      </Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           aria-label={label}
@@ -398,9 +401,9 @@ function NumberField({
           onValueChange={onChange}
         />
         {suffix ? (
-          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
+          <Eyebrow case="upper" tone="muted" size="badge">
             {suffix}
-          </span>
+          </Eyebrow>
         ) : null}
       </div>
       {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}

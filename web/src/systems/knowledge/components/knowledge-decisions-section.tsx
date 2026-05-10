@@ -1,6 +1,6 @@
 import { AlertCircle, History, Loader2, RotateCcw } from "lucide-react";
 
-import { Button, Empty, Pill, Section, Spinner } from "@agh/ui";
+import { Button, Empty, Eyebrow, Pill, Section, Spinner } from "@agh/ui";
 
 import {
   decisionOpLabel,
@@ -88,9 +88,9 @@ function KnowledgeDecisionsSection({
                 >
                   {decisionSourceLabel(decision.source)}
                 </Pill>
-                <span className="ml-auto font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
+                <Eyebrow case="upper" tone="subtle" className="ml-auto">
                   {formatKnowledgeDateTime(decision.decided_at)}
-                </span>
+                </Eyebrow>
                 {onRevertDecision && decision.applied_at ? (
                   <Button
                     data-testid={`revert-memory-decision-${decision.id}`}
@@ -110,7 +110,12 @@ function KnowledgeDecisionsSection({
                 ) : null}
               </div>
               {decision.reason ? <p className="text-xs text-(--muted)">{decision.reason}</p> : null}
-              <div className="flex flex-wrap items-center gap-3 font-mono text-badge uppercase tracking-badge text-(--subtle)">
+              <Eyebrow
+                case="upper"
+                tone="subtle"
+                size="badge"
+                className="flex flex-wrap items-center gap-3"
+              >
                 <span data-testid={`knowledge-decision-confidence-${decision.id}`}>
                   Confidence {decision.confidence.toFixed(2)}
                 </span>
@@ -126,7 +131,7 @@ function KnowledgeDecisionsSection({
                     Target {decision.target_filename}
                   </span>
                 ) : null}
-              </div>
+              </Eyebrow>
               {revertError && revertingDecisionId === decision.id ? (
                 <p
                   className="text-small-body text-(--danger)"

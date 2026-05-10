@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   DialogFooter,
+  Eyebrow,
   Field,
   FieldContent,
   FieldDescription,
@@ -269,9 +270,9 @@ function renderAutomationTriggerForm({
                 ) : (
                   <ChevronRight aria-hidden="true" className="size-4 text-(--subtle)" />
                 )}
-                <span className="font-mono text-badge font-medium uppercase tracking-mono text-(--muted)">
+                <Eyebrow case="upper" tone="muted" size="badge">
                   Governance
-                </span>
+                </Eyebrow>
               </span>
               <span className="text-small-body text-(--muted)">
                 Optional retry and rate limit settings

@@ -9,6 +9,7 @@ import {
   Button,
   ConfirmDialog,
   Empty,
+  Eyebrow,
   Input,
   PageShell,
   Section,
@@ -168,9 +169,9 @@ function VaultFilterBar({
       data-testid="settings-page-vault-filters"
     >
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
-        <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
+        <Eyebrow case="upper" tone="muted">
           Namespace
-        </span>
+        </Eyebrow>
         <select
           id="settings-page-vault-namespace"
           value={namespace}
@@ -187,9 +188,9 @@ function VaultFilterBar({
         </select>
       </label>
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
-        <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
+        <Eyebrow case="upper" tone="muted">
           Prefix
-        </span>
+        </Eyebrow>
         <Input
           id="settings-page-vault-prefix"
           value={prefix}

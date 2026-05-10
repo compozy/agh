@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Eyebrow } from "./eyebrow";
 
 export type ChatMessageRole = "user" | "agent" | "system" | "tool" | "diff";
 
@@ -47,7 +48,7 @@ function ChatMessageBubble({
         <span aria-hidden="true" className="h-px flex-1 bg-(--line)" />
         <div
           data-slot="chat-message-body"
-          className="font-mono text-[11px] leading-[16px] tracking-[0.06em]"
+          className="font-mono text-eyebrow leading-[16px] tracking-mono"
         >
           {children}
         </div>
@@ -74,15 +75,14 @@ function ChatMessageBubble({
           className="flex max-w-[min(640px,84%)] flex-col gap-1.5"
         >
           {meta ? (
-            <div
+            <Eyebrow
               data-slot="chat-message-meta"
-              className={cn(
-                "font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--subtle)",
-                resolvedAlign === "right" ? "text-right" : "text-left"
-              )}
+              case="upper"
+              tone="subtle"
+              className={cn(resolvedAlign === "right" ? "text-right" : "text-left")}
             >
               {meta}
-            </div>
+            </Eyebrow>
           ) : null}
           <div
             data-slot="chat-message-body"
@@ -105,15 +105,14 @@ function ChatMessageBubble({
         {...props}
       >
         {meta ? (
-          <div
+          <Eyebrow
             data-slot="chat-message-meta"
-            className={cn(
-              "flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--muted)",
-              nonUserMetaAlignClass
-            )}
+            case="upper"
+            tone="muted"
+            className={cn("flex items-center gap-2", nonUserMetaAlignClass)}
           >
             {meta}
-          </div>
+          </Eyebrow>
         ) : null}
         <div data-slot="chat-message-body" className="text-[14px] leading-[1.6] text-(--muted)">
           {children}
@@ -131,15 +130,14 @@ function ChatMessageBubble({
       {...props}
     >
       {meta ? (
-        <div
+        <Eyebrow
           data-slot="chat-message-meta"
-          className={cn(
-            "flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-(--muted)",
-            nonUserMetaAlignClass
-          )}
+          case="upper"
+          tone="muted"
+          className={cn("flex items-center gap-2", nonUserMetaAlignClass)}
         >
           {meta}
-        </div>
+        </Eyebrow>
       ) : null}
       <div data-slot="chat-message-body">{children}</div>
     </div>

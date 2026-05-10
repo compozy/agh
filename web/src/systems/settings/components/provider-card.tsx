@@ -6,6 +6,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  Eyebrow,
   MetadataList,
   Pill,
   PillGroup,
@@ -192,9 +193,9 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             data-testid={`${testId}-status`}
             data-tone={state.label}
           />
-          <span className="font-mono text-badge font-medium uppercase tracking-badge text-(--subtle)">
+          <Eyebrow case="upper" tone="subtle" size="badge">
             {STATE_LABELS[state.label] ?? state.label}
-          </span>
+          </Eyebrow>
         </span>
         <span className="flex items-center gap-2">
           <Button

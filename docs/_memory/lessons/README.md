@@ -29,6 +29,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-019](L-019-diagnostic-data-outlives-primary-record.md)     | Diagnostic data must outlive its primary record when audit/replay matters    | Architecture / Persistence |
 | [L-020](L-020-dense-typed-records-need-pointer-boundaries.md) | Dense typed orchestration records need pointer boundaries                    | Architecture / Code style  |
 | [L-021](L-021-schema-migration-identity-is-append-only.md)    | Schema migration identity is append-only                                     | Persistence                |
+| [L-022](L-022-eyebrow-canonical-source.md)                    | Eyebrow typography needs one canonical source                                | Frontend / Design system   |
 
 ## How to use
 

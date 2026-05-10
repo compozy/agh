@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui";
+import { Eyebrow, cn } from "@agh/ui";
 import { Avatar } from "./avatar";
 
 export interface AuthorMetaProps {
@@ -25,9 +25,9 @@ export function AuthorMeta({
         <div>
           <p className="font-sans text-sm font-medium text-(--color-text-primary)">{handle}</p>
           {role && (
-            <p className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
+            <Eyebrow case="upper" tone="muted" className="text-(--color-text-label)">
               {role}
-            </p>
+            </Eyebrow>
           )}
         </div>
       </div>
@@ -37,9 +37,9 @@ export function AuthorMeta({
   return (
     <div className={cn("inline-flex items-center gap-2.5", className)}>
       <Avatar initial={initial} size={size} />
-      <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label)">
+      <Eyebrow case="upper" tone="muted" className="text-(--color-text-label)">
         {handle}
-      </span>
+      </Eyebrow>
     </div>
   );
 }

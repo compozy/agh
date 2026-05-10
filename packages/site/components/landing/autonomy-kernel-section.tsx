@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
+import { Eyebrow } from "@agh/ui";
 
 const AUTONOMY_CODE = `agh task create
 agh task list --status queued
@@ -45,9 +46,15 @@ export function AutonomyKernelSection() {
       <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
         <div className="flex min-w-0 flex-col gap-6">
           <div className="min-w-0 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5 sm:p-7">
-            <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="badge"
+              weight="semibold"
+              className="text-accent"
+            >
               Token-fenced ownership
-            </p>
+            </Eyebrow>
             <h3 className="mt-3 font-display text-2xl leading-tight tracking-tight text-(--color-text-primary)">
               No double-execution, ever.
             </h3>
@@ -62,9 +69,15 @@ export function AutonomyKernelSection() {
 
         <ul className="flex min-w-0 flex-col divide-y divide-(--color-divider) border-y border-(--color-divider)">
           <li className="py-6">
-            <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="badge"
+              weight="semibold"
+              className="text-accent"
+            >
               Lease recovery
-            </p>
+            </Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-(--color-text-primary)">
               Daemon crashes don&apos;t orphan work.
             </h4>
@@ -74,9 +87,15 @@ export function AutonomyKernelSection() {
             </p>
           </li>
           <li className="py-6">
-            <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="badge"
+              weight="semibold"
+              className="text-accent"
+            >
               One shared queue
-            </p>
+            </Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-(--color-text-primary)">
               Operators and agents hit task_runs.
             </h4>
@@ -87,9 +106,15 @@ export function AutonomyKernelSection() {
             </p>
           </li>
           <li className="py-6">
-            <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="badge"
+              weight="semibold"
+              className="text-accent"
+            >
               Permission narrowing
-            </p>
+            </Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-(--color-text-primary)">
               Children cannot widen parents.
             </h4>

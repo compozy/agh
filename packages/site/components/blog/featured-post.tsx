@@ -10,6 +10,7 @@ import { KindChip, type WireKind } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
 import { MonoEyebrow } from "./mono-eyebrow";
 import { blogPostCover } from "@/lib/blog";
+import { Eyebrow } from "@agh/ui";
 
 export interface FeaturedPostProps {
   post: Post;
@@ -149,9 +150,14 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
             >
               {node.id}
             </p>
-            <p className="mt-1 font-mono text-micro uppercase tracking-badge text-(--color-text-tertiary)">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="micro"
+              className="mt-1 text-(--color-text-tertiary)"
+            >
               {node.role}
-            </p>
+            </Eyebrow>
           </div>
         ))}
       </div>

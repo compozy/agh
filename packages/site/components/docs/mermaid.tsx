@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useReducer, useRef } from "react";
+import { Eyebrow } from "@agh/ui";
 
 let mermaidLoader: Promise<typeof import("mermaid").default> | null = null;
 
@@ -113,9 +114,9 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         />
       ) : state.error ? (
         <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-mono text-accent">
+          <Eyebrow case="upper" tone="muted" weight="semibold" className="text-accent">
             Diagram source
-          </p>
+          </Eyebrow>
           <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
             Mermaid could not render this diagram in the current browser session.
           </p>

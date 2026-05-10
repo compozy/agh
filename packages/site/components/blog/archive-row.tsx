@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { DateStamp } from "./date-stamp";
 import { categoryLabel, formatReadingTime } from "./format";
+import { Eyebrow } from "@agh/ui";
 
 export interface ArchiveRowProps {
   post: Post;
@@ -22,9 +23,14 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
         <p className="mt-1.5 text-sm leading-6 text-(--color-text-secondary)">{post.description}</p>
         {post.tags.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            <span className="rounded-chip bg-(--color-surface-elevated) px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+            <Eyebrow
+              case="upper"
+              tone="muted"
+              size="badge"
+              className="rounded-chip bg-(--color-surface-elevated) px-1.5 py-0.5 text-(--color-text-tertiary)"
+            >
               {categoryLabel(post.category)}
-            </span>
+            </Eyebrow>
             {post.tags.map(tag => (
               <span
                 key={tag}
@@ -36,9 +42,13 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
           </div>
         )}
       </div>
-      <span className="min-w-0 truncate font-mono text-eyebrow uppercase tracking-mono text-(--color-text-label) sm:col-start-2 lg:col-start-auto lg:pt-1">
+      <Eyebrow
+        case="upper"
+        tone="muted"
+        className="min-w-0 truncate text-(--color-text-label) sm:col-start-2 lg:col-start-auto lg:pt-1"
+      >
         {post.author}
-      </span>
+      </Eyebrow>
       <span className="font-mono text-eyebrow tracking-mono text-(--color-text-tertiary) sm:col-start-2 lg:col-start-auto lg:pt-1">
         {formatReadingTime(post.metadata.readingTime)}
       </span>
