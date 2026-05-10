@@ -28,7 +28,7 @@ export function WorkInspector({
 }: WorkInspectorProps) {
   const body =
     isLoading && entries.length === 0 ? (
-      <p className="px-4 py-6 text-small-body text-(--color-text-tertiary)">Loading…</p>
+      <p className="px-4 py-6 text-small-body text-(--subtle)">Loading…</p>
     ) : entries.length === 0 ? (
       <div className="flex justify-center px-4 py-6">
         <Empty
@@ -70,8 +70,8 @@ export function WorkInspector({
       className={cn("flex min-h-0 flex-1 flex-col", className)}
       data-testid="network-work-inspector"
     >
-      <header className="flex items-baseline justify-between border-b border-(--color-divider) px-4 py-3">
-        <h2 className="text-sm font-semibold text-(--color-text-primary)">Work</h2>
+      <header className="flex items-baseline justify-between border-b border-(--line) px-4 py-3">
+        <h2 className="text-sm font-semibold text-(--fg)">Work</h2>
         <Eyebrow data-testid="network-work-inspector-count" weight="medium">
           {entries.length} open
         </Eyebrow>

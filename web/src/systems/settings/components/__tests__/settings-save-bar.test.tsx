@@ -103,7 +103,7 @@ describe("SettingsSaveBar", () => {
 
     const errorLine = screen.getByTestId("settings-page-general-save-error");
     expect(errorLine).toHaveTextContent("boom");
-    expect(errorLine.className).toContain("text-(--color-danger)");
+    expect(errorLine.className).toContain("text-(--danger)");
     expect(screen.queryByTestId("settings-page-general-save-warnings")).not.toBeInTheDocument();
   });
 
@@ -122,7 +122,7 @@ describe("SettingsSaveBar", () => {
     const warnings = screen.getByTestId("settings-page-general-save-warnings");
     expect(warnings).toHaveTextContent("restart required");
     expect(warnings).toHaveTextContent("env missing");
-    expect(warnings.className).toContain("text-(--color-warning)");
+    expect(warnings.className).toContain("text-(--warning)");
   });
 
   it("renders the lastAppliedLabel with a success check when no error or warnings and not dirty", () => {

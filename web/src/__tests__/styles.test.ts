@@ -1,234 +1,319 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const STYLES_PATH = join(__dirname, "../styles.css");
 const TOKENS_PATH = join(__dirname, "../../../packages/ui/src/tokens.css");
-const SRC_ROOT = join(__dirname, "..");
+const WEB_SRC_ROOT = join(__dirname, "..");
+const KIT_SRC_ROOT = join(__dirname, "../../../packages/ui/src");
+const KIT_BARREL_PATH = join(KIT_SRC_ROOT, "index.ts");
+const BADGE_PATH = join(KIT_SRC_ROOT, "components/badge.tsx");
+const PAGE_HEADER_PATH = join(KIT_SRC_ROOT, "components/custom/page-header.tsx");
 
-function readStyles(): string {
-  return readFileSync(STYLES_PATH, "utf-8");
+function readFile(path: string): string {
+  return readFileSync(path, "utf-8");
 }
 
-function readTokens(): string {
-  return readFileSync(TOKENS_PATH, "utf-8");
+interface CollectOptions {
+  extensions: ReadonlyArray<string>;
 }
 
-/**
- * Recursively collect all .tsx files under a directory,
- * excluding node_modules, dist, and test files.
- */
-function collectTsxFiles(dir: string): string[] {
-  const results: string[] = [];
+function collectSourceFiles(dir: string, options: CollectOptions, into: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     const stat = statSync(full);
     if (stat.isDirectory()) {
-      if (entry === "node_modules" || entry === "dist") continue;
-      results.push(...collectTsxFiles(full));
-    } else if (
-      entry.endsWith(".tsx") &&
-      !entry.includes(".test.") &&
-      !entry.includes(".stories.")
-    ) {
-      results.push(full);
+      if (entry === "node_modules" || entry === "dist" || entry === "generated") continue;
+      collectSourceFiles(full, options, into);
+      continue;
     }
+    if (entry.includes(".test.") || entry.includes(".stories.")) continue;
+    if (!options.extensions.some(ext => entry.endsWith(ext))) continue;
+    into.push(full);
   }
-  return results;
+  return into;
 }
 
-describe("Design Token System , styles.css", () => {
-  const css = readStyles();
-  const tokens = readTokens();
+const SOURCE_FILES = [
+  ...collectSourceFiles(WEB_SRC_ROOT, { extensions: [".tsx", ".ts"] }),
+  ...collectSourceFiles(KIT_SRC_ROOT, { extensions: [".tsx", ".ts"] }),
+];
 
-  it("imports @agh/ui/tokens.css", () => {
-    expect(css).toMatch(/@import\s+["']@agh\/ui\/tokens\.css["']/);
+const NEW_CONTRACT_HEXES = [
+  "#0c0b0b",
+  "#131211",
+  "#1a1918",
+  "#1c1b1a",
+  "#232220",
+  "#1f1e1d",
+  "#4a4847",
+  "#5fbf85",
+  "#d6a647",
+  "#e0635a",
+  "#8e8eb5",
+  "#7a7a80",
+  "#ececef",
+  "#f6f6f8",
+  "#9a9a9f",
+  "#76767c",
+  "#545458",
+  "#e8572a",
+  "#d14e25",
+  "#f6874f",
+  "#17110f",
+] as const;
+
+const LEGACY_HEXES = [
+  "#0e0e0f",
+  "#141312",
+  "#1e1c1b",
+  "#181716",
+  "#2e2c2b",
+  "#3c3a39",
+  "#353332",
+  "#e5e5e7",
+  "#8e8e93",
+  "#636366",
+  "#98989d",
+  "#30d158",
+  "#ffd60a",
+  "#ff453a",
+  "#bf5af2",
+  "#5ba6ff",
+  "#b892ff",
+  "#4fd1c5",
+  "#e8572b",
+] as const;
+
+const BANNED_SHADOW_UTILITIES = [
+  "shadow-md",
+  "shadow-lg",
+  "shadow-xl",
+  "shadow-2xl",
+  "shadow-xs",
+  "shadow-sm",
+  "shadow-inner",
+  "shadow-none",
+] as const;
+
+function escapeForRegex(value: string): string {
+  return value.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&");
+}
+
+function findOffenders(pattern: RegExp): string[] {
+  const offenders: string[] = [];
+  for (const filePath of SOURCE_FILES) {
+    const content = readFileSync(filePath, "utf-8");
+    if (pattern.test(content)) offenders.push(filePath);
+  }
+  return offenders;
+}
+
+describe("Token contract — packages/ui/src/tokens.css", () => {
+  const tokens = readFile(TOKENS_PATH);
+  const tokensNormalized = tokens.replace(/\s+/g, " ");
+
+  it.each(NEW_CONTRACT_HEXES)("Should declare the canonical hex %s in the token sheet", hex => {
+    expect(tokens).toMatch(new RegExp(escapeForRegex(hex), "i"));
   });
 
-  it("imports tailwindcss before composing app styles", () => {
-    expect(css).toMatch(/@import\s+["']tailwindcss["']/);
+  it("Should pin the --shadow-overlay whitelist value (ADR-003)", () => {
+    expect(tokensNormalized).toContain(
+      "--shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);"
+    );
   });
 
-  it("imports the runtime fontsource faces in the web app stylesheet", () => {
-    expect(css).toMatch(/@import\s+["']@fontsource-variable\/inter["']/);
-    expect(css).toMatch(/@import\s+["']@fontsource\/jetbrains-mono\/500\.css["']/);
-    expect(css).toMatch(/@import\s+["']@fontsource\/jetbrains-mono\/600\.css["']/);
+  it("Should pin the --highlight whitelist value (ADR-003)", () => {
+    expect(tokensNormalized).toContain("--highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);");
   });
 
-  it("registers workspace UI sources for Tailwind emission", () => {
-    expect(css).toMatch(/@source\s+["']\.\.\/\.\.\/packages\/ui\/src\/\*\*\/\*\.\{ts,tsx\}["']/);
+  it("Should not redeclare --color-line (collapsed into --line)", () => {
+    expect(tokens).not.toMatch(/--color-line\s*:/);
   });
 
-  it("contains no oklch() values", () => {
-    expect(css).not.toMatch(/oklch\(/i);
-    expect(tokens).not.toMatch(/oklch\(/i);
+  it("Should not declare --radius-diagram literal 12px (consolidated into --radius-lg)", () => {
+    expect(tokens).not.toMatch(/--radius-diagram\s*:\s*12px/i);
   });
 
-  it("contains no box-shadow declarations", () => {
-    expect(css).not.toMatch(/box-shadow/i);
-    expect(tokens).not.toMatch(/box-shadow/i);
+  it("Should not declare --font-display in the kit token sheet", () => {
+    expect(tokens).not.toMatch(/--font-display\b/);
   });
 
-  it("contains no color-mix() expressions", () => {
-    expect(css).not.toMatch(/color-mix\(/i);
-    expect(tokens).not.toMatch(/color-mix\(/i);
+  it("Should not declare --font-wordmark in the kit token sheet", () => {
+    expect(tokens).not.toMatch(/--font-wordmark\b/);
   });
 
-  it("contains no .ds-texture- class definitions", () => {
-    expect(tokens).not.toMatch(/\.ds-texture-/);
+  it("Should map shadcn --background to var(--canvas)", () => {
+    expect(tokens).toMatch(/--background\s*:\s*var\(--canvas\)/i);
   });
 
-  it("contains no .ds-panel class definitions", () => {
-    expect(tokens).not.toMatch(/\.ds-panel/);
+  it("Should map shadcn --primary to var(--accent)", () => {
+    expect(tokens).toMatch(/--primary\s*:\s*var\(--accent\)/i);
   });
 
-  it("contains no .ds-toolbar-field class definitions", () => {
-    expect(tokens).not.toMatch(/\.ds-toolbar-field/);
-  });
-
-  it("contains no --ds- custom properties", () => {
-    expect(tokens).not.toMatch(/--ds-/);
-  });
-
-  it("contains no gradient declarations", () => {
-    expect(tokens).not.toMatch(/linear-gradient/);
-    expect(tokens).not.toMatch(/radial-gradient/);
-  });
-
-  it("defines --color-canvas: #141312", () => {
-    expect(tokens).toMatch(/--color-canvas:\s*#141312/i);
-  });
-
-  it("defines --color-accent: #E8572A", () => {
-    expect(tokens).toMatch(/--color-accent:\s*#E8572A/i);
-  });
-
-  it("defines --color-surface: #1E1C1B", () => {
-    expect(tokens).toMatch(/--color-surface:\s*#1E1C1B/i);
-  });
-
-  it("defines --color-surface-elevated: #2E2C2B", () => {
-    expect(tokens).toMatch(/--color-surface-elevated:\s*#2E2C2B/i);
-  });
-
-  it("defines --color-text-primary: #E5E5E7", () => {
-    expect(tokens).toMatch(/--color-text-primary:\s*#E5E5E7/i);
-  });
-
-  it("defines --color-text-secondary: #8E8E93", () => {
-    expect(tokens).toMatch(/--color-text-secondary:\s*#8E8E93/i);
-  });
-
-  it("defines --color-text-tertiary: #636366", () => {
-    expect(tokens).toMatch(/--color-text-tertiary:\s*#636366/i);
-  });
-
-  it("defines --color-text-label: #98989D", () => {
-    expect(tokens).toMatch(/--color-text-label:\s*#98989D/i);
-  });
-
-  it("defines --color-success: #30D158", () => {
-    expect(tokens).toMatch(/--color-success:\s*#30D158/i);
-  });
-
-  it("defines --color-danger: #FF453A", () => {
-    expect(tokens).toMatch(/--color-danger:\s*#FF453A/i);
-  });
-
-  it("defines --color-warning: #FFD60A", () => {
-    expect(tokens).toMatch(/--color-warning:\s*#FFD60A/i);
-  });
-
-  it("defines --color-info: #BF5AF2", () => {
-    expect(tokens).toMatch(/--color-info:\s*#BF5AF2/i);
-  });
-
-  it("declares --font-sans with Inter Variable", () => {
+  it("Should declare --font-sans with Inter Variable", () => {
     expect(tokens).toMatch(/--font-sans:.*"Inter Variable"/);
   });
 
-  it("declares --font-mono with JetBrains Mono", () => {
+  it("Should declare --font-mono with JetBrains Mono", () => {
     expect(tokens).toMatch(/--font-mono:.*"JetBrains Mono"/);
   });
 
-  it("declares --font-display with Playfair Display", () => {
-    expect(tokens).toMatch(/--font-display:.*"Playfair Display"/);
-  });
-
-  it("declares --font-wordmark with NuixyberNext", () => {
-    expect(tokens).toMatch(/--font-wordmark:[\s\S]*?"NuixyberNext"/);
-  });
-
-  it("keeps the shared token stylesheet free of concrete font imports", () => {
+  it("Should keep the shared token sheet free of concrete font imports", () => {
     expect(tokens).not.toMatch(/@fontsource-variable\/inter/);
     expect(tokens).not.toMatch(/@fontsource\/jetbrains-mono/);
-  });
-
-  it("does NOT import @fontsource-variable/geist", () => {
     expect(tokens).not.toMatch(/@fontsource-variable\/geist/);
-  });
-
-  it("does NOT import @fontsource/bricolage-grotesque", () => {
     expect(tokens).not.toMatch(/@fontsource\/bricolage-grotesque/);
   });
 
-  it("maps shadcn --primary to the accent token", () => {
-    expect(tokens).toMatch(/--primary:\s*var\(--color-accent\)/i);
+  it("Should embed the universal-selector reduced-motion guard", () => {
+    const block = tokens.match(/@media\s+\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\}\s*\}/);
+    expect(block, "expected the reduced-motion block to exist").toBeTruthy();
+    const blockText = block?.[0] ?? "";
+    expect(blockText).toMatch(/\*,\s*\*::before,\s*\*::after/);
+    expect(blockText).toMatch(/animation-duration\s*:\s*0\.01ms\s*!important/i);
+    expect(blockText).toMatch(/animation-iteration-count\s*:\s*1\s*!important/i);
+    expect(blockText).toMatch(/transition-duration\s*:\s*0\.01ms\s*!important/i);
+    expect(blockText).toMatch(/scroll-behavior\s*:\s*auto\s*!important/i);
   });
 
-  it("maps shadcn --background to the canvas token", () => {
-    expect(tokens).toMatch(/--background:\s*var\(--color-canvas\)/i);
+  it("Should not contain oklch() values", () => {
+    expect(tokens).not.toMatch(/oklch\(/i);
   });
 
-  it("maps shadcn --border to the divider token", () => {
-    expect(tokens).toMatch(/--border:\s*var\(--color-divider\)/i);
+  it("Should not contain color-mix() expressions", () => {
+    expect(tokens).not.toMatch(/color-mix\(/i);
   });
 
-  it("sets --radius to 0.5rem", () => {
-    expect(tokens).toMatch(/--radius:\s*0\.5rem/);
+  it("Should not contain linear-gradient or radial-gradient declarations", () => {
+    expect(tokens).not.toMatch(/linear-gradient/i);
+    expect(tokens).not.toMatch(/radial-gradient/i);
+  });
+
+  it("Should not contain --ds-* custom properties", () => {
+    expect(tokens).not.toMatch(/--ds-/);
   });
 });
 
-describe("Component files , no legacy token references", () => {
-  const componentFiles = collectTsxFiles(SRC_ROOT);
+describe("Web stylesheet — web/src/styles.css", () => {
+  const css = readFile(STYLES_PATH);
 
-  it("finds component files to check", () => {
-    expect(componentFiles.length).toBeGreaterThan(0);
+  it("Should import tailwindcss before composing app styles", () => {
+    expect(css).toMatch(/@import\s+["']tailwindcss["']/);
   });
 
-  it("no component file contains var(--ds- references", () => {
-    const violations: string[] = [];
-    for (const filePath of componentFiles) {
-      const content = readFileSync(filePath, "utf-8");
-      if (content.includes("var(--ds-")) {
-        const relativePath = filePath.replace(SRC_ROOT, "");
-        violations.push(relativePath);
-      }
-    }
-    expect(violations).toEqual([]);
+  it("Should import @agh/ui/tokens.css", () => {
+    expect(css).toMatch(/@import\s+["']@agh\/ui\/tokens\.css["']/);
   });
 
-  it("no component file uses font-display class", () => {
-    const violations: string[] = [];
-    for (const filePath of componentFiles) {
-      const content = readFileSync(filePath, "utf-8");
-      if (/\bfont-display\b/.test(content)) {
-        const relativePath = filePath.replace(SRC_ROOT, "");
-        violations.push(relativePath);
-      }
-    }
-    expect(violations).toEqual([]);
+  it("Should import @fontsource/jetbrains-mono weight 400", () => {
+    expect(css).toMatch(/@import\s+["']@fontsource\/jetbrains-mono\/400\.css["']/);
   });
 
-  it("no component file uses ds-texture-canvas class", () => {
-    const violations: string[] = [];
-    for (const filePath of componentFiles) {
-      const content = readFileSync(filePath, "utf-8");
-      if (/\bds-texture-canvas\b/.test(content)) {
-        const relativePath = filePath.replace(SRC_ROOT, "");
-        violations.push(relativePath);
-      }
+  it("Should import @fontsource-variable/inter", () => {
+    expect(css).toMatch(/@import\s+["']@fontsource-variable\/inter["']/);
+  });
+
+  it("Should register workspace UI sources for Tailwind emission", () => {
+    expect(css).toMatch(/@source\s+["']\.\.\/\.\.\/packages\/ui\/src\/\*\*\/\*\.\{ts,tsx\}["']/);
+  });
+
+  it("Should not contain a stray @theme inline block (consolidated into tokens.css)", () => {
+    expect(css).not.toMatch(/@theme\s+inline/);
+  });
+
+  it("Should not contain oklch() values", () => {
+    expect(css).not.toMatch(/oklch\(/i);
+  });
+
+  it("Should not contain color-mix() expressions", () => {
+    expect(css).not.toMatch(/color-mix\(/i);
+  });
+
+  it("Should not contain linear-gradient declarations", () => {
+    expect(css).not.toMatch(/linear-gradient/i);
+  });
+});
+
+describe("Source files — no legacy hex or banned utilities", () => {
+  it("Should find component files to scan", () => {
+    expect(SOURCE_FILES.length).toBeGreaterThan(0);
+  });
+
+  it.each(LEGACY_HEXES)(
+    "Should not reference the legacy hex %s under web/src or packages/ui/src",
+    hex => {
+      const offenders = findOffenders(new RegExp(escapeForRegex(hex), "i"));
+      expect(offenders).toEqual([]);
     }
-    expect(violations).toEqual([]);
+  );
+
+  it.each(BANNED_SHADOW_UTILITIES)("Should not use the banned Tailwind utility %s", utility => {
+    const offenders = findOffenders(new RegExp(`\\b${utility}\\b`));
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not use any backdrop-blur utility class", () => {
+    const offenders = findOffenders(/\bbackdrop-blur/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not use any mix-blend utility class", () => {
+    const offenders = findOffenders(/\bmix-blend-/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not use the font-display utility class", () => {
+    const offenders = findOffenders(/\bfont-display\b/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not reference --ds-* tokens", () => {
+    const offenders = findOffenders(/--ds-/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not reference --font-display variable", () => {
+    const offenders = findOffenders(/--font-display\b/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not reference --font-wordmark variable", () => {
+    const offenders = findOffenders(/--font-wordmark\b/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("Should not contain min(var(--radius-md), Npx) literals", () => {
+    const offenders = findOffenders(/min\(var\(--radius-md\)/);
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("Primitive surface — badge.tsx hard-deleted", () => {
+  it("Should not exist on disk", () => {
+    expect(existsSync(BADGE_PATH)).toBe(false);
+  });
+
+  it("Should not be exported from the @agh/ui barrel", () => {
+    const barrel = readFileSync(KIT_BARREL_PATH, "utf-8");
+    expect(barrel).not.toMatch(/from\s+["']\.\/components\/badge["']/);
+    expect(barrel).not.toMatch(/\bBadge,\s*badgeVariants\b/);
+  });
+});
+
+describe("Composite surface — page-header.tsx hard-deleted (P4)", () => {
+  it("Should not exist on disk", () => {
+    expect(existsSync(PAGE_HEADER_PATH)).toBe(false);
+  });
+
+  it("Should not be exported from the @agh/ui barrel", () => {
+    const barrel = readFileSync(KIT_BARREL_PATH, "utf-8");
+    expect(barrel).not.toMatch(/page-header/);
+    expect(barrel).not.toMatch(/\bPageHeader\b/);
+  });
+
+  it("Should not be imported by any web/ or kit source file", () => {
+    const offenders = findOffenders(/from\s+["'@/][^"']*custom\/page-header["']/);
+    expect(offenders).toEqual([]);
   });
 });

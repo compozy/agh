@@ -40,19 +40,17 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
   return (
     <Card
       data-testid={testId}
-      className="transition-colors duration-150 ease-out hover:ring-accent/40"
+      className="transition-colors duration-150 ease-out hover:bg-(--hover)"
     >
       <CardHeader>
         <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
-            className="flex size-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) ring-1 ring-(--color-divider)"
+            className="flex size-10 items-center justify-center rounded-icon-well bg-(--elevated) ring-1 ring-(--line)"
           >
             <ProviderLogo provider={provider.name} className="size-5" />
           </span>
-          <CardTitle className="font-mono text-sm text-(--color-text-primary)">
-            {provider.name}
-          </CardTitle>
+          <CardTitle className="font-mono text-sm text-(--fg)">{provider.name}</CardTitle>
         </div>
         {provider.default ? (
           <CardAction>
@@ -61,7 +59,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
         ) : null}
       </CardHeader>
 
-      <CardContent className="flex flex-col flex-1 gap-2 border-t border-(--color-divider) pt-4">
+      <CardContent className="flex flex-col flex-1 gap-2 border-t border-(--line) pt-4">
         <MetadataList className="gap-y-2">
           <MetadataList.Row
             label="Command"
@@ -194,7 +192,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             data-testid={`${testId}-status`}
             data-tone={state.label}
           />
-          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
+          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--subtle)">
             {STATE_LABELS[state.label] ?? state.label}
           </span>
         </span>
@@ -230,7 +228,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
 }
 
 function EmptyValue() {
-  return <span className="text-(--color-text-label)">--</span>;
+  return <span className="text-(--muted)">--</span>;
 }
 
 function ProviderAuthStatus({ provider }: { provider: SettingsProviderEntry }) {

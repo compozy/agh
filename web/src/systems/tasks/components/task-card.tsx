@@ -56,7 +56,7 @@ export function TaskCard({
       onSelect={onSelect ? () => onSelect() : undefined}
       footer={
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-eyebrow text-(--color-text-secondary)">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-eyebrow text-(--muted)">
             <span data-testid={`task-card-owner-${task.id}`}>{ownerLabel}</span>
             {activeRun ? (
               <span data-testid={`task-card-attempt-${task.id}`}>
@@ -74,15 +74,13 @@ export function TaskCard({
               </span>
             ) : null}
             {task.parent_task_id ? (
-              <span className="font-mono text-(--color-text-tertiary)">
-                parent {task.parent_task_id}
-              </span>
+              <span className="font-mono text-(--subtle)">parent {task.parent_task_id}</span>
             ) : null}
           </div>
 
           {failedRunError ? (
             <p
-              className="flex items-start gap-1 text-eyebrow text-(--color-danger)"
+              className="flex items-start gap-1 text-eyebrow text-(--danger)"
               data-testid={`task-card-error-${task.id}`}
             >
               <AlertCircle className="mt-0.5 size-3 shrink-0" />

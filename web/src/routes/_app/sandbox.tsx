@@ -12,7 +12,6 @@ import {
   Pill,
   NativeSelect,
   NativeSelectOption,
-  PageHeader,
   Section,
   Table,
   TableBody,
@@ -20,7 +19,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useTopbarSlot,
 } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   useSandboxPage,
   type SandboxDraft,
@@ -38,16 +39,38 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/sandbox")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Sandbox", icon: Boxes },
+  }),
   component: SandboxPage,
 });
 
 function SandboxPage() {
   const page = useSandboxPage();
 
+  useTopbarSlot({
+    count: page.envelope ? page.counts.total : undefined,
+    tabs: page.envelope ? (
+      <SettingsStatusLine
+        data-testid="sandbox-page-status-line"
+        status="connected"
+        items={[
+          <span key="total" data-testid="sandbox-page-total">
+            {page.counts.total} profiles
+          </span>,
+          <span key="workspaces" data-testid="sandbox-page-workspaces">
+            {page.counts.totalWorkspaces} workspace references
+          </span>,
+        ]}
+      />
+    ) : undefined,
+    actions: <SettingsPageActions slug="sandbox" restart={page.restart} />,
+  });
+
   if (page.isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-loading">
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -56,8 +79,8 @@ function SandboxPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-error">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
             {page.error?.message ?? "Failed to load sandboxes"}
           </p>
         </div>
@@ -67,26 +90,6 @@ function SandboxPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="sandbox-shell">
-      <PageHeader
-        count={page.counts.total}
-        controls={<SettingsPageActions slug="sandbox" restart={page.restart} />}
-        icon={() => <Boxes className="size-3.5" data-testid="sandbox-shell-icon" />}
-        meta={
-          <SettingsStatusLine
-            data-testid="sandbox-page-status-line"
-            status="connected"
-            items={[
-              <span key="total" data-testid="sandbox-page-total">
-                {page.counts.total} profiles
-              </span>,
-              <span key="workspaces" data-testid="sandbox-page-workspaces">
-                {page.counts.totalWorkspaces} workspace references
-              </span>,
-            ]}
-          />
-        }
-        title={<span data-testid="sandbox-shell-title">Sandbox</span>}
-      />
       <SettingsRestartBanner
         slug="sandbox"
         restart={page.restart}
@@ -165,28 +168,28 @@ function SandboxTable({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-(--color-divider)"
+      className="overflow-hidden rounded-lg border border-(--line)"
       data-testid="sandbox-page-list"
     >
       <Table>
         <TableHeader>
-          <TableRow className="bg-(--color-surface-elevated)">
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+          <TableRow className="bg-(--elevated)">
+            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
               Name
             </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
               Backend
             </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
               Profile
             </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
               Source
             </TableHead>
-            <TableHead className="text-right text-badge uppercase tracking-mono text-(--color-text-label)">
+            <TableHead className="text-right text-badge uppercase tracking-mono text-(--muted)">
               Usage
             </TableHead>
-            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
+            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--muted)">
               Actions
             </TableHead>
           </TableRow>
@@ -218,16 +221,14 @@ function SandboxRow({
   return (
     <TableRow data-testid={`sandbox-page-card-${entry.name}`}>
       <TableCell>
-        <span className="font-mono text-sm text-(--color-text-primary)">{entry.name}</span>
+        <span className="font-mono text-sm text-(--fg)">{entry.name}</span>
       </TableCell>
       <TableCell>
         <div className="flex flex-col gap-1">
           <Pill mono tone={backendTone(profile.backend)}>
             {profile.backend}
           </Pill>
-          <span className="text-xs text-(--color-text-tertiary)">
-            {backendLabel(profile.backend)}
-          </span>
+          <span className="text-xs text-(--subtle)">{backendLabel(profile.backend)}</span>
         </div>
       </TableCell>
       <TableCell className="text-xs">
@@ -248,7 +249,7 @@ function SandboxRow({
         />
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-(--color-text-secondary)"
+        className="text-right font-mono text-xs text-(--muted)"
         data-testid={`sandbox-page-card-${entry.name}-usage`}
       >
         {entry.workspace_usage_count}{" "}
@@ -291,10 +292,8 @@ function SandboxRow({
 function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
-      <span className="font-mono text-micro uppercase tracking-mono text-(--color-text-label)">
-        {label}
-      </span>
-      <span className="font-mono text-(--color-text-primary)">{value}</span>
+      <span className="font-mono text-micro uppercase tracking-mono text-(--muted)">{label}</span>
+      <span className="font-mono text-(--fg)">{value}</span>
     </span>
   );
 }
@@ -372,10 +371,7 @@ function SandboxEditor({
               shadowed={entry.source_metadata.shadowed_sources ?? []}
             />
             {entry.workspace_usage_count > 0 ? (
-              <span
-                className="text-xs text-(--color-text-tertiary)"
-                data-testid="sandbox-editor-usage"
-              >
+              <span className="text-xs text-(--subtle)" data-testid="sandbox-editor-usage">
                 {entry.workspace_usage_count} workspaces depend on this profile
               </span>
             ) : null}
@@ -497,10 +493,10 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
   if (preserved.length === 0) return null;
   return (
     <p
-      className="rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-2 text-xs text-(--color-text-tertiary)"
+      className="rounded-md border border-(--line) bg-(--elevated) px-3 py-2 text-xs text-(--subtle)"
       data-testid="sandbox-editor-preserved"
     >
-      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+      <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
         preserved on save
       </span>
       <span className="ml-2">

@@ -102,13 +102,13 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           to="/agents/$name/sessions/$id"
           params={{ name: agentName, id: session.id }}
           className={cn(
-            "text-item-title flex flex-col gap-0.5 text-(--color-text-primary)",
+            "text-item-title flex flex-col gap-0.5 text-(--fg)",
             "transition-colors hover:text-accent"
           )}
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
-          <span className="text-badge font-mono uppercase tracking-mono text-(--color-text-tertiary)">
+          <span className="text-badge font-mono uppercase tracking-mono text-(--subtle)">
             {session.provider}
           </span>
         </Link>
@@ -118,13 +118,13 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           {status.label}
         </Pill>
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-(--color-text-secondary)">
+      <TableCell className="text-small-body text-right font-mono text-(--muted)">
         {formatDuration(session.activity?.elapsed_seconds)}
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-(--color-text-secondary)">
+      <TableCell className="text-small-body text-right font-mono text-(--muted)">
         {formatIterations(session.activity?.iteration_current, session.activity?.iteration_max)}
       </TableCell>
-      <TableCell className="text-small-body text-right font-mono text-(--color-text-secondary)">
+      <TableCell className="text-small-body text-right font-mono text-(--muted)">
         {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at, now)}
       </TableCell>
     </TableRow>

@@ -83,7 +83,7 @@ export function ListFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-3 border-b border-(--color-divider) px-5 py-2",
+        "flex flex-wrap items-center gap-3 border-b border-(--line) px-5 py-2",
         className
       )}
       data-testid="network-list-filter-bar"

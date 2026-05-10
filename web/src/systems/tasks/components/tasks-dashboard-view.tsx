@@ -75,7 +75,7 @@ export function TasksDashboardView({
 
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
-      <div className="flex items-center justify-between gap-2 border-t border-(--color-divider) pt-3">
+      <div className="flex items-center justify-between gap-2 border-t border-(--line) pt-3">
         <Eyebrow data-testid="tasks-dashboard-freshness">
           {freshness.stale ? "Stale" : "Fresh"} · {freshnessLabel}
         </Eyebrow>

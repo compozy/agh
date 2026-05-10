@@ -248,7 +248,6 @@ export {
 } from "./hooks/use-task-notifications";
 
 // Components
-export { TASKS_SHELL_TITLE, TasksPageShell } from "./components/tasks-page-shell";
 export { TaskCard } from "./components/task-card";
 export type { TaskCardProps } from "./components/task-card";
 export { TasksListRow } from "./components/tasks-list-row";

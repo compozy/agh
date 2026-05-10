@@ -102,11 +102,8 @@ export function TasksMultiAgentPanel({
       data-testid="tasks-multi-agent-panel"
     >
       <header className="flex flex-col gap-1" data-testid="tasks-multi-agent-header">
-        <h2 className="text-base font-semibold text-(--color-text-primary)">Agents</h2>
-        <p
-          className="text-small-body text-(--color-text-secondary)"
-          data-testid="tasks-multi-agent-summary"
-        >
+        <h2 className="text-base font-semibold text-(--fg)">Agents</h2>
+        <p className="text-small-body text-(--muted)" data-testid="tasks-multi-agent-summary">
           {subtitle}
         </p>
       </header>
@@ -128,7 +125,7 @@ export function TasksMultiAgentPanel({
 
       {state === "no-active" ? (
         <p
-          className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-sm text-(--color-text-secondary)"
+          className="rounded-xl border border-(--line) bg-(--canvas-soft) px-4 py-3 text-sm text-(--muted)"
           data-testid="tasks-multi-agent-no-active"
         >
           No runs are currently active. Descendant status will refresh as soon as a run resumes.
@@ -166,7 +163,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
     <Item
       as="div"
       className={cn(
-        "relative flex-col gap-3 rounded-xl border-(--color-divider) bg-(--color-surface) py-3 pr-4",
+        "relative flex-col gap-3 rounded-xl border-(--line) bg-(--canvas-soft) py-3 pr-4",
         agent.isLive ? "border-l-2 border-l-accent" : "border-l-2 border-l-transparent"
       )}
       data-depth={depthIndent}
@@ -192,9 +189,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               <span
                 className={cn(
                   "truncate text-small-body",
-                  agent.isLive
-                    ? "font-medium text-(--color-text-primary)"
-                    : "text-(--color-text-secondary)"
+                  agent.isLive ? "font-medium text-(--fg)" : "text-(--muted)"
                 )}
                 data-testid={`tasks-multi-agent-agent-label-${task.id}`}
               >
@@ -211,12 +206,12 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               </Pill>
             </div>
             <p
-              className="mt-1 truncate text-small-body text-(--color-text-primary)"
+              className="mt-1 truncate text-small-body text-(--fg)"
               data-testid={`tasks-multi-agent-agent-title-${task.id}`}
             >
               {task.title}
             </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-eyebrow text-(--color-text-tertiary)">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-eyebrow text-(--subtle)">
               <span>Owner {ownerLabel}</span>
               {node.last_activity_at ? (
                 <>
@@ -235,7 +230,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
             </div>
             {run?.error ? (
               <p
-                className="mt-2 flex items-start gap-1 text-eyebrow text-(--color-danger)"
+                className="mt-2 flex items-start gap-1 text-eyebrow text-(--danger)"
                 data-testid={`tasks-multi-agent-agent-error-${task.id}`}
               >
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -248,7 +243,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
 
       {agentEventsTop.length > 0 ? (
         <ItemContent
-          className="flex flex-col gap-1 border-t border-(--color-divider) pt-3 font-mono text-eyebrow text-(--color-text-secondary)"
+          className="flex flex-col gap-1 border-t border-(--line) pt-3 font-mono text-eyebrow text-(--muted)"
           data-testid={`tasks-multi-agent-agent-events-${task.id}`}
         >
           {agentEventsTop.map(event => (
@@ -258,10 +253,8 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               key={event.event_id}
               role="listitem"
             >
-              <span className="shrink-0 text-(--color-text-tertiary)">
-                {formatEventTime(event.timestamp)}
-              </span>
-              <span className="truncate text-(--color-text-secondary)">{event.event_type}</span>
+              <span className="shrink-0 text-(--subtle)">{formatEventTime(event.timestamp)}</span>
+              <span className="truncate text-(--muted)">{event.event_type}</span>
             </div>
           ))}
           {overflow > 0 ? (
@@ -278,7 +271,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
       ) : null}
 
       <ItemFooter
-        className="flex flex-wrap items-center justify-end gap-3 border-t border-(--color-divider) pt-3"
+        className="flex flex-wrap items-center justify-end gap-3 border-t border-(--line) pt-3"
         data-testid={`tasks-multi-agent-agent-actions-${task.id}`}
       >
         {run?.session_id ? (
@@ -325,8 +318,8 @@ function AgentAvatar({ label, isLive }: AgentAvatarProps) {
       className={cn(
         "flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold",
         isLive
-          ? "border-accent bg-(--color-accent-tint) text-accent"
-          : "border-(--color-divider) bg-(--color-surface-elevated) text-(--color-text-secondary)"
+          ? "border-accent bg-(--accent-tint) text-accent"
+          : "border-(--line) bg-(--elevated) text-(--muted)"
       )}
     >
       {initial}

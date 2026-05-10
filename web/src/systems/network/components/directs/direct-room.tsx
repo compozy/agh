@@ -1,4 +1,4 @@
-import { Eyebrow, PageHeader } from "@agh/ui";
+import { Eyebrow } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -29,10 +29,10 @@ function PresenceDot({ state }: PresenceDotProps) {
 
   const tone =
     state === "running"
-      ? "var(--color-accent)"
+      ? "var(--accent)"
       : state === "needs_input"
-        ? "var(--color-warning)"
-        : "var(--color-danger)";
+        ? "var(--warning)"
+        : "var(--danger)";
 
   const ariaLabel =
     state === "running" ? "running" : state === "needs_input" ? "needs input" : "errored";
@@ -64,24 +64,34 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-direct-room"
     >
-      <PageHeader
-        className="px-5 py-2.5"
+      <header
+        data-slot="page-header"
+        className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-5 py-2.5"
         data-testid="network-direct-identity-row"
-        meta={
-          <>
+      >
+        <div
+          data-slot="page-header-main"
+          className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
+        >
+          <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
+            <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
+              <span className="flex min-w-0 items-center gap-3">
+                {otherPeerId ? (
+                  <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={32} />
+                ) : null}
+                <span className="truncate">{otherPeerId ? `@${otherPeerId}` : "Direct room"}</span>
+              </span>
+            </h1>
+          </div>
+          <div
+            data-slot="page-header-meta"
+            className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-(--muted)"
+          >
             <Eyebrow weight="medium">agent</Eyebrow>
             <PresenceDot state={room.presence.state} />
-          </>
-        }
-        title={
-          <span className="flex min-w-0 items-center gap-3">
-            {otherPeerId ? (
-              <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={32} />
-            ) : null}
-            <span className="truncate">{otherPeerId ? `@${otherPeerId}` : "Direct room"}</span>
-          </span>
-        }
-      />
+          </div>
+        </div>
+      </header>
 
       {detailError ? (
         <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">

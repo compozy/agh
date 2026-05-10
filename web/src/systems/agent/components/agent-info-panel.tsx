@@ -20,17 +20,15 @@ export interface AgentInfoPanelProps {
   className?: string;
 }
 
-const PANEL_WIDTH = 320;
-
 export function AgentInfoPanel({ agent, className }: AgentInfoPanelProps) {
   const mcpServers = agent.mcp_servers ?? [];
   return (
     <aside
       data-testid="agent-info-panel"
       aria-label={`${agent.name} agent details`}
-      style={{ width: PANEL_WIDTH }}
+      style={{ width: "var(--rail-inspector-w, 320px)" }}
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden border-l border-(--color-divider) bg-(--color-canvas) xl:flex",
+        "hidden shrink-0 flex-col overflow-hidden border-l border-(--line) bg-(--canvas) xl:flex",
         className
       )}
     >
@@ -60,7 +58,7 @@ export function AgentInfoPanel({ agent, className }: AgentInfoPanelProps) {
                       <ItemContent>
                         <ItemTitle>{server.name}</ItemTitle>
                         {server.command || server.url ? (
-                          <ItemDescription className="truncate font-mono text-badge tracking-mono text-(--color-text-tertiary)">
+                          <ItemDescription className="truncate font-mono text-badge tracking-mono text-(--subtle)">
                             {server.url ?? server.command}
                           </ItemDescription>
                         ) : null}

@@ -55,17 +55,15 @@ export function AgentCommandSelect({
             <AgentIcon
               provider={selectedAgent.provider}
               size="xs"
-              className="shrink-0 text-(--color-text-secondary)"
+              className="shrink-0 text-(--muted)"
             />
-            <span className="truncate text-sm text-(--color-text-primary)">
-              {selectedAgent.name}
-            </span>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-secondary)">
+            <span className="truncate text-sm text-(--fg)">{selectedAgent.name}</span>
+            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
               {selectedAgent.provider}
             </span>
             {selectedAgent.category_path && selectedAgent.category_path.length > 0 ? (
               <span
-                className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-(--color-text-secondary)"
+                className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-(--muted)"
                 data-testid="agent-command-select-trigger-category"
               >
                 {formatCategoryLabel(selectedAgent.category_path)}
@@ -73,7 +71,7 @@ export function AgentCommandSelect({
             ) : null}
           </span>
         ) : (
-          <span className="truncate text-(--color-text-secondary)">{placeholder}</span>
+          <span className="truncate text-(--muted)">{placeholder}</span>
         )}
       </CommandSelectTrigger>
       <CommandSelectShell

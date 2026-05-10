@@ -57,8 +57,8 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
     <Item
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-none border-b border-(--color-divider) px-5 py-3",
-        active ? "bg-(--color-accent-tint)" : null
+        "rounded-none border-b border-(--line) px-5 py-3",
+        active ? "bg-(--accent-tint)" : null
       )}
       data-testid={`network-direct-list-row-${direct.direct_id}`}
       indicator={active ? "rail" : "none"}
@@ -87,7 +87,7 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
             </Eyebrow>
           ) : null}
         </ItemHeader>
-        <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
+        <p className="line-clamp-2 text-small-body text-(--muted)">
           {direct.last_message_preview ?? "No messages yet."}
         </p>
       </ItemContent>
@@ -110,7 +110,7 @@ function DirectsListSkeleton() {
     <SkeletonRows
       count={3}
       data-testid="network-direct-list-skeleton"
-      rowClassName="flex-row gap-3 border-b border-(--color-divider) px-5 py-3"
+      rowClassName="flex-row gap-3 border-b border-(--line) px-5 py-3"
     >
       <Skeleton className="size-9 rounded-chip" />
       <div className="flex flex-1 flex-col gap-1.5">

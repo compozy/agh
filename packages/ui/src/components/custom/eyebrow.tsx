@@ -4,29 +4,40 @@ import { cn } from "../../lib/utils";
 import type { PillTone } from "./pill";
 
 export type EyebrowWeight = "medium" | "semibold";
+export type EyebrowCase = "sentence" | "upper";
 
-export interface EyebrowProps extends React.ComponentProps<"span"> {
+export interface EyebrowProps extends Omit<React.ComponentProps<"span">, "case"> {
   tone?: PillTone;
   weight?: EyebrowWeight;
+  case?: EyebrowCase;
 }
 
 const EYEBROW_TONE_CLASS: Record<PillTone, string> = {
-  neutral: "text-(--color-text-tertiary)",
-  accent: "text-(--color-accent)",
-  success: "text-(--color-success)",
-  warning: "text-(--color-warning)",
-  danger: "text-(--color-danger)",
-  info: "text-(--color-info)",
+  neutral: "text-(--muted)",
+  accent: "text-(--accent)",
+  success: "text-(--success)",
+  warning: "text-(--warning)",
+  danger: "text-(--danger)",
+  info: "text-(--info)",
 };
 
-function Eyebrow({ tone = "neutral", weight = "semibold", className, ...props }: EyebrowProps) {
+function Eyebrow({
+  tone = "neutral",
+  weight = "semibold",
+  case: caseVariant = "sentence",
+  className,
+  ...props
+}: EyebrowProps) {
   return (
     <span
       data-slot="eyebrow"
       data-tone={tone}
       data-weight={weight}
+      data-case={caseVariant}
       className={cn(
-        "font-mono text-[11px] uppercase tracking-[0.06em]",
+        caseVariant === "upper"
+          ? "font-mono text-[10.5px] uppercase tracking-[0.05em]"
+          : "font-sans text-[12px] tracking-[-0.005em]",
         weight === "semibold" ? "font-semibold" : "font-medium",
         EYEBROW_TONE_CLASS[tone],
         className

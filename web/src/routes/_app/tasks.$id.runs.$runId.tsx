@@ -1,6 +1,7 @@
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
 import {
   TaskRunActivityPanel,
@@ -11,6 +12,9 @@ import {
 } from "@/systems/tasks";
 
 export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `Run ${params.runId}`, icon: Play },
+  }),
   component: TaskRunDetailRoute,
 });
 
@@ -24,7 +28,7 @@ function TaskRunDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-run-detail-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -35,8 +39,8 @@ function TaskRunDetailRoute() {
         className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
         data-testid="tasks-run-detail-not-found"
       >
-        <AlertCircle className="size-6 text-(--color-danger)" />
-        <p className="text-sm text-(--color-text-secondary)">
+        <AlertCircle className="size-6 text-(--danger)" />
+        <p className="text-sm text-(--muted)">
           {page.fatalError?.message ?? `Run ${runId} not found.`}
         </p>
       </div>
@@ -50,7 +54,7 @@ function TaskRunDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-run-detail-placeholder"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }

@@ -23,5 +23,5 @@ export { NetworkInspector } from "./network-inspector";
 export type { NetworkInspectorProps } from "./network-inspector";
 export { NetworkShell } from "./network-shell";
 export type { NetworkShellProps } from "./network-shell";
-export { RightRail } from "./right-rail";
-export type { RightRailMode, RightRailProps } from "./right-rail";
+export { RightRail } from "@agh/ui";
+export type { RightRailMode, RightRailProps } from "@agh/ui";

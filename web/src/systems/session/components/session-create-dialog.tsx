@@ -141,7 +141,7 @@ function SessionCreateDialog({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="text-(--color-text-primary) sm:max-w-xl"
+        className="text-(--fg) sm:max-w-xl"
         data-testid="session-create-dialog"
         showCloseButton={!isSubmitting}
         unframed
@@ -173,13 +173,10 @@ function SessionCreateDialog({
               />
               {activeAgent ? (
                 <div
-                  className="mt-1 flex items-center gap-1.5 text-xs text-(--color-text-tertiary)"
+                  className="mt-1 flex items-center gap-1.5 text-xs text-(--subtle)"
                   data-testid="session-create-agent-default"
                 >
-                  <AgentIcon
-                    className="size-3.5 text-(--color-text-tertiary)"
-                    provider={activeAgent.provider}
-                  />
+                  <AgentIcon className="size-3.5 text-(--subtle)" provider={activeAgent.provider} />
                   <span>Agent default provider: {activeAgent.provider}</span>
                 </div>
               ) : null}
@@ -204,7 +201,7 @@ function SessionCreateDialog({
               />
               {activeProvider ? (
                 <div
-                  className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-eyebrow text-(--color-text-tertiary)"
+                  className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-eyebrow text-(--subtle)"
                   data-testid="session-create-provider-runtime"
                 >
                   <span>{activeProvider.harness ?? "acp"}</span>
@@ -215,7 +212,7 @@ function SessionCreateDialog({
               ) : null}
               {providersError ? (
                 <p
-                  className="mt-1 text-xs text-(--color-danger)"
+                  className="mt-1 text-xs text-(--danger)"
                   data-testid="session-create-providers-error"
                   role="alert"
                 >
@@ -224,7 +221,7 @@ function SessionCreateDialog({
               ) : null}
               {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
                 <p
-                  className="mt-1 text-xs text-(--color-warning)"
+                  className="mt-1 text-xs text-(--warning)"
                   data-testid="session-create-providers-empty"
                 >
                   No providers are configured for this workspace.
@@ -300,7 +297,7 @@ function SessionCreateDialog({
                 />
                 {defaultReasoning ? (
                   <p
-                    className="mt-1 text-xs text-(--color-text-tertiary)"
+                    className="mt-1 text-xs text-(--subtle)"
                     data-testid="session-create-reasoning-default"
                   >
                     Default reasoning: {defaultReasoning}
@@ -311,7 +308,7 @@ function SessionCreateDialog({
 
             {submitError ? (
               <p
-                className="text-xs text-(--color-danger)"
+                className="text-xs text-(--danger)"
                 data-testid="session-create-submit-error"
                 role="alert"
               >
@@ -361,7 +358,7 @@ function CatalogStatusLine({
   if (refreshError) {
     return (
       <p
-        className="mt-1 text-xs text-(--color-danger)"
+        className="mt-1 text-xs text-(--danger)"
         data-testid="session-create-catalog-refresh-error"
         role="alert"
       >
@@ -372,7 +369,7 @@ function CatalogStatusLine({
   if (error) {
     return (
       <p
-        className="mt-1 text-xs text-(--color-danger)"
+        className="mt-1 text-xs text-(--danger)"
         data-testid="session-create-catalog-error"
         role="alert"
       >
@@ -382,37 +379,28 @@ function CatalogStatusLine({
   }
   if (refreshing) {
     return (
-      <p
-        className="mt-1 text-xs text-(--color-text-tertiary)"
-        data-testid="session-create-catalog-refreshing"
-      >
+      <p className="mt-1 text-xs text-(--subtle)" data-testid="session-create-catalog-refreshing">
         Refreshing model catalog…
       </p>
     );
   }
   if (loading) {
     return (
-      <p
-        className="mt-1 text-xs text-(--color-text-tertiary)"
-        data-testid="session-create-catalog-loading"
-      >
+      <p className="mt-1 text-xs text-(--subtle)" data-testid="session-create-catalog-loading">
         Loading provider models…
       </p>
     );
   }
   if (stale) {
     return (
-      <p className="mt-1 text-xs text-(--color-warning)" data-testid="session-create-catalog-stale">
+      <p className="mt-1 text-xs text-(--warning)" data-testid="session-create-catalog-stale">
         Some models are stale , refresh to confirm availability.
       </p>
     );
   }
   if (optionCount === 0) {
     return (
-      <p
-        className="mt-1 text-xs text-(--color-text-tertiary)"
-        data-testid="session-create-catalog-empty"
-      >
+      <p className="mt-1 text-xs text-(--subtle)" data-testid="session-create-catalog-empty">
         No catalog models , type a model name to continue.
       </p>
     );

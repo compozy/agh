@@ -41,7 +41,7 @@ function buildDetail(
 }
 
 describe("TasksDetailHeader", () => {
-  it("renders PageHeader with title, MonoBadge id, status pill, and action slot in DOM order", () => {
+  it("renders body header with title, MonoBadge id, status pill, and action slot in DOM order", () => {
     const { container } = render(<TasksDetailHeader detail={buildDetail()} />);
 
     expect(screen.getByTestId("tasks-detail-title")).toHaveTextContent("Summarize review feedback");

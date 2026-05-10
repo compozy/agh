@@ -63,7 +63,7 @@ function CodeBlock({
       data-slot="code-block"
       data-tone={tone}
       className={cn(
-        "relative rounded-[var(--radius-diagram)] bg-[color:var(--color-canvas-deep)]",
+        "relative rounded-[var(--radius-lg)] bg-[color:var(--canvas)]",
         codeBlockToneClass(tone),
         className
       )}
@@ -72,7 +72,7 @@ function CodeBlock({
       {language ? (
         <span
           data-slot="code-block-language"
-          className="absolute top-3 left-5 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+          className="absolute top-3 left-5 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--subtle)]"
         >
           {language}
         </span>
@@ -82,7 +82,7 @@ function CodeBlock({
           value={code}
           copyLabel={copyLabel}
           copiedLabel={copiedLabel}
-          className="absolute top-2 right-2 text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-accent)] data-[copied=true]:text-[color:var(--color-success)]"
+          className="absolute top-2 right-2 text-[color:var(--subtle)] hover:text-[color:var(--accent)] data-[copied=true]:text-[color:var(--success)]"
         />
       ) : null}
       <pre
@@ -91,7 +91,7 @@ function CodeBlock({
           clampedLines ? ({ "--code-block-lines": clampedLines } as React.CSSProperties) : undefined
         }
         className={cn(
-          "overflow-x-auto px-5 py-4 font-mono text-[14px] leading-[1.6] text-[color:var(--color-text-primary)]",
+          "overflow-x-auto px-5 py-4 font-mono text-[14px] leading-[1.6] text-[color:var(--fg)]",
           codeBlockToneTextClass(tone),
           language ? "pt-9" : null,
           copyable ? "pr-12" : null,
@@ -107,7 +107,7 @@ function CodeBlock({
                   <span
                     data-slot="code-block-prompt"
                     aria-hidden="true"
-                    className="text-[color:var(--color-accent)] select-none"
+                    className="text-[color:var(--accent)] select-none"
                   >
                     {"$ "}
                   </span>
@@ -181,15 +181,15 @@ function CopyIconButton({
 function codeBlockToneClass(tone: CodeBlockTone): string {
   switch (tone) {
     case "warning":
-      return "ring-1 ring-[color:var(--color-warning)]/35 bg-[color:var(--color-warning-tint)]";
+      return "ring-1 ring-[color:var(--warning)]/35 bg-[color:var(--warning-tint)]";
     case "danger":
-      return "ring-1 ring-[color:var(--color-danger)]/35 bg-[color:var(--color-danger-tint)]";
+      return "ring-1 ring-[color:var(--danger)]/35 bg-[color:var(--danger-tint)]";
     case "success":
-      return "ring-1 ring-[color:var(--color-success)]/35 bg-[color:var(--color-success-tint)]";
+      return "ring-1 ring-[color:var(--success)]/35 bg-[color:var(--success-tint)]";
     case "info":
-      return "ring-1 ring-[color:var(--color-info)]/35 bg-[color:var(--color-info-tint)]";
+      return "ring-1 ring-[color:var(--info)]/35 bg-[color:var(--info-tint)]";
     case "accent":
-      return "ring-1 ring-[color:var(--color-accent)]/35 bg-[color:var(--color-accent-tint)]";
+      return "ring-1 ring-[color:var(--accent)]/35 bg-[color:var(--accent-tint)]";
     default:
       return "";
   }
@@ -198,15 +198,15 @@ function codeBlockToneClass(tone: CodeBlockTone): string {
 function codeBlockToneTextClass(tone: CodeBlockTone): string {
   switch (tone) {
     case "warning":
-      return "text-[color:var(--color-warning)]";
+      return "text-(--warning)";
     case "danger":
-      return "text-(--color-danger)";
+      return "text-(--danger)";
     case "success":
-      return "text-success";
+      return "text-(--success)";
     case "info":
-      return "text-[color:var(--color-info)]";
+      return "text-(--info)";
     case "accent":
-      return "text-accent";
+      return "text-(--accent)";
     default:
       return "";
   }

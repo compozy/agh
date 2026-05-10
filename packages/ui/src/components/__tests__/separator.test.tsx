@@ -29,6 +29,6 @@ describe("Separator", () => {
     const label = container.querySelector('[data-slot="separator-label"]');
 
     expect(separator).toHaveAttribute("data-tone", "accent");
-    expect(label?.className).toContain("text-accent");
+    expect(label?.className).toContain("text-(--accent)");
   });
 });

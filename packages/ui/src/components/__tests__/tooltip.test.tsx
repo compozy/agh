@@ -53,6 +53,23 @@ describe("Tooltip", () => {
     console.error = originalError;
   });
 
+  it("Should paint tooltip content on var(--canvas-soft) with a 1px line-soft ring", async () => {
+    render(
+      <TooltipProvider>
+        <Tooltip open>
+          <TooltipTrigger render={<Button>Open</Button>} />
+          <TooltipContent>tooltip body</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+    await waitFor(() => expect(screen.getByText("tooltip body")).toBeInTheDocument());
+    const content = document.body.querySelector(
+      "[data-slot='tooltip-content']"
+    ) as HTMLElement | null;
+    expect(content?.className).toContain("bg-(--canvas-soft)");
+    expect(content?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
+  });
+
   it("Should respect a controlled open prop", async () => {
     const { rerender } = render(
       <TooltipProvider>

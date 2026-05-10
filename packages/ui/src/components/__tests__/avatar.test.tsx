@@ -83,4 +83,35 @@ describe("Avatar", () => {
     expect(group).not.toBeNull();
     expect(group?.querySelectorAll('[data-slot="avatar"]').length).toBe(2);
   });
+
+  it("Should default to circle shape and apply rounded-full", () => {
+    const { container } = render(
+      <Avatar>
+        <AvatarFallback>PN</AvatarFallback>
+      </Avatar>
+    );
+    const root = container.querySelector('[data-slot="avatar"]');
+    expect(root?.getAttribute("data-shape")).toBe("circle");
+    expect(root?.className).toContain("rounded-full");
+  });
+
+  it("Should apply a 5px radius when shape is square", () => {
+    const { container } = render(
+      <Avatar shape="square">
+        <AvatarFallback>AG</AvatarFallback>
+      </Avatar>
+    );
+    const root = container.querySelector('[data-slot="avatar"]');
+    expect(root?.getAttribute("data-shape")).toBe("square");
+    expect(root?.className).toContain("rounded-[5px]");
+  });
+
+  it("Should not contain mix-blend-darken (dead branch removed)", () => {
+    const { container } = render(
+      <Avatar>
+        <AvatarFallback>PN</AvatarFallback>
+      </Avatar>
+    );
+    expect(container.innerHTML).not.toMatch(/mix-blend-darken/);
+  });
 });

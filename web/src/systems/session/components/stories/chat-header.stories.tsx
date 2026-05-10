@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-(--color-divider) bg-(--color-canvas)">
+      <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-(--line) bg-(--canvas)">
         {children}
       </div>
     </CenteredSurface>

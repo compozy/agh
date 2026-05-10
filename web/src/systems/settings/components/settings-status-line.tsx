@@ -24,7 +24,7 @@ function SettingsStatusLine({
           key={isValidElement(item) ? item.key : String(item)}
           className="flex items-center gap-1"
         >
-          <span aria-hidden="true" className="text-(--color-text-tertiary)">
+          <span aria-hidden="true" className="text-(--subtle)">
             ·
           </span>
           {item}

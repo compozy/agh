@@ -33,10 +33,7 @@ export function TasksInboxLaneTabs({
   const lanes: TaskInboxLane[] = LANE_ORDER.filter(lane => showArchive || lane !== "archived");
 
   return (
-    <div
-      className="border-b border-(--color-divider) px-4 py-2.5"
-      data-testid="tasks-inbox-lane-tabs"
-    >
+    <div className="border-b border-(--line) px-4 py-2.5" data-testid="tasks-inbox-lane-tabs">
       <Tabs
         onValueChange={next => onChange(next as InboxLaneFilter)}
         orientation="horizontal"

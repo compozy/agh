@@ -67,7 +67,7 @@ describe("OptionCard", () => {
 
     const icon = screen.getByTestId("option-card-icon");
     expect(icon.dataset.tone).toBe("accent");
-    expect(icon.className).toContain("text-[color:var(--color-accent)]");
+    expect(icon.className).toContain("text-[color:var(--accent)]");
   });
 
   it("Should render the action button and trigger its handler when clicked", async () => {

@@ -86,6 +86,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     onCollapseChange,
     workspaces,
     activeWorkspaceId: "ws_alpha",
+    activeWorkspace: workspaces[0],
     onSelectWorkspace,
     onAddWorkspace,
     health: { version: "0.1.0" },
@@ -108,10 +109,14 @@ describe("AppSidebar", () => {
   });
 
   describe("Header", () => {
-    it("does not render a sidebar header slot , workspace identity lives in the rail", () => {
+    it("renders the workspace switcher header inside the panel (avatar + name + chevron)", () => {
       renderSidebar(makeProps());
-      expect(screen.queryByTestId("sidebar-workspace-name")).not.toBeInTheDocument();
-      expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
+      const header = document.querySelector('[data-slot="sidebar-header"]');
+      expect(header).not.toBeNull();
+      expect(screen.getByTestId("workspace-switcher")).toBeInTheDocument();
+      expect(screen.getByTestId("workspace-switcher-avatar")).toHaveTextContent("A");
+      expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("alpha");
+      expect(screen.getByTestId("workspace-switcher-chevron")).toBeInTheDocument();
     });
   });
 

@@ -1,22 +1,34 @@
 ---
 name: agh-design
-description: Use this skill to generate well-branded interfaces and assets for AGH (Compozy's open workplace for AI agents — a local-first runtime that hosts durable agent sessions and the agh-network/v0 protocol) — either for production code or throwaway prototypes, mocks, slides, and landing pages. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping. AGH is dark-mode only with a single warm orange accent (#E8572A) on a near-black canvas (#141312); copy is operator-first, engineer-to-engineer, no emoji.
+description: Use this skill to generate well-branded interfaces and assets for AGH (Compozy's open workplace for AI agents — a local-first runtime that hosts durable agent sessions and the agh-network/v0 protocol) — either for production code or throwaway prototypes, mocks, slides, and landing pages. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping. AGH is dark-mode only with a single warm orange accent (#E8572A) on a near-black canvas (#131211); copy is operator-first, engineer-to-engineer, no emoji.
 user-invocable: true
 ---
 
-Read `docs/design/design-system/README.md`, and explore the other files in that folder (`colors_and_type.css`, `ui_kits/`, `preview/`, `fonts/`, and any `assets/` present).
+The authoritative design system lives in two places — read both before producing anything:
 
-If creating visual artifacts (slides, mocks, throwaway prototypes, etc), copy assets out and create static HTML files for the user to view. Always start from `docs/design/design-system/colors_and_type.css` so the color + type tokens match. Reuse the JSX components in `docs/design/design-system/ui_kits/marketing/` and `docs/design/design-system/ui_kits/docs/` as your building blocks.
+1. `DESIGN.md` (repo root) — the canonical specification: visual theme, color tokens, surface ramp, hairlines, type, motion, ADRs, anti-patterns.
+2. `packages/ui/src/tokens.css` — the canonical CSS token source consumed by the runtime UI, the marketing site, and the docs site.
 
-If working on production code, you can copy assets and read the rules in `docs/design/design-system/README.md` to become an expert in designing with this brand. The real source in this repo is `packages/ui/src/tokens.css` (tokens) and `packages/site/` (marketing + docs surface).
+Supporting sources to pull from when building:
 
-If the user invokes this skill without any other guidance, ask them what they want to build or design (a landing section? a docs page? a slide? a product screen?), ask a few questions about scope and variations, and act as an expert designer who outputs HTML artifacts _or_ production code, depending on the need.
+- `packages/ui/src/components/` — shadcn-derived primitives (`button.tsx`, `card.tsx`, `dialog.tsx`, `popover.tsx`, `sidebar.tsx`, `tabs.tsx`, `table.tsx`, `select.tsx`, `field.tsx`, `tooltip.tsx`, `sonner.tsx`, etc.) plus AGH-custom variants under `packages/ui/src/components/custom/`.
+- `web/` — runtime operator UI (React 19 + TanStack + Tailwind v4); use it to see how tokens compose in product surfaces.
+- `packages/site/` — Fumadocs marketing landing + docs at `agh.network`; use it to see the editorial Playfair Display rhythm and `/runtime/*` + `/protocol/*` doc trees.
 
-**Rules that matter most for this brand:**
+If creating visual artifacts (slides, mocks, throwaway prototypes, landing sections), produce static HTML files the user can open directly. Pull the actual tokens by importing or inlining values from `packages/ui/src/tokens.css` — never invent hex values. Reuse the JSX components from `packages/ui/src/components/` as building blocks when the artifact is React/TSX; for pure HTML, mirror their class structure and token usage.
 
-- Dark mode only. Never render on a white background.
-- One accent color: `#E8572A`. Use sparingly.
-- Mono uppercase eyebrows (`JetBrains Mono`, `letter-spacing: 0.06em`) are everywhere.
-- Display serif (`Playfair Display`) for marketing h1/h2; sans (`Inter`) for docs.
-- No emoji. No bluish gradients. No drop shadows. No colored-left-border cards (except the one highlighted row in the comparison table).
-- Copy is operator-first and dry-confident — no hype, no "we", no exclamation marks.
+If working on production code, edit inside `web/`, `packages/ui/`, or `packages/site/` and consume tokens via the existing CSS variables (`var(--canvas)`, `var(--accent)`, `var(--line)`, etc.) — never hardcode hex.
+
+If invoked without other guidance, ask what the user wants to build (a landing section? a docs page? a slide? a product screen?), gather scope and variations, and act as an expert designer outputting HTML artifacts _or_ production code depending on the need.
+
+**Rules that matter most for this brand (full reasoning in `DESIGN.md`):**
+
+- **Dark mode only.** `color-scheme: dark` is hardcoded. Never render on a white background.
+- **One accent: `#E8572A`** (`--accent`). Use sparingly — one accent target per viewport.
+- **Warm-tinted neutral ramp**, never cool/bluish. Surface ramp: `--rail` `#0c0b0b` → `--canvas` `#131211` → `--canvas-soft` `#1a1918` → `--canvas-tint` `#1c1b1a` → `--elevated` `#232220`.
+- **Translucent hairlines, not solid borders.** Use `--line`, `--line-soft`, `--line-strong` (rgba whites). The legacy solid `#3C3A39` divider is gone.
+- **Two-token shadow vocabulary (ADR-003).** Only `--shadow-overlay` (modals) and `--highlight` (active rim) carry shadow. Cards, popovers, dropdowns, sticky headers, list rows stay flat with a 1 px ring on `--line-soft`. No drop shadows on content, no glassmorphism, no decorative texture.
+- **Type stack:** Inter Variable for UI, JetBrains Mono for metadata + mono uppercase eyebrows (`letter-spacing: 0.06em`). Playfair Display reserved for `packages/site/` marketing hero only. NuixyberNext reserved for the `agh` wordmark only.
+- **Signal colors are desaturated and tint-only.** Success `#5fbf85`, warning `#d6a647`, danger `#e0635a`, info `#8e8eb5`. Appear as low-alpha tints on chips/pills, never as solid banners.
+- **No emoji. No bluish gradients. No colored-left-border cards** (except the one highlighted row in the comparison table).
+- **Copy is operator-first and dry-confident** — engineer-to-engineer, no hype, no "we", no exclamation marks. See `COPY.md` for the full product-language spec.

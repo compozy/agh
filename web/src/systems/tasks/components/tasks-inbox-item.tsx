@@ -107,7 +107,7 @@ export function TasksInboxItem({
   return (
     <TasksListRow
       className={cn(
-        "rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) py-3 pr-4",
+        "rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) py-3 pr-4",
         unread && '**:data-[slot="tasks-list-row-title"]:font-semibold'
       )}
       data-lane={lane}
@@ -177,17 +177,14 @@ function InboxItemFooter({
   return (
     <>
       {blocking_reason ? (
-        <p
-          className="text-xs text-(--color-text-secondary)"
-          data-testid={`tasks-inbox-item-blocking-${taskId}`}
-        >
+        <p className="text-xs text-(--muted)" data-testid={`tasks-inbox-item-blocking-${taskId}`}>
           {blocking_reason}
         </p>
       ) : null}
 
       {failedError ? (
         <p
-          className="flex items-start gap-1 text-xs text-(--color-danger)"
+          className="flex items-start gap-1 text-xs text-(--danger)"
           data-testid={`tasks-inbox-item-error-${taskId}`}
         >
           <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -196,10 +193,7 @@ function InboxItemFooter({
       ) : null}
 
       {approval_policy === "manual" && approval_state ? (
-        <p
-          className="text-xs text-(--color-text-secondary)"
-          data-testid={`tasks-inbox-item-approval-${taskId}`}
-        >
+        <p className="text-xs text-(--muted)" data-testid={`tasks-inbox-item-approval-${taskId}`}>
           Approval state: {taskApprovalStateLabel(approval_state)}
         </p>
       ) : null}
@@ -208,7 +202,7 @@ function InboxItemFooter({
         className="mt-1 flex flex-wrap items-center justify-between gap-2 text-eyebrow"
         data-testid={`tasks-inbox-item-actions-${taskId}`}
       >
-        <span className="flex items-center gap-2 text-(--color-text-tertiary)">
+        <span className="flex items-center gap-2 text-(--subtle)">
           <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
           <span>·</span>
           <span>{formatRelativeTime(item.latest_activity_at)} ago</span>
@@ -322,9 +316,7 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       size="xs"
       type="button"
       variant={buttonVariant}
-      className={cn(
-        variant === "destructive-ghost" && "text-(--color-danger) hover:text-(--color-danger)"
-      )}
+      className={cn(variant === "destructive-ghost" && "text-(--danger) hover:text-(--danger)")}
     >
       {icon}
       {label}

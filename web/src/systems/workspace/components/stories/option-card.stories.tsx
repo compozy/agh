@@ -54,9 +54,7 @@ export const Comfortable: Story = {
         </OptionCard.Content>
       </OptionCard.Body>
       <OptionCard.Action>
-        <Button className="w-full justify-between text-(--color-accent-ink)">
-          Use this workspace
-        </Button>
+        <Button className="w-full justify-between text-(--accent-ink)">Use this workspace</Button>
       </OptionCard.Action>
     </OptionCard>
   ),
@@ -82,7 +80,7 @@ export const Compact: Story = {
         </OptionCard.Content>
       </OptionCard.Body>
       <OptionCard.Action>
-        <Button className="w-full justify-between text-(--color-accent-ink)">Register path</Button>
+        <Button className="w-full justify-between text-(--accent-ink)">Register path</Button>
       </OptionCard.Action>
     </OptionCard>
   ),

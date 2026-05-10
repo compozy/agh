@@ -100,22 +100,20 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
       className={cn(
         "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border p-5 text-left transition-colors",
         isBlank
-          ? "border-dashed border-divider/60 hover:border-(--color-text-label)"
-          : "border-(--color-divider) bg-(--color-surface) hover:border-(--color-text-label)"
+          ? "border-dashed border-divider/60 hover:border-(--muted)"
+          : "border-(--line) bg-(--canvas-soft) hover:border-(--muted)"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
       onClick={onSelect}
       type="button"
     >
       <div className="flex items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-lg border border-(--color-divider) bg-(--color-surface-panel) text-(--color-text-secondary)">
+        <span className="flex size-7 items-center justify-center rounded-lg border border-(--line) bg-(--canvas-soft) text-(--muted)">
           {TEMPLATE_ICONS[template.id]}
         </span>
-        <span className="text-sm font-semibold text-(--color-text-primary)">{template.label}</span>
+        <span className="text-sm font-semibold text-(--fg)">{template.label}</span>
       </div>
-      <p className="text-sm leading-relaxed text-(--color-text-secondary)">
-        {template.description}
-      </p>
+      <p className="text-sm leading-relaxed text-(--muted)">{template.description}</p>
       {template.badges.length > 0 ? (
         <div className="mt-auto flex flex-wrap gap-1.5">
           {template.badges.map(badge => (

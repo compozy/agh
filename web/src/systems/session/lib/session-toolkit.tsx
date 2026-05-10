@@ -33,8 +33,8 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2",
-          "border-(--color-divider) bg-(--color-canvas-deep)",
-          "text-xs text-(--color-text-tertiary)"
+          "border-(--line) bg-(--canvas)",
+          "text-xs text-(--subtle)"
         )}
       >
         <Loader2 className="size-3.5 animate-spin" />
@@ -49,8 +49,8 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2",
-          "border-(--color-danger)/30 bg-(--color-danger)/8",
-          "text-xs text-(--color-danger)"
+          "border-(--danger)/30 bg-(--danger)/8",
+          "text-xs text-(--danger)"
         )}
       >
         <AlertCircle className="size-3.5" />

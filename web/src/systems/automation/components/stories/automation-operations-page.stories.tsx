@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { BriefcaseBusiness } from "lucide-react";
 import { http, HttpResponse } from "msw";
 
 import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
@@ -15,7 +14,6 @@ function JobsPageStory() {
       <AutomationOperationsPage
         createButtonTestId="automation-create-job"
         createLabel="New job"
-        icon={BriefcaseBusiness}
         page={page}
         title="Jobs"
         titlePrefix="jobs"

@@ -48,7 +48,7 @@ function ComposerView({
     <form
       aria-label={sendLabel}
       className={cn(
-        "relative flex flex-col gap-2 border-t border-(--color-divider) bg-(--color-canvas) px-4 py-3",
+        "relative flex flex-col gap-2 border-t border-(--line) bg-(--canvas) px-4 py-3",
         className
       )}
       data-testid={`network-composer-${testIdSuffix}`}

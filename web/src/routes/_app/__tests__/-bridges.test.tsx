@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 
 import type {
   BridgeDetailResponse,
@@ -381,7 +383,7 @@ describe("BridgesPage", () => {
   });
 
   it("renders the selected bridge detail and route list", () => {
-    render(<BridgesPage />);
+    render(<BridgesPage />, { title: "Bridges" });
 
     const detailPanel = screen.getByTestId("bridge-detail-panel");
 

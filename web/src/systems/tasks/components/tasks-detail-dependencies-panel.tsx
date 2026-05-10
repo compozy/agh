@@ -66,9 +66,7 @@ export function TasksDetailDependenciesPanel({
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.Cell className="max-w-[360px]">
                 <LinkedRecordTable.Title>
-                  <span className="truncate text-small-body text-(--color-text-primary)">
-                    {target.title}
-                  </span>
+                  <span className="truncate text-small-body text-(--fg)">{target.title}</span>
                   <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
                     <Pill mono>
                       {taskShortId({ id: target.id, identifier: target.identifier })}
@@ -79,7 +77,7 @@ export function TasksDetailDependenciesPanel({
                   </div>
                 </LinkedRecordTable.Title>
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="text-xs text-(--color-text-secondary)">
+              <LinkedRecordTable.Cell className="text-xs text-(--muted)">
                 {taskOwnerLabel(target.owner)}
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.OpenCell>

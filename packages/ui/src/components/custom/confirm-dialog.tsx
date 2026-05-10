@@ -52,10 +52,10 @@ interface ConfirmDialogProps {
 }
 
 const TONE_COPY: Record<ConfirmDialogTone, string> = {
-  danger: "text-[color:var(--color-danger)]",
-  warning: "text-[color:var(--color-warning)]",
-  accent: "text-[color:var(--color-accent)]",
-  neutral: "text-[color:var(--color-text-secondary)]",
+  danger: "text-(--danger)",
+  warning: "text-(--warning)",
+  accent: "text-(--accent)",
+  neutral: "text-(--muted)",
 };
 
 function ConfirmDialog({
@@ -166,7 +166,7 @@ function ConfirmDialog({
           </div>
         ) : null}
         {error ? (
-          <div className="border-t border-[color:var(--color-divider)] px-5 py-3">
+          <div className="border-t border-(--line) px-5 py-3">
             <Alert
               variant="destructive"
               {...restErrorProps}

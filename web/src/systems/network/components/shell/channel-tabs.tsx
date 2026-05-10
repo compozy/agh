@@ -57,7 +57,7 @@ export function ChannelTabs({ channel, activeTab, threadCount, directCount }: Ch
   return (
     <Tabs
       aria-label={`Surfaces for #${channel}`}
-      className="gap-0 border-b border-(--color-divider) px-5"
+      className="gap-0 border-b border-(--line) px-5"
       data-testid="network-channel-tabs"
       value={activeTab}
     >

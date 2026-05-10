@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -309,7 +310,7 @@ describe("Jobs route integration", () => {
 
     const detailPanel = screen.getByTestId("automation-detail-panel");
 
-    expect(screen.getByTestId("jobs-shell-title")).toHaveTextContent("Jobs");
+    expect(screen.getByTestId("jobs-shell")).toBeInTheDocument();
     expect(screen.getByTestId("automation-list-panel")).toBeInTheDocument();
     expect(screen.getByTestId("automation-item-job_daily_review")).toBeInTheDocument();
     expect(within(detailPanel).getByText("daily-review")).toBeInTheDocument();
@@ -439,7 +440,7 @@ describe("Triggers route integration", () => {
 
     const detailPanel = screen.getByTestId("automation-detail-panel");
 
-    expect(screen.getByTestId("triggers-shell-title")).toHaveTextContent("Triggers");
+    expect(screen.getByTestId("triggers-shell")).toBeInTheDocument();
     expect(screen.getByTestId("automation-item-trg_push_review")).toBeInTheDocument();
     expect(within(detailPanel).getByRole("heading", { name: "push-review" })).toBeInTheDocument();
     expect(within(detailPanel).getAllByText("ext.github.push")).toHaveLength(2);

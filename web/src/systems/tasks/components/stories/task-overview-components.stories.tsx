@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { Button, PillGroup } from "@agh/ui";
 
 import type { MultiAgentAgent } from "@/hooks/routes/use-task-detail-page";
 import { PanelSurface } from "@/storybook/story-layout";
@@ -32,7 +31,6 @@ import { TasksInboxItem } from "../tasks-inbox-item";
 import { TasksInboxLaneTabs } from "../tasks-inbox-lane-tabs";
 import { TasksMultiAgentPanel } from "../tasks-multi-agent-panel";
 import { TasksDetailOrchestrationPanel } from "../tasks-detail-orchestration-panel";
-import { TasksPageShell } from "../tasks-page-shell";
 import { TasksReviewsCard } from "../tasks-reviews-card";
 import { TasksStreamResumeCard } from "../tasks-stream-resume-card";
 import { TasksTimelinePanel } from "../tasks-timeline-panel";
@@ -190,40 +188,6 @@ export const OperationalCards: Story = {
         onDeleteProfile={async () => undefined}
       />
     </div>
-  ),
-};
-
-/**
- * TasksPageShell slots controls and action metadata above arbitrary task views.
- */
-export const PageShell: Story = {
-  args: {},
-  render: () => (
-    <TasksPageShell
-      count={TASK_FIXTURES.length}
-      controls={
-        <PillGroup
-          aria-label="Task view"
-          items={[
-            { value: "list", label: "List" },
-            { value: "dashboard", label: "Dashboard" },
-          ]}
-          value="list"
-          onChange={fn()}
-        />
-      }
-      meta={
-        <Button type="button" variant="outline" size="sm">
-          New task
-        </Button>
-      }
-    >
-      <div className="grid gap-3 p-5">
-        {TASK_FIXTURES.slice(0, 3).map(task => (
-          <TaskCard key={task.id} task={task} onSelect={fn()} />
-        ))}
-      </div>
-    </TasksPageShell>
   ),
 };
 

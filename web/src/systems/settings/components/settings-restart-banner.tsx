@@ -77,7 +77,7 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
           </span>
           {restart.operationId ? (
             <span
-              className="font-mono text-badge font-semibold tracking-badge text-(--color-text-label)"
+              className="font-mono text-badge font-semibold tracking-badge text-(--muted)"
               data-testid={`settings-page-${slug}-restart-banner-op`}
             >
               {restart.operationId}
@@ -85,7 +85,7 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
           ) : null}
           {activeSessionLabel ? (
             <span
-              className="font-mono text-badge font-semibold tracking-badge text-(--color-text-label)"
+              className="font-mono text-badge font-semibold tracking-badge text-(--muted)"
               data-testid={`settings-page-${slug}-restart-banner-active-sessions`}
             >
               {activeSessionLabel}

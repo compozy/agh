@@ -6,14 +6,18 @@ import {
   Empty,
   Metric,
   Pill,
-  PageHeader,
   Section,
   Skeleton,
   StatusCard,
+  useTopbarSlot,
 } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { type HomeMetricEntry, type HomePageView, useHomePage } from "@/hooks/routes/use-home-page";
 
 export const Route = createFileRoute("/_app/")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Home", icon: Home },
+  }),
   component: AppHomePage,
 });
 
@@ -26,23 +30,15 @@ const METRIC_ORDER: HomeMetricEntry["key"][] = [
 
 function AppHomePage() {
   const page = useHomePage();
-  const headerMeta = (
-    <ConnectionIndicator data-testid="home-connection-indicator" status={page.connectionStatus} />
-  );
-
-  const header = (
-    <PageHeader
-      data-testid="home-page-header"
-      icon={Home}
-      meta={headerMeta}
-      title={<span data-testid="home-page-title">Home</span>}
-    />
-  );
+  useTopbarSlot({
+    actions: (
+      <ConnectionIndicator data-testid="home-connection-indicator" status={page.connectionStatus} />
+    ),
+  });
 
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
-        {header}
         <div className="flex flex-col gap-6 p-6" data-testid="home-loading">
           <DaemonStatusSkeleton />
           <MetricsSkeleton />
@@ -54,7 +50,6 @@ function AppHomePage() {
   if (page.hasFatalError) {
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
-        {header}
         <div className="flex flex-1 items-start p-6" data-testid="home-error">
           <Empty
             className="max-w-xl"
@@ -69,7 +64,6 @@ function AppHomePage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
-      {header}
       <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6" data-testid="home-body">
         <DaemonStatusSection page={page} />
         <OverviewSection page={page} />
@@ -168,7 +162,7 @@ function DaemonStatusSkeleton() {
   return (
     <div className="flex flex-col gap-3" data-testid="home-daemon-skeleton">
       <Skeleton className="h-3 w-24" />
-      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4">
+      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-5 py-4">
         <div className="flex items-center gap-3">
           <Skeleton className="size-2 rounded-full" />
           <Skeleton className="h-4 w-32" />
@@ -186,7 +180,7 @@ function MetricsSkeleton() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {METRIC_ORDER.map(key => (
           <div
-            className="flex flex-col gap-2 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4"
+            className="flex flex-col gap-2 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-5 py-4"
             data-testid={`home-metric-skeleton-${key}`}
             key={key}
           >

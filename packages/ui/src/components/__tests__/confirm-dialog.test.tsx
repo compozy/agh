@@ -45,7 +45,7 @@ describe("ConfirmDialog", () => {
       "data-variant",
       "ruled"
     );
-    expect(screen.getByTestId("confirm-action")).toHaveClass("text-destructive");
+    expect(screen.getByTestId("confirm-action").className).toContain("text-(--danger)");
     expect(screen.getByTestId("confirm-action").querySelector("svg")).not.toBeNull();
   });
 

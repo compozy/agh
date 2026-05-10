@@ -145,7 +145,7 @@ describe("Combobox", () => {
 
     expect(inputGroup).not.toBeNull();
     expect(inputGroup?.className).toContain("h-9");
-    expect(inputGroup?.className).toContain("bg-[color:var(--color-surface-elevated)]");
+    expect(inputGroup?.className).toContain("bg-(--elevated)");
 
     await user.click(input);
     await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
@@ -155,9 +155,8 @@ describe("Combobox", () => {
     ) as HTMLElement | null;
 
     expect(content).not.toBeNull();
-    expect(content?.className).toContain("border");
-    expect(content?.className).not.toContain("shadow");
-    expect(content?.className).not.toContain("ring-1");
+    expect(content?.className).toContain("bg-(--canvas-soft)");
+    expect(content?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
   });
 
   it("Should render the input trigger button through the combobox trigger primitive", async () => {
@@ -180,7 +179,7 @@ describe("Combobox", () => {
     const chips = document.querySelector("[data-slot='combobox-chips']") as HTMLElement | null;
     expect(chips).not.toBeNull();
     expect(chips?.className).toContain("min-h-9");
-    expect(chips?.className).toContain("bg-[color:var(--color-surface-elevated)]");
+    expect(chips?.className).toContain("bg-(--elevated)");
   });
 
   it("Should expose useComboboxAnchor as a MutableRefObject", () => {

@@ -23,8 +23,8 @@ describe("ToolCallCard", () => {
     const icon = container.querySelector<SVGElement>('[data-slot="tool-call-card-icon"]');
     const tool = container.querySelector<HTMLElement>('[data-slot="tool-call-card-tool"]');
     const path = container.querySelector<HTMLElement>('[data-slot="tool-call-card-path"]');
-    expect(root?.className).toContain("bg-[color:var(--color-surface)]");
-    expect(root?.className).toContain("border-[color:var(--color-divider)]");
+    expect(root?.className).toContain("bg-[color:var(--canvas-soft)]");
+    expect(root?.className).toContain("border-[color:var(--line)]");
     expect(root?.className).toContain("rounded-[var(--radius-md)]");
     expect(icon).not.toBeNull();
     expect((icon as unknown as SVGElement).classList.contains("lucide-terminal")).toBe(true);
@@ -33,7 +33,7 @@ describe("ToolCallCard", () => {
     expect(tool?.className).toContain("text-[14px]");
     expect(path?.textContent).toBe("packages/runtime/src/session/stream.ts");
     expect(path?.className).toContain("text-[13px]");
-    expect(path?.className).toContain("text-[color:var(--color-text-tertiary)]");
+    expect(path?.className).toContain("text-[color:var(--subtle)]");
   });
 
   it("Should omit the file path slot when filePath is undefined", () => {
@@ -64,7 +64,7 @@ describe("ToolCallCard", () => {
     const header = container.querySelector<HTMLElement>('[data-slot="tool-call-card-header"]');
     expect(body).not.toBeNull();
     expect(body?.className).toContain("border-t");
-    expect(body?.className).toContain("border-[color:var(--color-divider)]");
+    expect(body?.className).toContain("border-[color:var(--line)]");
     expect(body?.querySelector('[data-testid="output"]')?.textContent).toBe("$ cat file.txt");
     const bodyIndex = Array.prototype.indexOf.call(body?.parentElement?.children ?? [], body);
     const headerIndex = Array.prototype.indexOf.call(header?.parentElement?.children ?? [], header);
@@ -108,6 +108,6 @@ describe("ToolCallCard", () => {
   it("Should apply a danger-toned border when status is error", () => {
     const { container } = render(<ToolCallCard toolName="t" status="error" />);
     const root = container.querySelector<HTMLElement>('[data-slot="tool-call-card"]');
-    expect(root?.className).toContain("data-[status=error]:border-[color:var(--color-danger)]/40");
+    expect(root?.className).toContain("data-[status=error]:border-[color:var(--danger)]/40");
   });
 });

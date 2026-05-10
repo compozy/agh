@@ -75,9 +75,9 @@ export function WorkBanner({
     <Alert
       aria-live="polite"
       className={cn(
-        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
+        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-(--line) px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
         escalate
-          ? "bg-(--color-warning) text-(--color-canvas) *:data-[slot=alert-description]:text-(--color-canvas)"
+          ? "bg-(--warning) text-(--canvas) *:data-[slot=alert-description]:text-(--canvas)"
           : null,
         fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
         className
@@ -101,8 +101,8 @@ export function WorkBanner({
             className={cn(
               "h-7 px-2 text-xs font-medium",
               escalate
-                ? "text-(--color-canvas) hover:bg-(--color-canvas)/10"
-                : "text-(--color-warning) hover:bg-(--color-warning-tint)/40"
+                ? "text-(--canvas) hover:bg-(--canvas)/10"
+                : "text-(--warning) hover:bg-(--warning-tint)/40"
             )}
             data-testid="network-work-banner-view"
             onClick={onView}

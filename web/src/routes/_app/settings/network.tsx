@@ -1,8 +1,9 @@
-import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertCircle, ExternalLink, Loader2, Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Metric, MetricGrid, PageShell, Section, Switch } from "@agh/ui";
+import { Button, Input, Metric, MetricGrid, PageShell, Section, Switch, useTopbarSlot } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page";
 import type { SettingsNetworkSection } from "@/systems/settings";
 import {
@@ -15,6 +16,9 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/settings/network")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Network settings", icon: NetworkIcon },
+  }),
   component: NetworkSettingsPage,
 });
 
@@ -36,6 +40,24 @@ function NetworkSettingsPage() {
     () => Object.values(validationErrors).some(message => message !== null),
     [validationErrors]
   );
+  const runtime = page.envelope?.runtime;
+  useTopbarSlot({
+    tabs: runtime ? (
+      <SettingsStatusLine
+        data-testid="settings-page-network-status-line"
+        status={runtime.available ? "connected" : "error"}
+        items={[
+          <span key="status">{runtime.status ?? (runtime.enabled ? "enabled" : "disabled")}</span>,
+          <span key="peers">
+            {runtime.local_peers} local · {runtime.remote_peers} remote peers
+          </span>,
+        ]}
+      />
+    ) : undefined,
+    actions: page.envelope ? (
+      <SettingsPageActions slug="network" restart={page.restart} />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -45,7 +67,7 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-loading"
         role="status"
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -57,8 +79,8 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
             {page.error?.message ?? "Failed to load network settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -69,28 +91,14 @@ function NetworkSettingsPage() {
     );
   }
 
-  const { envelope, draft, setDraft, restart } = page;
-  const runtime = envelope.runtime;
+  if (!runtime) {
+    return null;
+  }
+  const { draft, setDraft, restart } = page;
 
   return (
     <PageShell
       slug="network"
-      title="Network"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-network-status-line"
-          status={runtime.available ? "connected" : "error"}
-          items={[
-            <span key="status">
-              {runtime.status ?? (runtime.enabled ? "enabled" : "disabled")}
-            </span>,
-            <span key="peers">
-              {runtime.local_peers} local · {runtime.remote_peers} remote peers
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="network" restart={restart} />}
       banner={<SettingsRestartBanner slug="network" restart={restart} />}
       footer={
         <SettingsSaveBar
@@ -130,10 +138,10 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
         <Link
           to="/network"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
           data-testid="settings-page-network-link-network"
         >
-          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
+          <ExternalLink className="size-3.5 text-(--subtle)" />
           Open Network
         </Link>
       </div>
@@ -369,9 +377,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-        {label}
-      </span>
+      <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">{label}</span>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           aria-label={label}
@@ -383,12 +389,12 @@ function NumberField({
           onValueChange={onChange}
         />
         {suffix ? (
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             {suffix}
           </span>
         ) : null}
       </div>
-      {errorMessage ? <span className="text-xs text-(--color-danger)">{errorMessage}</span> : null}
+      {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}
     </div>
   );
 }

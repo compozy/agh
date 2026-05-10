@@ -95,14 +95,14 @@ export function TasksDetailRunsPanel({
                       </Pill>
                     ) : null}
                     {run.session_id ? (
-                      <span className="font-mono text-eyebrow text-(--color-text-secondary)">
+                      <span className="font-mono text-eyebrow text-(--muted)">
                         session {run.session_id}
                       </span>
                     ) : null}
                   </div>
                   {run.error ? (
                     <p
-                      className="text-eyebrow text-(--color-danger)"
+                      className="text-eyebrow text-(--danger)"
                       data-testid={`tasks-detail-runs-error-${run.id}`}
                     >
                       {run.error}
@@ -110,13 +110,13 @@ export function TasksDetailRunsPanel({
                   ) : null}
                 </LinkedRecordTable.Title>
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-secondary)">
+              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--muted)">
                 attempt {run.attempt}
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-tertiary)">
+              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--subtle)">
                 {formatRelativeTime(run.queued_at)}
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-tertiary)">
+              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--subtle)">
                 {run.ended_at ? formatRelativeTime(run.ended_at) : "--"}
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.OpenCell>

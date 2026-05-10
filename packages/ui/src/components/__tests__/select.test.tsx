@@ -79,12 +79,12 @@ describe("Select", () => {
     expect(trigger).toHaveAttribute("data-size", "sm");
   });
 
-  it("Should use the elevated input trigger surface and bordered popup", async () => {
+  it("Should use the elevated input trigger surface and 1px line-soft ring on the popup", async () => {
     const user = userEvent.setup();
     render(<SelectExample />);
 
     const trigger = screen.getByRole("combobox", { name: "Agent" });
-    expect(trigger.className).toContain("bg-[color:var(--color-surface-elevated)]");
+    expect(trigger.className).toContain("bg-(--elevated)");
     expect(trigger.className).toContain("data-[size=default]:h-9");
 
     await user.click(trigger);
@@ -95,8 +95,7 @@ describe("Select", () => {
     ) as HTMLElement | null;
 
     expect(content).not.toBeNull();
-    expect(content?.className).toContain("border");
-    expect(content?.className).not.toContain("shadow");
-    expect(content?.className).not.toContain("ring-1");
+    expect(content?.className).toContain("bg-(--canvas-soft)");
+    expect(content?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
   });
 });

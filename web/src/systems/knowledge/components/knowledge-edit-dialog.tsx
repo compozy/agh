@@ -116,7 +116,7 @@ function KnowledgeEditDialog({
         </FieldSet>
         {error ? (
           <div
-            className="border-t border-(--color-divider) px-5 py-3 text-xs text-(--color-danger)"
+            className="border-t border-(--line) px-5 py-3 text-xs text-(--danger)"
             data-testid="knowledge-edit-dialog-error"
           >
             {error}

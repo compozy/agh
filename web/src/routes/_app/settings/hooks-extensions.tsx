@@ -23,7 +23,9 @@ import {
   TableRow,
   cn,
   pillGroupSegmentVariants,
+  useTopbarSlot,
 } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
 import type {
   SettingsExtensionEntry,
@@ -40,6 +42,9 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/settings/hooks-extensions")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Hooks & extensions", icon: Puzzle },
+  }),
   component: HooksExtensionsSettingsPage,
 });
 
@@ -59,6 +64,26 @@ const MAX_SCOPE_OPTIONS = ["session", "workspace", "global"] as const;
 
 function HooksExtensionsSettingsPage() {
   const page = useSettingsHooksExtensionsPage();
+  const envelopeForSlot = page.envelope;
+  useTopbarSlot({
+    tabs: envelopeForSlot ? (
+      <SettingsStatusLine
+        data-testid="settings-page-hooks-extensions-status-line"
+        status="connected"
+        items={[
+          <span key="hooks" data-testid="settings-page-hooks-extensions-hooks-total">
+            {page.hooksCounts.enabled}/{page.hooksCounts.total} hooks enabled
+          </span>,
+          <span key="extensions" data-testid="settings-page-hooks-extensions-extensions-total">
+            {page.extensionsCounts.enabled}/{page.extensionsCounts.total} extensions enabled
+          </span>,
+        ]}
+      />
+    ) : undefined,
+    actions: envelopeForSlot ? (
+      <SettingsPageActions slug="hooks-extensions" restart={page.restart} />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -66,7 +91,7 @@ function HooksExtensionsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-hooks-extensions-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -78,8 +103,8 @@ function HooksExtensionsSettingsPage() {
         data-testid="settings-page-hooks-extensions-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
             {page.error?.message ?? "Failed to load hooks & extensions settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -95,22 +120,6 @@ function HooksExtensionsSettingsPage() {
   return (
     <PageShell
       slug="hooks-extensions"
-      title="Hooks & Extensions"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-hooks-extensions-status-line"
-          status="connected"
-          items={[
-            <span key="hooks" data-testid="settings-page-hooks-extensions-hooks-total">
-              {page.hooksCounts.enabled}/{page.hooksCounts.total} hooks enabled
-            </span>,
-            <span key="extensions" data-testid="settings-page-hooks-extensions-extensions-total">
-              {page.extensionsCounts.enabled}/{page.extensionsCounts.total} extensions enabled
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="hooks-extensions" restart={page.restart} />}
       banner={<SettingsRestartBanner slug="hooks-extensions" restart={page.restart} />}
     >
       {page.lastAction ? (
@@ -171,7 +180,7 @@ function TransportParityBanner({
     >
       <AlertTriangle className="size-3.5" />
       <AlertDescription className="text-xs">
-        <span className="font-medium text-(--color-warning)">
+        <span className="font-medium text-(--warning)">
           Some operations are unavailable over HTTP.
         </span>{" "}
         HTTP is bound outside the loopback host. {unavailable} stay available over UDS but return
@@ -218,7 +227,7 @@ function HooksSection({
     >
       {hookError ? (
         <span
-          className="text-xs text-(--color-danger)"
+          className="text-xs text-(--danger)"
           data-testid="settings-page-hooks-extensions-hooks-error"
         >
           {hookError}
@@ -233,25 +242,25 @@ function HooksSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--color-divider)"
+          className="overflow-hidden rounded-lg border border-(--line)"
           data-testid="settings-page-hooks-extensions-hooks-list"
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-(--color-surface-elevated)">
-                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+              <TableRow className="bg-(--elevated)">
+                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
                   Name
                 </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
                   Event
                 </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
                   Mode
                 </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
+                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
                   Matcher
                 </TableHead>
-                <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
+                <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--muted)">
                   Enabled
                 </TableHead>
               </TableRow>
@@ -294,9 +303,9 @@ function HookRow({
     <TableRow data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}`}>
       <TableCell>
         <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-sm text-(--color-text-primary)">{entry.name}</span>
+          <span className="font-mono text-sm text-(--fg)">{entry.name}</span>
           {declaration.command ? (
-            <span className="font-mono text-badge text-(--color-text-tertiary)">
+            <span className="font-mono text-badge text-(--subtle)">
               {[declaration.command, ...(declaration.args ?? [])].join(" ")}
             </span>
           ) : null}
@@ -307,18 +316,16 @@ function HookRow({
           {declaration.event}
         </Pill>
       </TableCell>
-      <TableCell className="font-mono text-xs text-(--color-text-secondary)">{mode}</TableCell>
+      <TableCell className="font-mono text-xs text-(--muted)">{mode}</TableCell>
       <TableCell
-        className="font-mono text-xs text-(--color-text-secondary)"
+        className="font-mono text-xs text-(--muted)"
         data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-matcher`}
       >
         {matcherSummary || "--"}
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-2">
-          {pending ? (
-            <Loader2 className="size-3.5 animate-spin text-(--color-text-tertiary)" />
-          ) : null}
+          {pending ? <Loader2 className="size-3.5 animate-spin text-(--subtle)" /> : null}
           <Switch
             data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-toggle`}
             checked={enabled}
@@ -365,7 +372,7 @@ function ExtensionsSection({
     >
       {error ? (
         <span
-          className="text-xs text-(--color-danger)"
+          className="text-xs text-(--danger)"
           data-testid="settings-page-hooks-extensions-extensions-error"
         >
           {error}
@@ -373,7 +380,7 @@ function ExtensionsSection({
       ) : null}
       {isLoading && extensions.length === 0 ? (
         <div
-          className="flex items-center gap-2 text-xs text-(--color-text-tertiary)"
+          className="flex items-center gap-2 text-xs text-(--subtle)"
           data-testid="settings-page-hooks-extensions-extensions-loading"
         >
           <Loader2 className="size-3.5 animate-spin" />
@@ -429,16 +436,14 @@ function ExtensionRow({
 
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-2"
+      className="flex items-center justify-between gap-3 rounded-md border border-(--line) bg-(--elevated) px-3 py-2"
       data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}`}
     >
       <div className="flex min-w-0 items-center gap-3">
         <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate font-mono text-sm text-(--color-text-primary)">
-            {entry.name}
-          </span>
-          <span className="flex flex-wrap items-center gap-1.5 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)">
+          <span className="truncate font-mono text-sm text-(--fg)">{entry.name}</span>
+          <span className="flex flex-wrap items-center gap-1.5 font-mono text-badge uppercase tracking-mono text-(--subtle)">
             <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
             {entry.version ? (
               <Pill mono tone="neutral">
@@ -458,7 +463,7 @@ function ExtensionRow({
           </span>
           {entry.last_error ? (
             <span
-              className="text-badge text-(--color-danger)"
+              className="text-badge text-(--danger)"
               data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-error`}
             >
               {entry.last_error}
@@ -466,7 +471,7 @@ function ExtensionRow({
           ) : null}
           {missingEnv.length > 0 ? (
             <span
-              className="max-w-full break-all font-mono text-badge text-(--color-warning)"
+              className="max-w-full break-all font-mono text-badge text-(--warning)"
               data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-missing-env`}
             >
               Missing env: {missingEnv.join(", ")}
@@ -475,9 +480,7 @@ function ExtensionRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {pending ? (
-          <Loader2 className="size-3.5 animate-spin text-(--color-text-tertiary)" />
-        ) : null}
+        {pending ? <Loader2 className="size-3.5 animate-spin text-(--subtle)" /> : null}
         <Switch
           data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-toggle`}
           checked={entry.enabled}
@@ -765,9 +768,7 @@ function RateLimitRow({
             onValidityChange={onRequestsValidityChange}
             onValueChange={next => onChange({ ...value, requests: next })}
           />
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            per
-          </span>
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">per</span>
           <Input
             className="w-20 font-mono"
             data-testid={`${testId}-window`}
@@ -776,9 +777,7 @@ function RateLimitRow({
             disabled={!canMutate}
             onChange={event => onChange({ ...value, window: event.target.value })}
           />
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            queue
-          </span>
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">queue</span>
           <SettingsNumberInput
             min={0}
             className="w-16 font-mono"
@@ -820,35 +819,35 @@ function SaveControls({ state, error, warnings, onSave, onReset }: SaveControlsP
       <div className="min-w-0" role="status" aria-live={error ? "assertive" : "polite"}>
         {error ? (
           <span
-            className="text-xs text-(--color-danger)"
+            className="text-xs text-(--danger)"
             data-testid="settings-page-hooks-extensions-policy-error"
           >
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
           <span
-            className="text-xs text-(--color-warning)"
+            className="text-xs text-(--warning)"
             data-testid="settings-page-hooks-extensions-policy-warning"
           >
             {warnings.join(" · ")}
           </span>
         ) : !canMutate ? (
           <span
-            className="text-xs text-(--color-warning)"
+            className="text-xs text-(--warning)"
             data-testid="settings-page-hooks-extensions-policy-unavailable"
           >
             Policy edits are unavailable over HTTP
           </span>
         ) : isInvalid ? (
           <span
-            className="text-xs text-(--color-warning)"
+            className="text-xs text-(--warning)"
             data-testid="settings-page-hooks-extensions-policy-invalid"
           >
             Resolve validation errors before saving
           </span>
         ) : isDirty ? (
           <span
-            className="text-xs text-(--color-text-tertiary)"
+            className="text-xs text-(--subtle)"
             data-testid="settings-page-hooks-extensions-policy-dirty"
           >
             Unsaved changes

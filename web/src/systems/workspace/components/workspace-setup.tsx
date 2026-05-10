@@ -73,7 +73,7 @@ function WorkspaceSetupContent({
       </OptionCard.Body>
       <OptionCard.Action>
         <Button
-          className="w-full justify-between text-(--color-accent-ink)"
+          className="w-full justify-between text-(--accent-ink)"
           disabled={isGlobalDisabled}
           onClick={setup.handleUseGlobalWorkspace}
           data-testid="workspace-use-global"
@@ -107,7 +107,7 @@ function WorkspaceSetupContent({
               id="workspace-manual-path"
               aria-label={WORKSPACE_SETUP_COPY.manual.inputLabel}
               aria-invalid={manualInvalid || undefined}
-              className="border-(--color-divider) bg-(--color-surface-panel)"
+              className="border-(--line) bg-(--canvas-soft)"
               disabled={setup.submissionMode !== null}
               onChange={event => setup.setManualPath(event.currentTarget.value)}
               placeholder={WORKSPACE_SETUP_COPY.manual.inputPlaceholder}
@@ -121,7 +121,7 @@ function WorkspaceSetupContent({
             )}
           </Field>
           <Button
-            className="w-full justify-between text-(--color-accent-ink)"
+            className="w-full justify-between text-(--accent-ink)"
             disabled={setup.submissionMode !== null}
             type="submit"
             data-testid="workspace-register-manual"
@@ -139,11 +139,11 @@ function WorkspaceSetupContent({
       <div className="flex flex-col gap-4 p-5" data-testid="workspace-setup-dialog-body">
         {globalCard}
         <div className="flex items-center gap-3 px-1">
-          <div className="h-px flex-1 bg-(--color-divider)" />
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <div className="h-px flex-1 bg-(--line)" />
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             {WORKSPACE_SETUP_COPY.manual.dividerLabel}
           </span>
-          <div className="h-px flex-1 bg-(--color-divider)" />
+          <div className="h-px flex-1 bg-(--line)" />
         </div>
         {manualCard}
       </div>
@@ -170,15 +170,15 @@ function WorkspaceSetupDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         unframed
-        className="max-w-xl border border-(--color-divider) bg-(--color-canvas) sm:max-w-xl"
+        className="max-w-xl border border-(--line) bg-(--canvas) sm:max-w-xl"
         showCloseButton
         data-testid="workspace-setup-dialog"
       >
         <DialogHeader variant="ruled">
-          <DialogTitle className="text-item-title font-semibold text-(--color-text-primary)">
+          <DialogTitle className="text-item-title font-semibold text-(--fg)">
             {WORKSPACE_SETUP_COPY.dialog.title}
           </DialogTitle>
-          <DialogDescription className="text-small-body leading-6 text-(--color-text-secondary)">
+          <DialogDescription className="text-small-body leading-6 text-(--muted)">
             {WORKSPACE_SETUP_COPY.dialog.description}
           </DialogDescription>
         </DialogHeader>
@@ -200,28 +200,26 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
       className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto bg-background p-6 lg:items-center lg:py-10"
       data-testid="workspace-onboarding"
     >
-      <div className="w-full max-w-5xl rounded-xl border border-(--color-divider) bg-(--color-canvas) p-6 sm:p-8 lg:p-10">
+      <div className="w-full max-w-5xl rounded-xl border border-(--line) bg-(--canvas) p-6 sm:p-8 lg:p-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,24rem)] lg:gap-8 xl:gap-10">
           <div className="flex flex-col justify-between gap-6">
             <div className="space-y-4">
               <Pill tone="accent">{copy.eyebrow}</Pill>
               <div className="space-y-3">
-                <h1 className="max-w-xl text-3xl font-semibold tracking-tight text-(--color-text-primary) sm:text-4xl">
+                <h1 className="max-w-xl text-3xl font-semibold tracking-tight text-(--fg) sm:text-4xl">
                   {copy.title}
                 </h1>
-                <p className="max-w-xl text-item-title leading-7 text-(--color-text-secondary)">
+                <p className="max-w-xl text-item-title leading-7 text-(--muted)">
                   {copy.description}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-(--color-divider) bg-(--color-surface-panel) p-4">
-              <p className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+            <div className="rounded-2xl border border-(--line) bg-(--canvas-soft) p-4">
+              <p className="font-mono text-badge uppercase tracking-mono text-(--muted)">
                 {copy.noteLabel}
               </p>
-              <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
-                {copy.noteBody}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-(--muted)">{copy.noteBody}</p>
             </div>
           </div>
 

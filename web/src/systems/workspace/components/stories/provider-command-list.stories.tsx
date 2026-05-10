@@ -22,7 +22,7 @@ const meta: Meta<typeof ProviderCommandList> = {
   decorators: [
     Story => (
       <CenteredSurface>
-        <div className="w-full max-w-md rounded-lg border border-(--color-divider) bg-(--color-surface)">
+        <div className="w-full max-w-md rounded-lg border border-(--line) bg-(--canvas-soft)">
           <Story />
         </div>
       </CenteredSurface>

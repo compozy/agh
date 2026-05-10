@@ -13,6 +13,7 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 import { Button, Empty, buttonVariants } from "@agh/ui";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { TopbarShell } from "@/components/topbar-shell";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
@@ -39,26 +40,36 @@ function AppLayout() {
         hasActiveWorkspace: page.activeWorkspace !== undefined,
       }}
     >
-      <AppSidebar
-        collapsed={page.collapsed}
-        onCollapseChange={page.setCollapsed}
-        workspaces={page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces}
-        activeWorkspaceId={page.activeWorkspaceId}
-        onSelectWorkspace={page.setActiveWorkspaceId}
-        onAddWorkspace={page.openWorkspaceSetup}
-        health={page.health}
-        connectionStatus={page.connectionStatus}
-        agents={page.agents}
-        agentsLoading={page.agentsLoading}
-        agentsError={page.agentsError}
-        sessions={page.sessions}
-      />
-      <main
-        data-testid="app-content"
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
+      <div
+        data-testid="app-grid"
+        className="grid min-h-0 flex-1 grid-cols-[56px_244px_1fr] grid-rows-[48px_1fr] overflow-hidden"
       >
-        <Outlet />
-      </main>
+        <AppSidebar
+          className="col-span-2 row-span-2"
+          collapsed={page.collapsed}
+          onCollapseChange={page.setCollapsed}
+          workspaces={page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces}
+          activeWorkspaceId={page.activeWorkspaceId}
+          onSelectWorkspace={page.setActiveWorkspaceId}
+          onAddWorkspace={page.openWorkspaceSetup}
+          health={page.health}
+          connectionStatus={page.connectionStatus}
+          agents={page.agents}
+          agentsLoading={page.agentsLoading}
+          agentsError={page.agentsError}
+          sessions={page.sessions}
+          activeWorkspace={page.activeWorkspace}
+        />
+        <TopbarShell>
+          <main
+            id="app-content"
+            data-testid="app-content"
+            className="relative col-start-3 row-start-2 flex min-h-0 flex-col overflow-hidden bg-(--canvas)"
+          >
+            <Outlet />
+          </main>
+        </TopbarShell>
+      </div>
       <WorkspaceSetupDialog
         open={page.isWorkspaceSetupOpen}
         onOpenChange={page.setWorkspaceSetupOpen}
@@ -163,6 +174,7 @@ function AppRouteBoundaryFrame({
 }) {
   return (
     <main
+      id="app-content"
       data-route-id={routeId}
       data-testid={testId}
       className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-background px-6 py-8"

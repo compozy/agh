@@ -1,8 +1,18 @@
-import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertCircle, Bot, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Metric, MetricGrid, PageShell, Section, Switch } from "@agh/ui";
+import {
+  Button,
+  Input,
+  Metric,
+  MetricGrid,
+  PageShell,
+  Section,
+  Switch,
+  useTopbarSlot,
+} from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
 import type { SettingsAutomationSection } from "@/systems/settings";
 import {
@@ -15,6 +25,9 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/settings/automation")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Automation settings", icon: Bot },
+  }),
   component: AutomationSettingsPage,
 });
 
@@ -36,6 +49,26 @@ function AutomationSettingsPage() {
     () => Object.values(validationErrors).some(message => message !== null),
     [validationErrors]
   );
+  const runtime = page.envelope?.runtime;
+  useTopbarSlot({
+    tabs: runtime ? (
+      <SettingsStatusLine
+        data-testid="settings-page-automation-status-line"
+        status={runtime.available ? "connected" : "error"}
+        items={[
+          <span key="jobs">
+            {runtime.job_enabled}/{runtime.job_total} jobs active
+          </span>,
+          <span key="triggers">
+            {runtime.trigger_enabled}/{runtime.trigger_total} triggers active
+          </span>,
+        ]}
+      />
+    ) : undefined,
+    actions: page.envelope ? (
+      <SettingsPageActions slug="automation" restart={page.restart} />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -43,7 +76,7 @@ function AutomationSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-automation-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -55,8 +88,8 @@ function AutomationSettingsPage() {
         data-testid="settings-page-automation-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
             {page.error?.message ?? "Failed to load automation settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -67,28 +100,14 @@ function AutomationSettingsPage() {
     );
   }
 
-  const { envelope, draft, setDraft, restart } = page;
-  const runtime = envelope.runtime;
+  if (!runtime) {
+    return null;
+  }
+  const { draft, setDraft, restart } = page;
 
   return (
     <PageShell
       slug="automation"
-      title="Automation"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-automation-status-line"
-          status={runtime.available ? "connected" : "error"}
-          items={[
-            <span key="jobs">
-              {runtime.job_enabled}/{runtime.job_total} jobs active
-            </span>,
-            <span key="triggers">
-              {runtime.trigger_enabled}/{runtime.trigger_total} triggers active
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="automation" restart={restart} />}
       banner={<SettingsRestartBanner slug="automation" restart={restart} />}
       footer={
         <SettingsSaveBar
@@ -126,18 +145,18 @@ function OperationalLinksRow() {
       >
         <Link
           to="/jobs"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
           data-testid="settings-page-automation-link-jobs"
         >
-          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
+          <ExternalLink className="size-3.5 text-(--subtle)" />
           Open Jobs
         </Link>
         <Link
           to="/triggers"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
           data-testid="settings-page-automation-link-triggers"
         >
-          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
+          <ExternalLink className="size-3.5 text-(--subtle)" />
           Open Triggers
         </Link>
       </div>
@@ -301,10 +320,10 @@ function LimitsSection({
                 })
               }
             />
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
               fires
             </span>
-            <span className="text-xs text-(--color-text-tertiary)">per</span>
+            <span className="text-xs text-(--subtle)">per</span>
             <Input
               className="w-24 font-mono"
               data-testid="settings-page-automation-fire-limit-window-input"

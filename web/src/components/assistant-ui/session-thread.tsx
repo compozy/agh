@@ -28,7 +28,7 @@ interface SessionThreadProps {
 
 function SessionTextPart({ text }: { text: string }) {
   return (
-    <div className="text-sm leading-7 text-(--color-text-primary)">
+    <div className="text-sm leading-7 text-(--fg)">
       <MessageMarkdown content={text} />
     </div>
   );
@@ -44,7 +44,7 @@ function SessionMessageEmpty({ status }: { status: { type: string } }) {
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm text-(--color-text-tertiary)">
+    <div className="flex items-center gap-2 text-sm text-(--subtle)">
       <Loader2 className="size-4 animate-spin" />
       <span>Thinking…</span>
     </div>
@@ -57,7 +57,7 @@ function UserMessage() {
       <div
         className={cn(
           "max-w-[min(80%,42rem)] rounded-xl border px-4 py-3",
-          "border-(--color-divider) bg-(--color-surface-panel)"
+          "border-(--line) bg-(--canvas-soft)"
         )}
       >
         <MessagePrimitive.Parts
@@ -89,8 +89,8 @@ function AssistantMessage() {
           <div
             className={cn(
               "rounded-md border px-3 py-2 text-sm",
-              "border-(--color-danger)/30 bg-(--color-danger)/8",
-              "text-(--color-danger)"
+              "border-(--danger)/30 bg-(--danger)/8",
+              "text-(--danger)"
             )}
           >
             <MessagePrimitive.Error />
@@ -127,13 +127,11 @@ function SessionComposer({
 
   return (
     <>
-      <div
-        className={cn("border-t px-4 py-3", "border-(--color-divider) bg-(--color-surface-panel)")}
-      >
+      <div className={cn("border-t px-4 py-3", "border-(--line) bg-(--canvas-soft)")}>
         <ComposerPrimitive.Root
           className={cn(
             "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
-            "border-(--color-divider) bg-(--color-surface)",
+            "border-(--line) bg-(--canvas-soft)",
             "focus-within:border-accent transition-colors"
           )}
         >
@@ -147,8 +145,8 @@ function SessionComposer({
             submitMode="enter"
             className={cn(
               "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
-              "text-(--color-text-primary) placeholder:text-(--color-text-tertiary)",
-              "shadow-none outline-none focus-visible:border-transparent focus-visible:ring-0",
+              "text-(--fg) placeholder:text-(--subtle)",
+              "outline-none focus-visible:border-transparent focus-visible:ring-0",
               "dark:bg-transparent"
             )}
           />
@@ -179,8 +177,8 @@ function SessionComposer({
                 onClick={onCancelPrompt}
                 className={cn(
                   "inline-flex h-9 items-center gap-2 rounded-full px-3",
-                  "bg-(--color-danger)/12 text-(--color-danger)",
-                  "transition-colors hover:bg-(--color-danger)/18"
+                  "bg-(--danger)/12 text-(--danger)",
+                  "transition-colors hover:bg-(--danger)/18"
                 )}
               >
                 <Square className="size-3.5 fill-current" />
@@ -192,7 +190,7 @@ function SessionComposer({
                 className={cn(
                   "inline-flex size-9 items-center justify-center rounded-full",
                   "bg-accent text-white transition-colors",
-                  "hover:bg-(--color-accent-hover) disabled:cursor-not-allowed disabled:opacity-50"
+                  "hover:bg-(--accent-hover) disabled:cursor-not-allowed disabled:opacity-50"
                 )}
                 data-testid="composer-send-button"
               >
@@ -256,10 +254,10 @@ function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
   return (
     <div className="mx-auto flex size-full max-w-3xl items-center justify-center px-4 py-12">
       <div className="max-w-md text-center">
-        <p className="font-mono text-eyebrow tracking-badge text-(--color-text-tertiary) uppercase">
+        <p className="font-mono text-eyebrow tracking-badge text-(--subtle) uppercase">
           {agentName}
         </p>
-        <p className="mt-2 text-sm text-(--color-text-secondary)">
+        <p className="mt-2 text-sm text-(--muted)">
           Start a conversation. The assistant thread replays persisted history and continues live
           over the daemon stream.
         </p>

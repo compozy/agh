@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Network as NetworkIcon, Plus } from "lucide-react";
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 
 import { Button } from "@agh/ui";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   DirectsEmpty,
   DirectsList,
@@ -18,6 +19,9 @@ interface DirectDetailParams {
 }
 
 export const Route = createFileRoute("/_app/network/$channel/directs")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `#${params.channel} · Directs`, icon: NetworkIcon },
+  }),
   component: NetworkChannelDirectsRoute,
 });
 
@@ -73,10 +77,10 @@ function NetworkChannelDirectsRoute() {
       />
 
       <header
-        className="flex items-center justify-between gap-3 border-b border-(--color-divider) px-5 py-2"
+        className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+        <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--subtle)">
           {subheaderLabel}
         </span>
         <Button

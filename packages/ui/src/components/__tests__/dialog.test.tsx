@@ -92,7 +92,7 @@ describe("Dialog", () => {
     expect(screen.getByRole("dialog")).toBe(initialDialog);
   });
 
-  it("Should use the flat scrim and bordered dialog surface from DESIGN.md", async () => {
+  it("Should use the token scrim and adopt --shadow-overlay on the dialog surface", async () => {
     render(<DialogExample defaultOpen />);
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
 
@@ -102,11 +102,11 @@ describe("Dialog", () => {
     const dialog = screen.getByRole("dialog");
 
     expect(overlay).not.toBeNull();
-    expect(overlay?.className).toContain("bg-black/50");
+    expect(overlay?.className).toContain("bg-(--overlay-scrim)");
     expect(overlay?.className).not.toContain("backdrop-blur");
     expect(dialog.className).toContain("border");
-    expect(dialog.className).toContain("bg-card");
-    expect(dialog.className).not.toContain("ring-1");
+    expect(dialog.className).toContain("bg-(--canvas-soft)");
+    expect(dialog.className).toContain("shadow-[var(--shadow-overlay)]");
   });
 
   it("Should hide the default close button when showCloseButton=false", () => {
@@ -154,8 +154,8 @@ describe("Dialog", () => {
     const header = screen.getByTestId("ruled-header");
     expect(header.dataset.variant).toBe("ruled");
     expect(header.className).toContain("border-b");
-    expect(header.className).toContain("[color:var(--color-divider)]");
-    expect(header.className).toContain("[color:var(--color-surface-panel)]");
+    expect(header.className).toContain("border-(--line)");
+    expect(header.className).toContain("bg-(--canvas-soft)");
     expect(header.className).toContain("px-5");
     expect(header.className).toContain("py-4");
   });
@@ -196,8 +196,8 @@ describe("Dialog", () => {
     const footer = screen.getByTestId("ruled-footer");
     expect(footer.dataset.variant).toBe("ruled");
     expect(footer.className).toContain("border-t");
-    expect(footer.className).toContain("[color:var(--color-divider)]");
-    expect(footer.className).toContain("[color:var(--color-surface-panel)]");
+    expect(footer.className).toContain("border-(--line)");
+    expect(footer.className).toContain("bg-(--canvas-soft)");
     expect(footer.className).toContain("px-5");
     expect(footer.className).toContain("py-3");
     expect(footer.className).not.toContain("-mx-4");

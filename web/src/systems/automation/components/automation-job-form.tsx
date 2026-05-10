@@ -74,7 +74,7 @@ function renderAutomationJobForm({
     >
       <div className="flex-1 space-y-6 overflow-y-auto p-5">
         <Section label="Core">
-          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+          <div className="space-y-4 rounded-md border border-(--line) bg-(--canvas-soft) p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="job-name">Name</FieldLabel>
@@ -141,7 +141,7 @@ function renderAutomationJobForm({
         </Section>
 
         <Section label="Schedule">
-          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+          <div className="space-y-4 rounded-md border border-(--line) bg-(--canvas-soft) p-4">
             <Field>
               <FieldTitle>Mode</FieldTitle>
               <PillGroup
@@ -226,7 +226,7 @@ function renderAutomationJobForm({
         </Section>
 
         <Section label="Governance">
-          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+          <div className="space-y-4 rounded-md border border-(--line) bg-(--canvas-soft) p-4">
             <div className="grid gap-4 md:grid-cols-3">
               <Field>
                 <FieldTitle>Retry policy</FieldTitle>

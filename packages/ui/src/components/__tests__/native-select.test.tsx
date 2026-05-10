@@ -78,7 +78,7 @@ describe("NativeSelect", () => {
     );
 
     const control = screen.getByLabelText("Env");
-    expect(control.className).toContain("bg-[color:var(--color-surface-elevated)]");
+    expect(control.className).toContain("bg-(--elevated)");
     expect(control.className).toContain("h-9");
   });
 });

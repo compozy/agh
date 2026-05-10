@@ -59,7 +59,7 @@ function OptionCardRoot({
         label={headerEyebrow}
         right={headerRight}
         className={cn(
-          "rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
+          "rounded-2xl border border-[color:var(--line)] bg-[color:var(--canvas-soft)]",
           density === "comfortable" ? "p-5" : "p-4",
           className
         )}
@@ -95,10 +95,8 @@ function OptionCardIcon({ className, tone = "neutral", children, ...props }: Opt
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]",
-        tone === "accent"
-          ? "text-[color:var(--color-accent)]"
-          : "text-[color:var(--color-text-primary)]",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[color:var(--canvas-soft)]",
+        tone === "accent" ? "text-[color:var(--accent)]" : "text-[color:var(--fg)]",
         className
       )}
       {...props}
@@ -122,7 +120,7 @@ function OptionCardTitle({ className, children, ...props }: React.ComponentProps
   return (
     <p
       data-slot="option-card-title"
-      className={cn("text-sm font-semibold text-[color:var(--color-text-primary)]", className)}
+      className={cn("text-sm font-semibold text-[color:var(--fg)]", className)}
       {...props}
     >
       {children}
@@ -135,7 +133,7 @@ function OptionCardDescription({ className, children, ...props }: React.Componen
   return (
     <p
       data-slot="option-card-description"
-      className={cn("mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]", className)}
+      className={cn("mt-1 text-sm leading-6 text-[color:var(--muted)]", className)}
       {...props}
     >
       {children}
@@ -148,10 +146,7 @@ function OptionCardMeta({ className, children, ...props }: React.ComponentProps<
   return (
     <p
       data-slot="option-card-meta"
-      className={cn(
-        "mt-3 truncate font-mono text-eyebrow text-[color:var(--color-text-tertiary)]",
-        className
-      )}
+      className={cn("mt-3 truncate font-mono text-eyebrow text-[color:var(--subtle)]", className)}
       {...props}
     >
       {children}

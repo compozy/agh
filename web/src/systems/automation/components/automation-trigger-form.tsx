@@ -119,7 +119,7 @@ function renderAutomationTriggerForm({
     >
       <div className="flex-1 space-y-6 overflow-y-auto p-5">
         <Section label="Core">
-          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+          <div className="space-y-4 rounded-md border border-(--line) bg-(--canvas-soft) p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="trigger-name">Name</FieldLabel>
@@ -180,7 +180,7 @@ function renderAutomationTriggerForm({
                 <Pill mono tone="info">
                   GO TEMPLATE
                 </Pill>
-                <span className="text-xs text-(--color-text-tertiary)">
+                <span className="text-xs text-(--subtle)">
                   Variables: .EventName, .Source, .Data, .Timestamp
                 </span>
               </div>
@@ -197,7 +197,7 @@ function renderAutomationTriggerForm({
         </Section>
 
         <Section label="Activation">
-          <div className="space-y-4 rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+          <div className="space-y-4 rounded-md border border-(--line) bg-(--canvas-soft) p-4">
             <Field>
               <FieldLabel htmlFor="trigger-filter">Filter rules</FieldLabel>
               <Textarea
@@ -257,7 +257,7 @@ function renderAutomationTriggerForm({
         </Section>
 
         <Collapsible open={governanceExpanded} onOpenChange={setGovernanceExpanded}>
-          <section className="rounded-md border border-(--color-divider) bg-(--color-surface) p-4">
+          <section className="rounded-md border border-(--line) bg-(--canvas-soft) p-4">
             <CollapsibleTrigger
               className="flex w-full items-center justify-between gap-3 text-left"
               data-testid="trigger-governance-toggle"
@@ -265,18 +265,15 @@ function renderAutomationTriggerForm({
             >
               <span className="flex items-center gap-2">
                 {governanceExpanded ? (
-                  <ChevronDown aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
+                  <ChevronDown aria-hidden="true" className="size-4 text-(--subtle)" />
                 ) : (
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="size-4 text-(--color-text-tertiary)"
-                  />
+                  <ChevronRight aria-hidden="true" className="size-4 text-(--subtle)" />
                 )}
-                <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
+                <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--muted)">
                   Governance
                 </span>
               </span>
-              <span className="text-small-body text-(--color-text-secondary)">
+              <span className="text-small-body text-(--muted)">
                 Optional retry and rate limit settings
               </span>
             </CollapsibleTrigger>

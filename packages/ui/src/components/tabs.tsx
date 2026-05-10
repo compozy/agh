@@ -58,10 +58,10 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-disabled:pointer-events-none aria-disabled:opacity-50 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-disabled:pointer-events-none aria-disabled:opacity-50 dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
         "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
-        "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
+        "after:absolute after:bg-(--fg-strong) after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-1px] group-data-horizontal/tabs:after:h-[1.5px] group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-[1.5px] group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className
       )}
       {...props}
@@ -72,7 +72,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       {typeof count === "number" ? (
         <span
           data-slot="tabs-trigger-count"
-          className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-(--color-surface) px-1.5 font-mono text-badge text-(--color-text-secondary) group-data-[active=true]:bg-(--color-surface-elevated) group-data-[active=true]:text-(--color-text-primary)"
+          className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-(--canvas-soft) px-1.5 font-mono text-badge text-(--muted) group-data-[active=true]:bg-(--elevated) group-data-[active=true]:text-(--fg)"
         >
           {count}
         </span>
@@ -81,9 +81,9 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
         <span
           aria-live="polite"
           data-slot="tabs-trigger-live"
-          className="inline-flex h-5 items-center gap-1 rounded-md bg-(--color-accent-tint) px-1.5 font-mono text-badge uppercase tracking-mono text-accent"
+          className="inline-flex h-5 items-center gap-1 rounded-md bg-(--accent-tint) px-1.5 font-mono text-badge uppercase tracking-mono text-(--accent)"
         >
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-(--accent)" />
           {liveLabel}
         </span>
       ) : null}

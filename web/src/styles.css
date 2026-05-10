@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
 @import "@fontsource/jetbrains-mono/600.css";
 @import "@agh/ui/tokens.css";
@@ -12,34 +13,14 @@
  */
 @source "../../packages/ui/src/**/*.{ts,tsx}";
 
-@theme inline {
-  --text-eyebrow: 0.6875rem;
-  --text-eyebrow--line-height: 1rem;
-  --text-display-2xl: 1.75rem;
-  --text-display-2xl--line-height: 1;
-  --text-site-lead: 1.1875rem;
-  --text-site-lead--line-height: 1.5;
-  --text-micro: 0.5625rem;
-  --text-micro--line-height: 0.75rem;
-  --text-inline-code: 0.9em;
-  --text-accent-glyph: 0.85em;
-  --text-ui-title-lg: 1.35rem;
-  --leading-small-body: var(--text-small-body--line-height);
-  --tracking-badge: var(--tracking-badge);
-  --radius-chip: var(--radius-chip);
-  --radius-mono-badge: var(--radius-mono-badge);
-  --radius-diagram: var(--radius-diagram);
-  --radius-icon-well: 0.625rem;
-}
-
 #app {
   min-height: 100%;
 }
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: var(--duration-base);
-  animation-timing-function: var(--ease-out);
+  animation-duration: var(--dur);
+  animation-timing-function: var(--ease);
 }
 
 @media (prefers-reduced-motion: reduce) {

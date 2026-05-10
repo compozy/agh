@@ -1,8 +1,13 @@
 /*
- * Shared design tokens. Consumers (packages/site, web/) own framework-level
- * stylesheet setup, including the single `@import "tailwindcss"` call and any
- * concrete font loading. This file must stay font-source agnostic so each
- * surface can choose its own delivery path without shipping duplicate faces.
+ * Shared design tokens for AGH (P1 token contract).
+ *
+ * Consumers (`packages/site`, `web/`) own framework-level stylesheet setup,
+ * including the single `@import "tailwindcss"` call and any concrete font
+ * loading. This file stays font-source agnostic so each surface can choose its
+ * own delivery path without shipping duplicate faces.
+ *
+ * Authority: `DESIGN.md` (repo root). Reference contract:
+ * `.compozy/tasks/redesign/_techspec.md` → "Token Contract".
  */
 @import "tw-animate-css";
 
@@ -11,52 +16,70 @@
 :root {
   color-scheme: dark;
 
-  /* Backgrounds */
-  --color-canvas: #141312;
-  --color-surface: #1e1c1b;
-  --color-surface-panel: #181716;
-  --color-surface-elevated: #2e2c2b;
-  --color-divider: #3c3a39;
-  --color-hover: #353332;
-  --color-disabled: #4a4847;
+  /* Surface ramp — warm-dark, layered backgrounds (depth without shadows). */
+  --rail: #0c0b0b;
+  --canvas: #131211;
+  --canvas-soft: #1a1918;
+  --canvas-tint: #1c1b1a;
+  --sidebar: #1a1918;
+  --elevated: #232220;
+  --hover: #1f1e1d;
+  --disabled: #4a4847;
 
-  /* Text */
-  --color-text-primary: #e5e5e7;
-  --color-text-secondary: #8e8e93;
-  --color-text-tertiary: #636366;
-  --color-text-label: #98989d;
+  /* Hairlines — translucent rails derived from white. */
+  --line: rgba(255, 255, 255, 0.055);
+  --line-soft: rgba(255, 255, 255, 0.03);
+  --line-strong: rgba(255, 255, 255, 0.09);
 
-  /* Accent & Semantic */
-  --color-accent: #e8572a;
-  --color-accent-ink: #17110f;
-  --color-accent-hover: #d14e25;
-  --color-accent-strong: #f6874f;
-  --color-accent-dim: #e8572a59;
-  --color-accent-tint-strong: #e8572a3d;
-  --color-success: #30d158;
-  --color-danger: #ff453a;
-  --color-warning: #ffd60a;
-  --color-info: #bf5af2;
+  /* Text. */
+  --fg: #ececef;
+  --fg-strong: #f6f6f8;
+  --muted: #9a9a9f;
+  --subtle: #76767c;
+  --faint: #545458;
 
-  /* Protocol kind colors */
-  --color-kind-say: #8e8e93;
-  --color-kind-greet: #5ba6ff;
-  --color-kind-direct: var(--color-accent);
-  --color-kind-receipt: var(--color-success);
-  --color-kind-capability: var(--color-warning);
-  --color-kind-trace: #b892ff;
-  --color-kind-whois: #4fd1c5;
+  /* Accent — warm operator orange (the only non-neutral hue). */
+  --accent: #e8572a;
+  --accent-hover: #d14e25;
+  --accent-strong: #f6874f;
+  --accent-ink: #17110f;
+  --accent-tint: rgba(232, 87, 42, 0.1);
+  --accent-tint-strong: rgba(232, 87, 42, 0.16);
+  --accent-dim: rgba(232, 87, 42, 0.24);
+  --accent-glow: rgba(232, 87, 42, 0.05);
 
-  /* Landing diagram backgrounds */
-  --color-canvas-deep: #0e0e0f;
-  --color-line: #3c3a39;
+  /* Signal palette — desaturated; tints at 6–10% alpha. */
+  --success: #5fbf85;
+  --success-tint: rgba(95, 191, 133, 0.08);
+  --warning: #d6a647;
+  --warning-tint: rgba(214, 166, 71, 0.08);
+  --danger: #e0635a;
+  --danger-tint: rgba(224, 99, 90, 0.09);
+  --info: #8e8eb5;
+  --info-tint: rgba(142, 142, 181, 0.07);
+  --neutral: #7a7a80;
+  --neutral-tint: rgba(122, 122, 128, 0.06);
 
-  /* Shared mono/diagram constants */
+  /* Overlays. */
+  --overlay-scrim: rgba(0, 0, 0, 0.5);
+  --overlay-ghost-hover: rgba(255, 255, 255, 0.06);
+  --overlay-selection: rgba(232, 87, 42, 0.28);
+
+  /* Protocol kind colors — keyed off the new signal palette. */
+  --color-kind-say: var(--neutral);
+  --color-kind-greet: var(--info);
+  --color-kind-direct: var(--accent);
+  --color-kind-receipt: var(--success);
+  --color-kind-capability: var(--warning);
+  --color-kind-trace: var(--info);
+  --color-kind-whois: var(--neutral);
+
+  /* Shared mono / pill-group constants. */
   --tracking-mono: 0.06em;
   --tracking-badge: 0.08em;
-  --radius-diagram: 12px;
   --radius-chip: 5px;
   --radius-mono-badge: 6px;
+  --radius-icon-well: 10px;
   --height-mono-badge: 22px;
   --height-pill-group-segment-sm: 20px;
   --size-pill-group-badge: 14px;
@@ -67,58 +90,52 @@
   --space-pill-group-badge-x: 4px;
   --text-pill-group-badge: 0.5625rem;
 
-  /* Motion */
-  --duration-fast: 100ms;
-  --duration-base: 150ms;
-  --duration-slow: 200ms;
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  /* Motion — single fast tier + slow tier; one ease curve. */
+  --dur: 140ms;
+  --dur-slow: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 100ms;
+  --duration-base: var(--dur);
+  --duration-slow: var(--dur-slow);
+  --ease-out: var(--ease);
 
-  /* Badge tints (15% opacity) */
-  --color-accent-tint: #e8572a26;
-  --color-success-tint: #30d15826;
-  --color-danger-tint: #ff453a26;
-  --color-warning-tint: #ffd60a26;
-  --color-info-tint: #bf5af226;
-  --color-neutral-tint: #63636626;
+  /* Shadows — whitelist (ADR-003). Every other surface stays flat. */
+  --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 
-  /* shadcn theme variables */
-  --background: var(--color-canvas);
-  --foreground: var(--color-text-primary);
-  --card: var(--color-surface);
-  --card-foreground: var(--color-text-primary);
-  --popover: var(--color-surface-elevated);
-  --popover-foreground: var(--color-text-primary);
-  --primary: var(--color-accent);
-  --primary-foreground: var(--color-accent-ink);
+  /* shadcn theme variables — mapped onto the new contract. */
+  --background: var(--canvas);
+  --foreground: var(--fg);
+  --card: var(--canvas-soft);
+  --card-foreground: var(--fg);
+  --popover: var(--canvas-soft);
+  --popover-foreground: var(--fg);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-ink);
   --secondary: transparent;
-  --secondary-foreground: var(--color-text-primary);
-  --muted: var(--color-surface-elevated);
-  --muted-foreground: var(--color-text-secondary);
-  --accent: var(--color-surface-elevated);
-  --accent-foreground: var(--color-text-primary);
-  --destructive: var(--color-danger);
-  --destructive-foreground: var(--color-text-primary);
-  --border: var(--color-divider);
-  --input: var(--color-divider);
-  --ring: var(--color-accent);
-  --chart-1: var(--color-accent);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-info);
-  --chart-4: var(--color-warning);
-  --chart-5: var(--color-danger);
-  --radius: 0.5rem;
+  --secondary-foreground: var(--fg);
+  --muted-foreground: var(--muted);
+  --accent-foreground: var(--accent-ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--fg-strong);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--line-strong);
+  --chart-1: var(--accent);
+  --chart-2: var(--success);
+  --chart-3: var(--info);
+  --chart-4: var(--warning);
+  --chart-5: var(--danger);
+  --radius: 6px;
 
-  --sidebar: var(--color-surface);
-  --sidebar-foreground: var(--color-text-primary);
-  --sidebar-primary: var(--color-accent);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--accent);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--color-surface-elevated);
-  --sidebar-accent-foreground: var(--color-text-primary);
-  --sidebar-border: var(--color-divider);
-  --sidebar-ring: var(--color-accent);
-
-  --success: var(--color-success);
+  --sidebar-accent: var(--elevated);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--line-strong);
 }
 
 .dark {
@@ -128,18 +145,41 @@
 @theme inline {
   --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
-  --font-display: "Playfair Display", "Inter Variable", serif;
-  --font-wordmark:
-    "NuixyberNext", "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
 
+  /* Type scale shared with both web and site surfaces. */
   --text-item-title: 0.9375rem;
   --text-item-title--line-height: 1.375rem;
   --text-small-body: 0.8125rem;
   --text-small-body--line-height: 1.125rem;
   --text-badge: 0.625rem;
   --text-badge--line-height: 0.75rem;
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1rem;
+  --text-display-2xl: 1.75rem;
+  --text-display-2xl--line-height: 1;
+  --text-site-lead: 1.1875rem;
+  --text-site-lead--line-height: 1.5;
+  --text-micro: 0.5625rem;
+  --text-micro--line-height: 0.75rem;
+  --text-inline-code: 0.9em;
+  --text-accent-glyph: 0.85em;
+  --text-ui-title-lg: 1.35rem;
+  --leading-small-body: var(--text-small-body--line-height);
   --tracking-mono: 0.06em;
+  --tracking-badge: 0.08em;
 
+  /* Radii ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-pill: 9999px;
+  --radius-chip: 5px;
+  --radius-mono-badge: 6px;
+  --radius-icon-well: 0.625rem;
+
+  /* shadcn / Tailwind utility surface colors. */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -159,9 +199,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
@@ -172,12 +210,6 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --color-success: var(--success);
-
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 4px);
-  --radius-xl: calc(var(--radius) + 12px);
 }
 
 @layer base {
@@ -220,5 +252,22 @@
   30% {
     opacity: 1;
     transform: translateY(-2px);
+  }
+}
+
+/*
+ * Reduced-motion guard. Applies to every animation and transition, not only
+ * `--dur*` token references. Required because `tw-animate-css` and the
+ * `shimmer` / `typing-bounce` keyframes hardcode their durations and would
+ * otherwise keep playing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

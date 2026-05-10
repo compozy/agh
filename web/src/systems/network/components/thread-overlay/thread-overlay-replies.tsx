@@ -45,9 +45,7 @@ export function ThreadOverlayReplies({
         density="overlay"
         emptyState={
           emptyOverride ?? (
-            <p className="text-center text-xs text-(--color-text-tertiary)">
-              Thread has no replies.
-            </p>
+            <p className="text-center text-xs text-(--subtle)">Thread has no replies.</p>
           )
         }
         isLoading={isLoading}

@@ -243,9 +243,11 @@ export {
   isWithinSeconds,
 } from "./lib/format-timestamp";
 
-// Components
-export { KindChip } from "./components/kind-chip";
-export type { KindChipProps } from "./components/kind-chip";
+// Components — re-export from @agh/ui after kit promotion. Network surface
+// continues to export KindChip from its barrel as a convenience for callers
+// reaching for the network grammar; the canonical home is the shared kit.
+export { KindChip } from "@agh/ui";
+export type { KindChipProps } from "@agh/ui";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
 
 // Components — timeline subtree

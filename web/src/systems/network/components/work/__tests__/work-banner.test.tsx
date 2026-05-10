@@ -23,7 +23,7 @@ describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
     const banner = screen.getByTestId("network-work-banner");
     expect(banner).toHaveAttribute("data-escalate", "false");
     expect(banner).toHaveTextContent("2 active work in flight");
-    expect(banner.className).toContain("color-warning-tint");
+    expect(banner.className).toContain("bg-(--warning-tint)");
   });
 
   it("Should escalate to solid warning when any work needs input", () => {
@@ -31,8 +31,7 @@ describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
     const banner = screen.getByTestId("network-work-banner");
     expect(banner).toHaveAttribute("data-escalate", "true");
     expect(banner).toHaveTextContent("1 needs input · 2 working");
-    // Solid warning bg-color, not the tint.
-    expect(banner.className).toContain("bg-(--color-warning)");
+    expect(banner.className).toContain("bg-(--warning)");
   });
 
   it("Should auto-hide within 400ms when openCount returns to 0", () => {

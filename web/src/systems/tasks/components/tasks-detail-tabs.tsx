@@ -23,7 +23,7 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
   return (
     <Tabs
       aria-label="Task detail panels"
-      className="border-b border-(--color-divider) px-4"
+      className="border-b border-(--line) px-4"
       data-testid="tasks-detail-tabs"
       onValueChange={value => onChange(value as TaskDetailPanel)}
       value={active}

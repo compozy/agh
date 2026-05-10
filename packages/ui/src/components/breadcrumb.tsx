@@ -39,7 +39,10 @@ function BreadcrumbLink({ className, render, ...props }: useRender.ComponentProp
     defaultTagName: "a",
     props: mergeProps<"a">(
       {
-        className: cn("transition-colors hover:text-foreground", className),
+        className: cn(
+          "rounded-sm px-1.5 py-0.5 transition-colors hover:bg-(--hover) hover:text-(--fg)",
+          className
+        ),
       },
       props
     ),

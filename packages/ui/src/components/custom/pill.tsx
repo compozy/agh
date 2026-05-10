@@ -12,38 +12,39 @@ export type PillTone = "neutral" | "accent" | "success" | "warning" | "danger" |
 export type PillSize = "xs" | "sm" | "md";
 
 const TONE_DOT_COLOR: Record<PillTone, string> = {
-  neutral: "var(--color-text-tertiary)",
-  accent: "var(--color-accent)",
-  success: "var(--color-success)",
-  warning: "var(--color-warning)",
-  danger: "var(--color-danger)",
-  info: "var(--color-info)",
+  neutral: "var(--subtle)",
+  accent: "var(--accent)",
+  success: "var(--success)",
+  warning: "var(--warning)",
+  danger: "var(--danger)",
+  info: "var(--info)",
 };
 
 type PillContextValue = {
   size: PillSize;
   mono: boolean;
   tone: PillTone;
+  pulse: boolean;
 };
 
 const PillContext = React.createContext<PillContextValue | null>(null);
 
 const pillVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border border-transparent transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border border-transparent transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       tone: {
-        neutral: "bg-(--color-neutral-tint) text-(--color-text-secondary)",
-        accent: "bg-(--color-accent-tint) text-(--color-accent)",
-        success: "bg-(--color-success-tint) text-(--color-success)",
-        warning: "bg-(--color-warning-tint) text-(--color-warning)",
-        danger: "bg-(--color-danger-tint) text-(--color-danger)",
-        info: "bg-(--color-info-tint) text-(--color-info)",
+        neutral: "bg-(--neutral-tint) text-(--muted)",
+        accent: "bg-(--accent-tint) text-(--accent)",
+        success: "bg-(--success-tint) text-(--success)",
+        warning: "bg-(--warning-tint) text-(--warning)",
+        danger: "bg-(--danger-tint) text-(--danger)",
+        info: "bg-(--info-tint) text-(--info)",
       },
       size: {
-        xs: "h-auto rounded-(--radius-chip) px-1.5 py-px text-[10px] leading-[14px]",
-        sm: "h-[22px] rounded-(--radius-mono-badge) px-2 py-0.5 text-[11px] leading-[14px]",
-        md: "h-8 rounded-[var(--radius-xl,20px)] px-3.5 text-[11px] leading-none",
+        xs: "h-[17px] rounded-(--radius-chip) px-1.5 leading-none",
+        sm: "h-[19px] rounded-(--radius-mono-badge) px-2 leading-none",
+        md: "h-[22px] rounded-(--radius-pill) px-2.5 leading-none",
       },
       mono: {
         true: "font-mono",
@@ -57,33 +58,28 @@ const pillVariants = cva(
       active: { true: "", false: "" },
     },
     compoundVariants: [
-      { mono: true, size: "xs", className: "font-medium tracking-[0.04em]" },
-      { mono: true, size: "sm", className: "font-medium tracking-[0.06em]" },
-      { mono: true, size: "md", className: "font-semibold tracking-[0.12em]" },
-      { mono: false, size: "xs", className: "font-medium" },
-      { mono: false, size: "sm", className: "font-medium" },
-      { mono: false, size: "md", className: "font-semibold tracking-wide" },
-      {
-        solid: true,
-        tone: "neutral",
-        className: "bg-(--color-text-secondary) text-(--color-canvas)",
-      },
-      { solid: true, tone: "accent", className: "bg-(--color-accent) text-(--color-accent-ink)" },
-      { solid: true, tone: "success", className: "bg-(--color-success) text-(--color-canvas)" },
-      { solid: true, tone: "warning", className: "bg-(--color-warning) text-(--color-canvas)" },
-      { solid: true, tone: "danger", className: "bg-(--color-danger) text-(--color-canvas)" },
-      { solid: true, tone: "info", className: "bg-(--color-info) text-(--color-canvas)" },
+      { mono: true, size: "xs", className: "text-[10.5px] font-medium tracking-[0]" },
+      { mono: true, size: "sm", className: "text-[10.5px] font-medium tracking-[0]" },
+      { mono: true, size: "md", className: "text-[10.5px] font-medium tracking-[0]" },
+      { mono: false, size: "xs", className: "text-[11px] font-medium tracking-[-0.005em]" },
+      { mono: false, size: "sm", className: "text-[11px] font-medium tracking-[-0.005em]" },
+      { mono: false, size: "md", className: "text-[11px] font-medium tracking-[-0.005em]" },
+      { solid: true, tone: "neutral", className: "bg-(--muted) text-(--canvas)" },
+      { solid: true, tone: "accent", className: "bg-(--accent) text-(--accent-ink)" },
+      { solid: true, tone: "success", className: "bg-(--success) text-(--canvas)" },
+      { solid: true, tone: "warning", className: "bg-(--warning) text-(--canvas)" },
+      { solid: true, tone: "danger", className: "bg-(--danger) text-(--canvas)" },
+      { solid: true, tone: "info", className: "bg-(--info) text-(--canvas)" },
       {
         active: true,
-        className:
-          "border-(--color-text-tertiary) bg-(--color-surface-elevated) text-(--color-text-primary)",
+        className: "border-(--line-strong) bg-(--elevated) text-(--fg-strong)",
       },
       {
         active: false,
         tone: "neutral",
         solid: false,
         className:
-          "border-(--color-divider) bg-(--color-surface) text-(--color-text-secondary) hover:border-(--color-text-tertiary) hover:text-(--color-text-primary)",
+          "border-(--line) bg-(--canvas-soft) text-(--muted) hover:border-(--line-strong) hover:text-(--fg)",
       },
     ],
     defaultVariants: {
@@ -104,8 +100,10 @@ export interface PillProps
     Pick<PillVariantOptions, "tone" | "size" | "mono" | "solid"> {
   /** Toggle state. Only meaningful when the Pill is rendered as a control (e.g. `render={<button />}`). */
   active?: boolean;
-  /** Override automatic uppercase. Defaults: `xs` → false, `sm`/`md` mono → true, otherwise false. */
+  /** Apply uppercase. Defaults to `false`; callers opt in (sidebar, table head, run-cell, context-box). */
   uppercase?: boolean;
+  /** Propagate a pulsing state to the inner `Pill.Dot` when the dot does not set `pulse` itself. */
+  pulse?: boolean;
 }
 
 export type PillLinkProps = Omit<PillProps, "active" | "render" | "solid"> &
@@ -121,6 +119,7 @@ function Pill({
   solid: solidProp,
   active,
   uppercase,
+  pulse,
   className,
   render,
   ...props
@@ -129,8 +128,11 @@ function Pill({
   const size: PillSize = sizeProp ?? "sm";
   const mono = Boolean(monoProp);
   const solid = Boolean(solidProp);
-  const computedUppercase = uppercase ?? (size === "md" ? true : size === "xs" ? false : mono);
-  const ctx = React.useMemo<PillContextValue>(() => ({ size, mono, tone }), [size, mono, tone]);
+  const computedUppercase = uppercase ?? false;
+  const ctx = React.useMemo<PillContextValue>(
+    () => ({ size, mono, tone, pulse: Boolean(pulse) }),
+    [size, mono, tone, pulse]
+  );
   const element = useRender({
     defaultTagName: "span",
     props: mergeProps<"span">(
@@ -147,6 +149,7 @@ function Pill({
         "data-mono": mono ? "true" : undefined,
         "data-solid": solid ? "true" : undefined,
         "data-active": active === true ? "true" : active === false ? "false" : undefined,
+        "data-pulse": pulse ? "true" : undefined,
         "aria-pressed": active === true || active === false ? active : undefined,
       } as Record<string, unknown>,
       props
@@ -168,7 +171,7 @@ export interface PillDotProps extends Omit<React.ComponentProps<"span">, "color"
 function PillDot({
   tone,
   color,
-  pulse = false,
+  pulse,
   size: explicitSize,
   className,
   style,
@@ -176,7 +179,8 @@ function PillDot({
 }: PillDotProps) {
   const ctx = React.use(PillContext);
   const reduced = useReducedMotionConfig();
-  const shouldAnimate = pulse && !reduced;
+  const effectivePulse = pulse ?? ctx?.pulse ?? false;
+  const shouldAnimate = effectivePulse && !reduced;
   const effectiveSize: "sm" | "md" =
     explicitSize ?? (ctx ? (ctx.size === "md" ? "md" : "sm") : "md");
   const effectiveTone: PillTone = tone ?? ctx?.tone ?? "neutral";
@@ -204,7 +208,7 @@ function PillLink({
   tone = "accent",
   size = "sm",
   mono = true,
-  uppercase = true,
+  uppercase,
   className,
   href,
   render,
@@ -217,7 +221,7 @@ function PillLink({
       size={size}
       mono={mono}
       uppercase={uppercase}
-      className={cn("hover:border-(--color-accent) hover:text-(--color-accent)", className)}
+      className={cn("hover:border-(--accent) hover:text-(--accent)", className)}
       render={render ?? <a href={href ?? "#"} />}
       {...props}
     >

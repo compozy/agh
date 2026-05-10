@@ -27,7 +27,7 @@ export function ThreadOverlayRoot({ rootMessage, isLoading }: ThreadOverlayRootP
   }
 
   return (
-    <div className="flex flex-col gap-1 border-b border-(--color-divider) py-2">
+    <div className="flex flex-col gap-1 border-b border-(--line) py-2">
       <Eyebrow className="px-4" data-testid="network-thread-overlay-root-badge" weight="medium">
         ROOT
       </Eyebrow>

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -144,10 +145,9 @@ describe("TasksRoute", () => {
     enqueueTaskRunMock.mockReset();
   });
 
-  it("renders the shared tasks shell with the Tasks title", () => {
+  it("renders the shared tasks shell body container", () => {
     renderTasksRoute();
-    expect(screen.getByTestId("tasks-shell-title")).toHaveTextContent("Tasks");
-    expect(screen.getByTestId("tasks-shell-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-shell")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-shell-body")).toBeInTheDocument();
   });
 

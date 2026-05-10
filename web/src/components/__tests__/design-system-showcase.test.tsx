@@ -29,6 +29,61 @@ function renderShowcase() {
  * theme aliases (`--background`, `--primary`, ...) re-map to these AGH tokens
  * and are covered by the primitives themselves rather than the swatch wall.
  */
+const SHADCN_ALIASES: ReadonlySet<string> = new Set([
+  "--background",
+  "--foreground",
+  "--card",
+  "--card-foreground",
+  "--popover",
+  "--popover-foreground",
+  "--primary",
+  "--primary-foreground",
+  "--secondary",
+  "--secondary-foreground",
+  "--muted-foreground",
+  "--accent-foreground",
+  "--destructive",
+  "--destructive-foreground",
+  "--border",
+  "--input",
+  "--ring",
+  "--chart-1",
+  "--chart-2",
+  "--chart-3",
+  "--chart-4",
+  "--chart-5",
+  "--radius",
+  "--sidebar-foreground",
+  "--sidebar-primary",
+  "--sidebar-primary-foreground",
+  "--sidebar-accent",
+  "--sidebar-accent-foreground",
+  "--sidebar-border",
+  "--sidebar-ring",
+]);
+
+const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
+  "--height-mono-badge",
+  "--height-pill-group-segment-sm",
+  "--size-pill-group-badge",
+  "--space-pill-group-track-gap",
+  "--space-pill-group-track-padding",
+  "--space-pill-group-segment-sm-x",
+  "--space-pill-group-segment-md-x",
+  "--space-pill-group-badge-x",
+  "--text-pill-group-badge",
+  "--shadow-overlay",
+  "--highlight",
+  "--radius-chip",
+  "--radius-mono-badge",
+  "--radius-icon-well",
+  "--duration-fast",
+  "--duration-base",
+  "--duration-slow",
+  "--ease-out",
+  "--ease-in-out",
+]);
+
 function extractAghTokens(source: string): string[] {
   const tokens = new Set<string>();
   const rootMatch = source.match(/:root\s*{([\s\S]*?)}/);
@@ -40,7 +95,8 @@ function extractAghTokens(source: string): string[] {
     const [, name, rawValue] = match;
     const value = rawValue.trim();
     if (value.startsWith("var(")) continue;
-    if (!/^--(?:color|radius|duration|ease|tracking)-/.test(name)) continue;
+    if (SHADCN_ALIASES.has(name)) continue;
+    if (COMPONENT_GEOMETRY_TOKENS.has(name)) continue;
     tokens.add(name);
   }
   return [...tokens];
@@ -105,7 +161,7 @@ describe("DesignSystemShowcase", () => {
       expect(within(buttons).getByRole("button", { name: "Primary" })).toBeInTheDocument();
       expect(within(buttons).getByRole("button", { name: "Secondary" })).toBeInTheDocument();
       expect(within(buttons).getByRole("button", { name: "Destructive" })).toBeInTheDocument();
-      expect(within(buttons).getAllByText("Outline").length).toBeGreaterThanOrEqual(2);
+      expect(within(buttons).getByRole("button", { name: "Outline" })).toBeInTheDocument();
       expect(within(buttons).getByText("Action")).toBeInTheDocument();
       expect(within(buttons).getByText("Stable")).toBeInTheDocument();
     });

@@ -32,7 +32,7 @@ export function ChannelRailRow({
         aria-current={active ? "page" : undefined}
         className={cn(
           "min-w-0 flex-1 rounded-mono-badge border-transparent py-1 pr-7 pl-2 text-small-body",
-          !active && hasUnread && "font-semibold text-(--color-text-primary)"
+          !active && hasUnread && "font-semibold text-(--fg)"
         )}
         data-active={active}
         data-testid={`network-channel-link-${channel.channel}`}
@@ -45,10 +45,7 @@ export function ChannelRailRow({
         <ItemMedia>
           <Hash
             aria-hidden="true"
-            className={cn(
-              "size-3.5 shrink-0",
-              active ? "text-(--color-text-primary)" : "text-(--color-text-tertiary)"
-            )}
+            className={cn("size-3.5 shrink-0", active ? "text-(--fg)" : "text-(--subtle)")}
           />
         </ItemMedia>
         <ItemContent className="min-w-0">
@@ -62,7 +59,7 @@ export function ChannelRailRow({
         aria-label={ariaLabel}
         aria-pressed={isPinned}
         className={cn(
-          "absolute right-1 top-1/2 -translate-y-1/2 rounded-chip p-1 text-(--color-text-tertiary) opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent group-hover:opacity-100",
+          "absolute right-1 top-1/2 -translate-y-1/2 rounded-chip p-1 text-(--subtle) opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent group-hover:opacity-100",
           (isPinned || active) && "opacity-100"
         )}
         data-testid={`network-channel-pin-${channel.channel}`}

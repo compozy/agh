@@ -43,4 +43,10 @@ describe("AgentInfoPanel", () => {
     expect(screen.getByTestId("agent-info-mcp-empty")).toHaveTextContent("No MCP servers");
     expect(screen.getByTestId("agent-info-mcp-empty")).toHaveAttribute("data-fill", "false");
   });
+
+  it("Should drive the panel width from the --rail-inspector-w CSS custom property", () => {
+    render(<AgentInfoPanel agent={makeAgent()} />);
+    const panel = screen.getByTestId("agent-info-panel") as HTMLElement;
+    expect(panel.style.width).toContain("var(--rail-inspector-w");
+  });
 });

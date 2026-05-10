@@ -75,7 +75,7 @@ export function SessionVaultPanel({
               </ItemMedia>
               <ItemContent>
                 <ItemTitle
-                  className="truncate font-mono text-eyebrow text-(--color-text-primary)"
+                  className="truncate font-mono text-eyebrow text-(--fg)"
                   data-testid="session-inspector-vault-ref"
                   title={secret.ref}
                 >
@@ -83,7 +83,7 @@ export function SessionVaultPanel({
                 </ItemTitle>
               </ItemContent>
               <ItemActions>
-                <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
+                <span className="shrink-0 font-mono text-badge text-(--subtle)">
                   {formatUpdated(secret.updated_at)}
                 </span>
               </ItemActions>

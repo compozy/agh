@@ -67,8 +67,8 @@ describe("ToolCallCard", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     const root = queryPrimitiveRoot();
     expect(root).not.toBeNull();
-    expect(root?.className).toMatch(/bg-\[color:var\(--color-surface\)\]/);
-    expect(root?.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
+    expect(root?.className).toMatch(/bg-\[color:var\(--canvas-soft\)\]/);
+    expect(root?.className).toMatch(/border-\[color:var\(--line\)\]/);
     expect(root?.className).toContain("rounded-md");
   });
 
@@ -90,7 +90,7 @@ describe("ToolCallCard", () => {
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("RUNNING");
     expect(badge?.getAttribute("data-tone")).toBe("accent");
-    expect(badge?.className).toMatch(/bg-\(--color-accent-tint\)/);
+    expect(badge?.className).toMatch(/bg-\(--accent-tint\)/);
     expect(queryPrimitiveRoot()?.getAttribute("data-status")).toBe("running");
   });
 
@@ -99,7 +99,7 @@ describe("ToolCallCard", () => {
     const badge = queryStatusBadge();
     expect(badge?.textContent).toBe("DONE");
     expect(badge?.getAttribute("data-tone")).toBe("success");
-    expect(badge?.className).toMatch(/bg-\(--color-success-tint\)/);
+    expect(badge?.className).toMatch(/bg-\(--success-tint\)/);
     expect(queryPrimitiveRoot()?.getAttribute("data-status")).toBe("done");
   });
 
@@ -115,10 +115,10 @@ describe("ToolCallCard", () => {
     const badge = queryStatusBadge();
     expect(badge?.textContent).toBe("ERROR");
     expect(badge?.getAttribute("data-tone")).toBe("danger");
-    expect(badge?.className).toMatch(/bg-\(--color-danger-tint\)/);
+    expect(badge?.className).toMatch(/bg-\(--danger-tint\)/);
     const root = queryPrimitiveRoot();
     expect(root?.getAttribute("data-status")).toBe("error");
-    expect(root?.className).toContain("data-[status=error]:border-(--color-danger)/40");
+    expect(root?.className).toContain("data-[status=error]:border-(--danger)/40");
   });
 
   it("renders success state with past-tense label for completed tool", () => {

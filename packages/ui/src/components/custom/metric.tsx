@@ -22,11 +22,11 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
 }
 
 const VALUE_COLOR: Record<MetricTone, string> = {
-  default: "var(--color-text-primary)",
-  accent: "var(--color-accent)",
-  success: "var(--color-success)",
-  warning: "var(--color-warning)",
-  danger: "var(--color-danger)",
+  default: "var(--fg)",
+  accent: "var(--accent)",
+  success: "var(--success)",
+  warning: "var(--warning)",
+  danger: "var(--danger)",
 };
 
 /**
@@ -48,14 +48,14 @@ function Metric({
       data-slot="metric"
       data-tone={tone}
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-4",
+        "flex min-w-0 flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--line)] bg-[color:var(--canvas-soft)] px-5 py-4",
         className
       )}
       {...props}
     >
       <span
         data-slot="metric-label"
-        className="block truncate font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        className="block truncate font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em] text-[color:var(--subtle)]"
       >
         {label}
       </span>
@@ -70,7 +70,7 @@ function Metric({
         {detail !== undefined ? (
           <span
             data-slot="metric-detail"
-            className="shrink-0 truncate font-mono text-[11px] leading-4 text-[color:var(--color-text-tertiary)]"
+            className="shrink-0 truncate font-mono text-[11px] leading-4 text-[color:var(--subtle)]"
           >
             {detail}
           </span>
@@ -79,7 +79,7 @@ function Metric({
       {subtext !== undefined ? (
         <p
           data-slot="metric-subtext"
-          className="truncate text-[13px] leading-5 text-[color:var(--color-text-secondary)]"
+          className="truncate text-[13px] leading-5 text-[color:var(--muted)]"
         >
           {subtext}
         </p>

@@ -36,7 +36,7 @@ export function BridgeProviderCard({
         </Pill>
       </ItemHeader>
 
-      <p className="basis-full text-xs leading-relaxed text-(--color-text-secondary)">
+      <p className="basis-full text-xs leading-relaxed text-(--muted)">
         {provider.description ?? "Bridge adapter installed and ready for instance configuration."}
       </p>
 
@@ -51,7 +51,7 @@ export function BridgeProviderCard({
         ) : null}
       </ItemFooter>
 
-      <p className="basis-full text-eyebrow leading-relaxed text-(--color-text-tertiary)">
+      <p className="basis-full text-eyebrow leading-relaxed text-(--subtle)">
         {provider.health_message ||
           (selectable
             ? "This provider can be used to create a bridge instance."
@@ -61,9 +61,9 @@ export function BridgeProviderCard({
   );
 
   const className = cn(
-    "gap-3 rounded-md border bg-(--color-surface) p-4 text-left",
-    selected ? "border-accent bg-(--color-surface-elevated)" : "border-(--color-divider)",
-    onSelect && selectable && "cursor-pointer hover:border-accent hover:bg-(--color-hover)",
+    "gap-3 rounded-md border bg-(--canvas-soft) p-4 text-left",
+    selected ? "border-accent bg-(--elevated)" : "border-(--line)",
+    onSelect && selectable && "cursor-pointer hover:border-accent hover:bg-(--hover)",
     onSelect && !selectable && "cursor-not-allowed opacity-70"
   );
 

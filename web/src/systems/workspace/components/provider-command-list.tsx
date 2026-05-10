@@ -90,10 +90,10 @@ export function ProviderCommandList({
                 }
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-sm text-(--color-text-primary)">
+                  <span className="truncate text-sm text-(--fg)">
                     {option.display_name?.trim() || option.name}
                   </span>
-                  <span className="font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)">
+                  <span className="font-mono text-xs uppercase tracking-wide text-(--muted)">
                     {option.harness ?? "acp"}
                   </span>
                 </div>

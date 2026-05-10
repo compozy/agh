@@ -143,13 +143,13 @@ function FolderRow({ item, label, segments }: FolderRowProps) {
       item={item}
       data-testid={`agent-category-${joined}`}
       data-expanded={expanded}
-      className="text-(--color-text-secondary)"
+      className="text-(--muted)"
     >
       <TreeItemLabel
         item={item}
         className={cn(
-          "flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 font-mono text-badge font-medium uppercase tracking-mono text-(--color-text-label)",
-          "hover:bg-(--color-hover) hover:text-(--color-text-primary)"
+          "flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 font-mono text-badge font-medium uppercase tracking-mono text-(--muted)",
+          "hover:bg-(--hover) hover:text-(--fg)"
         )}
       >
         <span className="truncate">{label}</span>
@@ -181,10 +181,7 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
           className={ACTIVE_NAV_INDICATOR_CLASS}
         />
       ) : null}
-      <AgentIcon
-        provider={agent.provider}
-        className="size-3.5 shrink-0 text-(--color-text-tertiary)"
-      />
+      <AgentIcon provider={agent.provider} className="size-3.5 shrink-0 text-(--subtle)" />
       <span className="truncate">{agent.name}</span>
       {hasActiveSession ? (
         <Pill.Dot

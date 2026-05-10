@@ -41,20 +41,17 @@ function ChatMessageBubble({
         data-slot="chat-message"
         data-role="system"
         data-align={resolvedAlign}
-        className={cn(
-          "flex w-full items-center gap-3 py-2 text-[color:var(--color-text-tertiary)]",
-          className
-        )}
+        className={cn("flex w-full items-center gap-3 py-2 text-[color:var(--subtle)]", className)}
         {...props}
       >
-        <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--color-divider)]" />
+        <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--line)]" />
         <div
           data-slot="chat-message-body"
           className="font-mono text-[11px] leading-[16px] tracking-[0.06em]"
         >
           {children}
         </div>
-        <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--color-divider)]" />
+        <span aria-hidden="true" className="h-px flex-1 bg-[color:var(--line)]" />
       </div>
     );
   }
@@ -80,7 +77,7 @@ function ChatMessageBubble({
             <div
               data-slot="chat-message-meta"
               className={cn(
-                "font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]",
+                "font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--subtle)]",
                 resolvedAlign === "right" ? "text-right" : "text-left"
               )}
             >
@@ -89,7 +86,7 @@ function ChatMessageBubble({
           ) : null}
           <div
             data-slot="chat-message-body"
-            className="rounded-[var(--radius-lg)] bg-[color:var(--color-surface-elevated)] px-5 py-4 text-[14px] leading-[1.6] text-[color:var(--color-text-primary)]"
+            className="rounded-[var(--radius-lg)] bg-[color:var(--elevated)] px-5 py-4 text-[14px] leading-[1.6] text-[color:var(--fg)]"
           >
             {children}
           </div>
@@ -111,7 +108,7 @@ function ChatMessageBubble({
           <div
             data-slot="chat-message-meta"
             className={cn(
-              "flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]",
+              "flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]",
               nonUserMetaAlignClass
             )}
           >
@@ -120,7 +117,7 @@ function ChatMessageBubble({
         ) : null}
         <div
           data-slot="chat-message-body"
-          className="text-[14px] leading-[1.6] text-[color:var(--color-text-secondary)]"
+          className="text-[14px] leading-[1.6] text-[color:var(--muted)]"
         >
           {children}
         </div>
@@ -140,7 +137,7 @@ function ChatMessageBubble({
         <div
           data-slot="chat-message-meta"
           className={cn(
-            "flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]",
+            "flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]",
             nonUserMetaAlignClass
           )}
         >

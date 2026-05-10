@@ -3,7 +3,6 @@ export { cn } from "./lib/utils";
 
 // Components
 export { Button, buttonVariants } from "./components/button";
-export { Badge, badgeVariants } from "./components/badge";
 export {
   Card,
   CardHeader,
@@ -183,9 +182,13 @@ export {
   SPLIT_LIST_WIDTH_DEFAULT,
   type SplitPaneProps,
 } from "./components/custom/split-pane";
-export { PageHeader, type PageHeaderProps } from "./components/custom/page-header";
 export { PageShell, type PageShellProps } from "./components/custom/page-shell";
-export { Eyebrow, type EyebrowProps, type EyebrowWeight } from "./components/custom/eyebrow";
+export {
+  Eyebrow,
+  type EyebrowCase,
+  type EyebrowProps,
+  type EyebrowWeight,
+} from "./components/custom/eyebrow";
 export {
   Pill,
   PillDot,
@@ -207,7 +210,78 @@ export {
 export { SearchInput, type SearchInputProps } from "./components/custom/search-input";
 export { Empty, type EmptyProps } from "./components/empty";
 export { Section, type SectionProps } from "./components/custom/section";
-export { Toolbar, type ToolbarProps } from "./components/custom/toolbar";
+
+// Topbar — dormant code in P3; mounted by P4 shell.
+export {
+  Topbar,
+  TopbarSlotContext,
+  TopbarSlotProvider,
+  useTopbarSlot,
+  useTopbarSlotContext,
+  useTopbarSlotValue,
+  type TopbarProps,
+  type TopbarRouteContext,
+  type TopbarSlotContextValue,
+  type TopbarSlotProviderProps,
+  type TopbarSlotValue,
+} from "./components/custom/topbar";
+
+// Promoted from `web/src/systems/network/components/`.
+export { KindChip, type KindChipProps } from "./components/custom/kind-chip";
+export { RightRail, type RightRailMode, type RightRailProps } from "./components/custom/right-rail";
+
+// Net-new shared-kit composites (P3).
+export { LaneTabs, type LaneTabsItem, type LaneTabsProps } from "./components/custom/lane-tabs";
+export { Sparkline, type SparklineProps } from "./components/custom/sparkline";
+export {
+  RouteState,
+  type RouteStateMode,
+  type RouteStateProps,
+} from "./components/custom/route-state";
+export { FieldRow, type FieldRowProps } from "./components/custom/field-row";
+export {
+  ContextBox,
+  type ContextBoxEntry,
+  type ContextBoxProps,
+} from "./components/custom/context-box";
+export { JsonViewer, type JsonViewerProps } from "./components/custom/json-viewer";
+export { EditorFooter, type EditorFooterProps } from "./components/custom/editor-footer";
+export {
+  DashboardCard,
+  type DashboardCardLabelCase,
+  type DashboardCardProps,
+} from "./components/custom/dashboard-card";
+export {
+  StatusBreakdown,
+  type StatusBreakdownItem,
+  type StatusBreakdownProps,
+} from "./components/custom/status-breakdown";
+export { MetadataTile, type MetadataTileProps } from "./components/custom/metadata-tile";
+export { DetailHeader, type DetailHeaderProps } from "./components/custom/detail-header";
+export { RadioCard, type RadioCardProps } from "./components/custom/radio-card";
+export {
+  ActionResultBanner,
+  type ActionResultBannerProps,
+  type ActionResultBannerTone,
+} from "./components/custom/action-result-banner";
+export {
+  StackedProgress,
+  type StackedProgressProps,
+  type StackedProgressSegment,
+} from "./components/custom/stacked-progress";
+export { ReviewRow, type ReviewRowProps } from "./components/custom/review-row";
+export { Timeline, type TimelineProps } from "./components/custom/timeline";
+export { TimelineEvent, type TimelineEventProps } from "./components/custom/timeline-event";
+export {
+  PriorityBars,
+  type PriorityBarsProps,
+  type PriorityLevel,
+} from "./components/custom/priority-bars";
+export {
+  OperationalLinksRow,
+  type OperationalLink,
+  type OperationalLinksRowProps,
+} from "./components/custom/operational-links-row";
 export {
   WireCard,
   WireCardHead,
@@ -249,6 +323,7 @@ export {
   type ConnectionIndicatorLabelProps,
   type ConnectionIndicatorProps,
   type ConnectionStatus,
+  type ConnectionVariant,
 } from "./components/custom/connection-indicator";
 export {
   StatusCard,
@@ -348,6 +423,8 @@ export {
   AvatarGroup,
   AvatarGroupCount,
   AvatarImage,
+  type AvatarShape,
+  type AvatarSize,
 } from "./components/avatar";
 export {
   Breadcrumb,
@@ -398,6 +475,7 @@ export {
   ItemTitle,
   type ItemAs,
   type ItemIndicator,
+  type ItemIndicatorTone,
   type ItemProps,
   type ItemSelectionIndicatorProps,
 } from "./components/item";

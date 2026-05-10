@@ -62,7 +62,7 @@ export function BridgeTestDeliveryDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-2xl"
+        className="gap-0 p-0 text-(--fg) sm:max-w-2xl"
         showCloseButton={false}
         unframed
       >
@@ -195,11 +195,11 @@ export function BridgeTestDeliveryDialog({
                     </Pill>
                   }
                 >
-                  <p className="text-small-body text-(--color-text-primary)">
+                  <p className="text-small-body text-(--fg)">
                     {describeBridgeTestTarget(result.delivery_target)}
                   </p>
                   {result.message ? (
-                    <p className="mt-2 text-small-body leading-relaxed text-(--color-text-secondary)">
+                    <p className="mt-2 text-small-body leading-relaxed text-(--muted)">
                       Message: {result.message}
                     </p>
                   ) : null}

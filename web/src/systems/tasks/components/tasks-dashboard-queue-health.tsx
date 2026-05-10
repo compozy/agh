@@ -43,7 +43,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </Pill>
       }
     >
-      <p className="text-xs text-(--color-text-secondary)">
+      <p className="text-xs text-(--muted)">
         {totals.runs_total} runs tracked · {totals.completed_runs} completed
       </p>
 
@@ -61,9 +61,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
                 data-testid={`tasks-dashboard-queue-bar-${bucket.label}`}
                 key={bucket.label}
                 style={{
-                  background: bucket.warn
-                    ? "var(--color-accent)"
-                    : "var(--color-accent-tint-strong)",
+                  background: bucket.warn ? "var(--accent)" : "var(--accent-tint-strong)",
                   height: `${Math.max(6, pct)}%`,
                 }}
                 title={`${bucket.label}: ${bucket.value}`}
@@ -82,7 +80,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         />
       )}
 
-      <div className="mt-2 flex items-center justify-between text-badge font-mono text-(--color-text-tertiary)">
+      <div className="mt-2 flex items-center justify-between text-badge font-mono text-(--subtle)">
         <span>24h ago</span>
         <span>now</span>
       </div>
@@ -134,10 +132,10 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
 
       {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-(--radius-diagram) border border-(--color-warning) bg-(--color-accent-tint) px-3 py-2 text-xs text-(--color-text-primary)"
+          className="mt-4 flex items-start gap-2 rounded-(--radius-diagram) border border-(--warning) bg-(--accent-tint) px-3 py-2 text-xs text-(--fg)"
           data-testid="tasks-dashboard-warning"
         >
-          <AlertTriangle className="mt-px size-4 shrink-0 text-(--color-warning)" />
+          <AlertTriangle className="mt-px size-4 shrink-0 text-(--warning)" />
           <span>
             {queue.backlog_warning
               ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)} -- oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`

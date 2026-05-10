@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Sidebar } from "../sidebar";
+import { Sidebar, SIDEBAR_PANEL_WIDTH_DEFAULT, SIDEBAR_RAIL_WIDTH } from "../sidebar";
 import { UIProvider } from "../custom/ui-provider";
 
 interface MediaMock {
@@ -88,14 +88,42 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("footer-content")).toBeInTheDocument();
   });
 
-  it("Should expose the rail at 44px regardless of collapsed state", () => {
+  it("Should expose the rail at 56px regardless of collapsed state", () => {
     const { container, rerender } = render(<Sidebar nav={<span>nav</span>} collapsed={false} />);
     const rail = container.querySelector<HTMLElement>("[data-slot=sidebar-rail]");
     expect(rail).not.toBeNull();
-    expect(rail?.style.width).toBe("44px");
+    expect(rail?.style.width).toBe("56px");
 
     rerender(<Sidebar nav={<span>nav</span>} collapsed={true} />);
-    expect(rail?.style.width).toBe("44px");
+    expect(rail?.style.width).toBe("56px");
+  });
+
+  it("Should export 56 as the rail width and 244 as the panel width default", () => {
+    expect(SIDEBAR_RAIL_WIDTH).toBe(56);
+    expect(SIDEBAR_PANEL_WIDTH_DEFAULT).toBe(244);
+  });
+
+  it("Should paint the rail on var(--rail) and the panel on var(--sidebar)", () => {
+    const { container } = render(<Sidebar nav={<span>nav</span>} collapsed={false} />);
+    const rail = container.querySelector<HTMLElement>("[data-slot=sidebar-rail]");
+    const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
+    expect(rail?.className).toContain("bg-(--rail)");
+    expect(panel?.className).toContain("bg-(--sidebar)");
+  });
+
+  it("Should paint the narrow scrim on var(--overlay-scrim)", async () => {
+    const user = userEvent.setup();
+    installMatchMedia(q => q.includes("max-width"));
+    const { container } = render(
+      <UIProvider reducedMotion="always">
+        <Sidebar nav={<button type="button">nav</button>} />
+      </UIProvider>
+    );
+    await user.click(screen.getByRole("button", { name: "Open sidebar navigation" }));
+    const scrim = container.querySelector<HTMLElement>(
+      "aside button[aria-label='Close sidebar navigation']"
+    );
+    expect(scrim?.className).toContain("bg-(--overlay-scrim)");
   });
 
   it("Should call onCollapse(true) when the collapse control is activated from expanded", async () => {
@@ -200,7 +228,7 @@ describe("Sidebar", () => {
       "expanded"
     );
     expect(panel).toHaveAttribute("aria-hidden", "false");
-    await waitFor(() => expect(panel?.style.width).toBe("240px"));
+    await waitFor(() => expect(panel?.style.width).toBe("244px"));
     expect(onCollapse).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,14 @@
 import * as React from "react";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SkillPayload } from "@/systems/skill/types";
+import { renderWithTopbar } from "@/test/render-with-topbar";
+
+function render(ui: React.ReactElement) {
+  return renderWithTopbar(ui, { title: "Skills" });
+}
 
 // ---------------------------------------------------------------------------
 // Mock state

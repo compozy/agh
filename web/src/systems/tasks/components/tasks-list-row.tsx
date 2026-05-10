@@ -85,9 +85,9 @@ function TasksListRow({
       onClick={clickable ? () => onSelect?.(task.id) : undefined}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group relative flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-4 py-3.5 text-left",
+        "group relative flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3.5 text-left",
         clickable &&
-          "cursor-pointer hover:bg-(--color-surface) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          "cursor-pointer hover:bg-(--canvas-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         className,
         rail || selected ? "border-l-2 border-l-accent" : "border-l-2 border-l-transparent"
       )}
@@ -97,7 +97,7 @@ function TasksListRow({
         <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
         <ItemTitle
           data-slot="tasks-list-row-title"
-          className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)"
+          className="min-w-0 flex-1 truncate text-small-body font-medium text-(--fg)"
         >
           {task.title}
         </ItemTitle>
@@ -114,10 +114,7 @@ function TasksListRow({
 
       <ItemContent className="flex-row items-center gap-2 text-eyebrow">
         <Pill mono>{identifier}</Pill>
-        <span
-          data-slot="tasks-list-row-timestamp"
-          className="font-mono text-badge text-(--color-text-tertiary)"
-        >
+        <span data-slot="tasks-list-row-timestamp" className="font-mono text-badge text-(--subtle)">
           {timestamp}
         </span>
         {trailing !== undefined ? (

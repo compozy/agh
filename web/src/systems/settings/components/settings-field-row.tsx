@@ -71,7 +71,7 @@ function SettingsFieldRow({
   let renderedLabel: ReactNode = (
     <FieldLabel
       id={labelId}
-      className="text-sm font-medium text-(--color-text-primary)"
+      className="text-sm font-medium text-(--fg)"
       data-testid={testId ? `${testId}-label` : undefined}
     >
       {label}
@@ -105,7 +105,7 @@ function SettingsFieldRow({
           <FieldLabel
             htmlFor={controlId}
             id={labelId}
-            className="text-sm font-medium text-(--color-text-primary)"
+            className="text-sm font-medium text-(--fg)"
             data-testid={testId ? `${testId}-label` : undefined}
           >
             {label}
@@ -119,7 +119,7 @@ function SettingsFieldRow({
     <Field
       orientation="vertical"
       className={cn(
-        "grid gap-3 border-t border-(--color-divider) pt-5 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
+        "grid gap-3 border-t border-(--line) pt-5 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
         className
       )}
       data-testid={testId}
@@ -128,7 +128,7 @@ function SettingsFieldRow({
         <div className="flex flex-wrap items-center gap-2">
           {renderedLabel}
           {hint ? (
-            <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-label) lg:hidden">
+            <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--muted) lg:hidden">
               {hint}
             </span>
           ) : null}
@@ -136,13 +136,13 @@ function SettingsFieldRow({
         {description ? (
           <FieldDescription
             id={descriptionId}
-            className="max-w-136 text-xs leading-5 text-(--color-text-secondary)"
+            className="max-w-136 text-xs leading-5 text-(--muted)"
           >
             {description}
           </FieldDescription>
         ) : null}
         {error ? (
-          <FieldError id={errorId} className="text-xs text-(--color-danger)">
+          <FieldError id={errorId} className="text-xs text-(--danger)">
             {error}
           </FieldError>
         ) : null}
@@ -151,7 +151,7 @@ function SettingsFieldRow({
         <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 lg:w-auto [&_input]:max-w-full [&_select]:max-w-full">
           {renderedControl}
           {hint ? (
-            <span className="hidden font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-label) lg:inline">
+            <span className="hidden font-mono text-badge font-semibold uppercase tracking-badge text-(--muted) lg:inline">
               {hint}
             </span>
           ) : null}

@@ -14,7 +14,9 @@ import {
   PageShell,
   Section,
   Textarea,
+  useTopbarSlot,
 } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 import {
   useSettingsProvidersPage,
@@ -34,11 +36,40 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/settings/providers")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Providers", icon: Database },
+  }),
   component: ProvidersSettingsPage,
 });
 
 function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
+  const envelopeForSlot = page.envelope;
+  useTopbarSlot({
+    tabs: envelopeForSlot ? (
+      <SettingsStatusLine
+        data-testid="settings-page-providers-status-line"
+        status="connected"
+        items={[
+          <span key="total" data-testid="settings-page-providers-total">
+            {page.counts.total} providers
+          </span>,
+          <span key="installed" data-testid="settings-page-providers-installed">
+            {page.counts.installed} installed
+          </span>,
+          <span key="missing" data-testid="settings-page-providers-missing">
+            {page.counts.binaryMissing} binary missing
+          </span>,
+          <span key="unconfigured" data-testid="settings-page-providers-unconfigured">
+            {page.counts.unconfigured} unconfigured
+          </span>,
+        ]}
+      />
+    ) : undefined,
+    actions: envelopeForSlot ? (
+      <SettingsPageActions slug="providers" restart={page.restart} />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -46,7 +77,7 @@ function ProvidersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-providers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -58,8 +89,8 @@ function ProvidersSettingsPage() {
         data-testid="settings-page-providers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
             {page.error?.message ?? "Failed to load providers"}
           </p>
         </div>
@@ -70,28 +101,6 @@ function ProvidersSettingsPage() {
   return (
     <PageShell
       slug="providers"
-      title="Providers"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-providers-status-line"
-          status="connected"
-          items={[
-            <span key="total" data-testid="settings-page-providers-total">
-              {page.counts.total} providers
-            </span>,
-            <span key="installed" data-testid="settings-page-providers-installed">
-              {page.counts.installed} installed
-            </span>,
-            <span key="missing" data-testid="settings-page-providers-missing">
-              {page.counts.binaryMissing} binary missing
-            </span>,
-            <span key="unconfigured" data-testid="settings-page-providers-unconfigured">
-              {page.counts.unconfigured} unconfigured
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="providers" restart={page.restart} />}
       banner={<SettingsRestartBanner slug="providers" restart={page.restart} />}
     >
       {page.lastAction ? (
@@ -505,7 +514,7 @@ function renderProviderEditor({
           hint="OPTIONAL"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-(--color-text-tertiary)" />
+              <KeyRound className="size-3.5 text-(--subtle)" />
               <Input
                 className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
@@ -526,7 +535,7 @@ function renderProviderEditor({
           hint="BOUND"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-(--color-text-tertiary)" />
+              <KeyRound className="size-3.5 text-(--subtle)" />
               <Input
                 className="w-72 font-mono"
                 data-testid="settings-providers-editor-secret-ref-input"
@@ -587,7 +596,7 @@ function AdditionalCredentialSlotsEditor({
         <div className="flex w-full max-w-176 flex-col gap-2">
           {additionalSlots.length === 0 ? (
             <span
-              className="font-mono text-xs text-(--color-text-tertiary)"
+              className="font-mono text-xs text-(--subtle)"
               data-testid="settings-providers-editor-credential-slots-empty"
             >
               No additional credential slots
@@ -597,7 +606,7 @@ function AdditionalCredentialSlotsEditor({
               const index = offset + 1;
               return (
                 <div
-                  className="grid gap-2 rounded-md border border-(--color-divider) p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
+                  className="grid gap-2 rounded-md border border-(--line) p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
                   data-testid={`settings-providers-editor-credential-slot-${index}`}
                   key={slot.name || slot.target_env || slot.secret_ref || slot.kind}
                 >

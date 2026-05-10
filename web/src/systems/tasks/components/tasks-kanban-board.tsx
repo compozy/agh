@@ -51,8 +51,8 @@ export function TasksKanbanBoard({
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="tasks-kanban-error">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">{errorMessage}</p>
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">{errorMessage}</p>
         </div>
       </div>
     );
@@ -108,7 +108,7 @@ function KanbanColumn({
           <Pill.Dot tone={headerTone} />
           <span>{column.label}</span>
           <span
-            className="font-mono text-badge font-medium tracking-badge text-(--color-text-tertiary)"
+            className="font-mono text-badge font-medium tracking-badge text-(--subtle)"
             data-testid={`tasks-kanban-column-count-${column.id}`}
           >
             {tasks.length}
@@ -133,7 +133,7 @@ function KanbanColumn({
       <div className="flex min-h-0 flex-1 flex-col gap-2 pt-2 pb-4">
         {tasks.length === 0 ? (
           <div
-            className="flex flex-1 items-center justify-center rounded-(--radius-diagram) border border-dashed border-(--color-divider) px-3 py-8 text-center text-xs text-(--color-text-tertiary)"
+            className="flex flex-1 items-center justify-center rounded-(--radius-diagram) border border-dashed border-(--line) px-3 py-8 text-center text-xs text-(--subtle)"
             data-testid={`tasks-kanban-column-empty-${column.id}`}
           >
             No tasks
@@ -178,7 +178,7 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
       ) : null}
       {isBlocked ? (
         <span
-          className="text-badge text-(--color-warning)"
+          className="text-badge text-(--warning)"
           data-testid={`tasks-kanban-card-blocked-${task.id}`}
         >
           ● Blocked
@@ -186,13 +186,13 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
       ) : null}
       {failedRunError ? (
         <span
-          className="text-badge text-(--color-danger)"
+          className="text-badge text-(--danger)"
           data-testid={`tasks-kanban-card-error-${task.id}`}
         >
           {failedRunError}
         </span>
       ) : null}
-      <div className="flex items-center justify-between gap-2 text-(--color-text-secondary)">
+      <div className="flex items-center justify-between gap-2 text-(--muted)">
         <span data-testid={`tasks-kanban-card-owner-${task.id}`}>{taskOwnerLabel(task.owner)}</span>
         {canRetry ? (
           <Button
@@ -215,7 +215,7 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
 
   return (
     <TasksListRow
-      className="rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-3.5 py-3"
+      className="rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-3.5 py-3"
       footer={footer}
       onSelect={onSelect}
       selected={isSelected}

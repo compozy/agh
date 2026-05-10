@@ -69,6 +69,6 @@ describe("KindIcon", () => {
     const icon = screen.getByTestId("icon");
     expect(icon.className).toContain("custom-class");
     expect(icon.className).toContain("size-5");
-    expect(icon.className).toContain("--color-accent");
+    expect(icon.className).toContain("--accent");
   });
 });

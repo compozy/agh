@@ -10,14 +10,14 @@ const alertVariants = cva(
       variant: {
         default: "bg-card text-card-foreground",
         destructive:
-          "border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)] *:data-[slot=alert-description]:text-[color:var(--color-danger)]/90",
+          "border-(--danger)/40 bg-(--danger-tint) text-(--danger) *:data-[slot=alert-description]:text-(--danger)/90",
         warning:
-          "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)] *:data-[slot=alert-description]:text-[color:var(--color-warning)]/90",
+          "border-(--warning)/40 bg-(--warning-tint) text-(--warning) *:data-[slot=alert-description]:text-(--warning)/90",
         success:
-          "border-[color:var(--color-success)]/40 bg-[color:var(--color-success-tint)] text-[color:var(--color-success)] *:data-[slot=alert-description]:text-[color:var(--color-success)]/90",
-        info: "border-[color:var(--color-info)]/40 bg-[color:var(--color-info-tint)] text-[color:var(--color-info)] *:data-[slot=alert-description]:text-[color:var(--color-info)]/90",
+          "border-(--success)/40 bg-(--success-tint) text-(--success) *:data-[slot=alert-description]:text-(--success)/90",
+        info: "border-(--info)/40 bg-(--info-tint) text-(--info) *:data-[slot=alert-description]:text-(--info)/90",
         accent:
-          "border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)] *:data-[slot=alert-description]:text-[color:var(--color-accent)]/90",
+          "border-(--accent)/40 bg-(--accent-tint) text-(--accent) *:data-[slot=alert-description]:text-(--accent)/90",
       },
     },
     defaultVariants: {

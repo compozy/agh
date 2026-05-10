@@ -24,10 +24,10 @@ describe("Metric", () => {
   });
 
   it.each<{ tone: MetricTone; color: string }>([
-    { tone: "success", color: "var(--color-success)" },
-    { tone: "danger", color: "var(--color-danger)" },
-    { tone: "warning", color: "var(--color-warning)" },
-    { tone: "accent", color: "var(--color-accent)" },
+    { tone: "success", color: "var(--success)" },
+    { tone: "danger", color: "var(--danger)" },
+    { tone: "warning", color: "var(--warning)" },
+    { tone: "accent", color: "var(--accent)" },
   ])("Should apply the $tone semantic color to the value", ({ tone, color }) => {
     const { container } = render(<Metric label="Signal" value="08" tone={tone} />);
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
@@ -40,7 +40,7 @@ describe("Metric", () => {
   it("Should default the value color to text-primary", () => {
     const { container } = render(<Metric label="Sessions" value="12" />);
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
-    expect(value?.style.color).toBe("var(--color-text-primary)");
+    expect(value?.style.color).toBe("var(--fg)");
   });
 
   it("Should render the optional detail slot inline with the value", () => {
@@ -58,7 +58,7 @@ describe("Metric", () => {
     const subtext = container.querySelector<HTMLElement>('[data-slot="metric-subtext"]');
     expect(subtext?.textContent).toBe("Across 8 sessions");
     expect(subtext?.className).toContain("text-[13px]");
-    expect(subtext?.className).toContain("text-[color:var(--color-text-secondary)]");
+    expect(subtext?.className).toContain("text-[color:var(--muted)]");
   });
 
   it("Should omit the detail and subtext slots when those props are absent", () => {

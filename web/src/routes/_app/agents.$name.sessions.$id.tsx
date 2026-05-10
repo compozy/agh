@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, MessageCircle } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import {
@@ -19,6 +20,9 @@ import { useSessionVaultSecrets } from "@/systems/vault";
 import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `${params.name} · Session`, icon: MessageCircle },
+  }),
   component: SessionPage,
 });
 
@@ -127,7 +131,7 @@ export function SessionPage() {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -136,10 +140,8 @@ export function SessionPage() {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
-            {error?.message ?? "Session not found"}
-          </p>
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">{error?.message ?? "Session not found"}</p>
         </div>
       </div>
     );

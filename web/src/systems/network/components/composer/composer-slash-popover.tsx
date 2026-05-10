@@ -83,7 +83,7 @@ export function ComposerSlashPopover({
     <Command
       aria-label="Slash commands"
       className={cn(
-        "absolute bottom-full left-0 mb-2 w-72 rounded-mono-badge border border-(--color-divider) bg-(--color-canvas) p-1 text-small-body",
+        "absolute bottom-full left-0 mb-2 w-72 rounded-mono-badge border border-(--line) bg-(--canvas) p-1 text-small-body",
         className
       )}
       data-testid="network-composer-slash-popover"
@@ -96,7 +96,7 @@ export function ComposerSlashPopover({
             aria-disabled={entry.disabled ? "true" : "false"}
             className={cn(
               "items-baseline rounded-chip px-3 py-2",
-              entry.disabled ? "cursor-not-allowed text-(--color-text-tertiary)" : null
+              entry.disabled ? "cursor-not-allowed text-(--subtle)" : null
             )}
             data-disabled={entry.disabled ? "true" : "false"}
             data-testid={`network-composer-slash-option-${entry.command}`}
@@ -113,14 +113,12 @@ export function ComposerSlashPopover({
             <span
               className={cn(
                 "font-mono text-xs tracking-mono",
-                entry.disabled ? "text-(--color-text-tertiary)" : "text-(--color-text-primary)"
+                entry.disabled ? "text-(--subtle)" : "text-(--fg)"
               )}
             >
               /{entry.command}
             </span>
-            <span className="truncate text-xs text-(--color-text-tertiary)">
-              {entry.description}
-            </span>
+            <span className="truncate text-xs text-(--subtle)">{entry.description}</span>
             {entry.disabled ? <CommandShortcut>Post-MVP</CommandShortcut> : null}
           </CommandItem>
         ))}

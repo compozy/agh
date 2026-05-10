@@ -41,7 +41,7 @@ function KnowledgeDecisionsSection({
     <Section data-testid="knowledge-decisions-section" label="Recent controller decisions">
       {isLoading ? (
         <div
-          className="flex items-center gap-2 px-1 py-3 text-xs text-(--color-text-tertiary)"
+          className="flex items-center gap-2 px-1 py-3 text-xs text-(--subtle)"
           data-testid="knowledge-decisions-loading"
         >
           <Spinner /> Loading decisions…
@@ -64,7 +64,7 @@ function KnowledgeDecisionsSection({
         />
       ) : (
         <ul
-          className="flex flex-col divide-y divide-(--color-divider) rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)"
+          className="flex flex-col divide-y divide-(--line) rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft)"
           data-testid="knowledge-decisions-list"
         >
           {decisions.map(decision => (
@@ -88,7 +88,7 @@ function KnowledgeDecisionsSection({
                 >
                   {decisionSourceLabel(decision.source)}
                 </Pill>
-                <span className="ml-auto font-mono text-eyebrow uppercase tracking-badge text-(--color-text-tertiary)">
+                <span className="ml-auto font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
                   {formatKnowledgeDateTime(decision.decided_at)}
                 </span>
                 {onRevertDecision && decision.applied_at ? (
@@ -109,10 +109,8 @@ function KnowledgeDecisionsSection({
                   </Button>
                 ) : null}
               </div>
-              {decision.reason ? (
-                <p className="text-xs text-(--color-text-secondary)">{decision.reason}</p>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-3 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
+              {decision.reason ? <p className="text-xs text-(--muted)">{decision.reason}</p> : null}
+              <div className="flex flex-wrap items-center gap-3 font-mono text-badge uppercase tracking-badge text-(--subtle)">
                 <span data-testid={`knowledge-decision-confidence-${decision.id}`}>
                   Confidence {decision.confidence.toFixed(2)}
                 </span>
@@ -131,7 +129,7 @@ function KnowledgeDecisionsSection({
               </div>
               {revertError && revertingDecisionId === decision.id ? (
                 <p
-                  className="text-[12px] text-[color:var(--color-danger)]"
+                  className="text-[12px] text-[color:var(--danger)]"
                   data-testid={`knowledge-decision-revert-error-${decision.id}`}
                 >
                   {revertError}

@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 function ThinkingFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-full max-w-2xl rounded-2xl border border-(--color-divider) bg-(--color-canvas) py-3">
+      <div className="w-full max-w-2xl rounded-2xl border border-(--line) bg-(--canvas) py-3">
         {children}
       </div>
     </CenteredSurface>

@@ -8,7 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  PageHeader,
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
@@ -105,30 +104,32 @@ export function ChannelHeader({
 
   return (
     <header className="flex flex-col" data-testid="network-channel-header">
-      <PageHeader
-        className="px-5 py-3"
-        icon={Hash}
-        subtitle={
-          <span className="truncate" data-testid="network-channel-meta">
-            {metaSegments.map(segment => (
-              <span key={segment}>
-                {segment !== metaSegments[0] ? (
-                  <span aria-hidden="true" className="mx-2 text-(--color-text-tertiary)">
-                    /
-                  </span>
-                ) : null}
-                <span data-testid={`network-channel-meta-${segment}`}>{segment}</span>
+      <div
+        data-slot="page-header"
+        className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-5 py-3"
+      >
+        <div
+          data-slot="page-header-main"
+          className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
+        >
+          <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
+            <span
+              aria-hidden="true"
+              data-slot="page-header-icon"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
+            >
+              <Hash className="size-3.5" />
+            </span>
+            <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
+              <span className="truncate" data-testid="network-channel-title">
+                {channel.channel}
               </span>
-            ))}
-          </span>
-        }
-        title={
-          <span className="truncate" data-testid="network-channel-title">
-            {channel.channel}
-          </span>
-        }
-        controls={
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            </h1>
+          </div>
+          <div
+            data-slot="page-header-controls"
+            className="ml-auto flex shrink-0 items-center gap-1.5"
+          >
             <Button
               aria-disabled="true"
               aria-label="Search channel - coming soon"
@@ -146,9 +147,7 @@ export function ChannelHeader({
             <Button
               aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
               aria-pressed={inspectorOpen}
-              className={cn(
-                inspectorOpen ? "bg-(--color-surface-elevated) text-(--color-text-primary)" : null
-              )}
+              className={cn(inspectorOpen ? "bg-(--elevated) text-(--fg)" : null)}
               data-state={inspectorOpen ? "open" : "closed"}
               data-testid="network-channel-inspector-toggle"
               onClick={onInspectorToggle}
@@ -187,8 +186,25 @@ export function ChannelHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        }
-      />
+        </div>
+        <div
+          data-slot="page-header-subtitle"
+          className="max-w-152 text-small-body text-(--muted)"
+        >
+          <span className="truncate" data-testid="network-channel-meta">
+            {metaSegments.map(segment => (
+              <span key={segment}>
+                {segment !== metaSegments[0] ? (
+                  <span aria-hidden="true" className="mx-2 text-(--subtle)">
+                    /
+                  </span>
+                ) : null}
+                <span data-testid={`network-channel-meta-${segment}`}>{segment}</span>
+              </span>
+            ))}
+          </span>
+        </div>
+      </div>
 
       <ChannelTabs
         activeTab={activeTab}

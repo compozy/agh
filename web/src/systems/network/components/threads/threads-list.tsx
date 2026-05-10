@@ -59,8 +59,8 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
     <Item
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-none border-b border-(--color-divider) px-5 py-4",
-        active ? "bg-(--color-surface)" : null
+        "rounded-none border-b border-(--line) px-5 py-4",
+        active ? "bg-(--canvas-soft)" : null
       )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
       indicator={active ? "rail" : "none"}
@@ -81,7 +81,7 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
           <ThreadWorkPill openWorkCount={openWorkCount} />
         </ItemHeader>
 
-        <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
+        <p className="line-clamp-2 text-small-body text-(--muted)">
           {thread.last_message_preview ?? "No messages yet."}
         </p>
 
@@ -121,7 +121,7 @@ function ThreadsListSkeleton() {
     <SkeletonRows
       count={5}
       data-testid="network-thread-list-skeleton"
-      rowClassName="border-b border-(--color-divider) px-5 py-4"
+      rowClassName="border-b border-(--line) px-5 py-4"
     >
       <Skeleton className="h-3.5 w-2/3" />
       <Skeleton className="h-3 w-full" />
@@ -164,7 +164,7 @@ export function ThreadsList({
       data-testid="network-thread-list"
     >
       <div
-        className="flex items-center justify-between gap-3 border-b border-(--color-divider) px-5 py-2"
+        className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
         data-testid="network-thread-list-subheader"
       >
         <Eyebrow>

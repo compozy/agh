@@ -53,7 +53,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="mt-1 flex items-center gap-1 text-badge font-medium text-(--color-text-tertiary)/40 hover:text-(--color-text-tertiary)/70 transition-colors"
+              className="mt-1 flex items-center gap-1 text-badge font-medium text-(--subtle)/40 hover:text-(--subtle)/70 transition-colors"
             >
               <ChevronsUpDown className="size-3" />
               Show full output ({totalLines} lines)
@@ -63,7 +63,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              className="mt-1 flex items-center gap-1 text-badge font-medium text-(--color-text-tertiary)/40 hover:text-(--color-text-tertiary)/70 transition-colors"
+              className="mt-1 flex items-center gap-1 text-badge font-medium text-(--subtle)/40 hover:text-(--subtle)/70 transition-colors"
             >
               <ChevronsUpDown className="size-3" />
               Collapse

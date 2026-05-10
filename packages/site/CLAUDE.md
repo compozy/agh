@@ -12,15 +12,19 @@ Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16
 ## Build Commands
 
 ```bash
-cd packages/site && bun run source:generate   # Fumadocs MDX → .source/  (runs before typecheck/test/build)
-cd packages/site && bun run content:generate  # Velite MDX/YAML → .velite/  (runs after source:generate)
-cd packages/site && bun run typecheck
-cd packages/site && bun run test                # vitest run
-cd packages/site && bun run build               # next build
-cd packages/site && bun run dev                 # next dev (predev runs both generators)
-make site-dev                                   # equivalent dev shortcut
-make site-build                                  # equivalent build shortcut
-make cli-docs                                   # regenerate CLI reference from cobra JSON export
+# Turbo-backed validation commands run from the repo root.
+make bun-typecheck                                      # full Bun workspace typecheck through turbo
+make bun-test                                           # full Bun workspace test suite through turbo
+bunx turbo run typecheck --filter=./packages/site       # focused @agh/site typecheck
+bunx turbo run test --filter=./packages/site            # focused @agh/site tests
+bunx turbo run build --filter=./packages/site           # focused @agh/site build
+
+# Site generators and local dev shortcuts.
+cd packages/site && bun run source:generate             # Fumadocs MDX -> .source/
+cd packages/site && bun run content:generate            # Velite MDX/YAML -> .velite/
+cd packages/site && bun run dev                         # next dev (predev runs both generators)
+make site-dev                                           # equivalent dev shortcut
+make cli-docs                                           # regenerate CLI reference from cobra JSON export
 ```
 
 `predev`, `prebuild`, `pretypecheck`, `pretest` all run `source:generate` then `content:generate` in series. Both `.source/` and `.velite/` are generated artifacts — never commit them.
@@ -57,8 +61,10 @@ make cli-docs                                   # regenerate CLI reference from 
 
 ## Testing
 
-- `bun run test` is `vitest run`. Snapshot tests cover MDX rendering; UI tests cover marketing components.
-- After any change to source generation (`source.config.ts`), regenerate via `bun run source:generate` and re-run typecheck.
+- The package `test` script is `vitest run`, but validation MUST invoke it through Turbo: `bunx turbo run test --filter=./packages/site` or `make bun-test` from the repo root.
+- Do not use `cd packages/site && bun run test` or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph.
+- Snapshot tests cover MDX rendering; UI tests cover marketing components.
+- After any change to source generation (`source.config.ts`), regenerate via `cd packages/site && bun run source:generate` and re-run `bunx turbo run typecheck --filter=./packages/site`.
 - Do not commit `out/`, `.source/`, `tsconfig.tsbuildinfo`, or `.next/`.
 
 ## Cross-References

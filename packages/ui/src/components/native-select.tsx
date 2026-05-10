@@ -20,7 +20,7 @@ function NativeSelect({ className, size = "default", ...props }: NativeSelectPro
       <select
         data-slot="native-select"
         data-size={size}
-        className="h-9 w-full min-w-0 appearance-none rounded-lg border border-input bg-[color:var(--color-surface-elevated)] py-0 pr-9 pl-3 text-sm text-[color:var(--color-text-primary)] transition-colors outline-none select-none selection:bg-[color:var(--color-accent-tint-strong)] selection:text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-[color:var(--color-surface-elevated)] disabled:bg-[color:var(--color-surface)] disabled:text-[color:var(--color-disabled)] disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=sm]:h-8 data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-[size=sm]:pr-8 data-[size=sm]:pl-2.5"
+        className="h-9 w-full min-w-0 appearance-none rounded-md border border-(--line) bg-(--elevated) py-0 pr-9 pl-3 text-sm text-(--fg) transition-colors outline-none select-none selection:bg-(--accent-tint-strong) selection:text-(--fg) placeholder:text-(--subtle) focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-(--elevated) disabled:bg-(--canvas-soft) disabled:text-(--disabled) disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=sm]:h-8 data-[size=sm]:rounded-sm data-[size=sm]:pr-8 data-[size=sm]:pl-2.5"
         {...props}
       />
       <ChevronDownIcon

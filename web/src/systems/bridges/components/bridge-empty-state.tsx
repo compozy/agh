@@ -32,7 +32,7 @@ export function BridgeEmptyState({ onCreate, providers }: BridgeEmptyStateProps)
         Create Bridge
       </Button>
       {!canCreate && hasInstalledProviders ? (
-        <p className="text-xs text-(--color-text-tertiary)">
+        <p className="text-xs text-(--subtle)">
           Installed providers are currently unavailable. Resolve extension health first.
         </p>
       ) : null}
@@ -46,7 +46,7 @@ export function BridgeEmptyState({ onCreate, providers }: BridgeEmptyStateProps)
 
         {hasInstalledProviders ? (
           <Section label="Installed providers">
-            <p className="text-small-body text-(--color-text-secondary)">
+            <p className="text-small-body text-(--muted)">
               Providers come from installed bridge-capable extensions. Unavailable providers stay
               visible so the operator can diagnose runtime state.
             </p>

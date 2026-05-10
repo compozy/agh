@@ -183,16 +183,14 @@ function PermissionRejectedNotice({ permission }: { permission: PermissionReques
       <div
         className={cn(
           "flex max-w-3xl items-start gap-2 rounded-[var(--radius-md)] border px-3 py-2",
-          "border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger)]/8",
-          "text-xs text-[color:var(--color-danger)]"
+          "border-[color:var(--danger)]/30 bg-[color:var(--danger)]/8",
+          "text-xs text-[color:var(--danger)]"
         )}
       >
         <ShieldOff aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-[color:var(--color-text-primary)]">
-            Permission Rejected
-          </div>
-          <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[color:var(--color-text-secondary)]">
+          <div className="font-medium text-[color:var(--fg)]">Permission Rejected</div>
+          <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[color:var(--muted)]">
             <span className="font-mono">{permission.toolName}</span>
             {permission.resource ? <span className="truncate">{permission.resource}</span> : null}
           </div>

@@ -1,5 +1,7 @@
+import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   ChannelThreadComposer,
   ThreadsList,
@@ -13,6 +15,9 @@ interface ThreadsRouteSearch {
 }
 
 export const Route = createFileRoute("/_app/network/$channel/threads")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `#${params.channel} · Threads`, icon: NetworkIcon },
+  }),
   component: NetworkChannelThreadsRoute,
   validateSearch: (search: Record<string, unknown>): ThreadsRouteSearch => ({
     view: search.view === "full" ? "full" : undefined,
@@ -61,7 +66,7 @@ function NetworkChannelThreadsRoute() {
 
         {showOverlay && isFullPage ? (
           <div
-            className="flex min-h-0 flex-1 flex-col bg-(--color-canvas-deep)"
+            className="flex min-h-0 flex-1 flex-col bg-(--canvas)"
             data-testid="network-thread-overlay-fullpage"
           >
             <Outlet />

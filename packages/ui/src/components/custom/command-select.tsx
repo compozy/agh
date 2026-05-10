@@ -62,7 +62,7 @@ function CommandSelectTrigger({
       data-slot="command-select-trigger"
       type={type}
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-none transition-colors outline-none hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/50",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors outline-none hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/50",
         className
       )}
       {...props}
@@ -124,7 +124,7 @@ function CommandSelectChip({
       data-slot="command-select-chip"
       type={type}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-sm border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-[color:var(--color-text-secondary)]",
+        "inline-flex max-w-full items-center gap-1 rounded-sm border border-[color:var(--line)] bg-[color:var(--canvas-soft)] px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-[color:var(--muted)]",
         className
       )}
       onClick={event => {

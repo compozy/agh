@@ -41,11 +41,11 @@ const itemVariants = cva(
         muted: "border-transparent bg-muted/50",
       },
       selectable: {
-        true: "relative text-left hover:bg-[color:var(--color-hover)] focus-visible:border-[color:var(--color-accent)] focus-visible:ring-[color:var(--color-accent)]/40",
+        true: "relative text-left hover:bg-(--hover) focus-visible:border-(--accent) focus-visible:ring-(--accent)/40",
         false: "",
       },
       selected: {
-        true: "bg-[color:var(--color-surface)]",
+        true: "bg-(--canvas-soft)",
         false: "",
       },
       size: {
@@ -64,12 +64,14 @@ const itemVariants = cva(
 );
 
 type ItemIndicator = "rail" | "dot" | "none";
+type ItemIndicatorTone = "white" | "accent";
 type ItemAs = "div" | "button";
 
 interface ItemOwnProps extends VariantProps<typeof itemVariants> {
   as?: ItemAs;
   disabled?: boolean;
   indicator?: ItemIndicator;
+  indicatorTone?: ItemIndicatorTone;
 }
 
 type ItemDivProps = ItemOwnProps & Omit<useRender.ComponentProps<"div">, keyof ItemOwnProps>;
@@ -110,10 +112,14 @@ function getItemClassName({
   );
 }
 
-function getItemChildren(children: React.ReactNode, indicator: ItemIndicator) {
+function getItemChildren(
+  children: React.ReactNode,
+  indicator: ItemIndicator,
+  tone: ItemIndicatorTone
+) {
   return (
     <>
-      {indicator !== "none" ? <ItemSelectionIndicator kind={indicator} /> : null}
+      {indicator !== "none" ? <ItemSelectionIndicator kind={indicator} tone={tone} /> : null}
       {children}
     </>
   );
@@ -123,9 +129,10 @@ function Item(props: ItemButtonProps): React.ReactElement;
 function Item(props: ItemDivProps): React.ReactElement;
 function Item(props: ItemButtonProps | ItemDivProps) {
   const indicator = props.indicator ?? "none";
+  const indicatorTone: ItemIndicatorTone = props.indicatorTone ?? "white";
   const selectedState = Boolean(props.selected);
   const selectableState = Boolean(props.selectable || selectedState || indicator !== "none");
-  const itemChildren = getItemChildren(props.children, indicator);
+  const itemChildren = getItemChildren(props.children, indicator, indicatorTone);
 
   if (isButtonItemProps(props)) {
     const buttonItemProps = props;
@@ -133,6 +140,7 @@ function Item(props: ItemButtonProps | ItemDivProps) {
       as: _as,
       className,
       indicator: _indicator,
+      indicatorTone: _indicatorTone,
       variant = "default",
       size = "default",
       selected: _selected = false,
@@ -177,6 +185,7 @@ function Item(props: ItemButtonProps | ItemDivProps) {
     as: _as,
     className,
     indicator: _indicator,
+    indicatorTone: _indicatorTone,
     variant = "default",
     size = "default",
     selected: _selected = false,
@@ -215,24 +224,30 @@ function Item(props: ItemButtonProps | ItemDivProps) {
 
 interface ItemSelectionIndicatorProps extends React.ComponentProps<"span"> {
   kind?: ItemIndicator;
+  tone?: ItemIndicatorTone;
 }
 
 function ItemSelectionIndicator({
   className,
   kind = "rail",
+  tone = "white",
   ...props
 }: ItemSelectionIndicatorProps) {
   if (kind === "none") return null;
+
+  const toneClass = tone === "accent" ? "bg-(--accent)" : "bg-(--fg-strong)";
 
   return (
     <span
       aria-hidden="true"
       data-slot="item-selection-indicator"
       data-indicator={kind}
+      data-tone={tone}
       className={cn(
         kind === "rail"
-          ? "absolute top-2 bottom-2 left-0 w-[3px] rounded-r bg-[color:var(--color-accent)]"
-          : "size-1.5 shrink-0 rounded-full bg-[color:var(--color-accent)]",
+          ? "absolute top-2 bottom-2 left-0 w-[2px] rounded-r"
+          : "size-1.5 shrink-0 rounded-full",
+        toneClass,
         className
       )}
       {...props}
@@ -350,4 +365,4 @@ export {
   ItemHeader,
   ItemFooter,
 };
-export type { ItemAs, ItemIndicator, ItemProps, ItemSelectionIndicatorProps };
+export type { ItemAs, ItemIndicator, ItemIndicatorTone, ItemProps, ItemSelectionIndicatorProps };

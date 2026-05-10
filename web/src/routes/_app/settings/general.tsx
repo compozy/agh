@@ -1,8 +1,18 @@
-import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertCircle, ExternalLink, Loader2, Settings as SettingsIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Metric, MetricGrid, PageShell, PillGroup, Section } from "@agh/ui";
+import {
+  Button,
+  Input,
+  Metric,
+  MetricGrid,
+  PageShell,
+  PillGroup,
+  Section,
+  useTopbarSlot,
+} from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
 import {
@@ -15,6 +25,9 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/settings/general")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "General settings", icon: SettingsIcon },
+  }),
   component: GeneralSettingsPage,
 });
 
@@ -66,46 +79,11 @@ function GeneralSettingsPage() {
     () => Object.values(validationErrors).some(message => message !== null),
     [validationErrors]
   );
-
-  if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-general-loading"
-      >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
-      </div>
-    );
-  }
-
-  if (page.error || !page.envelope || !page.draft) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-general-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
-            {page.error?.message ?? "Failed to load general settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const { envelope, draft, setDraft, restart, update } = page;
-  const runtime = envelope.runtime;
-  const configPaths = envelope.config_paths;
-
-  return (
-    <PageShell
-      slug="general"
-      title="General"
-      statusLine={
+  const runtime = page.envelope?.runtime;
+  const configPaths = page.envelope?.config_paths;
+  useTopbarSlot({
+    tabs:
+      runtime && configPaths ? (
         <SettingsStatusLine
           data-testid="settings-page-general-status-line"
           status={runtime.available ? "connected" : "error"}
@@ -118,8 +96,47 @@ function GeneralSettingsPage() {
             </span>,
           ]}
         />
-      }
-      actions={<SettingsPageActions slug="general" restart={restart} />}
+      ) : undefined,
+    actions: page.envelope ? (
+      <SettingsPageActions slug="general" restart={page.restart} />
+    ) : undefined,
+  });
+
+  if (page.isLoading) {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center"
+        data-testid="settings-page-general-loading"
+      >
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+      </div>
+    );
+  }
+
+  if (page.error || !page.envelope || !page.draft) {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center"
+        data-testid="settings-page-general-error"
+      >
+        <div className="flex flex-col items-center gap-2 text-center">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
+            {page.error?.message ?? "Failed to load general settings"}
+          </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { envelope, draft, setDraft, restart, update } = page;
+
+  return (
+    <PageShell
+      slug="general"
       banner={<SettingsRestartBanner slug="general" restart={restart} />}
       footer={
         <SettingsSaveBar
@@ -185,16 +202,16 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
       href={snapshot.release_url}
       rel="noreferrer"
       target="_blank"
-      className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
+      className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
       data-testid="settings-page-general-update-release-link"
     >
-      <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
+      <ExternalLink className="size-3.5 text-(--subtle)" />
       Release notes
     </a>
   ) : null;
   const refreshIndicator = update.isFetching ? (
-    <span className="inline-flex items-center gap-1.5 text-xs text-(--color-text-secondary)">
-      <Loader2 className="size-3.5 animate-spin text-(--color-text-tertiary)" />
+    <span className="inline-flex items-center gap-1.5 text-xs text-(--muted)">
+      <Loader2 className="size-3.5 animate-spin text-(--subtle)" />
       Checking
     </span>
   ) : null;
@@ -270,7 +287,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           label="Next action"
           description="Exact command or package-manager path for this install"
           control={
-            <span className="max-w-136 font-mono text-xs text-(--color-text-primary)">
+            <span className="max-w-136 font-mono text-xs text-(--fg)">
               {snapshot.recommendation}
             </span>
           }
@@ -281,9 +298,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           data-testid="settings-page-general-update-last-error"
           label="Last error"
           description="The last update refresh that failed"
-          control={
-            <span className="max-w-136 font-mono text-xs text-(--color-danger)">{lastError}</span>
-          }
+          control={<span className="max-w-136 font-mono text-xs text-(--danger)">{lastError}</span>}
         />
       ) : null}
     </Section>
@@ -390,9 +405,7 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
           testId: `settings-page-general-permission-${mode}`,
         }))}
       />
-      <p className="text-xs text-(--color-text-tertiary)">
-        {describePermissionMode(draft.permissions.mode)}
-      </p>
+      <p className="text-xs text-(--subtle)">{describePermissionMode(draft.permissions.mode)}</p>
     </Section>
   );
 }
@@ -432,7 +445,7 @@ function SessionSection({
                 })
               }
             />
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
               seconds
             </span>
           </div>

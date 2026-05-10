@@ -89,7 +89,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
           transition={{ duration: 0.2, ease: "easeOut" }}
         />
       }
-      className={cn("fixed inset-0 z-50 bg-black/50", className)}
+      className={cn("fixed inset-0 z-50 bg-(--overlay-scrim)", className)}
       {...props}
     />
   );
@@ -157,7 +157,7 @@ function SheetContent({
               />
             }
             className={cn(
-              "fixed z-50 flex flex-col gap-4 border border-border bg-card bg-clip-padding text-sm text-card-foreground outline-none",
+              "fixed z-50 flex flex-col gap-4 border border-(--line) bg-(--canvas-soft) bg-clip-padding text-sm text-(--fg) shadow-[var(--shadow-overlay)] outline-none",
               SIDE_CLASSES[side],
               className
             )}

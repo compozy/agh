@@ -51,7 +51,7 @@ describe("Popover", () => {
     });
   });
 
-  it("Should use a bordered popover surface without shadow depth", async () => {
+  it("Should paint the popover surface on var(--canvas-soft) with a 1px line-soft ring", async () => {
     render(<PopoverExample defaultOpen />);
     await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
 
@@ -60,10 +60,8 @@ describe("Popover", () => {
     ) as HTMLElement | null;
 
     expect(content).not.toBeNull();
-    expect(content?.className).toContain("border");
-    expect(content?.className).toContain("bg-popover");
-    expect(content?.className).not.toContain("shadow");
-    expect(content?.className).not.toContain("ring-1");
+    expect(content?.className).toContain("bg-(--canvas-soft)");
+    expect(content?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
   });
 
   it("Should throw when PopoverContent is rendered outside <Popover>", () => {

@@ -2,6 +2,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
   Boxes,
+  ChevronsUpDown,
   Clock3,
   LayoutDashboard,
   ListChecks,
@@ -51,7 +52,7 @@ function RailSlot({
         to="/"
         aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-canvas-deep)"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-(--canvas)"
       >
         <Logo variant="symbol" decorative className="size-7" />
       </Link>
@@ -69,8 +70,8 @@ function RailSlot({
             aria-label={`Workspace: ${workspace.name}`}
             aria-pressed={isActive}
             className={cn(
-              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-(--color-surface-elevated) font-mono text-eyebrow font-medium text-(--color-text-secondary) transition-colors hover:bg-(--color-hover) hover:text-(--color-text-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-              isActive && "border-accent text-(--color-text-primary)"
+              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-(--elevated) font-mono text-eyebrow font-medium text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              isActive && "border-accent text-(--fg)"
             )}
           >
             {letter}
@@ -82,7 +83,7 @@ function RailSlot({
         onClick={onAddWorkspace}
         data-testid="add-workspace-btn"
         aria-label="Add workspace"
-        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-(--color-divider) text-(--color-text-tertiary) transition-colors hover:border-accent hover:text-(--color-text-primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-(--line) text-(--subtle) transition-colors hover:border-accent hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Plus aria-hidden="true" className="size-3" />
       </button>
@@ -202,10 +203,45 @@ function SectionLabel({ children, className }: { children: React.ReactNode; clas
   return (
     <SidebarSectionLabel
       data-testid="sidebar-section-label"
-      className={cn("px-2 pt-2 pb-1 text-(--color-text-label) tracking-mono text-micro", className)}
+      className={cn("px-2 pt-2 pb-1 text-(--muted) tracking-mono text-micro", className)}
     >
       {children}
     </SidebarSectionLabel>
+  );
+}
+
+interface WorkspaceSwitcherProps {
+  workspace: WorkspacePayload | undefined;
+}
+
+function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
+  const label = workspace?.name ?? "No workspace";
+  const initial = label.charAt(0).toUpperCase() || "·";
+
+  return (
+    <div
+      data-testid="workspace-switcher"
+      className="flex h-12 w-full items-center gap-2.5 px-3"
+    >
+      <span
+        aria-hidden="true"
+        data-testid="workspace-switcher-avatar"
+        className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) font-mono text-[10.5px] font-medium tracking-[0.05em] text-(--fg)"
+      >
+        {initial}
+      </span>
+      <span
+        data-testid="workspace-switcher-name"
+        className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.014em] text-(--fg)"
+      >
+        {label}
+      </span>
+      <ChevronsUpDown
+        aria-hidden="true"
+        data-testid="workspace-switcher-chevron"
+        className="size-3.5 shrink-0 text-(--subtle)"
+      />
+    </div>
   );
 }
 
@@ -221,7 +257,7 @@ function FooterSlot({ connectionStatus, health }: FooterSlotProps) {
       {health && (
         <span
           data-testid="sidebar-version"
-          className="ml-auto font-mono text-badge text-(--color-text-tertiary)"
+          className="ml-auto font-mono text-badge text-(--subtle)"
         >
           v{health.version}
         </span>
@@ -235,6 +271,7 @@ export interface AppSidebarProps {
   onCollapseChange: (next: boolean) => void;
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
+  activeWorkspace: WorkspacePayload | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
   health: { version: string } | undefined;
@@ -243,6 +280,7 @@ export interface AppSidebarProps {
   agentsLoading: boolean;
   agentsError: boolean;
   sessions: SessionPayload[] | undefined;
+  className?: string;
 }
 
 function AppSidebar({
@@ -250,6 +288,7 @@ function AppSidebar({
   onCollapseChange,
   workspaces,
   activeWorkspaceId,
+  activeWorkspace,
   onSelectWorkspace,
   onAddWorkspace,
   health,
@@ -258,13 +297,14 @@ function AppSidebar({
   agentsLoading,
   agentsError,
   sessions,
+  className,
 }: AppSidebarProps) {
   return (
     <Sidebar
       data-testid="app-sidebar"
+      className={className}
       collapsed={collapsed}
       onCollapse={onCollapseChange}
-      panelWidth={240}
       rail={
         <RailSlot
           workspaces={workspaces}
@@ -273,6 +313,7 @@ function AppSidebar({
           onAddWorkspace={onAddWorkspace}
         />
       }
+      header={<WorkspaceSwitcher workspace={activeWorkspace} />}
       nav={
         <NavSlot
           agents={agents}

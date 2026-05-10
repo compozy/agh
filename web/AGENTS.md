@@ -28,7 +28,8 @@ No production users exist. Never sacrifice code quality for backward compatibili
 
 ## Critical Rules
 
-- **`make web-lint` and `make web-typecheck` MUST pass** before completing ANY web task. Zero warnings, zero errors.
+- **`make web-lint`, `make bun-typecheck`, and `make bun-test` MUST pass** before completing ANY web task. Zero warnings, zero errors.
+- **Frontend typecheck/test validation MUST use Turborepo from the repo root.** Do not use `make web-typecheck`, `make web-test`, `cd web && bun run test`, `bun run --cwd web test`, or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph.
 - **Oxlint has zero tolerance** — any warning is a blocking failure
 - **Follow shadcn kebab-case naming** for all files in `web/`
 - **Native DOM wrappers** — if a component’s root is a single native element (`button`, `input`, `a`, …), its props MUST extend that element’s intrinsic type (`React.ComponentProps<"…">`), merge `className`, and spread `{...props}` onto the node (use `forwardRef` when refs apply). CVA + `VariantProps`: follow the `shadcn` skill. Canonical rule: `.agents/skills/react/SKILL.md` → _Extend native element props_.
@@ -64,13 +65,22 @@ Activate skills **before** writing code. Match task domain → activate all requ
 
 ## Build Commands
 
+Turbo-backed validation commands run from the repo root:
+
 ```bash
-make web-dev             # Start Vite dev server on :3000 (proxies /api to :2123 by default; for isolated QA export AGH_WEB_API_PROXY_TARGET from bootstrap.env first)
-make web-build           # Production build (vite build + tsc --noEmit)
-make web-lint            # Format (oxfmt) + lint (oxlint)
-make web-fmt             # Format with oxfmt
-make web-typecheck       # Type check with tsc
-make web-test            # Run tests (Vitest)
+make bun-typecheck                         # full Bun workspace typecheck through turbo
+make bun-test                              # full Bun workspace test suite through turbo
+bunx turbo run typecheck --filter=./web    # focused agh-web typecheck
+bunx turbo run test --filter=./web         # focused agh-web tests
+```
+
+Local web shortcuts are for development/build/lint only:
+
+```bash
+make web-dev     # Start Vite dev server on :3000 (proxies /api to :2123 by default; for isolated QA export AGH_WEB_API_PROXY_TARGET from bootstrap.env first)
+make web-build   # Production build (vite build + tsc --noEmit)
+make web-lint    # Format (oxfmt) + lint (oxlint)
+make web-fmt     # Format with oxfmt
 ```
 
 ## Structure

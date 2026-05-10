@@ -66,14 +66,14 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
       selected={isSelected}
       selectable
       indicator={isSelected ? "rail" : "none"}
-      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--line)] px-4 py-3"
       data-testid={`automation-item-${job.id}`}
       onClick={onSelect}
     >
       <ItemHeader className="items-start gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot tone={enabledTone} />
-          <ItemTitle className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <ItemTitle className="truncate text-small-body font-medium text-(--fg)">
             {job.name}
           </ItemTitle>
         </div>
@@ -82,7 +82,7 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
         </span>
       </ItemHeader>
 
-      <ItemDescription className="truncate text-xs text-(--color-text-secondary)">
+      <ItemDescription className="truncate text-xs text-(--muted)">
         {describeSchedule(job.schedule)}
       </ItemDescription>
 
@@ -113,14 +113,14 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
       selected={isSelected}
       selectable
       indicator={isSelected ? "rail" : "none"}
-      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--line)] px-4 py-3"
       data-testid={`automation-item-${trigger.id}`}
       onClick={onSelect}
     >
       <ItemHeader className="items-start gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Pill.Dot tone={enabledTone} />
-          <ItemTitle className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <ItemTitle className="truncate text-small-body font-medium text-(--fg)">
             {trigger.name}
           </ItemTitle>
         </div>
@@ -129,7 +129,7 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
         </Pill>
       </ItemHeader>
 
-      <ItemDescription className="line-clamp-2 text-xs text-(--color-text-secondary)">
+      <ItemDescription className="line-clamp-2 text-xs text-(--muted)">
         {formatPromptPreview(trigger.prompt)}
       </ItemDescription>
 
@@ -174,14 +174,14 @@ export function AutomationListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="automation-list-panel">
-      <div className="space-y-2 border-b border-(--color-divider) p-3">
+      <div className="space-y-2 border-b border-(--line) p-3">
         <SearchInput
           data-testid="automation-search-input"
           onChange={onSearchChange}
           placeholder={kind === "jobs" ? "Search jobs..." : "Search triggers..."}
           value={searchQuery}
         />
-        <p className="text-xs text-(--color-text-secondary)" data-testid="automation-list-summary">
+        <p className="text-xs text-(--muted)" data-testid="automation-list-summary">
           {summary}
         </p>
       </div>
@@ -192,7 +192,7 @@ export function AutomationListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="automation-list-loading"
           >
-            <Spinner className="size-5 text-(--color-text-tertiary)" />
+            <Spinner className="size-5 text-(--subtle)" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div

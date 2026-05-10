@@ -1,5 +1,6 @@
 import { UIProvider } from "@agh/ui";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

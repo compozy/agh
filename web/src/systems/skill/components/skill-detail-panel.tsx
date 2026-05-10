@@ -6,7 +6,6 @@ import {
   CodeBlock,
   Empty,
   Pill,
-  PageHeader,
   Section,
   Spinner,
   Switch,
@@ -83,11 +82,11 @@ function SkillContentSection({
   if (isLoading) {
     return (
       <Card
-        className="flex-row items-center px-4 py-3 text-small-body text-(--color-text-secondary)"
+        className="flex-row items-center px-4 py-3 text-small-body text-(--muted)"
         data-testid="content-loading"
         size="sm"
       >
-        <Spinner aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-4 text-(--subtle)" />
         Loading full skill content…
       </Card>
     );
@@ -95,7 +94,7 @@ function SkillContentSection({
   if (error) {
     return (
       <Card className="px-4 py-3" data-testid="content-error" size="sm">
-        <p className="text-small-body text-(--color-danger)">
+        <p className="text-small-body text-(--danger)">
           {error.message ?? "Failed to load full content."}
         </p>
         <Button
@@ -112,7 +111,7 @@ function SkillContentSection({
   }
   return (
     <Card className="px-4 py-3" data-testid="content-empty" size="sm">
-      <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
+      <p className="text-small-body leading-relaxed text-(--muted)">
         Full skill instructions are loaded on demand.
       </p>
       <div>
@@ -176,7 +175,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--color-divider)"
+          className="overflow-hidden rounded-lg border border-(--line)"
           data-testid="skill-recent-calls-table"
         >
           <Table>
@@ -205,10 +204,8 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                       }
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-(--color-text-secondary)">
-                    {call.label}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-eyebrow text-(--color-text-tertiary)">
+                  <TableCell className="font-mono text-xs text-(--muted)">{call.label}</TableCell>
+                  <TableCell className="text-right font-mono text-eyebrow text-(--subtle)">
                     {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "--"}
                   </TableCell>
                 </TableRow>
@@ -240,7 +237,7 @@ function SkillDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="skill-detail-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -288,12 +285,34 @@ function SkillDetailPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="skill-detail-panel">
-      <PageHeader
-        count={undefined}
-        icon={() => <Wrench className="size-3.5" data-testid="skill-detail-icon" />}
-        meta={<SkillDetailMeta skill={skill} />}
-        title={<span data-testid="skill-detail-title">{skill.name}</span>}
-      />
+      <header
+        data-slot="page-header"
+        className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
+      >
+        <div
+          data-slot="page-header-main"
+          className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
+        >
+          <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
+            <span
+              aria-hidden="true"
+              data-slot="page-header-icon"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
+            >
+              <Wrench className="size-3.5" data-testid="skill-detail-icon" />
+            </span>
+            <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
+              <span data-testid="skill-detail-title">{skill.name}</span>
+            </h1>
+          </div>
+          <div
+            data-slot="page-header-meta"
+            className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-(--muted)"
+          >
+            <SkillDetailMeta skill={skill} />
+          </div>
+        </div>
+      </header>
 
       <div className="flex flex-col gap-6 px-6 py-5">
         <Section
@@ -301,7 +320,7 @@ function SkillDetailPanel({
           right={
             <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
               <span
-                className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)"
+                className="font-mono text-eyebrow uppercase tracking-badge text-(--muted)"
                 id="skill-enabled-label"
               >
                 {skill.enabled ? "Enabled" : "Disabled"}
@@ -317,12 +336,8 @@ function SkillDetailPanel({
           }
         >
           <div className="flex flex-col gap-3">
-            <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
-              {skill.description}
-            </p>
-            <span className="truncate font-mono text-eyebrow text-(--color-text-tertiary)">
-              {skill.dir}
-            </span>
+            <p className="text-small-body leading-relaxed text-(--muted)">{skill.description}</p>
+            <span className="truncate font-mono text-eyebrow text-(--subtle)">{skill.dir}</span>
             <SkillContentSection
               content={content}
               error={contentError}

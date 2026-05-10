@@ -78,9 +78,7 @@ function DirectRoomRailRow({ channel, direct, active, selfPeerId }: DirectRoomRa
       <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={20} />
       <span className="min-w-0 flex-1 truncate">@{otherPeerId}</span>
       {lastActivity ? (
-        <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
-          {lastActivity}
-        </span>
+        <span className="shrink-0 font-mono text-badge text-(--subtle)">{lastActivity}</span>
       ) : null}
     </Link>
   );
@@ -110,7 +108,7 @@ export function ChannelRail({
   return (
     <aside
       aria-label="Network channels"
-      className="flex min-h-0 w-[260px] shrink-0 flex-col border-r border-(--color-divider) bg-(--color-canvas-deep)"
+      className="flex min-h-0 w-[260px] shrink-0 flex-col border-r border-(--line) bg-(--canvas)"
       data-testid="network-channel-rail"
     >
       <div className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
@@ -127,7 +125,7 @@ export function ChannelRail({
             </div>
           ) : !hasAnyChannel ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
+              className="px-2 py-1 text-eyebrow text-(--subtle)"
               data-testid="network-channels-empty"
             >
               No channels yet.
@@ -162,7 +160,7 @@ export function ChannelRail({
           <SidebarSectionLabel>{DIRECT_ROOMS_HEADING}</SidebarSectionLabel>
           {!activeChannel ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
+              className="px-2 py-1 text-eyebrow text-(--subtle)"
               data-testid="network-rail-directs-empty"
             >
               Select a channel to see direct rooms.
@@ -175,7 +173,7 @@ export function ChannelRail({
             </div>
           ) : !hasAnyDirect ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
+              className="px-2 py-1 text-eyebrow text-(--subtle)"
               data-testid="network-rail-directs-empty"
             >
               No direct rooms yet.

@@ -136,7 +136,7 @@ function KnowledgeDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="knowledge-detail-loading"
       >
-        <Spinner className="size-5 text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -198,20 +198,20 @@ function KnowledgeDetailPanel({
       className="flex min-h-0 flex-1 flex-col overflow-y-auto"
       data-testid="knowledge-detail-panel"
     >
-      <header className="flex flex-col gap-3 border-b border-(--color-divider) px-6 py-5">
+      <header className="flex flex-col gap-3 border-b border-(--line) px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span
               aria-hidden="true"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--color-surface-elevated) text-accent"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--elevated) text-accent"
             >
               <BookOpen className="size-4" />
             </span>
             <div className="flex min-w-0 flex-col">
-              <h2 className="truncate text-item-title font-semibold tracking-tight text-(--color-text-primary)">
+              <h2 className="truncate text-item-title font-semibold tracking-tight text-(--fg)">
                 {memory.name}
               </h2>
-              <span className="truncate font-mono text-eyebrow text-(--color-text-tertiary)">
+              <span className="truncate font-mono text-eyebrow text-(--subtle)">
                 {memory.filename}
               </span>
             </div>
@@ -232,10 +232,10 @@ function KnowledgeDetailPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Pill.Dot tone={memory.staleness_banner ? "warning" : "success"} />
-          <span className="text-small-body text-(--color-text-secondary)">
+          <span className="text-small-body text-(--muted)">
             {memory.staleness_banner ?? "Active"}
           </span>
-          <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
+          <span className="font-mono text-eyebrow text-(--subtle)">
             Updated {formatKnowledgeRelativeTime(memory.mod_time)}
           </span>
           {memory.superseded_by ? (
@@ -249,9 +249,7 @@ function KnowledgeDetailPanel({
       <div className="flex flex-col gap-6 px-6 py-5">
         {memory.description ? (
           <Section label="Description">
-            <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
-              {memory.description}
-            </p>
+            <p className="text-small-body leading-relaxed text-(--muted)">{memory.description}</p>
           </Section>
         ) : null}
 
@@ -263,7 +261,7 @@ function KnowledgeDetailPanel({
 
         <Section label="Metadata">
           <dl
-            className="flex flex-col divide-y divide-(--color-divider) rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)"
+            className="flex flex-col divide-y divide-(--line) rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft)"
             data-testid="metadata-table"
           >
             {metadataRows.map(row => (
@@ -272,14 +270,14 @@ function KnowledgeDetailPanel({
                 data-testid={`metadata-row-${row.key}`}
                 key={row.key}
               >
-                <dt className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)">
+                <dt className="font-mono text-eyebrow uppercase tracking-badge text-(--muted)">
                   {row.key}
                 </dt>
                 <dd className="min-w-0 text-right">
                   {row.tone === "mono" ? (
                     <Pill mono>{row.value}</Pill>
                   ) : (
-                    <span className="text-small-body text-(--color-text-primary)">{row.value}</span>
+                    <span className="text-small-body text-(--fg)">{row.value}</span>
                   )}
                 </dd>
               </div>
@@ -297,7 +295,7 @@ function KnowledgeDetailPanel({
         />
       </div>
 
-      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-(--color-divider) px-6 py-4">
+      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-(--line) px-6 py-4">
         {onEdit ? (
           <Button
             data-testid="edit-memory-btn"
@@ -323,12 +321,12 @@ function KnowledgeDetailPanel({
           Delete
         </Button>
         {deleteError ? (
-          <span className="text-xs text-(--color-danger)" data-testid="knowledge-delete-error">
+          <span className="text-xs text-(--danger)" data-testid="knowledge-delete-error">
             {deleteError}
           </span>
         ) : null}
         {editError ? (
-          <span className="text-xs text-(--color-danger)" data-testid="knowledge-edit-error">
+          <span className="text-xs text-(--danger)" data-testid="knowledge-edit-error">
             {editError}
           </span>
         ) : null}

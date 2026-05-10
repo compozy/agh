@@ -70,7 +70,7 @@ function SplitPane({
         <div
           data-slot="split-pane-list"
           className={cn(
-            "flex min-h-0 shrink-0 flex-col bg-[color:var(--color-canvas)]",
+            "flex min-h-0 shrink-0 flex-col bg-[color:var(--canvas)]",
             stackNarrowDetail ? "border-b border-border" : "border-r border-border"
           )}
           style={{ width: narrow ? "100%" : listWidth }}
@@ -81,7 +81,7 @@ function SplitPane({
       {showDetail ? (
         <div
           data-slot="split-pane-detail"
-          className="flex min-h-0 min-w-0 flex-1 flex-col bg-[color:var(--color-canvas)]"
+          className="flex min-h-0 min-w-0 flex-1 flex-col bg-[color:var(--canvas)]"
         >
           {narrow && hasDetail && !stackNarrowDetail ? (
             <div
@@ -92,7 +92,7 @@ function SplitPane({
                 type="button"
                 data-slot="split-pane-back"
                 onClick={onDetailClose}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:var(--color-hover)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:outline-none"
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:var(--hover)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:outline-none"
               >
                 <ChevronLeftIcon aria-hidden="true" className="size-3.5" />
                 <span>{backLabel}</span>

@@ -28,17 +28,14 @@ export const ToolCallCard = memo(
         aria-hidden="true"
         data-slot="tool-call-card-icon"
         data-testid="tool-call-icon"
-        className="size-3.5 shrink-0 text-(--color-danger)"
+        className="size-3.5 shrink-0 text-(--danger)"
       />
     ) : (
       <Icon
         aria-hidden="true"
         data-slot="tool-call-card-icon"
         data-testid="tool-call-icon"
-        className={cn(
-          "size-3.5 shrink-0",
-          card.isRunning ? "text-accent" : "text-(--color-text-tertiary)"
-        )}
+        className={cn("size-3.5 shrink-0", card.isRunning ? "text-accent" : "text-(--subtle)")}
       />
     );
 
@@ -78,9 +75,7 @@ export const ToolCallCard = memo(
             toolName={
               <span
                 data-testid={card.labelTestId}
-                className={cn(
-                  card.isError ? "text-(--color-danger)" : "text-(--color-text-primary)"
-                )}
+                className={cn(card.isError ? "text-(--danger)" : "text-(--fg)")}
               >
                 {card.label}
               </span>
@@ -89,8 +84,8 @@ export const ToolCallCard = memo(
             status={card.status}
             icon={iconNode}
             className={cn(
-              "rounded-md transition-colors hover:border-(--color-hover)",
-              "data-[status=error]:border-(--color-danger)/40"
+              "rounded-md transition-colors hover:border-(--hover)",
+              "data-[status=error]:border-(--danger)/40"
             )}
           />
           {card.hasResult ? (
@@ -104,7 +99,7 @@ export const ToolCallCard = memo(
 
         {card.expanded && card.hasResult ? (
           <div
-            className="mt-1 mb-2 rounded-md border border-(--color-divider) bg-(--color-canvas-deep) p-3"
+            className="mt-1 mb-2 rounded-md border border-(--line) bg-(--canvas) p-3"
             data-testid="tool-card-expanded"
           >
             <ExpandedToolContent message={message} />

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { settingsMemoryConfigFixture } from "@/systems/settings/mocks/fixtures";

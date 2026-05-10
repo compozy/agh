@@ -90,4 +90,19 @@ describe("Empty", () => {
     expect(empty?.className).not.toMatch(/\bmin-h-0\b/);
     expect(empty?.className).not.toMatch(/\bh-full\b/);
   });
+
+  it("Should render the icon well as 38x38 with a 9px radius", () => {
+    const { container } = render(<Empty title="Nothing" />);
+    const iconSlot = container.querySelector('[data-slot="empty-icon"]');
+    expect(iconSlot?.className).toContain("size-[38px]");
+    expect(iconSlot?.className).toContain("rounded-[9px]");
+  });
+
+  it("Should render the title at 18px on the canonical strong-fg color", () => {
+    const { container } = render(<Empty title="Nothing" />);
+    const title = container.querySelector('[data-slot="empty-title"]') as HTMLElement | null;
+    expect(title?.className).toContain("text-[18px]");
+    expect(title?.className).toContain("text-(--fg-strong)");
+    expect(title?.style.fontWeight).toBe("510");
+  });
 });

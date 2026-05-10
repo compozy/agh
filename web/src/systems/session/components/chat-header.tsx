@@ -67,7 +67,7 @@ export function ChatHeader({
       <div
         className={cn(
           "flex h-12 items-center justify-between gap-3 border-b px-4",
-          "border-(--color-divider) bg-(--color-surface-panel)/90 backdrop-blur"
+          "border-(--line) bg-(--canvas-soft)"
         )}
         data-testid="chat-header"
       >
@@ -83,28 +83,19 @@ export function ChatHeader({
             aria-label={`Session state: ${session.state}`}
           />
           <span className="sr-only">{`Session state: ${session.state}`}</span>
-          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <span className="truncate text-small-body font-medium text-(--fg)">
             {session.agent_name}
           </span>
 
-          <ChevronRight
-            aria-hidden="true"
-            className="size-3 shrink-0 text-(--color-text-tertiary)"
-          />
+          <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
 
-          <span
-            className="truncate text-small-body text-(--color-text-secondary)"
-            data-testid="session-name"
-          >
+          <span className="truncate text-small-body text-(--muted)" data-testid="session-name">
             {session.name?.trim() || session.id}
           </span>
 
           {providerLabel ? (
             <>
-              <ChevronRight
-                aria-hidden="true"
-                className="size-3 shrink-0 text-(--color-text-tertiary)"
-              />
+              <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
               <Pill
                 mono
                 tone="accent"
@@ -118,10 +109,7 @@ export function ChatHeader({
 
           {workspaceName ? (
             <>
-              <ChevronRight
-                aria-hidden="true"
-                className="size-3 shrink-0 text-(--color-text-tertiary)"
-              />
+              <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
               <Pill
                 mono
                 tone="neutral"

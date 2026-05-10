@@ -63,7 +63,7 @@ describe("Sheet", () => {
     });
   });
 
-  it("Should use a flat scrim and bordered sheet panel", async () => {
+  it("Should use the token scrim and adopt --shadow-overlay on the sheet panel", async () => {
     render(<SheetExample defaultOpen />);
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
 
@@ -73,11 +73,11 @@ describe("Sheet", () => {
     const dialog = screen.getByRole("dialog");
 
     expect(overlay).not.toBeNull();
-    expect(overlay?.className).toContain("bg-black/50");
+    expect(overlay?.className).toContain("bg-(--overlay-scrim)");
     expect(overlay?.className).not.toContain("backdrop-blur");
-    expect(dialog.className).toContain("bg-card");
-    expect(dialog.className).toContain("border-border");
-    expect(dialog.className).not.toContain("shadow");
+    expect(dialog.className).toContain("bg-(--canvas-soft)");
+    expect(dialog.className).toContain("border-(--line)");
+    expect(dialog.className).toContain("shadow-[var(--shadow-overlay)]");
   });
 
   it("Should throw when SheetContent is used outside <Sheet>", () => {

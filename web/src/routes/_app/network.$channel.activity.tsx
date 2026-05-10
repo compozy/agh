@@ -1,5 +1,7 @@
+import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   ActivityFeed,
   useNetworkDirects,
@@ -9,6 +11,9 @@ import {
 import { ListFilterBar } from "@/systems/network/components/shell";
 
 export const Route = createFileRoute("/_app/network/$channel/activity")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `#${params.channel} · Activity`, icon: NetworkIcon },
+  }),
   component: NetworkChannelActivityRoute,
 });
 

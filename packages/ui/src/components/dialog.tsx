@@ -92,7 +92,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       render={overlayRender}
-      className={cn("fixed inset-0 isolate z-50 bg-black/50", className)}
+      className={cn("fixed inset-0 isolate z-50 bg-(--overlay-scrim)", className)}
       {...props}
     />
   );
@@ -101,18 +101,18 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
 type DialogChromeVariant = "default" | "ruled";
 
 const DIALOG_CONTENT_BASE =
-  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card text-sm text-card-foreground outline-none sm:max-w-sm";
+  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-(--line) bg-(--canvas-soft) text-sm text-(--fg) shadow-[var(--shadow-overlay)] outline-none sm:max-w-sm";
 const DIALOG_CONTENT_FRAMED = "gap-4 p-4";
 const DIALOG_CONTENT_UNFRAMED = "gap-0 p-0";
 
 const DIALOG_HEADER_DEFAULT = "flex flex-col gap-2";
 const DIALOG_HEADER_RULED =
-  "flex flex-col gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-4";
+  "flex flex-col gap-2 border-b border-(--line) bg-(--canvas-soft) px-5 py-4";
 
 const DIALOG_FOOTER_DEFAULT =
-  "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-popover p-4 sm:flex-row sm:justify-end";
+  "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t border-(--line) bg-(--canvas-soft) p-4 sm:flex-row sm:justify-end";
 const DIALOG_FOOTER_RULED =
-  "flex flex-col-reverse gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3 sm:flex-row sm:justify-end";
+  "flex flex-col-reverse gap-2 border-t border-(--line) bg-(--canvas-soft) px-5 py-3 sm:flex-row sm:justify-end";
 
 interface DialogContentProps extends DialogPrimitive.Popup.Props {
   showCloseButton?: boolean;

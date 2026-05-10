@@ -415,7 +415,7 @@ function InspectorBody({
       >
         <TabsList
           variant="line"
-          className="w-full shrink-0 border-b border-(--color-divider) px-2 group-data-horizontal/tabs:h-12"
+          className="w-full shrink-0 border-b border-(--line) px-2 group-data-horizontal/tabs:h-12"
         >
           <TabsTrigger
             value="trace"
@@ -456,11 +456,11 @@ function InspectorBody({
         aria-label="Memory, files, and vault"
         value={bottomTab}
         onValueChange={handleBottomChange}
-        className="flex min-h-0 flex-1 basis-0 flex-col gap-0 border-t border-(--color-divider)"
+        className="flex min-h-0 flex-1 basis-0 flex-col gap-0 border-t border-(--line)"
       >
         <TabsList
           variant="line"
-          className="w-full shrink-0 border-b border-(--color-divider) px-2 group-data-horizontal/tabs:h-12"
+          className="w-full shrink-0 border-b border-(--line) px-2 group-data-horizontal/tabs:h-12"
         >
           <TabsTrigger
             value="memory"
@@ -544,8 +544,8 @@ export function SessionInspector({
       aria-label="Session inspector"
       style={{ width: INSPECTOR_WIDTH }}
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden border-l bg-(--color-canvas)",
-        "border-(--color-divider) min-w-0",
+        "hidden shrink-0 flex-col overflow-hidden border-l bg-(--canvas)",
+        "border-(--line) min-w-0",
         "xl:flex",
         className
       )}
@@ -599,7 +599,7 @@ function TraceSection({ events, total, limit, onViewAll }: TraceSectionProps) {
           size="sm"
           onClick={onViewAll}
           data-testid="session-inspector-trace-view-all"
-          className="mt-3 h-7 gap-1 self-start px-1 text-(--color-text-secondary) hover:text-(--color-text-primary)"
+          className="mt-3 h-7 gap-1 self-start px-1 text-(--muted) hover:text-(--fg)"
         >
           View all
           <ChevronRight className="size-3" />
@@ -630,7 +630,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
           data-testid="session-inspector-trace-timestamp"
-          className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
+          className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--subtle)"
         >
           {ts}
         </span>
@@ -644,7 +644,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
         </Pill>
         <span
           data-testid="session-inspector-trace-label"
-          className="min-w-0 flex-1 truncate text-small-body text-(--color-text-primary)"
+          className="min-w-0 flex-1 truncate text-small-body text-(--fg)"
         >
           {event.label}
         </span>
@@ -731,7 +731,7 @@ function MemorySection({ memory }: MemorySectionProps) {
       >
         <div
           data-testid="session-inspector-memory-loading"
-          className="flex items-center gap-2 px-1 py-3 text-xs text-(--color-text-tertiary)"
+          className="flex items-center gap-2 px-1 py-3 text-xs text-(--subtle)"
         >
           <Loader2 aria-hidden="true" className="size-4 animate-spin" />
           Loading session ledger…
@@ -839,7 +839,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
         <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
           LEDGER
         </Pill>
-        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+        <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
           Forensic
         </span>
       </div>
@@ -853,7 +853,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
             <MetadataList.Term>{item.label}</MetadataList.Term>
             <MetadataList.Value
               className={cn(
-                "min-w-0 flex-1 break-all text-right text-xs text-(--color-text-primary)",
+                "min-w-0 flex-1 break-all text-right text-xs text-(--fg)",
                 item.mono ? "font-mono text-eyebrow" : null
               )}
               data-testid={`session-inspector-memory-meta-${item.testId}-value`}
@@ -880,11 +880,11 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       className="flex flex-col gap-2"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+        <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
           Ledger events
         </span>
         <span
-          className="font-mono text-badge text-(--color-text-tertiary)"
+          className="font-mono text-badge text-(--subtle)"
           data-testid="session-inspector-memory-events-count"
         >
           {events.length}
@@ -900,7 +900,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       ) : (
         <ul
           data-testid="session-inspector-memory-events-list"
-          className="flex flex-col divide-y divide-(--color-divider)"
+          className="flex flex-col divide-y divide-(--line)"
         >
           {visible.map(event => (
             <li
@@ -910,7 +910,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
             >
               <span
                 data-testid="session-inspector-memory-event-sequence"
-                className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
+                className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--subtle)"
               >
                 #{event.sequence}
               </span>
@@ -919,7 +919,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
               </Pill>
               <span
                 data-testid="session-inspector-memory-event-timestamp"
-                className="ml-auto shrink-0 font-mono text-badge text-(--color-text-tertiary)"
+                className="ml-auto shrink-0 font-mono text-badge text-(--subtle)"
               >
                 {formatLedgerTimestamp(event.emitted_at)}
               </span>
@@ -960,11 +960,11 @@ function FilesSection({ files }: FilesSectionProps) {
       ) : (
         <ScrollArea
           data-testid="session-inspector-files-scroll"
-          className="max-h-[240px] rounded-md border border-(--color-divider) bg-(--color-surface)"
+          className="max-h-[240px] rounded-md border border-(--line) bg-(--canvas-soft)"
         >
           <ul
             data-testid="session-inspector-files-list"
-            className="flex flex-col divide-y divide-(--color-divider)"
+            className="flex flex-col divide-y divide-(--line)"
           >
             {files.map(file => (
               <li
@@ -972,19 +972,16 @@ function FilesSection({ files }: FilesSectionProps) {
                 data-testid="session-inspector-files-row"
                 className="flex items-center gap-2 px-2 py-1.5"
               >
-                <FileCode
-                  aria-hidden="true"
-                  className="size-3 shrink-0 text-(--color-text-tertiary)"
-                />
+                <FileCode aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
                 <span
                   data-testid="session-inspector-files-path"
-                  className="min-w-0 flex-1 truncate font-mono text-eyebrow text-(--color-text-primary)"
+                  className="min-w-0 flex-1 truncate font-mono text-eyebrow text-(--fg)"
                 >
                   {file.path}
                 </span>
                 <span
                   data-testid="session-inspector-files-count"
-                  className="shrink-0 font-mono text-badge text-(--color-text-tertiary)"
+                  className="shrink-0 font-mono text-badge text-(--subtle)"
                 >
                   ×{file.readCount}
                 </span>
@@ -1043,10 +1040,10 @@ export function SessionInspectorDrawer({
       <SheetContent
         side="right"
         data-testid="session-inspector-drawer"
-        className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-(--color-canvas) p-0 sm:max-w-[360px]"
+        className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-(--canvas) p-0 sm:max-w-[360px]"
       >
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-(--color-divider) px-4">
-          <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-(--line) px-4">
+          <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--muted)">
             Inspector
           </span>
         </header>

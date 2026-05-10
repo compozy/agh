@@ -2,7 +2,7 @@ import type { SVGProps } from "react";
 
 import { cn } from "../../lib/utils";
 
-export type LogoVariant = "logo" | "symbol" | "lettering";
+export type LogoVariant = "logo" | "symbol" | "lettering" | "glyph";
 
 export interface LogoProps extends Omit<SVGProps<SVGSVGElement>, "children"> {
   variant?: LogoVariant;
@@ -14,12 +14,14 @@ const LOGO_VIEWBOX: Record<LogoVariant, string> = {
   logo: "0 0 972 386",
   symbol: "0 0 355 355",
   lettering: "0 0 543 362",
+  glyph: "0 0 32 32",
 };
 
 const LOGO_SIZE_CLASS: Record<LogoVariant, string> = {
   logo: "h-8 w-auto",
   symbol: "size-8",
   lettering: "h-8 w-auto",
+  glyph: "size-8",
 };
 
 const SYMBOL_PATHS = [
@@ -60,6 +62,22 @@ function LetteringArtwork() {
   );
 }
 
+function GlyphArtwork() {
+  return (
+    <>
+      <rect width="32" height="32" rx="6" fill="#E8572A" />
+      <path
+        d="M11.5 21.5L16 10L20.5 21.5M13 18.2H19"
+        stroke="#17110F"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </>
+  );
+}
+
 function Logo({
   variant = "logo",
   label = "AGH",
@@ -96,6 +114,7 @@ function Logo({
       )}
       {variant === "symbol" && <SymbolArtwork />}
       {variant === "lettering" && <LetteringArtwork />}
+      {variant === "glyph" && <GlyphArtwork />}
     </svg>
   );
 }

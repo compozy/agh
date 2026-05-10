@@ -2,8 +2,8 @@ import { Fragment } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CpuIcon, DatabaseIcon, EyeIcon, MoreHorizontalIcon, ZapIcon } from "lucide-react";
 
-import { Badge } from "../badge";
 import { Button } from "../button";
+import { Pill } from "../custom/pill";
 import {
   Item,
   ItemActions,
@@ -72,7 +72,7 @@ export const InGroup: Story = {
               <ItemContent>
                 <ItemTitle>
                   {agent.title}
-                  <Badge variant="secondary">{agent.badge}</Badge>
+                  <Pill tone="neutral">{agent.badge}</Pill>
                 </ItemTitle>
                 <ItemDescription>{agent.description}</ItemDescription>
               </ItemContent>
@@ -141,7 +141,7 @@ export const SelectableRail: Story = {
             selectable
             selected={index === 0}
             indicator={index === 0 ? "rail" : "none"}
-            className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+            className="rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3"
           >
             <ItemMedia variant="icon">
               <agent.icon />
@@ -151,7 +151,7 @@ export const SelectableRail: Story = {
               <ItemDescription>{agent.description}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <Badge variant="secondary">{agent.badge}</Badge>
+              <Pill tone="neutral">{agent.badge}</Pill>
             </ItemActions>
           </Item>
         ))}
@@ -170,7 +170,7 @@ export const SelectableDot: Story = {
           <ItemDescription>Dot indicator keeps the selection signal inline.</ItemDescription>
         </ItemContent>
         <ItemActions>
-          <Badge variant="secondary">selected</Badge>
+          <Pill tone="neutral">selected</Pill>
         </ItemActions>
       </Item>
     </div>

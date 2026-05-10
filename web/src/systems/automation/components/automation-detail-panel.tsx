@@ -142,12 +142,10 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
         </Pill>
       }
     >
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-item-title text-(--color-text-primary)">{expression}</p>
-          <p className="mt-1 text-xs text-(--color-text-secondary)">
-            {describeSchedule(job.schedule)}
-          </p>
+          <p className="font-mono text-item-title text-(--fg)">{expression}</p>
+          <p className="mt-1 text-xs text-(--muted)">{describeSchedule(job.schedule)}</p>
         </div>
       </div>
     </Section>
@@ -209,49 +207,47 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
       }
     >
       <div
-        className="grid gap-2 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 md:grid-cols-2"
+        className="grid gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 md:grid-cols-2"
         data-testid="automation-job-scheduler"
       >
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             Next cursor
           </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
+          <p className="mt-1 text-small-body text-(--muted)">
             {formatDateTime(scheduler.next_run_at)}
           </p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             Last scheduled
           </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
+          <p className="mt-1 text-small-body text-(--muted)">
             {formatDateTime(scheduler.last_scheduled_at)}
           </p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             Fire ID
           </span>
-          <p className="mt-1 break-all font-mono text-xs text-(--color-text-secondary)">
+          <p className="mt-1 break-all font-mono text-xs text-(--muted)">
             {scheduler.last_fire_id || "--"}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
               Catch-up
             </span>
-            <p className="mt-1 font-mono text-xs text-(--color-text-secondary)">
+            <p className="mt-1 font-mono text-xs text-(--muted)">
               {scheduler.catch_up_policy ?? "skip_missed"}
             </p>
           </div>
           <div>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+            <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
               Misfires
             </span>
-            <p className="mt-1 font-mono text-xs text-(--color-text-secondary)">
-              {scheduler.misfire_count ?? 0}
-            </p>
+            <p className="mt-1 font-mono text-xs text-(--muted)">{scheduler.misfire_count ?? 0}</p>
           </div>
         </div>
       </div>
@@ -264,21 +260,19 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
 
   return (
     <Section label="Hook" right={<KindChip kind={trigger.event} />}>
-      <div className="space-y-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+      <div className="space-y-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Event
-          </span>
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">Event</span>
           <Pill mono uppercase={false} tone="info">
             {trigger.event}
           </Pill>
         </div>
         <div className="space-y-1.5">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             Filters
           </span>
           {filters.length === 0 ? (
-            <p className="text-xs text-(--color-text-tertiary)">No filters</p>
+            <p className="text-xs text-(--subtle)">No filters</p>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {filters.map(([key, value]) => (
@@ -292,26 +286,26 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         {trigger.event === "webhook" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+              <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
                 Endpoint
               </span>
-              <p className="mt-1 font-mono text-small-body text-(--color-text-primary)">
+              <p className="mt-1 font-mono text-small-body text-(--fg)">
                 {trigger.endpoint_slug ?? "--"}
               </p>
             </div>
             <div>
-              <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+              <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
                 Webhook id
               </span>
-              <p className="mt-1 font-mono text-small-body text-(--color-text-primary)">
+              <p className="mt-1 font-mono text-small-body text-(--fg)">
                 {trigger.webhook_id ?? "--"}
               </p>
             </div>
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <Bot className="size-3.5 text-(--color-text-tertiary)" />
-          <span className="text-small-body text-(--color-text-secondary)">Dispatches to</span>
+          <Bot className="size-3.5 text-(--subtle)" />
+          <span className="text-small-body text-(--muted)">Dispatches to</span>
           <Pill mono uppercase={false} tone="neutral">
             {trigger.agent_name}
           </Pill>
@@ -341,20 +335,16 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
 function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }) {
   return (
     <Section label="Governance">
-      <div className="grid gap-2 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 md:grid-cols-2">
+      <div className="grid gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 md:grid-cols-2">
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Retry
-          </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
-            {describeRetry(item.retry)}
-          </p>
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">Retry</span>
+          <p className="mt-1 text-small-body text-(--muted)">{describeRetry(item.retry)}</p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
+          <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
             Fire limit
           </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
+          <p className="mt-1 text-small-body text-(--muted)">
             {describeFireLimit(item.fire_limit)}
           </p>
         </div>
@@ -384,7 +374,7 @@ export function AutomationDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="automation-detail-loading"
       >
-        <Spinner className="size-5 text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -436,12 +426,12 @@ export function AutomationDetailPanel({
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="automation-detail-panel"
     >
-      <header className="border-b border-(--color-divider) px-6 py-4">
+      <header className="border-b border-(--line) px-6 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Pill.Dot tone={enabledTone} />
-              <h2 className="text-item-title font-semibold tracking-tight text-(--color-text-primary)">
+              <h2 className="text-item-title font-semibold tracking-tight text-(--fg)">
                 {item.name}
               </h2>
               <Pill mono tone={enabledTone}>
@@ -451,10 +441,10 @@ export function AutomationDetailPanel({
                 {automationSourceLabel(item.source)}
               </Pill>
               {item.source === "config" ? (
-                <Lock aria-hidden="true" className="size-3.5 text-(--color-text-tertiary)" />
+                <Lock aria-hidden="true" className="size-3.5 text-(--subtle)" />
               ) : null}
             </div>
-            <p className="text-xs text-(--color-text-secondary)">
+            <p className="text-xs text-(--muted)">
               {`Agent: ${item.agent_name} / Scope: ${automationScopeLabel(item.scope)} / Updated ${formatDate(item.updated_at)}`}
             </p>
           </div>
@@ -513,11 +503,8 @@ export function AutomationDetailPanel({
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {!isDynamic ? (
-          <div className="flex items-start gap-2 rounded-md border border-dashed border-(--color-divider) px-4 py-3 text-xs text-(--color-text-secondary)">
-            <Lock
-              aria-hidden="true"
-              className="mt-0.5 size-3.5 shrink-0 text-(--color-text-tertiary)"
-            />
+          <div className="flex items-start gap-2 rounded-md border border-dashed border-(--line) px-4 py-3 text-xs text-(--muted)">
+            <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-(--subtle)" />
             <p>
               This automation is defined in configuration files. Only the enabled state can be
               toggled from the UI.

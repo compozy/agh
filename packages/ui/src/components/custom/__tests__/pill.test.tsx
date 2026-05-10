@@ -17,6 +17,11 @@ interface ToneExpectation {
   text: string;
 }
 
+interface DotExpectation {
+  tone: PillTone;
+  color: string;
+}
+
 function WithMotion({ reducedMotion, children }: WithMotionProps) {
   return <MotionConfig reducedMotion={reducedMotion}>{children}</MotionConfig>;
 }
@@ -29,16 +34,16 @@ describe("Pill", () => {
     expect(pill).toHaveAttribute("data-slot", "pill");
     expect(pill).toHaveAttribute("data-tone", "neutral");
     expect(pill).toHaveAttribute("data-size", "sm");
-    expect(pill.className).toContain("bg-(--color-neutral-tint)");
-    expect(pill.className).toContain("text-(--color-text-secondary)");
+    expect(pill.className).toContain("bg-(--neutral-tint)");
+    expect(pill.className).toContain("text-(--muted)");
   });
 
   it.each<ToneExpectation>([
-    { tone: "accent", bg: "bg-(--color-accent-tint)", text: "text-(--color-accent)" },
-    { tone: "success", bg: "bg-(--color-success-tint)", text: "text-(--color-success)" },
-    { tone: "warning", bg: "bg-(--color-warning-tint)", text: "text-(--color-warning)" },
-    { tone: "danger", bg: "bg-(--color-danger-tint)", text: "text-(--color-danger)" },
-    { tone: "info", bg: "bg-(--color-info-tint)", text: "text-(--color-info)" },
+    { tone: "accent", bg: "bg-(--accent-tint)", text: "text-(--accent)" },
+    { tone: "success", bg: "bg-(--success-tint)", text: "text-(--success)" },
+    { tone: "warning", bg: "bg-(--warning-tint)", text: "text-(--warning)" },
+    { tone: "danger", bg: "bg-(--danger-tint)", text: "text-(--danger)" },
+    { tone: "info", bg: "bg-(--info-tint)", text: "text-(--info)" },
   ])("Should apply the $tone tint formula", ({ tone, bg, text }) => {
     render(<Pill tone={tone}>x</Pill>);
     const pill = screen.getByText("x");
@@ -55,16 +60,17 @@ describe("Pill", () => {
     );
     const pill = screen.getByText("NEW");
     expect(pill).toHaveAttribute("data-solid", "true");
-    expect(pill.className).toContain("bg-(--color-accent)");
-    expect(pill.className).toContain("text-(--color-accent-ink)");
+    expect(pill.className).toContain("bg-(--accent)");
+    expect(pill.className).toContain("text-(--accent-ink)");
   });
 
-  it("Should adopt mono typography and uppercase when mono is true", () => {
+  it("Should adopt mono typography without forcing uppercase", () => {
     render(<Pill mono>token</Pill>);
     const pill = screen.getByText("token");
     expect(pill).toHaveAttribute("data-mono", "true");
     expect(pill.className).toContain("font-mono");
-    expect(pill.className).toContain("uppercase");
+    expect(pill.className).toContain("normal-case");
+    expect(pill.className).not.toMatch(/(^| )uppercase( |$)/);
   });
 
   it("Should respect uppercase={false} explicit override", () => {
@@ -86,13 +92,14 @@ describe("Pill", () => {
     expect(pill.className).toContain("normal-case");
   });
 
-  it("Should apply md filter-pill chrome when size='md'", () => {
+  it("Should apply compact md pill chrome when size='md'", () => {
     render(<Pill size="md">FILTER</Pill>);
     const pill = screen.getByText("FILTER");
     expect(pill).toHaveAttribute("data-size", "md");
-    expect(pill.className).toContain("h-8");
-    expect(pill.className).toContain("font-semibold");
-    expect(pill.className).toContain("uppercase");
+    expect(pill.className).toContain("h-[22px]");
+    expect(pill.className).toContain("rounded-(--radius-pill)");
+    expect(pill.className).toContain("font-medium");
+    expect(pill.className).toContain("normal-case");
   });
 
   it("Should render as a button when render={<button />} is provided", async () => {
@@ -113,8 +120,8 @@ describe("Pill", () => {
     );
     const pill = screen.getByRole("button", { name: /filter/i });
     expect(pill).toHaveAttribute("data-active", "true");
-    expect(pill.className).toContain("bg-(--color-surface-elevated)");
-    expect(pill.className).toContain("text-(--color-text-primary)");
+    expect(pill.className).toContain("bg-(--elevated)");
+    expect(pill.className).toContain("text-(--fg-strong)");
   });
 
   it("Should apply inactive interactive chrome when active=false", () => {
@@ -125,15 +132,15 @@ describe("Pill", () => {
     );
     const pill = screen.getByRole("button", { name: /filter/i });
     expect(pill).toHaveAttribute("data-active", "false");
-    expect(pill.className).toContain("bg-(--color-surface)");
-    expect(pill.className).toContain("text-(--color-text-secondary)");
+    expect(pill.className).toContain("bg-(--canvas-soft)");
+    expect(pill.className).toContain("text-(--muted)");
   });
 
   it("Should forward className alongside the variant defaults", () => {
     render(<Pill className="custom">label</Pill>);
     const pill = screen.getByText("label");
     expect(pill.className).toContain("custom");
-    expect(pill.className).toContain("bg-(--color-neutral-tint)");
+    expect(pill.className).toContain("bg-(--neutral-tint)");
   });
 
   it("Should expose Pill.Link as an accessible anchor chip", async () => {
@@ -163,18 +170,21 @@ describe("Pill.Dot", () => {
     expect(dot?.getAttribute("data-tone")).toBe("neutral");
     expect(dot?.getAttribute("data-size")).toBe("md");
     expect(dot?.className).toContain("size-2");
-    expect(dot?.style.backgroundColor).toBe("var(--color-text-tertiary)");
+    expect(dot?.style.backgroundColor).toBe("var(--subtle)");
     expect(dot?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it.each<PillTone>(["accent", "success", "warning", "danger", "info"])(
-    "Should map tone %s to the semantic color token",
-    tone => {
-      const { container } = render(<Pill.Dot tone={tone} />);
-      const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
-      expect(dot?.style.backgroundColor).toBe(`var(--color-${tone})`);
-    }
-  );
+  it.each<DotExpectation>([
+    { tone: "accent", color: "var(--accent)" },
+    { tone: "success", color: "var(--success)" },
+    { tone: "warning", color: "var(--warning)" },
+    { tone: "danger", color: "var(--danger)" },
+    { tone: "info", color: "var(--info)" },
+  ])("Should map tone %s to the semantic color token", ({ tone, color }) => {
+    const { container } = render(<Pill.Dot tone={tone} />);
+    const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
+    expect(dot?.style.backgroundColor).toBe(color);
+  });
 
   it("Should let an explicit color override the tone-derived background", () => {
     const { container } = render(<Pill.Dot tone="success" color="#5BA6FF" />);
@@ -224,6 +234,20 @@ describe("Pill.Dot", () => {
     const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
     expect(dot?.getAttribute("data-size")).toBe("sm");
     expect(dot?.className).toContain("size-1.5");
+  });
+
+  it("Should inherit pulse from the parent Pill context", () => {
+    const { container } = render(
+      <WithMotion reducedMotion="never">
+        <Pill pulse>
+          <Pill.Dot />
+          Online
+        </Pill>
+      </WithMotion>
+    );
+    const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
+    expect(dot?.className).toContain("animate-pulse");
+    expect(dot?.getAttribute("data-pulse")).toBe("true");
   });
 
   it("Should respect an explicit size prop over the parent context", () => {

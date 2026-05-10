@@ -81,7 +81,7 @@ function KnowledgeCreateDialog({
         data-testid="knowledge-create-dialog"
         showCloseButton={false}
       >
-        <DialogHeader className="gap-2 border-b border-[color:var(--color-divider)] px-5 py-4">
+        <DialogHeader className="gap-2 border-b border-[color:var(--line)] px-5 py-4">
           <DialogTitle>Create knowledge entry</DialogTitle>
           <DialogDescription>
             Add knowledge in the {scope} scope through the controller. The entry is recorded as a
@@ -92,7 +92,7 @@ function KnowledgeCreateDialog({
           <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
             <div className="flex flex-col gap-1.5">
               <Label
-                className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+                className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]"
                 htmlFor="knowledge-create-type"
               >
                 Type
@@ -111,7 +111,7 @@ function KnowledgeCreateDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label
-                className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+                className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]"
                 htmlFor="knowledge-create-name"
               >
                 Name
@@ -127,7 +127,7 @@ function KnowledgeCreateDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label
-              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]"
               htmlFor="knowledge-create-description"
             >
               Description
@@ -142,7 +142,7 @@ function KnowledgeCreateDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label
-              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+              className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]"
               htmlFor="knowledge-create-content"
             >
               Content
@@ -158,13 +158,13 @@ function KnowledgeCreateDialog({
         </div>
         {error ? (
           <div
-            className="border-t border-[color:var(--color-divider)] px-5 py-3 text-xs text-[color:var(--color-danger)]"
+            className="border-t border-[color:var(--line)] px-5 py-3 text-xs text-[color:var(--danger)]"
             data-testid="knowledge-create-dialog-error"
           >
             {error}
           </div>
         ) : null}
-        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-[color:var(--color-divider)] bg-transparent px-5 py-3">
+        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-[color:var(--line)] bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-create-memory-btn"
             onClick={() => onOpenChange(false)}

@@ -38,7 +38,7 @@ export function TasksDashboardActiveRuns({
     >
       {visible.length === 0 ? (
         <p
-          className="px-1 py-6 text-sm text-(--color-text-secondary)"
+          className="px-1 py-6 text-sm text-(--muted)"
           data-testid="tasks-dashboard-active-runs-empty"
         >
           No active runs right now.
@@ -49,7 +49,7 @@ export function TasksDashboardActiveRuns({
             const signal = taskStatusSignal(run.task_status);
             return (
               <Item
-                className="flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-0 py-3 last:border-b-0"
+                className="flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--line) px-0 py-3 last:border-b-0"
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >
@@ -57,7 +57,7 @@ export function TasksDashboardActiveRuns({
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
-                      <ItemTitle className="min-w-0 truncate text-small-body font-medium text-(--color-text-primary)">
+                      <ItemTitle className="min-w-0 truncate text-small-body font-medium text-(--fg)">
                         {run.task_title}
                       </ItemTitle>
                     </div>
@@ -74,10 +74,10 @@ export function TasksDashboardActiveRuns({
                           stuck
                         </Pill>
                       ) : null}
-                      <span className="font-mono text-badge text-(--color-text-tertiary)">
+                      <span className="font-mono text-badge text-(--subtle)">
                         {formatAttemptLabel(run.attempt, run.max_attempts) ?? "--"}
                       </span>
-                      <span className="font-mono text-badge text-(--color-text-tertiary)">
+                      <span className="font-mono text-badge text-(--subtle)">
                         age {formatDurationMs(run.age_ms)}
                       </span>
                     </div>
@@ -96,7 +96,7 @@ export function TasksDashboardActiveRuns({
                 </div>
                 {run.error ? (
                   <p
-                    className="flex items-start gap-1 text-xs text-(--color-danger)"
+                    className="flex items-start gap-1 text-xs text-(--danger)"
                     data-testid={`tasks-dashboard-active-run-error-${run.run_id}`}
                   >
                     <AlertCircle className="mt-0.5 size-3 shrink-0" />

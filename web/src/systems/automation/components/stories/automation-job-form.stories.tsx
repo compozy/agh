@@ -38,7 +38,7 @@ function AutomationJobFormHarness({
 
   return (
     <CenteredSurface className="items-start justify-center">
-      <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-(--color-divider) bg-(--color-surface)">
+      <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-(--line) bg-(--canvas-soft)">
         <AutomationJobForm
           activeWorkspaceId={activeWorkspaceId}
           draft={draft}

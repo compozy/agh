@@ -52,7 +52,7 @@ function ToolCallCard({
   ...props
 }: ToolCallCardProps) {
   let iconContent: React.ReactNode;
-  const iconClass = "size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]";
+  const iconClass = "size-3.5 shrink-0 text-[color:var(--subtle)]";
   if (icon === undefined) {
     iconContent = (
       <TerminalIcon aria-hidden="true" data-slot="tool-call-card-icon" className={iconClass} />
@@ -71,8 +71,8 @@ function ToolCallCard({
       data-slot="tool-call-card"
       data-status={status}
       className={cn(
-        "overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
-        "data-[status=error]:border-[color:var(--color-danger)]/40",
+        "overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--line)] bg-[color:var(--canvas-soft)]",
+        "data-[status=error]:border-[color:var(--danger)]/40",
         className
       )}
       {...props}
@@ -84,14 +84,14 @@ function ToolCallCard({
         {iconContent}
         <span
           data-slot="tool-call-card-tool"
-          className="text-[14px] font-medium text-[color:var(--color-text-primary)]"
+          className="text-[14px] font-medium text-[color:var(--fg)]"
         >
           {toolName}
         </span>
         {filePath ? (
           <span
             data-slot="tool-call-card-path"
-            className="min-w-0 truncate text-[13px] text-[color:var(--color-text-tertiary)]"
+            className="min-w-0 truncate text-[13px] text-[color:var(--subtle)]"
           >
             {filePath}
           </span>
@@ -107,7 +107,7 @@ function ToolCallCard({
       {children ? (
         <div
           data-slot="tool-call-card-body"
-          className="border-t border-[color:var(--color-divider)] px-4 py-3"
+          className="border-t border-[color:var(--line)] px-4 py-3"
         >
           {children}
         </div>

@@ -85,16 +85,16 @@ export function AgentCommandList({
                 data-testid={itemTestId ? itemTestId(agent) : `agent-command-item-${agent.name}`}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-sm text-(--color-text-primary)">{agent.name}</span>
+                  <span className="truncate text-sm text-(--fg)">{agent.name}</span>
                   <span
-                    className="font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)"
+                    className="font-mono text-xs uppercase tracking-wide text-(--muted)"
                     data-testid={`agent-command-provider-${agent.name}`}
                   >
                     {agent.provider}
                   </span>
                   {categoryLabel ? (
                     <span
-                      className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)"
+                      className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-(--muted)"
                       data-testid={`agent-command-category-${agent.name}`}
                     >
                       {categoryLabel}

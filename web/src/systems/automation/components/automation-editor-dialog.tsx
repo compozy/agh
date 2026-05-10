@@ -88,7 +88,7 @@ export function AutomationEditorDialog({
       {editor ? (
         <DialogContent
           unframed
-          className="text-(--color-text-primary) sm:max-w-176"
+          className="text-(--fg) sm:max-w-176"
           data-testid="automation-editor-dialog"
         >
           <>

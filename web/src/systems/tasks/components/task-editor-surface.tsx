@@ -10,7 +10,6 @@ import {
   Pill,
   NativeSelect,
   NativeSelectOption,
-  PageHeader,
   PillGroup,
   Section,
   Spinner,
@@ -126,7 +125,7 @@ function renderTaskEditorSurface(
   const signal = task ? taskStatusSignal(task.status) : null;
 
   const headerMeta = task ? (
-    <div className="flex flex-wrap items-center gap-2 text-small-body text-(--color-text-secondary)">
+    <div className="flex flex-wrap items-center gap-2 text-small-body text-(--muted)">
       {task.identifier ? <Pill mono>{task.identifier}</Pill> : null}
       <Pill tone={pillToneFromLegacyTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
@@ -138,16 +137,16 @@ function renderTaskEditorSurface(
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col bg-(--color-canvas)"
+      className="flex min-h-0 flex-1 flex-col bg-(--canvas)"
       data-testid="task-editor-surface"
     >
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 border-b border-(--color-divider) px-6 py-2 text-eyebrow text-(--color-text-label)"
+        className="flex items-center gap-2 border-b border-(--line) px-6 py-2 text-eyebrow text-(--muted)"
       >
         {task ? (
           <Link
-            className="inline-flex items-center gap-1.5 hover:text-(--color-text-secondary)"
+            className="inline-flex items-center gap-1.5 hover:text-(--muted)"
             data-testid="task-editor-back-link"
             params={{ id: task.id }}
             to="/tasks/$id"
@@ -157,7 +156,7 @@ function renderTaskEditorSurface(
           </Link>
         ) : (
           <Link
-            className="inline-flex items-center gap-1.5 hover:text-(--color-text-secondary)"
+            className="inline-flex items-center gap-1.5 hover:text-(--muted)"
             data-testid="task-editor-back-link"
             to="/tasks"
           >
@@ -167,23 +166,46 @@ function renderTaskEditorSurface(
         )}
       </nav>
 
-      <PageHeader
-        icon={isCreateMode ? Plus : Pencil}
-        meta={headerMeta}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            {signal ? <Pill.Dot pulse={signal.pulse} tone={signal.tone} /> : null}
+      <header
+        data-slot="page-header"
+        className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
+      >
+        <div
+          data-slot="page-header-main"
+          className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
+        >
+          <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
             <span
-              className="truncate text-item-title font-semibold text-(--color-text-primary)"
-              data-testid="task-editor-title"
+              aria-hidden="true"
+              data-slot="page-header-icon"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
             >
-              {title}
+              {isCreateMode ? <Plus className="size-3.5" /> : <Pencil className="size-3.5" />}
             </span>
-          </span>
-        }
-      />
+            <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
+              <span className="flex min-w-0 items-center gap-2">
+                {signal ? <Pill.Dot pulse={signal.pulse} tone={signal.tone} /> : null}
+                <span
+                  className="truncate text-item-title font-semibold text-(--fg)"
+                  data-testid="task-editor-title"
+                >
+                  {title}
+                </span>
+              </span>
+            </h1>
+          </div>
+          {headerMeta ? (
+            <div
+              data-slot="page-header-meta"
+              className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-(--muted)"
+            >
+              {headerMeta}
+            </div>
+          ) : null}
+        </div>
+      </header>
 
-      <p className="border-b border-(--color-divider) px-6 py-3 text-small-body leading-6 text-(--color-text-secondary)">
+      <p className="border-b border-(--line) px-6 py-3 text-small-body leading-6 text-(--muted)">
         {description}
       </p>
 
@@ -192,7 +214,7 @@ function renderTaskEditorSurface(
           <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.85fr)]">
             <div className="flex min-w-0 flex-col gap-6">
               <Section label="Task contract">
-                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5">
+                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-5">
                   {isCreateMode && template && templateId && onTemplateChange ? (
                     <Field>
                       <FieldLabel data-testid="task-editor-template-label">Template</FieldLabel>
@@ -216,7 +238,7 @@ function renderTaskEditorSurface(
                       >
                         Title
                       </FieldLabel>
-                      <span className="text-badge text-(--color-text-tertiary)">Required</span>
+                      <span className="text-badge text-(--subtle)">Required</span>
                     </div>
                     <Input
                       className="h-10"
@@ -284,7 +306,7 @@ function renderTaskEditorSurface(
 
               {isCreateMode ? (
                 <Section label="Queue settings">
-                  <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5">
+                  <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-5">
                     <div className="grid gap-5 md:grid-cols-2">
                       <Field>
                         <FieldLabel
@@ -375,9 +397,9 @@ function renderTaskEditorSurface(
 
             <div className="flex min-w-0 flex-col gap-6">
               <Section label={isCreateMode ? "Submission" : "Editable fields"}>
-                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface-panel) p-5">
+                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-5">
                   <p
-                    className="text-small-body leading-5 text-(--color-text-secondary)"
+                    className="text-small-body leading-5 text-(--muted)"
                     data-testid="task-editor-notice"
                   >
                     {noticeText}
@@ -465,9 +487,9 @@ function renderTaskEditorSurface(
                     </>
                   ) : null}
 
-                  <div className="rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3">
-                    <p className="text-badge text-(--color-text-label)">Read-only context</p>
-                    <dl className="mt-3 space-y-2 text-small-body text-(--color-text-secondary)">
+                  <div className="rounded-xl border border-(--line) bg-(--canvas-soft) px-4 py-3">
+                    <p className="text-badge text-(--muted)">Read-only context</p>
+                    <dl className="mt-3 space-y-2 text-small-body text-(--muted)">
                       <ContextRow label="Scope" value={draft.scope} />
                       <ContextRow label="Parent task" value={draft.parentTaskId || "None"} />
                       <ContextRow label="Identifier" value={draft.identifier || "Auto-generated"} />
@@ -483,9 +505,9 @@ function renderTaskEditorSurface(
           </div>
         </div>
 
-        <footer className="border-t border-(--color-divider) bg-(--color-surface) px-6 py-4">
+        <footer className="border-t border-(--line) bg-(--canvas-soft) px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-small-body text-(--color-text-secondary)">
+            <p className="text-small-body text-(--muted)">
               {isCreateMode
                 ? "Review the contract before you enqueue work."
                 : "Saving updates refreshes the list, detail, inbox, and dashboard views."}
@@ -542,8 +564,8 @@ function renderTaskEditorSurface(
 function ContextRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="text-badge text-(--color-text-label)">{label}</dt>
-      <dd className="truncate text-(--color-text-primary)">{value}</dd>
+      <dt className="text-badge text-(--muted)">{label}</dt>
+      <dd className="truncate text-(--fg)">{value}</dd>
     </div>
   );
 }

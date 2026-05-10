@@ -223,4 +223,13 @@ describe("ChatHeader", () => {
     expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
   });
+
+  it("Should paint a flat canvas-soft surface without glass blur", () => {
+    render(
+      <ChatHeader session={baseSession} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />
+    );
+    const header = screen.getByTestId("chat-header");
+    expect(header.className).not.toMatch(/backdrop-blur/);
+    expect(header.className).toContain("bg-(--canvas-soft)");
+  });
 });

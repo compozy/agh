@@ -80,7 +80,7 @@ export function TasksInboxView({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-inbox-view">
       <TasksInboxLaneTabs inbox={inbox} onChange={onLaneChange} value={laneFilter} />
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-(--color-divider) px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 border-b border-(--line) px-4 py-3">
         <SearchInput
           className="h-9 min-w-[220px] flex-1"
           data-testid="tasks-inbox-search"
@@ -98,7 +98,7 @@ export function TasksInboxView({
             id="tasks-inbox-unread-only"
             onCheckedChange={onToggleUnread}
           />
-          <Eyebrow tone="neutral" className="text-(--color-text-secondary)">
+          <Eyebrow tone="neutral" className="text-(--muted)">
             Unread only
           </Eyebrow>
         </label>

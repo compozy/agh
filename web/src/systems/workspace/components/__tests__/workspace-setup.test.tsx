@@ -199,7 +199,7 @@ describe("WorkspaceSetupDialog", () => {
     expect(header).not.toBeNull();
     expect(header?.dataset.variant).toBe("ruled");
     expect(header?.className).toContain("border-b");
-    expect(header?.className).toContain("[color:var(--color-divider)]");
+    expect(header?.className).toContain("border-(--line)");
     expect(header?.className).toContain("px-5");
     expect(header?.className).toContain("py-4");
   });

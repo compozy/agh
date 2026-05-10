@@ -1,8 +1,9 @@
-import { AlertCircle, Loader2, Play } from "lucide-react";
+import { AlertCircle, Brain, Loader2, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, PageShell, Section, Switch } from "@agh/ui";
+import { Button, Input, PageShell, Section, Switch, useTopbarSlot } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
 import {
@@ -16,6 +17,9 @@ import {
 } from "@/systems/settings/components";
 
 export const Route = createFileRoute("/_app/settings/memory")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Memory settings", icon: Brain },
+  }),
   component: MemorySettingsPage,
 });
 
@@ -43,6 +47,29 @@ export function MemorySettingsPage() {
     () => Object.values(validationErrors).some(message => message !== null),
     [validationErrors]
   );
+  const healthForSlot = page.envelope?.health;
+  useTopbarSlot({
+    tabs: healthForSlot ? (
+      <SettingsStatusLine
+        data-testid={`${TEST_PREFIX}-status-line`}
+        status={healthForSlot.available ? "connected" : "error"}
+        items={[
+          <span key="files">{healthForSlot.file_count} memory files</span>,
+          <span key="last" data-testid={`${TEST_PREFIX}-last-consolidated`}>
+            {healthForSlot.last_consolidated_at
+              ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
+              : "no dream runs yet"}
+          </span>,
+          <span key="dream-state">
+            {healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled"}
+          </span>,
+        ]}
+      />
+    ) : undefined,
+    actions: page.envelope ? (
+      <SettingsPageActions slug="memory" restart={page.restart} />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -50,7 +77,7 @@ export function MemorySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid={`${TEST_PREFIX}-loading`}
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Loader2 className="size-5 animate-spin text-(--subtle)" />
       </div>
     );
   }
@@ -59,8 +86,8 @@ export function MemorySettingsPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid={`${TEST_PREFIX}-error`}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-(--danger)" />
+          <p className="text-sm text-(--subtle)">
             {page.error?.message ?? "Failed to load memory settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -72,32 +99,12 @@ export function MemorySettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
-  const health = envelope.health;
   const dreamAvailable =
     envelope.actions.consolidate.available && envelope.health.dream_enabled && draft.dream.enabled;
 
   return (
     <PageShell
       slug="memory"
-      title="Memory"
-      statusLine={
-        <SettingsStatusLine
-          data-testid={`${TEST_PREFIX}-status-line`}
-          status={health.available ? "connected" : "error"}
-          items={[
-            <span key="files">{health.file_count} memory files</span>,
-            <span key="last" data-testid={`${TEST_PREFIX}-last-consolidated`}>
-              {health.last_consolidated_at
-                ? `last dream ${formatHealthTimestamp(health.last_consolidated_at)}`
-                : "no dream runs yet"}
-            </span>,
-            <span key="dream-state">
-              {health.dream_enabled ? "dreaming enabled" : "dreaming disabled"}
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="memory" restart={restart} />}
       banner={<SettingsRestartBanner slug="memory" restart={restart} />}
       footer={
         <SettingsSaveBar
@@ -1768,10 +1775,7 @@ function renderDreamSection({
         }
       />
       {actionMessage ? (
-        <p
-          className="text-xs text-(--color-text-tertiary)"
-          data-testid={`${TEST_PREFIX}-action-message`}
-        >
+        <p className="text-xs text-(--subtle)" data-testid={`${TEST_PREFIX}-action-message`}>
           {actionMessage}
         </p>
       ) : null}

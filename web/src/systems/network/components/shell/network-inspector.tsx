@@ -69,7 +69,7 @@ function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInsp
   return (
     <Tabs
       aria-label="Inspector sections"
-      className="gap-0 border-b border-(--color-divider)"
+      className="gap-0 border-b border-(--line)"
       data-testid="network-inspector-tabs"
       onValueChange={value => {
         if (value === "members" || value === "work" || value === "activity") {
@@ -121,7 +121,7 @@ export function NetworkInspector({
       className={cn("flex min-h-0 flex-1 flex-col", className)}
       data-testid="network-inspector"
     >
-      <header className="flex items-center gap-2 border-b border-(--color-divider) px-4 py-2.5">
+      <header className="flex items-center gap-2 border-b border-(--line) px-4 py-2.5">
         <Eyebrow>Inspector</Eyebrow>
         <div className="ml-auto flex items-center gap-1">
           <Button

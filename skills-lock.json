@@ -891,6 +891,12 @@
             "sourceType": "github",
             "computedHash": "848e926c0bb1e9c6b24e8a913baec8377478b82880603c305432a9ce5cf1395a"
         },
+        "turborepo": {
+            "source": "vercel/turborepo",
+            "sourceType": "github",
+            "skillPath": "skills/turborepo/SKILL.md",
+            "computedHash": "23b9416e87fb6030bf95357e380778a21afb841430e2db208ad974997be39901"
+        },
         "tweetsmash-api": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -927,8 +933,9 @@
             "computedHash": "545a9eb4701e91ff8357e12a1b4731deb7442fce01a42f7eb22e5deb8cb53bd3"
         },
         "vitest": {
-            "source": "pedronauck/skills",
+            "source": "antfu/skills",
             "sourceType": "github",
+            "skillPath": "skills/vitest/SKILL.md",
             "computedHash": "669c7275f7e1379b06b2bcfa593603aead4c983b951c7e8edbc09640aa38d0a1"
         },
         "viz": {

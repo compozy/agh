@@ -24,7 +24,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
     >
       {entries.length === 0 ? (
         <p
-          className="px-1 py-6 text-sm text-(--color-text-secondary)"
+          className="px-1 py-6 text-sm text-(--muted)"
           data-testid="tasks-dashboard-status-breakdown-empty"
         >
           No task activity yet.
@@ -52,7 +52,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                   </span>
                 </Pill>
               </ItemContent>
-              <ItemActions className="font-mono text-eyebrow text-(--color-text-tertiary)">
+              <ItemActions className="font-mono text-eyebrow text-(--subtle)">
                 {formatPercent(entry.share_percent)}
               </ItemActions>
             </Item>

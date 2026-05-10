@@ -56,7 +56,7 @@ describe("SkillDetailPanel", () => {
     expect(screen.getByTestId("skill-detail-empty")).toBeInTheDocument();
   });
 
-  it("Should render title + version + author MonoBadges in PageHeader meta", () => {
+  it("Should render title + version + author MonoBadges in detail header meta", () => {
     renderPanel({
       skill: makeSkill({
         name: "alpha-skill",

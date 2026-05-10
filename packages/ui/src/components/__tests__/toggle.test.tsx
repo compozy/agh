@@ -36,7 +36,7 @@ describe("Toggle", () => {
     );
     const toggle = container.querySelector("[data-slot=toggle]") as HTMLElement | null;
     expect(toggle?.className).toContain("border");
-    expect(toggle?.className).toContain("border-input");
+    expect(toggle?.className).toContain("border-(--line)");
   });
 
   it("Should render the sm size variant", () => {

@@ -6,8 +6,8 @@ import { PanelLeftIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useInitialState } from "./use-initial-state";
 
-const SIDEBAR_RAIL_WIDTH = 44;
-const SIDEBAR_PANEL_WIDTH_DEFAULT = 240;
+const SIDEBAR_RAIL_WIDTH = 56;
+const SIDEBAR_PANEL_WIDTH_DEFAULT = 244;
 const SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT = 768;
 
 export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onChange"> {
@@ -120,7 +120,7 @@ function Sidebar({
       data-state={effectivelyCollapsed ? "collapsed" : "expanded"}
       data-narrow={narrow ? "true" : "false"}
       className={cn(
-        "relative flex h-full shrink-0 border-r border-border bg-[color:var(--color-canvas-deep)]",
+        "relative flex h-full shrink-0 border-r border-(--line) bg-(--rail)",
         className
       )}
       {...props}
@@ -130,13 +130,13 @@ function Sidebar({
           type="button"
           aria-label="Close sidebar navigation"
           onClick={() => setMobileOpen(false)}
-          className="absolute inset-y-0 left-[44px] z-40 bg-[rgba(0,0,0,0.5)]"
-          style={{ width: "100vw" }}
+          className="absolute inset-y-0 z-40 bg-(--overlay-scrim)"
+          style={{ left: SIDEBAR_RAIL_WIDTH, width: "100vw" }}
         />
       ) : null}
       <div
         data-slot="sidebar-rail"
-        className="relative z-50 flex shrink-0 flex-col items-center gap-1.5 border-r border-border py-3"
+        className="relative z-50 flex shrink-0 flex-col items-center gap-1.5 border-r border-(--line) bg-(--rail) py-3"
         style={{ width: SIDEBAR_RAIL_WIDTH }}
       >
         {rail ? (
@@ -156,7 +156,7 @@ function Sidebar({
           }
           aria-expanded={panelVisible}
           onClick={handleToggle}
-          className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[color:var(--color-hover)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:outline-none"
+          className="inline-flex size-7 items-center justify-center rounded-md text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:outline-none"
         >
           <PanelLeftIcon aria-hidden="true" className="size-3.5" />
         </button>
@@ -164,11 +164,14 @@ function Sidebar({
       <div
         ref={panelRef}
         data-slot="sidebar-panel"
-        style={{ width: panelVisible ? panelWidth : 0 }}
+        style={{
+          width: panelVisible ? panelWidth : 0,
+          ...(narrow ? { left: SIDEBAR_RAIL_WIDTH } : {}),
+        }}
         className={cn(
-          "flex min-h-0 flex-col overflow-hidden bg-[color:var(--color-canvas-deep)]",
+          "flex min-h-0 flex-col overflow-hidden bg-(--sidebar)",
           panelVisible ? "visible pointer-events-auto" : "pointer-events-none invisible",
-          narrow && "absolute inset-y-0 left-[44px] z-50 border-r border-border"
+          narrow && "absolute inset-y-0 z-50 border-r border-(--line)"
         )}
         aria-hidden={effectivelyCollapsed}
       >
@@ -176,7 +179,7 @@ function Sidebar({
           {header ? (
             <div
               data-slot="sidebar-header"
-              className="flex min-h-11 shrink-0 items-center gap-2 border-b border-border px-3"
+              className="flex min-h-12 shrink-0 items-center gap-2 border-b border-(--line) px-3"
             >
               {header}
             </div>
@@ -185,7 +188,10 @@ function Sidebar({
             {nav}
           </div>
           {footer ? (
-            <div data-slot="sidebar-footer" className="shrink-0 border-t border-border px-3 py-2.5">
+            <div
+              data-slot="sidebar-footer"
+              className="shrink-0 border-t border-(--line) px-3 py-2.5"
+            >
               {footer}
             </div>
           ) : null}
@@ -195,18 +201,13 @@ function Sidebar({
   );
 }
 
-/**
- * Canonical uppercase section heading used inside sidebar/panel columns ,
- * mirrors `.sidebar-section-label` in
- * `docs/design/web-inspiration/styles/app.css`.
- */
 function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       {...props}
       data-slot="sidebar-section-label"
       className={cn(
-        "px-3 pt-3 pb-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-label)]",
+        "px-3 pt-3 pb-1.5 font-mono text-[10.5px] font-medium uppercase tracking-[0.05em] text-(--muted)",
         className
       )}
     />

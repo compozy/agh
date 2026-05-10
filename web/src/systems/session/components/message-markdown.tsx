@@ -97,11 +97,11 @@ export const MessageMarkdown = memo(
                     ariaLabel="Copy code"
                     className={cn(
                       "absolute top-2 right-2 rounded-md p-1.5",
-                      "border border-(--color-divider) bg-(--color-surface-elevated)",
+                      "border border-(--line) bg-(--elevated)",
                       "opacity-0 transition-opacity duration-200",
                       "group-hover/codeblock:opacity-100 group-focus-within/codeblock:opacity-100",
                       "focus-visible:opacity-100",
-                      "text-(--color-text-tertiary) hover:text-(--color-text-primary)"
+                      "text-(--subtle) hover:text-(--fg)"
                     )}
                   />
                 </div>
@@ -111,8 +111,8 @@ export const MessageMarkdown = memo(
             return (
               <code
                 className={cn(
-                  "rounded-md bg-(--color-surface-elevated) px-1.5 py-0.5",
-                  "text-small-body text-(--color-text-primary)",
+                  "rounded-md bg-(--elevated) px-1.5 py-0.5",
+                  "text-small-body text-(--fg)",
                   className
                 )}
                 {...props}

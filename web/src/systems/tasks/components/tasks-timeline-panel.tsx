@@ -245,10 +245,8 @@ export function TasksTimelinePanel({
                 key={group.key}
               >
                 <header className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-eyebrow font-semibold text-(--color-text-label)">
-                    {group.label}
-                  </h3>
-                  <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
+                  <h3 className="text-eyebrow font-semibold text-(--muted)">{group.label}</h3>
+                  <span className="font-mono text-eyebrow text-(--subtle)">
                     ({group.items.length})
                   </span>
                 </header>
@@ -259,7 +257,7 @@ export function TasksTimelinePanel({
         )}
 
         {canLoadMore && onLoadMore ? (
-          <div className="flex items-center justify-center border-t border-(--color-divider) pt-4">
+          <div className="flex items-center justify-center border-t border-(--line) pt-4">
             <Button
               data-testid="tasks-timeline-load-more"
               onClick={onLoadMore}
@@ -306,9 +304,9 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
               <Pill.Dot pulse={pulse} tone={signalTone} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 text-badge text-(--color-text-label)">
+              <div className="flex flex-wrap items-center gap-2 text-badge text-(--muted)">
                 <span
-                  className={isFailure ? "text-(--color-danger)" : "text-(--color-text-primary)"}
+                  className={isFailure ? "text-(--danger)" : "text-(--fg)"}
                   data-testid={`tasks-timeline-event-type-${item.event_id}`}
                 >
                   {item.event_type}
@@ -323,9 +321,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
                 {item.origin?.ref ? <span>· {item.origin.ref}</span> : null}
               </div>
               <p
-                className={`mt-1 text-small-body ${
-                  isFailure ? "text-(--color-danger)" : "text-(--color-text-primary)"
-                }`}
+                className={`mt-1 text-small-body ${isFailure ? "text-(--danger)" : "text-(--fg)"}`}
                 data-testid={`tasks-timeline-message-${item.event_id}`}
               >
                 {describeEvent(item)}
@@ -333,7 +329,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
             </div>
             {timestamp ? (
               <span
-                className="mt-1 shrink-0 font-mono text-eyebrow text-(--color-text-tertiary)"
+                className="mt-1 shrink-0 font-mono text-eyebrow text-(--subtle)"
                 data-testid={`tasks-timeline-timestamp-${item.event_id}`}
               >
                 {timestamp}

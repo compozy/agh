@@ -49,7 +49,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
   return (
     <Item
       as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+      className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--line)] px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
       indicator={isSelected ? "rail" : "none"}
@@ -58,15 +58,13 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
       selected={isSelected}
     >
       <ItemHeader>
-        <ItemTitle className="min-w-0 flex-1 text-small-body text-(--color-text-primary)">
-          {memory.name}
-        </ItemTitle>
-        <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
+        <ItemTitle className="min-w-0 flex-1 text-small-body text-(--fg)">{memory.name}</ItemTitle>
+        <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--subtle)">
           {formatKnowledgeRelativeTime(memory.mod_time)}
         </span>
       </ItemHeader>
       {memory.description ? (
-        <ItemDescription className="basis-full truncate text-xs text-(--color-text-secondary)">
+        <ItemDescription className="basis-full truncate text-xs text-(--muted)">
           {memory.description}
         </ItemDescription>
       ) : null}
@@ -131,7 +129,7 @@ function KnowledgeListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
-      <div className="border-b border-(--color-divider) p-3">
+      <div className="border-b border-(--line) p-3">
         <SearchInput
           aria-label="Search knowledge"
           data-testid="knowledge-search-input"
@@ -141,7 +139,7 @@ function KnowledgeListPanel({
         />
         {searchInfo ? (
           <p
-            className="mt-2 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)"
+            className="mt-2 font-mono text-badge uppercase tracking-badge text-(--subtle)"
             data-testid="knowledge-search-info"
           >
             {searchInfo}
@@ -155,7 +153,7 @@ function KnowledgeListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="knowledge-list-loading"
           >
-            <Spinner className="size-5 text-(--color-text-tertiary)" />
+            <Spinner className="size-5 text-(--subtle)" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div

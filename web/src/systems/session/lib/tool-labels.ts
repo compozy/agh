@@ -36,13 +36,13 @@ export function getToolTone(message: UIMessage): ToolTone {
 export function toolToneClass(tone: ToolTone): string {
   switch (tone) {
     case "error":
-      return "text-(--color-danger)/50";
+      return "text-(--danger)/50";
     case "tool":
-      return "text-(--color-text-tertiary)/70";
+      return "text-(--subtle)/70";
     case "thinking":
-      return "text-(--color-text-tertiary)/50";
+      return "text-(--subtle)/50";
     case "info":
-      return "text-(--color-text-tertiary)/40";
+      return "text-(--subtle)/40";
   }
 }
 

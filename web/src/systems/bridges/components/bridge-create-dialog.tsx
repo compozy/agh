@@ -80,7 +80,7 @@ function renderBridgeCreateDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-4xl"
+        className="gap-0 p-0 text-(--fg) sm:max-w-4xl"
         showCloseButton={false}
         unframed
       >
@@ -96,12 +96,12 @@ function renderBridgeCreateDialog({
           <div className="flex-1 overflow-y-auto p-5">
             <FieldSet className="gap-6">
               <Section label="Provider">
-                <p className="text-small-body text-(--color-text-secondary)">
+                <p className="text-small-body text-(--muted)">
                   Only providers with healthy runtime state can be selected for bridge creation.
                 </p>
                 {providers.length === 0 ? (
                   <div
-                    className="mt-3 rounded-md border border-dashed border-(--color-divider) bg-(--color-surface) px-5 py-8 text-center text-small-body leading-6 text-(--color-text-secondary)"
+                    className="mt-3 rounded-md border border-dashed border-(--line) bg-(--canvas-soft) px-5 py-8 text-center text-small-body leading-6 text-(--muted)"
                     data-testid="bridge-provider-empty"
                   >
                     No bridge providers are currently available. Install or enable a bridge adapter
@@ -133,25 +133,25 @@ function renderBridgeCreateDialog({
 
               {selectedProvider ? (
                 <Section data-testid="bridge-provider-runtime-section" label="Provider runtime">
-                  <p className="text-small-body text-(--color-text-secondary)">
+                  <p className="text-small-body text-(--muted)">
                     Provider-owned runtime configuration, DM policy, and secret requirements stay
                     separate from generic routing and delivery defaults.
                   </p>
 
                   <MetadataList className="mt-3 grid gap-3 lg:grid-cols-2">
                     <MetadataList.Row
-                      className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3"
+                      className="rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3"
                       label="Config schema"
-                      termProps={{ className: "mb-2 text-(--color-text-label)" }}
+                      termProps={{ className: "mb-2 text-(--muted)" }}
                       valueProps={{
-                        className: "text-small-body text-(--color-text-primary)",
+                        className: "text-small-body text-(--fg)",
                         "data-testid": "bridge-provider-config-schema",
                       }}
                     >
                       {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
                     </MetadataList.Row>
 
-                    <div className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+                    <div className="rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <Eyebrow tone="neutral">Secret slots</Eyebrow>
                         <Pill mono>{selectedProvider.secret_slots?.length ?? 0}</Pill>
@@ -164,7 +164,7 @@ function renderBridgeCreateDialog({
                           {selectedProvider.secret_slots.map(slot => (
                             <Item
                               key={slot.name}
-                              className="rounded-md border border-(--color-divider) bg-(--color-surface-panel) px-3 py-2"
+                              className="rounded-md border border-(--line) bg-(--canvas-soft) px-3 py-2"
                             >
                               <ItemContent>
                                 <ItemHeader className="justify-start">
@@ -173,7 +173,7 @@ function renderBridgeCreateDialog({
                                     {slot.required === false ? "OPTIONAL" : "REQUIRED"}
                                   </Pill>
                                 </ItemHeader>
-                                <p className="text-xs leading-relaxed text-(--color-text-secondary)">
+                                <p className="text-xs leading-relaxed text-(--muted)">
                                   {describeBridgeSecretSlot(slot)}
                                 </p>
                               </ItemContent>
@@ -181,7 +181,7 @@ function renderBridgeCreateDialog({
                           ))}
                         </ItemGroup>
                       ) : (
-                        <p className="mt-3 text-small-body leading-relaxed text-(--color-text-secondary)">
+                        <p className="mt-3 text-small-body leading-relaxed text-(--muted)">
                           This provider does not declare secret slot requirements in its manifest.
                         </p>
                       )}
@@ -239,13 +239,13 @@ function renderBridgeCreateDialog({
                       />
                       {providerConfigError ? (
                         <p
-                          className="text-small-body text-(--color-danger)"
+                          className="text-small-body text-(--danger)"
                           data-testid="bridge-provider-config-error"
                         >
                           {providerConfigError}
                         </p>
                       ) : (
-                        <p className="text-xs leading-relaxed text-(--color-text-tertiary)">
+                        <p className="text-xs leading-relaxed text-(--subtle)">
                           Hint: {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
                         </p>
                       )}
@@ -302,7 +302,7 @@ function renderBridgeCreateDialog({
               </FieldGroup>
 
               <Section label="Routing policy">
-                <p className="text-small-body text-(--color-text-secondary)">
+                <p className="text-small-body text-(--muted)">
                   {describeBridgeRoutingPolicy(draft.routingPolicy)}
                 </p>
                 <FieldGroup className="mt-3 gap-3">
@@ -373,7 +373,7 @@ function renderBridgeCreateDialog({
               </Section>
 
               <Section label="Delivery defaults">
-                <p className="text-small-body text-(--color-text-secondary)">
+                <p className="text-small-body text-(--muted)">
                   These defaults are applied when resolving outbound delivery targets.
                 </p>
                 <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">

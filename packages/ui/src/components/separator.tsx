@@ -49,7 +49,7 @@ function Separator({
           data-slot="separator-label"
           className={cn(
             "shrink-0 font-mono text-eyebrow uppercase tracking-mono",
-            tone === "accent" ? "text-accent" : "text-(--color-text-tertiary)",
+            tone === "accent" ? "text-(--accent)" : "text-(--subtle)",
             labelClassName
           )}
         >

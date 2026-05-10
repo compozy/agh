@@ -1,5 +1,7 @@
+import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import { ThreadOverlay, useThreadViewMode } from "@/systems/network";
 
 interface ThreadDetailSearch {
@@ -7,6 +9,9 @@ interface ThreadDetailSearch {
 }
 
 export const Route = createFileRoute("/_app/network/$channel/threads/$threadId")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `#${params.channel} · Thread`, icon: NetworkIcon },
+  }),
   component: NetworkChannelThreadDetailRoute,
   validateSearch: (search: Record<string, unknown>): ThreadDetailSearch => ({
     view: search.view === "full" ? "full" : undefined,

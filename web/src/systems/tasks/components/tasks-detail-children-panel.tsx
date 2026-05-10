@@ -69,9 +69,7 @@ export function TasksDetailChildrenPanel({
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.Cell className="max-w-[360px]">
                 <LinkedRecordTable.Title>
-                  <span className="truncate text-small-body text-(--color-text-primary)">
-                    {child.title}
-                  </span>
+                  <span className="truncate text-small-body text-(--fg)">{child.title}</span>
                   <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
                     <Pill mono>{taskShortId({ id: child.id, identifier: child.identifier })}</Pill>
                     <Pill tone={pillToneFromLegacyTone(taskStatusTone(child.status))}>
@@ -85,10 +83,10 @@ export function TasksDetailChildrenPanel({
                   </div>
                 </LinkedRecordTable.Title>
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="text-xs text-(--color-text-secondary)">
+              <LinkedRecordTable.Cell className="text-xs text-(--muted)">
                 {taskOwnerLabel(child.owner)}
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-tertiary)">
+              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--subtle)">
                 {child.last_activity_at ? formatRelativeTime(child.last_activity_at) : "--"}
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.OpenCell>

@@ -82,7 +82,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
             </Pill.Link>
           }
         >
-          <div className="flex flex-col gap-2 rounded-xl border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3">
+          <div className="flex flex-col gap-2 rounded-xl border border-(--line) bg-(--elevated) px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <Pill.Dot tone={activeSignal.tone} pulse={activeSignal.pulse} />
               <Pill mono>{activeRun.id}</Pill>
@@ -126,7 +126,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
       ) : (
         <Section data-testid="tasks-detail-active-run-empty" label="Execution">
           <p
-            className="text-small-body text-(--color-text-secondary)"
+            className="text-small-body text-(--muted)"
             data-testid="tasks-detail-active-run-empty-hint"
           >
             {taskLifecyclePhaseDescription(lifecyclePhase)}
@@ -136,13 +136,11 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (
-          <p className="max-w-prose whitespace-pre-wrap text-small-body leading-relaxed text-(--color-text-primary)">
+          <p className="max-w-prose whitespace-pre-wrap text-small-body leading-relaxed text-(--fg)">
             {description}
           </p>
         ) : (
-          <p className="text-small-body italic text-(--color-text-tertiary)">
-            No description provided.
-          </p>
+          <p className="text-small-body italic text-(--subtle)">No description provided.</p>
         )}
       </Section>
     </section>

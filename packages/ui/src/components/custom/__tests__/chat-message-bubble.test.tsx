@@ -16,9 +16,9 @@ describe("ChatMessageBubble", () => {
     expect(root?.getAttribute("data-role")).toBe("user");
     expect(root?.getAttribute("data-align")).toBe("right");
     expect(root?.className).toContain("justify-end");
-    expect(body?.className).toContain("bg-[color:var(--color-surface-elevated)]");
+    expect(body?.className).toContain("bg-[color:var(--elevated)]");
     expect(body?.className).toContain("rounded-[var(--radius-lg)]");
-    expect(body?.className).toContain("text-[color:var(--color-text-primary)]");
+    expect(body?.className).toContain("text-[color:var(--fg)]");
     expect(body?.textContent).toContain("Find the event mapper.");
     expect(meta?.textContent).toBe("YOU · 12:02");
     expect(meta?.className).toContain("text-right");
@@ -46,9 +46,9 @@ describe("ChatMessageBubble", () => {
     expect(root?.getAttribute("data-role")).toBe("agent");
     expect(root?.getAttribute("data-align")).toBe("left");
     expect(root?.className).toContain("flex-col");
-    expect(body?.className).not.toContain("bg-[color:var(--color-surface-elevated)]");
+    expect(body?.className).not.toContain("bg-[color:var(--elevated)]");
     expect(body?.className).not.toContain("rounded-[var(--radius-lg)]");
-    expect(body?.className).toContain("text-[color:var(--color-text-secondary)]");
+    expect(body?.className).toContain("text-[color:var(--muted)]");
     expect(meta?.className).toContain("items-center");
     expect(meta?.querySelector('[data-testid="dot"]')).not.toBeNull();
     expect(meta?.querySelector('[data-testid="name"]')?.textContent).toBe("claude");
@@ -65,7 +65,7 @@ describe("ChatMessageBubble", () => {
     const dividers = root?.querySelectorAll('span[aria-hidden="true"]') ?? [];
     expect(dividers.length).toBe(2);
     for (const divider of Array.from(dividers)) {
-      expect(divider.className).toContain("bg-[color:var(--color-divider)]");
+      expect(divider.className).toContain("bg-[color:var(--line)]");
       expect(divider.className).toContain("h-px");
       expect(divider.className).toContain("flex-1");
     }
@@ -122,7 +122,7 @@ describe("ChatMessageBubble", () => {
       expect(root?.getAttribute("data-role")).toBe(role);
       expect(root?.getAttribute("data-align")).toBe("left");
       expect(root?.className).toContain("flex-col");
-      expect(body?.className ?? "").not.toContain("bg-[color:var(--color-surface-elevated)]");
+      expect(body?.className ?? "").not.toContain("bg-[color:var(--elevated)]");
       expect(body?.querySelector('[data-testid="inner-card"]')?.textContent).toBe("payload");
     }
   );

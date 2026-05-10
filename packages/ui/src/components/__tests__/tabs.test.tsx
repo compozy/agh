@@ -54,6 +54,13 @@ describe("Tabs", () => {
     expect(list).toHaveAttribute("data-variant", "line");
   });
 
+  it("Should render the underline as 1.5px tall positioned at bottom: -1px", () => {
+    const { container } = render(<TabsExample />);
+    const trigger = container.querySelector('[data-slot="tabs-trigger"]') as HTMLElement | null;
+    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:bottom-[-1px]");
+    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:h-[1.5px]");
+  });
+
   it("Should render count and live label slots inside a trigger", () => {
     const { container } = render(
       <Tabs defaultValue="runs">
