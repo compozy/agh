@@ -46,9 +46,9 @@ interface KindIconProps<K extends string = string>
 }
 
 const KIND_ICON_TONE: Record<KindIconTone, string> = {
-  default: "text-[color:var(--fg)]",
-  muted: "text-[color:var(--subtle)]",
-  accent: "text-[color:var(--accent)]",
+  default: "text-(--fg)",
+  muted: "text-(--subtle)",
+  accent: "text-(--accent)",
 };
 
 const KIND_ICON_SIZE: Record<KindIconSize, string> = {

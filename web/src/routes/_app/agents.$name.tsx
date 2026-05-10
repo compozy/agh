@@ -77,7 +77,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
             <button
               type="button"
               onClick={page.onGoHome}
-              className="inline-flex items-center gap-2 rounded-md border border-(--line) px-3 py-1.5 text-xs text-(--muted) transition-colors hover:border-accent hover:text-(--fg)"
+              className="inline-flex items-center gap-2 rounded-md border border-(--line) px-3 py-1.5 text-xs text-(--muted) transition-colors hover:border-(--accent) hover:text-(--fg)"
               data-testid="agent-detail-go-home"
             >
               <Compass className="size-3.5" />

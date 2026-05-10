@@ -19,7 +19,7 @@ describe("Metric", () => {
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
     expect(value?.textContent).toBe("12");
     expect(value?.className).toContain("text-[24px]");
-    expect(value?.className).toContain("font-bold");
+    expect(value?.className).toContain("font-medium");
     expect(value?.className).toContain("tracking-[-0.02em]");
   });
 
@@ -58,7 +58,7 @@ describe("Metric", () => {
     const subtext = container.querySelector<HTMLElement>('[data-slot="metric-subtext"]');
     expect(subtext?.textContent).toBe("Across 8 sessions");
     expect(subtext?.className).toContain("text-[13px]");
-    expect(subtext?.className).toContain("text-[color:var(--muted)]");
+    expect(subtext?.className).toContain("text-(--muted)");
   });
 
   it("Should omit the detail and subtext slots when those props are absent", () => {

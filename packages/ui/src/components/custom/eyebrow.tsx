@@ -23,7 +23,7 @@ const EYEBROW_TONE_CLASS: Record<PillTone, string> = {
 
 function Eyebrow({
   tone = "neutral",
-  weight = "semibold",
+  weight = "medium",
   case: caseVariant = "sentence",
   className,
   ...props
@@ -38,7 +38,7 @@ function Eyebrow({
         caseVariant === "upper"
           ? "font-mono text-[10.5px] uppercase tracking-[0.05em]"
           : "font-sans text-[12px] tracking-[-0.005em]",
-        weight === "semibold" ? "font-semibold" : "font-medium",
+        "font-medium",
         EYEBROW_TONE_CLASS[tone],
         className
       )}

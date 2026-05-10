@@ -168,7 +168,7 @@ function VaultFilterBar({
       data-testid="settings-page-vault-filters"
     >
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
-        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--muted)">
+        <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
           Namespace
         </span>
         <select
@@ -187,7 +187,7 @@ function VaultFilterBar({
         </select>
       </label>
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
-        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--muted)">
+        <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
           Prefix
         </span>
         <Input

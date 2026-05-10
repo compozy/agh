@@ -153,7 +153,7 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const active = screen.getByTestId("workspace-avatar-ws_alpha");
       expect(active).toHaveAttribute("data-active", "true");
-      expect(active.className).toContain("border-accent");
+      expect(active.className).toContain("border-(--accent)");
     });
 
     it("does not highlight inactive workspaces", () => {

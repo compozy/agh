@@ -16,8 +16,9 @@ function Card({ className, size = "default", activeRail = false, ...props }: Car
       data-size={size}
       data-active-rail={activeRail ? "true" : undefined}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-lg bg-card py-4 text-sm text-card-foreground ring-1 ring-(--line) has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
-        activeRail && "border-l-2 border-l-(--accent)",
+        "group/card relative flex flex-col gap-4 overflow-hidden rounded-lg bg-(--canvas-soft) py-4 text-[13px] text-(--fg) ring-1 ring-(--line) has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
+        activeRail &&
+          "before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-(--accent)",
         className
       )}
       {...props}
@@ -43,7 +44,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",
+        "text-[15px] leading-snug font-[510] tracking-[-0.014em] text-(--fg-strong) group-data-[size=sm]/card:text-[13px]",
         className
       )}
       {...props}
@@ -55,7 +56,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-[13px] text-(--muted)", className)}
       {...props}
     />
   );
@@ -86,7 +87,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-lg border-t bg-muted/50 p-4 group-data-[size=sm]/card:p-3",
+        "flex items-center rounded-b-lg border-t border-(--line) bg-(--canvas-tint) p-4 group-data-[size=sm]/card:p-3",
         className
       )}
       {...props}

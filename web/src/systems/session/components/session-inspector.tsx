@@ -1043,7 +1043,7 @@ export function SessionInspectorDrawer({
         className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-(--canvas) p-0 sm:max-w-[360px]"
       >
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-(--line) px-4">
-          <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--muted)">
+          <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
             Inspector
           </span>
         </header>

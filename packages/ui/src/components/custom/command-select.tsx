@@ -48,10 +48,8 @@ function CommandSelectTrigger({
 }: CommandSelectTriggerProps) {
   const content = children ?? (
     <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-      {icon ? <span className="shrink-0 text-muted-foreground">{icon}</span> : null}
-      <span
-        className={cn("truncate text-sm", selected ? "text-foreground" : "text-muted-foreground")}
-      >
+      {icon ? <span className="shrink-0 text-(--subtle)">{icon}</span> : null}
+      <span className={cn("truncate text-[13px]", selected ? "text-(--fg)" : "text-(--subtle)")}>
         {label ?? placeholder}
       </span>
     </span>
@@ -62,13 +60,13 @@ function CommandSelectTrigger({
       data-slot="command-select-trigger"
       type={type}
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors outline-none hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/50",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-(--line) bg-(--elevated) px-3 py-2 text-[13px] text-(--fg) transition-colors outline-none hover:bg-(--hover) disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-(--line-strong) focus-visible:shadow-[0_0_0_1px_var(--line-strong)]",
         className
       )}
       {...props}
     >
       {content}
-      <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+      <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-(--subtle)" />
     </PopoverTrigger>
   );
 }
@@ -124,7 +122,7 @@ function CommandSelectChip({
       data-slot="command-select-chip"
       type={type}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-sm border border-[color:var(--line)] bg-[color:var(--canvas-soft)] px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-[color:var(--muted)]",
+        "inline-flex max-w-full items-center gap-1 rounded-sm border border-(--line) bg-(--canvas-soft) px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-(--muted)",
         className
       )}
       onClick={event => {

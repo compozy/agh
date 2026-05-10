@@ -207,19 +207,19 @@ export const ConnectionIndicator: Story = {
     <div className="flex flex-col gap-2">
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="success" />
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-(--color-text-label)">
+        <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
           Connected
         </span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="warning" pulse />
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-(--color-text-label)">
+        <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
           Reconnecting
         </span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="danger" />
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-(--color-text-label)">
+        <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
           Disconnected
         </span>
       </div>
@@ -242,7 +242,7 @@ export const StandaloneDots: Story = {
       {TONES.map(tone => (
         <div key={tone} className="flex items-center gap-2" data-testid={`pill-dot-${tone}`}>
           <Pill.Dot tone={tone} />
-          <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-(--color-text-label)">
+          <span className="font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
             {tone}
           </span>
         </div>
@@ -266,13 +266,13 @@ export const DotSizes: Story = {
     <div className="flex items-center gap-6">
       <div className="flex items-center gap-2">
         <Pill.Dot size="sm" tone="success" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-(--color-text-label)">
+        <span className="font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
           sm · 6px
         </span>
       </div>
       <div className="flex items-center gap-2">
         <Pill.Dot size="md" tone="success" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-(--color-text-label)">
+        <span className="font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
           md · 8px
         </span>
       </div>

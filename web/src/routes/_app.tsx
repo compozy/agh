@@ -48,7 +48,9 @@ function AppLayout() {
           className="col-span-2 row-span-2"
           collapsed={page.collapsed}
           onCollapseChange={page.setCollapsed}
-          workspaces={page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces}
+          workspaces={
+            page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces
+          }
           activeWorkspaceId={page.activeWorkspaceId}
           onSelectWorkspace={page.setActiveWorkspaceId}
           onAddWorkspace={page.openWorkspaceSetup}

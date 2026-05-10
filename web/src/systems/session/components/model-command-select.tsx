@@ -123,9 +123,9 @@ export function ModelCommandSelect({
               data-testid="model-command-item-default"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="truncate text-sm text-foreground">Use provider default</span>
+                <span className="truncate text-sm text-(--fg)">Use provider default</span>
                 {trimmedDefault ? (
-                  <span className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-muted-foreground">
+                  <span className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-(--muted)">
                     {trimmedDefault}
                   </span>
                 ) : null}
@@ -147,7 +147,7 @@ export function ModelCommandSelect({
                   data-availability={option.availabilityState}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-sm text-foreground">{option.displayName}</span>
+                    <span className="truncate text-sm text-(--fg)">{option.displayName}</span>
                     <Pill
                       mono
                       tone={modelAvailabilityTone(option.availabilityState)}
@@ -168,7 +168,7 @@ export function ModelCommandSelect({
                 onSelect={() => handleSelect(trimmedQuery)}
                 data-testid="model-command-item-custom"
               >
-                <span className="truncate text-sm text-foreground">Use "{trimmedQuery}"</span>
+                <span className="truncate text-sm text-(--fg)">Use "{trimmedQuery}"</span>
               </CommandItem>
             </CommandSelectGroup>
           ) : null}

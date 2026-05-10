@@ -133,7 +133,7 @@ function KanbanColumn({
       <div className="flex min-h-0 flex-1 flex-col gap-2 pt-2 pb-4">
         {tasks.length === 0 ? (
           <div
-            className="flex flex-1 items-center justify-center rounded-(--radius-diagram) border border-dashed border-(--line) px-3 py-8 text-center text-xs text-(--subtle)"
+            className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-(--line) px-3 py-8 text-center text-xs text-(--subtle)"
             data-testid={`tasks-kanban-column-empty-${column.id}`}
           >
             No tasks
@@ -172,7 +172,10 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
   const footer = (
     <div className="flex min-w-0 flex-col gap-1 text-eyebrow">
       {isLive && activeRun ? (
-        <span className="text-badge text-accent" data-testid={`tasks-kanban-card-live-${task.id}`}>
+        <span
+          className="text-badge text-(--accent)"
+          data-testid={`tasks-kanban-card-live-${task.id}`}
+        >
           ● LIVE · {formatAttemptLabel(activeRun.attempt, activeRun.max_attempts) ?? "running"}
         </span>
       ) : null}
@@ -215,7 +218,7 @@ function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
 
   return (
     <TasksListRow
-      className="rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-3.5 py-3"
+      className="rounded-lg border border-(--line) bg-(--canvas-soft) px-3.5 py-3"
       footer={footer}
       onSelect={onSelect}
       selected={isSelected}

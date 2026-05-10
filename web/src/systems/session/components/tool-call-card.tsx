@@ -35,7 +35,7 @@ export const ToolCallCard = memo(
         aria-hidden="true"
         data-slot="tool-call-card-icon"
         data-testid="tool-call-icon"
-        className={cn("size-3.5 shrink-0", card.isRunning ? "text-accent" : "text-(--subtle)")}
+        className={cn("size-3.5 shrink-0", card.isRunning ? "text-(--accent)" : "text-(--subtle)")}
       />
     );
 
@@ -67,7 +67,7 @@ export const ToolCallCard = memo(
           data-testid="tool-card-trigger"
           className={cn(
             "block w-full cursor-pointer text-left outline-none",
-            "focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-0",
+            "focus-visible:ring-2 focus-visible:ring-(--accent)/40 focus-visible:ring-offset-0",
             "rounded-md"
           )}
         >

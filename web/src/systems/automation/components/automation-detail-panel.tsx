@@ -431,7 +431,7 @@ export function AutomationDetailPanel({
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Pill.Dot tone={enabledTone} />
-              <h2 className="text-item-title font-semibold tracking-tight text-(--fg)">
+              <h2 className="text-item-title font-medium tracking-tight text-(--fg)">
                 {item.name}
               </h2>
               <Pill mono tone={enabledTone}>

@@ -76,8 +76,8 @@ describe("Sheet", () => {
     expect(overlay?.className).toContain("bg-(--overlay-scrim)");
     expect(overlay?.className).not.toContain("backdrop-blur");
     expect(dialog.className).toContain("bg-(--canvas-soft)");
-    expect(dialog.className).toContain("border-(--line)");
     expect(dialog.className).toContain("shadow-[var(--shadow-overlay)]");
+    expect(dialog.className).not.toContain("border-(--line)");
   });
 
   it("Should throw when SheetContent is used outside <Sheet>", () => {

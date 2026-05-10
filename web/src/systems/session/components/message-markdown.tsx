@@ -127,7 +127,7 @@ export const MessageMarkdown = memo(
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent underline underline-offset-2 hover:opacity-80"
+                className="text-(--accent) underline underline-offset-2 hover:opacity-80"
                 {...props}
               >
                 {children}

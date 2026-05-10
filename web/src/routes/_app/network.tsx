@@ -40,10 +40,7 @@ function NetworkRouteShell() {
           data-testid="network-loading"
           role="status"
         >
-          <Loader2
-            aria-hidden="true"
-            className="size-5 animate-spin text-[color:var(--subtle)]"
-          />
+          <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
         </div>
         {view.networkCreate.dialog}
       </>

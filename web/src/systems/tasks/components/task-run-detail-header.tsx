@@ -124,7 +124,7 @@ export function TaskRunDetailHeader({
             <span className="flex min-w-0 items-center gap-2">
               <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
               <span
-                className="flex min-w-0 items-center gap-1.5 text-item-title font-semibold text-(--fg)"
+                className="flex min-w-0 items-center gap-1.5 text-item-title font-medium text-(--fg)"
                 data-testid="task-run-detail-title"
               >
                 Run{" "}

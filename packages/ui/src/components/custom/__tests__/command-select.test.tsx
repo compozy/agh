@@ -22,8 +22,8 @@ describe("CommandSelect", () => {
     const trigger = screen.getByTestId("command-select-trigger");
     expect(trigger).toHaveAttribute("data-slot", "command-select-trigger");
     expect(trigger.className).toContain("h-9");
-    expect(trigger.className).toContain("border-input");
-    expect(trigger.className).toContain("focus-visible:ring-2");
+    expect(trigger.className).toContain("border-(--line)");
+    expect(trigger.className).toContain("focus-visible:shadow-[0_0_0_1px_var(--line-strong)]");
     expect(trigger).toHaveTextContent("claude-sonnet");
   });
 

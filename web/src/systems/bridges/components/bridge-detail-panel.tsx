@@ -23,7 +23,7 @@ import {
   Input,
   MetadataList,
   Metric,
-    Pill,
+  Pill,
   type PillTone,
   Section,
   Spinner,
@@ -605,10 +605,7 @@ function BridgeDetailHeader({
             {bridge.display_name}
           </h1>
         </div>
-        <div
-          data-slot="page-header-controls"
-          className="ml-auto flex shrink-0 items-center gap-2"
-        >
+        <div data-slot="page-header-controls" className="ml-auto flex shrink-0 items-center gap-2">
           <Button
             data-testid="edit-bridge-btn"
             disabled={isLifecyclePending}
@@ -657,10 +654,7 @@ function BridgeDetailHeader({
           )}
         </div>
       </div>
-      <div
-        data-slot="page-header-subtitle"
-        className="max-w-152 text-small-body text-(--muted)"
-      >
+      <div data-slot="page-header-subtitle" className="max-w-152 text-small-body text-(--muted)">
         {bridge.platform} / {bridge.extension_name}
       </div>
       <div

@@ -80,7 +80,7 @@ function NetworkChannelDirectsRoute() {
         className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--subtle)">
+        <span className="font-mono text-badge font-medium uppercase tracking-mono text-(--subtle)">
           {subheaderLabel}
         </span>
         <Button

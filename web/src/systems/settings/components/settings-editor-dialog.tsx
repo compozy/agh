@@ -82,7 +82,7 @@ function SettingsEditorDialog({
 
         <div className="flex flex-col gap-2" data-testid={`settings-${slug}-editor-feedback`}>
           {error ? (
-            <Alert variant="destructive" data-testid={`settings-${slug}-editor-error`}>
+            <Alert variant="danger" data-testid={`settings-${slug}-editor-error`}>
               <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
               <AlertDescription className="text-xs">{error}</AlertDescription>
             </Alert>

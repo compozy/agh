@@ -47,10 +47,10 @@ export const Default: Story = {
   ),
 };
 
-export const Destructive: Story = {
+export const Danger: Story = {
   args: {},
   render: () => (
-    <Alert variant="destructive">
+    <Alert variant="danger">
       <TriangleAlertIcon />
       <AlertTitle>Connection lost</AlertTitle>
       <AlertDescription>

@@ -75,7 +75,7 @@ describe("SettingsRestartBanner", () => {
     ).toHaveTextContent("2 active sessions");
     expect(
       screen.getByTestId("settings-page-observability-restart-banner-active-sessions")
-    ).toHaveClass("font-mono", "text-badge", "font-semibold", "tracking-badge");
+    ).toHaveClass("font-mono", "text-badge", "font-medium", "tracking-badge");
     expect(
       screen.getByTestId("settings-page-observability-restart-banner-active-sessions").className
     ).toContain("text-(--muted)");

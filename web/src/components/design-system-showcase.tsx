@@ -79,7 +79,7 @@ import {
   Pill,
   NativeSelect,
   NativeSelectOption,
-    PillGroup,
+  PillGroup,
   Popover,
   PopoverContent,
   PopoverDescription,
@@ -586,7 +586,7 @@ function FoundationsTokenSection() {
           >
             <header className="flex items-end justify-between gap-4">
               <div>
-                <h3 className="text-item-title font-semibold text-(--fg)">{group.label}</h3>
+                <h3 className="text-item-title font-medium text-(--fg)">{group.label}</h3>
                 <p className="mt-0.5 text-small-body text-(--muted)">{group.caption}</p>
               </div>
               <span className="font-mono text-badge uppercase tracking-badge text-(--subtle)">
@@ -611,11 +611,11 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       data-testid={`token-${swatch.token}`}
       data-token={swatch.token}
       data-kind={swatch.kind}
-      className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-3"
+      className="flex flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) p-3"
     >
       <TokenPreview swatch={swatch} />
       <div className="flex flex-col gap-0.5">
-        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--subtle)">
+        <span className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--subtle)">
           {swatch.token}
         </span>
         <span className="font-mono text-eyebrow text-(--muted)">{swatch.value}</span>
@@ -672,7 +672,9 @@ function TypographySection() {
             <CardTitle>Page title · Inter 20/700</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="text-xl font-bold leading-7 tracking-tight">Runtime sessions overview</p>
+            <p className="text-xl font-medium leading-7 tracking-tight" style={{ fontWeight: 510 }}>
+              Runtime sessions overview
+            </p>
             <p className="text-base leading-7 text-(--muted)">
               Body · Inter 16px regular, the default reading text for operator UI. Line-height
               1.5–1.7 keeps dense dashboards breathable without resorting to oversized padding.
@@ -687,7 +689,7 @@ function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--muted)">
+            <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)">
               Eyebrow · JetBrains Mono 11/600 0.06em
             </p>
             <p className="font-mono text-sm leading-7 text-(--fg)">
@@ -970,7 +972,7 @@ function FeedbackSection() {
             Runtime will reload at 04:00 UTC to pick up skill index updates.
           </AlertDescription>
         </Alert>
-        <Alert variant="destructive">
+        <Alert variant="danger">
           <InfoIcon />
           <AlertTitle>Connection lost</AlertTitle>
           <AlertDescription>
@@ -1210,7 +1212,7 @@ function LayoutSection() {
       right={<Pill mono>layout</Pill>}
     >
       <div className="grid gap-4 pt-4 lg:grid-cols-2">
-        <div className="h-[340px] overflow-hidden rounded-(--radius-diagram) border border-(--line)">
+        <div className="h-[340px] overflow-hidden rounded-lg border border-(--line)">
           <Sidebar
             defaultCollapsed={false}
             rail={
@@ -1218,7 +1220,7 @@ function LayoutSection() {
                 <button
                   type="button"
                   aria-label="Workspace agh-core"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-accent bg-(--elevated) font-mono text-eyebrow text-accent"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-(--accent) bg-(--elevated) font-mono text-eyebrow text-(--accent)"
                 >
                   A
                 </button>
@@ -1256,7 +1258,7 @@ function LayoutSection() {
             }
           />
         </div>
-        <div className="h-[340px] overflow-hidden rounded-(--radius-diagram) border border-(--line)">
+        <div className="h-[340px] overflow-hidden rounded-lg border border-(--line)">
           <SplitPane
             list={
               <ScrollArea className="h-full">

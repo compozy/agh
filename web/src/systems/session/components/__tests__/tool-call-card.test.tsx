@@ -67,8 +67,8 @@ describe("ToolCallCard", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     const root = queryPrimitiveRoot();
     expect(root).not.toBeNull();
-    expect(root?.className).toMatch(/bg-\[color:var\(--canvas-soft\)\]/);
-    expect(root?.className).toMatch(/border-\[color:var\(--line\)\]/);
+    expect(root?.className).toContain("bg-(--canvas-soft)");
+    expect(root?.className).toContain("border-(--line)");
     expect(root?.className).toContain("rounded-md");
   });
 

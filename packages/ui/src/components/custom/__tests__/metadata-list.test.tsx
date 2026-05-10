@@ -30,7 +30,7 @@ describe("MetadataList", () => {
       </MetadataList>
     );
 
-    expect(screen.getByText("Status").className).toContain("text-(--color-text-tertiary)");
-    expect(screen.getByText("Ready").className).toContain("text-(--color-text-secondary)");
+    expect(screen.getByText("Status").className).toContain("text-(--subtle)");
+    expect(screen.getByText("Ready").className).toContain("text-(--muted)");
   });
 });

@@ -54,11 +54,12 @@ describe("Tabs", () => {
     expect(list).toHaveAttribute("data-variant", "line");
   });
 
-  it("Should render the underline as 1.5px tall positioned at bottom: -1px", () => {
+  it("Should render the active-tab underline anchored at the bottom edge using the accent token", () => {
     const { container } = render(<TabsExample />);
     const trigger = container.querySelector('[data-slot="tabs-trigger"]') as HTMLElement | null;
-    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:bottom-[-1px]");
-    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:h-[1.5px]");
+    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:bottom-[-2px]");
+    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:h-[2px]");
+    expect(trigger?.className).toContain("after:bg-(--accent)");
   });
 
   it("Should render count and live label slots inside a trigger", () => {

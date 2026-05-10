@@ -62,7 +62,7 @@ function SettingsSourceBadge({
       </Pill>
       {shadowed && shadowed.length > 0 ? (
         <span
-          className="flex flex-wrap items-center gap-1 font-mono text-badge font-semibold tracking-widest text-(--muted)"
+          className="flex flex-wrap items-center gap-1 font-mono text-badge font-medium tracking-mono text-(--muted)"
           data-testid={testId ? `${testId}-shadowed` : undefined}
         >
           <span className="uppercase">shadows</span>

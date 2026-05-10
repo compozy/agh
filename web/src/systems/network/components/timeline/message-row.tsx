@@ -100,7 +100,7 @@ export function MessageRow({
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-sm font-semibold text-(--fg)">{displayName}</span>
+          <span className="truncate text-sm font-medium text-(--fg)">{displayName}</span>
           <Pill
             data-testid="network-message-role-chip"
             mono

@@ -21,7 +21,7 @@ export function MessageAvatar({ seed, initialFrom, sizePx, className }: MessageA
     <div
       aria-hidden="true"
       className={cn(
-        "flex shrink-0 select-none items-center justify-center rounded-chip font-mono text-xs font-semibold uppercase tracking-mono",
+        "flex shrink-0 select-none items-center justify-center rounded-chip font-mono text-xs font-medium uppercase tracking-mono",
         className
       )}
       data-testid="network-message-avatar"

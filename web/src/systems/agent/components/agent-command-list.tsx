@@ -87,14 +87,14 @@ export function AgentCommandList({
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <span className="truncate text-sm text-(--fg)">{agent.name}</span>
                   <span
-                    className="font-mono text-xs uppercase tracking-wide text-(--muted)"
+                    className="font-mono text-badge uppercase tracking-mono text-(--muted)"
                     data-testid={`agent-command-provider-${agent.name}`}
                   >
                     {agent.provider}
                   </span>
                   {categoryLabel ? (
                     <span
-                      className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-(--muted)"
+                      className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-(--muted)"
                       data-testid={`agent-command-category-${agent.name}`}
                     >
                       {categoryLabel}

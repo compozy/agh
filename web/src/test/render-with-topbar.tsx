@@ -1,10 +1,10 @@
 import { render as rtlRender, type RenderResult } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { Topbar, TopbarSlotProvider, type TopbarRouteContext } from "@agh/ui";
 
 interface RenderWithTopbarResult extends RenderResult {
-  rerender: (ui: ReactElement) => void;
+  rerender: (ui: ReactNode) => void;
 }
 
 /**
@@ -19,7 +19,7 @@ export function renderWithTopbar(
   ui: ReactElement,
   routeContext: TopbarRouteContext = { title: "Test" }
 ): RenderWithTopbarResult {
-  const wrap = (child: ReactElement) => (
+  const wrap = (child: ReactNode) => (
     <TopbarSlotProvider>
       <Topbar route={routeContext} />
       {child}
@@ -28,6 +28,6 @@ export function renderWithTopbar(
   const result = rtlRender(wrap(ui));
   return {
     ...result,
-    rerender: (next: ReactElement) => result.rerender(wrap(next)),
+    rerender: (next: ReactNode) => result.rerender(wrap(next)),
   };
 }

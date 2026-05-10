@@ -36,9 +36,30 @@ export interface TopbarSlotProviderProps {
   children: React.ReactNode;
 }
 
+function slotKey(slot: TopbarSlotValue | null): string {
+  if (slot === null) return "null";
+  try {
+    return JSON.stringify(slot, (key, value) => {
+      if (typeof value === "function") return undefined;
+      if (key === "ref" || key === "_owner" || key === "_store") return undefined;
+      return value;
+    });
+  } catch {
+    return String(Math.random());
+  }
+}
+
+function isSameSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null): boolean {
+  if (a === b) return true;
+  return slotKey(a) === slotKey(b);
+}
+
 function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
-  const [slot, setSlot] = React.useState<TopbarSlotValue | null>(null);
-  const value = React.useMemo<TopbarSlotContextValue>(() => ({ slot, setSlot }), [slot]);
+  const [slot, setSlotState] = React.useState<TopbarSlotValue | null>(null);
+  const setSlot = React.useCallback((next: TopbarSlotValue | null) => {
+    setSlotState(prev => (isSameSlot(prev, next) ? prev : next));
+  }, []);
+  const value = React.useMemo<TopbarSlotContextValue>(() => ({ slot, setSlot }), [slot, setSlot]);
   return <TopbarSlotContext.Provider value={value}>{children}</TopbarSlotContext.Provider>;
 }
 
@@ -58,29 +79,25 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
  * pushing one) and let only the deepest route call `useTopbarSlot`.
  */
 function useTopbarSlot(slot: TopbarSlotValue | null): void {
-  const ctx = React.use(TopbarSlotContext);
+  const ctx = React.useContext(TopbarSlotContext);
   const setSlot = ctx?.setSlot;
   React.useEffect(() => {
-    if (!setSlot) {
-      return;
-    }
+    if (!setSlot) return;
     setSlot(slot);
   }, [setSlot, slot]);
   React.useEffect(() => {
-    if (!setSlot) {
-      return;
-    }
+    if (!setSlot) return;
     return () => setSlot(null);
   }, [setSlot]);
 }
 
 function useTopbarSlotValue(): TopbarSlotValue | null {
-  const ctx = React.use(TopbarSlotContext);
+  const ctx = React.useContext(TopbarSlotContext);
   return ctx?.slot ?? null;
 }
 
 function useTopbarSlotContext(): TopbarSlotContextValue | null {
-  return React.use(TopbarSlotContext);
+  return React.useContext(TopbarSlotContext);
 }
 
 export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {

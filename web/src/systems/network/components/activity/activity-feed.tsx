@@ -118,7 +118,7 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
       </div>
       {entries.map(entry => {
         const linkClass = cn(
-          "flex flex-col gap-1 border-b border-(--line) px-5 py-3 text-left transition-colors hover:bg-(--hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+          "flex flex-col gap-1 border-b border-(--line) px-5 py-3 text-left transition-colors hover:bg-(--hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--accent)"
         );
         const meta = (
           <>
@@ -136,7 +136,7 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
               </Eyebrow>
               <Eyebrow weight="medium">{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
             </div>
-            <p className="truncate text-sm font-semibold text-(--fg)">{entry.title}</p>
+            <p className="truncate text-sm font-medium text-(--fg)">{entry.title}</p>
             <p className="line-clamp-2 text-small-body text-(--muted)">{entry.preview}</p>
           </>
         );

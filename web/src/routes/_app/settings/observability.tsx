@@ -399,7 +399,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
         </div>
         {logTail.available && logTail.stream_url ? (
           <a
-            className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm text-(--accent) hover:underline"
             data-testid="settings-page-observability-log-tail-link"
             href={logTail.stream_url}
             rel="noreferrer"

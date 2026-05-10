@@ -153,7 +153,7 @@ export function TasksDetailPreviewPanel({
           <div className="flex min-w-0 items-center gap-2">
             <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
             <h2
-              className="truncate text-ui-title-lg font-semibold tracking-tight text-(--fg)"
+              className="truncate text-ui-title-lg font-medium tracking-tight text-(--fg)"
               data-testid="tasks-detail-preview-title"
             >
               {record.title}

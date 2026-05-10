@@ -107,8 +107,8 @@ export function TasksInboxItem({
   return (
     <TasksListRow
       className={cn(
-        "rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) py-3 pr-4",
-        unread && '**:data-[slot="tasks-list-row-title"]:font-semibold'
+        "rounded-lg border border-(--line) bg-(--canvas-soft) py-3 pr-4",
+        unread && '**:data-[slot="tasks-list-row-title"]:font-medium'
       )}
       data-lane={lane}
       data-unread={unread ? "true" : "false"}

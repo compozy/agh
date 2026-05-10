@@ -25,7 +25,7 @@ export const Basic: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section label="Routes">
-        <ul className="divide-y divide-[color:var(--color-divider)] text-sm text-[color:var(--color-text-secondary)]">
+        <ul className="divide-y divide-(--line) text-sm text-(--muted)">
           <li className="py-2">/runtime/sessions</li>
           <li className="py-2">/runtime/memory</li>
           <li className="py-2">/runtime/skills</li>
@@ -50,7 +50,7 @@ export const WithRightSlot: Story = {
           </>
         }
       >
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
+        <p className="text-sm text-(--muted)">
           Dense operational rows go here: replay, inspect, or open detail.
         </p>
       </Section>
@@ -63,7 +63,7 @@ export const WithNote: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section label="Runtime" note="Read-only daemon state" divided>
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
+        <p className="text-sm text-(--muted)">
           Use note for compact section context without creating a local wrapper.
         </p>
       </Section>
@@ -76,7 +76,7 @@ export const BodyOnly: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section>
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
+        <p className="text-sm text-(--muted)">
           Section with no eyebrow; the surrounding layout supplies the heading.
         </p>
       </Section>

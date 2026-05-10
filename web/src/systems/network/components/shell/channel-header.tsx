@@ -187,10 +187,7 @@ export function ChannelHeader({
             </DropdownMenu>
           </div>
         </div>
-        <div
-          data-slot="page-header-subtitle"
-          className="max-w-152 text-small-body text-(--muted)"
-        >
+        <div data-slot="page-header-subtitle" className="max-w-152 text-small-body text-(--muted)">
           <span className="truncate" data-testid="network-channel-meta">
             {metaSegments.map(segment => (
               <span key={segment}>

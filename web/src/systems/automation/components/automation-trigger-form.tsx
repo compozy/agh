@@ -269,7 +269,7 @@ function renderAutomationTriggerForm({
                 ) : (
                   <ChevronRight aria-hidden="true" className="size-4 text-(--subtle)" />
                 )}
-                <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--muted)">
+                <span className="font-mono text-badge font-medium uppercase tracking-mono text-(--muted)">
                   Governance
                 </span>
               </span>

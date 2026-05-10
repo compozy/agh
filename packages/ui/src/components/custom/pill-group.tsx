@@ -6,12 +6,12 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 const pillGroupSegmentVariants = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-chip) font-mono text-badge font-semibold uppercase tracking-(--tracking-badge) transition-colors duration-(--duration-base) ease-(--ease-out) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--color-accent) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-chip) font-mono text-badge font-medium uppercase tracking-(--tracking-badge) transition-colors duration-(--duration-base) ease-(--ease-out) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--accent) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "bg-(--color-surface-elevated) text-(--color-text-primary)",
-        false: "bg-transparent text-(--color-text-tertiary) hover:text-(--color-text-secondary)",
+        true: "bg-(--elevated) text-(--fg-strong)",
+        false: "bg-transparent text-(--subtle) hover:text-(--muted)",
       },
       size: {
         sm: "h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x)",
@@ -59,7 +59,7 @@ function PillGroup<V extends string = string>({
       data-slot="pill-group"
       role="group"
       className={cn(
-        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-(--radius) border border-(--color-divider) bg-(--color-surface-panel) p-(--space-pill-group-track-padding)",
+        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-(--radius) border border-(--line) bg-(--canvas-soft) p-(--space-pill-group-track-padding)",
         className
       )}
       {...props}
@@ -86,7 +86,7 @@ function PillGroup<V extends string = string>({
             {typeof item.badge === "number" && item.badge > 0 ? (
               <span
                 data-slot="pill-group-badge"
-                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-full bg-(--color-accent) px-(--space-pill-group-badge-x) font-mono text-[var(--text-pill-group-badge)] font-bold tabular-nums text-(--color-accent-ink)"
+                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-full bg-(--accent) px-(--space-pill-group-badge-x) font-mono text-(--text-pill-group-badge) font-medium tabular-nums text-(--accent-ink)"
               >
                 {item.badge}
               </span>

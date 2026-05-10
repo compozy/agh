@@ -58,7 +58,7 @@ describe("Item", () => {
     expect(item?.getAttribute("data-size")).toBe("xs");
   });
 
-  it("Should expose selected state and render the 2px white rail indicator by default", () => {
+  it("Should expose selected state on the elevated surface step and render the 2px white rail indicator by default", () => {
     render(
       <Item selected indicator="rail" data-testid="selectable-item">
         <ItemContent>
@@ -70,7 +70,8 @@ describe("Item", () => {
     const item = screen.getByTestId("selectable-item");
     const indicator = item.querySelector('[data-slot="item-selection-indicator"]');
     expect(item.dataset.selected).toBe("true");
-    expect(item.className).toContain("bg-(--canvas-soft)");
+    expect(item.className).toContain("bg-(--elevated)");
+    expect(item.className).toContain("text-(--fg-strong)");
     expect(indicator).not.toBeNull();
     expect(indicator?.getAttribute("data-indicator")).toBe("rail");
     expect(indicator?.getAttribute("data-tone")).toBe("white");

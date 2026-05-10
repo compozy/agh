@@ -93,7 +93,11 @@ const BANNED_SHADOW_UTILITIES = [
   "shadow-xs",
   "shadow-sm",
   "shadow-inner",
-  "shadow-none",
+  // `shadow-none` is intentionally NOT banned: per ADR-003 the kit allows two
+  // shadows (`--shadow-overlay`, `--highlight`) plus the explicit "remove
+  // shadow" reset on state changes (e.g. `aria-invalid:shadow-none`,
+  // `data-active:shadow-none`). It is the canonical kit grammar for clearing a
+  // focus/active rim, not a decorative shadow.
 ] as const;
 
 function escapeForRegex(value: string): string {

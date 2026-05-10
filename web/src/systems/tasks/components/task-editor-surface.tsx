@@ -186,7 +186,7 @@ function renderTaskEditorSurface(
               <span className="flex min-w-0 items-center gap-2">
                 {signal ? <Pill.Dot pulse={signal.pulse} tone={signal.tone} /> : null}
                 <span
-                  className="truncate text-item-title font-semibold text-(--fg)"
+                  className="truncate text-item-title font-medium text-(--fg)"
                   data-testid="task-editor-title"
                 >
                   {title}
@@ -214,7 +214,7 @@ function renderTaskEditorSurface(
           <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.85fr)]">
             <div className="flex min-w-0 flex-col gap-6">
               <Section label="Task contract">
-                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-5">
+                <div className="flex flex-col gap-5 rounded-lg border border-(--line) bg-(--canvas-soft) p-5">
                   {isCreateMode && template && templateId && onTemplateChange ? (
                     <Field>
                       <FieldLabel data-testid="task-editor-template-label">Template</FieldLabel>
@@ -306,7 +306,7 @@ function renderTaskEditorSurface(
 
               {isCreateMode ? (
                 <Section label="Queue settings">
-                  <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-5">
+                  <div className="flex flex-col gap-5 rounded-lg border border-(--line) bg-(--canvas-soft) p-5">
                     <div className="grid gap-5 md:grid-cols-2">
                       <Field>
                         <FieldLabel
@@ -397,7 +397,7 @@ function renderTaskEditorSurface(
 
             <div className="flex min-w-0 flex-col gap-6">
               <Section label={isCreateMode ? "Submission" : "Editable fields"}>
-                <div className="flex flex-col gap-5 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-5">
+                <div className="flex flex-col gap-5 rounded-lg border border-(--line) bg-(--canvas-soft) p-5">
                   <p
                     className="text-small-body leading-5 text-(--muted)"
                     data-testid="task-editor-notice"

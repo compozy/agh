@@ -162,7 +162,7 @@ function DaemonStatusSkeleton() {
   return (
     <div className="flex flex-col gap-3" data-testid="home-daemon-skeleton">
       <Skeleton className="h-3 w-24" />
-      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-5 py-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) px-5 py-4">
         <div className="flex items-center gap-3">
           <Skeleton className="size-2 rounded-full" />
           <Skeleton className="h-4 w-32" />
@@ -180,7 +180,7 @@ function MetricsSkeleton() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {METRIC_ORDER.map(key => (
           <div
-            className="flex flex-col gap-2 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-5 py-4"
+            className="flex flex-col gap-2 rounded-lg border border-(--line) bg-(--canvas-soft) px-5 py-4"
             data-testid={`home-metric-skeleton-${key}`}
             key={key}
           >

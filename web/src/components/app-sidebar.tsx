@@ -52,7 +52,7 @@ function RailSlot({
         to="/"
         aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-(--canvas)"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--canvas)"
       >
         <Logo variant="symbol" decorative className="size-7" />
       </Link>
@@ -70,8 +70,8 @@ function RailSlot({
             aria-label={`Workspace: ${workspace.name}`}
             aria-pressed={isActive}
             className={cn(
-              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-(--elevated) font-mono text-eyebrow font-medium text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-              isActive && "border-accent text-(--fg)"
+              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-(--elevated) font-mono text-eyebrow font-medium text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
+              isActive && "border-(--accent) text-(--fg)"
             )}
           >
             {letter}
@@ -83,7 +83,7 @@ function RailSlot({
         onClick={onAddWorkspace}
         data-testid="add-workspace-btn"
         aria-label="Add workspace"
-        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-(--line) text-(--subtle) transition-colors hover:border-accent hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-(--line) text-(--subtle) transition-colors hover:border-(--accent) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
       >
         <Plus aria-hidden="true" className="size-3" />
       </button>
@@ -219,10 +219,7 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
   const initial = label.charAt(0).toUpperCase() || "·";
 
   return (
-    <div
-      data-testid="workspace-switcher"
-      className="flex h-12 w-full items-center gap-2.5 px-3"
-    >
+    <div data-testid="workspace-switcher" className="flex h-12 w-full items-center gap-2.5 px-3">
       <span
         aria-hidden="true"
         data-testid="workspace-switcher-avatar"

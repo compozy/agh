@@ -368,7 +368,7 @@ function ExecutionProfileEditorDialog({
         </DialogHeader>
         <textarea
           aria-label="Execution profile JSON"
-          className="min-h-[280px] w-full rounded-xl border border-(--line) bg-(--canvas-soft) p-3 font-mono text-xs text-(--fg) focus:outline-none focus:ring-1 focus:ring-accent"
+          className="min-h-[280px] w-full rounded-xl border border-(--line) bg-(--canvas-soft) p-3 font-mono text-xs text-(--fg) focus:outline-none focus:ring-1 focus:ring-(--accent)"
           data-testid="tasks-execution-profile-editor-input"
           disabled={isSetPending}
           onChange={event => editor.setValue(event.target.value)}

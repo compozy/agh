@@ -48,39 +48,36 @@ function Metric({
       data-slot="metric"
       data-tone={tone}
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--line)] bg-[color:var(--canvas-soft)] px-5 py-4",
+        "flex min-w-0 flex-col gap-2 rounded-lg border border-(--line) bg-(--canvas-soft) px-5 py-4",
         className
       )}
       {...props}
     >
       <span
         data-slot="metric-label"
-        className="block truncate font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em] text-[color:var(--subtle)]"
+        className="block truncate font-mono text-[11px] font-medium uppercase leading-4 tracking-[0.06em] text-(--subtle)"
       >
         {label}
       </span>
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"
-          className="min-w-0 truncate text-[24px] font-bold leading-[30px] tracking-[-0.02em]"
-          style={{ color: VALUE_COLOR[tone] }}
+          className="min-w-0 truncate text-[24px] font-medium leading-[30px] tracking-[-0.02em]"
+          style={{ color: VALUE_COLOR[tone], fontWeight: 510 }}
         >
           {value}
         </span>
         {detail !== undefined ? (
           <span
             data-slot="metric-detail"
-            className="shrink-0 truncate font-mono text-[11px] leading-4 text-[color:var(--subtle)]"
+            className="shrink-0 truncate font-mono text-[11px] leading-4 text-(--subtle)"
           >
             {detail}
           </span>
         ) : null}
       </div>
       {subtext !== undefined ? (
-        <p
-          data-slot="metric-subtext"
-          className="truncate text-[13px] leading-5 text-[color:var(--muted)]"
-        >
+        <p data-slot="metric-subtext" className="truncate text-[13px] leading-5 text-(--muted)">
           {subtext}
         </p>
       ) : null}

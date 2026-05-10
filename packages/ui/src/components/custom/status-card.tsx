@@ -36,7 +36,7 @@ function StatusCard({ tone = "neutral", className, children, ...props }: StatusC
     <StatusCardContext.Provider value={{ tone }}>
       <section
         className={cn(
-          "flex min-w-0 flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) px-5 py-4",
+          "flex min-w-0 flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) px-5 py-4",
           className
         )}
         data-slot="status-card"
@@ -78,7 +78,7 @@ function StatusCardHeader({
       {label ? (
         <span
           className={cn(
-            "min-w-0 truncate text-item-title font-semibold tracking-tight text-(--color-text-primary)",
+            "min-w-0 truncate text-item-title font-medium text-(--fg-strong)",
             labelClassName
           )}
           data-slot="status-card-label"
@@ -95,7 +95,7 @@ function StatusCardHeader({
 function StatusCardBody({ className, ...props }: StatusCardBodyProps) {
   return (
     <div
-      className={cn("text-small-body leading-5 text-(--color-text-secondary)", className)}
+      className={cn("text-small-body leading-5 text-(--muted)", className)}
       data-slot="status-card-body"
       {...props}
     />

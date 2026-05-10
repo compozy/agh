@@ -4,33 +4,34 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding font-sans text-[12px] font-medium tracking-[-0.005em] whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding font-sans text-[12px] font-[510] tracking-[-0.005em] whitespace-nowrap transition-all outline-none select-none focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-(--danger) [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[var(--highlight)] [a]:hover:bg-primary/80",
+          "bg-(--accent) text-(--accent-ink) shadow-[var(--highlight)] hover:bg-(--accent-hover) [a]:hover:bg-(--accent-hover)",
         outline:
           "border-(--line) bg-transparent text-(--fg) hover:bg-(--hover) aria-expanded:bg-(--hover)",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-(--hover) aria-expanded:bg-(--hover) aria-expanded:text-secondary-foreground",
+          "bg-(--canvas-tint) border-(--line) text-(--fg) hover:bg-(--hover) aria-expanded:bg-(--hover)",
         ghost:
           "text-(--fg) hover:bg-(--hover) aria-expanded:bg-(--hover) aria-expanded:text-(--fg)",
-        destructive:
-          "bg-(--danger-tint) text-(--danger) hover:bg-(--danger-tint) hover:opacity-90 focus-visible:border-(--danger)/40 focus-visible:ring-(--danger)/20",
-        success:
-          "bg-(--success-tint) text-(--success) hover:opacity-90 focus-visible:border-(--success)/40 focus-visible:ring-(--success)/20",
-        link: "text-primary underline-offset-4 hover:underline",
+        destructive: "bg-(--danger-tint) text-(--danger) hover:bg-(--danger-tint) hover:opacity-90",
+        success: "bg-(--success-tint) text-(--success) hover:opacity-90",
+        link: "text-(--accent) underline-offset-4 hover:underline",
       },
       size: {
         default:
           "h-[26px] gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-[22px] gap-1 rounded-sm px-2 text-[11px] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-[22px] gap-1 rounded-sm px-2.5 text-[11px] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+        xs: "h-[22px] gap-1 rounded-md px-2 text-[11px] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-[22px] gap-1 rounded-md px-2.5 text-[11px] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-[30px] gap-1.5 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+        cta: "h-9 gap-2 px-5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        "cta-lg":
+          "h-11 gap-2 rounded-md px-5 text-[13px] has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         icon: "size-[26px]",
-        "icon-xs": "size-[22px] rounded-sm [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-[22px] rounded-sm",
+        "icon-xs": "size-[22px] rounded-md [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-[22px] rounded-md",
         "icon-lg": "size-[30px]",
       },
     },

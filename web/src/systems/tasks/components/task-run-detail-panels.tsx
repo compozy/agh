@@ -22,7 +22,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
 
   return (
     <Section aria-label="Run identity" data-testid="task-run-detail-identity" label="Run identity">
-      <div className="rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) px-4 py-3">
+      <div className="rounded-lg border border-(--line) bg-(--canvas-soft) px-4 py-3">
         <MetadataList className="gap-y-2">
           <MetadataList.Row
             label="Run ID"
@@ -204,7 +204,7 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
 
   return (
     <Section aria-label="Run activity" data-testid="task-run-detail-activity" label="Activity">
-      <div className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) p-4">
         <MetadataList className="gap-y-2">
           {lastEventType ? (
             <MetadataList.Row label="Last event">
@@ -227,13 +227,13 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
             className="rounded-md border border-(--danger) bg-(--danger-tint) px-3 py-2"
             data-testid="task-run-detail-activity-error"
           >
-            <p className="text-badge font-semibold text-(--danger)">Error</p>
+            <p className="text-badge font-medium text-(--danger)">Error</p>
             <p className="mt-1 text-small-body text-(--danger)">{error}</p>
           </div>
         ) : null}
         {result !== undefined && result !== null ? (
           <div data-testid="task-run-detail-activity-result">
-            <p className="mb-2 text-badge font-semibold text-(--muted)">Result</p>
+            <p className="mb-2 text-badge font-medium text-(--muted)">Result</p>
             <CodeBlock
               code={JSON.stringify(result, null, 2)}
               copyable={false}

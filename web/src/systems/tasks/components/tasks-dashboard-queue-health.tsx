@@ -132,7 +132,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
 
       {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-(--radius-diagram) border border-(--warning) bg-(--accent-tint) px-3 py-2 text-xs text-(--fg)"
+          className="mt-4 flex items-start gap-2 rounded-lg border border-(--warning) bg-(--warning-tint) px-3 py-2 text-xs text-(--fg)"
           data-testid="tasks-dashboard-warning"
         >
           <AlertTriangle className="mt-px size-4 shrink-0 text-(--warning)" />
@@ -146,7 +146,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </div>
       ) : (
         <div
-          className="mt-4 flex items-center gap-2 text-xs text-success"
+          className="mt-4 flex items-center gap-2 text-xs text-(--success)"
           data-testid="tasks-dashboard-ok"
         >
           <Check className="size-4" /> Queue is healthy.

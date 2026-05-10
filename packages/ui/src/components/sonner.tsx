@@ -10,32 +10,27 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 
-function Toaster({ closeButton = true, theme = "system", ...props }: ToasterProps) {
+function Toaster({ closeButton = true, theme = "dark", ...props }: ToasterProps) {
   return (
     <Sonner
       closeButton={closeButton}
       theme={theme}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="size-4" />,
-        info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        success: <CircleCheckIcon className="size-4 text-(--success)" />,
+        info: <InfoIcon className="size-4 text-(--info)" />,
+        warning: <TriangleAlertIcon className="size-4 text-(--warning)" />,
+        error: <OctagonXIcon className="size-4 text-(--danger)" />,
+        loading: <Loader2Icon className="size-4 animate-spin text-(--muted)" />,
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          "--normal-bg": "var(--canvas-soft)",
+          "--normal-text": "var(--fg)",
+          "--normal-border": "var(--line-soft)",
+          "--border-radius": "var(--radius-lg)",
         } as React.CSSProperties
       }
-      toastOptions={{
-        classNames: {
-          toast: "cn-toast",
-        },
-      }}
       {...props}
     />
   );

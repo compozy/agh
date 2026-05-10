@@ -1,6 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
 import { ListChecksIcon } from "lucide-react";
-import * as React from "react";
 import { describe, expect, it } from "vitest";
 
 import {

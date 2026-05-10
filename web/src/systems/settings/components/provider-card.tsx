@@ -192,7 +192,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             data-testid={`${testId}-status`}
             data-tone={state.label}
           />
-          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--subtle)">
+          <span className="font-mono text-badge font-medium uppercase tracking-badge text-(--subtle)">
             {STATE_LABELS[state.label] ?? state.label}
           </span>
         </span>

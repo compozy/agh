@@ -100,7 +100,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
       className={cn(
         "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border p-5 text-left transition-colors",
         isBlank
-          ? "border-dashed border-divider/60 hover:border-(--muted)"
+          ? "border-dashed border-(--line-soft) hover:border-(--muted)"
           : "border-(--line) bg-(--canvas-soft) hover:border-(--muted)"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
@@ -111,7 +111,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
         <span className="flex size-7 items-center justify-center rounded-lg border border-(--line) bg-(--canvas-soft) text-(--muted)">
           {TEMPLATE_ICONS[template.id]}
         </span>
-        <span className="text-sm font-semibold text-(--fg)">{template.label}</span>
+        <span className="text-sm font-medium text-(--fg)">{template.label}</span>
       </div>
       <p className="text-sm leading-relaxed text-(--muted)">{template.description}</p>
       {template.badges.length > 0 ? (

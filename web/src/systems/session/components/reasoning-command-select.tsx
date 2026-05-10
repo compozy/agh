@@ -103,7 +103,7 @@ export function ReasoningCommandSelect({
               data-checked={trimmedValue === "" ? "true" : "false"}
               data-testid="reasoning-command-item-default"
             >
-              <span className="truncate text-sm text-foreground">Use provider default</span>
+              <span className="truncate text-sm text-(--fg)">Use provider default</span>
             </CommandItem>
             {knownOptions.map(option => (
               <CommandItem
@@ -115,10 +115,10 @@ export function ReasoningCommandSelect({
                 data-source={option.source}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-sm text-foreground">
+                  <span className="truncate text-sm text-(--fg)">
                     {option.label || labelFor(option.value)}
                   </span>
-                  <span className="ml-auto font-mono text-badge uppercase tracking-mono text-muted-foreground">
+                  <span className="ml-auto font-mono text-badge uppercase tracking-mono text-(--muted)">
                     {option.value}
                   </span>
                 </div>

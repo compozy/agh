@@ -203,12 +203,12 @@ function KnowledgeDetailPanel({
           <div className="flex min-w-0 items-center gap-3">
             <span
               aria-hidden="true"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--elevated) text-accent"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--elevated) text-(--accent)"
             >
               <BookOpen className="size-4" />
             </span>
             <div className="flex min-w-0 flex-col">
-              <h2 className="truncate text-item-title font-semibold tracking-tight text-(--fg)">
+              <h2 className="truncate text-item-title font-medium tracking-tight text-(--fg)">
                 {memory.name}
               </h2>
               <span className="truncate font-mono text-eyebrow text-(--subtle)">
@@ -261,7 +261,7 @@ function KnowledgeDetailPanel({
 
         <Section label="Metadata">
           <dl
-            className="flex flex-col divide-y divide-(--line) rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft)"
+            className="flex flex-col divide-y divide-(--line) rounded-lg border border-(--line) bg-(--canvas-soft)"
             data-testid="metadata-table"
           >
             {metadataRows.map(row => (

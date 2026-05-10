@@ -42,7 +42,10 @@ function DetailHeader({
       ) : null}
       <div data-slot="detail-header-row" className="flex min-w-0 flex-wrap items-start gap-3">
         <div data-slot="detail-header-title-block" className="flex min-w-0 flex-col gap-1.5">
-          <h1 className="truncate text-[24px] font-medium tracking-[-0.028em] text-(--fg-strong)">
+          <h1
+            className="truncate text-[24px] font-medium tracking-[-0.028em] text-(--fg-strong)"
+            style={{ fontWeight: 510 }}
+          >
             {title}
           </h1>
           {pills ? (

@@ -87,9 +87,9 @@ function TasksListRow({
       className={cn(
         "group relative flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3.5 text-left",
         clickable &&
-          "cursor-pointer hover:bg-(--canvas-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          "cursor-pointer hover:bg-(--canvas-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
         className,
-        rail || selected ? "border-l-2 border-l-accent" : "border-l-2 border-l-transparent"
+        rail || selected ? "border-l-2 border-l-(--accent)" : "border-l-2 border-l-transparent"
       )}
       {...props}
     >

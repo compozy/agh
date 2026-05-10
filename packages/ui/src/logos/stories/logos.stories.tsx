@@ -91,20 +91,17 @@ function LogoSection({
 }) {
   return (
     <section className="grid gap-4">
-      <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-label)]">
+      <h2 className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
         {title}
       </h2>
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-divider)] sm:grid-cols-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-(--line) bg-(--line) sm:grid-cols-3 md:grid-cols-4">
         {logos.map(({ label, Logo }) => (
           <div
             key={label}
-            className="grid min-h-28 place-items-center gap-3 bg-[color:var(--color-surface)] p-4 text-center"
+            className="grid min-h-28 place-items-center gap-3 bg-(--canvas-soft) p-4 text-center"
           >
-            <Logo
-              aria-label={`${label} logo`}
-              className="size-8 text-[color:var(--color-text-primary)]"
-            />
-            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-secondary)]">
+            <Logo aria-label={`${label} logo`} className="size-8 text-(--fg)" />
+            <span className="font-mono text-badge font-medium uppercase tracking-badge text-(--muted)">
               {label}
             </span>
           </div>
@@ -119,13 +116,13 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
   const showBridges = group === "all" || group === "bridges";
 
   return (
-    <div className="grid w-[min(960px,calc(100vw-2rem))] gap-8 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-6 text-[color:var(--color-text-primary)]">
+    <div className="grid w-[min(960px,calc(100vw-2rem))] gap-8 rounded-lg border border-(--line) bg-(--canvas) p-6 text-(--fg)">
       <div className="grid gap-2">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-accent)]">
+        <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--accent)">
           Logo registry
         </p>
-        <h1 className="text-xl font-semibold">Agent and bridge logos</h1>
-        <p className="max-w-[62ch] text-sm leading-6 text-[color:var(--color-text-secondary)]">
+        <h1 className="text-xl font-medium">Agent and bridge logos</h1>
+        <p className="max-w-[62ch] text-sm leading-6 text-(--muted)">
           Brand SVGs exported by `@agh/ui/logos` for AGH site and runtime surfaces.
         </p>
       </div>

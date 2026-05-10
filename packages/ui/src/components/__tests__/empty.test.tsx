@@ -91,11 +91,11 @@ describe("Empty", () => {
     expect(empty?.className).not.toMatch(/\bh-full\b/);
   });
 
-  it("Should render the icon well as 38x38 with a 9px radius", () => {
+  it("Should render the icon well as 38x38 with the radius-lg token", () => {
     const { container } = render(<Empty title="Nothing" />);
     const iconSlot = container.querySelector('[data-slot="empty-icon"]');
     expect(iconSlot?.className).toContain("size-[38px]");
-    expect(iconSlot?.className).toContain("rounded-[9px]");
+    expect(iconSlot?.className).toContain("rounded-lg");
   });
 
   it("Should render the title at 18px on the canonical strong-fg color", () => {

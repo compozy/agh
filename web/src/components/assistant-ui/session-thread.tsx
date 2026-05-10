@@ -132,7 +132,7 @@ function SessionComposer({
           className={cn(
             "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
             "border-(--line) bg-(--canvas-soft)",
-            "focus-within:border-accent transition-colors"
+            "focus-within:border-(--accent) transition-colors"
           )}
         >
           <ComposerPrimitive.Input
@@ -189,7 +189,7 @@ function SessionComposer({
                 aria-label="Send message"
                 className={cn(
                   "inline-flex size-9 items-center justify-center rounded-full",
-                  "bg-accent text-white transition-colors",
+                  "bg-(--accent) text-(--accent-ink) transition-colors",
                   "hover:bg-(--accent-hover) disabled:cursor-not-allowed disabled:opacity-50"
                 )}
                 data-testid="composer-send-button"

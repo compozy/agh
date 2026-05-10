@@ -66,7 +66,7 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
       selected={isSelected}
       selectable
       indicator={isSelected ? "rail" : "none"}
-      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--line)] px-4 py-3"
+      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3"
       data-testid={`automation-item-${job.id}`}
       onClick={onSelect}
     >
@@ -77,7 +77,7 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
             {job.name}
           </ItemTitle>
         </div>
-        <span className="shrink-0 font-mono text-badge uppercase tracking-widest text-accent">
+        <span className="shrink-0 font-mono text-badge uppercase tracking-mono text-(--accent)">
           {formatRelativeTime(job.next_run)}
         </span>
       </ItemHeader>
@@ -113,7 +113,7 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
       selected={isSelected}
       selectable
       indicator={isSelected ? "rail" : "none"}
-      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-[color:var(--line)] px-4 py-3"
+      className="flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3"
       data-testid={`automation-item-${trigger.id}`}
       onClick={onSelect}
     >

@@ -52,7 +52,7 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
           <ItemTitle
             className={cn(
               "min-w-0 text-xs",
-              entry.hasUnread ? "font-semibold text-(--fg)" : "text-(--muted)"
+              entry.hasUnread ? "font-medium text-(--fg)" : "text-(--muted)"
             )}
           >
             <span className="truncate">{entry.preview}</span>
@@ -92,7 +92,7 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
         <ItemTitle
           className={cn(
             "min-w-0 text-xs",
-            entry.hasUnread ? "font-semibold text-(--fg)" : "text-(--muted)"
+            entry.hasUnread ? "font-medium text-(--fg)" : "text-(--muted)"
           )}
         >
           <span className="truncate">{entry.preview}</span>

@@ -107,10 +107,7 @@ function SkillsSettingsPage() {
   const { envelope, draft, setDraft, restart } = page;
 
   return (
-    <PageShell
-      slug="skills"
-      banner={<SettingsRestartBanner slug="skills" restart={restart} />}
-    >
+    <PageShell slug="skills" banner={<SettingsRestartBanner slug="skills" restart={restart} />}>
       <ScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}

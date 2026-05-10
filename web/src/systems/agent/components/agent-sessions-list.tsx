@@ -103,7 +103,7 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           params={{ name: agentName, id: session.id }}
           className={cn(
             "text-item-title flex flex-col gap-0.5 text-(--fg)",
-            "transition-colors hover:text-accent"
+            "transition-colors hover:text-(--accent)"
           )}
           data-testid={`agent-session-link-${session.id}`}
         >

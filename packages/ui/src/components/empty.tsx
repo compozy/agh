@@ -65,7 +65,7 @@ function Empty({
       <span
         aria-hidden="true"
         data-slot="empty-icon"
-        className="inline-flex size-[38px] items-center justify-center rounded-[9px] border border-(--line) bg-(--canvas-soft) text-(--subtle)"
+        className="inline-flex size-[38px] items-center justify-center rounded-lg border border-(--line) bg-(--canvas-soft) text-(--subtle)"
       >
         {iconContent}
       </span>

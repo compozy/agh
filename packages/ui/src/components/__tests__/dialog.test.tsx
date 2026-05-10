@@ -104,9 +104,9 @@ describe("Dialog", () => {
     expect(overlay).not.toBeNull();
     expect(overlay?.className).toContain("bg-(--overlay-scrim)");
     expect(overlay?.className).not.toContain("backdrop-blur");
-    expect(dialog.className).toContain("border");
     expect(dialog.className).toContain("bg-(--canvas-soft)");
     expect(dialog.className).toContain("shadow-[var(--shadow-overlay)]");
+    expect(dialog.className).not.toContain("border ");
   });
 
   it("Should hide the default close button when showCloseButton=false", () => {
@@ -197,7 +197,7 @@ describe("Dialog", () => {
     expect(footer.dataset.variant).toBe("ruled");
     expect(footer.className).toContain("border-t");
     expect(footer.className).toContain("border-(--line)");
-    expect(footer.className).toContain("bg-(--canvas-soft)");
+    expect(footer.className).toContain("bg-(--canvas-tint)");
     expect(footer.className).toContain("px-5");
     expect(footer.className).toContain("py-3");
     expect(footer.className).not.toContain("-mx-4");

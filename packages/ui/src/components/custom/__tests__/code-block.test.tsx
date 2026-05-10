@@ -37,8 +37,8 @@ describe("CodeBlock", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     const code = container.querySelector<HTMLElement>('[data-slot="code-block-code"]');
-    expect(root?.className).toContain("bg-[color:var(--canvas)]");
-    expect(root?.className).toContain("rounded-[var(--radius-lg)]");
+    expect(root?.className).toContain("bg-(--canvas)");
+    expect(root?.className).toContain("rounded-lg");
     expect(pre?.tagName).toBe("PRE");
     expect(code?.tagName).toBe("CODE");
     expect(pre?.className).toContain("font-mono");
@@ -52,7 +52,7 @@ describe("CodeBlock", () => {
     const prompt = container.querySelector<HTMLElement>('[data-slot="code-block-prompt"]');
     expect(prompt).not.toBeNull();
     expect(prompt?.textContent).toBe("$ ");
-    expect(prompt?.className).toContain("text-[color:var(--accent)]");
+    expect(prompt?.className).toContain("text-(--accent)");
     expect(prompt?.getAttribute("aria-hidden")).toBe("true");
   });
 
@@ -161,7 +161,7 @@ describe("CodeBlock", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     expect(root).toHaveAttribute("data-tone", "warning");
-    expect(root?.className).toContain("ring-[color:var(--warning)]/35");
+    expect(root?.className).toContain("ring-(--warning)/35");
     expect(pre?.className).toContain("max-h-[calc(var(--code-block-lines)*1.6em+2rem)]");
     expect(pre?.style.getPropertyValue("--code-block-lines")).toBe("2");
   });

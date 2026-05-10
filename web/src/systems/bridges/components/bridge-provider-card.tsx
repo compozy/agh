@@ -62,8 +62,8 @@ export function BridgeProviderCard({
 
   const className = cn(
     "gap-3 rounded-md border bg-(--canvas-soft) p-4 text-left",
-    selected ? "border-accent bg-(--elevated)" : "border-(--line)",
-    onSelect && selectable && "cursor-pointer hover:border-accent hover:bg-(--hover)",
+    selected ? "border-(--accent) bg-(--elevated)" : "border-(--line)",
+    onSelect && selectable && "cursor-pointer hover:border-(--accent) hover:bg-(--hover)",
     onSelect && !selectable && "cursor-not-allowed opacity-70"
   );
 

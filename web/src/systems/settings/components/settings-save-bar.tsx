@@ -82,7 +82,7 @@ function SettingsSaveBar({
             className="flex items-center gap-1.5 text-(--subtle)"
             data-testid={`settings-page-${slug}-save-applied`}
           >
-            <Check className="size-3.5 text-success" />
+            <Check className="size-3.5 text-(--success)" />
             {lastAppliedLabel}
           </span>
         ) : (

@@ -1,12 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useMatches, useRouter } from "@tanstack/react-router";
 
-import {
-  Topbar,
-  TopbarSlotContext,
-  TopbarSlotProvider,
-  type TopbarRouteContext,
-} from "@agh/ui";
+import { Topbar, TopbarSlotContext, TopbarSlotProvider, type TopbarRouteContext } from "@agh/ui";
 import * as React from "react";
 
 interface MaybeTopbarMatchContext {
@@ -18,8 +13,8 @@ function pickDeepestTopbarContext(
 ): TopbarRouteContext | null {
   if (!matches) return null;
   for (let index = matches.length - 1; index >= 0; index -= 1) {
-    const candidate = (matches[index] as { context?: MaybeTopbarMatchContext } | undefined)
-      ?.context?.topbar;
+    const candidate = (matches[index] as { context?: MaybeTopbarMatchContext } | undefined)?.context
+      ?.topbar;
     if (candidate && candidate.title) {
       return candidate;
     }

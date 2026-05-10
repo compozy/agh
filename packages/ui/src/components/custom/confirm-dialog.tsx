@@ -167,11 +167,7 @@ function ConfirmDialog({
         ) : null}
         {error ? (
           <div className="border-t border-(--line) px-5 py-3">
-            <Alert
-              variant="destructive"
-              {...restErrorProps}
-              className={cn("text-xs", errorClassName)}
-            >
+            <Alert variant="danger" {...restErrorProps} className={cn("text-xs", errorClassName)}>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           </div>

@@ -117,7 +117,7 @@ export function SessionActivityInline({ activity }: { activity?: RuntimeActivity
       )}
     >
       {activity.current_tool ? (
-        <Wrench aria-hidden="true" className="size-3 shrink-0 text-accent" />
+        <Wrench aria-hidden="true" className="size-3 shrink-0 text-(--accent)" />
       ) : (
         <Clock aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
       )}

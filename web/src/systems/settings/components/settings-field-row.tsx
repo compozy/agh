@@ -128,7 +128,7 @@ function SettingsFieldRow({
         <div className="flex flex-wrap items-center gap-2">
           {renderedLabel}
           {hint ? (
-            <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--muted) lg:hidden">
+            <span className="font-mono text-badge font-medium uppercase tracking-badge text-(--muted) lg:hidden">
               {hint}
             </span>
           ) : null}
@@ -151,7 +151,7 @@ function SettingsFieldRow({
         <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 lg:w-auto [&_input]:max-w-full [&_select]:max-w-full">
           {renderedControl}
           {hint ? (
-            <span className="hidden font-mono text-badge font-semibold uppercase tracking-badge text-(--muted) lg:inline">
+            <span className="hidden font-mono text-badge font-medium uppercase tracking-badge text-(--muted) lg:inline">
               {hint}
             </span>
           ) : null}

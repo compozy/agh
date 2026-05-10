@@ -2,7 +2,16 @@ import { AlertCircle, ExternalLink, Loader2, Network as NetworkIcon } from "luci
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Metric, MetricGrid, PageShell, Section, Switch, useTopbarSlot } from "@agh/ui";
+import {
+  Button,
+  Input,
+  Metric,
+  MetricGrid,
+  PageShell,
+  Section,
+  Switch,
+  useTopbarSlot,
+} from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page";
 import type { SettingsNetworkSection } from "@/systems/settings";

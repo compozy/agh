@@ -32,10 +32,10 @@ function CatalogCard({
       data-selected={selected ? "true" : undefined}
       data-actionable={actionable ? "true" : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-[var(--radius-diagram)] border border-(--color-divider) bg-(--color-surface) p-3 text-(--color-text-primary) transition-colors",
+        "flex min-w-0 flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) p-3 text-(--fg) transition-colors",
         actionable &&
-          "hover:border-(--color-accent) hover:bg-(--color-hover) focus-within:border-(--color-accent)",
-        selected && "border-(--color-accent) bg-(--color-surface-panel)",
+          "hover:border-(--line-strong) hover:bg-(--hover) focus-within:border-(--accent)",
+        selected && "border-(--accent) bg-(--accent-tint)",
         className
       )}
       {...props}
@@ -50,7 +50,7 @@ function CatalogCardLogo({ tone = "accent", className, ...props }: CatalogCardLo
       data-slot="catalog-card-logo"
       data-tone={tone}
       className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-diagram)] bg-(--color-surface-elevated)",
+        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-(--elevated)",
         catalogCardLogoToneClass(tone),
         className
       )}
@@ -65,10 +65,7 @@ function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
       role="heading"
       aria-level={3}
       data-slot="catalog-card-title"
-      className={cn(
-        "min-w-0 truncate text-small-body font-medium text-(--color-text-primary)",
-        className
-      )}
+      className={cn("min-w-0 truncate text-small-body font-medium text-(--fg-strong)", className)}
       {...props}
     />
   );
@@ -78,7 +75,7 @@ function CatalogCardDescription({ className, ...props }: CatalogCardDescriptionP
   return (
     <p
       data-slot="catalog-card-description"
-      className={cn("text-small-body leading-6 text-(--color-text-secondary)", className)}
+      className={cn("text-small-body leading-6 text-(--muted)", className)}
       {...props}
     />
   );
@@ -89,7 +86,7 @@ function CatalogCardMeta({ className, ...props }: CatalogCardMetaProps) {
     <div
       data-slot="catalog-card-meta"
       className={cn(
-        "flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)",
+        "flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-badge text-(--subtle)",
         className
       )}
       {...props}
@@ -102,7 +99,7 @@ function CatalogCardActions({ className, ...props }: CatalogCardActionsProps) {
     <div
       data-slot="catalog-card-actions"
       className={cn(
-        "mt-auto flex flex-wrap items-center gap-2 border-t border-(--color-divider) pt-3",
+        "mt-auto flex flex-wrap items-center gap-2 border-t border-(--line) pt-3",
         className
       )}
       {...props}
@@ -113,17 +110,17 @@ function CatalogCardActions({ className, ...props }: CatalogCardActionsProps) {
 function catalogCardLogoToneClass(tone: CatalogCardTone): string {
   switch (tone) {
     case "success":
-      return "text-(--color-success)";
+      return "text-(--success)";
     case "warning":
-      return "text-(--color-warning)";
+      return "text-(--warning)";
     case "danger":
-      return "text-(--color-danger)";
+      return "text-(--danger)";
     case "info":
-      return "text-(--color-info)";
+      return "text-(--info)";
     case "neutral":
-      return "text-(--color-text-secondary)";
+      return "text-(--muted)";
     case "accent":
-      return "text-(--color-accent)";
+      return "text-(--accent)";
   }
 }
 

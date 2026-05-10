@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
+import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { ListChecks, Plus } from "lucide-react";
 
 import { Button, Empty, PillGroup, SplitPane, useTopbarSlot } from "@agh/ui";
@@ -10,9 +10,9 @@ import {
   TasksInboxView,
   TasksKanbanBoard,
   TasksListPanel,
-  useTask,
 } from "@/systems/tasks";
-import { useTasksPage } from "@/hooks/routes/use-tasks-page";
+import { useTasksRoute } from "@/hooks/routes/use-tasks-route";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/tasks")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -22,45 +22,20 @@ export const Route = createFileRoute("/_app/tasks")({
 });
 
 function TasksRoute() {
+  const view = useTasksRoute();
   const navigate = useNavigate({ from: "/tasks" });
-  const childMatches = useChildMatches();
-  const hasChildMatch = childMatches.length > 0;
-  const page = useTasksPage({ forceListData: hasChildMatch });
-  const currentChildRouteId = String(childMatches.at(-1)?.id ?? "");
-  const routedTaskId = extractRoutedTaskId(childMatches);
-  const isCreateRoute = currentChildRouteId.includes("/tasks/new");
-
-  const surfaceMode = hasChildMatch ? "list" : page.mode;
-  const showDetailPreview = surfaceMode === "list" && !hasChildMatch;
-
-  const detailQuery = useTask(routedTaskId ?? page.effectiveSelectedTaskId ?? "", {
-    enabled: showDetailPreview && Boolean(routedTaskId ?? page.effectiveSelectedTaskId),
-  });
-
-  const shellCount =
-    surfaceMode === "inbox"
-      ? (page.inbox?.total ?? 0)
-      : surfaceMode === "dashboard"
-        ? (page.dashboard?.totals.tasks_total ?? page.tasksCount)
-        : page.tasksCount;
-
-  const handleModeSelect = (nextMode: "list" | "kanban" | "dashboard" | "inbox") => {
-    page.handleModeChange(nextMode);
-    if (hasChildMatch) {
-      void navigate({ to: "/tasks" });
-    }
-  };
-
-  const openCreateRoute = () => {
-    void navigate({ search: () => ({ template: undefined }), to: "/tasks/new" });
-  };
-
-  const handleCloseDetail = () => {
-    page.dismissSelectedTask();
-    if (hasChildMatch) {
-      void navigate({ to: "/tasks" });
-    }
-  };
+  const {
+    page,
+    detailQuery,
+    hasChildMatch,
+    routedTaskId,
+    isCreateRoute,
+    surfaceMode,
+    shellCount,
+    handleModeSelect,
+    openCreateRoute,
+    handleCloseDetail,
+  } = view;
 
   useTopbarSlot({
     count: shellCount,
@@ -147,14 +122,8 @@ function TasksRoute() {
   );
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
-      data-testid="tasks-shell"
-    >
-      <div
-        className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        data-testid="tasks-shell-body"
-      >
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell-body">
         {surfaceMode === "dashboard" ? (
           <TasksDashboardView
             dashboard={page.dashboard}
@@ -215,22 +184,4 @@ function TasksRoute() {
       </div>
     </div>
   );
-}
-
-function extractRoutedTaskId(matches: Array<unknown>): string | null {
-  for (let index = matches.length - 1; index >= 0; index -= 1) {
-    const match = matches[index];
-    if (!match || typeof match !== "object" || !("params" in match)) {
-      continue;
-    }
-
-    const params = (match as { params?: Record<string, unknown> }).params;
-    if (!params || typeof params.id !== "string") {
-      continue;
-    }
-
-    return params.id;
-  }
-
-  return null;
 }

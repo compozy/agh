@@ -100,7 +100,7 @@ export const Empty: Story = {
     <LinkedRecordTable
       label="Runs"
       className="max-w-3xl"
-      empty={<p className="text-small-body text-(--color-text-secondary)">No runs yet.</p>}
+      empty={<p className="text-small-body text-(--muted)">No runs yet.</p>}
     />
   ),
 };

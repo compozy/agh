@@ -175,7 +175,7 @@ function WorkspaceSetupDialog({
         data-testid="workspace-setup-dialog"
       >
         <DialogHeader variant="ruled">
-          <DialogTitle className="text-item-title font-semibold text-(--fg)">
+          <DialogTitle className="text-item-title font-medium text-(--fg)">
             {WORKSPACE_SETUP_COPY.dialog.title}
           </DialogTitle>
           <DialogDescription className="text-small-body leading-6 text-(--muted)">
@@ -206,7 +206,10 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
             <div className="space-y-4">
               <Pill tone="accent">{copy.eyebrow}</Pill>
               <div className="space-y-3">
-                <h1 className="max-w-xl text-3xl font-semibold tracking-tight text-(--fg) sm:text-4xl">
+                <h1
+                  className="max-w-xl text-3xl tracking-tight text-(--fg) sm:text-4xl"
+                  style={{ fontWeight: 510 }}
+                >
                   {copy.title}
                 </h1>
                 <p className="max-w-xl text-item-title leading-7 text-(--muted)">

@@ -225,7 +225,7 @@ export function TasksTimelinePanel({
           />
           {isLive ? (
             <span
-              className="inline-flex items-center gap-1 text-badge text-accent"
+              className="inline-flex items-center gap-1 text-badge text-(--accent)"
               data-testid="tasks-timeline-live"
             >
               <Pill.Dot tone="accent" pulse />
@@ -245,7 +245,7 @@ export function TasksTimelinePanel({
                 key={group.key}
               >
                 <header className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-eyebrow font-semibold text-(--muted)">{group.label}</h3>
+                  <h3 className="text-eyebrow font-medium text-(--muted)">{group.label}</h3>
                   <span className="font-mono text-eyebrow text-(--subtle)">
                     ({group.items.length})
                   </span>

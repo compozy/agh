@@ -114,7 +114,7 @@ export const Loading: Story = {
   render: () => (
     <CatalogCard className="max-w-sm" aria-label="Loading catalog card">
       <div className="flex items-start gap-3">
-        <Skeleton className="size-9 rounded-[var(--radius-diagram)]" />
+        <Skeleton className="size-9 rounded-lg" />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-3 w-28" />

@@ -41,7 +41,7 @@ function Separator({
           orientation={orientation}
           className={cn(
             "shrink-0 data-horizontal:h-px data-horizontal:flex-1 data-vertical:h-full data-vertical:w-px",
-            tone === "accent" ? "bg-accent" : "bg-border",
+            tone === "accent" ? "bg-(--accent)" : "bg-(--line)",
             lineClassName
           )}
         />
@@ -60,7 +60,7 @@ function Separator({
           orientation={orientation}
           className={cn(
             "shrink-0 data-horizontal:h-px data-horizontal:flex-1 data-vertical:h-full data-vertical:w-px",
-            tone === "accent" ? "bg-accent" : "bg-border",
+            tone === "accent" ? "bg-(--accent)" : "bg-(--line)",
             lineClassName
           )}
         />
@@ -73,7 +73,7 @@ function Separator({
       data-slot="separator"
       orientation={orientation}
       className={cn(
-        "shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch",
+        "shrink-0 bg-(--line) data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch",
         className
       )}
       {...props}

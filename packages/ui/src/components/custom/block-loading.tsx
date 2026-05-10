@@ -21,7 +21,7 @@ const SIZE_CLASSES: Record<BlockLoadingSize, string> = {
 
 const SURFACE_CLASSES: Record<BlockLoadingSurface, string> = {
   bare: "",
-  panel: "rounded-lg border border-[color:var(--line)] bg-[color:var(--canvas-soft)]",
+  panel: "rounded-lg border border-(--line) bg-(--canvas-soft)",
 };
 
 function BlockLoading({
@@ -44,7 +44,7 @@ function BlockLoading({
       )}
       {...props}
     >
-      <Spinner aria-label={label} className="size-5 text-[color:var(--subtle)]" />
+      <Spinner aria-label={label} className="size-5 text-(--subtle)" />
     </div>
   );
 }

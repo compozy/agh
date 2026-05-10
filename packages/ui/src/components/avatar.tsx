@@ -10,7 +10,7 @@ type AvatarSize = "default" | "sm" | "lg";
 
 const SHAPE_RADIUS: Record<AvatarShape, string> = {
   circle: "rounded-full after:rounded-full",
-  square: "rounded-[5px] after:rounded-[5px]",
+  square: "rounded-md after:rounded-md",
 };
 
 interface AvatarOwnProps {
@@ -44,7 +44,7 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn(
-        "aspect-square size-full object-cover group-data-[shape=circle]/avatar:rounded-full group-data-[shape=square]/avatar:rounded-[5px]",
+        "aspect-square size-full object-cover group-data-[shape=circle]/avatar:rounded-full group-data-[shape=square]/avatar:rounded-md",
         className
       )}
       {...props}
@@ -57,7 +57,7 @@ function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props)
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center bg-(--canvas-soft) text-sm text-(--muted) group-data-[size=sm]/avatar:text-xs group-data-[shape=circle]/avatar:rounded-full group-data-[shape=square]/avatar:rounded-[5px]",
+        "flex size-full items-center justify-center bg-(--elevated) text-[13px] font-[510] text-(--fg-strong) group-data-[size=sm]/avatar:text-[11px] group-data-[shape=circle]/avatar:rounded-full group-data-[shape=square]/avatar:rounded-md",
         className
       )}
       {...props}
@@ -65,12 +65,29 @@ function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props)
   );
 }
 
-function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
+type AvatarBadgeTone = "neutral" | "success" | "warning" | "danger" | "info" | "accent";
+
+const AVATAR_BADGE_TONE: Record<AvatarBadgeTone, string> = {
+  neutral: "bg-(--neutral)",
+  success: "bg-(--success)",
+  warning: "bg-(--warning)",
+  danger: "bg-(--danger)",
+  info: "bg-(--info)",
+  accent: "bg-(--accent)",
+};
+
+function AvatarBadge({
+  className,
+  tone = "neutral",
+  ...props
+}: React.ComponentProps<"span"> & { tone?: AvatarBadgeTone }) {
   return (
     <span
       data-slot="avatar-badge"
+      data-tone={tone}
       className={cn(
-        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full bg-(--accent) text-(--accent-ink) ring-2 ring-(--canvas) select-none",
+        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full text-(--accent-ink) ring-2 ring-(--canvas) select-none",
+        AVATAR_BADGE_TONE[tone],
         "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
         "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",
         "group-data-[size=lg]/avatar:size-3 group-data-[size=lg]/avatar:[&>svg]:size-2",
@@ -99,7 +116,7 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="avatar-group-count"
       className={cn(
-        "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-(--canvas-soft) text-sm text-(--muted) ring-2 ring-(--canvas) group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
+        "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-(--elevated) text-[13px] font-[510] text-(--fg) ring-2 ring-(--canvas) group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
         className
       )}
       {...props}
@@ -108,4 +125,4 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) 
 }
 
 export { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarBadge };
-export type { AvatarShape, AvatarSize };
+export type { AvatarShape, AvatarSize, AvatarBadgeTone };

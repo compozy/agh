@@ -93,7 +93,7 @@ export function ProviderCommandList({
                   <span className="truncate text-sm text-(--fg)">
                     {option.display_name?.trim() || option.name}
                   </span>
-                  <span className="font-mono text-xs uppercase tracking-wide text-(--muted)">
+                  <span className="font-mono text-badge uppercase tracking-mono text-(--muted)">
                     {option.harness ?? "acp"}
                   </span>
                 </div>

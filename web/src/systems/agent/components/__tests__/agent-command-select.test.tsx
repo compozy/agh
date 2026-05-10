@@ -139,12 +139,12 @@ describe("AgentCommandSelect", () => {
     );
     await user.click(screen.getByTestId("trigger"));
     expect(screen.getByTestId("agent-command-provider-deals")).toHaveClass(
-      "text-xs",
-      "tracking-wide"
+      "text-badge",
+      "tracking-mono"
     );
     expect(screen.getByTestId("agent-command-category-deals")).toHaveClass(
-      "text-xs",
-      "tracking-wide"
+      "text-badge",
+      "tracking-mono"
     );
   });
 });

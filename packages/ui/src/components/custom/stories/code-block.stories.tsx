@@ -157,10 +157,8 @@ export const StandaloneCopyButton: Story = {
     code: "agh network status",
   },
   render: args => (
-    <div className="flex items-center gap-3 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3">
-      <span className="font-mono text-small-body text-[color:var(--color-text-secondary)]">
-        {args.code}
-      </span>
+    <div className="flex items-center gap-3 rounded-md border border-(--line) bg-(--canvas-soft) p-3">
+      <span className="font-mono text-small-body text-(--muted)">{args.code}</span>
       <CopyIconButton value={args.code} />
     </div>
   ),

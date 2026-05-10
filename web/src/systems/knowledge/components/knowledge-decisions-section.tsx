@@ -64,7 +64,7 @@ function KnowledgeDecisionsSection({
         />
       ) : (
         <ul
-          className="flex flex-col divide-y divide-(--line) rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft)"
+          className="flex flex-col divide-y divide-(--line) rounded-lg border border-(--line) bg-(--canvas-soft)"
           data-testid="knowledge-decisions-list"
         >
           {decisions.map(decision => (
@@ -129,7 +129,7 @@ function KnowledgeDecisionsSection({
               </div>
               {revertError && revertingDecisionId === decision.id ? (
                 <p
-                  className="text-[12px] text-[color:var(--danger)]"
+                  className="text-small-body text-(--danger)"
                   data-testid={`knowledge-decision-revert-error-${decision.id}`}
                 >
                   {revertError}

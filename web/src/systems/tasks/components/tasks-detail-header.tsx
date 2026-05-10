@@ -127,7 +127,7 @@ export function TasksDetailHeader({
             <span className="flex min-w-0 items-center gap-2">
               <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
               <span
-                className="truncate text-item-title font-semibold text-(--fg)"
+                className="truncate text-item-title font-medium text-(--fg)"
                 data-testid="tasks-detail-title"
               >
                 {record.title}
@@ -223,10 +223,7 @@ export function TasksDetailHeader({
           ) : null}
         </div>
       </div>
-      <div
-        data-slot="page-header-subtitle"
-        className="max-w-152 text-small-body text-(--muted)"
-      >
+      <div data-slot="page-header-subtitle" className="max-w-152 text-small-body text-(--muted)">
         <span data-testid="tasks-detail-lifecycle-hint">
           {taskLifecyclePhaseDescription(lifecyclePhase)}
         </span>

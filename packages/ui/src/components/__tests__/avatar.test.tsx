@@ -95,7 +95,7 @@ describe("Avatar", () => {
     expect(root?.className).toContain("rounded-full");
   });
 
-  it("Should apply a 5px radius when shape is square", () => {
+  it("Should apply rounded-md (8px) when shape is square", () => {
     const { container } = render(
       <Avatar shape="square">
         <AvatarFallback>AG</AvatarFallback>
@@ -103,7 +103,7 @@ describe("Avatar", () => {
     );
     const root = container.querySelector('[data-slot="avatar"]');
     expect(root?.getAttribute("data-shape")).toBe("square");
-    expect(root?.className).toContain("rounded-[5px]");
+    expect(root?.className).toContain("rounded-md");
   });
 
   it("Should not contain mix-blend-darken (dead branch removed)", () => {

@@ -102,7 +102,7 @@ export function TasksMultiAgentPanel({
       data-testid="tasks-multi-agent-panel"
     >
       <header className="flex flex-col gap-1" data-testid="tasks-multi-agent-header">
-        <h2 className="text-base font-semibold text-(--fg)">Agents</h2>
+        <h2 className="text-base font-medium text-(--fg)">Agents</h2>
         <p className="text-small-body text-(--muted)" data-testid="tasks-multi-agent-summary">
           {subtitle}
         </p>
@@ -316,9 +316,9 @@ function AgentAvatar({ label, isLive }: AgentAvatarProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold",
+        "flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-medium",
         isLive
-          ? "border-accent bg-(--accent-tint) text-accent"
+          ? "border-(--accent) bg-(--accent-tint) text-(--accent)"
           : "border-(--line) bg-(--elevated) text-(--muted)"
       )}
     >

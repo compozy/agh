@@ -26,29 +26,29 @@ export const Capability: Story = {
       <WireCardHead>
         <Package className="size-3" />
         <span>Capability</span>
-        <span className="text-[color:var(--color-text-primary)]">rag.embed.bulk · v2</span>
+        <span className="text-(--fg)">rag.embed.bulk · v2</span>
       </WireCardHead>
       <WireCardBody>
-        <div className="grid grid-cols-2 gap-3 text-[11px]">
+        <div className="grid grid-cols-2 gap-3 text-eyebrow">
           <div>
-            <span className="text-[color:var(--color-text-tertiary)]">accepts:</span>{" "}
-            <span className="text-[color:var(--color-text-primary)]">urls</span>
+            <span className="text-(--subtle)">accepts:</span>{" "}
+            <span className="text-(--fg)">urls</span>
           </div>
           <div>
-            <span className="text-[color:var(--color-text-tertiary)]">emits:</span>{" "}
-            <span className="text-[color:var(--color-text-primary)]">vector_ids</span>
+            <span className="text-(--subtle)">emits:</span>{" "}
+            <span className="text-(--fg)">vector_ids</span>
           </div>
         </div>
       </WireCardBody>
       <WireCardFoot>
         <button
-          className="rounded-[4px] border border-[color:var(--color-divider)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
+          className="rounded-xs border border-(--line) px-2 py-1 font-mono text-badge uppercase tracking-mono text-(--muted) hover:text-(--fg)"
           type="button"
         >
           Call capability
         </button>
         <button
-          className="rounded-[4px] border border-[color:var(--color-divider)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
+          className="rounded-xs border border-(--line) px-2 py-1 font-mono text-badge uppercase tracking-mono text-(--muted) hover:text-(--fg)"
           type="button"
         >
           View schema
@@ -61,13 +61,9 @@ export const Capability: Story = {
 export const InlineReceipt: Story = {
   render: () => (
     <WireCard inline>
-      <Check className="size-3 text-[color:var(--color-success)]" />
-      <span className="font-mono text-[11px] text-[color:var(--color-text-primary)]">
-        receipt for direct#8471 · ok
-      </span>
-      <span className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
-        latency 212ms
-      </span>
+      <Check className="size-3 text-(--success)" />
+      <span className="font-mono text-eyebrow text-(--fg)">receipt for direct#8471 · ok</span>
+      <span className="ml-auto font-mono text-badge text-(--subtle)">latency 212ms</span>
     </WireCard>
   ),
 };

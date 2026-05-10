@@ -47,8 +47,8 @@ describe("PillGroup", () => {
     const badge = inbox.querySelector('[data-slot="pill-group-badge"]');
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("3");
-    expect(badge?.className).toContain("bg-(--color-accent)");
-    expect(badge?.className).toContain("text-(--color-accent-ink)");
+    expect(badge?.className).toContain("bg-(--accent)");
+    expect(badge?.className).toContain("text-(--accent-ink)");
   });
 
   it("Should not fire onChange for a disabled item", async () => {

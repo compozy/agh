@@ -9,8 +9,8 @@ describe("WireCard", () => {
     const card = container.querySelector<HTMLElement>('[data-slot="wire-card"]');
     expect(card).not.toBeNull();
     expect(card?.className).toContain("max-w-[520px]");
-    expect(card?.className).toContain("border-[color:var(--line)]");
-    expect(card?.className).toContain("bg-[color:var(--canvas-soft)]");
+    expect(card?.className).toContain("border-(--line)");
+    expect(card?.className).toContain("bg-(--canvas-soft)");
   });
 
   it("Should switch to inline strip layout when inline is set", () => {
@@ -35,7 +35,7 @@ describe("WireCard", () => {
     expect(head).not.toBeNull();
     expect(body).not.toBeNull();
     expect(foot).not.toBeNull();
-    expect(head?.className).toContain("bg-[color:var(--canvas)]");
-    expect(foot?.className).toContain("bg-[color:var(--canvas)]");
+    expect(head?.className).toContain("bg-(--canvas)");
+    expect(foot?.className).toContain("bg-(--canvas)");
   });
 });
