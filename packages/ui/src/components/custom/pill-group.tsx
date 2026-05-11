@@ -6,7 +6,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 const pillGroupSegmentVariants = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-xs) text-[12px] font-[510] tracking-[-0.005em] transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-xs) text-[12px] font-[510] tracking-eyebrow transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
@@ -59,7 +59,7 @@ function PillGroup<V extends string = string>({
       data-slot="pill-group"
       role="group"
       className={cn(
-        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-(--radius-md) bg-(--canvas-soft) p-(--space-pill-group-track-padding)",
+        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-md bg-(--canvas-soft) p-(--space-pill-group-track-padding)",
         className
       )}
       {...props}

@@ -39,7 +39,7 @@ function ActionResultBanner({
       data-slot="action-result-banner"
       data-tone={tone}
       className={cn(
-        "flex flex-wrap items-start gap-3 rounded-(--radius-md) border px-4 py-3",
+        "flex flex-wrap items-start gap-3 rounded-md border px-4 py-3",
         TONE_CHROME[tone],
         className
       )}

@@ -117,7 +117,7 @@ export function TaskRunDetailHeader({
           >
             <Play className="size-3.5" />
           </span>
-          <h1 className="truncate text-(length:--text-detail-h1) font-medium tracking-(--tracking-detail-h1) text-(--fg-strong)">
+          <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-(--fg-strong)">
             <span className="flex min-w-0 items-center gap-2">
               <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
               <span

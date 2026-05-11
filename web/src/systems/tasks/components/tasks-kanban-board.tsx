@@ -52,7 +52,7 @@ export function TasksKanbanBoard({
 
   return (
     <div
-      className="grid min-h-0 flex-1 grid-cols-[repeat(4,minmax(0,1fr))] gap-3 overflow-y-auto px-4 pt-4 pb-15"
+      className="grid min-h-0 flex-1 grid-cols-4 gap-3 overflow-y-auto px-4 pt-4 pb-15"
       data-testid="tasks-kanban-board"
       role="list"
     >

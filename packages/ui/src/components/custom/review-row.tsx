@@ -54,7 +54,7 @@ function ReviewRow({
       ) : null}
       <div data-slot="review-row-body" className="min-w-0 flex-1 flex flex-col gap-1">
         <div data-slot="review-row-title-line" className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 truncate text-[13px] font-medium tracking-[-0.005em] text-(--fg-strong)">
+          <p className="min-w-0 truncate text-[13px] font-medium tracking-eyebrow text-(--fg-strong)">
             {title}
           </p>
         </div>

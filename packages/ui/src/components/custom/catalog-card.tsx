@@ -85,7 +85,7 @@ function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
       aria-level={3}
       data-slot="catalog-card-title"
       className={cn(
-        "min-w-0 truncate text-[13px] font-[510] tracking-[-0.012em] text-(--fg-strong)",
+        "min-w-0 truncate text-[13px] font-[510] tracking-modal-title text-(--fg-strong)",
         className
       )}
       {...props}

@@ -23,7 +23,7 @@ export interface MonoIdProps extends Omit<React.ComponentProps<"span">, "childre
 const COPY_FEEDBACK_MS = 1200;
 
 const SIZE_CLASSNAME: Record<MonoIdSize, string> = {
-  default: "text-[length:var(--text-mono-id)]",
+  default: "text-mono-id",
   sm: "text-[10px]",
 };
 

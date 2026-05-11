@@ -43,13 +43,10 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
               <span className="inline-flex w-24 shrink-0 truncate text-[12px] text-(--muted)">
                 {item.label}
               </span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-(--radius-pill) bg-(--canvas)">
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-(--canvas)">
                 <span
                   data-slot="status-breakdown-bar"
-                  className={cn(
-                    "absolute inset-y-0 left-0 rounded-(--radius-pill)",
-                    TONE_BAR_CLASS[tone]
-                  )}
+                  className={cn("absolute inset-y-0 left-0 rounded-pill", TONE_BAR_CLASS[tone])}
                   style={{ width: `${Math.round(ratio * 100)}%` }}
                 />
               </div>

@@ -81,7 +81,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
         selected && "bg-(--elevated) shadow-[inset_0_0_0_1px_var(--line)]"
       )}
     >
-      <h3 className="line-clamp-2 text-[12.5px] leading-[1.4] font-medium tracking-[-0.008em] text-(--fg-strong)">
+      <h3 className="line-clamp-2 text-[12.5px] leading-[1.4] font-medium tracking-section-head text-(--fg-strong)">
         {task.title}
       </h3>
 
@@ -97,7 +97,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
           data-testid={`tasks-kanban-card-error-${task.id}`}
         >
           <AlertCircle aria-hidden="true" className="mt-px size-3 shrink-0" />
-          <span className="min-w-0 break-words">{failedError}</span>
+          <span className="min-w-0 wrap-break-word">{failedError}</span>
         </div>
       ) : null}
 

@@ -116,7 +116,7 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
     type: "button" as const,
     style: mergedStyle,
     className: cn(
-      "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",
       className
     ),
     "data-focus": focused,
@@ -205,7 +205,7 @@ function TreeDragLine<T>({ className, tree: propTree, ...props }: TreeDragLinePr
     <div
       style={dragLine}
       className={cn(
-        "bg-(--accent) before:bg-(--canvas) before:border-(--accent) absolute z-30 -mt-px h-0.5 w-[unset] before:absolute before:-top-[3px] before:left-0 before:size-2 before:border-2",
+        "bg-(--accent) before:bg-(--canvas) before:border-(--accent) absolute z-30 -mt-px h-0.5 w-[unset] before:absolute before:top-[-3px] before:left-0 before:size-2 before:border-2",
         "before:rounded-full",
         className
       )}

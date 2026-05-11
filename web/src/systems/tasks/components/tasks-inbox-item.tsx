@@ -70,7 +70,7 @@ export function TasksInboxItem({
     <>
       <h3
         className={cn(
-          "min-w-0 max-w-full truncate text-[13px] tracking-[-0.012em] text-(--fg-strong)",
+          "min-w-0 max-w-full truncate text-[13px] tracking-modal-title text-(--fg-strong)",
           unread ? "font-medium" : "font-normal"
         )}
         data-slot="tasks-inbox-row-title"

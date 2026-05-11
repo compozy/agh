@@ -66,7 +66,7 @@ function TimelineEvent({
       ) : null}
       <div data-slot="timeline-event-body" className="flex min-w-0 flex-1 flex-col gap-1 pb-3">
         <div className="flex min-w-0 items-baseline gap-2">
-          <p className="min-w-0 truncate text-[13px] font-medium tracking-[-0.005em] text-(--fg-strong)">
+          <p className="min-w-0 truncate text-[13px] font-medium tracking-eyebrow text-(--fg-strong)">
             {title}
           </p>
           {time ? (

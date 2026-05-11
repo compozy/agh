@@ -320,7 +320,7 @@ const noInlineDesignTuples = {
     },
     messages: {
       pageH1Tuple:
-        "Inline 22px page H1 tuple in className. Use <DetailHeader> for detail surfaces or tokenized text-(length:--text-detail-h1) tracking-(--tracking-detail-h1). See DESIGN.md §4 and §11.",
+        "Inline 22px page H1 tuple in className. Use <DetailHeader> for detail surfaces or tokenized text-detail-h1 tracking-(--tracking-detail-h1). See DESIGN.md §4 and §11.",
     },
     schema: [],
   },

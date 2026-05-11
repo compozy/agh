@@ -121,7 +121,7 @@ function ConnectionIndicatorLabel({
     <span
       className={cn(
         context.variant === "inline"
-          ? "font-sans text-[12px] tracking-[-0.005em] text-(--muted)"
+          ? "font-sans text-[12px] tracking-eyebrow text-(--muted)"
           : "eyebrow text-(--muted)",
         className
       )}

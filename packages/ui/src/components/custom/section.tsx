@@ -81,7 +81,7 @@ function Section({
                 ) : null}
                 <h2
                   data-slot="section-label"
-                  className="truncate text-(length:--text-section-head) font-[510] tracking-(--tracking-section-head) text-(--fg-strong)"
+                  className="truncate text-(length:--text-section-head) font-[510] tracking-section-head text-(--fg-strong)"
                 >
                   {label}
                 </h2>

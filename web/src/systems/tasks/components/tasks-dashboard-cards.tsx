@@ -38,10 +38,7 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       : "drained";
 
   return (
-    <div
-      className="grid grid-cols-2 gap-3 xl:grid-cols-[repeat(4,minmax(0,1fr))]"
-      data-testid="tasks-dashboard-cards"
-    >
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4" data-testid="tasks-dashboard-cards">
       <KpiCard
         data-testid="tasks-dashboard-card-active-runs"
         detail={activeDetail}

@@ -91,9 +91,9 @@ function LaneTabs<T extends string>({
             onClick={() => onChange(item.value)}
             onKeyDown={onKeyDown}
             className={cn(
-              "relative inline-flex h-9 items-center gap-1.5 px-2 text-[12px] font-medium tracking-[-0.005em] transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0",
+              "relative inline-flex h-9 items-center gap-1.5 px-2 text-[12px] font-medium tracking-eyebrow transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0",
               isActive
-                ? "text-(--fg-strong) after:absolute after:right-0 after:bottom-[-1px] after:left-0 after:h-[1.5px] after:bg-(--accent)"
+                ? "text-(--fg-strong) after:absolute after:right-0 after:-bottom-px after:left-0 after:h-[1.5px] after:bg-(--accent)"
                 : "text-(--muted) hover:text-(--fg)"
             )}
           >

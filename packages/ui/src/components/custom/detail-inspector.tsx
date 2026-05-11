@@ -138,7 +138,7 @@ function DetailInspector({
         side="right"
         data-slot="detail-inspector"
         data-mode="drawer"
-        className={cn("w-[var(--detail-inspector-width)] sm:max-w-none", drawerClassName)}
+        className={cn("w-(--detail-inspector-width) sm:max-w-none", drawerClassName)}
         style={
           {
             "--detail-inspector-width": `${DETAIL_INSPECTOR_INLINE_WIDTH}px`,

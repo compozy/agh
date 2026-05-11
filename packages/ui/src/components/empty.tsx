@@ -71,7 +71,7 @@ function Empty({
       </span>
       <TitleTag
         data-slot="empty-title"
-        className="text-lg font-medium leading-snug tracking-[-0.022em] text-(--fg-strong)"
+        className="text-lg font-medium leading-snug tracking-empty-h1 text-(--fg-strong)"
         style={{ fontWeight: 510 }}
       >
         {title}

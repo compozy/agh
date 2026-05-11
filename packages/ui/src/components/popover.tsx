@@ -133,7 +133,7 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   return (
     <PopoverPrimitive.Title
       data-slot="popover-title"
-      className={cn("font-medium tracking-[-0.005em] text-(--fg-strong)", className)}
+      className={cn("font-medium tracking-eyebrow text-(--fg-strong)", className)}
       {...props}
     />
   );

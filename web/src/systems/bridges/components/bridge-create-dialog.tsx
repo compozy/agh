@@ -121,7 +121,7 @@ function renderBridgeCreateDialog({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
         aria-labelledby={titleId}
-        className="w-[var(--width-modal-lg)] max-w-[calc(100vw-2rem)] sm:max-w-[var(--width-modal-lg)] grid-rows-[auto_auto_1fr_auto] max-h-[min(900px,calc(100vh-2rem))]"
+        className="w-(--width-modal-lg) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-lg) grid-rows-[auto_auto_1fr_auto] max-h-[min(900px,calc(100vh-2rem))]"
         data-testid="bridge-create-dialog"
         showCloseButton={false}
         unframed
@@ -133,7 +133,7 @@ function renderBridgeCreateDialog({
           <DialogTitle
             id={titleId}
             data-testid="bridge-wizard-title"
-            className="text-[length:var(--text-modal-title)] tracking-[-0.012em] text-(--fg-strong)"
+            className="text-modal-title tracking-modal-title text-(--fg-strong)"
             style={{ fontWeight: 510 }}
           >
             Create bridge

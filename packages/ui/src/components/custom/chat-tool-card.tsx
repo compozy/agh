@@ -138,7 +138,7 @@ function ChatToolSectionBody({ section }: { section: ChatToolCardSection }) {
   return (
     <div
       data-slot="chat-tool-card-markdown"
-      className="text-[length:var(--text-body)] leading-[1.6] text-(--fg) [&_code]:font-mono [&_code]:text-[12px] [&_p]:my-2"
+      className="text-(length:--text-body) leading-[1.6] text-(--fg) [&_code]:font-mono [&_code]:text-[12px] [&_p]:my-2"
     >
       <Streamdown {...STREAMDOWN_SAFE_CONFIG}>{source}</Streamdown>
     </div>
@@ -170,7 +170,7 @@ function ChatToolCard({
       data-slot="chat-tool-card"
       data-status={status}
       className={cn(
-        "flex flex-col gap-2 rounded-(--radius-lg) px-3 py-2.5",
+        "flex flex-col gap-2 rounded-lg px-3 py-2.5",
         failureTint ? "bg-(--danger-tint)" : "bg-(--canvas-soft)",
         className
       )}

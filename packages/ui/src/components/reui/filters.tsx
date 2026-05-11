@@ -780,7 +780,7 @@ function SelectOptionsPopover<T = unknown>({
           role="listbox"
           id={`${baseId}-listbox`}
         >
-          <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 [&_[data-slot=scroll-area-viewport]]:h-full [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
+          <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {allFilteredOptions.length === 0 && (
               <div className="text-muted-foreground py-2 text-center text-sm">
                 {context.i18n.noResultsFound}
@@ -1277,7 +1277,7 @@ function FilterSubmenuContent<T = unknown>({
             }
           }}
         >
-          <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 [&_[data-slot=scroll-area-viewport]]:h-full [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
+          <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {filteredOptions.length === 0 ? (
               <div className="text-muted-foreground py-2 text-center text-sm">
                 {i18n.noResultsFound}

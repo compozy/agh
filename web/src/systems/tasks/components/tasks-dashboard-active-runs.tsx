@@ -61,7 +61,7 @@ export function TasksDashboardActiveRuns({
                   <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
                 </span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 truncate text-[12.5px] font-medium tracking-[-0.008em] text-(--fg-strong)">
+                  <span className="min-w-0 truncate text-[12.5px] font-medium tracking-section-head text-(--fg-strong)">
                     {run.task_title}
                   </span>
                   {run.task_identifier ? (

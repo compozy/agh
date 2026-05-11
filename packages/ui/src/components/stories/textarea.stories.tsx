@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 export const WithLabelAndHelper: Story = {
   args: {},
   render: () => (
-    <div className="w-[26rem]">
+    <div className="w-104">
       <Field>
         <FieldLabel htmlFor="textarea-notes">Session notes</FieldLabel>
         <Textarea
@@ -40,7 +40,7 @@ export const WithLabelAndHelper: Story = {
 export const ErrorState: Story = {
   args: {},
   render: () => (
-    <div className="w-[26rem]">
+    <div className="w-104">
       <Field data-invalid>
         <FieldLabel htmlFor="textarea-error">Session notes</FieldLabel>
         <Textarea
@@ -59,7 +59,7 @@ export const ErrorState: Story = {
 export const Disabled: Story = {
   args: {},
   render: () => (
-    <div className="w-[26rem]">
+    <div className="w-104">
       <Field>
         <FieldLabel htmlFor="textarea-disabled">Archived notes</FieldLabel>
         <Textarea
@@ -77,7 +77,7 @@ export const Disabled: Story = {
 export const MonoVariant: Story = {
   args: {},
   render: () => (
-    <div className="w-[26rem]">
+    <div className="w-104">
       <Field>
         <FieldLabel htmlFor="textarea-mono">System prompt</FieldLabel>
         <Textarea

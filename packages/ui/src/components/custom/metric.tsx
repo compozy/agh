@@ -40,7 +40,7 @@ const VALUE_COLOR: Record<MetricTone, string> = {
 
 const SIZE_VALUE_CLASS: Record<MetricSize, string> = {
   default: "text-[24px] leading-[30px] tracking-[-0.02em]",
-  lg: "text-[28px] leading-[1.05] tracking-[-0.028em]",
+  lg: "text-[28px] leading-[1.05] tracking-detail-h1",
 };
 
 const SIZE_CONTAINER_CLASS: Record<MetricSize, string> = {

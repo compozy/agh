@@ -207,7 +207,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
               <span
                 aria-hidden="true"
                 data-testid="workspace-onboarding-hero-icon"
-                className="inline-flex size-14 items-center justify-center rounded-(--radius-icon-well) bg-(--surface-glaze) text-(--accent)"
+                className="inline-flex size-14 items-center justify-center rounded-icon-well bg-(--surface-glaze) text-(--accent)"
               >
                 <Sparkles className="size-6" />
               </span>
@@ -215,7 +215,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
               <div className="space-y-3">
                 <h1
                   data-testid="workspace-onboarding-hero-title"
-                  className="max-w-xl text-(length:--text-detail-h1) font-[510] tracking-(--tracking-detail-h1) text-(--fg)"
+                  className="max-w-xl text-detail-h1 font-[510] tracking-detail-h1 text-(--fg)"
                 >
                   {copy.title}
                 </h1>

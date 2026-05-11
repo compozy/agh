@@ -184,7 +184,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           ref={titleRef}
           tabIndex={-1}
           data-testid="topbar-title-text"
-          className="truncate text-[14px] font-medium tracking-[-0.014em] text-(--fg-strong) outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+          className="truncate text-[14px] font-medium tracking-tight text-(--fg-strong) outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
         >
           {renderedTitle}
         </h1>

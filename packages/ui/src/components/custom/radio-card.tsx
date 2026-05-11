@@ -79,7 +79,7 @@ function RadioCard({
         <span
           data-slot="radio-card-title"
           className={cn(
-            "min-w-0 truncate text-[13px] font-medium tracking-[-0.005em]",
+            "min-w-0 truncate text-[13px] font-medium tracking-eyebrow",
             selected ? "text-(--fg-strong)" : "text-(--fg)"
           )}
         >

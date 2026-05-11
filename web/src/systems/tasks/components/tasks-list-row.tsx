@@ -130,7 +130,7 @@ function TasksListRow({
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h3
-            className="min-w-0 max-w-full truncate text-[13px] font-medium tracking-[-0.014em] text-(--fg-strong)"
+            className="min-w-0 max-w-full truncate text-[13px] font-medium tracking-tight text-(--fg-strong)"
             data-slot="tasks-list-row-title"
           >
             {task.title}
@@ -142,7 +142,7 @@ function TasksListRow({
           ) : null}
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-[9px] text-[11.5px] tracking-[-0.005em] text-(--subtle)">
+        <div className="flex min-w-0 flex-wrap items-center gap-[9px] text-[11.5px] tracking-eyebrow text-(--subtle)">
           <span className="font-mono text-[10.5px] text-(--faint)" data-slot="tasks-list-row-id">
             {identifier}
           </span>

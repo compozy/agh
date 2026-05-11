@@ -76,7 +76,7 @@ export const Compact: Story = {
   args: {},
   render: () => (
     <PageShell density="compact">
-      <h1 className="text-[18px] font-medium tracking-[-0.022em] text-(--fg-strong)">Vault</h1>
+      <h1 className="text-[18px] font-medium tracking-empty-h1 text-(--fg-strong)">Vault</h1>
       <p className="text-[13px] text-(--muted)">
         Compact density removes a step of vertical padding.
       </p>

@@ -38,7 +38,7 @@ function FieldRow({
       <label
         data-slot="field-row-label"
         htmlFor={htmlFor}
-        className="text-[12px] font-medium tracking-[-0.005em] text-(--fg)"
+        className="text-[12px] font-medium tracking-eyebrow text-(--fg)"
       >
         {label}
       </label>

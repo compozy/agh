@@ -36,7 +36,7 @@ function KpiCard({
     <div
       data-slot="kpi-card"
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-(--radius-lg) bg-(--canvas-soft) px-5 py-4",
+        "flex min-w-0 flex-col gap-2 rounded-lg bg-(--canvas-soft) px-5 py-4",
         className
       )}
       {...props}
@@ -62,7 +62,7 @@ function KpiCard({
       </div>
       <div
         data-slot="kpi-card-value"
-        className="text-[28px] font-medium leading-none tracking-[-0.028em] text-(--fg-strong) tabular-nums"
+        className="text-[28px] font-medium leading-none tracking-detail-h1 text-(--fg-strong) tabular-nums"
       >
         {value}
       </div>

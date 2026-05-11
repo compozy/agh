@@ -71,7 +71,7 @@ function StatusLineTopbarSlot({
             <span
               data-slot="status-line-topbar-slot-item-value"
               className={cn(
-                "font-sans text-[12px] tracking-[-0.005em] tabular-nums",
+                "font-sans text-[12px] tracking-eyebrow tabular-nums",
                 TONE_TEXT_CLASS[tone]
               )}
             >

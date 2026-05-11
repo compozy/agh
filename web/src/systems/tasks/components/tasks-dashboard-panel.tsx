@@ -40,7 +40,7 @@ export function TasksDashboardPanel({
       >
         <div className="flex min-w-0 items-baseline gap-2">
           <h3
-            className="truncate text-[12.5px] font-medium tracking-[-0.005em] text-(--fg-strong)"
+            className="truncate text-[12.5px] font-medium tracking-eyebrow text-(--fg-strong)"
             data-slot="tasks-dashboard-panel-title"
           >
             {title}

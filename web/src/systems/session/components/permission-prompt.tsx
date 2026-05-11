@@ -93,7 +93,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
     >
       <div
         className={cn(
-          "flex max-w-3xl gap-3 rounded-(--radius-lg) p-3 shadow-(--highlight)",
+          "flex max-w-3xl gap-3 rounded-lg p-3 shadow-(--highlight)",
           isHighStakes ? "bg-(--danger-tint)" : "bg-(--warning-tint)"
         )}
         data-testid="permission-prompt-card"

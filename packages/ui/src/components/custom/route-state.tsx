@@ -37,7 +37,7 @@ function RouteState({
       data-slot="route-state"
       data-mode={mode}
       className={cn(
-        "flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-(--radius-lg) border border-(--line) bg-(--canvas-soft) px-6 py-8 text-center",
+        "flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) px-6 py-8 text-center",
         className
       )}
       {...ariaProps}
@@ -47,7 +47,7 @@ function RouteState({
         <span
           aria-hidden="true"
           data-slot="route-state-icon"
-          className="inline-flex size-9 items-center justify-center rounded-(--radius-icon-well) bg-(--canvas) text-(--muted)"
+          className="inline-flex size-9 items-center justify-center rounded-icon-well bg-(--canvas) text-(--muted)"
         >
           <Icon className="size-4" />
         </span>
@@ -61,7 +61,7 @@ function RouteState({
           {title ? (
             <h2
               data-slot="route-state-title"
-              className="text-[18px] font-medium tracking-[-0.022em] text-(--fg-strong)"
+              className="text-[18px] font-medium tracking-empty-h1 text-(--fg-strong)"
             >
               {title}
             </h2>

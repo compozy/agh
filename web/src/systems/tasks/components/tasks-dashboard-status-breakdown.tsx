@@ -58,7 +58,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                 <div className="flex min-w-0 flex-col gap-1">
                   <div className="flex min-w-0 items-baseline justify-between gap-2">
                     <span
-                      className="min-w-0 truncate text-[12px] font-medium tracking-[-0.005em] text-(--fg)"
+                      className="min-w-0 truncate text-[12px] font-medium tracking-eyebrow text-(--fg)"
                       data-testid={`tasks-dashboard-status-label-${entry.status}`}
                     >
                       {taskStatusLabel(entry.status)}

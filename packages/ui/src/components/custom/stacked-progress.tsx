@@ -40,10 +40,7 @@ function StackedProgress({
       data-slot="stacked-progress"
       role="img"
       aria-label={ariaLabel}
-      className={cn(
-        "flex h-1.5 w-full overflow-hidden rounded-(--radius-pill) bg-(--canvas)",
-        className
-      )}
+      className={cn("flex h-1.5 w-full overflow-hidden rounded-pill bg-(--canvas)", className)}
       {...props}
     >
       {segments.map((segment, index) => {

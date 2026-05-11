@@ -19,6 +19,8 @@ import {
 import { AgentIcon } from "./agent-icon";
 import type { AgentPayload } from "../types";
 
+const AGENT_TREE_INDENT = 12;
+
 export interface AgentCategoryTreeProps {
   agents: AgentPayload[] | undefined;
   agentsLoading: boolean;
@@ -42,7 +44,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-loading"
-        className="items-start gap-2 px-3 py-2 text-left"
+        className="items-start gap-2 px-2 py-2 text-left"
       />
     );
   }
@@ -59,7 +61,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-error"
-        className="items-start gap-2 px-3 py-2 text-left"
+        className="items-start gap-2 px-2 py-2 text-left"
       />
     );
   }
@@ -72,7 +74,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-empty"
-        className="items-start gap-2 px-3 py-2 text-left"
+        className="items-start gap-2 px-2 py-2 text-left"
       />
     );
   }
@@ -91,7 +93,7 @@ function AgentCategoryTreeContent({ agents, sessions }: AgentCategoryTreeContent
   return (
     <Tree
       tree={tree}
-      indent={12}
+      indent={AGENT_TREE_INDENT}
       data-testid="agent-category-tree"
       aria-label="Agents"
       className="gap-0.5"
@@ -148,7 +150,7 @@ function FolderRow({ item, label, segments }: FolderRowProps) {
       <TreeItemLabel
         item={item}
         className={cn(
-          "eyebrow flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 text-(--muted)",
+          "eyebrow flex items-center gap-1 rounded-mono-badge bg-transparent px-2 py-1 text-(--muted)",
           "hover:bg-(--hover) hover:text-(--fg)"
         )}
       >
@@ -166,6 +168,7 @@ interface LeafRowProps {
 }
 
 function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
+  const level = item.getItemMeta().level;
   return (
     <TreeItem
       item={item}
@@ -173,6 +176,7 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
       data-testid={`agent-row-${agent.name}`}
       data-active={isActive}
       className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
+      style={{ paddingInlineStart: `${level * AGENT_TREE_INDENT + 8}px` }}
     >
       {isActive ? (
         <span

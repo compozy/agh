@@ -80,10 +80,7 @@ function RunCard({
     <section
       data-slot="run-card"
       data-status={status}
-      className={cn(
-        "flex flex-col gap-3 rounded-(--radius-lg) bg-(--canvas-soft) px-[18px] py-4",
-        className
-      )}
+      className={cn("flex flex-col gap-3 rounded-lg bg-(--canvas-soft) px-[18px] py-4", className)}
       {...props}
     >
       <header

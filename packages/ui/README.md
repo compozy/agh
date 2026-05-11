@@ -171,7 +171,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 The motion guidance for this package scopes animation tightly: CSS owns simple state, `motion` owns orchestration. Three concrete examples:
 
-1. **Hover color change** → **CSS**. `hover:bg-[color:var(--color-hover)]` transitions `background` in 150ms via `--duration-base`. No JS involved. Same for focus rings, `active:translate-y-px`, `dot-pulse`, and skeleton `shimmer`.
+1. **Hover color change** → **CSS**. `hover:bg-hover` transitions `background` in 150ms via `--duration-base`. No JS involved. Same for focus rings, `active:translate-y-px`, `dot-pulse`, and skeleton `shimmer`.
 2. **Unmount animation (Dialog/Popover/Sheet closing)** → **`motion`**. The element leaves the tree; CSS cannot animate an unmount. Use the sanctioned `AnimatePresence` + `actionsRef` pattern described in the workflow memory: `<AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>` around `{open && <Portal keepMounted>…</Portal>}`. Do **not** combine `data-open:animate-*` keyframes with `motion` — it double-animates.
 3. **Route transition (Session → Tasks)** → **`motion`**. Siblings need coordinated enter/exit across the outlet; CSS-only cannot do that. Wrap the outlet in `AnimatePresence mode="wait"` at the route boundary.
 

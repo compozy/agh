@@ -169,7 +169,7 @@ function CustomComposer() {
   return (
     <ComposerPrimitive.Root className="border-t p-4">
       {/* Drag-drop overlay */}
-      <ComposerPrimitive.AttachmentDropzone className="absolute inset-0 flex items-center justify-center bg-blue-50/80 border-2 border-dashed border-blue-300 rounded-lg opacity-0 pointer-events-none data-[dragging]:opacity-100 data-[dragging]:pointer-events-auto">
+      <ComposerPrimitive.AttachmentDropzone className="absolute inset-0 flex items-center justify-center bg-blue-50/80 border-2 border-dashed border-blue-300 rounded-lg opacity-0 pointer-events-none data-dragging:opacity-100 data-dragging:pointer-events-auto">
         <p className="text-blue-500">Drop files to attach</p>
       </ComposerPrimitive.AttachmentDropzone>
 

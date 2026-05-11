@@ -91,7 +91,7 @@ function DetailHeader({
         <div data-slot="detail-header-title-block" className="flex min-w-0 flex-col gap-1.5">
           <h1
             data-slot="detail-header-title"
-            className="truncate text-[length:var(--text-detail-h1)] font-medium tracking-(--tracking-detail-h1) text-(--fg-strong)"
+            className="truncate text-detail-h1 font-medium tracking-detail-h1 text-(--fg-strong)"
             style={{ fontWeight: 510 }}
           >
             {title}

@@ -221,7 +221,7 @@ function TimelineWithMarkers({ events, isLive }: TimelineWithMarkersProps) {
         const isFailure = FAILURE_EVENT_TYPES.has(item.event_type);
         const isSuccess = SUCCESS_EVENT_TYPES.has(item.event_type);
         const titleClass = cn(
-          "font-mono tracking-[-0.005em]",
+          "font-mono tracking-eyebrow",
           isFailure ? "text-(--danger)" : isSuccess ? "text-(--success)" : "text-(--fg-strong)"
         );
         return (

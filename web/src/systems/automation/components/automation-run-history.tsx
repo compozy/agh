@@ -142,7 +142,7 @@ export function AutomationRunHistory({
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-(--radius-lg) bg-(--canvas-soft)"
+          className="overflow-hidden rounded-lg bg-(--canvas-soft)"
           data-testid="automation-run-history-rows"
           role="list"
         >

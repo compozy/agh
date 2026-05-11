@@ -225,7 +225,7 @@ function Sidebar({
           {header ? (
             <div
               data-slot="sidebar-header"
-              className="flex min-h-12 shrink-0 items-center gap-2 border-b border-(--line) px-3"
+              className="flex min-h-12 shrink-0 items-center gap-2 border-b border-(--line) px-2"
             >
               {header}
             </div>
@@ -236,7 +236,7 @@ function Sidebar({
           {footer ? (
             <div
               data-slot="sidebar-footer"
-              className="shrink-0 border-t border-(--line) px-3 py-2.5"
+              className="shrink-0 border-t border-(--line) px-2 py-2.5"
             >
               {footer}
             </div>
@@ -252,7 +252,7 @@ function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div"
     <div
       {...props}
       data-slot="sidebar-section-label"
-      className={cn("eyebrow px-3 pt-3 pb-1.5 text-(--muted)", className)}
+      className={cn("eyebrow flex items-center px-2 pt-3 pb-1.5 text-(--muted)", className)}
     />
   );
 }

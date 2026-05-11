@@ -42,7 +42,7 @@ export function TaskKanbanColumn({
     >
       <header className="flex shrink-0 items-center gap-2 px-3 pt-[11px] pb-[9px]">
         <Pill.Dot tone={tone} />
-        <h2 className="text-[12px] font-medium tracking-[-0.005em] text-(--fg-strong)">
+        <h2 className="text-[12px] font-medium tracking-eyebrow text-(--fg-strong)">
           {column.label}
         </h2>
         <span

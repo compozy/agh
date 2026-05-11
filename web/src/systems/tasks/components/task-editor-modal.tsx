@@ -202,7 +202,7 @@ export function TaskEditorModal({
         data-mode={mode}
         showCloseButton={false}
         unframed
-        className="w-[var(--width-modal-md)] max-w-[calc(100vw-2rem)] sm:max-w-[var(--width-modal-md)] grid-rows-[auto_1fr_auto] max-h-[min(720px,calc(100vh-2rem))]"
+        className="w-(--width-modal-md) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-md) grid-rows-[auto_1fr_auto] max-h-[min(720px,calc(100vh-2rem))]"
       >
         <header
           data-slot="task-editor-modal-head"
@@ -211,7 +211,7 @@ export function TaskEditorModal({
           <DialogTitle
             id={titleId}
             data-testid="task-editor-modal-title"
-            className="text-[length:var(--text-modal-title)] tracking-[-0.012em] text-(--fg-strong)"
+            className="text-modal-title tracking-modal-title text-(--fg-strong)"
             style={{ fontWeight: 510 }}
           >
             {title}

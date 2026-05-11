@@ -47,7 +47,7 @@ function RailSlot({
         to="/"
         aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-(--radius-md) transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--canvas)"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--canvas)"
       >
         <Logo variant="symbol" decorative className="size-7" />
       </Link>
@@ -65,7 +65,7 @@ function RailSlot({
             aria-label={`Workspace: ${workspace.name}`}
             aria-pressed={isActive}
             className={cn(
-              "inline-flex size-7 items-center justify-center rounded-(--radius-md) border border-transparent bg-(--elevated) font-mono text-eyebrow font-medium text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
+              "inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-(--elevated) font-mono text-eyebrow font-medium text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
               isActive && "border-(--accent) text-(--fg)"
             )}
           >
@@ -78,7 +78,7 @@ function RailSlot({
         onClick={onAddWorkspace}
         data-testid="add-workspace-btn"
         aria-label="Add workspace"
-        className="inline-flex size-7 items-center justify-center rounded-(--radius-md) border border-dashed border-(--line) text-(--subtle) transition-colors hover:border-(--accent) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-(--line) text-(--subtle) transition-colors hover:border-(--accent) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
       >
         <Plus aria-hidden="true" className="size-3" />
       </button>
@@ -228,10 +228,7 @@ function NavGroup({ items }: { items: NavItemProps[] }) {
 
 function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <SidebarSectionLabel
-      data-testid="sidebar-section-label"
-      className={cn("eyebrow flex items-center px-2 pt-2 pb-1 text-(--muted)", className)}
-    >
+    <SidebarSectionLabel data-testid="sidebar-section-label" className={cn("pt-2 pb-1", className)}>
       {children}
     </SidebarSectionLabel>
   );
@@ -246,7 +243,7 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
   const initial = label.charAt(0).toUpperCase() || "·";
 
   return (
-    <div data-testid="workspace-switcher" className="flex h-12 w-full items-center gap-2.5 px-3">
+    <div data-testid="workspace-switcher" className="flex h-12 w-full items-center gap-2.5 px-2">
       <span
         aria-hidden="true"
         data-testid="workspace-switcher-avatar"
@@ -256,7 +253,7 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
       </span>
       <span
         data-testid="workspace-switcher-name"
-        className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.014em] text-(--fg)"
+        className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-tight text-(--fg)"
       >
         {label}
       </span>
@@ -275,7 +272,7 @@ interface FooterSlotProps {
 
 function FooterSlot({ health }: FooterSlotProps) {
   return (
-    <div data-testid="sidebar-footer" className="flex items-center gap-2">
+    <div data-testid="sidebar-footer" className="flex items-center gap-2 px-2">
       <RuntimeConnectionIndicator />
       {health && (
         <span

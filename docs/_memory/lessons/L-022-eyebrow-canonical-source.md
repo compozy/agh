@@ -15,10 +15,10 @@ felt drifty, an audit surfaced **124 callsites** across the monorepo applying th
 uppercase eyebrow style. ~62 used the `<Eyebrow>` primitive and ~62 inlined the same idea by
 hand. At least **five different tuples** were in active use:
 
-- `text-[10.5px]` + `tracking-[0.05em]` (the original `<Eyebrow>` body)
+- `text-[10.5px]` + `tracking-wider` (the original `<Eyebrow>` body)
 - `text-eyebrow` (11 px) + `tracking-mono` (0.06em) (the token-aligned majority)
 - `text-badge` (10 px) + `tracking-badge` (0.08em) (legacy chip tracking applied to eyebrows)
-- `text-[11px]` + `tracking-[0.06em]` hard-coded inside chat/metric/wire-card primitives
+- `text-[11px]` + `tracking-mono` hard-coded inside chat/metric/wire-card primitives
 - `text-[10px]` + `tracking-[0.08em]` arbitrary tuples in dialog labels
 
 The drift was **triplicated in the spec layer too**: `DESIGN.md` table §3 line 147 said
@@ -62,7 +62,7 @@ the primitive was supposed to prevent.
 Inlining `font-mono` + `uppercase` + a `text-*` + a `tracking-*` tuple in product `<span>`,
 `<p>`, or `<div>` content is forbidden. The deleted `.eyebrow-badge` / `.eyebrow-micro` utility
 classes are forbidden — `compozy-design-system/no-inline-eyebrow` flags them. Arbitrary values
-like `text-[10.5px]` / `tracking-[0.05em]` are forbidden everywhere, including the design-system
+like `text-[10.5px]` / `tracking-wider` are forbidden everywhere, including the design-system
 implementation files.
 
 ## Operationalization
@@ -74,7 +74,7 @@ implementation files.
 - `packages/ui/src/tokens.css` declares one utility:
   ```css
   @utility eyebrow {
-    @apply font-sans text-[length:var(--text-eyebrow)] font-semibold uppercase;
+    @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
     letter-spacing: var(--tracking-eyebrow);
   }
   ```
@@ -101,7 +101,7 @@ implementation files.
 
 ## Anti-pattern
 
-- Inlining `font-mono text-[10.5px] uppercase tracking-[0.05em] text-(--muted)` "just for one
+- Inlining `font-mono text-[10.5px] uppercase tracking-wider text-(--muted)` "just for one
   span" — every callsite that did this turned into a permanent drift point.
 - Adding a new visual variant back into `<Eyebrow>` (a new `case`, a new `size`, a new `tone`).
   The primitive is intentionally prop-less now; size/tone variations live in the className the

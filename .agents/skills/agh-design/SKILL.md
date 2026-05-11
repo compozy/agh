@@ -40,7 +40,7 @@ If invoked without other guidance, ask what the user wants to build (a landing s
 - **Shadow vocabulary is two tokens only — `--shadow-overlay` (modals) and `--highlight` (active rim).** Inventing `--shadow-card` / `--shadow-pop` is forbidden §6.
 - **`--neutral-tint` is pinned at `rgba(150, 150, 155, 0.06)`.** Drifting to cooler `(122, 122, 128, …)` channels is forbidden.
 - **`--font-display` is an Inter alias reserved for `tokens.css` and explicit logo/wordmark slots.** Production code under `web/src/**` and `packages/ui/src/**` must not consume `var(--font-display)` for type-ramp purposes.
-- **Tailwind `rounded-md` / `rounded-lg` / `rounded-xl` utilities are forbidden.** Resolve every radius through the token contract — `rounded-(--radius-xs)` / `rounded-(--radius)` / `rounded-(--radius-md)` / `rounded-(--radius-lg)` / `rounded-(--radius-icon-well)`. See `DESIGN.md` §14.
+- **Tailwind `rounded-md` / `rounded-lg` / `rounded-xl` utilities are forbidden.** Resolve every radius through the token contract — `rounded-(--radius-xs)` / `rounded-(--radius)` / `rounded-md` / `rounded-lg` / `rounded-icon-well`. See `DESIGN.md` §14.
 - **Inlining `font-mono uppercase tracking-mono` (or arbitrary `tracking-[Nem]`) tuples for label purposes is forbidden.** That combination IS the eyebrow contract; render through `<Eyebrow>` instead. See `DESIGN.md` §3.
 - **Body baseline is pinned to Inter 13.5 px / line-height 1.5 / letter-spacing −0.006em / `font-feature-settings: "cv01", "ss03", "cv11"`.** Set once in the `tokens.css` body rule; never override per-page.
 - **Mono identifiers in row contexts (task-row, kanban-card, inbox-item, run-row) render as bare mono text, never as `<Pill mono>`.**

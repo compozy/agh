@@ -52,7 +52,7 @@ export const LineDefault: Story = {
     },
   },
   render: () => (
-    <Tabs defaultValue={panels[0].value} className="w-[28rem]">
+    <Tabs defaultValue={panels[0].value} className="w-md">
       <TabsList variant="line">
         {panels.map(panel => (
           <TabsTrigger key={panel.value} value={panel.value}>
@@ -88,7 +88,7 @@ export const LineWithCounts: Story = {
     },
   },
   render: () => (
-    <Tabs defaultValue="runs" className="w-[32rem]">
+    <Tabs defaultValue="runs" className="w-lg">
       <TabsList variant="line">
         <TabsTrigger count={6} value="children">
           Children
@@ -124,7 +124,7 @@ export const LaneDefault: Story = {
     },
   },
   render: () => (
-    <Tabs defaultValue="all" className="w-[36rem]">
+    <Tabs defaultValue="all" className="w-xl">
       <TabsList variant="lane">
         <TabsTrigger count={42} value="all">
           All
@@ -165,7 +165,7 @@ export const LaneWithoutCounts: Story = {
     },
   },
   render: () => (
-    <Tabs defaultValue="overview" className="w-[36rem]">
+    <Tabs defaultValue="overview" className="w-xl">
       <TabsList variant="lane">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="usage">Usage</TabsTrigger>
@@ -198,7 +198,7 @@ export const Vertical: Story = {
     <Tabs
       defaultValue={panels[0].value}
       orientation="vertical"
-      className="w-[32rem] flex-row items-start gap-4"
+      className="w-lg flex-row items-start gap-4"
     >
       <TabsList variant="line">
         {panels.map(panel => (

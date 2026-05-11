@@ -29,7 +29,7 @@ const events = Array.from({ length: 24 }, (_, i) => ({
 
 export const Default: Story = {
   render: () => (
-    <Card className="w-[22rem]">
+    <Card className="w-88">
       <CardHeader>
         <CardTitle>Session feed</CardTitle>
       </CardHeader>
@@ -76,7 +76,7 @@ export const Overflow: Story = {
 
 export const Horizontal: Story = {
   render: () => (
-    <ScrollArea className="w-[28rem] rounded-lg border bg-card">
+    <ScrollArea className="w-md rounded-lg border bg-card">
       <div className="flex gap-3 p-3">
         {events.slice(0, 12).map(event => (
           <Card key={event.id} className="w-48 shrink-0">

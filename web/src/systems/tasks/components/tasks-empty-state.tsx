@@ -116,7 +116,7 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
   return (
     <button
       className={cn(
-        "flex h-full min-h-[156px] flex-col gap-3 rounded-(--radius-lg) bg-(--canvas-soft) p-5 text-left transition-colors duration-(--dur) ease-(--ease)",
+        "flex h-full min-h-[156px] flex-col gap-3 rounded-lg bg-(--canvas-soft) p-5 text-left transition-colors duration-(--dur) ease-(--ease)",
         "hover:bg-(--elevated) focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)]"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
@@ -126,14 +126,11 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
     >
       <span
         aria-hidden="true"
-        className={cn(
-          "flex size-7 items-center justify-center rounded-(--radius-md)",
-          TONE_CLASS[slot.tone]
-        )}
+        className={cn("flex size-7 items-center justify-center rounded-md", TONE_CLASS[slot.tone])}
       >
         {slot.icon}
       </span>
-      <span className="text-[13px] font-medium tracking-[-0.012em] text-(--fg-strong)">
+      <span className="text-[13px] font-medium tracking-modal-title text-(--fg-strong)">
         {template.label}
       </span>
       <p className="text-[12px] leading-relaxed text-(--muted)">{template.description}</p>

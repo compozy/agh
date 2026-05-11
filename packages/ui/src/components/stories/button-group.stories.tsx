@@ -43,7 +43,7 @@ export const Default: Story = {
 export const WithLabelAndHelper: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field>
         <FieldLabel htmlFor="button-group-port">Daemon port</FieldLabel>
         <ButtonGroup>
@@ -62,7 +62,7 @@ export const WithLabelAndHelper: Story = {
 export const ErrorState: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field data-invalid>
         <FieldLabel htmlFor="button-group-invalid">Daemon port</FieldLabel>
         <ButtonGroup>

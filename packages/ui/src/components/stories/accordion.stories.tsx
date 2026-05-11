@@ -43,7 +43,7 @@ const faq = [
 
 export const Default: Story = {
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <Accordion defaultValue={[faq[0].value]}>
         {faq.map(item => (
           <AccordionItem key={item.value} value={item.value}>
@@ -65,7 +65,7 @@ export const MultipleExpansion: Story = {
     },
   },
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <Accordion multiple defaultValue={[faq[0].value, faq[1].value]}>
         {faq.map(item => (
           <AccordionItem key={item.value} value={item.value}>
@@ -80,7 +80,7 @@ export const MultipleExpansion: Story = {
 
 export const OpensAndCloses: Story = {
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <Accordion>
         {faq.map(item => (
           <AccordionItem key={item.value} value={item.value}>

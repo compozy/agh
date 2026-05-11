@@ -101,7 +101,7 @@ function TasksInboxRow({
         </div>
         {detail !== undefined ? (
           <div
-            className="flex min-w-0 flex-col gap-1 text-[11.5px] tracking-[-0.005em] text-(--muted)"
+            className="flex min-w-0 flex-col gap-1 text-[11.5px] tracking-eyebrow text-(--muted)"
             data-slot="tasks-inbox-row-detail"
           >
             {detail}

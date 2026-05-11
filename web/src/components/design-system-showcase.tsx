@@ -611,7 +611,7 @@ function SectionLink({ section, children }: { section: ShowcaseSection; children
       className="inline-flex items-center gap-1.5 text-(--muted) transition-colors hover:text-accent"
     >
       <span>{children ?? section.label}</span>
-      <span aria-hidden="true" className="font-mono text-badge tracking-(--tracking-mono)">
+      <span aria-hidden="true" className="font-mono text-badge tracking-mono">
         {"↗"}
       </span>
     </a>
@@ -644,7 +644,7 @@ function DesignSystemShowcase() {
               >
                 <SparklesIcon className="size-3.5" />
               </span>
-              <h1 className="truncate text-(length:--text-detail-h1) font-medium tracking-(--tracking-detail-h1) text-(--fg-strong)">
+              <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-(--fg-strong)">
                 AGH design system
               </h1>
               <span

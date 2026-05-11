@@ -270,7 +270,7 @@ describe("compozy-design-system lint plugin", () => {
         runClassNameRule(
           "no-inline-eyebrow",
           "/repo/web/src/foo.tsx",
-          literal("font-mono text-[11px] tracking-[0.06em]")
+          literal("font-mono text-[11px] tracking-mono")
         )
       ).toHaveLength(1);
       expect(
@@ -412,7 +412,7 @@ describe("compozy-design-system lint plugin", () => {
         runClassNameRule(
           "no-inline-design-tuples",
           "/repo/web/src/foo.tsx",
-          literal("text-(length:--text-detail-h1) tracking-(--tracking-detail-h1)")
+          literal("text-detail-h1 tracking-detail-h1")
         )
       ).toHaveLength(0);
     });
@@ -655,7 +655,7 @@ describe("compozy-design-system lint plugin", () => {
         rule,
         source: `
           export function View() {
-            return <h1 className="text-(--text-detail-h1) tracking-(--tracking-detail-h1)">Title</h1>;
+            return <h1 className="text-(--text-detail-h1) tracking-detail-h1">Title</h1>;
           }
         `,
       });

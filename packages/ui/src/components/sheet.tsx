@@ -157,7 +157,7 @@ function SheetContent({
               />
             }
             className={cn(
-              "fixed z-50 flex flex-col gap-4 bg-(--canvas-soft) bg-clip-padding text-[13px] text-(--fg) shadow-[var(--shadow-overlay)] outline-none",
+              "fixed z-50 flex flex-col gap-4 bg-(--canvas-soft) bg-clip-padding text-[13px] text-(--fg) shadow-(--shadow-overlay) outline-none",
               SIDE_CLASSES[side],
               className
             )}
@@ -206,7 +206,7 @@ function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-[15px] font-medium tracking-[-0.014em] text-(--fg-strong)", className)}
+      className={cn("text-[15px] font-medium tracking-tight text-(--fg-strong)", className)}
       {...props}
     />
   );

@@ -47,7 +47,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
       data-testid={`tasks-multi-agent-agent-${task.id}`}
       data-is-live={isLive ? "true" : "false"}
       data-is-root={isRoot ? "true" : "false"}
-      className="flex w-full min-w-0 flex-col gap-3 rounded-(--radius-lg) bg-(--canvas-soft) px-[18px] py-4"
+      className="flex w-full min-w-0 flex-col gap-3 rounded-lg bg-(--canvas-soft) px-[18px] py-4"
     >
       <header className="flex items-start gap-3">
         <OwnerAvatar
@@ -60,7 +60,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className="truncate text-[13px] font-[510] tracking-[-0.005em] text-(--fg-strong)"
+              className="truncate text-[13px] font-[510] tracking-eyebrow text-(--fg-strong)"
               data-testid={`tasks-multi-agent-agent-label-${task.id}`}
             >
               {ownerName}

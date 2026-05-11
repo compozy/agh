@@ -61,8 +61,8 @@ describe("BridgeCreateDialog", () => {
       />
     );
 
-    expect(readDialogWidth()).toContain("w-[var(--width-modal-lg)]");
-    expect(readDialogWidth()).toContain("sm:max-w-[var(--width-modal-lg)]");
+    expect(readDialogWidth()).toContain("w-(--width-modal-lg)");
+    expect(readDialogWidth()).toContain("sm:max-w-(--width-modal-lg)");
   });
 
   it("Should render an empty state on the provider step when no providers are available", () => {

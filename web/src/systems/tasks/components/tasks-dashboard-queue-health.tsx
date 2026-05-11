@@ -76,7 +76,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
 
       {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-(--radius-lg) bg-(--warning-tint) px-3 py-2 text-xs text-(--fg)"
+          className="mt-4 flex items-start gap-2 rounded-lg bg-(--warning-tint) px-3 py-2 text-xs text-(--fg)"
           data-testid="tasks-dashboard-warning"
         >
           <AlertTriangle className="mt-px size-4 shrink-0 text-(--warning)" />

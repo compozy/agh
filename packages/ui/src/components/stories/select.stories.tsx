@@ -92,7 +92,7 @@ export const Grouped: Story = {
 export const Small: Story = {
   render: () => (
     <Select defaultValue={agents[0].value}>
-      <SelectTrigger size="sm" className="w-[12rem]">
+      <SelectTrigger size="sm" className="w-48">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

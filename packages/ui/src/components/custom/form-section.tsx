@@ -41,11 +41,7 @@ function FormSection({
     <section
       data-slot="form-section"
       data-size={size}
-      className={cn(
-        "flex flex-col rounded-(--radius-lg) bg-(--canvas-soft)",
-        SIZE_CLASSNAME[size],
-        className
-      )}
+      className={cn("flex flex-col rounded-lg bg-(--canvas-soft)", SIZE_CLASSNAME[size], className)}
       {...props}
     >
       <header data-slot="form-section-head" className="mb-4 flex min-w-0 items-center gap-2">
@@ -60,7 +56,7 @@ function FormSection({
         ) : null}
         <h3
           data-slot="form-section-title"
-          className="min-w-0 truncate text-[length:var(--text-section-head)] tracking-(--tracking-section-head) text-(--fg-strong)"
+          className="min-w-0 truncate text-(length:--text-section-head) tracking-section-head text-(--fg-strong)"
           style={{ fontWeight: 510 }}
         >
           {title}

@@ -84,7 +84,7 @@ export const DiffRole: Story = {
   args: {
     role: "diff",
     children: (
-      <div className="rounded-[var(--radius-md)] border border-(--line) bg-(--rail) p-4 font-mono text-[12px] leading-[1.65]">
+      <div className="rounded-md border border-(--line) bg-(--rail) p-4 font-mono text-[12px] leading-[1.65]">
         <div className="text-(--success)">+ const groups = groupToolCallsByTurn(tool.events);</div>
         <div className="text-(--danger)">- for (const ev of tool.events) {"{"}</div>
       </div>
@@ -112,7 +112,7 @@ export const AllRoles: Story = {
         <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="done" />
       </ChatMessageBubble>
       <ChatMessageBubble role="diff" data-role-key="diff">
-        <div className="rounded-[var(--radius-md)] border border-(--line) bg-(--rail) p-3 font-mono text-[12px]">
+        <div className="rounded-md border border-(--line) bg-(--rail) p-3 font-mono text-[12px]">
           + apply diff to stream.ts
         </div>
       </ChatMessageBubble>

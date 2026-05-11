@@ -105,7 +105,7 @@ describe("storybook story and fixture regressions", () => {
       workspaceFixturesSource,
     ] = sources;
 
-    expect(collapsibleStory).toContain("group-data-[panel-open]/collapsible-trigger:rotate-180");
+    expect(collapsibleStory).toContain("group-data-panel-open/collapsible-trigger:rotate-180");
     expect(collapsibleStory).not.toContain("data-panel-open:rotate-180");
     expect(knowledgeDetailStory).toContain(
       'import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";'
