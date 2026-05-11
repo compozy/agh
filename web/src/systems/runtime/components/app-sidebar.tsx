@@ -112,7 +112,7 @@ function NavItem({ to, icon: Icon, label, fuzzy }: NavItemProps) {
           className={ACTIVE_NAV_INDICATOR_CLASS}
         />
       )}
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="size-3 shrink-0" />
       <span className="truncate">{label}</span>
     </Link>
   );
@@ -260,7 +260,7 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
       <ChevronsUpDown
         aria-hidden="true"
         data-testid="workspace-switcher-chevron"
-        className="size-3.5 shrink-0 text-subtle"
+        className="size-3 shrink-0 text-subtle"
       />
     </div>
   );

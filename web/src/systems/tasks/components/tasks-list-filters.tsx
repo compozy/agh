@@ -10,6 +10,7 @@ import {
 } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui/components/reui/filters";
 
+import type { TaskListSortKey } from "@/hooks/routes/use-tasks-page";
 import {
   applyTaskFilterChips,
   buildTaskFilterFields,
@@ -19,7 +20,6 @@ import {
   type TaskFilterState,
   type TaskScopeFilter,
 } from "../lib/tasks-list-filters";
-import type { TaskListSortKey } from "@/hooks/routes/use-tasks-page";
 
 const SORT_LABELS: Record<TaskListSortKey, string> = {
   recent: "Most recent",
@@ -94,7 +94,7 @@ export function TasksListFilters({
             type="button"
             variant="ghost"
           >
-            <ListFilter aria-hidden="true" className="size-3.5" />
+            <ListFilter aria-hidden="true" className="size-3" />
             Filter
           </Button>
         }
@@ -113,10 +113,10 @@ export function TasksListFilters({
               />
             }
           >
-            <ListFilter aria-hidden="true" className="size-3.5 text-subtle" />
+            <ListFilter aria-hidden="true" className="size-3 text-subtle" />
             <span className="text-muted">Sorted by</span>
             <span className="text-fg-strong">{SORT_LABELS[sortBy]}</span>
-            <ChevronDown aria-hidden="true" className="size-3.5 text-subtle" />
+            <ChevronDown aria-hidden="true" className="size-3 text-subtle" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {SORT_OPTIONS.map(option => (

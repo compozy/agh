@@ -56,7 +56,7 @@ function TimelineEvent({
           className="absolute left-2 top-2 inline-flex size-2 -translate-x-1/2 items-center justify-center"
         >
           {Icon ? (
-            <span className="inline-flex size-3.5 items-center justify-center rounded-full bg-canvas-soft text-muted">
+            <span className="inline-flex size-3 items-center justify-center rounded-full bg-canvas-soft text-muted">
               <Icon className="size-3" />
             </span>
           ) : (

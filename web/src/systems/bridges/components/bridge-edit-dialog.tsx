@@ -14,21 +14,21 @@ import {
   FieldTitle,
   Input,
   MetadataList,
-  Pill,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   Section,
   Spinner,
   Switch,
   Textarea,
 } from "@agh/ui";
 
+import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import {
   describeBridgeDmPolicy,
   describeBridgeProviderConfigSchema,
   describeBridgeRoutingPolicy,
 } from "../lib/bridge-formatters";
-import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import type { BridgeProvider, BridgeUpdateDraft } from "../types";
 
 interface BridgeEditDialogProps {
@@ -358,7 +358,7 @@ function renderBridgeEditDialog({
             >
               {isPending ? (
                 <>
-                  <Spinner className="size-3.5" />
+                  <Spinner className="size-3" />
                   Saving…
                 </>
               ) : (

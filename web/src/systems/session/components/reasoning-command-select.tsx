@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
 import { Gauge } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import {
   CommandEmpty,
@@ -82,7 +82,7 @@ export function ReasoningCommandSelect({
         data-testid={triggerTestId}
         disabled={disabled}
         className={className}
-        icon={<Gauge aria-hidden="true" className="size-3.5" />}
+        icon={<Gauge aria-hidden="true" className="size-3" />}
         label={triggerLabel}
         selected={Boolean(trimmedValue)}
         title={disabled ? disabledHint : undefined}

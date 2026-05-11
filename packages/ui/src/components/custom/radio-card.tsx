@@ -34,7 +34,7 @@ function RadioCard({
   onKeyDown,
   ...props
 }: RadioCardProps) {
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const selectRadioCard = (event: React.MouseEvent<HTMLButtonElement>) => {
     onClick?.(event);
     if (!event.defaultPrevented) onSelect();
   };
@@ -53,7 +53,7 @@ function RadioCard({
       aria-checked={selected}
       data-slot="radio-card"
       data-selected={selected ? "true" : undefined}
-      onClick={handleClick}
+      onClick={selectRadioCard}
       onKeyDown={handleKeyDown}
       className={cn(
         "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-[11px] py-[9px] text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0",
@@ -73,7 +73,7 @@ function RadioCard({
               selected ? "text-fg-strong" : "text-muted"
             )}
           >
-            <Icon className="size-3.5" />
+            <Icon className="size-3" />
           </span>
         ) : null}
         <span

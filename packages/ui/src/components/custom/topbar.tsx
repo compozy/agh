@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
@@ -92,7 +92,7 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
  * Pushes a topbar slot for the lifetime of the calling component.
  */
 function useTopbarSlot(slot: TopbarSlotValue | null): void {
-  const ctx = React.useContext(TopbarSlotContext);
+  const ctx = React.use(TopbarSlotContext);
   const setSlot = ctx?.setSlot;
   React.useEffect(() => {
     if (!setSlot) return;
@@ -105,12 +105,12 @@ function useTopbarSlot(slot: TopbarSlotValue | null): void {
 }
 
 function useTopbarSlotValue(): TopbarSlotValue | null {
-  const ctx = React.useContext(TopbarSlotContext);
+  const ctx = React.use(TopbarSlotContext);
   return ctx?.slot ?? null;
 }
 
 function useTopbarSlotContext(): TopbarSlotContextValue | null {
-  return React.useContext(TopbarSlotContext);
+  return React.use(TopbarSlotContext);
 }
 
 export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
@@ -167,7 +167,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           onClick={back}
           type="button"
         >
-          <ChevronLeft aria-hidden="true" className="size-3.5" />
+          <ChevronLeft aria-hidden="true" className="size-3" />
         </button>
       ) : null}
       <div data-slot="topbar-title" className="flex min-w-0 items-center gap-2">
@@ -177,7 +177,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
             data-slot="topbar-icon"
             className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
           >
-            <Icon className="size-3.5" />
+            <Icon className="size-3" />
           </span>
         ) : null}
         <h1

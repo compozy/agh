@@ -1,6 +1,7 @@
-import { AlertCircle, Check, Database, KeyRound, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Check, Database, KeyRound, Plus, Trash2, X } from "lucide-react";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Alert,
   AlertAction,
@@ -19,7 +20,6 @@ import {
   Textarea,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
 
 import {
   useSettingsProvidersPage,
@@ -138,7 +138,7 @@ function ProvidersSettingsPage() {
             onClick={page.openCreate}
             data-testid="settings-page-providers-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             New provider
           </Button>
         }
@@ -546,7 +546,7 @@ function renderProviderEditor({
           hint="OPTIONAL"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-subtle" />
+              <KeyRound className="size-3 text-subtle" />
               <Input
                 className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
@@ -568,7 +568,7 @@ function renderProviderEditor({
           hint="BOUND"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-subtle" />
+              <KeyRound className="size-3 text-subtle" />
               <Input
                 className="w-72 font-mono"
                 data-testid="settings-providers-editor-secret-ref-input"
@@ -702,7 +702,7 @@ function AdditionalCredentialSlotsEditor({
                     disabled={disabled}
                     onClick={() => onChange(current => removeCredentialSlot(current, index))}
                   >
-                    <X className="size-3.5" />
+                    <X className="size-3" />
                   </Button>
                 </div>
               );
@@ -717,7 +717,7 @@ function AdditionalCredentialSlotsEditor({
             onClick={() => onChange(addCredentialSlot)}
             data-testid="settings-providers-editor-add-credential-slot"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add slot
           </Button>
         </div>
@@ -868,7 +868,7 @@ function ActionResultBanner({
       data-testid="settings-page-providers-action-result"
       data-kind={action.kind}
     >
-      <Check className="size-3.5" />
+      <Check className="size-3" />
       <AlertDescription className="text-xs">{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -878,7 +878,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-providers-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

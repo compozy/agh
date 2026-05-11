@@ -1,12 +1,12 @@
-import type { ComponentProps } from "react";
 import { AlertCircle, Plus } from "lucide-react";
+import type { ComponentProps } from "react";
 
 import { Button, Empty, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
 
+import type { AutomationScopeFilter } from "../types";
 import { AutomationDetailPanel } from "./automation-detail-panel";
 import { AutomationEditorDialog } from "./automation-editor-dialog";
 import { AutomationListPanel } from "./automation-list-panel";
-import type { AutomationScopeFilter } from "../types";
 
 interface AutomationOperationsPageProps {
   createButtonTestId: string;
@@ -60,7 +60,7 @@ export function AutomationOperationsPage({
         type="button"
         variant="outline"
       >
-        <Plus className="size-3.5" />
+        <Plus className="size-3" />
         {createLabel}
       </Button>
     ),

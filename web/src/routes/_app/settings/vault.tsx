@@ -1,5 +1,5 @@
-import { AlertCircle, Check, KeyRound, Lock, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Check, KeyRound, Lock, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import {
   Alert,
@@ -17,7 +17,6 @@ import {
   useTopbarSlot,
 } from "@agh/ui";
 
-import type { TopbarRouteContext } from "@/types/topbar";
 import {
   useSettingsVaultPage,
   type VaultDraft,
@@ -27,6 +26,7 @@ import {
 } from "@/hooks/routes/use-settings-vault-page";
 import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings/components";
 import { VAULT_NAMESPACES, VaultSecretsTable, type VaultSecret } from "@/systems/vault";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/settings/vault")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -80,7 +80,7 @@ function VaultSettingsPage() {
         disabled={page.isRefetching}
         data-testid="settings-page-vault-refresh"
       >
-        <RefreshCw className={page.isRefetching ? "size-3.5 animate-spin" : "size-3.5"} />
+        <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
         Refresh
       </Button>
     ),
@@ -108,7 +108,7 @@ function VaultSettingsPage() {
             onClick={page.openCreate}
             data-testid="settings-page-vault-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             New secret
           </Button>
         }
@@ -136,7 +136,7 @@ function VaultSettingsPage() {
               disabled={page.isRefetching}
               data-testid="settings-page-vault-error-retry"
             >
-              <RefreshCw className={page.isRefetching ? "size-3.5 animate-spin" : "size-3.5"} />
+              <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
               Retry
             </Button>
           }
@@ -410,7 +410,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-vault-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

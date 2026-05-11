@@ -17,14 +17,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   LaneTabs,
-  type LaneTabsItem,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  type LaneTabsItem,
 } from "@agh/ui";
 import { Filters, type FilterFieldsConfig } from "@agh/ui/components/reui/filters";
 
-import { useNetworkListFiltersContext } from "../../contexts/network-list-filters-context";
+import { useNetworkListFiltersContext } from "../../hooks/use-network-list-filters-context";
 import {
   NETWORK_FILTER_KEYS,
   type NetworkFilterKey,
@@ -49,25 +49,25 @@ const CHIP_FIELDS: ReadonlyArray<ChipFieldDescriptor> = [
   {
     key: "has_work",
     label: "Has work",
-    icon: <Briefcase aria-hidden="true" className="size-3.5" />,
+    icon: <Briefcase aria-hidden="true" className="size-3" />,
     testId: "network-toolbar-field-has-work",
   },
   {
     key: "mentions_me",
     label: "@me",
-    icon: <AtSign aria-hidden="true" className="size-3.5" />,
+    icon: <AtSign aria-hidden="true" className="size-3" />,
     testId: "network-toolbar-field-mentions-me",
   },
   {
     key: "pinned",
     label: "Pinned",
-    icon: <Pin aria-hidden="true" className="size-3.5" />,
+    icon: <Pin aria-hidden="true" className="size-3" />,
     testId: "network-toolbar-field-pinned",
   },
   {
     key: "unread",
     label: "Unread",
-    icon: <CircleDot aria-hidden="true" className="size-3.5" />,
+    icon: <CircleDot aria-hidden="true" className="size-3" />,
     testId: "network-toolbar-field-unread",
   },
 ];
@@ -170,7 +170,7 @@ export function ChannelToolbar({
               size="sm"
               variant="ghost"
             >
-              <ListFilter aria-hidden="true" className="size-3.5" />
+              <ListFilter aria-hidden="true" className="size-3" />
               Filter
             </Button>
           }
@@ -189,7 +189,7 @@ export function ChannelToolbar({
             }
           >
             <span className="text-muted">{SORT_LABELS[sort]}</span>
-            <ChevronDown aria-hidden="true" className="size-3.5 text-subtle" />
+            <ChevronDown aria-hidden="true" className="size-3 text-subtle" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {(Object.keys(SORT_LABELS) as NetworkListSort[]).map(option => (
@@ -222,7 +222,7 @@ export function ChannelToolbar({
               />
             }
           >
-            <CheckCheck aria-hidden="true" className="size-3.5" />
+            <CheckCheck aria-hidden="true" className="size-3" />
           </TooltipTrigger>
           <TooltipContent>Mark all read</TooltipContent>
         </Tooltip>

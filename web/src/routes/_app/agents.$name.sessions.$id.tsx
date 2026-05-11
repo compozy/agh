@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { AlertCircle, MessageCircle, Trash2 } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AlertCircle, MessageCircle, Trash2 } from "lucide-react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 import {
@@ -14,7 +14,6 @@ import {
   Spinner,
 } from "@agh/ui";
 
-import type { TopbarRouteContext } from "@/types/topbar";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { useSessionDetailPage } from "@/hooks/routes/use-session-detail-page";
 import {
@@ -24,6 +23,7 @@ import {
   useSession,
   type SessionPayload,
 } from "@/systems/session";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
@@ -128,12 +128,12 @@ function SessionDeleteDialog({
           >
             {isDeleting ? (
               <>
-                <Spinner className="size-3.5" />
+                <Spinner className="size-3" />
                 Deleting
               </>
             ) : (
               <>
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
                 Delete session
               </>
             )}

@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { AlertCircle, Edit3, Settings2, Trash2 } from "lucide-react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import {
-  Button,
   BlockLoading,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -13,10 +13,10 @@ import {
   Empty,
   Eyebrow,
   Pill,
+  Section,
   Spinner,
   Textarea,
   type PillTone,
-  Section,
 } from "@agh/ui";
 
 import { useProfileEditor } from "../hooks/use-profile-editor";
@@ -160,7 +160,7 @@ function TasksExecutionProfileCardView({
             type="button"
             variant="neutral"
           >
-            <Edit3 className="size-3.5" />
+            <Edit3 className="size-3" />
             {profile ? "Edit" : "Create"}
           </Button>
           <Button
@@ -171,7 +171,7 @@ function TasksExecutionProfileCardView({
             type="button"
             variant="ghost"
           >
-            {isDeletePending ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+            {isDeletePending ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
             Delete
           </Button>
         </div>
@@ -182,7 +182,7 @@ function TasksExecutionProfileCardView({
           className="flex items-start gap-2 rounded bg-warning-tint px-3 py-2 text-[12px] leading-relaxed text-warning"
           data-testid="tasks-execution-profile-active-run-warning"
         >
-          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          <AlertCircle className="mt-0.5 size-3 shrink-0" />
           <span>
             Profile mutation is blocked while this task has an active run. Cancel or wait for the
             current run to terminate before editing or deleting the profile.
@@ -215,7 +215,7 @@ function TasksExecutionProfileCardView({
       ) : null}
       {profile ? (
         <div
-          className="flex flex-col gap-4 rounded-lg bg-canvas-soft px-4 py-4"
+          className="flex flex-col gap-4 rounded-lg bg-canvas-soft p-4"
           data-testid="tasks-execution-profile-summary"
         >
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -381,7 +381,7 @@ function ExecutionProfileEditorDialog({
             type="button"
             variant="default"
           >
-            {isSetPending ? <Spinner className="size-3.5" /> : null}
+            {isSetPending ? <Spinner className="size-3" /> : null}
             Save profile
           </Button>
         </DialogFooter>
@@ -432,7 +432,7 @@ function ExecutionProfileDeleteDialog({
             type="button"
             variant="destructive"
           >
-            {isDeletePending ? <Spinner className="size-3.5" /> : null}
+            {isDeletePending ? <Spinner className="size-3" /> : null}
             Delete profile
           </Button>
         </DialogFooter>

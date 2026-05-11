@@ -1,6 +1,6 @@
-import { Check, Minus } from "lucide-react";
 import { Eyebrow } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
+import { Check, Minus } from "lucide-react";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 import { PROVIDERS } from "./supported-agents";
@@ -131,9 +131,9 @@ export function Comparison() {
                 )}
               >
                 {row.crossRuntime ? (
-                  <Check className="size-3.5" strokeWidth={3} />
+                  <Check className="size-3" strokeWidth={3} />
                 ) : (
-                  <Minus className="size-3.5" strokeWidth={3} />
+                  <Minus className="size-3" strokeWidth={3} />
                 )}
               </span>
             </div>

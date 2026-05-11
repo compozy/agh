@@ -35,7 +35,7 @@ function ToolbarButton({ icon: Icon, label, testId, onClick }: ToolbarButtonProp
       type="button"
       variant="ghost"
     >
-      <Icon aria-hidden="true" className="size-3.5" />
+      <Icon aria-hidden="true" className="size-3" />
     </Button>
   );
 }

@@ -1,14 +1,14 @@
-import { AlertCircle, BookOpen, Plus } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, BookOpen, Plus } from "lucide-react";
 
-import { Button, Empty, Input, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import {
   KnowledgeCreateDialog,
   KnowledgeDetailPanel,
   KnowledgeListPanel,
 } from "@/systems/knowledge";
+import type { TopbarRouteContext } from "@/types/topbar";
+import { Button, Empty, Input, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
 
 export const Route = createFileRoute("/_app/knowledge")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -67,7 +67,7 @@ export function KnowledgePage() {
       type="button"
       variant="outline"
     >
-      <Plus className="size-3.5" />
+      <Plus className="size-3" />
       Create
     </Button>
   );

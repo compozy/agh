@@ -14,7 +14,6 @@ import {
   type MetricTone,
 } from "@agh/ui";
 
-import { AutomationRunHistory } from "./automation-run-history";
 import {
   automationScopeLabel,
   automationSourceLabel,
@@ -32,6 +31,7 @@ import type {
   AutomationRunStatus,
   AutomationTrigger,
 } from "../types";
+import { AutomationRunHistory } from "./automation-run-history";
 
 export interface AutomationDetailEmptyState {
   actionLabel?: string;
@@ -295,7 +295,7 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <Bot className="size-3.5 text-subtle" />
+          <Bot className="size-3 text-subtle" />
           <span className="text-small-body text-muted">Dispatches to</span>
           <Pill mono tone="neutral">
             {trigger.agent_name}
@@ -434,7 +434,7 @@ export function AutomationDetailPanel({
                 size="sm"
                 type="button"
               >
-                <Play className="size-3.5" />
+                <Play className="size-3" />
                 {isTriggerPending ? "Queuing..." : "Run now"}
               </Button>
             ) : null}
@@ -446,7 +446,7 @@ export function AutomationDetailPanel({
                 type="button"
                 variant="outline"
               >
-                <Pencil className="size-3.5" />
+                <Pencil className="size-3" />
                 Edit
               </Button>
             ) : null}
@@ -459,7 +459,7 @@ export function AutomationDetailPanel({
                 type="button"
                 variant="destructive"
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
                 {isDeleting ? "Deleting..." : "Delete"}
               </Button>
             ) : null}
@@ -483,7 +483,7 @@ export function AutomationDetailPanel({
               {automationSourceLabel(item.source)}
             </Pill>
             {item.source === "config" ? (
-              <Lock aria-hidden="true" className="size-3.5 text-subtle" />
+              <Lock aria-hidden="true" className="size-3 text-subtle" />
             ) : null}
           </>
         }
@@ -493,7 +493,7 @@ export function AutomationDetailPanel({
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {!isDynamic ? (
           <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
-            <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
+            <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-subtle" />
             <p>
               This automation is defined in configuration files. Only the enabled state can be
               toggled from the UI.

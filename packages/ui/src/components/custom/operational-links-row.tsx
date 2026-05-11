@@ -37,12 +37,12 @@ function OperationalLinksRow({
       )}
       {...props}
     >
-      {items.map((item, index) => {
+      {items.map(item => {
         const Icon = item.icon;
         const externalRel = item.rel ?? (item.target === "_blank" ? "noreferrer" : undefined);
         return (
           <a
-            key={`${index}-${item.href}`}
+            key={item.href}
             data-slot="operational-links-row-link"
             href={item.href}
             target={item.target}

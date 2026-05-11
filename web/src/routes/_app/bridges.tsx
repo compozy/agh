@@ -1,8 +1,7 @@
-import { AlertCircle, Plus, Waypoints } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Plus, Waypoints } from "lucide-react";
 
-import { Button, Empty, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
+import { useBridgesPage } from "@/hooks/routes/use-bridges-page";
 import {
   BridgeCreateDialog,
   BridgeDetailPanel,
@@ -11,7 +10,8 @@ import {
   BridgeListPanel,
   BridgeTestDeliveryDialog,
 } from "@/systems/bridges";
-import { useBridgesPage } from "@/hooks/routes/use-bridges-page";
+import type { TopbarRouteContext } from "@/types/topbar";
+import { Button, Empty, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
 
 export const Route = createFileRoute("/_app/bridges")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -47,7 +47,7 @@ function BridgesPage() {
         type="button"
         variant="outline"
       >
-        <Plus className="size-3.5" />
+        <Plus className="size-3" />
         Bridge
       </Button>
     ),

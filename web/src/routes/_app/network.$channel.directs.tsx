@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { Network as NetworkIcon, Plus } from "lucide-react";
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
+import { Network as NetworkIcon, Plus } from "lucide-react";
+import { useState } from "react";
 
 import { Button, Eyebrow } from "@agh/ui";
 
-import type { TopbarRouteContext } from "@/types/topbar";
 import {
   DirectsEmpty,
   DirectsList,
@@ -12,6 +11,7 @@ import {
   useNetworkChannelDirectsRoute,
   useNetworkListFiltersContext,
 } from "@/systems/network";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 interface DirectDetailParams {
   directId?: string;
@@ -75,7 +75,7 @@ function NetworkChannelDirectsRoute() {
           type="button"
           variant="outline"
         >
-          <Plus aria-hidden="true" className="size-3.5" />
+          <Plus aria-hidden="true" className="size-3" />
           New direct
         </Button>
       </header>

@@ -1,6 +1,7 @@
-import { AtSign, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { AtSign, MessagesSquare } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import {
   Eyebrow,
   Item,
@@ -12,7 +13,6 @@ import {
   Skeleton,
   SkeletonRows,
 } from "@agh/ui";
-import { cn } from "@/lib/utils";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkRecentEntry } from "../../types";
@@ -46,7 +46,7 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
         size="xs"
       >
         <ItemMedia>
-          <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-subtle" />
+          <Icon aria-label={ariaLabel} className="size-3 shrink-0 text-subtle" />
         </ItemMedia>
         <ItemContent className="min-w-0">
           <ItemTitle
@@ -82,7 +82,7 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
       size="xs"
     >
       <ItemMedia>
-        <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-subtle" />
+        <Icon aria-label={ariaLabel} className="size-3 shrink-0 text-subtle" />
       </ItemMedia>
       <ItemContent className="min-w-0">
         <ItemTitle

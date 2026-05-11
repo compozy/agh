@@ -1,5 +1,5 @@
-import { ArrowUpRight, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { ArrowUpRight, X } from "lucide-react";
 
 import { Button, DetailHeader, Eyebrow } from "@agh/ui";
 
@@ -66,7 +66,7 @@ export function ThreadOverlayHeader({ channel, threadId, detail }: ThreadOverlay
             type="button"
             variant="ghost"
           >
-            <ArrowUpRight aria-hidden="true" className="size-3.5" />
+            <ArrowUpRight aria-hidden="true" className="size-3" />
             Open in main
           </Button>
         </>

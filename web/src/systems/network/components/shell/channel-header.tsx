@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Hash, MoreHorizontal, PanelRight, RefreshCw } from "lucide-react";
+import { useState } from "react";
 
 import {
   Button,
@@ -149,7 +149,7 @@ export function ChannelHeader({
               handleRefresh();
             }}
           >
-            <RefreshCw aria-hidden="true" className="size-3.5" />
+            <RefreshCw aria-hidden="true" className="size-3" />
             Refresh data
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -170,7 +170,7 @@ export function ChannelHeader({
               data-slot="page-header-icon"
               className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
             >
-              <Hash className="size-3.5" />
+              <Hash className="size-3" />
             </span>
             <span className="truncate" data-testid="network-channel-title">
               {channel.channel}

@@ -91,8 +91,9 @@ function ChatToolSection({
   defaultOpen: boolean;
   slot: string;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
+  const [userOpen, setUserOpen] = React.useState<boolean | null>(null);
   const id = React.useId();
+  const open = userOpen ?? defaultOpen;
   return (
     <div data-slot={slot} data-open={open ? "true" : "false"} className="flex flex-col">
       <button
@@ -100,8 +101,8 @@ function ChatToolSection({
         data-slot={`${slot}-toggle`}
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen(value => !value)}
-        className="inline-flex w-full items-center gap-1.5 rounded-xs px-1 py-1 text-left transition-colors duration-base ease-out hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
+        onClick={() => setUserOpen(value => !(value ?? defaultOpen))}
+        className="inline-flex w-full items-center gap-1.5 rounded-xs p-1 text-left transition-colors duration-base ease-out hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
       >
         <ChevronRight
           width={12}

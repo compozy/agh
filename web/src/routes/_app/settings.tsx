@@ -10,8 +10,6 @@ import {
 import { AlertTriangle, RefreshCw, Settings as SettingsIcon } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
-import { Button, Empty, SidebarSectionLabel, buttonVariants, cn } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
 import {
   ACTIVE_NAV_INDICATOR_CLASS,
   ACTIVE_NAV_ROW_CLASS,
@@ -23,6 +21,8 @@ import {
   settingsSectionPath,
   type SettingsSectionDescriptor,
 } from "@/systems/settings";
+import type { TopbarRouteContext } from "@/types/topbar";
+import { Button, Empty, SidebarSectionLabel, buttonVariants, cn } from "@agh/ui";
 
 export { SETTINGS_ROOT_PATH, SETTINGS_SECTIONS };
 export type SettingsSection = SettingsSectionDescriptor;
@@ -58,14 +58,14 @@ function SettingsShellErrorBoundary({ error, reset }: ErrorComponentProps) {
         action={
           <>
             <Button onClick={handleRetry} size="sm" type="button" variant="outline">
-              <RefreshCw className="size-3.5" />
+              <RefreshCw className="size-3" />
               Retry
             </Button>
             <Link
               className={buttonVariants({ variant: "outline", size: "sm" })}
               to={defaultSettingsSectionPath()}
             >
-              <SettingsIcon className="size-3.5" />
+              <SettingsIcon className="size-3" />
               Open general settings
             </Link>
           </>
@@ -90,7 +90,7 @@ function SettingsShellNotFoundBoundary({ routeId }: NotFoundRouteProps) {
             className={buttonVariants({ variant: "outline", size: "sm" })}
             to={defaultSettingsSectionPath()}
           >
-            <SettingsIcon className="size-3.5" />
+            <SettingsIcon className="size-3" />
             Open general settings
           </Link>
         }
@@ -140,7 +140,7 @@ function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }
           data-testid={`settings-section-active-${section.slug}`}
         />
       )}
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="size-3 shrink-0" />
       <span className="whitespace-nowrap xl:truncate" title={section.label}>
         {section.label}
       </span>

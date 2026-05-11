@@ -158,7 +158,7 @@ function DetailModeSetup() {
     actions: <Button size="sm">Run</Button>,
     overflow: (
       <Button aria-label="More" size="sm" variant="ghost">
-        <TopbarOverflowIcon className="size-3.5" />
+        <TopbarOverflowIcon className="size-3" />
       </Button>
     ),
   });

@@ -45,7 +45,7 @@ function KpiCard({
             data-slot="kpi-card-icon"
             className="inline-flex size-5 shrink-0 items-center justify-center text-muted"
           >
-            <Icon className="size-3.5" />
+            <Icon className="size-3" />
           </span>
         ) : null}
         <Eyebrow data-slot="kpi-card-label" className="min-w-0 truncate text-muted">

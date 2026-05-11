@@ -1,9 +1,9 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
 import { AlertCircle, Plus, Radio, Trash2, TriangleAlert } from "lucide-react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import {
-  Button,
   BlockLoading,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -213,7 +213,7 @@ function renderTasksBridgeNotificationsCard({
           type="button"
           variant="neutral"
         >
-          <Plus className="size-3.5" />
+          <Plus className="size-3" />
           New subscription
         </Button>
       }
@@ -340,7 +340,7 @@ function renderTasksBridgeNotificationsCard({
                         className="inline-flex items-start gap-1.5 text-[12px] text-warning"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-error`}
                       >
-                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                        <TriangleAlert className="mt-0.5 size-3 shrink-0" />
                         <span className="min-w-0 truncate">{cursor.last_error}</span>
                       </span>
                     ) : (
@@ -357,7 +357,7 @@ function renderTasksBridgeNotificationsCard({
                       type="button"
                       variant="ghost"
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash2 className="size-3" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -531,7 +531,7 @@ function renderTasksBridgeNotificationsCard({
               type="button"
               variant="default"
             >
-              {isCreatePending ? <Spinner className="size-3.5" /> : null}
+              {isCreatePending ? <Spinner className="size-3" /> : null}
               Create subscription
             </Button>
           </DialogFooter>
@@ -581,7 +581,7 @@ function renderTasksBridgeNotificationsCard({
               type="button"
               variant="destructive"
             >
-              {isDeletePending ? <Spinner className="size-3.5" /> : null}
+              {isDeletePending ? <Spinner className="size-3" /> : null}
               Delete subscription
             </Button>
           </DialogFooter>

@@ -128,59 +128,71 @@ function getItemChildren(
 function Item(props: ItemButtonProps): React.ReactElement;
 function Item(props: ItemDivProps): React.ReactElement;
 function Item(props: ItemButtonProps | ItemDivProps) {
+  if (isButtonItemProps(props)) {
+    return <ButtonItem {...props} />;
+  }
+
+  return <DivItem {...props} />;
+}
+
+function ButtonItem(props: ItemButtonProps) {
   const indicator = props.indicator ?? "none";
   const indicatorTone: ItemIndicatorTone = props.indicatorTone ?? "white";
   const selectedState = Boolean(props.selected);
   const selectableState = Boolean(props.selectable || selectedState || indicator !== "none");
   const itemChildren = getItemChildren(props.children, indicator, indicatorTone);
 
-  if (isButtonItemProps(props)) {
-    const buttonItemProps = props;
-    const {
-      as: _as,
+  const {
+    as: _as,
+    className,
+    indicator: _indicator,
+    indicatorTone: _indicatorTone,
+    variant = "default",
+    size = "default",
+    selected: _selected = false,
+    selectable: _selectable = false,
+    render,
+    children: _children,
+    disabled,
+    ...buttonProps
+  } = props;
+
+  const mergedButtonProps: useRender.ComponentProps<"button"> & ItemDataProps = {
+    className: getItemClassName({
       className,
-      indicator: _indicator,
-      indicatorTone: _indicatorTone,
-      variant = "default",
-      size = "default",
-      selected: _selected = false,
-      selectable: _selectable = false,
-      render,
-      children: _children,
-      disabled,
-      ...buttonProps
-    } = buttonItemProps;
+      variant,
+      size,
+      selectable: selectableState,
+      selected: selectedState,
+    }),
+    children: itemChildren,
+    "aria-pressed": selectableState ? selectedState : undefined,
+    "data-selected": selectedState ? "true" : undefined,
+    disabled,
+    type: "button",
+  };
 
-    const mergedButtonProps: useRender.ComponentProps<"button"> & ItemDataProps = {
-      className: getItemClassName({
-        className,
-        variant,
-        size,
-        selectable: selectableState,
-        selected: selectedState,
-      }),
-      children: itemChildren,
-      "aria-pressed": selectableState ? selectedState : undefined,
-      "data-selected": selectedState ? "true" : undefined,
-      disabled,
-      type: "button",
-    };
+  return useRender({
+    defaultTagName: "button",
+    props: mergeProps<"button">(mergedButtonProps, buttonProps),
+    render,
+    state: {
+      slot: "item",
+      variant,
+      size,
+      selected: selectedState,
+      selectable: selectableState,
+    },
+  });
+}
 
-    return useRender({
-      defaultTagName: "button",
-      props: mergeProps<"button">(mergedButtonProps, buttonProps),
-      render,
-      state: {
-        slot: "item",
-        variant,
-        size,
-        selected: selectedState,
-        selectable: selectableState,
-      },
-    });
-  }
+function DivItem(props: ItemDivProps) {
+  const indicator = props.indicator ?? "none";
+  const indicatorTone: ItemIndicatorTone = props.indicatorTone ?? "white";
+  const selectedState = Boolean(props.selected);
+  const selectableState = Boolean(props.selectable || selectedState || indicator !== "none");
+  const itemChildren = getItemChildren(props.children, indicator, indicatorTone);
 
-  const divItemProps = props;
   const {
     as: _as,
     className,
@@ -194,7 +206,7 @@ function Item(props: ItemButtonProps | ItemDivProps) {
     children: _children,
     disabled: _disabled,
     ...divProps
-  } = divItemProps;
+  } = props;
 
   const mergedDivProps: useRender.ComponentProps<"div"> & ItemDataProps = {
     className: getItemClassName({

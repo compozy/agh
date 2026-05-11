@@ -89,7 +89,7 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
       className="my-2 max-w-3xl px-3 py-2"
       variant={isWarning ? "warning" : "accent"}
     >
-      <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
       <AlertTitle>{title}</AlertTitle>
       {meta ? <AlertMeta data-testid="runtime-activity-meta">{meta}</AlertMeta> : null}
       <AlertDescription className="truncate" data-testid="runtime-activity-detail">

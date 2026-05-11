@@ -13,8 +13,8 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 import { Button, Empty, buttonVariants } from "@agh/ui";
 
 import { TopbarShell } from "@/components/topbar-shell";
-import { AppSidebar } from "@/systems/runtime";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
+import { AppSidebar } from "@/systems/runtime";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 
@@ -130,11 +130,11 @@ function AppRouteErrorBoundary({ error, reset }: ErrorComponentProps) {
         action={
           <>
             <Button onClick={handleRetry} size="sm" type="button" variant="outline">
-              <RefreshCw className="size-3.5" />
+              <RefreshCw className="size-3" />
               Retry
             </Button>
             <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
-              <Compass className="size-3.5" />
+              <Compass className="size-3" />
               Go home
             </Link>
           </>
@@ -155,7 +155,7 @@ function AppRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
         titleAs="h1"
         action={
           <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
-            <Compass className="size-3.5" />
+            <Compass className="size-3" />
             Go home
           </Link>
         }

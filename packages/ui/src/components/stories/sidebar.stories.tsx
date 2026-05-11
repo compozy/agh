@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import {
   BookOpenIcon,
   NetworkIcon,
@@ -11,10 +10,11 @@ import {
   WrenchIcon,
   ZapIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { Sidebar } from "../sidebar";
 import { UIProvider } from "../custom/ui-provider";
+import { Sidebar } from "../sidebar";
 
 const meta: Meta<typeof Sidebar> = {
   title: "components/ui/Sidebar",
@@ -90,7 +90,7 @@ function HeaderContent() {
         aria-label="Search"
         className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground"
       >
-        <SearchIcon className="size-3.5" />
+        <SearchIcon className="size-3" />
       </button>
     </>
   );
@@ -116,7 +116,7 @@ function NavContent() {
           data-active={item.active}
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground data-[active=true]:bg-elevated data-[active=true]:text-foreground"
         >
-          <item.icon className="size-3.5" aria-hidden="true" />
+          <item.icon className="size-3" aria-hidden="true" />
           <span className="flex-1 truncate">{item.label}</span>
         </button>
       ))}
@@ -136,7 +136,7 @@ function FooterContent() {
         type="button"
         className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] text-muted-foreground hover:bg-hover hover:text-foreground"
       >
-        <SettingsIcon className="size-3.5" />
+        <SettingsIcon className="size-3" />
         <span>Settings</span>
       </button>
     </div>

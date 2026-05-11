@@ -254,7 +254,6 @@ export {
   useApproveTask,
   useArchiveTask,
   useAttachTaskRunSession,
-  useCancelRun,
   useCancelTask,
   useCancelTaskRun,
   useClaimTaskRun,

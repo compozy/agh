@@ -83,7 +83,7 @@ export function SessionResumeFailure({
           type="button"
           variant="ghost"
         >
-          <X aria-hidden="true" className="size-3.5" />
+          <X aria-hidden="true" className="size-3" />
           Dismiss
         </Button>
         <Button
@@ -95,9 +95,9 @@ export function SessionResumeFailure({
           variant="outline"
         >
           {isRetrying ? (
-            <Spinner className="size-3.5" />
+            <Spinner className="size-3" />
           ) : (
-            <RefreshCw aria-hidden="true" className="size-3.5" />
+            <RefreshCw aria-hidden="true" className="size-3" />
           )}
           Retry resume
         </Button>

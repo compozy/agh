@@ -52,7 +52,7 @@ function ToolCallCard({
   ...props
 }: ToolCallCardProps) {
   let iconContent: React.ReactNode;
-  const iconClass = "size-3.5 shrink-0 text-subtle";
+  const iconClass = "size-3 shrink-0 text-subtle";
   if (icon === undefined) {
     iconContent = (
       <TerminalIcon aria-hidden="true" data-slot="tool-call-card-icon" className={iconClass} />

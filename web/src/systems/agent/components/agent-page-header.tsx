@@ -2,8 +2,8 @@ import { Plus, RefreshCw, Settings2 } from "lucide-react";
 
 import { Button, Pill, cn } from "@agh/ui";
 
-import type { AgentPayload } from "../types";
 import type { SessionPayload } from "@/systems/session";
+import type { AgentPayload } from "../types";
 
 export interface AgentPageStatusPillProps {
   sessions: SessionPayload[];
@@ -60,7 +60,7 @@ export function AgentPageActions({
         title="Refresh"
         data-testid="agent-page-refresh"
       >
-        <RefreshCw aria-hidden="true" className={cn("size-3.5", isRefreshing && "animate-spin")} />
+        <RefreshCw aria-hidden="true" className={cn("size-3", isRefreshing && "animate-spin")} />
       </Button>
       <Button
         type="button"
@@ -71,7 +71,7 @@ export function AgentPageActions({
         title="Configure"
         data-testid="agent-page-configure"
       >
-        <Settings2 aria-hidden="true" className="size-3.5" />
+        <Settings2 aria-hidden="true" className="size-3" />
       </Button>
       <Button
         type="button"
@@ -82,7 +82,7 @@ export function AgentPageActions({
         aria-busy={isCreatingSession}
         data-testid="agent-page-new-session"
       >
-        <Plus aria-hidden="true" className="size-3.5" />
+        <Plus aria-hidden="true" className="size-3" />
         New session
       </Button>
     </div>

@@ -33,7 +33,7 @@ export function ProviderModelCatalogStatus({
   if (statusQuery.isLoading) {
     return (
       <div className="flex items-center gap-2 text-xs text-subtle">
-        <Spinner className="size-3.5" />
+        <Spinner className="size-3" />
         <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
       </div>
     );
@@ -110,7 +110,7 @@ export function ProviderModelCatalogStatus({
       >
         <RefreshCw
           aria-hidden="true"
-          className={refreshMutation.isPending ? "size-3.5 animate-spin" : "size-3.5"}
+          className={refreshMutation.isPending ? "size-3 animate-spin" : "size-3"}
         />
         Refresh catalog
       </Button>

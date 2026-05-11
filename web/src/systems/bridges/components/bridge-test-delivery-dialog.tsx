@@ -1,3 +1,5 @@
+import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
+import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 import {
   Button,
   Dialog,
@@ -12,16 +14,14 @@ import {
   FieldGroup,
   FieldTitle,
   Input,
-  Pill,
-  type PillTone,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   Section,
   Spinner,
   Textarea,
+  type PillTone,
 } from "@agh/ui";
-import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
-import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 
 interface BridgeTestDeliveryDialogProps {
   bridgeName?: string;
@@ -217,7 +217,7 @@ export function BridgeTestDeliveryDialog({
             >
               {isPending ? (
                 <>
-                  <Spinner className="size-3.5" />
+                  <Spinner className="size-3" />
                   Resolving…
                 </>
               ) : (

@@ -39,9 +39,9 @@ function PriorityBars({ level, ariaLabel, className, ...props }: PriorityBarsPro
       className={cn("inline-flex items-end gap-px", className)}
       {...props}
     >
-      {BAR_HEIGHTS.map((heightClass, index) => (
+      {BAR_HEIGHTS.map(heightClass => (
         <span
-          key={index}
+          key={heightClass}
           data-slot="priority-bars-bar"
           aria-hidden="true"
           className={cn("w-[2px] rounded-[1px]", heightClass, fillClass)}

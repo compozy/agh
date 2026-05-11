@@ -1,5 +1,5 @@
-import type { FormEvent } from "react";
 import { RefreshCw } from "lucide-react";
+import type { FormEvent } from "react";
 
 import {
   Button,
@@ -177,7 +177,7 @@ function SessionCreateDialog({
                   className="mt-1 flex items-center gap-1.5 text-xs text-subtle"
                   data-testid="session-create-agent-default"
                 >
-                  <AgentIcon className="size-3.5 text-subtle" provider={activeAgent.provider} />
+                  <AgentIcon className="size-3 text-subtle" provider={activeAgent.provider} />
                   <span>Agent default provider: {activeAgent.provider}</span>
                 </div>
               ) : null}
@@ -266,7 +266,7 @@ function SessionCreateDialog({
                   >
                     <RefreshCw
                       aria-hidden="true"
-                      className={catalogRefreshing ? "size-3.5 animate-spin" : "size-3.5"}
+                      className={catalogRefreshing ? "size-3 animate-spin" : "size-3"}
                     />
                     Refresh catalog
                   </Button>

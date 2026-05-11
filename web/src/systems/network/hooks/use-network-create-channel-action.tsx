@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { Button, toast } from "@agh/ui";
 import { useAgents } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { Button, toast } from "@agh/ui";
 
 import { NetworkCreateChannelDialog } from "../components/network-create-channel-dialog";
 import { createNetworkChannelDraft, sortAgentsForNetwork } from "../lib/network-formatters";
@@ -63,7 +63,7 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
       type="button"
       variant="outline"
     >
-      <Plus aria-hidden="true" className="size-3.5" />
+      <Plus aria-hidden="true" className="size-3" />
       Channel
     </Button>
   ) : null;

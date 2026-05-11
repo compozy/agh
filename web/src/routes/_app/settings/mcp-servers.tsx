@@ -1,34 +1,7 @@
+import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, Check, Plus, Server, Trash2, X } from "lucide-react";
 import { useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  Button,
-  ConfirmDialog,
-  Empty,
-  Eyebrow,
-  Input,
-  Pill,
-  NativeSelect,
-  NativeSelectOption,
-  PageShell,
-  PillGroup,
-  RestartBanner,
-  Section,
-  Spinner,
-  StatusLineTopbarSlot,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useTopbarSlot,
-} from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
 import {
   useSettingsMCPServersPage,
   type MCPDraft,
@@ -50,6 +23,33 @@ import {
 } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { WorkspacePayload } from "@/systems/workspace";
+import type { TopbarRouteContext } from "@/types/topbar";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  ConfirmDialog,
+  Empty,
+  Eyebrow,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  PageShell,
+  Pill,
+  PillGroup,
+  RestartBanner,
+  Section,
+  Spinner,
+  StatusLineTopbarSlot,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  useTopbarSlot,
+} from "@agh/ui";
 
 export const Route = createFileRoute("/_app/settings/mcp-servers")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -162,7 +162,7 @@ function MCPServersSettingsPage() {
             onClick={page.openCreate}
             data-testid="settings-page-mcp-servers-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add server
           </Button>
         }
@@ -671,7 +671,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
                 aria-label={`Remove arg ${index}`}
                 data-testid={`settings-mcp-servers-editor-args-remove-${index}`}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
               </Button>
             </div>
           ))}
@@ -682,7 +682,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
             onClick={() => onChange([...args, ""])}
             data-testid="settings-mcp-servers-editor-args-add"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add arg
           </Button>
         </div>
@@ -741,7 +741,7 @@ function EnvEditor({
                 aria-label={`Remove env ${index}`}
                 data-testid={`settings-mcp-servers-editor-env-remove-${index}`}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
               </Button>
             </div>
           ))}
@@ -752,7 +752,7 @@ function EnvEditor({
             onClick={() => onChange([...env, { key: "", value: "" }])}
             data-testid="settings-mcp-servers-editor-env-add"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add variable
           </Button>
         </div>
@@ -907,7 +907,7 @@ function ActionResultBanner({
       data-testid="settings-page-mcp-servers-action-result"
       data-kind={action.kind}
     >
-      <Check className="size-3.5" />
+      <Check className="size-3" />
       <AlertDescription className="text-xs">{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -917,7 +917,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-mcp-servers-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

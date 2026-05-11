@@ -1,8 +1,7 @@
 import { Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ListChecks, Plus } from "lucide-react";
 
-import { Button, PillGroup, SearchInput, useTopbarSlot } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
+import { useTasksRoute } from "@/hooks/routes/use-tasks-route";
 import {
   TasksDashboardView,
   TasksEmptyState,
@@ -10,7 +9,8 @@ import {
   TasksKanbanBoard,
   TasksListSurface,
 } from "@/systems/tasks";
-import { useTasksRoute } from "@/hooks/routes/use-tasks-route";
+import type { TopbarRouteContext } from "@/types/topbar";
+import { Button, PillGroup, SearchInput, useTopbarSlot } from "@agh/ui";
 
 export const Route = createFileRoute("/_app/tasks")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -75,14 +75,18 @@ function TasksRoute() {
         type="button"
         variant="outline"
       >
-        <Plus className="size-3.5" />
+        <Plus className="size-3" />
         Task
       </Button>
     ),
   });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell">
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-density="route"
+      data-testid="tasks-shell"
+    >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell-body">
         {hasChildMatch ? (
           <Outlet />

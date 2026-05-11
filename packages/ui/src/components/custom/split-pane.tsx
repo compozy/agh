@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { ChevronLeftIcon } from "lucide-react";
+import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
+import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
@@ -94,7 +94,7 @@ function SplitPane({
                 onClick={onDetailClose}
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)]"
               >
-                <ChevronLeftIcon aria-hidden="true" className="size-3.5" />
+                <ChevronLeftIcon aria-hidden="true" className="size-3" />
                 <span>{backLabel}</span>
               </button>
             </div>
@@ -118,4 +118,4 @@ function SplitPane({
   );
 }
 
-export { SplitPane, SPLIT_LIST_WIDTH_DEFAULT };
+export { SPLIT_LIST_WIDTH_DEFAULT, SplitPane };

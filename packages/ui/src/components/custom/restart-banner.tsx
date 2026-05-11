@@ -103,7 +103,7 @@ function RestartBanner({
               disabled={isPending}
               onClick={restartNow}
             >
-              <RefreshCwIcon className="size-3.5" />
+              <RefreshCwIcon className="size-3" />
               {isPending ? "Starting..." : actionLabel}
             </Button>
           ) : null}
@@ -115,7 +115,7 @@ function RestartBanner({
               data-slot="restart-banner-dismiss"
               onClick={onDismiss}
             >
-              <XIcon className="size-3.5" />
+              <XIcon className="size-3" />
               {dismissLabel}
             </Button>
           ) : null}

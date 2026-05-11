@@ -78,7 +78,7 @@ export function TasksStreamResumeCard({
           className="flex items-start gap-2 rounded bg-danger-tint px-3 py-2 text-[12px] leading-relaxed text-danger"
           data-testid="tasks-stream-resume-error"
         >
-          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          <AlertCircle className="mt-0.5 size-3 shrink-0" />
           <span>{streamErrorMessage}</span>
         </div>
       ) : null}
@@ -87,7 +87,7 @@ export function TasksStreamResumeCard({
           className="flex items-start gap-2 text-[12px] leading-relaxed text-faint"
           data-testid="tasks-stream-resume-disabled"
         >
-          <Activity className="mt-0.5 size-3.5 shrink-0" />
+          <Activity className="mt-0.5 size-3 shrink-0" />
           <span>Stream disabled. Open the orchestration tab on a real task to subscribe.</span>
         </div>
       ) : null}

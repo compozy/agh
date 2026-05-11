@@ -26,6 +26,7 @@ function Sparkline({
 }: SparklineProps) {
   const peak = Math.max(max ?? Math.max(0, ...values), 1);
   const safeValues = values.length === 0 ? [0] : values;
+  const valueOccurrences = new Map<number, number>();
   return (
     <div
       data-slot="sparkline"
@@ -38,9 +39,11 @@ function Sparkline({
       {safeValues.map((value, index) => {
         const ratio = Math.max(0, Math.min(1, value / peak));
         const barHeight = `${Math.round(ratio * 100)}%`;
+        const occurrence = valueOccurrences.get(value) ?? 0;
+        valueOccurrences.set(value, occurrence + 1);
         return (
           <span
-            key={`${index}-${value}`}
+            key={`${value}-${occurrence}`}
             data-slot="sparkline-bar"
             data-index={index}
             aria-hidden="true"

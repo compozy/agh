@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import type { ItemInstance } from "@headless-tree/core";
+import { Link } from "@tanstack/react-router";
 import { Bot, TriangleAlert } from "lucide-react";
 
 import { cn, Empty, Pill, Spinner, Tree, TreeItem, TreeItemLabel } from "@agh/ui";
@@ -11,13 +11,13 @@ import {
 } from "@/components/sidebar-nav-classes";
 import type { SessionPayload } from "@/systems/session";
 
-import { joinAgentCategorySegments } from "../lib/agent-category";
 import {
   useAgentCategoryTreeModel,
   type AgentCategoryTreeItemData,
 } from "../hooks/use-agent-category-tree-model";
-import { AgentIcon } from "./agent-icon";
+import { joinAgentCategorySegments } from "../lib/agent-category";
 import type { AgentPayload } from "../types";
+import { AgentIcon } from "./agent-icon";
 
 const AGENT_TREE_INDENT = 12;
 
@@ -44,7 +44,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-loading"
-        className="items-start gap-2 px-2 py-2 text-left"
+        className="items-start gap-2 p-2 text-left"
       />
     );
   }
@@ -61,7 +61,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-error"
-        className="items-start gap-2 px-2 py-2 text-left"
+        className="items-start gap-2 p-2 text-left"
       />
     );
   }
@@ -74,7 +74,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-empty"
-        className="items-start gap-2 px-2 py-2 text-left"
+        className="items-start gap-2 p-2 text-left"
       />
     );
   }
@@ -185,7 +185,7 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
           className={ACTIVE_NAV_INDICATOR_CLASS}
         />
       ) : null}
-      <AgentIcon provider={agent.provider} className="size-3.5 shrink-0 text-subtle" />
+      <AgentIcon provider={agent.provider} className="size-3 shrink-0 text-subtle" />
       <span className="truncate">{agent.name}</span>
       {hasActiveSession ? (
         <Pill.Dot

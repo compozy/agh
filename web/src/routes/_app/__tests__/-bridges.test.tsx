@@ -423,12 +423,14 @@ describe("BridgesPage", () => {
 
     expect(screen.getByTestId("bridge-create-dialog")).toBeInTheDocument();
 
+    await user.click(screen.getByTestId("bridge-wizard-next"));
     await user.selectOptions(screen.getByTestId("bridge-dm-policy-select"), "allowlist");
     fireEvent.change(screen.getByTestId("bridge-provider-config-input"), {
       target: {
         value: '{"mode":"bot","webhook_url":"https://example.test/webhook"}',
       },
     });
+    await user.click(screen.getByTestId("bridge-wizard-next"));
 
     mockCreateBridgeMutateAsync.mockImplementationOnce(async payload => {
       const createdBridge = makeBridge({
@@ -507,6 +509,8 @@ describe("BridgesPage", () => {
     const { rerender } = render(<BridgesPage />);
 
     await user.click(screen.getByTestId("bridge-empty-create-btn"));
+    await user.click(screen.getByTestId("bridge-wizard-next"));
+    await user.click(screen.getByTestId("bridge-wizard-next"));
 
     mockActiveWorkspaceId = null;
     mockActiveWorkspaceName = "";

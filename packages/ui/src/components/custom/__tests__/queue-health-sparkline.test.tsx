@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -39,12 +39,19 @@ describe("QueueHealthSparkline", () => {
     expect(root?.getAttribute("aria-label")).toBe("Queue depth last 24 hours");
   });
 
-  it("Should paint default cells with --bar-fill and stuck cells with --accent-tint-strong", () => {
+  it("Should paint default cells with --bar-fill and stuck cells with --accent-tint-strong", async () => {
     const { container } = render(<QueueHealthSparkline data={SAMPLE} />);
-    const cells = container.querySelectorAll<SVGPathElement>(
-      '[data-slot="queue-health-sparkline-cell"]'
-    );
-    expect(cells.length).toBe(SAMPLE.length);
+    const queryCells = () =>
+      Array.from(
+        container.querySelectorAll<SVGPathElement>('[data-slot="queue-health-sparkline-cell"]')
+      );
+
+    await waitFor(() => {
+      expect(queryCells()).toHaveLength(SAMPLE.length);
+    });
+
+    const cells = queryCells();
+    expect(cells).toHaveLength(SAMPLE.length);
     expect(cells[0]?.getAttribute("fill")).toBe("var(--bar-fill)");
     expect(cells[1]?.getAttribute("fill")).toBe("var(--bar-fill)");
     expect(cells[2]?.getAttribute("fill")).toBe("var(--bar-fill)");

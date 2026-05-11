@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useId, useMemo } from "react";
 import {
   Calendar,
   Layers,
@@ -10,6 +9,7 @@ import {
   UserCheck,
   type LucideIcon,
 } from "lucide-react";
+import { useCallback, useId, useMemo } from "react";
 
 import {
   Button,
@@ -116,6 +116,8 @@ const FOOTER_HINT =
 interface TaskEditorScopeOptionsArgs {
   workspaceName?: string | null;
 }
+
+type TaskEditorFormController = ReturnType<typeof useTasksCreateModalForm>;
 
 function buildScopeOptions({
   workspaceName,
@@ -231,220 +233,16 @@ export function TaskEditorModal({
           data-testid="task-editor-modal-form"
           onSubmit={form.submitForm}
         >
-          <div
-            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-[18px]"
-            data-testid="task-editor-modal-body"
-          >
-            {isNewMode && templateId && onTemplateChange ? (
-              <TemplatePicker
-                onSelect={onTemplateChange}
-                templateId={templateId}
-                workspaceName={workspaceName ?? null}
-              />
-            ) : null}
-
-            <FormSection
-              data-testid="task-editor-modal-section-contract"
-              size="compact"
-              title="Contract"
-            >
-              <Field>
-                <div className="flex items-center justify-between gap-3">
-                  <FieldLabel
-                    data-testid="task-editor-title-label"
-                    htmlFor="task-editor-title-input"
-                  >
-                    Title
-                  </FieldLabel>
-                  <Eyebrow className="text-subtle">Required</Eyebrow>
-                </div>
-                <Input
-                  data-testid="task-editor-title-input"
-                  id="task-editor-title-input"
-                  onChange={form.updateText("title")}
-                  placeholder="Generate API client for payments-v3"
-                  required
-                  value={draft.title}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel
-                  data-testid="task-editor-description-label"
-                  htmlFor="task-editor-description-input"
-                >
-                  Description
-                </FieldLabel>
-                <FieldDescription>
-                  Describe the expected outcome, constraints, and completion criteria.
-                </FieldDescription>
-                <Textarea
-                  className="min-h-[136px]"
-                  data-testid="task-editor-description-input"
-                  id="task-editor-description-input"
-                  onChange={form.updateText("description")}
-                  placeholder="Describe the task contract for the agent."
-                  value={draft.description}
-                />
-              </Field>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel data-testid="task-editor-scope-label">Scope</FieldLabel>
-                  <PillGroup
-                    aria-label="Task scope"
-                    className="w-full flex-wrap"
-                    items={scopeItems}
-                    onChange={form.updateScope}
-                    size="sm"
-                    value={draft.scope}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel data-testid="task-editor-priority-label">Priority</FieldLabel>
-                  <PillGroup
-                    aria-label="Task priority"
-                    className="w-full flex-wrap"
-                    items={PRIORITY_OPTIONS}
-                    onChange={form.updatePriority}
-                    size="sm"
-                    value={draft.priority}
-                  />
-                </Field>
-              </div>
-            </FormSection>
-
-            <FormSection
-              data-testid="task-editor-modal-section-queue"
-              size="compact"
-              title="Queue & ownership"
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel
-                    data-testid="task-editor-owner-label"
-                    htmlFor="task-editor-owner-kind"
-                  >
-                    Owner
-                  </FieldLabel>
-                  <NativeSelect
-                    aria-label="Owner kind"
-                    className="w-full"
-                    data-testid="task-editor-owner-kind"
-                    id="task-editor-owner-kind"
-                    onChange={event =>
-                      form.updateOwnerKind(event.target.value as TaskOwnerKind | "")
-                    }
-                    value={draft.ownerKind}
-                  >
-                    <NativeSelectOption value="">Unassigned</NativeSelectOption>
-                    {OWNER_KIND_OPTIONS.map(kind => (
-                      <NativeSelectOption key={kind} value={kind}>
-                        {kind}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                  <Input
-                    className="mt-2"
-                    data-testid="task-editor-owner-ref"
-                    onChange={form.updateText("ownerRef")}
-                    placeholder="Owner reference (e.g. coder)"
-                    value={draft.ownerRef}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel data-testid="task-editor-attempts-label">Max attempts</FieldLabel>
-                  <PillGroup
-                    aria-label="Max attempts"
-                    className="w-full flex-wrap"
-                    data-testid="task-editor-attempts-options"
-                    items={ATTEMPT_ITEMS}
-                    onChange={next => {
-                      const numeric = Number(next);
-                      if (ATTEMPT_VALUES.includes(numeric as 1 | 2 | 3 | 5)) {
-                        form.updateMaxAttempts(numeric);
-                      }
-                    }}
-                    size="sm"
-                    value={attemptsValue}
-                  />
-                </Field>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel data-testid="task-editor-approval-label">Approval</FieldLabel>
-                  <PillGroup
-                    aria-label="Approval policy"
-                    className="w-full flex-wrap"
-                    items={APPROVAL_OPTIONS}
-                    onChange={form.updateApprovalPolicy}
-                    size="sm"
-                    value={draft.approvalPolicy}
-                  />
-                </Field>
-
-                {isNewMode ? (
-                  <Field>
-                    <FieldLabel
-                      data-testid="task-editor-parent-label"
-                      htmlFor="task-editor-parent-input"
-                    >
-                      Parent task
-                    </FieldLabel>
-                    <Input
-                      data-testid="task-editor-parent-input"
-                      id="task-editor-parent-input"
-                      onChange={form.updateText("parentTaskId")}
-                      placeholder="Search by identifier or task id"
-                      value={draft.parentTaskId}
-                    />
-                  </Field>
-                ) : null}
-              </div>
-            </FormSection>
-
-            <FormSection
-              data-testid="task-editor-modal-section-context"
-              size="compact"
-              title="Channel & identifier"
-            >
-              <Field>
-                <FieldLabel
-                  data-testid="task-editor-network-label"
-                  htmlFor="task-editor-network-input"
-                >
-                  Network channel
-                </FieldLabel>
-                <Input
-                  data-testid="task-editor-network-input"
-                  id="task-editor-network-input"
-                  onChange={form.updateText("networkChannel")}
-                  placeholder="ingress channel"
-                  value={draft.networkChannel}
-                />
-              </Field>
-              {isNewMode ? (
-                <Field>
-                  <FieldLabel
-                    data-testid="task-editor-identifier-label"
-                    htmlFor="task-editor-identifier-input"
-                  >
-                    Identifier override
-                  </FieldLabel>
-                  <Input
-                    data-testid="task-editor-identifier-input"
-                    id="task-editor-identifier-input"
-                    onChange={form.updateText("identifier")}
-                    placeholder="TASK-123"
-                    value={draft.identifier}
-                  />
-                </Field>
-              ) : null}
-            </FormSection>
-          </div>
+          <TaskEditorFormBody
+            attemptsValue={attemptsValue}
+            draft={draft}
+            form={form}
+            isNewMode={isNewMode}
+            onTemplateChange={onTemplateChange}
+            scopeItems={scopeItems}
+            templateId={templateId}
+            workspaceName={workspaceName}
+          />
 
           <footer
             data-slot="task-editor-modal-foot"
@@ -471,7 +269,7 @@ export function TaskEditorModal({
                 disabled={!canSubmit || isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? <Spinner className="size-3.5" /> : null}
+                {isSubmitting ? <Spinner className="size-3" /> : null}
                 {submitLabel}
               </Button>
             </div>
@@ -479,6 +277,227 @@ export function TaskEditorModal({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface TaskEditorFormBodyProps {
+  attemptsValue: string;
+  draft: TaskEditorDraft;
+  form: TaskEditorFormController;
+  isNewMode: boolean;
+  onTemplateChange?: (templateId: TaskTemplateId) => void;
+  scopeItems: PillGroupItem<TaskScope>[];
+  templateId?: TaskTemplateId;
+  workspaceName?: string | null;
+}
+
+function TaskEditorFormBody({
+  attemptsValue,
+  draft,
+  form,
+  isNewMode,
+  onTemplateChange,
+  scopeItems,
+  templateId,
+  workspaceName,
+}: TaskEditorFormBodyProps) {
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-[18px]"
+      data-testid="task-editor-modal-body"
+    >
+      {isNewMode && templateId && onTemplateChange ? (
+        <TemplatePicker
+          onSelect={onTemplateChange}
+          templateId={templateId}
+          workspaceName={workspaceName ?? null}
+        />
+      ) : null}
+
+      <FormSection data-testid="task-editor-modal-section-contract" size="compact" title="Contract">
+        <Field>
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel data-testid="task-editor-title-label" htmlFor="task-editor-title-input">
+              Title
+            </FieldLabel>
+            <Eyebrow className="text-subtle">Required</Eyebrow>
+          </div>
+          <Input
+            data-testid="task-editor-title-input"
+            id="task-editor-title-input"
+            onChange={form.updateText("title")}
+            placeholder="Generate API client for payments-v3"
+            required
+            value={draft.title}
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel
+            data-testid="task-editor-description-label"
+            htmlFor="task-editor-description-input"
+          >
+            Description
+          </FieldLabel>
+          <FieldDescription>
+            Describe the expected outcome, constraints, and completion criteria.
+          </FieldDescription>
+          <Textarea
+            className="min-h-[136px]"
+            data-testid="task-editor-description-input"
+            id="task-editor-description-input"
+            onChange={form.updateText("description")}
+            placeholder="Describe the task contract for the agent."
+            value={draft.description}
+          />
+        </Field>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field>
+            <FieldLabel data-testid="task-editor-scope-label">Scope</FieldLabel>
+            <PillGroup
+              aria-label="Task scope"
+              className="w-full flex-wrap"
+              items={scopeItems}
+              onChange={form.updateScope}
+              size="sm"
+              value={draft.scope}
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel data-testid="task-editor-priority-label">Priority</FieldLabel>
+            <PillGroup
+              aria-label="Task priority"
+              className="w-full flex-wrap"
+              items={PRIORITY_OPTIONS}
+              onChange={form.updatePriority}
+              size="sm"
+              value={draft.priority}
+            />
+          </Field>
+        </div>
+      </FormSection>
+
+      <FormSection
+        data-testid="task-editor-modal-section-queue"
+        size="compact"
+        title="Queue & ownership"
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field>
+            <FieldLabel data-testid="task-editor-owner-label" htmlFor="task-editor-owner-kind">
+              Owner
+            </FieldLabel>
+            <NativeSelect
+              aria-label="Owner kind"
+              className="w-full"
+              data-testid="task-editor-owner-kind"
+              id="task-editor-owner-kind"
+              onChange={event => form.updateOwnerKind(event.target.value as TaskOwnerKind | "")}
+              value={draft.ownerKind}
+            >
+              <NativeSelectOption value="">Unassigned</NativeSelectOption>
+              {OWNER_KIND_OPTIONS.map(kind => (
+                <NativeSelectOption key={kind} value={kind}>
+                  {kind}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <Input
+              className="mt-2"
+              data-testid="task-editor-owner-ref"
+              onChange={form.updateText("ownerRef")}
+              placeholder="Owner reference (e.g. coder)"
+              value={draft.ownerRef}
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel data-testid="task-editor-attempts-label">Max attempts</FieldLabel>
+            <PillGroup
+              aria-label="Max attempts"
+              className="w-full flex-wrap"
+              data-testid="task-editor-attempts-options"
+              items={ATTEMPT_ITEMS}
+              onChange={next => {
+                const numeric = Number(next);
+                if (ATTEMPT_VALUES.includes(numeric as 1 | 2 | 3 | 5)) {
+                  form.updateMaxAttempts(numeric);
+                }
+              }}
+              size="sm"
+              value={attemptsValue}
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field>
+            <FieldLabel data-testid="task-editor-approval-label">Approval</FieldLabel>
+            <PillGroup
+              aria-label="Approval policy"
+              className="w-full flex-wrap"
+              items={APPROVAL_OPTIONS}
+              onChange={form.updateApprovalPolicy}
+              size="sm"
+              value={draft.approvalPolicy}
+            />
+          </Field>
+
+          {isNewMode ? (
+            <Field>
+              <FieldLabel data-testid="task-editor-parent-label" htmlFor="task-editor-parent-input">
+                Parent task
+              </FieldLabel>
+              <Input
+                data-testid="task-editor-parent-input"
+                id="task-editor-parent-input"
+                onChange={form.updateText("parentTaskId")}
+                placeholder="Search by identifier or task id"
+                value={draft.parentTaskId}
+              />
+            </Field>
+          ) : null}
+        </div>
+      </FormSection>
+
+      <FormSection
+        data-testid="task-editor-modal-section-context"
+        size="compact"
+        title="Channel & identifier"
+      >
+        <Field>
+          <FieldLabel data-testid="task-editor-network-label" htmlFor="task-editor-network-input">
+            Network channel
+          </FieldLabel>
+          <Input
+            data-testid="task-editor-network-input"
+            id="task-editor-network-input"
+            onChange={form.updateText("networkChannel")}
+            placeholder="ingress channel"
+            value={draft.networkChannel}
+          />
+        </Field>
+        {isNewMode ? (
+          <Field>
+            <FieldLabel
+              data-testid="task-editor-identifier-label"
+              htmlFor="task-editor-identifier-input"
+            >
+              Identifier override
+            </FieldLabel>
+            <Input
+              data-testid="task-editor-identifier-input"
+              id="task-editor-identifier-input"
+              onChange={form.updateText("identifier")}
+              placeholder="TASK-123"
+              value={draft.identifier}
+            />
+          </Field>
+        ) : null}
+      </FormSection>
+    </div>
   );
 }
 
@@ -517,5 +536,5 @@ function TemplatePicker({ onSelect, templateId, workspaceName }: TemplatePickerP
   );
 }
 
-export { getTaskTemplate, TASK_TEMPLATES };
+export { TASK_TEMPLATES, getTaskTemplate };
 export type { TaskTemplate };

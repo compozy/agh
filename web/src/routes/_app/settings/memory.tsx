@@ -1,7 +1,17 @@
-import { AlertCircle, Brain, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Brain, Play } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
+import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
+import type { SettingsMemorySection } from "@/systems/settings";
+import {
+  SettingsDecimalInput,
+  SettingsFieldRow,
+  SettingsNumberInput,
+  SettingsSaveBar,
+} from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
   Input,
@@ -13,16 +23,6 @@ import {
   Switch,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
-import type { SettingsMemorySection } from "@/systems/settings";
-import {
-  SettingsDecimalInput,
-  SettingsFieldRow,
-  SettingsNumberInput,
-  SettingsSaveBar,
-} from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/memory")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -1391,7 +1391,7 @@ function renderDreamSection({
           disabled={!dreamAvailable || dreamPending}
           onClick={onTriggerDream}
         >
-          {dreamPending ? <Spinner className="size-3.5" /> : <Play className="size-3.5" />}
+          {dreamPending ? <Spinner className="size-3" /> : <Play className="size-3" />}
           Trigger dream
         </Button>
       }

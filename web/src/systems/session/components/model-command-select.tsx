@@ -1,5 +1,5 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
 import { Boxes } from "lucide-react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 
 import {
   CommandEmpty,
@@ -95,7 +95,7 @@ export function ModelCommandSelect({
         data-testid={triggerTestId}
         disabled={disabled}
         className={className}
-        icon={<Boxes aria-hidden="true" className="size-3.5" />}
+        icon={<Boxes aria-hidden="true" className="size-3" />}
         label={triggerLabel}
         selected={Boolean(trimmedValue)}
       />

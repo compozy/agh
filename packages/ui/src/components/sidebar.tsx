@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { PanelLeftIcon } from "lucide-react";
+import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { useInitialState } from "./use-initial-state";
@@ -51,15 +51,12 @@ export function useSidebarViewport(thresholds: ViewportThresholds): SidebarViewp
     const drawerQuery = window.matchMedia(`(max-width: ${Math.max(0, drawer - 1)}px)`);
     const mdQuery = window.matchMedia(`(max-width: ${Math.max(0, md - 1)}px)`);
     function evaluate() {
-      if (drawerQuery.matches) {
-        setViewport("drawer");
-        return;
-      }
-      if (mdQuery.matches) {
-        setViewport("md");
-        return;
-      }
-      setViewport("default");
+      const nextViewport: SidebarViewport = drawerQuery.matches
+        ? "drawer"
+        : mdQuery.matches
+          ? "md"
+          : "default";
+      setViewport(nextViewport);
     }
     evaluate();
     drawerQuery.addEventListener("change", evaluate);
@@ -198,7 +195,7 @@ function Sidebar({
           onClick={handleToggle}
           className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:outline-none"
         >
-          <PanelLeftIcon aria-hidden="true" className="size-3.5" />
+          <PanelLeftIcon aria-hidden="true" className="size-3" />
         </button>
       </div>
       <div
@@ -253,10 +250,10 @@ function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div"
 
 export {
   Sidebar,
-  SidebarSectionLabel,
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_PANEL_WIDTH_MD,
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   SIDEBAR_RAIL_WIDTH,
+  SidebarSectionLabel,
 };

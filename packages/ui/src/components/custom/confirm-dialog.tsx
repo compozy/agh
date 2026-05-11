@@ -190,7 +190,7 @@ function ConfirmDialog({
               void onConfirm();
             }}
           >
-            {ConfirmIcon ? <ConfirmIcon className="size-3.5" /> : null}
+            {ConfirmIcon ? <ConfirmIcon className="size-3" /> : null}
             {confirmLabel}
           </Button>
         </DialogFooter>

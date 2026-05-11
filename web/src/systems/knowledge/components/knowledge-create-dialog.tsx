@@ -1,5 +1,5 @@
 import { BookOpen, ClipboardList, MessageSquare, Plus, Tag } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   Button,
@@ -77,19 +77,25 @@ function KnowledgeCreateDialog({
   error,
   onConfirm,
 }: KnowledgeCreateDialogProps) {
-  const [type, setType] = useState<MemoryType>(defaultType);
+  const [selectedType, setSelectedType] = useState<MemoryType | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
+  const type = selectedType ?? defaultType;
 
-  useEffect(() => {
-    if (open) {
-      setType(defaultType);
-      setName("");
-      setDescription("");
-      setContent("");
+  const resetDraft = () => {
+    setSelectedType(null);
+    setName("");
+    setDescription("");
+    setContent("");
+  };
+
+  const updateDialogOpen = (next: boolean) => {
+    if (next) {
+      resetDraft();
     }
-  }, [open]);
+    onOpenChange(next);
+  };
 
   const handleSubmit = async () => {
     const trimmedDescription = description.trim();
@@ -108,7 +114,7 @@ function KnowledgeCreateDialog({
   const submitDisabled = isPending || name.trim().length === 0 || content.trim().length === 0;
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={updateDialogOpen} open={open}>
       <DialogContent
         className="gap-0 p-0 sm:max-w-2xl"
         data-testid="knowledge-create-dialog"
@@ -138,7 +144,7 @@ function KnowledgeCreateDialog({
                   description={option.description}
                   icon={option.icon}
                   key={option.value}
-                  onSelect={() => setType(option.value)}
+                  onSelect={() => setSelectedType(option.value)}
                   selected={type === option.value}
                   title={option.title}
                 />
@@ -193,7 +199,7 @@ function KnowledgeCreateDialog({
         <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-line bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-create-memory-btn"
-            onClick={() => onOpenChange(false)}
+            onClick={() => updateDialogOpen(false)}
             size="sm"
             type="button"
             variant="ghost"
@@ -207,7 +213,7 @@ function KnowledgeCreateDialog({
             size="sm"
             type="button"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Create
           </Button>
         </DialogFooter>

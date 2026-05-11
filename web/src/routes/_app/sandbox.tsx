@@ -1,6 +1,20 @@
-import { AlertCircle, Boxes, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Boxes, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 
+import {
+  useSandboxPage,
+  type SandboxDraft,
+  type SandboxEditorState,
+  type SandboxLastAction,
+} from "@/hooks/routes/use-sandbox-page";
+import type { SettingsSandboxEntry } from "@/systems/settings";
+import {
+  SettingsEditorDialog,
+  SettingsFieldRow,
+  SettingsSourceBadge,
+} from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Alert,
   AlertAction,
@@ -26,20 +40,6 @@ import {
   TableRow,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import {
-  useSandboxPage,
-  type SandboxDraft,
-  type SandboxEditorState,
-  type SandboxLastAction,
-} from "@/hooks/routes/use-sandbox-page";
-import type { SettingsSandboxEntry } from "@/systems/settings";
-import {
-  SettingsEditorDialog,
-  SettingsFieldRow,
-  SettingsSourceBadge,
-} from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/sandbox")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -124,7 +124,7 @@ function SandboxPage() {
             onClick={page.openCreate}
             data-testid="sandbox-page-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             New sandbox profile
           </Button>
         }
@@ -261,7 +261,7 @@ function SandboxRow({
             aria-label={`Edit ${entry.name}`}
             data-testid={`sandbox-page-card-${entry.name}-edit`}
           >
-            <Pencil className="size-3.5" />
+            <Pencil className="size-3" />
           </Button>
           <Button
             type="button"
@@ -277,7 +277,7 @@ function SandboxRow({
             }
             data-testid={`sandbox-page-card-${entry.name}-delete`}
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className="size-3" />
           </Button>
         </div>
       </TableCell>
@@ -590,7 +590,7 @@ function ActionResultBanner({
       data-testid="sandbox-page-action-result"
       data-kind={action.kind}
     >
-      <Check className="size-3.5" />
+      <Check className="size-3" />
       <AlertDescription className="text-xs">{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -600,7 +600,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="sandbox-page-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

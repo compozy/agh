@@ -1,40 +1,40 @@
-import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AtSign, Briefcase, CircleDot, ListFilter, Pin } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "../../button";
-import { Filters, type FilterFieldsConfig, type Filter } from "../filters";
+import { Filters, type Filter, type FilterFieldsConfig } from "../filters";
 
 const TOGGLE_FIELDS: FilterFieldsConfig<boolean> = [
   {
     key: "has_work",
     label: "Has work",
-    icon: <Briefcase aria-hidden="true" className="size-3.5" />,
+    icon: <Briefcase aria-hidden="true" className="size-3" />,
     type: "toggle",
   },
   {
     key: "mentions_me",
     label: "@me",
-    icon: <AtSign aria-hidden="true" className="size-3.5" />,
+    icon: <AtSign aria-hidden="true" className="size-3" />,
     type: "toggle",
   },
   {
     key: "pinned",
     label: "Pinned",
-    icon: <Pin aria-hidden="true" className="size-3.5" />,
+    icon: <Pin aria-hidden="true" className="size-3" />,
     type: "toggle",
   },
   {
     key: "unread",
     label: "Unread",
-    icon: <CircleDot aria-hidden="true" className="size-3.5" />,
+    icon: <CircleDot aria-hidden="true" className="size-3" />,
     type: "toggle",
   },
 ];
 
 const TRIGGER = (
   <Button size="sm" variant="ghost" aria-label="Add filter">
-    <ListFilter aria-hidden="true" className="size-3.5" />
+    <ListFilter aria-hidden="true" className="size-3" />
     Filter
   </Button>
 );

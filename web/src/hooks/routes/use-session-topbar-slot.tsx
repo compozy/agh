@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { Play, Square, Trash2 } from "lucide-react";
 
-import { Button, Pill, type PillTone, Spinner, useTopbarSlot } from "@agh/ui";
+import { Button, Pill, Spinner, useTopbarSlot, type PillTone } from "@agh/ui";
 
 import type { SessionPayload, SessionState } from "@/systems/session";
 
@@ -102,7 +102,7 @@ export function useSessionTopbarSlot({
           data-testid="delete-button"
           aria-label="Delete session"
         >
-          {isDeleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+          {isDeleting ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
         </Button>
         {isActive ? (
           <Button
@@ -114,7 +114,7 @@ export function useSessionTopbarSlot({
             data-testid="stop-button"
             aria-label="Stop session"
           >
-            {isStopping ? <Spinner className="size-3.5" /> : <Square className="size-3.5" />}
+            {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
           </Button>
         ) : null}
         {isStopped ? (
@@ -127,7 +127,7 @@ export function useSessionTopbarSlot({
             data-testid="resume-button"
             aria-label="Resume session"
           >
-            {isResuming ? <Spinner className="size-3.5" /> : <Play className="size-3.5" />}
+            {isResuming ? <Spinner className="size-3" /> : <Play className="size-3" />}
           </Button>
         ) : null}
       </div>

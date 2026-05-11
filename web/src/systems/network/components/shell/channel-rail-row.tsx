@@ -1,5 +1,5 @@
-import { Hash, Star } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { Hash, Star } from "lucide-react";
 
 import { Item, ItemContent, ItemMedia, ItemTitle } from "@agh/ui";
 
@@ -45,7 +45,7 @@ export function ChannelRailRow({
         <ItemMedia>
           <Hash
             aria-hidden="true"
-            className={cn("size-3.5 shrink-0", active ? "text-fg" : "text-subtle")}
+            className={cn("size-3 shrink-0", active ? "text-fg" : "text-subtle")}
           />
         </ItemMedia>
         <ItemContent className="min-w-0">

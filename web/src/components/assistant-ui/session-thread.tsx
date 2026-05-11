@@ -183,7 +183,7 @@ function SessionComposer({
                   "transition-colors hover:bg-danger/18"
                 )}
               >
-                <Square className="size-3.5 fill-current" />
+                <Square className="size-3 fill-current" />
                 <span className="text-sm font-medium">Stop</span>
               </button>
             ) : (
@@ -235,12 +235,12 @@ function SessionComposer({
             >
               {isClearingConversation ? (
                 <>
-                  <Spinner className="size-3.5" />
+                  <Spinner className="size-3" />
                   Clearing
                 </>
               ) : (
                 <>
-                  <Trash2 className="size-3.5" />
+                  <Trash2 className="size-3" />
                   Clear conversation
                 </>
               )}

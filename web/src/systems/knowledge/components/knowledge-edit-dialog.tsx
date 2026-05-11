@@ -139,7 +139,7 @@ function KnowledgeEditDialog({
             size="sm"
             type="button"
           >
-            <Pencil className="size-3.5" />
+            <Pencil className="size-3" />
             Save edit
           </Button>
         </DialogFooter>

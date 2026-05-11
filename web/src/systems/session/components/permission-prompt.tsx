@@ -1,13 +1,13 @@
-import { useCallback, useState } from "react";
 import { Check, ShieldAlert, ShieldCheck, ShieldOff, X } from "lucide-react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { Button, CodeBlock, Eyebrow, cn } from "@agh/ui";
 
-import { toPermissionRequest } from "../lib/message-parts";
-import type { AghPermissionData, PermissionRequest } from "../types";
 import type { PermissionDecision } from "../adapters/session-api";
 import { approveSession } from "../adapters/session-api";
+import { toPermissionRequest } from "../lib/message-parts";
+import type { AghPermissionData, PermissionRequest } from "../types";
 
 export interface PermissionPromptProps {
   permission: PermissionRequest;
@@ -75,14 +75,10 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
     [sessionId, permission.requestId, permission.turnId, onResolved]
   );
 
-  if (isResolved) {
-    return null;
-  }
-
   const tone = promptToneFor(permission.toolName);
   const isHighStakes = tone === "danger";
 
-  return (
+  return isResolved ? null : (
     <div
       className="sticky top-2 z-10 px-4 py-2"
       data-testid="permission-prompt"
@@ -147,7 +143,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
               onClick={() => handleDecision("allow-once")}
               data-testid="permission-allow-once"
             >
-              <Check className="size-3.5" />
+              <Check className="size-3" />
               Allow Once
             </Button>
             <Button
@@ -157,7 +153,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
               onClick={() => handleDecision("allow-always")}
               data-testid="permission-allow-always"
             >
-              <ShieldCheck className="size-3.5" />
+              <ShieldCheck className="size-3" />
               Allow Always
             </Button>
             <Button
@@ -167,7 +163,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
               onClick={() => handleDecision("reject-once")}
               data-testid="permission-reject-once"
             >
-              <X className="size-3.5" />
+              <X className="size-3" />
               Reject Once
             </Button>
             <Button
@@ -177,7 +173,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
               onClick={() => handleDecision("reject-always")}
               data-testid="permission-reject-always"
             >
-              <ShieldOff className="size-3.5" />
+              <ShieldOff className="size-3" />
               Reject Always
             </Button>
           </div>
@@ -204,7 +200,7 @@ function PermissionToneTile({ tone }: PermissionToneTileProps) {
         isDanger ? "bg-danger" : "bg-warning"
       )}
     >
-      <ShieldAlert className="size-3.5" />
+      <ShieldAlert className="size-3" />
     </span>
   );
 }
@@ -240,7 +236,7 @@ function PermissionRejectedNotice({ permission }: { permission: PermissionReques
           "text-xs text-danger"
         )}
       >
-        <ShieldOff aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+        <ShieldOff aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="font-medium text-fg">Permission Rejected</div>
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-muted">

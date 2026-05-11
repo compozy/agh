@@ -151,10 +151,8 @@ export type {
   UseNetworkListFiltersArgs,
   UseNetworkListFiltersResult,
 } from "./hooks/use-network-list-filters";
-export {
-  NetworkListFiltersProvider,
-  useNetworkListFiltersContext,
-} from "./contexts/network-list-filters-context";
+export { NetworkListFiltersProvider } from "./contexts/network-list-filters-context";
+export { useNetworkListFiltersContext } from "./hooks/use-network-list-filters-context";
 export { useNetworkChannels } from "./hooks/use-channels";
 export { useLastRead, buildLastReadStorageKey } from "./hooks/use-last-read";
 export type { NetworkLastReadKey, UseLastReadResult } from "./hooks/use-last-read";

@@ -1,10 +1,10 @@
-import Link from "next/link";
-import Image from "next/image";
+import { Eyebrow } from "@agh/ui";
 import { ArrowUpRight, BookOpen, Box, FileCode2, Plug, Sparkles, Timer } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
-import { Eyebrow } from "@agh/ui";
 
 const EXTENSIONS_DOCS_HREF = "/runtime/core/extensions";
 
@@ -90,7 +90,7 @@ export function ExtensibilitySection() {
             Read extensions docs
             <ArrowUpRight
               aria-hidden
-              className="size-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              className="size-3 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
             />
           </Link>
         </article>

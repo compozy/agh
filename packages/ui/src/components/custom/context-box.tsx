@@ -31,8 +31,8 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
         )}
         {...props}
       >
-        {entries.map((entry, index) => (
-          <React.Fragment key={`${index}-${String(entry.label)}`}>
+        {entries.map(entry => (
+          <React.Fragment key={`${String(entry.label)}-${String(entry.value)}`}>
             <dt data-slot="context-box-label" className="eyebrow text-muted">
               {entry.label}
             </dt>

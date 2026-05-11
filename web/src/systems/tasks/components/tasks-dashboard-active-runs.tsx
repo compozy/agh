@@ -1,5 +1,5 @@
-import { AlertCircle, ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { AlertCircle, ChevronRight } from "lucide-react";
 
 import { Eyebrow, Pill, type PillTone } from "@agh/ui";
 
@@ -113,7 +113,7 @@ export function TasksDashboardActiveRuns({
                   ) : null}
                   <ChevronRight
                     aria-hidden="true"
-                    className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-muted"
+                    className="size-3 shrink-0 text-faint transition-colors group-hover:text-muted"
                   />
                 </Link>
                 {run.error ? (

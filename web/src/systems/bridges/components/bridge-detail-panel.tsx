@@ -38,14 +38,14 @@ import {
 
 import {
   bridgeStatusTone,
-  describeBridgeDmPolicy,
   describeBridgeDeliveryDefaults,
+  describeBridgeDmPolicy,
   describeBridgeProviderConfigSchema,
   describeBridgeRouteTarget,
   describeBridgeRoutingPolicy,
   describeBridgeSecretSlot,
-  formatBridgeProviderConfig,
   formatBridgeDateTime,
+  formatBridgeProviderConfig,
   formatBridgeRelativeTime,
 } from "../lib/bridge-formatters";
 import type {
@@ -598,7 +598,7 @@ function BridgeDetailHeader({
         type="button"
         variant="outline"
       >
-        <Pencil className="size-3.5" />
+        <Pencil className="size-3" />
         Edit
       </Button>
       <Button
@@ -609,7 +609,7 @@ function BridgeDetailHeader({
         type="button"
         variant="outline"
       >
-        <RotateCw className="size-3.5" />
+        <RotateCw className="size-3" />
         Restart
       </Button>
       {bridge.enabled ? (
@@ -621,7 +621,7 @@ function BridgeDetailHeader({
           type="button"
           variant="outline"
         >
-          <Power className="size-3.5" />
+          <Power className="size-3" />
           Disable
         </Button>
       ) : (
@@ -632,7 +632,7 @@ function BridgeDetailHeader({
           size="sm"
           type="button"
         >
-          <Power className="size-3.5" />
+          <Power className="size-3" />
           Enable
         </Button>
       )}
@@ -769,7 +769,7 @@ export function BridgeDetailPanel({
             type="button"
             variant="outline"
           >
-            <SendHorizontal className="size-3.5" />
+            <SendHorizontal className="size-3" />
             Send Test
           </Button>
         </div>

@@ -52,7 +52,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
   const showStatusPill = statusTone !== "neutral";
 
   const clickable = onSelect !== undefined;
-  const handleClick = clickable ? () => onSelect?.(task.id) : undefined;
+  const selectTaskCard = clickable ? () => onSelect?.(task.id) : undefined;
   const handleKeyDown = clickable
     ? (event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.target !== event.currentTarget) return;
@@ -65,13 +65,14 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
 
   return (
     <div
-      role={clickable ? "button" : undefined}
+      role="button"
+      aria-disabled={!clickable}
       tabIndex={clickable ? 0 : undefined}
       aria-pressed={clickable ? selected : undefined}
       data-selected={selected ? "true" : undefined}
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
-      onClick={handleClick}
+      onClick={selectTaskCard}
       onKeyDown={handleKeyDown}
       className={cn(
         "relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md bg-canvas-tint p-3 text-left transition-colors duration-base ease-out",

@@ -1,9 +1,9 @@
-import { createContext, useContext } from "react";
+import { createContext } from "react";
 import type { ReactNode } from "react";
 
 import type { UseNetworkListFiltersResult } from "../hooks/use-network-list-filters";
 
-const NetworkListFiltersContext = createContext<UseNetworkListFiltersResult | null>(null);
+export const NetworkListFiltersContext = createContext<UseNetworkListFiltersResult | null>(null);
 
 interface NetworkListFiltersProviderProps {
   value: UseNetworkListFiltersResult;
@@ -16,14 +16,4 @@ export function NetworkListFiltersProvider({ value, children }: NetworkListFilte
       {children}
     </NetworkListFiltersContext.Provider>
   );
-}
-
-export function useNetworkListFiltersContext(): UseNetworkListFiltersResult {
-  const ctx = useContext(NetworkListFiltersContext);
-  if (!ctx) {
-    throw new Error(
-      "useNetworkListFiltersContext must be used inside <NetworkListFiltersProvider>"
-    );
-  }
-  return ctx;
 }

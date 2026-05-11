@@ -125,9 +125,9 @@ function KnowledgeDecisionsSection({
                         variant="ghost"
                       >
                         {isReverting ? (
-                          <Spinner aria-hidden="true" className="size-3.5" />
+                          <Spinner aria-hidden="true" className="size-3" />
                         ) : (
-                          <RotateCcw className="size-3.5" />
+                          <RotateCcw className="size-3" />
                         )}
                         Revert
                       </Button>

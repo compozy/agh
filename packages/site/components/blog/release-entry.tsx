@@ -28,6 +28,20 @@ const sectionTone: Record<"added" | "changed" | "fixed" | "breaking", MonoBadgeT
   breaking: "danger",
 };
 
+function releaseBulletEntries(items: ReadonlyArray<string>) {
+  const occurrenceCounts = new Map<string, number>();
+
+  return items.map(item => {
+    const occurrence = (occurrenceCounts.get(item) ?? 0) + 1;
+    occurrenceCounts.set(item, occurrence);
+
+    return {
+      item,
+      key: `${item}-${occurrence}`,
+    };
+  });
+}
+
 export function ReleaseEntry({ release }: ReleaseEntryProps) {
   const sections = (["added", "changed", "fixed", "breaking"] as const).filter(
     key => release[key].length > 0
@@ -65,9 +79,9 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
             <section key={key}>
               <MonoBadge tone={sectionTone[key]}>{sectionLabel[key]}</MonoBadge>
               <ul className="mt-4 flex flex-col gap-2.5">
-                {release[key].map((item, index) => (
+                {releaseBulletEntries(release[key]).map(({ item, key: itemKey }) => (
                   <li
-                    key={`${release.version}-${key}-${index}`}
+                    key={`${release.version}-${key}-${itemKey}`}
                     className="flex items-start gap-3 font-sans text-item-title leading-7 text-(--muted)"
                   >
                     <span className="mt-2 inline-block size-1 shrink-0 rounded-sm bg-accent" />

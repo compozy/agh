@@ -14,9 +14,10 @@ import {
   SquareTerminalIcon,
   WaypointsIcon,
 } from "lucide-react";
-import { useState } from "react";
 import type { ComponentType } from "react";
+import { useState } from "react";
 
+import { KindChip } from "@/systems/network";
 import {
   Accordion,
   AccordionContent,
@@ -133,7 +134,6 @@ import {
   TooltipTrigger,
   toast,
 } from "@agh/ui";
-import { KindChip } from "@/systems/network";
 
 const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
 
@@ -687,7 +687,7 @@ function DesignSystemShowcase() {
                 data-slot="page-header-icon"
                 className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
               >
-                <SparklesIcon className="size-3.5" />
+                <SparklesIcon className="size-3" />
               </span>
               <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
                 AGH design system
@@ -1011,7 +1011,7 @@ function InputsAndSearchSection() {
         </Field>
         <InputGroup>
           <InputGroupAddon align="inline-start">
-            <SearchIcon className="size-3.5" />
+            <SearchIcon className="size-3" />
           </InputGroupAddon>
           <InputGroupInput placeholder="Filter sessions…" />
           <InputGroupAddon align="inline-end">
@@ -1276,13 +1276,13 @@ function OverlaysSection() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem>
-              <PlayIcon className="size-3.5" /> Start run
+              <PlayIcon className="size-3" /> Start run
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <GitBranchIcon className="size-3.5" /> Fork session
+              <GitBranchIcon className="size-3" /> Fork session
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <BellIcon className="size-3.5" /> Notify on completion
+              <BellIcon className="size-3" /> Notify on completion
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
@@ -1417,7 +1417,7 @@ function LayoutSection() {
             }
             header={
               <>
-                <FolderIcon className="size-3.5 text-subtle" />
+                <FolderIcon className="size-3 text-subtle" />
                 <span className="text-small-body font-medium">agh-core</span>
               </>
             }
@@ -1434,7 +1434,7 @@ function LayoutSection() {
               <div className="flex items-center justify-between gap-2 text-xs text-subtle">
                 <ConnectionIndicator status="connected" />
                 <Button variant="ghost" size="icon-sm" aria-label="Settings">
-                  <SettingsIcon className="size-3.5" />
+                  <SettingsIcon className="size-3" />
                 </Button>
               </div>
             }
@@ -1527,11 +1527,11 @@ function SidebarRow({
       data-active={active ? "true" : undefined}
       className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted transition-colors hover:bg-hover hover:text-fg data-[active=true]:bg-elevated data-[active=true]:text-fg"
     >
-      <Icon className="size-3.5 text-subtle group-data-[active=true]:text-accent" />
+      <Icon className="size-3 text-subtle group-data-[active=true]:text-accent" />
       <span>{label}</span>
     </button>
   );
 }
 
 export { DesignSystemShowcase, SECTIONS, TOKEN_GROUPS };
-export type { TokenSwatch, TokenGroup, ShowcaseSection };
+export type { ShowcaseSection, TokenGroup, TokenSwatch };

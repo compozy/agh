@@ -1,7 +1,6 @@
 "use client";
 
 import type { LucideIcon, LucideProps } from "lucide-react";
-import * as React from "react";
 
 import { cn } from "../lib/utils";
 
@@ -14,7 +13,7 @@ const SIZE_PX: Record<IconSize, number> = {
   lg: 16,
 };
 
-export interface IconProps extends Omit<LucideProps, "size" | "ref"> {
+export interface IconProps extends Omit<LucideProps, "size"> {
   /** Lucide icon component to render. */
   as: LucideIcon;
   /** Size step — `xs` 11 px, `sm` 12 px, `default` 14 px, `lg` 16 px. */
@@ -26,10 +25,7 @@ export interface IconProps extends Omit<LucideProps, "size" | "ref"> {
  * 2 at the 11 px xs floor (per). Callers may pass `strokeWidth` to
  * override for one-off needs.
  */
-const Icon = React.forwardRef<SVGSVGElement, IconProps>(function Icon(
-  { as: As, size = "default", className, strokeWidth, ...rest },
-  ref
-) {
+function Icon({ as: As, size = "default", className, strokeWidth, ref, ...rest }: IconProps) {
   const px = SIZE_PX[size];
   const stroke = strokeWidth ?? (size === "xs" ? 2 : 1.75);
   return (
@@ -43,6 +39,6 @@ const Icon = React.forwardRef<SVGSVGElement, IconProps>(function Icon(
       {...rest}
     />
   );
-});
+}
 
 export { Icon };

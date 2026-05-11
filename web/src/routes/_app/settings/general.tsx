@@ -1,7 +1,16 @@
-import { AlertCircle, ExternalLink, Settings as SettingsIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, ExternalLink, Settings as SettingsIcon } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
+import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
+import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
+import {
+  SettingsFieldRow,
+  SettingsNumberInput,
+  SettingsSaveBar,
+} from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
   Eyebrow,
@@ -16,15 +25,6 @@ import {
   StatusLineTopbarSlot,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
-import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
-import {
-  SettingsFieldRow,
-  SettingsNumberInput,
-  SettingsSaveBar,
-} from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/general")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -215,13 +215,13 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
         />
       }
     >
-      <ExternalLink className="size-3.5 text-subtle" />
+      <ExternalLink className="size-3 text-subtle" />
       Release notes
     </Button>
   ) : null;
   const refreshIndicator = update.isFetching ? (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-      <Spinner className="size-3.5 text-subtle" />
+      <Spinner className="size-3 text-subtle" />
       Checking
     </span>
   ) : null;

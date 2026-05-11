@@ -7,6 +7,7 @@ vi.mock("@tanstack/react-router", () => ({
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
     return <a {...domRest}>{children}</a>;
   },
+  useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
 import { TasksDetailHeader } from "../tasks-detail-header";
@@ -45,15 +46,15 @@ describe("TasksDetailHeader", () => {
     const { container } = render(<TasksDetailHeader detail={buildDetail()} />);
 
     expect(screen.getByTestId("tasks-detail-title")).toHaveTextContent("Summarize review feedback");
-    expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("TASK-42");
+    expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("task-42");
     expect(screen.getByTestId("tasks-detail-status")).toHaveTextContent("Ready");
     expect(screen.getByTestId("tasks-detail-actions")).toBeInTheDocument();
 
     // Breadcrumb surfaces the short identifier
     expect(screen.getByTestId("tasks-detail-breadcrumb")).toHaveTextContent("TASK-42");
 
-    // Meta row contains priority pill + created-by
-    expect(screen.getByTestId("tasks-detail-meta")).toHaveTextContent("High");
+    // Priority is a pill, while the meta row keeps provenance and timestamps.
+    expect(screen.getByTestId("tasks-detail-priority")).toHaveTextContent("High");
     expect(screen.getByTestId("tasks-detail-meta")).toHaveTextContent("pedro@");
 
     // Status dot rendered alongside title
@@ -126,7 +127,10 @@ describe("TasksDetailHeader", () => {
     );
 
     expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Saved intent");
-    expect(screen.getByTestId("tasks-detail-lifecycle-hint")).toHaveTextContent(/saved intent/i);
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/saved intent/i)
+    );
     expect(screen.getByTestId("tasks-detail-publish")).toHaveTextContent("Publish");
     expect(screen.getByTestId("tasks-detail-publish")).toHaveAttribute(
       "title",
@@ -143,8 +147,9 @@ describe("TasksDetailHeader", () => {
     expect(button).toHaveTextContent("Start run");
     expect(button).toHaveAttribute("title", expect.stringMatching(/coordinator handoff/i));
     expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Ready to start");
-    expect(screen.getByTestId("tasks-detail-lifecycle-hint")).toHaveTextContent(
-      /start enqueues a coordinator-handoff run/i
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/start enqueues a coordinator-handoff run/i)
     );
   });
 

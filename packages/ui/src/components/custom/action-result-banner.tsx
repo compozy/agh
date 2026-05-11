@@ -45,7 +45,7 @@ function ActionResultBanner({
       )}
       {...props}
     >
-      {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0 mt-0.5" /> : null}
+      {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 mt-0.5" /> : null}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <p data-slot="action-result-banner-title" className="text-[13px] font-medium">
           {title}

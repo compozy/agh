@@ -1,9 +1,9 @@
-import { AlertCircle, Compass, User2 } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
+import { AlertCircle, Compass, User2 } from "lucide-react";
 
 import { Button, Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
-import type { TopbarRouteContext } from "@/types/topbar";
+import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
 import {
   AgentInfoInspector,
   AgentPageActions,
@@ -11,7 +11,7 @@ import {
   AgentSessionsList,
   AgentStatsGrid,
 } from "@/systems/agent";
-import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/agents/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
@@ -81,7 +81,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
               onClick={page.onGoHome}
               data-testid="agent-detail-go-home"
             >
-              <Compass className="size-3.5" />
+              <Compass className="size-3" />
               Go home
             </Button>
           }

@@ -1,7 +1,17 @@
-import { AlertCircle, AlertTriangle, Check, Puzzle, Webhook, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, AlertTriangle, Check, Puzzle, Webhook, X } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
+import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
+import type {
+  SettingsExtensionEntry,
+  SettingsHookEntry,
+  SettingsHooksExtensionsSection,
+  SettingsHooksExtensionsTransportParity,
+} from "@/systems/settings";
+import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Alert,
   AlertAction,
@@ -29,16 +39,6 @@ import {
   pillGroupSegmentVariants,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
-import type {
-  SettingsExtensionEntry,
-  SettingsHookEntry,
-  SettingsHooksExtensionsSection,
-  SettingsHooksExtensionsTransportParity,
-} from "@/systems/settings";
-import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/hooks-extensions")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -188,7 +188,7 @@ function TransportParityBanner({
       role="status"
       data-testid="settings-page-hooks-extensions-transport-parity"
     >
-      <AlertTriangle className="size-3.5" />
+      <AlertTriangle className="size-3" />
       <AlertDescription className="text-xs">
         <span className="font-medium text-warning">Some operations are unavailable over HTTP.</span>{" "}
         HTTP is bound outside the loopback host. {unavailable} stay available over UDS but return
@@ -323,7 +323,7 @@ function HookRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-2">
-          {pending ? <Spinner className="size-3.5 text-subtle" /> : null}
+          {pending ? <Spinner className="size-3 text-subtle" /> : null}
           <Switch
             data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-toggle`}
             checked={enabled}
@@ -381,7 +381,7 @@ function ExtensionsSection({
           className="flex items-center gap-2 text-xs text-subtle"
           data-testid="settings-page-hooks-extensions-extensions-loading"
         >
-          <Spinner className="size-3.5" />
+          <Spinner className="size-3" />
           Loading extensions…
         </div>
       ) : extensions.length === 0 ? (
@@ -478,7 +478,7 @@ function ExtensionRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {pending ? <Spinner className="size-3.5 text-subtle" /> : null}
+        {pending ? <Spinner className="size-3 text-subtle" /> : null}
         <Switch
           data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-toggle`}
           checked={entry.enabled}
@@ -870,7 +870,7 @@ function SaveControls({ state, error, warnings, onSave, onReset }: SaveControlsP
         disabled={disabled}
         data-testid="settings-page-hooks-extensions-policy-save"
       >
-        {isSaving ? <Spinner className="size-3.5" /> : null}
+        {isSaving ? <Spinner className="size-3" /> : null}
         {isSaving ? "Saving…" : "Save policy"}
       </Button>
     </div>
@@ -892,7 +892,7 @@ function ActionResultBanner({
       data-testid="settings-page-hooks-extensions-action-result"
       data-kind={action.kind}
     >
-      <Check className="size-3.5" />
+      <Check className="size-3" />
       <AlertDescription className="text-xs">{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -902,7 +902,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-hooks-extensions-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

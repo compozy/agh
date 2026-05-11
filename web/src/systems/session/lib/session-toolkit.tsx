@@ -1,4 +1,4 @@
-import type { Toolkit, ToolCallMessagePartProps } from "@assistant-ui/react";
+import type { ToolCallMessagePartProps, Toolkit } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
 import { AlertCircle } from "lucide-react";
 
@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
 import { ToolCallCard } from "../components/tool-call-card";
-import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
 import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
+import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
 
@@ -39,7 +39,7 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
           "text-xs text-subtle"
         )}
       >
-        <Spinner className="size-3.5" />
+        <Spinner className="size-3" />
         <Eyebrow className="text-subtle">{part.toolName}</Eyebrow>
         <span>preparing input</span>
       </div>
@@ -55,7 +55,7 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
           "text-xs text-danger"
         )}
       >
-        <AlertCircle className="size-3.5" />
+        <AlertCircle className="size-3" />
         <span className="font-medium">{part.toolName}</span>
       </div>
     );

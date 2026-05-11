@@ -34,6 +34,7 @@ import {
 } from "@agh/ui";
 
 import { providerHealthTone, providerStateTone } from "@/systems/model-catalog";
+import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import {
   buildBridgeProviderKey,
   describeBridgeDmPolicy,
@@ -43,7 +44,6 @@ import {
   findBridgeProviderByKey,
   isBridgeProviderSelectable,
 } from "../lib/bridge-formatters";
-import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
 
 type WizardStep = "provider" | "runtime" | "delivery";
@@ -73,10 +73,10 @@ interface BridgeCreateDialogProps {
 }
 
 export function BridgeCreateDialog(props: BridgeCreateDialogProps) {
-  return renderBridgeCreateDialog(props);
+  return <BridgeCreateDialogContent {...props} />;
 }
 
-function renderBridgeCreateDialog({
+function BridgeCreateDialogContent({
   activeWorkspaceId,
   activeWorkspaceName,
   draft,
@@ -258,7 +258,7 @@ function renderBridgeCreateDialog({
                 type="button"
                 variant="outline"
               >
-                <ArrowLeft className="size-3.5" />
+                <ArrowLeft className="size-3" />
                 Back
               </Button>
             ) : null}
@@ -271,7 +271,7 @@ function renderBridgeCreateDialog({
                 type="button"
               >
                 Continue
-                <ArrowRight className="size-3.5" />
+                <ArrowRight className="size-3" />
               </Button>
             ) : (
               <Button
@@ -283,7 +283,7 @@ function renderBridgeCreateDialog({
               >
                 {isPending ? (
                   <>
-                    <Spinner className="size-3.5" />
+                    <Spinner className="size-3" />
                     Creating…
                   </>
                 ) : (

@@ -1,12 +1,12 @@
 "use client";
 
-import { createContext, use } from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
+import { createContext, use } from "react";
 
 import { cn } from "@agh/ui/lib/utils";
-import { MinusIcon, PlusIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, MinusIcon, PlusIcon } from "lucide-react";
 
 type ToggleIconType = "chevron" | "plus-minus";
 
@@ -172,9 +172,9 @@ function TreeItemLabel<T>({
       {isFolder &&
         (toggleIconType === "plus-minus" ? (
           isExpanded ? (
-            <MinusIcon className="text-muted size-3.5" stroke="currentColor" strokeWidth="1" />
+            <MinusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
           ) : (
-            <PlusIcon className="text-muted size-3.5" stroke="currentColor" strokeWidth="1" />
+            <PlusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
           )
         ) : (
           <ChevronDownIcon className="text-muted size-4 in-aria-[expanded=false]:-rotate-90" />
@@ -214,5 +214,5 @@ function TreeDragLine<T>({ className, tree: propTree, ...props }: TreeDragLinePr
   );
 }
 
-export { Tree, TreeItem, TreeItemLabel, TreeDragLine };
-export type { TreeProps, TreeItemProps, TreeItemLabelProps, TreeDragLineProps };
+export { Tree, TreeDragLine, TreeItem, TreeItemLabel };
+export type { TreeDragLineProps, TreeItemLabelProps, TreeItemProps, TreeProps };

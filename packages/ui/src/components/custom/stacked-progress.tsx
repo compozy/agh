@@ -35,6 +35,7 @@ function StackedProgress({
   ...props
 }: StackedProgressProps) {
   const sum = total ?? segments.reduce((acc, segment) => acc + segment.value, 0);
+  const segmentOccurrences = new Map<string, number>();
   return (
     <div
       data-slot="stacked-progress"
@@ -43,13 +44,16 @@ function StackedProgress({
       className={cn("flex h-1.5 w-full overflow-hidden rounded-pill bg-canvas", className)}
       {...props}
     >
-      {segments.map((segment, index) => {
+      {segments.map(segment => {
         const ratio = sum > 0 ? Math.max(0, Math.min(1, segment.value / sum)) : 0;
         const tone: PillTone = segment.tone ?? "neutral";
+        const baseKey = `${String(segment.label ?? tone)}-${segment.value}`;
+        const occurrence = segmentOccurrences.get(baseKey) ?? 0;
+        segmentOccurrences.set(baseKey, occurrence + 1);
         if (ratio <= 0) return null;
         return (
           <span
-            key={`${index}-${segment.value}`}
+            key={`${baseKey}-${occurrence}`}
             data-slot="stacked-progress-segment"
             data-tone={tone}
             aria-hidden="true"

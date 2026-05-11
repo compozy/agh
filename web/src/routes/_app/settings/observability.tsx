@@ -1,7 +1,16 @@
-import { Activity, AlertCircle, ExternalLink } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { Activity, AlertCircle, ExternalLink } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
+import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
+import type { SettingsObservabilitySection } from "@/systems/settings";
+import {
+  SettingsFieldRow,
+  SettingsNumberInput,
+  SettingsSaveBar,
+} from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
   Eyebrow,
@@ -16,15 +25,6 @@ import {
   Switch,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
-import type { SettingsObservabilitySection } from "@/systems/settings";
-import {
-  SettingsFieldRow,
-  SettingsNumberInput,
-  SettingsSaveBar,
-} from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/observability")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -416,7 +416,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
             rel="noreferrer"
             target="_blank"
           >
-            <ExternalLink className="size-3.5" />
+            <ExternalLink className="size-3" />
             Open stream
           </a>
         ) : null}

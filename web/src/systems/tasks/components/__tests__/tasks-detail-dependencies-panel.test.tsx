@@ -59,7 +59,7 @@ describe("TasksDetailDependenciesPanel", () => {
       "Write tests"
     );
     expect(screen.getByTestId("tasks-detail-dependencies-item-dep_002")).toHaveTextContent(
-      "TASK-32"
+      "task-32"
     );
     expect(screen.getByTestId("tasks-detail-dependencies-link-dep_001")).toBeInTheDocument();
   });

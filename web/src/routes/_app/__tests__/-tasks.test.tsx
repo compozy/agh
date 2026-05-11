@@ -231,7 +231,9 @@ describe("TasksRoute", () => {
     // param is no longer passed and the switcher just retunes the in-memory
     // view. Clicking a lane should not refetch with a `lane` query.
     const callsBefore = getTaskInboxMock.mock.calls.length;
-    fireEvent.click(screen.getByTestId("tasks-inbox-lane-approvals"));
+    fireEvent.click(screen.getByTestId("tasks-inbox-filter-trigger"));
+    fireEvent.click(await screen.findByRole("option", { name: "Lane" }));
+    fireEvent.click(await screen.findByRole("option", { name: /Approvals/ }));
     await waitFor(() => {
       // No extra backend call triggered by the lane change.
       expect(getTaskInboxMock.mock.calls.length).toBe(callsBefore);

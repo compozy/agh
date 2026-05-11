@@ -1,7 +1,17 @@
-import { AlertCircle, ExternalLink, Wrench } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AlertCircle, ExternalLink, Wrench } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 
+import {
+  useSettingsSkillsPage,
+  type SkillsScopeSelection,
+} from "@/hooks/routes/use-settings-skills-page";
+import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
+import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
+import { SettingsFieldRow } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { WorkspacePayload } from "@/systems/workspace";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
   Empty,
@@ -14,7 +24,6 @@ import {
   Section,
   Spinner,
   StatusLineTopbarSlot,
-  type StatusLineTopbarSlotItem,
   Switch,
   Table,
   TableBody,
@@ -23,17 +32,8 @@ import {
   TableHeader,
   TableRow,
   useTopbarSlot,
+  type StatusLineTopbarSlotItem,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import {
-  useSettingsSkillsPage,
-  type SkillsScopeSelection,
-} from "@/hooks/routes/use-settings-skills-page";
-import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
-import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
-import { SettingsFieldRow } from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
-import type { WorkspacePayload } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/settings/skills")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -292,7 +292,7 @@ function OperationalLinksRow() {
           className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-skills-link-skills"
         >
-          <ExternalLink className="size-3.5 text-subtle" />
+          <ExternalLink className="size-3 text-subtle" />
           Open Skills
         </Link>
       </div>
@@ -387,7 +387,7 @@ function DisabledSkillsSection({
                 <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
-                      <Wrench className="size-3.5 text-subtle" />
+                      <Wrench className="size-3 text-subtle" />
                       <span className="truncate text-sm text-fg">{name}</span>
                     </div>
                   </TableCell>
@@ -692,7 +692,7 @@ function SaveControls({
         disabled={disabled}
         data-testid={`settings-page-skills-${slug}-save`}
       >
-        {isSaving ? <Spinner className="size-3.5" /> : null}
+        {isSaving ? <Spinner className="size-3" /> : null}
         {isSaving ? "Saving..." : saveLabel}
       </Button>
     </div>

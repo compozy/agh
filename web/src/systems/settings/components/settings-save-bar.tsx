@@ -50,7 +50,7 @@ function SettingsSaveBar({
             className="flex items-center gap-1.5 text-danger"
             data-testid={`settings-page-${slug}-save-error`}
           >
-            <AlertCircle className="size-3.5" />
+            <AlertCircle className="size-3" />
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
@@ -60,7 +60,7 @@ function SettingsSaveBar({
           >
             {warnings.map(warning => (
               <li key={warning} className="flex items-start gap-1.5">
-                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                <AlertCircle className="mt-0.5 size-3 shrink-0" />
                 <span>{warning}</span>
               </li>
             ))}
@@ -70,7 +70,7 @@ function SettingsSaveBar({
             className="flex items-center gap-1.5 text-warning"
             data-testid={`settings-page-${slug}-save-invalid`}
           >
-            <AlertCircle className="size-3.5" />
+            <AlertCircle className="size-3" />
             Resolve validation errors before saving
           </span>
         ) : isDirty ? (
@@ -82,7 +82,7 @@ function SettingsSaveBar({
             className="flex items-center gap-1.5 text-subtle"
             data-testid={`settings-page-${slug}-save-applied`}
           >
-            <Check className="size-3.5 text-success" />
+            <Check className="size-3 text-success" />
             {lastAppliedLabel}
           </span>
         ) : (
@@ -100,7 +100,7 @@ function SettingsSaveBar({
           disabled={!isDirty || isSaving}
           data-testid={`settings-page-${slug}-reset`}
         >
-          <Undo2 className="size-3.5" />
+          <Undo2 className="size-3" />
           Discard
         </Button>
         <Button
@@ -111,7 +111,7 @@ function SettingsSaveBar({
           disabled={disabled}
           data-testid={`settings-page-${slug}-save`}
         >
-          {isSaving ? <Spinner className="size-3.5" /> : <Save className="size-3.5" />}
+          {isSaving ? <Spinner className="size-3" /> : <Save className="size-3" />}
           {isSaving ? "Saving..." : "Save changes"}
         </Button>
       </div>

@@ -31,12 +31,12 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
   return (
     <div data-slot="status-breakdown" className={cn("flex flex-col gap-2", className)} {...props}>
       <ul data-slot="status-breakdown-rows" className="flex flex-col gap-1.5">
-        {items.map((item, index) => {
+        {items.map(item => {
           const ratio = sum > 0 ? Math.max(0, Math.min(1, item.value / sum)) : 0;
           const tone: PillTone = item.tone ?? "neutral";
           return (
             <li
-              key={`${index}-${String(item.label)}`}
+              key={String(item.label)}
               data-slot="status-breakdown-row"
               className="flex items-center gap-3"
             >

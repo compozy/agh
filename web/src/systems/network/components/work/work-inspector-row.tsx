@@ -4,8 +4,8 @@ import { Button, Eyebrow, Item, ItemActions, ItemContent, ItemFooter, ItemHeader
 
 import { cn } from "@/lib/utils";
 
-import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { OpenWorkEntry } from "../../hooks/use-work";
+import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import { WorkChip } from "./work-chip";
 
 export interface WorkInspectorRowProps {
@@ -36,7 +36,7 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
               type="button"
               variant="ghost"
             >
-              <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              <ArrowUpRight aria-hidden="true" className="size-3" />
             </Button>
           </ItemActions>
         </ItemHeader>

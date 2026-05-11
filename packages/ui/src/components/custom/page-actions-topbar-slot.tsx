@@ -52,7 +52,7 @@ function PageActionsTopbarSlot({
         disabled={disabled}
         onClick={onDiscard}
       >
-        <Undo2Icon className="size-3.5" />
+        <Undo2Icon className="size-3" />
         {discardLabel}
       </Button>
       <Button
@@ -64,9 +64,9 @@ function PageActionsTopbarSlot({
         onClick={onSave}
       >
         {saving ? (
-          <Spinner aria-hidden="true" className="size-3.5" />
+          <Spinner aria-hidden="true" className="size-3" />
         ) : (
-          <SaveIcon className="size-3.5" />
+          <SaveIcon className="size-3" />
         )}
         {saving ? savingLabel : saveLabel}
       </Button>

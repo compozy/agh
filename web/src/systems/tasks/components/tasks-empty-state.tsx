@@ -1,8 +1,8 @@
 import { Copy, Globe, ListChecks, Plus, RefreshCcw, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Eyebrow } from "@agh/ui";
 import { cn } from "@/lib/utils";
+import { Button, Empty, Eyebrow } from "@agh/ui";
 
 import { getTaskTemplate, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 
@@ -21,10 +21,10 @@ interface TemplateSlot {
  * surfaces a curated four that match the proposal reference.
  */
 const TEMPLATE_SLOTS: TemplateSlot[] = [
-  { id: "one_shot", tone: "accent", icon: <Zap className="size-3.5" /> },
-  { id: "recurring", tone: "info", icon: <RefreshCcw className="size-3.5" /> },
-  { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-3.5" /> },
-  { id: "remote_peer", tone: "neutral", icon: <Globe className="size-3.5" /> },
+  { id: "one_shot", tone: "accent", icon: <Zap className="size-3" /> },
+  { id: "recurring", tone: "info", icon: <RefreshCcw className="size-3" /> },
+  { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-3" /> },
+  { id: "remote_peer", tone: "neutral", icon: <Globe className="size-3" /> },
 ];
 
 const TONE_CLASS: Record<TasksEmptyStateTone, string> = {
@@ -67,7 +67,7 @@ export function TasksEmptyState({
                 size="lg"
                 type="button"
               >
-                <Plus className="size-3.5" />
+                <Plus className="size-3" />
                 New task
               </Button>
               {onCopyCli ? (
@@ -78,7 +78,7 @@ export function TasksEmptyState({
                   type="button"
                   variant="neutral"
                 >
-                  <Copy className="size-3.5" />
+                  <Copy className="size-3" />
                   <span className="font-mono text-[11px] text-fg-strong">agh tasks new</span>
                 </Button>
               ) : null}

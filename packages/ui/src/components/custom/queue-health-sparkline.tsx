@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 import { cn } from "../../lib/utils";
 
@@ -39,6 +38,46 @@ const TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
   padding: "4px 6px",
 };
 
+interface QueueHealthSparklineChartProps {
+  data: ReadonlyArray<QueueHealthSparklineBucket>;
+  withTooltip: boolean;
+}
+
+const QueueHealthSparklineChart = React.lazy(async () => {
+  const { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } = await import("recharts");
+  return {
+    default: function QueueHealthSparklineChartContent({
+      data,
+      withTooltip,
+    }: QueueHealthSparklineChartProps) {
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={[...data]} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+            {withTooltip ? (
+              <Tooltip
+                cursor={false}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelStyle={{ color: "var(--muted)" }}
+                itemStyle={{ color: "var(--fg-strong)" }}
+              />
+            ) : null}
+            <Bar dataKey="value" isAnimationActive={false} radius={[1, 1, 0, 0]} minPointSize={2}>
+              {data.map(bucket => (
+                <Cell
+                  key={bucket.label}
+                  data-slot="queue-health-sparkline-cell"
+                  data-stuck={bucket.stuck ? "true" : undefined}
+                  fill={bucket.stuck ? STUCK_FILL : BAR_FILL}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    },
+  };
+});
+
 function QueueHealthSparkline({
   data,
   height = DEFAULT_HEIGHT,
@@ -56,28 +95,9 @@ function QueueHealthSparkline({
       style={{ height }}
       {...props}
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={[...data]} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-          {withTooltip ? (
-            <Tooltip
-              cursor={false}
-              contentStyle={TOOLTIP_CONTENT_STYLE}
-              labelStyle={{ color: "var(--muted)" }}
-              itemStyle={{ color: "var(--fg-strong)" }}
-            />
-          ) : null}
-          <Bar dataKey="value" isAnimationActive={false} radius={[1, 1, 0, 0]} minPointSize={2}>
-            {data.map((bucket, index) => (
-              <Cell
-                key={`${bucket.label}-${index}`}
-                data-slot="queue-health-sparkline-cell"
-                data-stuck={bucket.stuck ? "true" : undefined}
-                fill={bucket.stuck ? STUCK_FILL : BAR_FILL}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <React.Suspense fallback={<div aria-hidden="true" className="size-full" />}>
+        <QueueHealthSparklineChart data={data} withTooltip={withTooltip} />
+      </React.Suspense>
     </div>
   );
 }

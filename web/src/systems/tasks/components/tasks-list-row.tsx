@@ -48,9 +48,11 @@ function MetaSeparator() {
 
 function joinMeta(children: React.ReactNode): React.ReactNode[] {
   const items = React.Children.toArray(children);
-  return items.flatMap((child, index) =>
-    index === 0 ? [child] : [<MetaSeparator key={`sep-${index}`} />, child]
-  );
+  return items.flatMap((child, index) => {
+    if (index === 0) return [child];
+    const childKey = React.isValidElement(child) && child.key !== null ? child.key : String(child);
+    return [<MetaSeparator key={`sep-${childKey}`} />, child];
+  });
 }
 
 /**
@@ -121,7 +123,8 @@ function TasksListRow({
       data-testid={resolvedTestId}
       onClick={clickable ? () => onSelect?.(task.id) : undefined}
       onKeyDown={handleKeyDown}
-      role={clickable ? "button" : undefined}
+      role="button"
+      aria-disabled={!clickable}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
         "relative grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line-soft py-2.5 pr-3 pl-3.5 text-left transition-colors duration-base ease-out",

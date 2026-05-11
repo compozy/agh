@@ -86,7 +86,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
           className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-[12px] text-fg"
           data-testid="tasks-dashboard-warning"
         >
-          <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
           <span className="min-w-0">{warningMessage}</span>
         </div>
       ) : (
@@ -94,7 +94,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
           className="mt-4 flex items-center gap-2 text-[12px] text-success"
           data-testid="tasks-dashboard-ok"
         >
-          <Check aria-hidden="true" className="size-3.5 shrink-0" />
+          <Check aria-hidden="true" className="size-3 shrink-0" />
           <span>Queue is healthy.</span>
         </div>
       )}

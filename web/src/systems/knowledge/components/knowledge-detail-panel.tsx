@@ -338,7 +338,7 @@ function KnowledgeDetailPanel({
             type="button"
             variant="outline"
           >
-            <Pencil className="size-3.5" />
+            <Pencil className="size-3" />
             Edit
           </Button>
         ) : null}
@@ -350,7 +350,7 @@ function KnowledgeDetailPanel({
           type="button"
           variant="outline"
         >
-          <Trash2 className="size-3.5" />
+          <Trash2 className="size-3" />
           Delete
         </Button>
         {deleteError ? (

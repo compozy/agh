@@ -76,7 +76,7 @@ function Section({
                     data-slot="section-icon"
                     className="inline-flex size-5 shrink-0 items-center justify-center text-accent"
                   >
-                    <Icon className="size-3.5" />
+                    <Icon className="size-3" />
                   </span>
                 ) : null}
                 <h2

@@ -112,7 +112,7 @@ export function VaultSecretsTable({
                         onClick={() => onDelete(secret)}
                         data-testid={`vault-secrets-delete-${secret.ref}`}
                       >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 className="size-3" />
                       </Button>
                     </TableCell>
                   ) : null}

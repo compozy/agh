@@ -1,7 +1,16 @@
-import { AlertCircle, Bot, ExternalLink } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AlertCircle, Bot, ExternalLink } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
+import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
+import type { SettingsAutomationSection } from "@/systems/settings";
+import {
+  SettingsFieldRow,
+  SettingsNumberInput,
+  SettingsSaveBar,
+} from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
   Eyebrow,
@@ -16,15 +25,6 @@ import {
   Switch,
   useTopbarSlot,
 } from "@agh/ui";
-import type { TopbarRouteContext } from "@/types/topbar";
-import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
-import type { SettingsAutomationSection } from "@/systems/settings";
-import {
-  SettingsFieldRow,
-  SettingsNumberInput,
-  SettingsSaveBar,
-} from "@/systems/settings/components";
-import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/automation")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -153,7 +153,7 @@ function OperationalLinksRow() {
           className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-automation-link-jobs"
         >
-          <ExternalLink className="size-3.5 text-subtle" />
+          <ExternalLink className="size-3 text-subtle" />
           Open Jobs
         </Link>
         <Link
@@ -161,7 +161,7 @@ function OperationalLinksRow() {
           className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-automation-link-triggers"
         >
-          <ExternalLink className="size-3.5 text-subtle" />
+          <ExternalLink className="size-3 text-subtle" />
           Open Triggers
         </Link>
       </div>

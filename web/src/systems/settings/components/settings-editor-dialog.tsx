@@ -84,13 +84,13 @@ function SettingsEditorDialog({
         <div className="flex flex-col gap-2" data-testid={`settings-${testSlug}-editor-feedback`}>
           {error ? (
             <Alert variant="danger" data-testid={`settings-${testSlug}-editor-error`}>
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <AlertCircle className="mt-0.5 size-3 shrink-0" />
               <AlertDescription className="text-xs">{error}</AlertDescription>
             </Alert>
           ) : null}
           {!error && warnings && warnings.length > 0 ? (
             <Alert variant="warning" data-testid={`settings-${testSlug}-editor-warnings`}>
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <AlertCircle className="mt-0.5 size-3 shrink-0" />
               <AlertDescription>
                 <ul className="flex flex-col gap-1 text-xs">
                   {warnings.map(warning => (
@@ -121,7 +121,7 @@ function SettingsEditorDialog({
             disabled={!canSave || isSaving}
             data-testid={`settings-${testSlug}-editor-save`}
           >
-            {isSaving ? <Spinner className="size-3.5" /> : null}
+            {isSaving ? <Spinner className="size-3" /> : null}
             {isSaving ? "Saving..." : computedSaveLabel}
           </Button>
         </DialogFooter>

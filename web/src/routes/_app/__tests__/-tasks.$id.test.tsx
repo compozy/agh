@@ -19,6 +19,7 @@ vi.mock("@tanstack/react-router", () => ({
   Outlet: () => <div data-testid="tasks-detail-outlet" />,
   useChildMatches: () => childMatches,
   useNavigate: () => navigateMock,
+  useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
 const treeWithDescendantFixture = {

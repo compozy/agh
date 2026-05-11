@@ -89,7 +89,7 @@ function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInsp
               key={tab.id}
               value={tab.id}
             >
-              <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              <Icon aria-hidden="true" className="size-3 shrink-0" />
               <span>{tab.label}</span>
             </TabsTrigger>
           );

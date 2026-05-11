@@ -1,6 +1,6 @@
+import { baseOptions } from "@/lib/layout.shared";
 import { Eyebrow } from "@agh/ui";
 import { Star } from "lucide-react";
-import { baseOptions } from "@/lib/layout.shared";
 import { CtaButton } from "./primitives/cta-button";
 import { SectionFrame } from "./primitives/section-frame";
 
@@ -35,7 +35,7 @@ export function FinalCta() {
             rel="noopener noreferrer"
             className="mt-1 inline-flex items-center gap-2 text-(--muted) transition-colors hover:text-accent"
           >
-            <Star aria-hidden className="size-3.5" />
+            <Star aria-hidden className="size-3" />
             <Eyebrow>Star on GitHub</Eyebrow>
           </a>
         </div>
