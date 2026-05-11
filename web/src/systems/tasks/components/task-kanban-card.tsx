@@ -1,12 +1,18 @@
 import { AlertCircle } from "lucide-react";
 import * as React from "react";
 
-import { Button, OwnerAvatar, type OwnerAvatarProps } from "@agh/ui";
+import { Button, MonoId, OwnerAvatar, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
-import { formatRelativeTime, taskOwnerLabel, taskShortId } from "../lib/task-formatters";
-import type { TaskListItem, TaskOwnerKind } from "../types";
+import {
+  formatRelativeTime,
+  ownerAvatarKindFor,
+  taskOwnerLabel,
+  taskShortId,
+  taskStatusTone,
+} from "../lib/task-formatters";
+import type { TaskListItem } from "../types";
 
 export interface TaskKanbanCardProps {
   task: TaskListItem;
@@ -15,25 +21,19 @@ export interface TaskKanbanCardProps {
   onRetry?: (taskId: string) => void;
 }
 
-/**
- * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier
- * §3.5 /. Agent sessions, automation runs, extensions, network peers,
- * and worker pools all read as `agent` for color selection; humans get the
- * `human` slot ladder; unassigned tasks fall back to the system palette.
- */
-function ownerAvatarKindFor(kind?: TaskOwnerKind | null): OwnerAvatarProps["ownerKind"] {
-  switch (kind) {
-    case "human":
-      return "human";
-    case "agent_session":
-    case "automation":
-    case "extension":
-    case "network_peer":
-    case "pool":
-      return "agent";
-    default:
-      return "system";
-  }
+const STATUS_LABELS: Partial<Record<TaskListItem["status"], string>> = {
+  pending: "Pending",
+  ready: "Ready",
+  in_progress: "In progress",
+  blocked: "Blocked",
+  completed: "Done",
+  failed: "Failed",
+  canceled: "Canceled",
+  draft: "Draft",
+};
+
+function statusLabel(status: TaskListItem["status"]): string {
+  return STATUS_LABELS[status] ?? status;
 }
 
 export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: TaskKanbanCardProps) {
@@ -48,6 +48,8 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
   const ownerKind = ownerAvatarKindFor(task.owner?.kind);
   const lastActivity = task.last_activity_at ?? task.updated_at;
   const timestamp = formatRelativeTime(lastActivity);
+  const statusTone = taskStatusTone(task.status);
+  const showStatusPill = statusTone !== "neutral";
 
   const clickable = onSelect !== undefined;
   const handleClick = clickable ? () => onSelect?.(task.id) : undefined;
@@ -72,8 +74,8 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
+        "relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md bg-canvas-tint p-3 text-left transition-colors duration-base ease-out",
         "shadow-[inset_0_0_0_1px_var(--line-soft)]",
-        "relative flex w-full min-w-0 flex-col gap-[7px] overflow-hidden rounded-md bg-canvas-tint p-[11px] text-left transition-colors duration-base ease-out",
         "hover:bg-elevated hover:shadow-[inset_0_0_0_1px_var(--line)]",
         clickable && "cursor-pointer",
         clickable &&
@@ -81,19 +83,22 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
         selected && "bg-elevated shadow-[inset_0_0_0_1px_var(--line)]"
       )}
     >
-      <h3 className="line-clamp-2 text-[12.5px] leading-[1.4] font-medium tracking-section-head text-fg-strong">
-        {task.title}
-      </h3>
-
-      <div className="flex min-w-0 items-center gap-[7px]">
-        <span className="font-mono text-[10px] text-faint" data-slot="k-card-id">
-          {identifier}
-        </span>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <h3 className="line-clamp-2 min-w-0 text-small-body font-medium leading-snug text-fg-strong">
+          {task.title}
+        </h3>
+        {showStatusPill ? (
+          <Pill size="xs" tone={statusTone}>
+            {statusLabel(task.status)}
+          </Pill>
+        ) : null}
       </div>
+
+      <MonoId value={identifier} size="sm" data-slot="k-card-id" />
 
       {failedError ? (
         <div
-          className="flex items-start gap-[5px] rounded-xs bg-danger-tint px-[7px] py-[5px] font-mono text-[10.5px] text-danger"
+          className="flex items-start gap-1.5 rounded-xs bg-danger-tint px-2 py-1 font-mono text-[10.5px] text-danger"
           data-testid={`tasks-kanban-card-error-${task.id}`}
         >
           <AlertCircle aria-hidden="true" className="mt-px size-3 shrink-0" />
@@ -103,7 +108,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
 
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div
-          className="flex min-w-0 items-center gap-[6px]"
+          className="flex min-w-0 items-center gap-1.5"
           data-testid={`tasks-kanban-card-owner-${task.id}`}
         >
           <OwnerAvatar
@@ -134,7 +139,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
           }}
           size="xs"
           type="button"
-          variant="outline"
+          variant="neutral"
         >
           Retry
         </Button>

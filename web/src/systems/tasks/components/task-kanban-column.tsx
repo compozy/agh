@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import * as React from "react";
 
-import { Button, Pill } from "@agh/ui";
+import { Button, StatusDot, type StatusDotTone } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,22 @@ export interface TaskKanbanColumnProps {
   className?: string;
 }
 
+/**
+ * Maps the kanban header pill tone onto a `<StatusDot>` tone. Only
+ * attention-demanding columns emit a dot; neutral and `info` columns keep the
+ * header rhythm flat so the accent budget stays reserved for the active CTA.
+ */
+function headerDotTone(tone: PillTone): StatusDotTone | null {
+  switch (tone) {
+    case "warning":
+      return "warning";
+    case "danger":
+      return "danger";
+    default:
+      return null;
+  }
+}
+
 export function TaskKanbanColumn({
   column,
   count,
@@ -29,6 +45,7 @@ export function TaskKanbanColumn({
   className,
 }: TaskKanbanColumnProps) {
   const isEmpty = React.Children.count(children) === 0;
+  const dotTone = headerDotTone(tone);
 
   return (
     <section
@@ -40,11 +57,11 @@ export function TaskKanbanColumn({
       data-testid={`tasks-kanban-column-${column.id}`}
       role="listitem"
     >
-      <header className="flex shrink-0 items-center gap-2 px-3 pt-[11px] pb-[9px]">
-        <Pill.Dot tone={tone} />
-        <h2 className="text-[12px] font-medium tracking-eyebrow text-fg-strong">{column.label}</h2>
+      <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
+        {dotTone === null ? null : <StatusDot tone={dotTone} size="default" label={column.label} />}
+        <h2 className="text-small-body font-medium text-fg-strong">{column.label}</h2>
         <span
-          className="font-mono text-[10.5px] tracking-normal tabular-nums text-faint"
+          className="font-mono text-[10px] tabular-nums text-faint"
           data-testid={`tasks-kanban-column-count-${column.id}`}
         >
           {count}
@@ -65,13 +82,13 @@ export function TaskKanbanColumn({
       </header>
 
       <div
-        className="flex min-h-0 flex-1 flex-col gap-[6px] overflow-y-auto px-2 pt-1 pb-3"
+        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pt-1 pb-3"
         data-testid={`tasks-kanban-column-body-${column.id}`}
       >
         {isEmpty
           ? (emptyState ?? (
               <div
-                className="flex flex-1 items-center justify-center rounded-md border border-dashed border-line px-3 py-8 text-center text-[12px] text-subtle"
+                className="flex flex-1 items-center justify-center px-3 py-8 text-center text-small-body text-subtle"
                 data-testid={`tasks-kanban-column-empty-${column.id}`}
               >
                 No tasks

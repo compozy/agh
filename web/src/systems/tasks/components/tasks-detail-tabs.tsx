@@ -15,20 +15,16 @@ export interface TasksDetailTabsProps {
   onChange: (next: TaskDetailPanel) => void;
 }
 
-/**
- * Detail panel tab bar -- `@agh/ui` `Tabs` (Base UI primitive) rendered as a
- * line-variant bar with optional count badges + pulsing live indicator per tab.
- */
 export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProps) {
   return (
     <Tabs
       aria-label="Task detail panels"
-      className="border-b border-line px-4"
+      className="border-b border-line px-9"
       data-testid="tasks-detail-tabs"
       onValueChange={value => onChange(value as TaskDetailPanel)}
       value={active}
     >
-      <TabsList variant="line" className="h-10">
+      <TabsList className="h-10">
         {items.map(item => (
           <TabsTrigger
             count={item.count}

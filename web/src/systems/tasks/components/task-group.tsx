@@ -37,8 +37,10 @@ function TaskGroup({ id, label, count, children, actions, className }: TaskGroup
       data-testid={`task-group-${id}`}
       className={cn("flex min-w-0 flex-col gap-1", className)}
     >
-      <header className="flex items-center gap-2 px-2 pb-1.5 pt-3" data-slot="task-group-head">
-        <Eyebrow data-testid={`task-group-${id}-label`}>{label}</Eyebrow>
+      <header className="flex items-center gap-2 px-3 pb-2 pt-4" data-slot="task-group-head">
+        <Eyebrow className="text-muted" data-testid={`task-group-${id}-label`}>
+          {label}
+        </Eyebrow>
         <span
           aria-hidden="true"
           className="font-mono text-[10.5px] tabular-nums text-faint"

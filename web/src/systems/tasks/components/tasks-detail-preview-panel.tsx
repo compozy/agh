@@ -1,10 +1,19 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, Radio } from "lucide-react";
 
-import { BlockLoading, Button, CodeBlock, Metric, Pill, Section } from "@agh/ui";
+import {
+  BlockLoading,
+  Button,
+  CodeBlock,
+  DescriptionCard,
+  Metric,
+  MonoId,
+  Pill,
+  Section,
+  Time,
+} from "@agh/ui";
 
 import {
-  formatRelativeTime,
   runCoordinationChannelLabel,
   runIsCoordinated,
   taskApprovalStateLabel,
@@ -56,8 +65,9 @@ type PreviewRecord = Pick<
 
 /**
  * Inline preview rendered on `/tasks` when a list row is selected but no detail
- * route is active. Composes `Pill.Dot`, `Pill`, `Metric`, `Section`, and a
- * `CodeBlock` preview of the task prompt + scope + agent.
+ * route is active. Mirrors the detail-route hero anatomy at a tighter density:
+ * status dot + 18 px title, MonoId/pill row, sentence meta line, Metric grid,
+ * `<DescriptionCard>` and a code preview of the task scope + prompt.
  */
 export function TasksDetailPreviewPanel({
   task,
@@ -74,7 +84,7 @@ export function TasksDetailPreviewPanel({
   if (!task) {
     return (
       <div
-        className="flex flex-1 items-center justify-center px-6 py-10 text-sm text-subtle"
+        className="flex flex-1 items-center justify-center px-9 py-10 text-small-body text-subtle"
         data-testid="tasks-detail-preview-empty"
       >
         Select a task to inspect its overview.
@@ -97,12 +107,12 @@ export function TasksDetailPreviewPanel({
   if (errorMessage && !detail) {
     return (
       <div
-        className="flex flex-1 items-center justify-center"
+        className="flex flex-1 items-center justify-center px-9 py-10"
         data-testid="tasks-detail-preview-error"
       >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">{errorMessage}</p>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertCircle className="size-5 text-danger" strokeWidth={1.75} />
+          <p className="text-small-body text-muted">{errorMessage}</p>
         </div>
       </div>
     );
@@ -144,27 +154,28 @@ export function TasksDetailPreviewPanel({
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto bg-canvas px-6 py-5"
+      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto bg-canvas px-9 py-7"
       data-testid="tasks-detail-preview-panel"
     >
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <header className="flex min-w-0 flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
             <h2
-              className="truncate text-ui-title-lg font-medium tracking-tight text-fg"
+              className="min-w-0 truncate text-empty-h1 font-medium leading-tight tracking-empty-h1 text-fg-strong"
               data-testid="tasks-detail-preview-title"
+              style={{ fontWeight: 510 }}
             >
               {record.title}
             </h2>
-            <Pill mono>{identifier}</Pill>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-small-body text-muted">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <MonoId data-testid="tasks-detail-preview-id" value={identifier} />
             <Pill tone={taskStatusTone(record.status)}>{taskStatusLabel(record.status)}</Pill>
             <Pill
               data-testid="tasks-detail-preview-lifecycle"
               title={taskLifecyclePhaseDescription(lifecyclePhase)}
-              tone={taskLifecyclePhaseTone(lifecyclePhase)}
+              tone={lifecyclePhase === "running" ? "info" : taskLifecyclePhaseTone(lifecyclePhase)}
             >
               {taskLifecyclePhaseLabel(lifecyclePhase)}
             </Pill>
@@ -174,7 +185,7 @@ export function TasksDetailPreviewPanel({
               </Pill>
             ) : null}
             {taskHasApprovalPending(record) ? (
-              <Pill tone="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
+              <Pill tone="warning">{taskApprovalStateLabel(record.approval_state)}</Pill>
             ) : null}
             {channelLabel ? (
               <Pill
@@ -183,29 +194,51 @@ export function TasksDetailPreviewPanel({
                 tone="info"
               >
                 <span className="inline-flex items-center gap-1">
-                  <Radio className="size-3" aria-hidden="true" />
+                  <Radio className="size-3" aria-hidden="true" strokeWidth={1.75} />
                   Channel: {channelLabel}
                 </span>
               </Pill>
             ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
             <span>Owner {ownerLabel}</span>
-            <span>· Scope {record.scope}</span>
-            <span>· Updated {formatRelativeTime(record.updated_at)}</span>
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+            <span>Scope {record.scope}</span>
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              Updated <Time iso={record.updated_at} mode="relative" />
+            </span>
           </div>
         </div>
         <div
           className="flex shrink-0 flex-wrap items-center gap-2"
           data-testid="tasks-detail-preview-actions"
         >
-          <Link
-            data-testid="tasks-detail-preview-edit-link"
-            params={{ id: record.id }}
-            to="/tasks/$id/edit"
-          >
-            <Button size="sm" type="button" variant="outline">
+          <Link params={{ id: record.id }} to="/tasks/$id/edit">
+            <Button
+              data-testid="tasks-detail-preview-edit-link"
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
               Edit
             </Button>
           </Link>
+          {canCancel && onCancelTask ? (
+            <Button
+              data-testid="tasks-detail-preview-cancel"
+              onClick={() => onCancelTask(record.id)}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              Cancel
+            </Button>
+          ) : null}
           {onDeleteTask ? (
             <TaskDeleteAction
               taskId={record.id}
@@ -237,30 +270,14 @@ export function TasksDetailPreviewPanel({
               size="sm"
               title={startCopy.tooltip}
               type="button"
-              variant="outline"
             >
               {startCopy.label}
-            </Button>
-          ) : null}
-          {canCancel && onCancelTask ? (
-            <Button
-              data-testid="tasks-detail-preview-cancel"
-              onClick={() => onCancelTask(record.id)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Cancel
             </Button>
           ) : null}
         </div>
       </header>
 
-      <p className="text-xs text-subtle" data-testid="tasks-detail-preview-lifecycle-hint">
-        {taskLifecyclePhaseDescription(lifecyclePhase)}
-      </p>
-
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3">
         <Metric
           data-testid="tasks-detail-preview-counts-children"
           label="Children"
@@ -271,12 +288,7 @@ export function TasksDetailPreviewPanel({
           label="Dependencies"
           value={dependencyCount}
         />
-        <Metric
-          data-testid="tasks-detail-preview-counts-runs"
-          label="Runs"
-          value={runs.length}
-          tone={runs.length > 0 ? "accent" : "default"}
-        />
+        <Metric data-testid="tasks-detail-preview-counts-runs" label="Runs" value={runs.length} />
       </div>
 
       <Section
@@ -292,9 +304,9 @@ export function TasksDetailPreviewPanel({
         }
       >
         {description ? (
-          <p className="whitespace-pre-wrap text-small-body leading-relaxed text-muted">
+          <DescriptionCard data-testid="tasks-detail-preview-description">
             {description}
-          </p>
+          </DescriptionCard>
         ) : (
           <p className="text-small-body italic text-subtle">
             No description provided yet. Open the full detail view to inspect timeline, runs, and

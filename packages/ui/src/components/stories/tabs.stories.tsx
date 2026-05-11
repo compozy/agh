@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../tabs";
 
 const meta: Meta<typeof Tabs> = {
@@ -11,7 +10,7 @@ const meta: Meta<typeof Tabs> = {
     docs: {
       description: {
         component:
-          "Tabbed content switcher with two variants — `line` (canonical content tabs, 1.5px `--fg-strong` underline) and `lane` (page-head filter row with `·` separators and bare mono counts). The deprecated chipped `default` variant is removed; segmented-control surfaces use `<PillGroup>` instead.",
+          "Page-head filter row. Triggers are separated by a `·` glyph; counts render inline as bare 10.5px mono `--faint` (no chip). Segmented-control surfaces use `<PillGroup>` instead.",
       },
     },
   },
@@ -24,108 +23,33 @@ const panels = [
   {
     value: "events",
     label: "Events",
-    title: "Session events",
     body: "Append-only ACP event stream replayed from sessiondb.",
   },
   {
     value: "metrics",
     label: "Metrics",
-    title: "Health metrics",
     body: "Latency, error rate, and token counters per driver.",
   },
   {
     value: "artifacts",
     label: "Artifacts",
-    title: "Files & snapshots",
     body: "Captured file snapshots grouped by turn.",
   },
 ] as const;
 
-export const LineDefault: Story = {
+export const Default: Story = {
   args: {},
   parameters: {
     docs: {
       description: {
         story:
-          "Default `line` variant — 1.5px `--fg-strong` underline (formerly 2px `--accent`), neutral chrome, sentence-case labels.",
-      },
-    },
-  },
-  render: () => (
-    <Tabs defaultValue={panels[0].value} className="w-md">
-      <TabsList variant="line">
-        {panels.map(panel => (
-          <TabsTrigger key={panel.value} value={panel.value}>
-            {panel.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {panels.map(panel => (
-        <TabsContent key={panel.value} value={panel.value}>
-          <Card>
-            <CardHeader>
-              <CardTitle>{panel.title}</CardTitle>
-              <CardDescription>{panel.body}</CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Switch tabs to inspect each slice of the session.
-            </CardContent>
-          </Card>
-        </TabsContent>
-      ))}
-    </Tabs>
-  ),
-};
-
-export const LineWithCounts: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "`line` variant with count chips — inactive chip is neutral `--canvas-tint`/`--muted`; the active count switches to a 0.07 white glaze on `--fg` (no accent fill).",
-      },
-    },
-  },
-  render: () => (
-    <Tabs defaultValue="runs" className="w-lg">
-      <TabsList variant="line">
-        <TabsTrigger count={6} value="children">
-          Children
-        </TabsTrigger>
-        <TabsTrigger count={2} value="dependencies">
-          Dependencies
-        </TabsTrigger>
-        <TabsTrigger count={1} liveLabel="Live" value="runs">
-          Runs
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="children" className="pt-3">
-        <p className="text-sm text-muted-foreground">Six child tasks reference this parent.</p>
-      </TabsContent>
-      <TabsContent value="dependencies" className="pt-3">
-        <p className="text-sm text-muted-foreground">Two dependencies gate execution.</p>
-      </TabsContent>
-      <TabsContent value="runs" className="pt-3">
-        <p className="text-sm text-muted-foreground">One active run is streaming status updates.</p>
-      </TabsContent>
-    </Tabs>
-  ),
-};
-
-export const LaneDefault: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "`lane` variant — page-head filter row introduced by Triggers separated by a `·` glyph; counts render inline as bare 10.5px mono `--faint` (no chip).",
+          "Default lane row — Triggers separated by `·`; counts render inline as bare 10.5px mono `--faint` (no chip).",
       },
     },
   },
   render: () => (
     <Tabs defaultValue="all" className="w-xl">
-      <TabsList variant="lane">
+      <TabsList>
         <TabsTrigger count={42} value="all">
           All
         </TabsTrigger>
@@ -155,18 +79,18 @@ export const LaneDefault: Story = {
   ),
 };
 
-export const LaneWithoutCounts: Story = {
+export const WithoutCounts: Story = {
   args: {},
   parameters: {
     docs: {
       description: {
-        story: "`lane` variant without counts — separator + active underline still apply.",
+        story: "Lane row without counts — separator + active underline still apply.",
       },
     },
   },
   render: () => (
     <Tabs defaultValue="overview" className="w-xl">
-      <TabsList variant="lane">
+      <TabsList>
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="usage">Usage</TabsTrigger>
         <TabsTrigger value="audit">Audit log</TabsTrigger>
@@ -200,7 +124,7 @@ export const Vertical: Story = {
       orientation="vertical"
       className="w-lg flex-row items-start gap-4"
     >
-      <TabsList variant="line">
+      <TabsList>
         {panels.map(panel => (
           <TabsTrigger key={panel.value} value={panel.value}>
             {panel.label}

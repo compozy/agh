@@ -9,7 +9,8 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
   /**
    * Inbox group this row belongs to. Drives the rail tone —
    * `needs_review` paints warning, `blocked` paints danger, `stuck` paints
-   * warning ring, `mentions` paints accent, `updates` paints faint.
+   * warning ring, `mentions` paints `fg-strong` (operator attention), `updates`
+   * paints a faint ring.
    */
   group: InboxGroupId;
   unread?: boolean;
@@ -25,20 +26,17 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
 }
 
 /**
- * Inbox row primitive — 3-column grid `[ rail | body | meta ]`.
- * The rail is painted by the row's group tone (not `border-l-2`); body holds
- * the top + detail content; the meta column carries optional right-aligned
- * actions or meta.
- *
- * Unread state is expressed through the body's title weight (handled by the
- * consumer); the rail tone is owned by the group, not the unread flag.
+ * Inbox row primitive — 3-column grid `[ rail | body | meta ]`. The rail
+ * carries the group tone (signal palette only — `mentions` uses `fg-strong`,
+ * never `accent`, so the per-viewport accent budget stays with the active
+ * CTA). Unread state is expressed via the body's title weight.
  */
 const RAIL_CLASS: Record<InboxGroupId, string> = {
   needs_review: "bg-warning",
   blocked: "bg-danger",
   stuck: "bg-transparent shadow-[inset_0_0_0_1px_var(--warning)]",
-  mentions: "bg-accent",
-  updates: "bg-transparent shadow-[inset_0_0_0_1px_var(--faint)]",
+  mentions: "bg-fg-strong",
+  updates: "bg-transparent shadow-[inset_0_0_0_1px_var(--line-strong)]",
 };
 
 function TasksInboxRow({
@@ -68,7 +66,6 @@ function TasksInboxRow({
 
   return (
     <div
-      aria-pressed={clickable ? unread : undefined}
       data-slot="tasks-inbox-row"
       data-group={group}
       data-testid={`tasks-inbox-item-${taskId}`}
@@ -78,10 +75,10 @@ function TasksInboxRow({
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "grid min-h-[44px] items-stretch gap-[12px] border-b border-line-soft py-3 pr-[14px] text-left transition-colors duration-base ease-out",
+        "grid min-h-[44px] items-stretch gap-3 border-b border-line-soft py-2.5 pr-3.5 text-left transition-colors duration-base ease-out",
         trailing ? "grid-cols-[3px_minmax(0,1fr)_auto]" : "grid-cols-[3px_minmax(0,1fr)]",
         clickable &&
-          "cursor-pointer hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
+          "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
         className
       )}
       {...props}
@@ -89,19 +86,16 @@ function TasksInboxRow({
       <span
         aria-hidden="true"
         data-slot="tasks-inbox-row-rail"
-        className={cn("self-stretch rounded-r-[1px]", RAIL_CLASS[group])}
+        className={cn("self-stretch rounded-r-xs", RAIL_CLASS[group])}
       />
 
-      <div className="flex min-w-0 flex-col gap-[5px] pl-[8px]" data-slot="tasks-inbox-row-main">
-        <div
-          className="flex min-w-0 flex-wrap items-center gap-[9px]"
-          data-slot="tasks-inbox-row-top"
-        >
+      <div className="flex min-w-0 flex-col gap-1 pl-2" data-slot="tasks-inbox-row-main">
+        <div className="flex min-w-0 flex-wrap items-center gap-2" data-slot="tasks-inbox-row-top">
           {top}
         </div>
         {detail !== undefined ? (
           <div
-            className="flex min-w-0 flex-col gap-1 text-[11.5px] tracking-eyebrow text-muted"
+            className="flex min-w-0 flex-col gap-1 text-small-body text-muted"
             data-slot="tasks-inbox-row-detail"
           >
             {detail}
@@ -111,7 +105,7 @@ function TasksInboxRow({
 
       {trailing ? (
         <div
-          className="flex shrink-0 items-center gap-2"
+          className="flex shrink-0 items-center gap-1.5"
           data-slot="tasks-inbox-row-meta"
           data-testid={`tasks-inbox-item-actions-${taskId}`}
           onClick={stopPropagation}

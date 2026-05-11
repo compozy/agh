@@ -93,14 +93,7 @@ export {
   SheetTrigger,
 } from "./components/sheet";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
-export {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  tabsListVariants,
-  type TabsTriggerProps,
-} from "./components/tabs";
+export { Tabs, TabsContent, TabsList, TabsTrigger, type TabsTriggerProps } from "./components/tabs";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {
   Select,

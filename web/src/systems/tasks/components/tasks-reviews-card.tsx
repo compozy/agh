@@ -3,6 +3,7 @@ import { AlertCircle, Gavel } from "lucide-react";
 import {
   BlockLoading,
   Empty,
+  MonoId,
   Pill,
   Section,
   Table,
@@ -150,12 +151,12 @@ export function TasksReviewsCard({
             return (
               <TableRow data-testid={`${testIdPrefix}-${review.review_id}`} key={review.review_id}>
                 <TableCell className="max-w-[320px]">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <Pill mono>{review.review_id}</Pill>
-                    <span className="font-mono text-eyebrow text-subtle">run {review.run_id}</span>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <MonoId value={review.review_id} />
+                    <span className="font-mono text-[10.5px] text-faint">run {review.run_id}</span>
                     {review.reason ? (
                       <p
-                        className="line-clamp-2 text-xs text-muted"
+                        className="line-clamp-2 text-[12px] leading-relaxed text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-reason`}
                       >
                         {review.reason}
@@ -163,7 +164,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {review.next_round_guidance ? (
                       <p
-                        className="line-clamp-3 rounded border border-line bg-canvas-soft px-2 py-1 text-eyebrow text-muted"
+                        className="line-clamp-3 rounded-md bg-input-fill px-2 py-1.5 text-[11.5px] leading-relaxed text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-guidance`}
                       >
                         {review.next_round_guidance}
@@ -171,7 +172,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {missingWorkCount > 0 ? (
                       <span
-                        className="text-badge text-warning"
+                        className="text-[11px] text-warning"
                         data-testid={`${testIdPrefix}-${review.review_id}-missing-work`}
                       >
                         Missing work · {missingWorkCount}
@@ -188,7 +189,7 @@ export function TasksReviewsCard({
                       {status}
                     </Pill>
                   ) : (
-                    <span className="font-mono text-eyebrow text-subtle">--</span>
+                    <span className="text-[12px] text-faint">--</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -201,29 +202,39 @@ export function TasksReviewsCard({
                     </Pill>
                   ) : (
                     <span
-                      className="font-mono text-eyebrow text-subtle"
+                      className="text-[12px] text-faint"
                       data-testid={`${testIdPrefix}-${review.review_id}-outcome-pending`}
                     >
                       pending
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-muted">
-                  {review.reviewer_agent_name ?? "--"}
-                  {review.reviewer_session_id ? (
-                    <span className="ml-2 text-badge text-subtle">
-                      session {review.reviewer_session_id}
+                <TableCell>
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-[12px] text-fg">
+                      {review.reviewer_agent_name ?? "--"}
                     </span>
-                  ) : null}
+                    {review.reviewer_session_id ? (
+                      <span className="font-mono text-[10.5px] text-faint">
+                        session {review.reviewer_session_id}
+                      </span>
+                    ) : null}
+                  </div>
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-muted">
-                  round {review.review_round} · attempt {review.attempt}
+                <TableCell>
+                  <span className="font-mono text-[11px] tabular-nums text-muted">
+                    round {review.review_round} · attempt {review.attempt}
+                  </span>
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-subtle">
-                  {formatRelativeTime(review.requested_at)}
+                <TableCell>
+                  <span className="text-[12px] text-faint">
+                    {formatRelativeTime(review.requested_at)}
+                  </span>
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-subtle">
-                  {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
+                <TableCell>
+                  <span className="text-[12px] text-faint">
+                    {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
+                  </span>
                 </TableCell>
               </TableRow>
             );

@@ -132,8 +132,9 @@ function computeElapsed(startedAt?: string | null, endedAt?: string | null): str
 
 /**
  * Run detail timeline panel — single `<RunCard>` header + `<TimelineEvent>`
- * rows scoped to the run (per). Replaces the old
- * `MetadataList` Identity panel which duplicated `<RunCard>` data.
+ * rows scoped to the run. Live state pulses through the `<RunCard>` status
+ * pill; the timeline itself stays free of accent paint so the run-header CTA
+ * remains the single accent target per viewport.
  */
 export function TaskRunTimelinePanel({
   run,
@@ -169,7 +170,7 @@ export function TaskRunTimelinePanel({
   return (
     <section
       aria-label="Run timeline"
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-5"
       data-testid="tasks-run-detail-timeline"
     >
       <RunCard
@@ -217,11 +218,16 @@ function TimelineWithMarkers({ events, isLive }: TimelineWithMarkersProps) {
       {events.map(item => {
         const visual = visualFor(item.event_type);
         const isLiveEvent = isLive && LIVE_EVENT_TYPES.has(item.event_type);
-        const tone: PillTone = isLiveEvent ? "accent" : visual.tone;
         const isFailure = FAILURE_EVENT_TYPES.has(item.event_type);
         const isSuccess = SUCCESS_EVENT_TYPES.has(item.event_type);
+        const tone: PillTone = isFailure
+          ? "danger"
+          : isSuccess
+            ? "success"
+            : isLiveEvent
+              ? "info"
+              : visual.tone;
         const titleClass = cn(
-          "font-mono tracking-eyebrow",
           isFailure ? "text-danger" : isSuccess ? "text-success" : "text-fg-strong"
         );
         return (
@@ -233,14 +239,22 @@ function TimelineWithMarkers({ events, isLive }: TimelineWithMarkersProps) {
             meta={
               item.run ? (
                 <>
-                  <Pill mono>seq {item.sequence}</Pill>
-                  <span aria-hidden>·</span>
+                  <Pill mono size="xs">
+                    seq {item.sequence}
+                  </Pill>
+                  <span aria-hidden className="text-faint">
+                    ·
+                  </span>
                   <span className="tabular-nums">attempt {item.run.attempt}</span>
-                  <span aria-hidden>·</span>
+                  <span aria-hidden className="text-faint">
+                    ·
+                  </span>
                   <span>{taskRunStatusLabel(item.run.status)}</span>
                 </>
               ) : (
-                <Pill mono>seq {item.sequence}</Pill>
+                <Pill mono size="xs">
+                  seq {item.sequence}
+                </Pill>
               )
             }
             time={item.timestamp ? <Time iso={item.timestamp} mode="relative" /> : undefined}

@@ -1,7 +1,6 @@
 "use client";
 
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
-import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
@@ -18,33 +17,14 @@ function Tabs({ className, orientation = "horizontal", ...props }: TabsPrimitive
   );
 }
 
-const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-none p-0 text-muted group-data-horizontal/tabs:h-[26px] group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col",
-  {
-    variants: {
-      variant: {
-        line: "gap-1 bg-transparent border-b border-line",
-        lane: "gap-0 bg-transparent border-b border-line",
-      },
-    },
-    defaultVariants: {
-      variant: "line",
-    },
-  }
-);
-
-export type TabsVariant = NonNullable<VariantProps<typeof tabsListVariants>["variant"]>;
-
-function TabsList({
-  className,
-  variant = "line",
-  ...props
-}: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
+function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      className={cn(
+        "group/tabs-list inline-flex w-fit items-center justify-center gap-0 rounded-none border-b border-line bg-transparent p-0 text-muted group-data-horizontal/tabs:h-[26px] group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col",
+        className
+      )}
       {...props}
     />
   );
@@ -60,12 +40,9 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-sm border border-transparent px-2 py-0.5 text-[13px] font-medium whitespace-nowrap text-muted transition-colors duration-base ease-out group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-fg focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:hover:text-fg",
-        "group-data-[variant=line]/tabs-list:data-active:bg-transparent group-data-[variant=line]/tabs-list:data-active:text-fg-strong group-data-[variant=line]/tabs-list:data-active:shadow-none",
-        "group-data-[variant=lane]/tabs-list:bg-transparent group-data-[variant=lane]/tabs-list:gap-1.5 group-data-[variant=lane]/tabs-list:tracking-[-0.006em] group-data-[variant=lane]/tabs-list:text-[12.5px] group-data-[variant=lane]/tabs-list:font-medium group-data-[variant=lane]/tabs-list:hover:text-fg-strong",
-        "group-data-[variant=lane]/tabs-list:data-active:bg-transparent group-data-[variant=lane]/tabs-list:data-active:text-fg-strong group-data-[variant=lane]/tabs-list:data-active:font-[510] group-data-[variant=lane]/tabs-list:data-active:shadow-none",
-        "group-data-[variant=lane]/tabs-list:not-first:before:content-['·'] group-data-[variant=lane]/tabs-list:not-first:before:text-faint group-data-[variant=lane]/tabs-list:not-first:before:opacity-50 group-data-[variant=lane]/tabs-list:not-first:before:px-1.5 group-data-[variant=lane]/tabs-list:not-first:before:select-none",
+        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 py-0.5 text-[12.5px] font-medium tracking-[-0.006em] whitespace-nowrap text-muted transition-colors duration-base ease-out group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-active:bg-transparent data-active:font-[510] data-active:text-fg-strong data-active:shadow-none",
+        "not-first:before:content-['·'] not-first:before:px-1.5 not-first:before:text-faint not-first:before:opacity-50 not-first:before:select-none",
         "after:absolute after:bg-fg-strong after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-2 group-data-horizontal/tabs:after:bottom-[-1.5px] group-data-horizontal/tabs:after:h-[1.5px] group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-[1.5px] data-active:after:opacity-100",
         className
       )}
@@ -77,13 +54,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       {typeof count === "number" ? (
         <span
           data-slot="tabs-trigger-count"
-          className={cn(
-            "inline-flex items-center justify-center font-mono tabular-nums",
-            "group-data-[variant=line]/tabs-list:h-3.5 group-data-[variant=line]/tabs-list:min-w-3.5 group-data-[variant=line]/tabs-list:rounded-full group-data-[variant=line]/tabs-list:bg-canvas-tint group-data-[variant=line]/tabs-list:px-(--space-pill-group-badge-x) group-data-[variant=line]/tabs-list:text-pill-group-badge group-data-[variant=line]/tabs-list:font-medium group-data-[variant=line]/tabs-list:text-muted",
-            "group-data-[variant=line]/tabs-list:group-data-[active=true]:bg-btn-default-hover group-data-[variant=line]/tabs-list:group-data-[active=true]:text-fg",
-            "group-data-[variant=lane]/tabs-list:bg-transparent group-data-[variant=lane]/tabs-list:px-0 group-data-[variant=lane]/tabs-list:text-[10.5px] group-data-[variant=lane]/tabs-list:font-medium group-data-[variant=lane]/tabs-list:tracking-[0] group-data-[variant=lane]/tabs-list:text-faint",
-            "group-data-[variant=lane]/tabs-list:group-data-[active=true]:text-muted"
-          )}
+          className="inline-flex items-center justify-center bg-transparent px-0 font-mono text-[10.5px] font-medium tracking-[0] tabular-nums text-faint group-data-[active=true]:text-muted"
         >
           {count}
         </span>
@@ -112,4 +83,4 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   );
 }
 
-export { Tabs, TabsContent, TabsList, tabsListVariants, TabsTrigger };
+export { Tabs, TabsContent, TabsList, TabsTrigger };

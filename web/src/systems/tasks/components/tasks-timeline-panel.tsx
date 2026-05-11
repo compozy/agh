@@ -1,9 +1,10 @@
 import { Activity, AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { BlockLoading, Button, Empty, Pill, PillGroup, Section } from "@agh/ui";
+import { BlockLoading, Button, Empty, Eyebrow, Pill, PillGroup, Section, Time } from "@agh/ui";
 import type { PillGroupItem } from "@agh/ui";
 
+import { cn } from "@/lib/utils";
 import { taskStatusSignal } from "../lib/task-formatters";
 import type { TaskRunStatus, TaskTimelineItem } from "../types";
 
@@ -33,17 +34,6 @@ function isFailureEvent(eventType: string): boolean {
 
 function isLiveEvent(eventType: string): boolean {
   return LIVE_EVENT_TYPES.has(eventType);
-}
-
-function formatTime(value?: string | null): string {
-  if (!value) return "";
-  const ts = Date.parse(value);
-  if (Number.isNaN(ts)) return "";
-  const date = new Date(ts);
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${hours}:${minutes}:${seconds}`;
 }
 
 function describeEvent(item: TaskTimelineItem): string {
@@ -152,11 +142,11 @@ function groupByEventType(items: TaskTimelineItem[]): TimelineGroup[] {
 }
 
 /**
- * Events panel -- interleaved by default, with a compact view-mode toggle that
- * switches to per-agent or per-event-type groupings of the same data. Each row
- * carries a `StatusDot` whose tone follows the event kind (failure → danger,
- * live → accent, otherwise neutral) and the load-more button paginates the
- * underlying cursor.
+ * Task events panel — interleaved by default, with a compact view-mode toggle
+ * that switches to per-agent or per-event-type groupings of the same data.
+ * Each row carries a `Pill.Dot` tone that follows the event kind (failure →
+ * danger, live → info, otherwise neutral). Live state pulses the dot — never
+ * paints accent — so the page-level CTA keeps the single accent target.
  */
 export function TasksTimelinePanel({
   items,
@@ -213,7 +203,7 @@ export function TasksTimelinePanel({
       className="w-full gap-6 px-6 py-5"
       data-testid="tasks-timeline-panel"
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between gap-3">
           <PillGroup<TasksTimelineViewMode>
             aria-label="Timeline view mode"
@@ -225,11 +215,11 @@ export function TasksTimelinePanel({
           />
           {isLive ? (
             <span
-              className="inline-flex items-center gap-1 text-badge text-accent"
+              className="inline-flex items-center gap-1.5 text-[11px] text-info"
               data-testid="tasks-timeline-live"
             >
-              <Pill.Dot tone="accent" pulse />
-              Live
+              <Pill.Dot tone="info" pulse />
+              <span className="eyebrow text-info">Live</span>
             </span>
           ) : null}
         </div>
@@ -237,7 +227,7 @@ export function TasksTimelinePanel({
         {viewMode === "interleaved" ? (
           <InterleavedEventList isLive={isLive} items={items} />
         ) : (
-          <div className="flex flex-col gap-5" data-testid="tasks-timeline-groups">
+          <div className="flex flex-col gap-6" data-testid="tasks-timeline-groups">
             {groups.map(group => (
               <section
                 className="flex flex-col gap-3"
@@ -245,8 +235,10 @@ export function TasksTimelinePanel({
                 key={group.key}
               >
                 <header className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-eyebrow font-medium text-muted">{group.label}</h3>
-                  <span className="font-mono text-eyebrow text-subtle">({group.items.length})</span>
+                  <Eyebrow className="truncate text-muted">{group.label}</Eyebrow>
+                  <span className="font-mono text-[10.5px] tabular-nums text-faint">
+                    {group.items.length}
+                  </span>
                 </header>
                 <InterleavedEventList isLive={isLive} items={group.items} />
               </section>
@@ -261,7 +253,7 @@ export function TasksTimelinePanel({
               onClick={onLoadMore}
               size="sm"
               type="button"
-              variant="outline"
+              variant="neutral"
             >
               Load more
             </Button>
@@ -279,61 +271,78 @@ interface InterleavedEventListProps {
 
 function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
   return (
-    <ol className="flex flex-col gap-4">
+    <ol className="flex flex-col gap-3" data-testid="tasks-timeline-interleaved">
       {items.map(item => {
         const isFailure = isFailureEvent(item.event_type);
         const isRunning = isLive && isLiveEvent(item.event_type);
-        const tone = isFailure ? "danger" : isRunning ? "accent" : "neutral";
         const signalTone = isFailure
           ? "danger"
           : item.run
             ? taskStatusSignal(item.run.status).tone
-            : tone;
-        const pulse = isRunning;
-        const timestamp = formatTime(item.timestamp);
+            : "neutral";
 
         return (
-          <div
-            className="relative flex gap-3"
+          <li
+            className="grid grid-cols-[auto_1fr_auto] items-start gap-3"
             data-testid={`tasks-timeline-item-${item.event_id}`}
             key={item.event_id}
           >
-            <div className="mt-1">
-              <Pill.Dot pulse={pulse} tone={signalTone} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 text-badge text-muted">
+            <span className="mt-1.5 inline-flex shrink-0">
+              <Pill.Dot pulse={isRunning} tone={signalTone} />
+            </span>
+            <div className="min-w-0 flex-1 flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted">
                 <span
-                  className={isFailure ? "text-danger" : "text-fg"}
+                  className={cn(
+                    "font-mono tabular-nums",
+                    isFailure ? "text-danger" : "text-fg-strong"
+                  )}
                   data-testid={`tasks-timeline-event-type-${item.event_id}`}
                 >
                   {item.event_type}
                 </span>
-                <Pill mono>seq {item.sequence}</Pill>
+                <Pill mono size="xs">
+                  seq {item.sequence}
+                </Pill>
                 {item.run ? (
                   <>
-                    <span>· attempt {item.run.attempt}</span>
-                    <span>· {runStatusPill(item.run.status)}</span>
+                    <span aria-hidden className="text-faint">
+                      ·
+                    </span>
+                    <span className="tabular-nums">attempt {item.run.attempt}</span>
+                    <span aria-hidden className="text-faint">
+                      ·
+                    </span>
+                    <span>{runStatusPill(item.run.status)}</span>
                   </>
                 ) : null}
-                {item.origin?.ref ? <span>· {item.origin.ref}</span> : null}
+                {item.origin?.ref ? (
+                  <>
+                    <span aria-hidden className="text-faint">
+                      ·
+                    </span>
+                    <span>{item.origin.ref}</span>
+                  </>
+                ) : null}
               </div>
               <p
-                className={`mt-1 text-small-body ${isFailure ? "text-danger" : "text-fg"}`}
+                className={cn("mt-1 text-[12.5px]", isFailure ? "text-danger" : "text-fg")}
                 data-testid={`tasks-timeline-message-${item.event_id}`}
               >
                 {describeEvent(item)}
               </p>
             </div>
-            {timestamp ? (
-              <span
-                className="mt-1 shrink-0 font-mono text-eyebrow text-subtle"
+            {item.timestamp ? (
+              <Time
+                className="mt-1 shrink-0 font-mono text-[10.5px] tabular-nums text-subtle"
                 data-testid={`tasks-timeline-timestamp-${item.event_id}`}
-              >
-                {timestamp}
-              </span>
-            ) : null}
-          </div>
+                iso={item.timestamp}
+                mode="relative"
+              />
+            ) : (
+              <span aria-hidden />
+            )}
+          </li>
         );
       })}
     </ol>

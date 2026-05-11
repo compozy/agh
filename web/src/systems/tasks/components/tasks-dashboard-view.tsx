@@ -15,10 +15,10 @@ export interface TasksDashboardViewProps {
 }
 
 /**
- * Tasks dashboard composition + §7 — KPI strip → queue health +
- * status breakdown → active runs. The live/stale page-head pill is deferred
- *; the bottom of the view ships a static totals eyebrow only
- * (no freshness label rendered).
+ * Tasks dashboard composition: KPI strip → queue health + status breakdown
+ * → active runs → trailing totals eyebrow. Section gap is 16 px to match the
+ * runtime section rhythm; the live/stale freshness pill lives in the page-head,
+ * never inside this view.
  */
 export function TasksDashboardView({
   dashboard,
@@ -60,12 +60,12 @@ export function TasksDashboardView({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5"
       data-testid="tasks-dashboard-view"
     >
       <TasksDashboardCards dashboard={dashboard} />
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
         <TasksDashboardQueueHealth dashboard={dashboard} />
         <TasksDashboardStatusBreakdown dashboard={dashboard} />
       </div>
@@ -73,10 +73,10 @@ export function TasksDashboardView({
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
       <div
-        className="flex items-center justify-end gap-2 border-t border-line pt-3"
+        className="flex items-center justify-end gap-2 border-t border-line-soft pt-3"
         data-testid="tasks-dashboard-totals"
       >
-        <Eyebrow>
+        <Eyebrow className="text-muted">
           {dashboard.totals.tasks_total} tasks · {dashboard.totals.runs_total} runs
         </Eyebrow>
       </div>

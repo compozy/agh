@@ -16,6 +16,13 @@ export interface TasksDetailOrchestrationPanelProps {
   stream: TasksStreamResumeCardProps;
 }
 
+/**
+ * Orchestration tab — stacks the four operational cards (execution profile,
+ * reviews, bridge notifications, stream resume) with a single rhythmic gap.
+ * Each child card carries its own framing; this panel only owns vertical
+ * spacing and the outer page padding so the cards align with the rest of the
+ * task detail tabs.
+ */
 export function TasksDetailOrchestrationPanel({
   profile,
   reviews,
@@ -24,7 +31,7 @@ export function TasksDetailOrchestrationPanel({
 }: TasksDetailOrchestrationPanelProps) {
   return (
     <div
-      className="flex w-full flex-col gap-8 px-6 py-5"
+      className="flex w-full flex-col gap-6 px-6 py-5"
       data-testid="tasks-detail-orchestration-panel"
     >
       <TasksExecutionProfileCard {...profile} />

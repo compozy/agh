@@ -58,8 +58,8 @@ function getStatusHeadline(filter?: TaskStatus | null): string {
 
 /**
  * Tasks list column -- search + lane switcher + rows, consumed by the `SplitPane`
- * list slot on `/tasks`. Composes `@agh/ui` `SearchInput`, `Pills`, `Section`, and
- * `Empty`; rows come from `TaskCard` (built on the shared `TasksListRow`).
+ * list slot on `/tasks`. Composes `@agh/ui` `SearchInput`, `PillGroup`, `Section`,
+ * and `Empty`; rows come from `TaskCard` (built on the shared `TasksListRow`).
  */
 export function TasksListPanel({
   tasks,
@@ -80,7 +80,7 @@ export function TasksListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col bg-canvas" data-testid="tasks-list-panel">
-      <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
+      <div className="flex flex-col gap-2 border-b border-line-soft px-3.5 py-2.5">
         <SearchInput
           value={searchQuery}
           onChange={onSearchChange}
@@ -105,7 +105,7 @@ export function TasksListPanel({
             onClick={onCreateTask}
             size="sm"
             type="button"
-            variant="outline"
+            variant="neutral"
           >
             <Plus className="size-3.5" />
             New task
@@ -113,46 +113,51 @@ export function TasksListPanel({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between border-b border-line px-4 py-2 text-badge text-muted">
-        <span data-testid="tasks-list-headline">
+      <div
+        className="flex items-center justify-between border-b border-line-soft px-3.5 py-2"
+        data-testid="tasks-list-headline-row"
+      >
+        <span className="eyebrow text-muted" data-testid="tasks-list-headline">
           {getStatusHeadline(statusFilter)}
-          {tasks.length > 0 ? <span className="ml-2">{tasks.length}</span> : null}
         </span>
-        <span data-testid="tasks-list-total">{totalCount} total</span>
+        <span
+          className="font-mono text-[10px] tabular-nums text-faint"
+          data-testid="tasks-list-total"
+        >
+          {totalCount}
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {isLoading && isEmpty ? (
-          <div className="space-y-3 p-4" data-testid="tasks-list-loading">
+          <div className="flex flex-col" data-testid="tasks-list-loading">
             {TASK_LIST_SKELETON_IDS.map(id => (
-              <div className="rounded-xl border border-line bg-canvas-soft p-4" key={id}>
-                <Skeleton className="h-2.5 w-20 rounded-full" />
-                <Skeleton className="mt-3 h-3.5 w-3/4 rounded-full" />
-                <Skeleton className="mt-2 h-2.5 w-1/2 rounded-full" />
+              <div
+                className="flex items-center gap-3 border-b border-line-soft py-3 pr-3 pl-3.5"
+                key={id}
+              >
+                <Skeleton className="size-1.5 rounded-full" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <Skeleton className="h-3 w-3/5 rounded-xs" />
+                  <Skeleton className="h-2.5 w-2/5 rounded-xs" />
+                </div>
               </div>
             ))}
           </div>
         ) : errorMessage && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center px-6 py-10"
+          <Empty
             data-testid="tasks-list-error"
-          >
-            <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-              <AlertCircle className="size-5 text-danger" />
-              <p className="text-sm text-muted">{errorMessage}</p>
-            </div>
-          </div>
+            description={errorMessage}
+            icon={AlertCircle}
+            title="Unable to load tasks"
+          />
         ) : isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center px-4 py-8"
+          <Empty
             data-testid="tasks-list-empty"
-          >
-            <Empty
-              icon={searchQuery ? Search : ListChecks}
-              title="Nothing matches the current filters"
-              description="Adjust the search or open a new task contract from the rail."
-            />
-          </div>
+            description="Adjust the search or open a new task contract from the rail."
+            icon={searchQuery ? Search : ListChecks}
+            title="Nothing matches the current filters"
+          />
         ) : (
           <Section data-testid="tasks-list-rows" className="gap-0">
             {tasks.map(task => (

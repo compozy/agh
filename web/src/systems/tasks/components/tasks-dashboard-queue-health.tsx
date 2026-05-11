@@ -17,7 +17,7 @@ export interface TasksDashboardQueueHealthProps {
   /**
    * Optional pre-computed 24h histogram. When omitted, the chart is derived
    * from the dashboard queue snapshot; callers (Storybook, tests) can pass
-   * an explicit series. Shape matches `<QueueHealthSparkline>`
+   * an explicit series. Shape matches `<QueueHealthSparkline>`.
    */
   buckets?: QueueHealthSparklineBucket[];
 }
@@ -36,23 +36,30 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
     health.status === "ok" ? "success" : health.status === "warning" ? "warning" : "danger";
   const series = buckets ?? deriveBuckets(dashboard);
   const hasBuckets = series.some(bucket => bucket.value > 0);
+  const warningMessage = queue.backlog_warning
+    ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)}; oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
+    : stuckRuns > 0
+      ? `${stuckRuns} stuck runs detected. Investigate claimed or starting work.`
+      : `${orphanRuns} active orphan runs detected.`;
+  const hasWarning = queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0;
 
   return (
     <TasksDashboardPanel
       data-testid="tasks-dashboard-queue-health"
+      meta="24h"
       right={
         <Pill data-testid="tasks-dashboard-health-status" tone={healthTone}>
           {health.status}
         </Pill>
       }
-      title="Queue health · 24h"
+      title="Queue health"
     >
       <p className="text-[12px] text-muted">
         {totals.runs_total} runs tracked · {totals.completed_runs} completed
       </p>
 
       {hasBuckets ? (
-        <div className="mt-3 flex flex-col gap-1.5" data-testid="tasks-dashboard-queue-chart">
+        <div className="mt-4 flex flex-col gap-1.5" data-testid="tasks-dashboard-queue-chart">
           <QueueHealthSparkline
             ariaLabel="Queue depth over the last 24 hours"
             data={series}
@@ -65,7 +72,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </div>
       ) : (
         <Empty
-          className="mt-3"
+          className="mt-4"
           data-testid="tasks-dashboard-queue-chart-empty"
           description="Queue samples will appear as runs are processed."
           fill={false}
@@ -74,26 +81,21 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         />
       )}
 
-      {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
+      {hasWarning ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-xs text-fg"
+          className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-[12px] text-fg"
           data-testid="tasks-dashboard-warning"
         >
-          <AlertTriangle className="mt-px size-4 shrink-0 text-warning" />
-          <span>
-            {queue.backlog_warning
-              ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)} -- oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
-              : stuckRuns > 0
-                ? `${stuckRuns} stuck runs detected -- investigate claimed/starting work`
-                : `${orphanRuns} active orphan runs detected`}
-          </span>
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
+          <span className="min-w-0">{warningMessage}</span>
         </div>
       ) : (
         <div
-          className="mt-4 flex items-center gap-2 text-xs text-success"
+          className="mt-4 flex items-center gap-2 text-[12px] text-success"
           data-testid="tasks-dashboard-ok"
         >
-          <Check className="size-4" /> Queue is healthy.
+          <Check aria-hidden="true" className="size-3.5 shrink-0" />
+          <span>Queue is healthy.</span>
         </div>
       )}
     </TasksDashboardPanel>

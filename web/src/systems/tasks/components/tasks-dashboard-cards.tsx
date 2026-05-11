@@ -8,10 +8,9 @@ export interface TasksDashboardCardsProps {
 }
 
 /**
- * Dashboard KPI strip — four `<KpiCard>` neutrals
- * (no tone recolor, the value text always resolves to `--fg-strong`). Detail
- * lines stay informational; the live/stale page-head pill is deferred per
- * and rendered by the page-head, not here.
+ * Dashboard KPI strip — four flat `<KpiCard>` neutrals. KpiCard owns its own
+ * label / value typography contract; the value stays `--fg-strong`, never tone
+ * recolored. The freshness pill lives in the page-head, not here.
  */
 export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const { active_runs, totals, cards, queue } = dashboard;
@@ -38,7 +37,10 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       : "drained";
 
   return (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4" data-testid="tasks-dashboard-cards">
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      data-testid="tasks-dashboard-cards"
+    >
       <KpiCard
         data-testid="tasks-dashboard-card-active-runs"
         detail={activeDetail}
@@ -47,7 +49,7 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       />
       <KpiCard
         data-testid="tasks-dashboard-card-success-rate"
-        detail="24h"
+        detail="last 24h"
         label="Success rate"
         value={successRate === null ? "--" : formatPercent(successRate)}
       />

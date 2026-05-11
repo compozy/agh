@@ -150,13 +150,13 @@ export function TasksInboxView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-inbox-view">
-      <div className="border-b border-line px-4 py-2.5" data-testid="tasks-inbox-lane-tabs">
+      <div className="border-b border-line-soft px-3.5 py-2" data-testid="tasks-inbox-lane-tabs">
         <Tabs
           onValueChange={next => onLaneChange(next as InboxLaneFilterId)}
           orientation="horizontal"
           value={laneFilter}
         >
-          <TabsList className="h-8 overflow-x-auto" variant="line">
+          <TabsList className="h-8 overflow-x-auto">
             <TabsTrigger
               className="flex-none gap-1.5"
               count={allItems.length}
@@ -183,9 +183,9 @@ export function TasksInboxView({
         </Tabs>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line-soft px-3.5 py-2.5">
         <SearchInput
-          className="h-9 min-w-[220px] flex-1"
+          className="h-9 min-w-56 flex-1"
           data-testid="tasks-inbox-search"
           onChange={next => onSearchChange(next)}
           placeholder="Search inbox..."
@@ -203,9 +203,12 @@ export function TasksInboxView({
           />
           <Eyebrow className="text-muted">Unread only</Eyebrow>
         </label>
-        <Eyebrow data-testid="tasks-inbox-totals">
+        <span
+          className="font-mono text-[10px] tabular-nums text-faint"
+          data-testid="tasks-inbox-totals"
+        >
           {inbox?.unread_total ?? 0} unread · {inbox?.archived_total ?? 0} archived
-        </Eyebrow>
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -263,7 +266,7 @@ interface GroupSectionProps {
 function GroupSection({ group, items, itemActionProps }: GroupSectionProps) {
   return (
     <section className="flex flex-col gap-2" data-testid={`tasks-inbox-group-${group.id}`}>
-      <header className="flex items-baseline gap-2">
+      <header className="flex items-center gap-2">
         <StatusDot
           data-testid={`tasks-inbox-group-dot-${group.id}`}
           label={group.label}
@@ -271,7 +274,12 @@ function GroupSection({ group, items, itemActionProps }: GroupSectionProps) {
           variant={group.dotVariant}
         />
         <Eyebrow>{group.label}</Eyebrow>
-        <Eyebrow data-testid={`tasks-inbox-group-count-${group.id}`}>({items.length})</Eyebrow>
+        <span
+          className="font-mono text-[10px] tabular-nums text-faint"
+          data-testid={`tasks-inbox-group-count-${group.id}`}
+        >
+          {items.length}
+        </span>
       </header>
       <div className="flex flex-col">
         {items.map(item => (

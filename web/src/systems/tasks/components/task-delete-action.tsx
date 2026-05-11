@@ -27,7 +27,7 @@ export function TaskDeleteAction({
   isPending = false,
   size = "sm",
   triggerLabel = "Delete",
-  triggerVariant = "outline",
+  triggerVariant = "ghost",
   triggerTestId = "task-delete-trigger",
   dialogTestId = "task-delete-dialog",
   cancelTestId = "task-delete-cancel",

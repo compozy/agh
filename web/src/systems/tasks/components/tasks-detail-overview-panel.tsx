@@ -60,12 +60,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
           label="Dependencies"
           value={dependencyCount}
         />
-        <Metric
-          data-testid="tasks-detail-overview-runs"
-          label="Runs"
-          value={runs.length}
-          tone={activeRun ? "accent" : "default"}
-        />
+        <Metric data-testid="tasks-detail-overview-runs" label="Runs" value={runs.length} />
       </div>
 
       {activeRun ? (

@@ -117,7 +117,7 @@ export function TasksDetailHeader({
           <Pill
             data-testid="tasks-detail-lifecycle"
             title={taskLifecyclePhaseDescription(lifecyclePhase)}
-            tone={taskLifecyclePhaseTone(lifecyclePhase)}
+            tone={lifecyclePhase === "running" ? "info" : taskLifecyclePhaseTone(lifecyclePhase)}
           >
             {taskLifecyclePhaseLabel(lifecyclePhase)}
           </Pill>
@@ -139,7 +139,7 @@ export function TasksDetailHeader({
             </Pill>
           ) : null}
           {taskHasApprovalPending(record) ? (
-            <Pill data-testid="tasks-detail-approval" tone="accent">
+            <Pill data-testid="tasks-detail-approval" tone="warning">
               {taskApprovalStateLabel(record.approval_state)}
             </Pill>
           ) : null}
@@ -150,12 +150,6 @@ export function TasksDetailHeader({
           data-testid="tasks-detail-meta"
           className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
         >
-          <span data-testid="tasks-detail-lifecycle-hint">
-            {taskLifecyclePhaseDescription(lifecyclePhase)}
-          </span>
-          <span aria-hidden="true" className="text-faint">
-            ·
-          </span>
           <span>Owner {taskOwnerLabel(record.owner)}</span>
           <span aria-hidden="true" className="text-faint">
             ·
@@ -181,10 +175,22 @@ export function TasksDetailHeader({
           className="flex shrink-0 flex-wrap items-center gap-2"
         >
           <Link params={{ id: record.id }} to="/tasks/$id/edit">
-            <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="outline">
+            <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="neutral">
               Edit
             </Button>
           </Link>
+          {canCancel && onCancel ? (
+            <Button
+              data-testid="tasks-detail-cancel"
+              disabled={isCancelPending}
+              onClick={onCancel}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              Cancel
+            </Button>
+          ) : null}
           {onDelete ? (
             <TaskDeleteAction
               taskId={record.id}
@@ -196,18 +202,6 @@ export function TasksDetailHeader({
               cancelTestId="tasks-detail-delete-cancel"
               confirmTestId="tasks-detail-delete-confirm"
             />
-          ) : null}
-          {canCancel && onCancel ? (
-            <Button
-              data-testid="tasks-detail-cancel"
-              disabled={isCancelPending}
-              onClick={onCancel}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
           ) : null}
           {isDraft && onPublish ? (
             <Button

@@ -8,13 +8,20 @@ export interface TasksDashboardStatusBreakdownProps {
   dashboard: TaskDashboardView;
 }
 
-const TONE_BAR_COLOR: Record<PillTone, string> = {
-  neutral: "var(--neutral)",
-  accent: "var(--accent)",
-  success: "var(--success)",
-  warning: "var(--warning)",
-  danger: "var(--danger)",
-  info: "var(--info)",
+// Tone tokens are exposed via Tailwind `--color-*` namespace only; raw
+// `var(--success)` etc. do not resolve on `:root`, which breaks the default
+// inline color path inside `<Pill.Dot>` (and every consumer that resolves a
+// signal hex via `var(--token)`). The map below paints both the dot (passed
+// as the `color` override) and the progress fill from the `--color-*` ladder.
+// TODO(escalate): the `<Pill.Dot>` primitive itself should resolve via
+// `--color-*` so callers stop having to thread `color=`.
+const TONE_COLOR_VAR: Record<PillTone, string> = {
+  neutral: "var(--color-neutral)",
+  accent: "var(--color-accent)",
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  info: "var(--color-info)",
 };
 
 export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatusBreakdownProps) {
@@ -38,55 +45,51 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
           No task activity yet.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {entries.map(entry => {
             const tone = taskStatusTone(entry.status);
-            const sharePct = entry.share_percent ?? 0;
-            const barColor = TONE_BAR_COLOR[tone];
+            const sharePct = Math.max(0, Math.min(100, entry.share_percent ?? 0));
+            const toneColor = TONE_COLOR_VAR[tone];
             return (
               <li
-                className="grid grid-cols-[12px_1fr_36px] items-center gap-2 text-[12px]"
+                className="flex flex-col gap-1.5"
                 data-testid={`tasks-dashboard-status-row-${entry.status}`}
                 key={entry.status}
               >
-                <span className="flex shrink-0 items-center justify-center">
-                  <Pill.Dot tone={tone} />
-                </span>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex min-w-0 items-baseline justify-between gap-2">
-                    <span
-                      className="min-w-0 truncate text-[12px] font-medium tracking-eyebrow text-fg"
-                      data-testid={`tasks-dashboard-status-label-${entry.status}`}
-                    >
-                      {taskStatusLabel(entry.status)}
-                    </span>
-                    <span
-                      className="shrink-0 font-mono text-[10.5px] tabular-nums text-faint"
-                      data-testid={`tasks-dashboard-status-count-${entry.status}`}
-                    >
-                      {entry.count}
-                    </span>
-                  </div>
-                  <div
-                    aria-hidden="true"
-                    className="h-[3px] overflow-hidden rounded-[2px] bg-surface-glaze"
+                <div className="flex min-w-0 items-center gap-2 text-[12px]">
+                  <Pill.Dot color={toneColor} size="sm" />
+                  <span
+                    className="min-w-0 flex-1 truncate font-medium text-fg"
+                    data-testid={`tasks-dashboard-status-label-${entry.status}`}
                   >
-                    <div
-                      className="h-full rounded-[2px] opacity-85"
-                      data-testid={`tasks-dashboard-status-bar-${entry.status}`}
-                      style={{
-                        backgroundColor: barColor,
-                        width: `${Math.max(0, Math.min(100, sharePct))}%`,
-                      }}
-                    />
-                  </div>
+                    {taskStatusLabel(entry.status)}
+                  </span>
+                  <span
+                    className="shrink-0 font-mono text-mono-id tabular-nums text-faint"
+                    data-testid={`tasks-dashboard-status-count-${entry.status}`}
+                  >
+                    {entry.count}
+                  </span>
+                  <span
+                    className="w-12 shrink-0 text-right font-mono text-[11px] font-medium tabular-nums text-muted"
+                    data-testid={`tasks-dashboard-status-share-${entry.status}`}
+                  >
+                    {formatPercent(sharePct)}
+                  </span>
                 </div>
-                <span
-                  className="text-right font-mono text-[11px] font-medium tabular-nums text-muted"
-                  data-testid={`tasks-dashboard-status-share-${entry.status}`}
+                <div
+                  aria-hidden="true"
+                  className="ml-4 h-1 overflow-hidden rounded-xs bg-surface-glaze"
                 >
-                  {formatPercent(sharePct)}
-                </span>
+                  <div
+                    className="h-full rounded-xs"
+                    data-testid={`tasks-dashboard-status-bar-${entry.status}`}
+                    style={{
+                      backgroundColor: toneColor,
+                      width: `${sharePct}%`,
+                    }}
+                  />
+                </div>
               </li>
             );
           })}

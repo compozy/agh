@@ -1,4 +1,4 @@
-import { Globe, ListChecks, Plus, RefreshCcw, UserCheck, Zap } from "lucide-react";
+import { Copy, Globe, ListChecks, Plus, RefreshCcw, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Empty, Eyebrow } from "@agh/ui";
@@ -21,10 +21,10 @@ interface TemplateSlot {
  * surfaces a curated four that match the proposal reference.
  */
 const TEMPLATE_SLOTS: TemplateSlot[] = [
-  { id: "one_shot", tone: "accent", icon: <Zap className="size-4" /> },
-  { id: "recurring", tone: "info", icon: <RefreshCcw className="size-4" /> },
-  { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-4" /> },
-  { id: "remote_peer", tone: "neutral", icon: <Globe className="size-4" /> },
+  { id: "one_shot", tone: "accent", icon: <Zap className="size-3.5" /> },
+  { id: "recurring", tone: "info", icon: <RefreshCcw className="size-3.5" /> },
+  { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-3.5" /> },
+  { id: "remote_peer", tone: "neutral", icon: <Globe className="size-3.5" /> },
 ];
 
 const TONE_CLASS: Record<TasksEmptyStateTone, string> = {
@@ -53,8 +53,11 @@ export function TasksEmptyState({
   const headline = workspaceName ? `No tasks yet in ${workspaceName}` : "No tasks yet";
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-y-auto px-6 py-8" data-testid="tasks-empty-state">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+    <div
+      className="flex min-h-0 flex-1 overflow-y-auto px-6 pt-16 pb-10"
+      data-testid="tasks-empty-state"
+    >
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-10">
         <Empty
           action={
             <>
@@ -64,7 +67,7 @@ export function TasksEmptyState({
                 size="lg"
                 type="button"
               >
-                <Plus className="size-4" />
+                <Plus className="size-3.5" />
                 New task
               </Button>
               {onCopyCli ? (
@@ -73,24 +76,26 @@ export function TasksEmptyState({
                   onClick={onCopyCli}
                   size="lg"
                   type="button"
-                  variant="outline"
+                  variant="neutral"
                 >
-                  Copy CLI command
+                  <Copy className="size-3.5" />
+                  <span className="font-mono text-[11px] text-fg-strong">agh tasks new</span>
                 </Button>
               ) : null}
             </>
           }
           description="Tasks are durable contracts of work. Each one can spawn runs across agents, respect dependencies, and live in workspace or global scope. Start from a template and keep the operational context visible as the queue grows."
+          fill={false}
           icon={ListChecks}
           title={headline}
         />
 
-        <section data-testid="tasks-empty-templates" className="flex flex-col gap-4">
+        <section data-testid="tasks-empty-templates" className="flex flex-col gap-3">
           <header className="flex items-baseline justify-between gap-2">
             <Eyebrow data-testid="tasks-empty-templates-eyebrow">Start from a template</Eyebrow>
-            <Eyebrow className="text-muted">{TEMPLATE_SLOTS.length} templates</Eyebrow>
+            <Eyebrow className="text-faint">{TEMPLATE_SLOTS.length} templates</Eyebrow>
           </header>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {TEMPLATE_SLOTS.map(slot => (
               <TemplateCard
                 key={slot.id}
@@ -116,7 +121,7 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
   return (
     <button
       className={cn(
-        "flex h-full min-h-[156px] flex-col gap-3 rounded-lg bg-canvas-soft p-5 text-left transition-colors duration-base ease-out",
+        "flex h-full flex-col gap-3 rounded-lg bg-canvas-soft p-4 text-left transition-colors duration-base ease-out",
         "hover:bg-elevated focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)]"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
@@ -126,11 +131,11 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
     >
       <span
         aria-hidden="true"
-        className={cn("flex size-7 items-center justify-center rounded-md", TONE_CLASS[slot.tone])}
+        className={cn("flex size-6 items-center justify-center rounded", TONE_CLASS[slot.tone])}
       >
         {slot.icon}
       </span>
-      <span className="text-[13px] font-medium tracking-modal-title text-fg-strong">
+      <span className="text-(length:--text-section-head) font-[510] tracking-section-head text-fg-strong">
         {template.label}
       </span>
       <p className="text-[12px] leading-relaxed text-muted">{template.description}</p>

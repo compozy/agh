@@ -6,7 +6,6 @@ import {
   Layers,
   ListChecks,
   Network,
-  Plus,
   Sparkles,
   UserCheck,
   type LucideIcon,
@@ -17,11 +16,13 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  Eyebrow,
   Field,
   FieldDescription,
   FieldLabel,
   FormSection,
   Input,
+  MonoId,
   NativeSelect,
   NativeSelectOption,
   PillGroup,
@@ -206,7 +207,7 @@ export function TaskEditorModal({
       >
         <header
           data-slot="task-editor-modal-head"
-          className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-[13px]"
+          className="flex items-center justify-between gap-3 border-b border-line bg-canvas-soft px-[18px] py-[13px]"
         >
           <DialogTitle
             id={titleId}
@@ -217,26 +218,21 @@ export function TaskEditorModal({
             {title}
           </DialogTitle>
           {isNewMode && template ? (
-            <span data-testid="task-editor-modal-template-hint" className="text-[12px] text-muted">
+            <Eyebrow data-testid="task-editor-modal-template-hint" className="text-subtle">
               {template.label}
-            </span>
+            </Eyebrow>
           ) : task?.identifier ? (
-            <span
-              data-testid="task-editor-modal-task-id"
-              className="font-mono text-[12px] text-muted"
-            >
-              {task.identifier}
-            </span>
+            <MonoId data-testid="task-editor-modal-task-id" value={task.identifier} />
           ) : null}
         </header>
 
         <form
-          className="flex min-h-0 flex-col overflow-hidden"
+          className="flex min-h-0 flex-col overflow-hidden bg-canvas"
           data-testid="task-editor-modal-form"
           onSubmit={form.submitForm}
         >
           <div
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-[18px]"
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-[18px]"
             data-testid="task-editor-modal-body"
           >
             {isNewMode && templateId && onTemplateChange ? (
@@ -260,10 +256,9 @@ export function TaskEditorModal({
                   >
                     Title
                   </FieldLabel>
-                  <span className="text-eyebrow text-subtle">Required</span>
+                  <Eyebrow className="text-subtle">Required</Eyebrow>
                 </div>
                 <Input
-                  className="h-10"
                   data-testid="task-editor-title-input"
                   id="task-editor-title-input"
                   onChange={form.updateText("title")}
@@ -351,7 +346,7 @@ export function TaskEditorModal({
                     ))}
                   </NativeSelect>
                   <Input
-                    className="mt-2 h-10"
+                    className="mt-2"
                     data-testid="task-editor-owner-ref"
                     onChange={form.updateText("ownerRef")}
                     placeholder="Owner reference (e.g. coder)"
@@ -400,7 +395,6 @@ export function TaskEditorModal({
                       Parent task
                     </FieldLabel>
                     <Input
-                      className="h-10"
                       data-testid="task-editor-parent-input"
                       id="task-editor-parent-input"
                       onChange={form.updateText("parentTaskId")}
@@ -425,7 +419,6 @@ export function TaskEditorModal({
                   Network channel
                 </FieldLabel>
                 <Input
-                  className="h-10"
                   data-testid="task-editor-network-input"
                   id="task-editor-network-input"
                   onChange={form.updateText("networkChannel")}
@@ -442,7 +435,6 @@ export function TaskEditorModal({
                     Identifier override
                   </FieldLabel>
                   <Input
-                    className="h-10"
                     data-testid="task-editor-identifier-input"
                     id="task-editor-identifier-input"
                     onChange={form.updateText("identifier")}
@@ -470,7 +462,7 @@ export function TaskEditorModal({
                 data-testid="task-editor-modal-cancel"
                 onClick={handleCancel}
                 type="button"
-                variant="outline"
+                variant="ghost"
               >
                 Cancel
               </Button>
@@ -479,7 +471,7 @@ export function TaskEditorModal({
                 disabled={!canSubmit || isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? <Spinner className="size-4" /> : null}
+                {isSubmitting ? <Spinner className="size-3.5" /> : null}
                 {submitLabel}
               </Button>
             </div>
@@ -500,7 +492,6 @@ function TemplatePicker({ onSelect, templateId, workspaceName }: TemplatePickerP
   return (
     <FormSection
       data-testid="task-editor-modal-template-picker"
-      icon={Plus}
       rightLabel={workspaceName ? `Workspace · ${workspaceName}` : undefined}
       size="compact"
       title="Template"

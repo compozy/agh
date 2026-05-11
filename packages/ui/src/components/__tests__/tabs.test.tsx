@@ -4,16 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../tabs";
 
-function TabsExample({
-  orientation,
-  variant,
-}: {
-  orientation?: "horizontal" | "vertical";
-  variant?: "line" | "lane";
-}) {
+function TabsExample({ orientation }: { orientation?: "horizontal" | "vertical" }) {
   return (
     <Tabs defaultValue="one" orientation={orientation}>
-      <TabsList variant={variant}>
+      <TabsList>
         <TabsTrigger value="one">One</TabsTrigger>
         <TabsTrigger value="two">Two</TabsTrigger>
         <TabsTrigger value="three">Three</TabsTrigger>
@@ -47,22 +41,10 @@ describe("Tabs", () => {
     expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel two");
   });
 
-  it("Should default the TabsList variant to line", () => {
-    const { container } = render(<TabsExample />);
-    const list = container.querySelector("[data-slot=tabs-list]") as HTMLElement | null;
-    expect(list).toHaveAttribute("data-variant", "line");
-  });
-
-  it("Should forward the lane variant data attribute to TabsList", () => {
-    const { container } = render(<TabsExample variant="lane" />);
-    const list = container.querySelector("[data-slot=tabs-list]") as HTMLElement | null;
-    expect(list).toHaveAttribute("data-variant", "lane");
-  });
-
   it("Should render count and live label slots inside a trigger", () => {
     const { container } = render(
       <Tabs defaultValue="runs">
-        <TabsList variant="line">
+        <TabsList>
           <TabsTrigger count={3} liveLabel="Live" value="runs">
             Runs
           </TabsTrigger>
@@ -76,10 +58,10 @@ describe("Tabs", () => {
     expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
   });
 
-  it("Should render lane-variant count text from the count prop", () => {
+  it("Should render bare count text from the count prop", () => {
     const { container } = render(
       <Tabs defaultValue="lane-a">
-        <TabsList variant="lane">
+        <TabsList>
           <TabsTrigger count={4} value="lane-a">
             Lane A
           </TabsTrigger>
@@ -93,11 +75,5 @@ describe("Tabs", () => {
     );
     const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
     expect(count?.textContent).toBe("4");
-  });
-
-  it("Should reject the chipped 'default' variant at the type level", () => {
-    // @ts-expect-error — `variant="default"` is no longer part of the union.
-    const guard = <TabsList variant="default" />;
-    expect(guard).toBeTruthy();
   });
 });

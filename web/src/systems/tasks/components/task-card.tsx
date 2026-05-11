@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Pill } from "@agh/ui";
+import { MonoId, Pill } from "@agh/ui";
 
 import {
   formatAttemptLabel,
@@ -21,11 +21,12 @@ export interface TaskCardProps {
 }
 
 /**
- * Full-detail list card -- composes the shared `tasks-list-row` primitive and
- * pushes the rich task metadata into a single inline `__meta` row (proposal
- * `.task-row__meta`). Pills (priority, approval, blocked) sit in the
- * `trailing` column. Publish + retry actions live in the detail header
- * (`tasks-detail-header.tsx`), not on the row.
+ * Full-detail list card — composes the shared `tasks-list-row` primitive and
+ * pushes the rich task metadata into a single inline `__meta` row. Pills
+ * (priority, approval, blocked) sit in the `trailing` column; the parent
+ * identifier renders through `<MonoId>` so identifier styling matches every
+ * other row-context surface. Publish + retry actions belong to the detail
+ * header (`tasks-detail-header.tsx`), not the row.
  */
 export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
   const isBlocked = taskIsBlocked(task);
@@ -65,8 +66,9 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
   }
   if (task.parent_task_id) {
     metaItems.push(
-      <span className="font-mono text-[10.5px] text-faint" key="parent">
-        parent {task.parent_task_id}
+      <span className="inline-flex items-center gap-1" key="parent">
+        <span>parent</span>
+        <MonoId size="sm" value={task.parent_task_id} />
       </span>
     );
   }

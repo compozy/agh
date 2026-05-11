@@ -11,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
   Empty,
+  Eyebrow,
   Input,
   Label,
+  MonoId,
   Pill,
   Section,
   Select,
@@ -207,7 +209,7 @@ function renderTasksBridgeNotificationsCard({
           onClick={() => handleCreateOpenChange(true)}
           size="sm"
           type="button"
-          variant="outline"
+          variant="neutral"
         >
           <Plus className="size-3.5" />
           New subscription
@@ -267,89 +269,80 @@ function renderTasksBridgeNotificationsCard({
                   key={sub.subscription_id}
                 >
                   <TableCell className="max-w-[280px]">
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <Pill mono>{sub.subscription_id}</Pill>
-                      <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <MonoId value={sub.subscription_id} />
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <Pill tone="info">{sub.scope}</Pill>
                         <Pill tone="neutral">{sub.delivery_mode}</Pill>
                       </div>
-                      <span className="text-badge text-subtle">
+                      <span className="text-[10.5px] text-faint">
                         Created {formatRelativeTime(sub.created_at)}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1 text-xs">
-                      <span className="font-mono text-xs text-fg">
-                        bridge {sub.bridge_instance_id}
-                      </span>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <BridgeTargetRow label="bridge" value={sub.bridge_instance_id} primary />
                       {sub.workspace_id ? (
-                        <span className="font-mono text-eyebrow text-muted">
-                          workspace {sub.workspace_id}
-                        </span>
+                        <BridgeTargetRow label="workspace" value={sub.workspace_id} />
                       ) : null}
-                      {sub.peer_id ? (
-                        <span className="font-mono text-eyebrow text-muted">
-                          peer {sub.peer_id}
-                        </span>
-                      ) : null}
-                      {sub.group_id ? (
-                        <span className="font-mono text-eyebrow text-muted">
-                          group {sub.group_id}
-                        </span>
-                      ) : null}
+                      {sub.peer_id ? <BridgeTargetRow label="peer" value={sub.peer_id} /> : null}
+                      {sub.group_id ? <BridgeTargetRow label="group" value={sub.group_id} /> : null}
                       {sub.thread_id ? (
-                        <span className="font-mono text-eyebrow text-muted">
-                          thread {sub.thread_id}
-                        </span>
+                        <BridgeTargetRow label="thread" value={sub.thread_id} />
                       ) : null}
                     </div>
                   </TableCell>
                   <TableCell>
                     {isZeroCursor ? (
                       <span
-                        className="inline-flex items-center gap-1 text-eyebrow text-subtle"
+                        className="inline-flex items-center gap-2"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-zero`}
                       >
                         <Pill tone="neutral">zero state</Pill>
-                        seq 0
+                        <span className="font-mono text-[10.5px] text-faint">seq 0</span>
                       </span>
                     ) : (
-                      <div className="flex flex-col gap-0.5 font-mono text-eyebrow text-fg">
+                      <div className="flex flex-col gap-1">
                         <span
+                          className="font-mono text-[10.5px] text-fg tabular-nums"
                           data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-seq`}
                         >
                           seq {formatLastSequence(cursor?.last_sequence)}
                         </span>
                         {cursor?.last_delivery_id ? (
-                          <span className="text-badge text-subtle">
+                          <span className="font-mono text-[10px] text-faint">
                             delivery {cursor.last_delivery_id}
                           </span>
                         ) : null}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-eyebrow text-subtle">
-                    {cursor?.last_delivered_at
-                      ? formatRelativeTime(cursor.last_delivered_at)
-                      : "--"}
-                    {cursor?.updated_at ? (
-                      <span className="block text-badge">
-                        updated {formatRelativeTime(cursor.updated_at)}
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[12px] text-fg">
+                        {cursor?.last_delivered_at
+                          ? formatRelativeTime(cursor.last_delivered_at)
+                          : "--"}
                       </span>
-                    ) : null}
+                      {cursor?.updated_at ? (
+                        <span className="text-[10.5px] text-faint">
+                          updated {formatRelativeTime(cursor.updated_at)}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
-                  <TableCell className="max-w-[220px] text-xs">
+                  <TableCell className="max-w-[220px]">
                     {cursor?.last_error ? (
                       <span
-                        className="inline-flex items-center gap-1 text-warning"
+                        className="inline-flex items-start gap-1.5 text-[12px] text-warning"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-error`}
                       >
-                        <TriangleAlert className="size-3.5" />
-                        {cursor.last_error}
+                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                        <span className="min-w-0 truncate">{cursor.last_error}</span>
                       </span>
                     ) : (
-                      <span className="font-mono text-eyebrow text-subtle">--</span>
+                      <span className="text-[12px] text-faint">--</span>
                     )}
                   </TableCell>
                   <TableCell className="w-8 pr-4">
@@ -564,7 +557,10 @@ function renderTasksBridgeNotificationsCard({
             </DialogDescription>
           </DialogHeader>
           {deleteTarget ? (
-            <p className="font-mono text-xs text-muted">{deleteTarget.subscription_id}</p>
+            <div className="flex items-center gap-2">
+              <Eyebrow className="text-faint">Subscription</Eyebrow>
+              <MonoId value={deleteTarget.subscription_id} />
+            </div>
           ) : null}
           <DialogFooter className="gap-2">
             <Button
@@ -590,5 +586,22 @@ function renderTasksBridgeNotificationsCard({
         </DialogContent>
       </Dialog>
     </Section>
+  );
+}
+
+interface BridgeTargetRowProps {
+  label: string;
+  value: string;
+  primary?: boolean;
+}
+
+function BridgeTargetRow({ label, value, primary = false }: BridgeTargetRowProps) {
+  return (
+    <span className="inline-flex min-w-0 items-baseline gap-1.5 font-mono text-[11px] tabular-nums">
+      <span className="text-faint">{label}</span>
+      <span className={primary ? "min-w-0 truncate text-fg-strong" : "min-w-0 truncate text-muted"}>
+        {value}
+      </span>
+    </span>
   );
 }

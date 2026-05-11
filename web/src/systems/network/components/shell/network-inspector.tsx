@@ -78,7 +78,7 @@ function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInsp
       }}
       value={activeTab}
     >
-      <TabsList variant="line" className="h-10 w-full bg-transparent p-0">
+      <TabsList className="h-10 w-full bg-transparent p-0">
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (

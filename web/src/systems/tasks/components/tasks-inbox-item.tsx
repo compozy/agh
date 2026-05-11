@@ -2,7 +2,7 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, Eyebrow, Pill } from "@agh/ui";
+import { Button, Eyebrow, MonoId, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -70,26 +70,27 @@ export function TasksInboxItem({
     <>
       <h3
         className={cn(
-          "min-w-0 max-w-full truncate text-[13px] tracking-modal-title text-fg-strong",
+          "min-w-0 max-w-full truncate text-small-body text-fg-strong",
           unread ? "font-medium" : "font-normal"
         )}
         data-slot="tasks-inbox-row-title"
       >
         {task.title}
       </h3>
-      <span className="font-mono text-[10.5px] text-faint" data-slot="tasks-inbox-row-id">
-        {identifier}
-      </span>
-      <Pill size="sm" tone={taskStatusTone(task.status)}>
+      <MonoId value={identifier} size="sm" data-slot="tasks-inbox-row-id" />
+      <Pill size="xs" tone={taskStatusTone(task.status)}>
         {taskStatusLabel(task.status)}
       </Pill>
       {run ? (
-        <Eyebrow className="text-muted" data-testid={`tasks-inbox-item-run-${taskId}`}>
-          run {run.id}
-          {typeof run.attempt === "number"
-            ? ` · ${formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}`
-            : ""}
-        </Eyebrow>
+        <span
+          className="inline-flex items-center gap-1.5 text-small-body text-muted"
+          data-testid={`tasks-inbox-item-run-${taskId}`}
+        >
+          <MonoId value={run.id} size="sm" />
+          {typeof run.attempt === "number" ? (
+            <Eyebrow>{formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}</Eyebrow>
+          ) : null}
+        </span>
       ) : null}
     </>
   );
@@ -116,9 +117,11 @@ export function TasksInboxItem({
         </p>
       ) : null}
 
-      <p className="flex flex-wrap items-center gap-1 text-subtle">
+      <p className="flex flex-wrap items-center gap-1.5 text-subtle">
         <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true" className="text-faint opacity-60">
+          ·
+        </span>
         <span>{lastActivity} ago</span>
       </p>
     </>

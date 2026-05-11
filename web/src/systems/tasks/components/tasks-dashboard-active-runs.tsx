@@ -1,7 +1,9 @@
-import { AlertCircle, ArrowRight } from "lucide-react";
+import { AlertCircle, ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Eyebrow, Pill } from "@agh/ui";
+import { Eyebrow, Pill, type PillTone } from "@agh/ui";
+
+import { cn } from "@/lib/utils";
 
 import {
   formatAttemptLabel,
@@ -17,6 +19,19 @@ export interface TasksDashboardActiveRunsProps {
   maxItems?: number;
 }
 
+// `<Pill.Dot>` reads its default tone color through `var(--success)` etc., but
+// the runtime tokens.css only exposes the `--color-*` namespace. Threading the
+// resolved CSS variable via `color=` keeps the signal visible until the
+// primitive is patched.
+const TONE_COLOR_VAR: Record<PillTone, string> = {
+  neutral: "var(--color-neutral)",
+  accent: "var(--color-accent)",
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  info: "var(--color-info)",
+};
+
 export function TasksDashboardActiveRuns({
   dashboard,
   maxItems = 6,
@@ -24,22 +39,23 @@ export function TasksDashboardActiveRuns({
   const runs = dashboard.active_runs.items ?? [];
   const visible = runs.slice(0, maxItems);
   const hidden = runs.length - visible.length;
+  const { running, queued, claimed, total } = dashboard.active_runs;
 
   return (
     <TasksDashboardPanel
       bodyClassName="p-0"
       data-testid="tasks-dashboard-active-runs"
+      meta={total}
       right={
         <Eyebrow className="text-muted">
-          {dashboard.active_runs.running} running · {dashboard.active_runs.queued} queued ·{" "}
-          {dashboard.active_runs.claimed} claimed
+          {running} running · {queued} queued · {claimed} claimed
         </Eyebrow>
       }
-      title={`Active runs · ${dashboard.active_runs.total}`}
+      title="Active runs"
     >
       {visible.length === 0 ? (
         <p
-          className="px-4 py-6 text-[12px] text-muted"
+          className="px-5 py-6 text-[12px] text-muted"
           data-testid="tasks-dashboard-active-runs-empty"
         >
           No active runs right now.
@@ -48,32 +64,41 @@ export function TasksDashboardActiveRuns({
         <ul className="divide-y divide-line-soft" data-testid="tasks-dashboard-active-runs-list">
           {visible.map(run => {
             const signal = taskStatusSignal(run.task_status);
+            const attemptLabel = formatAttemptLabel(run.attempt, run.max_attempts);
             return (
               <li
-                className="grid grid-cols-[14px_minmax(0,1fr)_96px_100px_84px_84px] items-center gap-3 px-4 py-[9px] text-[12px] hover:bg-row-hover"
+                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-row-hover"
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >
-                <span className="flex shrink-0 items-center justify-center">
-                  <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
-                </span>
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 truncate text-[12.5px] font-medium tracking-section-head text-fg-strong">
-                    {run.task_title}
+                <Link
+                  className={cn(
+                    "group flex min-w-0 items-center gap-3 text-[12px] outline-none",
+                    "focus-visible:rounded-xs focus-visible:ring-1 focus-visible:ring-line-strong"
+                  )}
+                  data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}
+                  params={{ id: run.task_id, runId: run.run_id }}
+                  to="/tasks/$id/runs/$runId"
+                >
+                  <Pill.Dot color={TONE_COLOR_VAR[signal.tone]} pulse={signal.pulse} size="sm" />
+                  <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="min-w-0 truncate text-section-head font-medium tracking-section-head text-fg-strong">
+                      {run.task_title}
+                    </span>
+                    {run.task_identifier ? (
+                      <span className="shrink-0 font-mono text-mono-id tabular-nums text-faint">
+                        {run.task_identifier}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="hidden shrink-0 font-mono text-mono-id tabular-nums text-muted md:inline">
+                    age {formatDurationMs(run.age_ms)}
                   </span>
-                  {run.task_identifier ? (
-                    <span className="shrink-0 font-mono text-[10.5px] text-faint">
-                      {run.task_identifier}
+                  {attemptLabel ? (
+                    <span className="hidden shrink-0 font-mono text-mono-id tabular-nums text-muted lg:inline">
+                      {attemptLabel}
                     </span>
                   ) : null}
-                </div>
-                <span className="font-mono text-[11px] tabular-nums text-muted">
-                  {formatAttemptLabel(run.attempt, run.max_attempts) ?? "—"}
-                </span>
-                <span className="font-mono text-[11px] tabular-nums text-muted">
-                  age {formatDurationMs(run.age_ms)}
-                </span>
-                <div className="flex min-w-0 items-center gap-1">
                   <Pill size="sm" tone={taskRunStatusTone(run.run_status)}>
                     {run.run_status}
                   </Pill>
@@ -86,24 +111,17 @@ export function TasksDashboardActiveRuns({
                       stuck
                     </Pill>
                   ) : null}
-                </div>
-                <Pill.Link
-                  data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}
-                  render={
-                    <Link
-                      params={{ id: run.task_id, runId: run.run_id }}
-                      to="/tasks/$id/runs/$runId"
-                    />
-                  }
-                >
-                  Open <ArrowRight className="size-3" />
-                </Pill.Link>
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-muted"
+                  />
+                </Link>
                 {run.error ? (
                   <p
-                    className="col-span-6 flex items-start gap-1 pt-1 text-[11.5px] text-danger"
+                    className="flex items-start gap-1.5 pl-[14px] text-[11.5px] text-danger"
                     data-testid={`tasks-dashboard-active-run-error-${run.run_id}`}
                   >
-                    <AlertCircle className="mt-px size-3 shrink-0" />
+                    <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
                     <span className="min-w-0 truncate">{run.error}</span>
                   </p>
                 ) : null}
@@ -114,12 +132,12 @@ export function TasksDashboardActiveRuns({
       )}
 
       {hidden > 0 ? (
-        <Eyebrow
-          className="text-muted block px-4 pt-3 pb-3"
+        <p
+          className="border-t border-line-soft px-5 py-3 text-[12px] text-muted"
           data-testid="tasks-dashboard-active-runs-more"
         >
           +{hidden} more active runs
-        </Eyebrow>
+        </p>
       ) : null}
     </TasksDashboardPanel>
   );
