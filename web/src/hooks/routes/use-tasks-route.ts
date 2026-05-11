@@ -1,22 +1,18 @@
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
-import { useTask } from "@/systems/tasks";
 import { useTasksPage } from "@/hooks/routes/use-tasks-page";
 
 type SurfaceMode = "list" | "kanban" | "dashboard" | "inbox";
 
 export interface TasksRouteView {
   page: ReturnType<typeof useTasksPage>;
-  detailQuery: ReturnType<typeof useTask>;
   hasChildMatch: boolean;
   routedTaskId: string | null;
   isCreateRoute: boolean;
   surfaceMode: SurfaceMode;
-  showDetailPreview: boolean;
   shellCount: number;
   handleModeSelect: (next: SurfaceMode) => void;
   openCreateRoute: () => void;
-  handleCloseDetail: () => void;
 }
 
 export function useTasksRoute(): TasksRouteView {
@@ -29,11 +25,6 @@ export function useTasksRoute(): TasksRouteView {
   const isCreateRoute = currentChildRouteId.includes("/tasks/new");
 
   const surfaceMode: SurfaceMode = hasChildMatch ? "list" : page.mode;
-  const showDetailPreview = surfaceMode === "list" && !hasChildMatch;
-
-  const detailQuery = useTask(routedTaskId ?? page.effectiveSelectedTaskId ?? "", {
-    enabled: showDetailPreview && Boolean(routedTaskId ?? page.effectiveSelectedTaskId),
-  });
 
   const shellCount =
     surfaceMode === "inbox"
@@ -53,25 +44,15 @@ export function useTasksRoute(): TasksRouteView {
     void navigate({ search: () => ({ template: undefined }), to: "/tasks/new" });
   };
 
-  const handleCloseDetail = () => {
-    page.dismissSelectedTask();
-    if (hasChildMatch) {
-      void navigate({ to: "/tasks" });
-    }
-  };
-
   return {
     page,
-    detailQuery,
     hasChildMatch,
     routedTaskId,
     isCreateRoute,
     surfaceMode,
-    showDetailPreview,
     shellCount,
     handleModeSelect,
     openCreateRoute,
-    handleCloseDetail,
   };
 }
 

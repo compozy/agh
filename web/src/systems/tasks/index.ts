@@ -287,12 +287,37 @@ export { TaskCard } from "./components/task-card";
 export type { TaskCardProps } from "./components/task-card";
 export { TasksListRow } from "./components/tasks-list-row";
 export type { TasksListRowProps } from "./components/tasks-list-row";
-export { TasksListPanel } from "./components/tasks-list-panel";
-export type { TasksListLane, TasksListPanelProps } from "./components/tasks-list-panel";
+export { TasksListSurface } from "./components/tasks-list-surface";
+export type { TasksListSurfaceProps } from "./components/tasks-list-surface";
+export { TasksListPageHead } from "./components/tasks-list-page-head";
+export type { TasksListPageHeadProps } from "./components/tasks-list-page-head";
+export { TasksListFilters } from "./components/tasks-list-filters";
+export type { TasksListFiltersProps } from "./components/tasks-list-filters";
+export {
+  applyTaskFilterChips,
+  buildTaskFilterFields,
+  taskFiltersToChips,
+} from "./lib/tasks-list-filters";
+export type {
+  TaskFilterFieldKey,
+  TaskFilterHandlers,
+  TaskFilterOwnerOption,
+  TaskFilterState,
+  TaskScopeFilter,
+} from "./lib/tasks-list-filters";
+export {
+  applyInboxFilterChips,
+  buildInboxFilterFields,
+  inboxFiltersToChips,
+} from "./lib/inbox-filters";
+export type {
+  InboxFilterFieldKey,
+  InboxFilterHandlers,
+  InboxFilterState,
+  InboxLaneCount,
+} from "./lib/inbox-filters";
 export { TaskGroup } from "./components/task-group";
 export type { TaskGroupProps } from "./components/task-group";
-export { TasksDetailPreviewPanel } from "./components/tasks-detail-preview-panel";
-export type { TasksDetailPreviewPanelProps } from "./components/tasks-detail-preview-panel";
 export { TasksKanbanBoard } from "./components/tasks-kanban-board";
 export type { TasksKanbanBoardProps } from "./components/tasks-kanban-board";
 export { TasksEmptyState } from "./components/tasks-empty-state";
@@ -352,5 +377,7 @@ export type { TasksDashboardViewProps } from "./components/tasks-dashboard-view"
 
 export { TasksInboxItem } from "./components/tasks-inbox-item";
 export type { TasksInboxItemProps } from "./components/tasks-inbox-item";
+export { TasksInboxPageHead } from "./components/tasks-inbox-page-head";
+export type { TasksInboxPageHeadProps } from "./components/tasks-inbox-page-head";
 export { TasksInboxView } from "./components/tasks-inbox-view";
 export type { TasksInboxViewProps } from "./components/tasks-inbox-view";

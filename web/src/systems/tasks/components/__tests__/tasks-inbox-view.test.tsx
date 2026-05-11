@@ -16,6 +16,10 @@ function makeBaseProps() {
   return {
     laneFilter: "all" as const,
     onLaneChange: vi.fn(),
+    statusFilter: null,
+    onStatusChange: vi.fn(),
+    priorityFilter: null,
+    onPriorityChange: vi.fn(),
     unreadOnly: false,
     onToggleUnread: vi.fn(),
     searchQuery: "",
@@ -24,16 +28,24 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("Should render the five-lane switcher (My work / Mentions / Failed runs / Updates / Approvals)", () => {
+  it("Should render the page head with title, count, and totals", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
 
-    expect(screen.getByTestId("tasks-inbox-lane-tabs")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-lane-all")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-lane-my_work")).toHaveTextContent(/My work/);
-    expect(screen.getByTestId("tasks-inbox-lane-mentions")).toHaveTextContent(/Mentions/);
-    expect(screen.getByTestId("tasks-inbox-lane-failed_runs")).toHaveTextContent(/Failed runs/);
-    expect(screen.getByTestId("tasks-inbox-lane-updates")).toHaveTextContent(/Updates/);
-    expect(screen.getByTestId("tasks-inbox-lane-approvals")).toHaveTextContent(/Approvals/);
+    expect(screen.getByTestId("tasks-inbox-page-head")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-page-title")).toHaveTextContent(/Inbox/);
+    expect(screen.getByTestId("tasks-inbox-page-count")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-page-totals")).toBeInTheDocument();
+  });
+
+  it("Should render the toolbar with a filter trigger, search input, and unread switch", () => {
+    render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
+
+    expect(screen.getByTestId("tasks-inbox-toolbar")).toBeInTheDocument();
+    const trigger = screen.getByTestId("tasks-inbox-filter-trigger");
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent(/Filter/);
+    expect(screen.getByTestId("tasks-inbox-search")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-unread-toggle")).toBeInTheDocument();
   });
 
   it("Should render approval items under the Needs review group with a warning solid dot", () => {
@@ -123,7 +135,7 @@ describe("TasksInboxView", () => {
     expect(dot).toHaveAttribute("data-variant", "solid");
   });
 
-  it("Should emit lane, search, and unread toggle changes", () => {
+  it("Should emit search and unread toggle changes", () => {
     const props = makeBaseProps();
     const inbox = buildInboxFixture({
       total: 1,
@@ -137,9 +149,6 @@ describe("TasksInboxView", () => {
       ],
     });
     render(<TasksInboxView {...props} inbox={inbox} />);
-
-    fireEvent.click(screen.getByTestId("tasks-inbox-lane-approvals"));
-    expect(props.onLaneChange).toHaveBeenCalledWith("approvals");
 
     fireEvent.change(screen.getByTestId("tasks-inbox-search"), { target: { value: "rotate" } });
     expect(props.onSearchChange).toHaveBeenCalledWith("rotate");

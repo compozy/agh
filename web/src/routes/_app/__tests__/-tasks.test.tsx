@@ -181,7 +181,7 @@ describe("TasksRoute", () => {
     expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
     // The detail child route takes over the full canvas; the list panel
     // is no longer rendered side-by-side with the detail (no SplitPane).
-    expect(screen.queryByTestId("tasks-list-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();
   });
 
   it("switches to the dashboard view and renders the cards + queue/health sections", async () => {
@@ -196,7 +196,7 @@ describe("TasksRoute", () => {
     expect(await screen.findByTestId("tasks-dashboard-view")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-cards")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-queue-health")).toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-list-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();
   });
 
   it("switches to the inbox view, renders the approvals lane, and triggers approve action", async () => {

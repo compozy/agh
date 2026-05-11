@@ -36,6 +36,7 @@ import type {
   TaskListFilter,
   TaskListItem,
   TaskOwnerKind,
+  TaskPriority,
   TaskScope,
   TaskStatus,
   TaskViewMode,
@@ -44,6 +45,24 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 type TaskScopeFilter = "all" | TaskScope;
 type InboxLaneFilter = InboxLaneFilterId;
+
+export type TaskListSortKey = "recent" | "priority";
+
+const TASK_PRIORITY_RANK: Record<TaskPriority, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+function taskActivityTimestamp(task: TaskListItem): number {
+  const value = task.last_activity_at ?? task.updated_at;
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
 interface UseTasksPageOptions {
   initialMode?: TaskViewMode;
@@ -59,6 +78,8 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const [scopeFilter, setScopeFilter] = useState<TaskScopeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
+  const [sortBy, setSortBy] = useState<TaskListSortKey>("recent");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTaskId, setSelectedTaskIdState] = useState<string | null>(null);
   const [isSelectionDismissed, setSelectionDismissed] = useState(false);
@@ -68,6 +89,8 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const [createTemplateId, setCreateTemplateId] =
     useState<TaskTemplateId>(DEFAULT_TASK_TEMPLATE_ID);
   const [inboxLaneFilter, setInboxLaneFilter] = useState<InboxLaneFilter>("all");
+  const [inboxStatusFilter, setInboxStatusFilter] = useState<TaskStatus | null>(null);
+  const [inboxPriorityFilter, setInboxPriorityFilter] = useState<TaskPriority | null>(null);
   const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
   const [inboxSearchQuery, setInboxSearchQuery] = useState("");
 
@@ -124,8 +147,27 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const allTasks = tasksQuery.data ?? [];
   const visibleTasks = useMemo(() => {
-    return allTasks.filter(task => matchesTaskQuery(task, deferredSearchQuery));
-  }, [allTasks, deferredSearchQuery]);
+    const filtered = allTasks.filter(task => {
+      if (!matchesTaskQuery(task, deferredSearchQuery)) {
+        return false;
+      }
+      if (priorityFilter && task.priority !== priorityFilter) {
+        return false;
+      }
+      return true;
+    });
+    if (sortBy === "priority") {
+      return [...filtered].sort((a, b) => {
+        const rankA = a.priority ? TASK_PRIORITY_RANK[a.priority] : Number.MAX_SAFE_INTEGER;
+        const rankB = b.priority ? TASK_PRIORITY_RANK[b.priority] : Number.MAX_SAFE_INTEGER;
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+        return taskActivityTimestamp(b) - taskActivityTimestamp(a);
+      });
+    }
+    return [...filtered].sort((a, b) => taskActivityTimestamp(b) - taskActivityTimestamp(a));
+  }, [allTasks, deferredSearchQuery, priorityFilter, sortBy]);
 
   const draftTasks = useMemo(() => visibleTasks.filter(taskIsDraft), [visibleTasks]);
   const statusCounts = useMemo(() => countTasksByStatus(allTasks), [allTasks]);
@@ -199,8 +241,24 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     setOwnerFilter(next);
   }, []);
 
+  const handlePriorityChange = useCallback((next: TaskPriority | null) => {
+    setPriorityFilter(next);
+  }, []);
+
+  const handleSortChange = useCallback((next: TaskListSortKey) => {
+    setSortBy(next);
+  }, []);
+
   const handleInboxLaneChange = useCallback((next: InboxLaneFilter) => {
     setInboxLaneFilter(next);
+  }, []);
+
+  const handleInboxStatusChange = useCallback((next: TaskStatus | null) => {
+    setInboxStatusFilter(next);
+  }, []);
+
+  const handleInboxPriorityChange = useCallback((next: TaskPriority | null) => {
+    setInboxPriorityFilter(next);
   }, []);
 
   const handleInboxUnreadToggle = useCallback((next: boolean) => {
@@ -398,15 +456,19 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     handleDeleteTask,
     handleDismissTask,
     handleInboxLaneChange,
+    handleInboxPriorityChange,
+    handleInboxStatusChange,
     handleInboxUnreadToggle,
     handleMarkTaskRead,
     handleModeChange,
     handleOpenCreateModal,
     handleOwnerChange,
+    handlePriorityChange,
     handlePublishTask,
     handleRejectTask,
     handleRetryTask,
     handleScopeChange,
+    handleSortChange,
     handleStatusChange,
     handleTemplateChange,
     handleToggleIncludeDrafts,
@@ -415,8 +477,11 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     inboxLaneFilter,
     inboxLoading: inboxQuery.isLoading && !inboxQuery.data,
     inboxFetching: inboxQuery.isFetching,
+    inboxPriorityFilter,
     inboxSearchQuery,
+    inboxStatusFilter,
     inboxUnreadOnly,
+    inboxUpdatedAt: inboxQuery.dataUpdatedAt,
     includeDrafts,
     isApproveTaskPending: approveMutation.isPending,
     isArchiveTaskPending: archiveMutation.isPending,
@@ -434,9 +499,11 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     kanbanColumnDefinitions: getKanbanColumns(),
     listError: tasksQuery.error ?? null,
     listLoading: tasksQuery.isLoading && allTasks.length === 0,
+    listUpdatedAt: tasksQuery.dataUpdatedAt,
     mode,
     ownerFilter,
     ownerOptions,
+    priorityFilter,
     scopeFilter,
     searchQuery,
     selectedTask,
@@ -444,6 +511,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     setInboxSearchQuery,
     setSearchQuery,
     setSelectedTaskId,
+    sortBy,
     statusCounts,
     statusFilter,
     submitCreateTask,

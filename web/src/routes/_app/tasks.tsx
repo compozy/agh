@@ -1,18 +1,16 @@
-import { Outlet, createFileRoute } from "@tanstack/react-router";
+import { Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ListChecks, Plus } from "lucide-react";
 
-import { Button, Empty, PillGroup, SplitPane, useTopbarSlot } from "@agh/ui";
+import { Button, PillGroup, SearchInput, useTopbarSlot } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
   TasksDashboardView,
-  TasksDetailPreviewPanel,
   TasksEmptyState,
   TasksInboxView,
   TasksKanbanBoard,
-  TasksListPanel,
+  TasksListSurface,
 } from "@/systems/tasks";
 import { useTasksRoute } from "@/hooks/routes/use-tasks-route";
-import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/tasks")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -26,7 +24,6 @@ function TasksRoute() {
   const navigate = useNavigate({ from: "/tasks" });
   const {
     page,
-    detailQuery,
     hasChildMatch,
     routedTaskId,
     isCreateRoute,
@@ -34,8 +31,11 @@ function TasksRoute() {
     shellCount,
     handleModeSelect,
     openCreateRoute,
-    handleCloseDetail,
   } = view;
+
+  const handleSelectTask = (taskId: string) => {
+    void navigate({ params: { id: taskId }, to: "/tasks/$id" });
+  };
 
   useTopbarSlot({
     count: shellCount,
@@ -57,6 +57,15 @@ function TasksRoute() {
         ]}
       />
     ),
+    search:
+      surfaceMode === "list" && !hasChildMatch ? (
+        <SearchInput
+          data-testid="tasks-list-search-input"
+          onChange={page.setSearchQuery}
+          placeholder="Search tasks..."
+          value={page.searchQuery}
+        />
+      ) : undefined,
     actions: (
       <Button
         data-testid="tasks-open-create"
@@ -72,57 +81,12 @@ function TasksRoute() {
     ),
   });
 
-  const listNode = (
-    <TasksListPanel
-      errorMessage={page.listError?.message ?? null}
-      isLoading={page.listLoading}
-      onCreateTask={openCreateRoute}
-      onSearchChange={page.setSearchQuery}
-      onSelectTask={taskId => {
-        page.setSelectedTaskId(taskId);
-        void navigate({ params: { id: taskId }, to: "/tasks/$id" });
-      }}
-      searchQuery={page.searchQuery}
-      selectedTaskId={routedTaskId ?? page.effectiveSelectedTaskId}
-      statusFilter={page.statusFilter}
-      tasks={page.visibleTasks}
-      totalCount={page.tasksCount}
-    />
-  );
-
-  const hasSelectedTask = hasChildMatch || page.selectedTask !== null;
-  const detailNode = hasChildMatch ? (
-    <Outlet />
-  ) : page.selectedTask ? (
-    <TasksDetailPreviewPanel
-      detail={detailQuery.data ?? null}
-      errorMessage={detailQuery.error?.message ?? null}
-      isDeletePending={page.isDeletePending}
-      isLoading={detailQuery.isLoading && !detailQuery.data}
-      onDeleteTask={page.handleDeleteTask}
-      isPublishPending={page.isPublishPending}
-      onPublishTask={page.handlePublishTask}
-      task={page.selectedTask}
-    />
-  ) : null;
-
-  const detailEmpty = (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-      data-testid="tasks-detail-empty-slot"
-    >
-      <Empty
-        icon={ListChecks}
-        title="Select a task"
-        description="Pick an item from the list to see its runs, dependencies, and preview."
-      />
-    </div>
-  );
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell-body">
-        {surfaceMode === "dashboard" ? (
+        {hasChildMatch ? (
+          <Outlet />
+        ) : surfaceMode === "dashboard" ? (
           <TasksDashboardView
             dashboard={page.dashboard}
             errorMessage={page.dashboardError?.message ?? null}
@@ -132,6 +96,7 @@ function TasksRoute() {
           <TasksInboxView
             errorMessage={page.inboxError?.message ?? null}
             inbox={page.inbox}
+            inboxUpdatedAt={page.inboxUpdatedAt}
             isLoading={page.inboxLoading}
             laneFilter={page.inboxLaneFilter}
             onApprove={page.handleApproveTask}
@@ -139,14 +104,19 @@ function TasksRoute() {
             onDismiss={page.handleDismissTask}
             onLaneChange={page.handleInboxLaneChange}
             onMarkRead={page.handleMarkTaskRead}
+            onPriorityChange={page.handleInboxPriorityChange}
             onReject={page.handleRejectTask}
             onRetry={page.handleRetryTask}
             onSearchChange={page.setInboxSearchQuery}
+            onStatusChange={page.handleInboxStatusChange}
             onToggleUnread={page.handleInboxUnreadToggle}
+            priorityFilter={page.inboxPriorityFilter}
             searchQuery={page.inboxSearchQuery}
+            statusFilter={page.inboxStatusFilter}
             unreadOnly={page.inboxUnreadOnly}
+            workspaceName={page.activeWorkspaceName}
           />
-        ) : page.isEmpty && !hasChildMatch ? (
+        ) : page.isEmpty ? (
           <TasksEmptyState
             onSelectTemplate={templateId => {
               void navigate({
@@ -163,20 +133,29 @@ function TasksRoute() {
             errorMessage={page.listError?.message ?? null}
             isLoading={page.listLoading}
             onCreateInColumn={openCreateRoute}
-            onSelectTask={taskId => {
-              page.setSelectedTaskId(taskId);
-              void navigate({ params: { id: taskId }, to: "/tasks/$id" });
-            }}
+            onSelectTask={handleSelectTask}
             selectedTaskId={routedTaskId ?? page.effectiveSelectedTaskId}
           />
         ) : (
-          <SplitPane
-            data-testid="tasks-split-pane"
-            detail={hasSelectedTask ? detailNode : undefined}
-            detailEmpty={detailEmpty}
-            list={listNode}
-            listWidth={340}
-            onDetailClose={handleCloseDetail}
+          <TasksListSurface
+            errorMessage={page.listError?.message ?? null}
+            isLoading={page.listLoading}
+            listUpdatedAt={page.listUpdatedAt}
+            onOwnerChange={page.handleOwnerChange}
+            onPriorityChange={page.handlePriorityChange}
+            onScopeChange={page.handleScopeChange}
+            onSelectTask={handleSelectTask}
+            onSortChange={page.handleSortChange}
+            onStatusChange={page.handleStatusChange}
+            ownerFilter={page.ownerFilter}
+            ownerOptions={page.ownerOptions}
+            priorityFilter={page.priorityFilter}
+            scopeFilter={page.scopeFilter}
+            sortBy={page.sortBy}
+            statusFilter={page.statusFilter}
+            tasks={page.visibleTasks}
+            totalCount={page.tasksCount}
+            workspaceName={page.activeWorkspaceName}
           />
         )}
       </div>

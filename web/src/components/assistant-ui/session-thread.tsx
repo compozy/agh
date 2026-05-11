@@ -1,7 +1,10 @@
-import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
-import { SendHorizontal, Square, Trash2 } from "lucide-react";
 import { AuiIf, ComposerPrimitive, MessagePrimitive, ThreadPrimitive } from "@assistant-ui/react";
+import { SendHorizontal, Square, Trash2 } from "lucide-react";
+import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
 
+import { cn } from "@/lib/utils";
+import { MessageMarkdown } from "@/systems/session/components/message-markdown";
+import { ThinkingBlock } from "@/systems/session/components/thinking-block";
 import {
   Button,
   Dialog,
@@ -13,9 +16,6 @@ import {
   Eyebrow,
   Spinner,
 } from "@agh/ui";
-import { cn } from "@/lib/utils";
-import { MessageMarkdown } from "@/systems/session/components/message-markdown";
-import { ThinkingBlock } from "@/systems/session/components/thinking-block";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 
 interface SessionThreadProps {
@@ -163,9 +163,9 @@ function SessionComposer({
                 data-testid="composer-clear-button"
               >
                 {isClearingConversation ? (
-                  <Spinner className="size-3.5" />
+                  <Spinner className="size-3" />
                 ) : (
-                  <Trash2 className="size-3.5" />
+                  <Trash2 className="size-3" />
                 )}
                 Clear conversation
               </Button>

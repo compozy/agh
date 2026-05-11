@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
-import type { TaskInboxView } from "../../types";
+import type { TaskInboxView, TaskPriority, TaskStatus } from "../../types";
 import { TasksInboxView } from "../tasks-inbox-view";
 import { buildInboxFixture, buildInboxItemFixture } from "../test-fixtures";
 
@@ -163,6 +163,8 @@ const POPULATED: TaskInboxView = buildInboxFixture({
 
 function ControlledInbox(props: Partial<Parameters<typeof TasksInboxView>[0]>) {
   const [lane, setLane] = useState<InboxLaneFilter>("all");
+  const [status, setStatus] = useState<TaskStatus | null>(null);
+  const [priority, setPriority] = useState<TaskPriority | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [query, setQuery] = useState("");
   return (
@@ -170,9 +172,13 @@ function ControlledInbox(props: Partial<Parameters<typeof TasksInboxView>[0]>) {
       inbox={POPULATED}
       laneFilter={lane}
       onLaneChange={setLane}
+      onPriorityChange={setPriority}
       onSearchChange={setQuery}
+      onStatusChange={setStatus}
       onToggleUnread={setUnreadOnly}
+      priorityFilter={priority}
       searchQuery={query}
+      statusFilter={status}
       unreadOnly={unreadOnly}
       {...props}
     />

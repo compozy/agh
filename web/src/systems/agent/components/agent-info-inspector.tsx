@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
 import { Plug } from "lucide-react";
+import { useCallback, useState } from "react";
 
 import {
   DetailInspector,
