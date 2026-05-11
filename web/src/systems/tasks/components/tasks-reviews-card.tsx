@@ -125,7 +125,14 @@ export function TasksReviewsCard({
   }
 
   return (
-    <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
+    <Section
+      aria-label={label}
+      className="w-full gap-4"
+      count={reviews.length}
+      data-testid={testId}
+      icon={Gavel}
+      label={label}
+    >
       <p className="text-xs text-subtle" data-testid={`${testId}-disclaimer`}>
         Status reflects the persisted review row. Outcomes appear once a bound reviewer session
         submits through submit_run_review. This view is read-only -- operator sessions cannot bind a

@@ -148,6 +148,7 @@ function TasksExecutionProfileCardView({
       aria-label="Execution profile"
       className="w-full gap-4"
       data-testid={cardTestId}
+      icon={Settings2}
       label="Execution profile"
       right={
         <div className="flex items-center gap-2">

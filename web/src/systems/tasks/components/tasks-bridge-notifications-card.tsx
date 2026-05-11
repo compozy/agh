@@ -200,7 +200,9 @@ function renderTasksBridgeNotificationsCard({
     <Section
       aria-label="Bridge notification subscriptions"
       className="w-full gap-4"
+      count={subscriptions.length > 0 ? subscriptions.length : undefined}
       data-testid="tasks-bridge-notifications-card"
+      icon={Radio}
       label="Bridge notifications"
       right={
         <Button

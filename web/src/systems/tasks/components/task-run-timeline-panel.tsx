@@ -1,28 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  CircleDot,
-  GitBranch,
-  Hourglass,
-  Inbox as InboxIcon,
-  Pause,
-  PlayCircle,
-  Plus,
-  Sparkles,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
+import { Activity } from "lucide-react";
 
 import {
   BlockLoading,
   Empty,
   Pill,
   RunCard,
-  type PillTone,
   type RunCardStatus,
   Time,
   Timeline,
@@ -31,6 +16,13 @@ import {
 
 import { cn } from "@/lib/utils";
 import { taskRunStatusLabel } from "../lib/task-formatters";
+import {
+  describeEvent,
+  isFailureEvent,
+  isSuccessEvent,
+  resolveEventTone,
+  visualFor,
+} from "../lib/timeline-visuals";
 import type { TaskRunDetailView, TaskTimelineItem } from "../types";
 
 export interface TaskRunTimelinePanelProps {
@@ -38,67 +30,6 @@ export interface TaskRunTimelinePanelProps {
   items: TaskTimelineItem[];
   isLoading?: boolean;
   isLive?: boolean;
-}
-
-interface EventVisualMeta {
-  tone: PillTone;
-  icon: LucideIcon;
-}
-
-const FAILURE_EVENT_TYPES = new Set([
-  "task.run_failed",
-  "task.failed",
-  "task.run_canceled",
-  "task.canceled",
-]);
-
-const LIVE_EVENT_TYPES = new Set(["task.run_progress", "task.run_started", "task.run_claimed"]);
-
-const SUCCESS_EVENT_TYPES = new Set(["task.run_completed", "task.completed"]);
-
-const EVENT_VISUALS: Record<string, EventVisualMeta> = {
-  "task.created": { tone: "neutral", icon: Plus },
-  "task.run_enqueued": { tone: "neutral", icon: InboxIcon },
-  "task.run_claimed": { tone: "info", icon: CircleDot },
-  "task.run_started": { tone: "info", icon: PlayCircle },
-  "task.run_progress": { tone: "info", icon: Hourglass },
-  "task.run_completed": { tone: "success", icon: CheckCircle2 },
-  "task.completed": { tone: "success", icon: CheckCircle2 },
-  "task.run_failed": { tone: "danger", icon: XCircle },
-  "task.failed": { tone: "danger", icon: XCircle },
-  "task.run_canceled": { tone: "warning", icon: Pause },
-  "task.canceled": { tone: "warning", icon: Pause },
-  "task.run_blocked": { tone: "warning", icon: AlertTriangle },
-  "task.dependency_added": { tone: "neutral", icon: GitBranch },
-  "task.dependency_resolved": { tone: "success", icon: GitBranch },
-};
-
-function visualFor(eventType: string): EventVisualMeta {
-  return EVENT_VISUALS[eventType] ?? { tone: "neutral", icon: Sparkles };
-}
-
-function describeEvent(item: TaskTimelineItem): string {
-  const payload = item.payload as Record<string, unknown> | undefined;
-  const message = payload && typeof payload === "object" ? (payload.message as string) : undefined;
-  if (typeof message === "string" && message.trim().length > 0) return message;
-  switch (item.event_type) {
-    case "task.run_enqueued":
-      return "Run queued";
-    case "task.run_claimed":
-      return "Run claimed";
-    case "task.run_started":
-      return "Run started";
-    case "task.run_progress":
-      return "Run in progress";
-    case "task.run_completed":
-      return "Run completed";
-    case "task.run_failed":
-      return item.run?.error ?? "Run failed";
-    case "task.run_canceled":
-      return "Run canceled";
-    default:
-      return item.event_type;
-  }
 }
 
 const RUN_STATUS_MAP: Record<string, RunCardStatus> = {
@@ -217,16 +148,9 @@ function TimelineWithMarkers({ events, isLive }: TimelineWithMarkersProps) {
     <Timeline data-testid="tasks-run-detail-timeline-list">
       {events.map(item => {
         const visual = visualFor(item.event_type);
-        const isLiveEvent = isLive && LIVE_EVENT_TYPES.has(item.event_type);
-        const isFailure = FAILURE_EVENT_TYPES.has(item.event_type);
-        const isSuccess = SUCCESS_EVENT_TYPES.has(item.event_type);
-        const tone: PillTone = isFailure
-          ? "danger"
-          : isSuccess
-            ? "success"
-            : isLiveEvent
-              ? "info"
-              : visual.tone;
+        const isFailure = isFailureEvent(item.event_type);
+        const isSuccess = isSuccessEvent(item.event_type);
+        const tone = resolveEventTone(item.event_type, isLive);
         const titleClass = cn(
           isFailure ? "text-danger" : isSuccess ? "text-success" : "text-fg-strong"
         );

@@ -43,6 +43,7 @@ export function TasksStreamResumeCard({
       aria-label="Stream resume"
       className="w-full gap-4"
       data-testid="tasks-stream-resume-card"
+      icon={Activity}
       label="Stream resume"
     >
       <p className="text-xs text-subtle" data-testid="tasks-stream-resume-disclaimer">
