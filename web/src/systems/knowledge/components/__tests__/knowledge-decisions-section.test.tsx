@@ -62,7 +62,7 @@ describe("KnowledgeDecisionsSection", () => {
     renderSection({ decisions: [SAMPLE] });
     const list = screen.getByTestId("knowledge-decisions-list");
     expect(list).toBeInTheDocument();
-    // ADR-012 §3: dense table → TimelineEvent rows. The list MUST NOT render a <table>.
+    // Dense table rows are represented as TimelineEvent rows; no <table>.
     expect(list.tagName.toLowerCase()).toBe("ul");
     expect(list.querySelector("table")).toBeNull();
     const row = screen.getByTestId(`knowledge-decision-${SAMPLE.id}`);

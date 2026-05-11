@@ -2,7 +2,7 @@
  * Owner-avatar palette resolution against the tokenised CSS variables declared in
  * `packages/ui/src/tokens.css` (`--avatar-{agent,human,system}-*-{bg,fg}`).
  *
- * Per ADR-001 §7 + ADR-010 §6 the palette is a glance-aid resolved via CSS variables;
+ * the palette is a glance-aid resolved via CSS variables;
  * `<OwnerAvatar>` and downstream surfaces consume the `var(...)` strings so retunes
  * propagate from tokens.css.
  */

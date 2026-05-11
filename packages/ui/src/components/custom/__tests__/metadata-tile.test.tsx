@@ -14,7 +14,7 @@ describe("MetadataTile", () => {
     expect(screen.getByText("3m ago")).toBeInTheDocument();
   });
 
-  it("Should render flat — no default border on the tile root (ADR-004 §5)", () => {
+  it("Should render flat — no default border on the tile root", () => {
     const { container } = render(<MetadataTile label="Last run" value="3m ago" />);
     const root = container.querySelector<HTMLElement>('[data-slot="metadata-tile"]');
     expect(root?.className).not.toContain("border-(--line)");

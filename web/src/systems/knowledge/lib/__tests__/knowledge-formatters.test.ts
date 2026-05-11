@@ -30,7 +30,7 @@ describe("knowledge-formatters", () => {
     expect(compareKnowledgeScope("global", "global")).toBe(0);
   });
 
-  it("Should expose sentence-case scope labels per ADR-012 §14", () => {
+  it("Should expose sentence-case scope labels", () => {
     expect(knowledgeScopeLabel("global")).toBe("Global");
     expect(knowledgeScopeLabel("workspace")).toBe("Workspace");
     expect(knowledgeScopeLabel("agent")).toBe("Agent");
@@ -59,7 +59,7 @@ describe("knowledge-formatters", () => {
     expect(memoryScopeTone("agent")).toBe("agent");
   });
 
-  it("Should expose sentence-case decision op and source labels per ADR-012 §14", () => {
+  it("Should expose sentence-case decision op and source labels", () => {
     expect(decisionOpLabel("noop")).toBe("noop");
     expect(decisionOpLabel("add")).toBe("add");
     expect(decisionOpLabel("update")).toBe("update");

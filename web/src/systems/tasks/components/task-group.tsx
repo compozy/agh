@@ -21,7 +21,7 @@ export interface TaskGroupProps {
 
 /**
  * Tasks index — List-view status group. Renders a six-group anatomy per
- * ADR-006 §8 (`Active` · `Blocked` · `Stuck` · `Queued` · `Done` · `Failed`).
+ * (`Active` · `Blocked` · `Stuck` · `Queued` · `Done` · `Failed`).
  *
  * Header composition: `<Eyebrow>` label + bare mono count + optional actions
  * slot. The proposal's leading colored dot is deliberately omitted on the list

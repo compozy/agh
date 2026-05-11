@@ -74,7 +74,7 @@ describe("SkillDetailPanel", () => {
     expect(within(header).getByTestId("source-badge")).toHaveAttribute("data-tone", "accent");
   });
 
-  it("Should render the enable/disable Switch inside the DetailHeader actions slot per ADR-012 §6", () => {
+  it("Should render the enable/disable Switch inside the DetailHeader actions slot", () => {
     renderPanel();
     const header = screen.getByTestId("skill-detail-header");
     const actions = header.querySelector('[data-slot="detail-header-actions"]');
@@ -128,7 +128,7 @@ describe("SkillDetailPanel", () => {
     expect(screen.getByTestId("skill-capability-git.stage")).toBeInTheDocument();
   });
 
-  it("Should render recent-calls Table with <Time>-driven When cells per ADR-012 §7", () => {
+  it("Should render recent-calls Table with <Time>-driven When cells", () => {
     const timestamp = new Date("2026-04-17T17:30:00Z").toISOString();
     renderPanel({
       skill: makeSkill({

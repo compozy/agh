@@ -11,7 +11,7 @@ const meta: Meta<typeof KpiCard> = {
     docs: {
       description: {
         component:
-          "Single dashboard KPI tile per metric. Inter UC eyebrow label + 28 px display value at the warm `--fg-strong` ink. Flat on `--canvas-soft`, no border — depth comes from the warm-surface ramp (ADR-004 §9).",
+          "Single dashboard KPI tile per metric. Inter UC eyebrow label + 28 px display value at the warm `--fg-strong` ink. Flat on `--canvas-soft`, no border — depth comes from the warm-surface ramp.",
       },
     },
   },

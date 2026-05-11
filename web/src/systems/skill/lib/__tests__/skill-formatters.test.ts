@@ -44,7 +44,7 @@ describe("skill-formatters", () => {
     expect(skillSourceTone("unknown")).toBe("neutral");
   });
 
-  it("Should return sentence-case source labels per ADR-012 §14", () => {
+  it("Should return sentence-case source labels", () => {
     expect(skillSourceLabel("bundled")).toBe("bundled");
     expect(skillSourceLabel("workspace")).toBe("workspace");
     expect(skillSourceLabel("marketplace")).toBe("marketplace");
@@ -90,7 +90,7 @@ describe("skill-formatters", () => {
     ).toEqual(["a", "b"]);
   });
 
-  it("Should expose sentence-case marketplace category vocabulary per ADR-012 §14", () => {
+  it("Should expose sentence-case marketplace category vocabulary", () => {
     expect(MARKETPLACE_CATEGORIES).toEqual([
       "all",
       "testing",

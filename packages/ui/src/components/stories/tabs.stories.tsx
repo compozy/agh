@@ -11,7 +11,7 @@ const meta: Meta<typeof Tabs> = {
     docs: {
       description: {
         component:
-          "Tabbed content switcher with two variants — `line` (canonical content tabs, 1.5px `--fg-strong` underline) and `lane` (page-head filter row with `·` separators and bare mono counts per ADR-003 §7). The deprecated chipped `default` variant is removed; segmented-control surfaces use `<PillGroup>` instead.",
+          "Tabbed content switcher with two variants — `line` (canonical content tabs, 1.5px `--fg-strong` underline) and `lane` (page-head filter row with `·` separators and bare mono counts). The deprecated chipped `default` variant is removed; segmented-control surfaces use `<PillGroup>` instead.",
       },
     },
   },
@@ -119,7 +119,7 @@ export const LaneDefault: Story = {
     docs: {
       description: {
         story:
-          "`lane` variant — page-head filter row introduced by ADR-003 §7. Triggers separated by a `·` glyph; counts render inline as bare 10.5px mono `--faint` (no chip).",
+          "`lane` variant — page-head filter row introduced by Triggers separated by a `·` glyph; counts render inline as bare 10.5px mono `--faint` (no chip).",
       },
     },
   },

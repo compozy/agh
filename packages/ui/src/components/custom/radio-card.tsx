@@ -16,7 +16,7 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
 }
 
 /**
- * Single radio choice rendered as a card. Per ADR-004 §8:
+ * Single radio choice rendered as a card.:
  * - resting state: `--canvas-soft` surface, no border (flat-depth).
  * - selected state: `--surface-glaze` background + `box-shadow: 0 0 0 1px var(--line-strong) inset`.
  *   No accent border, no `--accent-tint` fill — accent stays reserved for true CTAs.

@@ -66,7 +66,7 @@ For each `{ name, url }`:
 
 | Surface class | Width × Height | Reason |
 | --- | --- | --- |
-| Full route (list / kanban / dashboard / detail) | 1440 × 900 | Matches the proposal screenshots in `.compozy/tasks/redesign-v2/screenshots/proposal/`. |
+| Full route (list / kanban / dashboard / detail) | 1440 × 900 | Matches a trusted prior baseline for the surface. |
 | Wide route (validate column-snap breakpoints) | 1680 × 1050 | Catches lane-tab wrap and detail meta-line overflow. |
 | Primitive (button, pill, dialog) | 1100 × 700 | Storybook's primitive stories render a tight preview; bigger viewports waste pixels. |
 | Sidebar (collapsed) | 320 × 800 | Forces the collapse breakpoint. |

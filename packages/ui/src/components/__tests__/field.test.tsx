@@ -104,7 +104,7 @@ describe("Field", () => {
     expect(screen.getByRole("group", { name: "Session metadata" })).toBeInTheDocument();
   });
 
-  it("Should NOT emit accent-tint on the checked label (ADR-004 §10)", () => {
+  it("Should NOT emit accent-tint on the checked label", () => {
     render(<FieldLabel data-testid="label">Pick one</FieldLabel>);
     const label = screen.getByTestId("label");
     expect(label.className).not.toContain("has-data-checked:bg-(--accent-tint)");

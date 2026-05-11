@@ -10,7 +10,7 @@ const meta: Meta<typeof PriorityBars> = {
     docs: {
       description: {
         component:
-          "Three-bar priority glyph per ADR-006 §4. Heights are always 4 / 8 / 12 px ascending; the `level` prop drives bar color (low → `--faint`, medium → `--fg`, high → `--warning`, urgent → `--danger`) — never bar count. There is no `tone` prop.",
+          "Three-bar priority glyph Heights are always 4 / 8 / 12 px ascending; the `level` prop drives bar color (low → `--faint`, medium → `--fg`, high → `--warning`, urgent → `--danger`) — never bar count. There is no `tone` prop.",
       },
     },
   },

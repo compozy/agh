@@ -1,6 +1,5 @@
 /**
- * Canonical source for sidebar/topbar nav count slots per ADR-005 §3 and
- * TechSpec §"Core Interface — useNavCounts()". Wraps the process-wide
+ * Canonical source for sidebar/topbar nav count slots. Wraps the process-wide
  * navCountsStore singleton: one SSE channel + one polling timer per process,
  * shared across every consumer mount. See nav-counts-store.ts for the SSE
  * filter list, polling endpoints, stale semantics, and race rules.

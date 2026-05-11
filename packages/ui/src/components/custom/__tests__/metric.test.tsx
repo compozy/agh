@@ -65,7 +65,7 @@ describe("Metric", () => {
     expect(container.querySelector('[data-slot="metric-subtext"]')).toBeNull();
   });
 
-  it("Should render flat — no default border on the card root (ADR-004 §5)", () => {
+  it("Should render flat — no default border on the card root", () => {
     const { container } = render(<Metric label="Sessions" value="12" />);
     const root = container.querySelector<HTMLElement>('[data-slot="metric"]');
     expect(root?.className).not.toContain("border-(--line)");

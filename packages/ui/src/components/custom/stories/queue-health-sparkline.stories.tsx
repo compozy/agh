@@ -10,7 +10,7 @@ const meta: Meta<typeof QueueHealthSparkline> = {
     docs: {
       description: {
         component:
-          "Thin `recharts` `<BarChart>` adapter per ADR-010 §3. Applies AGH tokens: default bar `var(--bar-fill)`; `stuck` buckets render with `var(--accent-tint-strong)` (ADR-001). Consumed by the Tasks dashboard queue-health panel (task_19).",
+          "Thin `recharts` `<BarChart>` adapter. Applies AGH tokens: default bar `var(--bar-fill)`; `stuck` buckets render with `var(--accent-tint-strong)`. Consumed by the Tasks dashboard queue-health panel.",
       },
     },
   },

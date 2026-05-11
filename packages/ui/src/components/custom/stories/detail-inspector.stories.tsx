@@ -12,7 +12,7 @@ const meta: Meta<typeof DetailInspector> = {
     docs: {
       description: {
         component:
-          "320 px right-rail panel per ADR-014 §3. Renders inline at viewport ≥ `inlineBreakpoint` (default 1440 px) and collapses into a right-anchored `<Sheet>` drawer below. Tabs + body slots are owned by the primitive; specialisations (`<SessionInspector>`, `<AgentInfoInspector>`) declare their own tabs + content (task_27).",
+          "320 px right-rail panel. Renders inline at viewport >= `inlineBreakpoint` (default 1440 px) and collapses into a right-anchored `<Sheet>` drawer below. Tabs + body slots are owned by the primitive; specialisations (`<SessionInspector>`, `<AgentInfoInspector>`) declare their own tabs + content.",
       },
     },
   },

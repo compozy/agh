@@ -17,7 +17,7 @@ export interface FormSectionProps extends Omit<React.ComponentProps<"section">, 
   rightLabel?: React.ReactNode;
   /** Optional description rendered between the head and the body. */
   description?: React.ReactNode;
-  /** Padding/density per ADR-015 §7. `compact` shrinks the padding for dialog hosts. */
+  /** Padding/density `compact` shrinks the padding for dialog hosts. */
   size?: FormSectionSize;
   children: React.ReactNode;
 }

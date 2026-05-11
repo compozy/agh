@@ -2,8 +2,8 @@
  * Time formatters consumed by the `<Time>` primitive. Lives inside `@agh/ui`
  * because the primitive must respect the package boundary (no `web/` imports).
  *
- * `web/src/lib/format-time.ts` (task_15) re-exports these so application code
- * can consume them without reaching into the UI package internals.
+ * `web/src/lib/format-time.ts` re-exports these so application code can consume
+ * them without reaching into the UI package internals.
  */
 
 const RELATIVE_THRESHOLDS = [

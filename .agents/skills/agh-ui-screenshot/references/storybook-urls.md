@@ -50,7 +50,7 @@ bun run scripts/list-stories.mjs http://localhost:6006 --filter routes-app-stori
 
 If a story id you intend to capture is not in that output, the capture will land on Storybook's "Couldn't find story" fallback frame — visible as a 5–10 KB PNG instead of 100–200 KB. Treat suspiciously small PNGs as a story-id mismatch.
 
-## URL examples that worked in the redesign-v2 audit
+## URL examples that worked in design audits
 
 ```
 http://localhost:6006/iframe.html?id=routes-app-stories-tasks--default-list&viewMode=story

@@ -178,7 +178,7 @@ const TOKEN_GROUPS: TokenGroup[] = [
       {
         token: "--hover",
         value: "var(--row-hover)",
-        role: "Generic hover (alias of --row-hover, ADR-001 §6)",
+        role: "Generic hover (alias of --row-hover)",
         kind: "color",
       },
       { token: "--disabled", value: "#4a4847", role: "Disabled fill", kind: "color" },
@@ -300,13 +300,13 @@ const TOKEN_GROUPS: TokenGroup[] = [
       {
         token: "--info-tint",
         value: "rgba(142, 142, 181, 0.12)",
-        role: "Info chip bg / Settings observability (ADR-015 §4)",
+        role: "Info chip bg / Settings observability",
         kind: "color",
       },
       {
         token: "--neutral-tint",
         value: "rgba(150, 150, 155, 0.06)",
-        role: "Neutral chip bg (warmed for ramp parity, ADR-001 §8)",
+        role: "Neutral chip bg (warmed for ramp parity)",
         kind: "color",
       },
     ],
@@ -319,13 +319,13 @@ const TOKEN_GROUPS: TokenGroup[] = [
       {
         token: "--overlay-scrim",
         value: "rgba(0, 0, 0, 0.55)",
-        role: "Modal / dialog backdrop (ADR-001 §1)",
+        role: "Modal / dialog backdrop",
         kind: "color",
       },
       {
         token: "--overlay-blur",
         value: "3px",
-        role: "Dialog / sheet backdrop blur ONLY (ADR-001 §2)",
+        role: "Dialog / sheet backdrop blur ONLY",
         kind: "radius",
       },
       {
@@ -375,7 +375,7 @@ const TOKEN_GROUPS: TokenGroup[] = [
       {
         token: "--btn-default-fill",
         value: "rgba(255, 255, 255, 0.04)",
-        role: "Neutral Button default fill (ADR-004)",
+        role: "Neutral Button default fill",
         kind: "color",
       },
       {

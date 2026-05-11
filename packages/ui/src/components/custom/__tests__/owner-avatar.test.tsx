@@ -29,7 +29,7 @@ describe("OwnerAvatar", () => {
     expect(root?.style.color).toBe("var(--avatar-system-fg)");
   });
 
-  it("Should emit aria-label with the role prefix per ADR-013 §2", () => {
+  it("Should emit aria-label with the role prefix", () => {
     const agent = render(
       <OwnerAvatar ownerKind="agent" ownerId="planner" name="Planner Prime" />
     ).container.querySelector<HTMLElement>('[data-slot="owner-avatar"]');

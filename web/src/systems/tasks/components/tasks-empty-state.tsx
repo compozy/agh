@@ -15,7 +15,7 @@ interface TemplateSlot {
 }
 
 /**
- * Four-card empty-state grid per ADR-006 §8 + §3 — `accent / info / warning /
+ * Four-card empty-state grid + §3 — `accent / info / warning /
  * neutral` tones only (the prior `violet / amber` palette is gone). Six
  * template definitions remain available to the editor; the empty state
  * surfaces a curated four that match the proposal reference.
@@ -43,7 +43,7 @@ export interface TasksEmptyStateProps {
 /**
  * Empty-state for the Tasks domain — Empty primitive head + 4-card template
  * grid with the new tone palette (accent / info / warning / neutral). Eyebrow
- * head per ADR-002.
+ * head.
  */
 export function TasksEmptyState({
   workspaceName,

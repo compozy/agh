@@ -10,7 +10,7 @@ const meta: Meta<typeof Time> = {
     docs: {
       description: {
         component:
-          "Relative (default) or absolute timestamp. Renders `<time dateTime title>` with the alternate format in the title attribute. Refreshes every 30 s for relative mode (ADR-012 §7).",
+          "Relative (default) or absolute timestamp. Renders `<time dateTime title>` with the alternate format in the title attribute. Refreshes every 30 s for relative mode.",
       },
     },
   },

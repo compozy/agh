@@ -37,7 +37,7 @@ interface ViewportThresholds {
 }
 
 /**
- * Returns the active viewport tier per ADR-003 §4 / ADR-005 §4 — `"default"`
+ * Returns the active viewport tier — `"default"`
  * above 1100 px, `"md"` between the drawer threshold and 1100 px, `"drawer"`
  * at or below the drawer threshold. The previous boolean
  * `useNarrowViewport(breakpoint)` collapsed the ladder into one query and

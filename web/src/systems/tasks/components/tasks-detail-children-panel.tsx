@@ -25,7 +25,7 @@ const ACTIVE_RUN_STATUSES = new Set(["running", "starting", "claimed"]);
  * (`child_count > 0`) AND its own active run / status indicates active
  * execution. The backend exposes neither a `has_running_descendants` flag nor
  * descendant-state, so the row strip lights only when the child itself is
- * orchestrating something. Per ADR-007 §9.
+ * orchestrating something.
  */
 function hasRunningDescendants(child: TaskChildSummary): boolean {
   if ((child.child_count ?? 0) <= 0) return false;
@@ -34,7 +34,7 @@ function hasRunningDescendants(child: TaskChildSummary): boolean {
 }
 
 /**
- * Child task table — STATUS column header per ADR-007 §9 + 4 px progress strip
+ * Child task table — STATUS column header + 4 px progress strip
  * below the row when the child has running descendants.
  */
 export function TasksDetailChildrenPanel({

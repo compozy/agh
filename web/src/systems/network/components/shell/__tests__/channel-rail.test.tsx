@@ -200,7 +200,7 @@ describe("ChannelRail", () => {
     expect(screen.getByTestId("network-channels-empty")).toHaveTextContent("No channels yet.");
   });
 
-  it("pins the rail width to 244 px at the default viewport per ADR-013 §3", () => {
+  it("pins the rail width to 244 px at the default viewport", () => {
     expect(CHANNEL_RAIL_WIDTH_DEFAULT).toBe(244);
     renderRail();
     const rail = screen.getByTestId("network-channel-rail");

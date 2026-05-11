@@ -12,9 +12,9 @@ export interface TopbarRouteContext {
   subtitle?: string;
   getCount?: () => number | string;
   /**
-   * Opt-in identifier resolved by the shell via `useNavCounts()` (per ADR-005
-   * §3). When set and the active slot omits `count`, the shell injects the
-   * resolved value into `<Topbar navCount>`.
+   * Opt-in identifier resolved by the shell via `useNavCounts`. When set and
+   * the active slot omits `count`, the shell injects the resolved value into
+   * `<Topbar navCount>`.
    */
   navCountKey?: string;
 }
@@ -27,9 +27,8 @@ export interface TopbarSlotValue {
   title?: React.ReactNode;
   /**
    * Numeric / textual count rendered as the topbar chip. Narrowed from
-   * `ReactNode` per ADR-005 §8 — the chip is data, not a render slot. Auto-
-   * resolves from `useNavCounts()` when omitted and the route declares a
-   * `navCountKey`.
+   * `ReactNode` — the chip is data, not a render slot. Auto-resolves from
+   * `useNavCounts()` when omitted and the route declares a `navCountKey`.
    */
   count?: number | string;
   /** Lane / mode tabs rendered between title and trailing slots. */
@@ -40,7 +39,7 @@ export interface TopbarSlotValue {
   actions?: React.ReactNode;
   /**
    * Detail-mode back affordance. When present, renders a leading 20x20 ghost
-   * chevron button per ADR-005 §5.
+   * chevron button.
    */
   back?: () => void;
   /** Optional aria-label override for the back button (default "Go back"). */
@@ -119,7 +118,7 @@ export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title
   /**
    * Count resolved by the shell from `useNavCounts()` when the route declares
    * a `navCountKey`. Falls back through `slot.count` -> `route.getCount()` ->
-   * `navCount` per ADR-005 §3 / §8.
+   * `navCount` / §8.
    */
   navCount?: number | string;
   /** Optional ref for the topbar title element so the shell can move focus on route resolve. */

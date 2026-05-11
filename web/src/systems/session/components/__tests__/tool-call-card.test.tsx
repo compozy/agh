@@ -36,7 +36,7 @@ function queryOutputRegion(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="chat-tool-card-output"]');
 }
 
-describe("Session ToolCallCard — wraps <ChatToolCard> per ADR-014 §6", () => {
+describe("Session ToolCallCard — wraps <ChatToolCard>", () => {
   it("Should render the primitive root with canvas-soft surface and token radius", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     const root = queryChatToolCardRoot();

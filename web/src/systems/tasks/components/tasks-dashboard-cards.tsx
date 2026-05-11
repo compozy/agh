@@ -8,10 +8,10 @@ export interface TasksDashboardCardsProps {
 }
 
 /**
- * Dashboard KPI strip per ADR-006 §8 + ADR-009 §6 — four `<KpiCard>` neutrals
+ * Dashboard KPI strip — four `<KpiCard>` neutrals
  * (no tone recolor, the value text always resolves to `--fg-strong`). Detail
  * lines stay informational; the live/stale page-head pill is deferred per
- * ADR-016 §8 and rendered by the page-head, not here.
+ * and rendered by the page-head, not here.
  */
 export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const { active_runs, totals, cards, queue } = dashboard;

@@ -123,7 +123,7 @@ export function taskApprovalStateLabel(state?: TaskApprovalState | null): string
 
 /**
  * Maps a task status to its `PillTone` via the central `TASK_STATUS_TONE`
- * dictionary (ADR-010 §5). The dictionary keys cover the seven UI-renderable
+ * dictionary. The dictionary keys cover the seven UI-renderable
  * statuses; `canceled` and unknown values fall back to `neutral` per
  * `web/src/lib/status-tone.ts` documentation.
  */
@@ -143,7 +143,7 @@ export function taskPriorityTone(_priority?: TaskPriority | null): PillTone {
 
 /**
  * Maps a backend run status to its `PillTone` via `RUN_STATUS_TONE`
- * (ADR-010 §5). The wire enum carries seven values (queued / claimed /
+ *. The wire enum carries seven values (queued / claimed /
  * starting / running / completed / failed / canceled); `toRunCardStatus`
  * collapses them to the five-value frontend run-card enum, which is the key
  * shape of `RUN_STATUS_TONE`.
@@ -173,7 +173,7 @@ export function taskRunStatusLabel(status?: TaskRunStatus | null): string {
 /**
  * Maps the wire `TaskRunStatus` enum (queued/claimed/starting/running/completed/
  * failed/canceled) to the `<RunCard>` `RunCardStatus` enum
- * (pending/in_progress/completed/failed/canceled) per ADR-007 §9 active-run
+ * (pending/in_progress/completed/failed/canceled) active-run
  * anatomy.
  */
 export function toRunCardStatus(status: TaskRunStatus): RunCardStatus {
@@ -226,7 +226,7 @@ const TASK_INBOX_LANE_TONE_KEY: Record<TaskInboxLane, TaskLane | null> = {
 
 /**
  * Maps a backend inbox lane to its `PillTone` via the central `TASK_LANE_TONE`
- * dictionary (ADR-010 §2, §5). `approvals` resolves to `info` per ADR-010 §2;
+ * dictionary (§5). `approvals` resolves to `info`;
  * `archived` has no UI lane counterpart and collapses to `neutral`.
  */
 export function taskLaneTone(lane: TaskInboxLane): PillTone {
@@ -262,8 +262,8 @@ export function matchesTaskQuery(
 }
 
 /**
- * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier per ADR-001
- * §3.5 / ADR-007. Agent sessions, automation runs, extensions, network peers,
+ * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier
+ * §3.5 /. Agent sessions, automation runs, extensions, network peers,
  * and worker pools all read as `agent` for color selection; humans get the
  * `human` slot ladder; unassigned tasks fall back to the system palette.
  */

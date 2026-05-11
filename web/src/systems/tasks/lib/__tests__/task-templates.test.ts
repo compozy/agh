@@ -31,7 +31,7 @@ describe("task-templates", () => {
     expect(getTaskTemplate("unknown" as never).id).toBe("one_shot");
   });
 
-  it("Should restrict every template badge tone to the accent / info / warning / neutral vocabulary per ADR-006 §8", () => {
+  it("Should restrict every template badge tone to the accent / info / warning / neutral vocabulary", () => {
     for (const template of TASK_TEMPLATES) {
       for (const badge of template.badges) {
         expect(ALLOWED_BADGE_TONES.has(badge.tone)).toBe(true);

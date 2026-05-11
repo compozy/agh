@@ -76,7 +76,7 @@ Pedro asks "não é preciso mudar nada na UI do web/ ... e nem melhorar nada no 
 **Step 7: Cross-Check Codegen Co-Ship**
 
 1. If any task touches `internal/api/contract/**`, ensure another (or the same) task explicitly lists `make codegen`, `make codegen-check`, `make web-typecheck`, and `make web-test` under its Tests section.
-2. If missing, recommend adding them. Cite the autonomy ADR-011 obligation.
+2. If missing, recommend adding them. Cite the contract co-ship obligation.
 
 ## Error Handling
 

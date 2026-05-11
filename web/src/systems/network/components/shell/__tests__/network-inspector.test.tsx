@@ -25,7 +25,7 @@ function renderInspector() {
 }
 
 describe("NetworkInspector", () => {
-  it("Should NOT render the overflow menu (coming-soon affordance) per ADR-013 §5", () => {
+  it("Should NOT render the overflow menu (coming-soon affordance)", () => {
     renderInspector();
     expect(screen.queryByTestId("network-inspector-overflow")).toBeNull();
     expect(screen.queryByRole("button", { name: /more actions/i })).toBeNull();

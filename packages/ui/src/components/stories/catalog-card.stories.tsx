@@ -156,7 +156,7 @@ export const Error: Story = {
 };
 
 /**
- * Selected state — `--surface-glaze` + 1 px inset `--line-strong` ring per ADR-004 §7. No accent.
+ * Selected state — `--surface-glaze` + 1 px inset `--line-strong` ring No accent.
  */
 export const Selected: Story = {
   args: {},
@@ -179,7 +179,7 @@ export const Selected: Story = {
 };
 
 /**
- * `logoSize="lg"` (40 × 40) for connected/configured provider surfaces (ADR-011 §8).
+ * `logoSize="lg"` (40 × 40) for connected/configured provider surfaces.
  */
 export const ConfiguredProvider: Story = {
   args: {},

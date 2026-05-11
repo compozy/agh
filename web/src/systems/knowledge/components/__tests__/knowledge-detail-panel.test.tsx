@@ -114,7 +114,7 @@ describe("KnowledgeDetailPanel", () => {
     expect(header).toHaveAttribute("data-slot", "detail-header");
     expect(within(header).getByTestId("detail-scope-badge")).toHaveTextContent("Global");
     expect(within(header).getByTestId("detail-age-badge")).toBeInTheDocument();
-    // ADR-012 §2: header must NOT carry type/tier/staleness pills.
+    // The header must NOT carry type/tier/staleness pills.
     expect(within(header).queryByTestId("detail-type-badge")).toBeNull();
     expect(within(header).queryByTestId("detail-agent-tier-badge")).toBeNull();
     expect(within(header).queryByTestId("detail-staleness-badge")).toBeNull();

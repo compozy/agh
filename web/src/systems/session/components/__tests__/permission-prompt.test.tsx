@@ -34,7 +34,7 @@ const mockPermissionData: AghPermissionData = {
   raw: { command: "rm -rf /tmp/test" },
 };
 
-describe("PermissionPrompt — inline sticky anatomy (ADR-014 §5)", () => {
+describe("PermissionPrompt — inline sticky anatomy", () => {
   beforeEach(() => {
     vi.mocked(approveSession).mockResolvedValue(undefined);
   });

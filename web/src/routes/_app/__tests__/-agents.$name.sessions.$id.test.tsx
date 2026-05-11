@@ -174,7 +174,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   };
 }
 
-describe("Nested agent session route — Topbar slot migration (ADR-014 §1)", () => {
+describe("Nested agent session route — Topbar slot migration", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockResume.mutate.mockReset();
@@ -238,7 +238,7 @@ describe("Nested agent session route — Topbar slot migration (ADR-014 §1)", (
     expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
   });
 
-  it("Should flip the agent-status-dot to warning+pulse for starting sessions (ADR-016 §3)", () => {
+  it("Should flip the agent-status-dot to warning+pulse for starting sessions", () => {
     mockUseSession.mockReturnValue({
       data: makeSession({ state: "starting" }),
       isLoading: false,

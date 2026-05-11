@@ -572,7 +572,7 @@ func migrateCatalogWorkspaceIdentity(ctx context.Context, tx *sql.Tx) error {
 
 // Migration 008: live recall signals and chunk backfill.
 //
-// Why: Task 06 / ADR-011 requires recall to update memory_recall_signals live
+// Why: Task 06 / requires recall to update memory_recall_signals live
 // and later dreaming gates need recall_score, promotion, and barrier columns.
 // Affects: memory catalog tables memory_recall_signals and memory_chunks.
 // Idempotent: yes; columns and indexes are guarded, chunks use INSERT OR IGNORE.

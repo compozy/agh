@@ -51,7 +51,7 @@ function Frame({ children }: FrameProps) {
 
 /**
  * Default — three MCP servers rendered as compact rows; transport renders as
- * the structural `<Eyebrow>` (STDIO / HTTP) per ADR-014 §4.
+ * the structural `<Eyebrow>` (STDIO / HTTP)
  */
 export const Default: Story = {
   args: {},

@@ -73,10 +73,7 @@ export const Disabled: Story = {
   ),
 };
 
-/**
- * Mono variant — `font-mono` + 12 px, for prompt/code-style inputs per
- * ADR-016 wave-2 / analysis §4.
- */
+/** Mono variant — `font-mono` + 12 px, for prompt/code-style inputs. */
 export const MonoVariant: Story = {
   args: {},
   render: () => (

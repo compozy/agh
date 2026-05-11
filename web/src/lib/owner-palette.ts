@@ -1,6 +1,6 @@
 /**
  * Owner-avatar palette resolution lives in `@agh/ui` so primitives + web consumers share
- * a single source. This module is a thin re-export per ADR-001 §7 — runtime callsites
+ * a single source. This module is a thin re-export — runtime callsites
  * import from here (or directly from `@agh/ui`) and receive `var(--avatar-*)` strings.
  */
 export {

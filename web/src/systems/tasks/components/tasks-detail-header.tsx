@@ -43,9 +43,9 @@ export interface TasksDetailHeaderProps {
 /**
  * `/tasks/$id` hero — consumes `<DetailHeader>` so the 6-row anatomy
  * (crumbs → pre-title → 24px H1 → pills → meta → actions) stays in lockstep
- * with ADR-007 §9. The H1 is the only inline-status surface; the pre-title
- * Eyebrow row carries the static "Task" label, pills render under the title,
- * and meta carries owner / origin / updated-at relative time.
+ * with the task detail route. The H1 is the only inline-status surface; the
+ * pre-title Eyebrow row carries the static "Task" label, pills render under
+ * the title, and meta carries owner / origin / updated-at relative time.
  */
 export function TasksDetailHeader({
   detail,

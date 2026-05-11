@@ -146,7 +146,7 @@ describe("Tabs", () => {
   });
 
   it("Should reject the chipped 'default' variant at the type level", () => {
-    // @ts-expect-error — `variant="default"` is no longer part of the union (ADR-004 §2).
+    // @ts-expect-error — `variant="default"` is no longer part of the union.
     const guard = <TabsList variant="default" />;
     expect(guard).toBeTruthy();
   });

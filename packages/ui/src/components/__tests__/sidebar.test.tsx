@@ -106,7 +106,7 @@ describe("Sidebar", () => {
     expect(rail?.style.width).toBe("56px");
   });
 
-  it("Should export the ADR-003/ADR-005 viewport ladder constants", () => {
+  it("Should export the viewport ladder constants", () => {
     expect(SIDEBAR_RAIL_WIDTH).toBe(56);
     expect(SIDEBAR_PANEL_WIDTH_DEFAULT).toBe(244);
     expect(SIDEBAR_PANEL_WIDTH_MD).toBe(220);

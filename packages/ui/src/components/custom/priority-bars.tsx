@@ -13,7 +13,7 @@ export interface PriorityBarsProps extends React.ComponentProps<"span"> {
 }
 
 /**
- * Color-from-level mapping per ADR-006 §4. The glyph always renders three
+ * Color-from-level mapping The glyph always renders three
  * ascending bars (4 / 8 / 12 px); the `level` prop drives the bar fill color,
  * not the fill count. `medium` and `normal` (alias retained externally) read as
  * the resting `--fg`; `high` and `urgent` escalate via the warning / danger

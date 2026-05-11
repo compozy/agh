@@ -60,7 +60,7 @@ describe("Section", () => {
     expect(container.querySelector('[data-slot="section-label"]')?.textContent).toBe("0");
   });
 
-  it("Should render the head without bottom border by default (ADR-003 §2)", () => {
+  it("Should render the head without bottom border by default", () => {
     const { container } = render(<Section label="Members">body</Section>);
     const head = container.querySelector('[data-slot="section-head"]');
     expect(head?.className).not.toContain("border-b");

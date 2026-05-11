@@ -24,7 +24,7 @@ describe("RadioCard", () => {
     );
   });
 
-  it("Should render resting state flat on --canvas-soft with no border (ADR-004 §8)", () => {
+  it("Should render resting state flat on --canvas-soft with no border", () => {
     render(<RadioCard selected={false} onSelect={() => undefined} title="Resting card" />);
     const card = screen.getByRole("radio", { name: /resting card/i });
     expect(card.className).toContain("bg-(--canvas-soft)");

@@ -35,7 +35,7 @@ export type TaskRunsFilter = OperationQuery<"listTaskRuns">;
 export type TaskTimelineFilter = OperationQuery<"getTaskTimeline">;
 export type TaskStreamFilter = OperationQuery<"streamTask">;
 
-// Execution profile (typed overlay - ADR-010)
+// Execution profile (typed overlay)
 export type TaskExecutionProfile = OperationResponse<"getTaskExecutionProfile", 200>["profile"];
 export type TaskExecutionProfileSetRequest = OperationRequestBody<"setTaskExecutionProfile">;
 export type TaskExecutionProfileWorker = TaskExecutionProfile["worker"];
@@ -47,7 +47,7 @@ export type TaskExecutionProfileWorkerMode = TaskExecutionProfileWorker["mode"];
 export type TaskExecutionProfileCoordinatorMode = TaskExecutionProfileCoordinator["mode"];
 export type TaskExecutionProfileSandboxMode = TaskExecutionProfileSandbox["mode"];
 
-// Run reviews (ADR-007 / ADR-009 review gate)
+// Run reviews (review gate)
 export type TaskRunReview = OperationResponse<"listTaskRunReviews", 200>["reviews"][number];
 export type TaskRunReviewsFilter = OperationQuery<"listTaskRunReviews">;
 export type TaskReviewsFilter = OperationQuery<"listTaskReviews">;
@@ -63,7 +63,7 @@ export type TaskRunReviewContinuationRun = NonNullable<
   TaskRunReviewVerdictResult["continuation_run"]
 >;
 
-// Bridge notification diagnostics (ADR-003 cursor primitive + bridge subscriptions)
+// Bridge notification diagnostics (cursor primitive + bridge subscriptions)
 export type TaskBridgeNotificationSubscription = OperationResponse<
   "listTaskBridgeNotificationSubscriptions",
   200
@@ -77,7 +77,7 @@ export type TaskBridgeNotificationDeliveryMode =
   TaskBridgeNotificationSubscription["delivery_mode"];
 export type TaskBridgeNotificationSubscriptionScope = TaskBridgeNotificationSubscription["scope"];
 
-// Agent task context bundle (current_run + execution profile + replay seed - ADR-005)
+// Agent task context bundle (current_run + execution profile + replay seed)
 export type AgentContextView = OperationResponse<"getAgentContext", 200>["context"];
 export type AgentTaskContextSection = AgentContextView["task"];
 export type TaskContextBundle = NonNullable<AgentTaskContextSection["bundle"]>;

@@ -10,7 +10,7 @@ const meta: Meta<typeof DetailHeader> = {
     docs: {
       description: {
         component:
-          "Six-row detail hero per ADR-003 §2 — crumbs / pre-title / 24 px H1 / pills / meta / actions. Bottom hairline on --line; surface stays canvas. Pass `back` to wire the chevron back affordance (router.history.back() with parent-route fallback per ADR-005 §5).",
+          "Six-row detail hero — crumbs / pre-title / 24 px H1 / pills / meta / actions. Bottom hairline on --line; surface stays canvas. Pass `back` to wire the chevron back affordance (router.history.back with parent-route fallback).",
       },
     },
   },

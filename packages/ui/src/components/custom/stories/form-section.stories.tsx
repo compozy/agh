@@ -11,7 +11,7 @@ const meta: Meta<typeof FormSection> = {
     docs: {
       description: {
         component:
-          "Editable-surface container per ADR-008 §9 — 18/20 padding (comfortable) or 14/16 (compact), --radius-lg corners, --canvas-soft background, no border. Head is 13/510/-0.008em with optional leading icon and right-aligned 11 px eyebrow.",
+          "Editable-surface container — 18/20 padding (comfortable) or 14/16 (compact), --radius-lg corners, --canvas-soft background, no border. Head is 13/510/-0.008em with optional leading icon and right-aligned 11 px eyebrow.",
       },
     },
   },
@@ -44,7 +44,7 @@ export const Comfortable: Story = {
   ),
 };
 
-/** Compact density — for dialog hosts and OptionCard wrappers (ADR-015 §7). */
+/** Compact density — for dialog hosts and OptionCard wrappers. */
 export const Compact: Story = {
   args: {},
   render: () => (

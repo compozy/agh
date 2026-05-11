@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Card } from "../card";
 
 describe("Card", () => {
-  it("Should render flat on --canvas-soft with no default --line ring or border (ADR-004 §5)", () => {
+  it("Should render flat on --canvas-soft with no default --line ring or border", () => {
     const { container } = render(<Card>body</Card>);
     const root = container.querySelector<HTMLElement>('[data-slot="card"]');
     expect(root).not.toBeNull();

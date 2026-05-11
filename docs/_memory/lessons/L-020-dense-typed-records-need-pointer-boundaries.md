@@ -2,14 +2,14 @@
 
 **Class:** Architecture / Code style
 **Date discovered:** 2026-05-05 (orch-improvs recurring `gocritic` failure pattern)
-**Evidence sources:** Repeated lint failures across historical free-mode slices 020, 026, 030,
-032, 036 plus task_22 of the orchestration-improvements workstream
+**Evidence sources:** Repeated lint failures across historical free-mode slices and the
+orchestration-improvements workstream.
 
 ## Context
 
 The orchestration-improvements workstream added typed, side-table-backed records to replace
 `metadata_json` for orchestration profiles, run reviews, review verdict notifications, and task
-context bundles (ADR-002, ADR-009, ADR-010). Each new typed record is large by design: it carries
+context bundles. Each new typed record is large by design: it carries
 selector arrays, lineage fields, review history, and bundle data that used to be opaque JSON.
 
 Across the workstream, every transport/helper/test boundary that handled one of these records
@@ -20,7 +20,7 @@ recurred in:
   `Run`, but `Run` is hot-path and is copied through scheduler / claim / lease paths. The fix
   grouped the new review state under `Run.Review *RunReviewLineage` so the optional state pays its
   pointer cost only when present.
-- `task.RunReviewRequestedNotification` (task 22): observer interfaces for review routing were
+- `task.RunReviewRequestedNotification`: observer interfaces for review routing were
   drafted as value receivers; the notification carries reviewed-run provenance plus review-row
   state. The fix passed the notification by pointer and cloned contained task/run/review values
   before async/best-effort dispatch.
@@ -63,7 +63,7 @@ the same wall on the same day.
 
 ## Operationalization
 
-- Pair every "typed instead of metadata_json" decision (ADR-002, ADR-009, ADR-010) with a
+- Pair every "typed instead of metadata_json" decision with a
   signature plan: which helpers/clients/tests take pointers; which hot-path structs receive an
   optional pointer field; which observer/notifier interfaces hand off pointers and clone contained
   values for async dispatch.
@@ -82,18 +82,8 @@ the same wall on the same day.
 
 ## Source
 
-- `.compozy/tasks/orch-improvs/memory/free-iter-020.md`
-- `.compozy/tasks/orch-improvs/memory/free-iter-026.md`
-- `.compozy/tasks/orch-improvs/memory/free-iter-030.md`
-- `.compozy/tasks/orch-improvs/memory/free-iter-032.md`
-- `.compozy/tasks/orch-improvs/memory/free-iter-036.md`
-- `.compozy/tasks/orch-improvs/memory/task_22.md`
-- `.compozy/tasks/orch-improvs/memory/MEMORY.md` Shared Learnings — entries on hot-value
-  review fields, profile transport boundaries, observer notification value passing, and resolved
-  workspace helpers.
-- `.compozy/tasks/orch-improvs/adrs/adr-002-queryable-orchestration-state.md`
-- `.compozy/tasks/orch-improvs/adrs/adr-009-review-verdicts-and-continuation-guidance-are-typed-task-state.md`
-- `.compozy/tasks/orch-improvs/adrs/adr-010-task-execution-profiles-are-typed-overlays.md`
+- Historical workflow memory entries on hot-value review fields, profile transport boundaries,
+  observer notification value passing, and resolved workspace helpers.
 - `internal/task/lease.go` — `Run.Review *RunReviewLineage` nested optional pointer
 - `internal/daemon/native_profile_tools.go`, `internal/cli/client.go`, `internal/cli/task.go`,
   and `internal/api/contract/tasks.go` — profile helper/client/contract pointer boundaries

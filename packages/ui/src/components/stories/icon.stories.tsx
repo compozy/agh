@@ -11,7 +11,7 @@ const meta: Meta<typeof Icon> = {
     docs: {
       description: {
         component:
-          "Lucide icon adapter that pins the 1.75 stroke-width default (2 at xs) and quantises sizes to 11 / 12 / 14 / 16 px per ADR-010 §9.",
+          "Lucide icon adapter that pins the 1.75 stroke-width default (2 at xs) and quantises sizes to 11 / 12 / 14 / 16 px",
       },
     },
   },

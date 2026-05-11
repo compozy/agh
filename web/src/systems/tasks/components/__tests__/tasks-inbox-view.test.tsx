@@ -24,7 +24,7 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("Should render the five-lane switcher per ADR-006 §5 (My work / Mentions / Failed runs / Updates / Approvals)", () => {
+  it("Should render the five-lane switcher (My work / Mentions / Failed runs / Updates / Approvals)", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
 
     expect(screen.getByTestId("tasks-inbox-lane-tabs")).toBeInTheDocument();

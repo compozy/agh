@@ -12,7 +12,7 @@ const meta: Meta<typeof PillGroup> = {
     docs: {
       description: {
         component:
-          "Canonical segmented control. Rewritten per ADR-004 §4 — borderless `--canvas-soft` track at `--radius-md`, Inter sentence-case 12/510/-0.005em segments (no mono-uppercase), active state lifts to `--elevated` plus the `--highlight` inset shadow. Count badges render at 3px corners on the neutral `--badge-fill`.",
+          "Canonical segmented control. Rewritten — borderless `--canvas-soft` track at `--radius-md`, Inter sentence-case 12/510/-0.005em segments (no mono-uppercase), active state lifts to `--elevated` plus the `--highlight` inset shadow. Count badges render at 3px corners on the neutral `--badge-fill`.",
       },
     },
   },

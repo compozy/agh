@@ -98,7 +98,7 @@ describe("Empty", () => {
     expect(iconSlot?.className).toContain("rounded-lg");
   });
 
-  it("Should render the icon well borderless (ADR-004 §6 flat-depth pass)", () => {
+  it("Should render the icon well borderless (flat-depth pass)", () => {
     const { container } = render(<Empty title="Nothing" />);
     const iconSlot = container.querySelector('[data-slot="empty-icon"]');
     expect(iconSlot?.className).not.toContain("border-(--line)");

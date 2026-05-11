@@ -27,7 +27,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 3. Fix valid issues completely.
    - Fix issues in severity order: critical first, then high, medium, low. This ensures the most impactful fixes land even if the batch is interrupted.
    - Implement production-quality fixes for every `valid` issue in scope.
-   - Add or update tests when behavior changes or regressions are possible. Test file edits are always in scope when they validate a fix.
+   - Add or update tests when behavior changes or regressions are possible, after naming the invariant, owning layer, and canonical suite. Test file edits are in scope only when they validate a fix rather than duplicate an existing gate.
    - Keep code changes constrained to the files listed in `<batch_scope>` code files. If a fix absolutely requires touching a file not listed there, limit the change to the minimum needed and document why in the issue file's `## Triage` section.
    - Do not refactor, clean up, or improve code that is unrelated to the issues being fixed.
 

@@ -90,7 +90,7 @@ describe("AgentInfoInspector", () => {
     expect(http).toHaveTextContent("HTTP");
   });
 
-  it("Should never paint the transport as <Pill mono tone=info> (ADR-014 §4)", () => {
+  it("Should never paint the transport as <Pill mono tone=info>", () => {
     render(
       <AgentInfoInspector
         agent={makeAgent({
@@ -111,7 +111,7 @@ describe("AgentInfoInspector", () => {
     expect(screen.getByTestId("agent-info-mcp-empty")).toHaveAttribute("data-fill", "false");
   });
 
-  it("Should consume <DetailInspector> with one tab (MCP) per ADR-014 §3", () => {
+  it("Should consume <DetailInspector> with one tab (MCP)", () => {
     const { container } = render(<AgentInfoInspector agent={makeAgent()} />);
     const root = container.querySelector<HTMLElement>(
       '[data-slot="detail-inspector"][data-mode="inline"]'

@@ -12,7 +12,7 @@ const meta: Meta<typeof Section> = {
     docs: {
       description: {
         component:
-          "Section shell with 13 px H2 label + optional right-aligned slot + body. Bottom border is opt-in via `bordered` (default `false`) per ADR-003 §2.",
+          "Section shell with 13 px H2 label + optional right-aligned slot + body. Bottom border is opt-in via `bordered` (default `false`)",
       },
     },
   },

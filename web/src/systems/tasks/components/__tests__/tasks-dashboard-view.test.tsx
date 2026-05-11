@@ -36,7 +36,7 @@ describe("TasksDashboardView", () => {
     expect(screen.getByTestId("tasks-dashboard-queue-health")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-status-breakdown")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-active-runs")).toBeInTheDocument();
-    // Live/stale pill is deferred per ADR-016 §8 — only the static totals
+    // Live/stale pill is deferred — only the static totals
     // eyebrow renders at the bottom of the dashboard.
     expect(screen.queryByTestId("tasks-dashboard-freshness")).not.toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-totals")).toHaveTextContent(/runs/i);
@@ -62,7 +62,7 @@ describe("TasksDashboardView", () => {
 
     render(<TasksDashboardView dashboard={dashboard} />);
     expect(screen.getByTestId("tasks-dashboard-warning")).toBeInTheDocument();
-    // 6-cell Metric sub-grid was deleted per ADR-006 §7; queue total is exposed
+    // 6-cell Metric sub-grid was deleted; queue total is exposed
     // through the KPI strip (`tasks-dashboard-card-queue-depth`) instead.
     expect(screen.getByTestId("tasks-dashboard-card-queue-depth")).toHaveTextContent("5");
   });

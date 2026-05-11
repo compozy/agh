@@ -10,7 +10,7 @@ const meta: Meta<typeof StatusLineTopbarSlot> = {
     docs: {
       description: {
         component:
-          "Typed status line per ADR-015 §1 + N-013 / N-005. Pairs the daemon `ConnectionIndicator` with a typed `Array<{label?, value, tone?}>` item list (replaces the legacy `ReactNode[]` shape). Items render with `·` separators and tone-driven value colors.",
+          "Typed status line + N-013 / N-005. Pairs the daemon `ConnectionIndicator` with a typed `Array<{label?, value, tone?}>` item list (replaces the legacy `ReactNode[]` shape). Items render with `·` separators and tone-driven value colors.",
       },
     },
   },

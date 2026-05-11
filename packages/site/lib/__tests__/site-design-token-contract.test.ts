@@ -12,7 +12,7 @@ const hexColorPattern = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?\b/g;
 
 /*
  * Site-local palette allowlist. The runtime kit moved to a new warm-dark
- * contract under `.compozy/tasks/redesign` (P1 token foundation); the site
+ * contract under `.compozy/tasks/<slug>/` (P1 token foundation); the site
  * keeps the legacy palette below until its own redesign TechSpec runs. The
  * shared accent (`#E8572A`) and tints stay valid because they were not
  * deleted by the runtime cut.

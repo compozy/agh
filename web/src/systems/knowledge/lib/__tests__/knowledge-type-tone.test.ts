@@ -5,7 +5,7 @@ import type { MemoryType } from "@/systems/knowledge/types";
 import { KNOWLEDGE_TYPE_TONE, type KnowledgeType, knowledgeTypeFor } from "../knowledge-type-tone";
 
 describe("KNOWLEDGE_TYPE_TONE", () => {
-  it("Should ship the ADR-012 §1 retuned vocabulary with semantic tones", () => {
+  it("Should ship the retuned vocabulary with semantic tones", () => {
     expect(KNOWLEDGE_TYPE_TONE.decisions).toBe("info");
     expect(KNOWLEDGE_TYPE_TONE.code).toBe("neutral");
     expect(KNOWLEDGE_TYPE_TONE.notes).toBe("neutral");
@@ -13,7 +13,7 @@ describe("KNOWLEDGE_TYPE_TONE", () => {
     expect(KNOWLEDGE_TYPE_TONE.archival).toBe("faint");
   });
 
-  it("Should never assign accent to a memory-type tone (ADR-012 §1 retune dropped accent)", () => {
+  it("Should never assign accent to a memory-type tone (retune dropped accent)", () => {
     const tones = Object.values(KNOWLEDGE_TYPE_TONE);
     expect(tones).not.toContain("accent");
   });

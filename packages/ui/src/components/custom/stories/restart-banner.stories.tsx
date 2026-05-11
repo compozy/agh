@@ -11,7 +11,7 @@ const meta: Meta<typeof RestartBanner> = {
     docs: {
       description: {
         component:
-          'Warm-orange "Restart required to apply" banner per ADR-015 §1. Pure-presentation slot: the consumer maps its state machine to `tone` / `message` / `detail` / `busy` props and decides whether to render. Optional `restartNow` and `onDismiss` callbacks wire the inline buttons.',
+          'Warm-orange "Restart required to apply" banner Pure-presentation slot: the consumer maps its state machine to `tone` / `message` / `detail` / `busy` props and decides whether to render. Optional `restartNow` and `onDismiss` callbacks wire the inline buttons.',
       },
     },
   },

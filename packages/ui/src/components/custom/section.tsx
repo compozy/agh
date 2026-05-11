@@ -13,7 +13,7 @@ export interface SectionProps extends React.ComponentProps<"section"> {
   divided?: boolean;
   /**
    * When `true`, the section head renders a bottom hairline via `border-b border-(--line)`.
-   * Default is `false` per ADR-003 §2 (flat-depth pass) — depth comes from the warm-surface ramp.
+   * Default is `false` (flat-depth pass) — depth comes from the warm-surface ramp.
    */
   bordered?: boolean;
   bodyClassName?: string;

@@ -96,7 +96,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 - Record reproduction in the plan: timestamp, exact command, observed output.
 - Distinguish symptom from root cause in writing.
 - Fix at root cause; don't patch symptoms.
-- Add focused regression coverage at the correct layer.
+- Add focused regression coverage at the correct layer, or record why an existing gate already owns the invariant.
 - Re-run the narrow reproduction, the impacted scenario, and relevant package tests.
 
 **Source:** `.codex/plans/` (consistent forensic frame in `child-workgroup-activation.md`, `session-stop-hang.md`, `dashboard-xterm-visibility.md`, `prompt-stream-stall.md`); also encoded in `real-scenario-qa` and `cy-fix-reviews`.

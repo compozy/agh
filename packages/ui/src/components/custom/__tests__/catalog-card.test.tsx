@@ -63,7 +63,7 @@ describe("CatalogCard", () => {
     }
   );
 
-  it("Should render flat — 16 px padding, no border, no accent on resting state (ADR-004 §7)", () => {
+  it("Should render flat — 16 px padding, no border, no accent on resting state", () => {
     render(<CatalogCard data-testid="catalog-card" />);
     const card = screen.getByTestId("catalog-card");
     expect(card.className).toContain("p-4");
@@ -112,7 +112,7 @@ describe("CatalogCard", () => {
     expect(logo).toHaveAttribute("data-size", "lg");
   });
 
-  it("Should render the title at 13 px / 510 / -0.012em (ADR-004 §7)", () => {
+  it("Should render the title at 13 px / 510 / -0.012em", () => {
     render(
       <CatalogCard>
         <CatalogCard.Title data-testid="title">release-auditor</CatalogCard.Title>

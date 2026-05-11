@@ -15,7 +15,7 @@ export interface QueueHealthSparklineBucket {
 }
 
 export interface QueueHealthSparklineProps extends Omit<React.ComponentProps<"div">, "children"> {
-  /** Bucketed queue depth data per ADR-010 §3. */
+  /** Bucketed queue depth data */
   data: ReadonlyArray<QueueHealthSparklineBucket>;
   /** Height in CSS pixels. Defaults to 96 to match the proposal baseline. */
   height?: number;

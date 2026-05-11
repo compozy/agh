@@ -1,5 +1,5 @@
 /**
- * Status-to-tone dictionaries for the redesign-v2 contract (TechSpec §"Core Interfaces — STATUS_TONE dictionaries").
+ * Status-to-tone dictionaries for the core status-tone vocabulary.
  *
  * Three exhaustive `Record<...>` maps consumed by Tasks, Bridges, Knowledge,
  * Automation, and other system formatters. `as const satisfies Record<Key, PillTone>`
@@ -11,7 +11,7 @@
  * states (matches `internal/task/types.go:23-37`). The backend Status enum also
  * publishes `canceled` (line 38), but task lanes do not render canceled tasks
  * today; downstream consumers map `canceled` to a neutral fallback at the call
- * site or route through `RUN_STATUS_TONE.canceled` instead. ADR-007 §4 also
+ * site or route through `RUN_STATUS_TONE.canceled` instead. also
  * defers the `stuck` UI tone (the dashboard exposes a separate `stuck: bool`
  * field, not a Status value), and `queued` is not a Status value at all.
  *

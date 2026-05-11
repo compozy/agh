@@ -18,7 +18,7 @@ export interface PermissionPromptProps {
 type PromptTone = "warning" | "danger";
 
 /**
- * High-stakes tools that affect the filesystem or the network. Per ADR-014 §5,
+ * High-stakes tools that affect the filesystem or the network.,
  * permission prompts for these tools render with the `danger` tone (tile +
  * tint) so the operator cannot scroll past them without a deliberate decision.
  */

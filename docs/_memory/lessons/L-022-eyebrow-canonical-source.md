@@ -2,9 +2,8 @@
 
 **Class:** Frontend / Design system
 **Date discovered:** 2026-05-10 (DashboardCard inline-eyebrow audit while landing the redesign branch)
-**Evidence sources:** Audit run on the `redesign` branch ahead of the dashboard polish; first fix in
-the `eyebrow-adjusts` work; final consolidation in `redesign-v2/task_06` (PR-2) — collapsed the
-prop matrix and the multi-utility CSS layer into a single Inter UC contract. Touched files:
+**Evidence sources:** Audit run ahead of the dashboard polish; the final consolidation collapsed
+the prop matrix and the multi-utility CSS layer into a single Inter UC contract. Touched files:
 `packages/ui/src/components/custom/eyebrow.tsx`, `packages/ui/src/tokens.css`, `DESIGN.md` §3 / §11,
 `.agents/skills/agh-design/SKILL.md`, `packages/ui/src/lib/utils.ts`,
 `lint-plugins/compozy-design-system.mjs`, plus the cross-monorepo callsite sweep.
@@ -36,8 +35,8 @@ size erased without warning.
 The first fix added size + tone variants to `<Eyebrow>` and rewrote `<extendTailwindMerge>`. But
 that fix preserved a multi-tier API (`case`, `family`, `tone`, `size`, `weight`) plus three CSS
 utilities (`eyebrow`, `eyebrow-badge`, `eyebrow-micro`). With multiple variants live, callsites
-still picked the "wrong" tier and the JetBrains-Mono contract leaked into surfaces that ADR-002
-§1 declared must be Inter UC. Redesign-v2 superseded the variant matrix with a single contract.
+still picked the "wrong" tier and the JetBrains-Mono contract leaked into surfaces that must use
+the Inter UC contract. The design-system consolidation superseded the variant matrix with a single contract.
 
 ## Root cause
 
@@ -80,7 +79,9 @@ implementation files.
   }
   ```
   `--text-eyebrow` resolves to `0.6875rem` (11 px); `--tracking-eyebrow` resolves to `-0.005em`.
-  Both tokens are pinned in `tokens.css` `@theme inline` and gated by `tokens.test.ts`.
+  These tokens are part of the public token contract, but automated coverage must stay narrow:
+  prefer the `no-inline-eyebrow` lint rule, `twMerge` behavior checks, and visual/story coverage.
+  Do not create broad CSS-literal suites that duplicate `tokens.css`.
 - `packages/ui/src/lib/utils.ts` extends `tailwind-merge` with the project's `font-size` group
   so `cn("text-eyebrow", "text-(--muted)")` no longer collapses the size into the color group.
   Any new `--text-*` token in `tokens.css` MUST be added to that group on the same change.

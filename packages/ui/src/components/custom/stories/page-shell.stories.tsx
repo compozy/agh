@@ -13,7 +13,7 @@ const meta: Meta<typeof PageShell> = {
     docs: {
       description: {
         component:
-          "Route body shell — owns banner / scrollable body / sticky footer composition. The shell-level `<Topbar>` owns the route header (per ADR-002) so PageShell stays chromeless. Two density modes: `comfortable` (default) and `compact`.",
+          "Route body shell — owns banner / scrollable body / sticky footer composition. The shell-level `<Topbar>` owns the route header (per) so PageShell stays chromeless. Two density modes: `comfortable` (default) and `compact`.",
       },
     },
   },

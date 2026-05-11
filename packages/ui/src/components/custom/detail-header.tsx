@@ -30,7 +30,7 @@ export interface DetailHeaderProps extends Omit<React.ComponentProps<"header">, 
   /** Trailing action cluster (row 6) — buttons, dropdowns. */
   actions?: React.ReactNode;
   /**
-   * Back-button slot per ADR-005 §5. Consumers wire `router.history.back()` with a
+   * Back-button slot Consumers wire `router.history.back` with a
    * parent-route fallback. When omitted the chevron is not rendered.
    */
   back?: () => void;

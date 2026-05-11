@@ -178,7 +178,7 @@ describe("useTasksPage", () => {
     });
 
     act(() => {
-      // Lane filter is now a pure client-side UI control per ADR-006 §5 —
+      // Lane filter is now a pure client-side UI control —
       // setting it must not trigger a backend refetch with a `lane` param.
       result.current.handleInboxLaneChange("approvals");
       result.current.handleInboxUnreadToggle(true);

@@ -20,9 +20,9 @@ export interface TasksDetailOverviewPanelProps {
 
 /**
  * Overview tab — KPI metric grid (3 col / gap-3 ≥ 1100 px, collapses to 1 col),
- * active-run `<RunCard>`, and `<DescriptionCard>` per ADR-007 §9. No
+ * active-run `<RunCard>`, and `<DescriptionCard>` No
  * `border-l-2 border-l-accent` rail, no Stuck pill, no Watch button, no Block
- * reason placeholder (Out of Scope per ADR-007 §4 / §6 / §8).
+ * reason placeholder (Out of Scope / §6 / §8).
  */
 export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelProps) {
   const record = detail.task;

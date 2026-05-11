@@ -10,7 +10,7 @@ const meta: Meta<typeof DescriptionCard> = {
     docs: {
       description: {
         component:
-          'Operator-authored markdown rendered through the `streamdown` safe-mode contract (TechSpec §"Markdown Safe-Mode Contract"). Strips raw HTML, blocks dangerous URL schemes, swaps external images for `[image: alt]` fallbacks.',
+          "Operator-authored markdown rendered through the `streamdown` safe-mode contract. Strips raw HTML, blocks dangerous URL schemes, swaps external images for `[image: alt]` fallbacks.",
       },
     },
   },

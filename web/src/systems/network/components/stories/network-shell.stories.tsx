@@ -94,7 +94,7 @@ function NetworkShellHarness({
         unpinnedChannels={unpinned}
       >
         <div className="px-6 py-4 text-small-body text-(--muted)">
-          Tab content placeholder - message rows land in task_14.
+          Tab content placeholder for message rows.
         </div>
       </NetworkShell>
     </PanelSurface>
@@ -123,7 +123,7 @@ export const EmptyChannels: Story = {
 };
 
 /**
- * Right-rail open state - overlay slot reserved for thread overlay (task_14) and inspectors (task_15).
+ * Right-rail open state - overlay slot reserved for thread overlay and inspectors.
  */
 export const RightRailOpen: Story = {
   render: () => <NetworkShellHarness rightRailOpen />,

@@ -68,7 +68,7 @@ function PermissionPromptHarness({
   );
 }
 
-/** Default high-stakes prompt (Bash) — danger tile + tint per ADR-014 §5. */
+/** Default high-stakes prompt (Bash) — danger tile + tint */
 export const HighStakesDanger: Story = {
   render: () => <PermissionPromptHarness autoDecision={null} />,
 };

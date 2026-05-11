@@ -1,7 +1,7 @@
 /**
  * OXC/ESLint Plugin: Compozy design-system rules.
  *
- * The rules below protect redesign-v2 contracts that are easy to regress with
+ * The rules below protect design-system contracts that are easy to regress with
  * inline Tailwind classes or direct lucide imports. Rules are intentionally
  * small and filename-scoped so they can be registered before their severity
  * ramp without blocking in-flight consumer migrations.
@@ -118,8 +118,8 @@ function getImportedName(specifier) {
 
 function isViolation(value) {
   if (!value || typeof value !== "string") return false;
-  // Deleted utility-class literals (task_06 / PR-2): `eyebrow-badge` and
-  // `eyebrow-micro` were collapsed into the single `eyebrow` contract; any
+  // Deleted utility-class literals: `eyebrow-badge` and `eyebrow-micro`
+  // were collapsed into the single `eyebrow` contract; any
   // remaining className referencing them is a regression.
   if (DELETED_EYEBROW_UTILITY_RE.test(value)) return true;
   const tokens = splitClassTokens(value);
@@ -147,10 +147,8 @@ function findInlineDesignTuple(values) {
     return "pageH1Tuple";
   }
   // Tailwind duration literal + rounded shorthand bans are intentionally not enforced
-  // here yet. The redesign-v2 PR-4 closeout (task_29) flips this rule to error for the
-  // page-h1 tuple only. The duration-(100|150|200) and rounded-(md|lg|xl) sweeps are
-  // tracked as a follow-up TechSpec — adding them here without the codemod would gate
-  // CI on ~134 unrelated callsites.
+  // here yet. This rule currently gates the page-h1 tuple only; adding the duration
+  // and radius sweeps without their codemod would gate CI on unrelated callsites.
   return null;
 }
 
@@ -193,7 +191,7 @@ const noInlineEyebrow = {
     },
     messages: {
       inlineEyebrow:
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui (Inter UC 11/600/-0.005em, single style — no case/family/tone/size props). See ADR-002 §1 / L-022.",
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui (Inter UC 11/600/-0.005em, single style — no case/family/tone/size props). See DESIGN.md §3 and lesson L-022.",
     },
     schema: [],
   },
@@ -246,7 +244,7 @@ const noDesignGlazeRgba = {
     },
     messages: {
       inlineGlaze:
-        "Inline surface glaze rgba in className. Use named glaze tokens such as bg-(--row-hover), bg-(--row-selected), bg-(--surface-glaze), bg-(--bar-fill), bg-(--input-fill), bg-(--btn-default-fill), bg-(--btn-default-hover), or bg-(--badge-fill). See ADR-001 §6.",
+        "Inline surface glaze rgba in className. Use named glaze tokens such as bg-(--row-hover), bg-(--row-selected), bg-(--surface-glaze), bg-(--bar-fill), bg-(--input-fill), bg-(--btn-default-fill), bg-(--btn-default-hover), or bg-(--badge-fill). See DESIGN.md §2.5.",
     },
     schema: [],
   },
@@ -284,7 +282,7 @@ const noBannedImports = {
     },
     messages: {
       bannedImport:
-        "Importing {{name}} from lucide-react is banned in runtime code. Use <Spinner> from @agh/ui instead. See ADR-009 §5.",
+        "Importing {{name}} from lucide-react is banned in runtime code. Use <Spinner> from @agh/ui instead. See DESIGN.md §10.",
     },
     schema: [],
   },
@@ -317,12 +315,12 @@ const noInlineDesignTuples = {
     type: "problem",
     docs: {
       description:
-        "Forbid inline redesign-v2 type, motion, and radius tuples in JSX className. Use the canonical tokens or primitives.",
+        "Forbid inline design-system type, motion, and radius tuples in JSX className. Use the canonical tokens or primitives.",
       recommended: false,
     },
     messages: {
       pageH1Tuple:
-        "Inline 22px page H1 tuple in className. Use <DetailHeader> for detail surfaces or tokenized text-(length:--text-detail-h1) tracking-(--tracking-detail-h1). See ADR-009 §4 / ADR-016 §5.",
+        "Inline 22px page H1 tuple in className. Use <DetailHeader> for detail surfaces or tokenized text-(length:--text-detail-h1) tracking-(--tracking-detail-h1). See DESIGN.md §4 and §11.",
     },
     schema: [],
   },

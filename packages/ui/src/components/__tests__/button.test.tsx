@@ -40,7 +40,7 @@ describe("Button", () => {
     expect(button.className).toContain("h-[26px]");
   });
 
-  it("Should emit identical class strings for variant='primary' and variant='default' (ADR-004 §1 initial parity)", () => {
+  it("Should emit identical class strings for variant='primary' and variant='default' (initial parity)", () => {
     render(
       <>
         <Button variant="default" data-testid="default">

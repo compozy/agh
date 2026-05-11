@@ -116,7 +116,7 @@ describe("task semantic tones", () => {
     expect(taskRunStatusTone(null)).toBe("neutral");
   });
 
-  it("Should resolve inbox lanes through TASK_LANE_TONE — approvals collapses to info per ADR-010 §2", () => {
+  it("Should resolve inbox lanes through TASK_LANE_TONE — approvals collapses to info", () => {
     expect(taskLaneTone("approvals")).toBe("info");
     expect(taskLaneTone("failed_runs")).toBe("danger");
     expect(taskLaneTone("blocked")).toBe("danger");

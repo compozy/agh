@@ -76,7 +76,7 @@ You MUST create a task for each phase and complete them in order:
 
 4. Draft the TechSpec.
    - Read `references/techspec-template.md` and fill every applicable section.
-   - **MANDATORY — Architecture Decision Records section:** The generated TechSpec MUST end with an "Architecture Decision Records" section listing every ADR created during this process. Each entry must include the ADR number (e.g., ADR-001), title, and a one-line summary formatted as a link to the `adrs/` directory. Even simple features require at least one ADR documenting the primary technical approach chosen and alternatives rejected. If no ADRs were created in step 3, go back and create at least one before generating the document.
+   - **MANDATORY — Architecture Decision Records section:** The generated TechSpec MUST end with an "Architecture Decision Records" section listing every decision record created during this process. Each entry must include its number, title, and a one-line summary formatted as a link to the `adrs/` directory. Even simple features require at least one decision record documenting the primary technical approach chosen and alternatives rejected. If none were created in step 3, go back and create at least one before generating the document.
    - Apply YAGNI ruthlessly: remove any component, interface, or abstraction that is not strictly necessary. Do NOT propose new packages or directories when the feature can be implemented by adding a single file to an existing package.
    - Every PRD goal and user story should map to a technical component.
    - Reference PRD sections by name but do not duplicate business context.

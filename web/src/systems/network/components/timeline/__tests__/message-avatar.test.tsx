@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { MessageAvatar } from "../message-avatar";
 
-describe("MessageAvatar (ADR-002 §1 / ADR-013 §2)", () => {
+describe("MessageAvatar", () => {
   it("Should NOT inline the legacy `font-mono uppercase tracking-mono` tuple", () => {
     render(<MessageAvatar initialFrom="Codex" seed="codex" sizePx={36} />);
     const avatar = screen.getByTestId("network-message-avatar");
@@ -24,7 +24,7 @@ describe("MessageAvatar (ADR-002 §1 / ADR-013 §2)", () => {
     expect(eyebrow?.className).toContain("eyebrow");
   });
 
-  it("Should announce `{Role} {Name}` when `role` is provided per ADR-013 §2", () => {
+  it("Should announce `{Role} {Name}` when `role` is provided", () => {
     render(
       <MessageAvatar initialFrom="codex" name="Codex" role="agent" seed="codex" sizePx={32} />
     );

@@ -22,10 +22,10 @@ export interface AgentCardProps {
 }
 
 /**
- * Per-agent card per ADR-007 §9 — `<OwnerAvatar lg>` + name 13/510 + optional
+ * Per-agent card — `<OwnerAvatar lg>` + name 13/510 + optional
  * live pulse pill, 3-metric strip (Live · Events · Descendants), events strip
  * (≤ 5 rows in a 14/1fr/56 grid), and a full-width ghost footer linking to the
- * full timeline. Local to the tasks system per ADR-016 §8 (not promoted to
+ * full timeline. Local to the tasks system (not promoted to
  * `@agh/ui`).
  */
 export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardProps) {

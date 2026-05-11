@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const packagesUiMain = (await import("../../../../packages/ui/.storybook/main")).default;
 const packagesUiPreviewModule = await import("../../../../packages/ui/.storybook/preview");
+const { storybookDecorators, themeDecorator, uiProviderDecorator } = packagesUiPreviewModule;
 const packagesUiPreview = packagesUiPreviewModule.default;
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -40,7 +41,12 @@ describe("packages/ui Storybook config", () => {
 
   it("stays render-only with no Storybook loaders", () => {
     expect(packagesUiPreview.loaders).toBeUndefined();
-    expect(packagesUiPreview.decorators).toHaveLength(1);
+    expect(packagesUiPreview.decorators).toEqual(storybookDecorators);
+    expect(storybookDecorators).toHaveLength(2);
+    expect(storybookDecorators.filter(decorator => decorator === themeDecorator)).toHaveLength(1);
+    expect(storybookDecorators.filter(decorator => decorator === uiProviderDecorator)).toHaveLength(
+      1
+    );
     expect(packagesUiPreview.parameters).toEqual({
       backgrounds: {
         disable: true,

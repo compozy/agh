@@ -17,7 +17,7 @@ export interface TasksDashboardQueueHealthProps {
   /**
    * Optional pre-computed 24h histogram. When omitted, the chart is derived
    * from the dashboard queue snapshot; callers (Storybook, tests) can pass
-   * an explicit series. Shape matches `<QueueHealthSparkline>` per ADR-010 §3.
+   * an explicit series. Shape matches `<QueueHealthSparkline>`
    */
   buckets?: QueueHealthSparklineBucket[];
 }

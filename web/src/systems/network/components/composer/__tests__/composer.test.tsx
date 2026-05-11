@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../composer";
 
 describe("Composer", () => {
-  it("Should render the textarea on `--input-fill` with the `--canvas` focus state per ADR-013 §1", () => {
+  it("Should render the textarea on `--input-fill` with the `--canvas` focus state", () => {
     render(
       <Composer
         onSubmit={vi.fn()}

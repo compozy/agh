@@ -3,7 +3,7 @@ import type { PillTone } from "@agh/ui";
 import type { MemoryType } from "@/systems/knowledge/types";
 
 /**
- * ADR-012 §1 / §16: knowledge memory-type tone vocabulary.
+ * / §16: knowledge memory-type tone vocabulary.
  *
  * `KnowledgeType` is the forward-looking dictionary key set tracked by the
  * design system; the backend `MemoryType` enum (`user | feedback | project |

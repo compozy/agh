@@ -53,7 +53,7 @@ describe("MarketplaceView", () => {
     expect(screen.getByTestId("marketplace-row-gamma")).toBeInTheDocument();
   });
 
-  it("Should render the install button as variant=default per ADR-012 §5", () => {
+  it("Should render the install button as variant=default", () => {
     renderView();
     const button = screen.getByTestId("install-btn-alpha");
     // The button-cva default variant emits the neutral fill, not the primary accent fill.

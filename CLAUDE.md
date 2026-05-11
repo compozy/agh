@@ -24,6 +24,7 @@ AGH is an agent operating system — a Go single-binary daemon that manages AI a
 - **Never add dependencies by hand in `go.mod`** — always use `go get`.
 - **Never run destructive git commands** (`git restore`, `git checkout`, `git reset`, `git clean`, `git rm`) **without explicit user permission**. If the worktree contains unexpected edits, read and work around them.
 - <critical>NEVER ignore errors with `_` in production code or in tests — every error must be handled or have a written justification.</critical>
+- **Test placement is mandatory before test creation.** Before adding, moving, or expanding any test, name the invariant, owning layer, and canonical suite. Default to editing an existing canonical suite; do not create standalone or duplicate regression tests unless no existing suite can own that invariant. Static/prose/CSS/generated/snapshot/config tests require explicit product-contract rationale.
 - <critical>NEVER COMMITS `ai-docs/` or `.tmp/` TO THE REPO. They are local tracking artifacts.</critical>
 - **Always use subagents** for exploration to avoit bloat your own context.
 - **Subagents default to read-only.** Use them for analysis, exploration, and parallel research. The author of every code change is the agent paired with the user, and subagent output is treated as evidence. A subagent may write, edit, or commit only when the parent's prompt explicitly delegates that action (e.g. "write the analysis file at X", "apply the fix in Y"); otherwise it must return its output for the parent to write.
@@ -55,7 +56,7 @@ These govern how features move from idea to ship. Internalize them before openin
 - Pull tokens from `DESIGN.md` (colors, type, radii, spacing, motion) — never invent values.
 - Follow the flat depth model (no shadows), warm-dark palette, Inter + JetBrains Mono + Playfair Display (site-home only) + NuixyberNext (wordmark only).
 - Respect the signal palette: accent `#E8572A` = action, `#30D158` = success, `#FF453A` = danger, `#FFD60A` = warning, `#BF5AF2` = info.
-- When a task belongs to `.compozy/tasks/redesign/`, run it through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and activate the mandatory design skills listed below.
+- For design-system or UI redesign tasks, run them through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and activate the mandatory design skills listed below.
 - **Truthful UI > plausible UI.** Don't render controls or metrics the runtime doesn't actually support. When Paper artboards conflict with daemon truth, daemon wins. Paper governs _composition_, `DESIGN.md` governs _grammar_.
 
 ### Using `impeccable` for design work
@@ -70,7 +71,7 @@ These govern how features move from idea to ship. Internalize them before openin
 
 Every UI change in `web/` or `packages/ui/` MUST be visually verified with `agh-ui-screenshot` before completion. Tests verify code, not pixels.
 
-- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`, etc.) and diff against `.compozy/tasks/redesign-v2/screenshots/proposal/` or a trusted prior baseline.
+- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`, etc.) and diff against a trusted prior baseline.
 - For surface-wide passes (token retune, primitive swap), capture before + after.
 - Cite the capture file(s) when reporting done. Claiming success without screenshots is non-compliant.
 
@@ -97,6 +98,7 @@ Match task domain → activate all required skills
 | TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                                   |
 | Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-anti-patterns`                           |
 | Writing Go tests                      | `agh-test-conventions` + `testing-anti-patterns` + `golang-pro`                          | `vitest` (only for test tooling docs)             |
+| Test placement / consolidation        | `consolidate-test-suites`                                                                | `testing-anti-patterns`                           |
 | Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       | `deadlock-finder-and-fixer`                       |
 | Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                                   |
 | Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                                   |
@@ -210,6 +212,10 @@ Backend architecture, autonomy contracts, security invariants, package layout, a
 
 ## Testing
 
+- **Skill**: `consolidate-test-suites` (`.agents/skills/consolidate-test-suites/`).
+- **When**: before creating a new test file, moving a test, broadening a regression suite, or adding tests primarily to satisfy a task checklist or coverage target.
+- **Covers**: invariant naming, owning-layer selection, canonical-suite reuse, duplicate regression rejection, and no-new-test rationale when an existing gate already proves the behavior.
+- **Rule**: every task needs a test decision, not necessarily new tests. Do not add filler tests for coverage or tests that only pin implementation details.
 - **Skill**: `agh-test-conventions` (`.agents/skills/agh-test-conventions/`).
 - **When**: before writing or editing any `*_test.go` file.
 - **Covers**:

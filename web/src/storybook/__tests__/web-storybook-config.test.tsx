@@ -23,6 +23,7 @@ const {
   storybookLoaders,
   storybookSystemHandlers,
   themeDecorator,
+  uiProviderDecorator,
 } = webPreviewModule;
 const webPreview = webPreviewModule.default;
 
@@ -57,7 +58,7 @@ describe("web Storybook config", () => {
     });
   });
 
-  it("registers MSW and preserves the theme decorator alongside one query and router decorator", () => {
+  it("registers MSW and preserves theme, UI, and router decorators", () => {
     expect(initialize).toHaveBeenCalledWith({ onUnhandledRequest: "bypass" });
     expect(webPreview.loaders).toEqual(storybookLoaders);
     expect(storybookLoaders).toEqual([mswLoader]);
@@ -65,6 +66,9 @@ describe("web Storybook config", () => {
     expect(webPreview.parameters?.msw?.handlers).toEqual(storybookSystemHandlerGroups);
     expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators.filter(decorator => decorator === themeDecorator)).toHaveLength(1);
+    expect(storybookDecorators.filter(decorator => decorator === uiProviderDecorator)).toHaveLength(
+      1
+    );
     expect(storybookDecorators.filter(decorator => decorator === routerDecorator)).toHaveLength(1);
     expect(storybookDecorators).not.toContain(queryClientDecorator);
   });

@@ -20,7 +20,7 @@ describe("FormSection", () => {
     expect(root?.className).not.toContain("border-(--line)");
   });
 
-  it("Should switch to compact padding per ADR-015 §7", () => {
+  it("Should switch to compact padding", () => {
     const { container } = render(
       <FormSection title="Scope" size="compact">
         <span>body</span>

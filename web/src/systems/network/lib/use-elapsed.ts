@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 /**
  * Live ticker shared across work chips and other duration displays. A single
  * 1-second `setInterval` is preferable to per-component timers because many
- * `working` chips can render simultaneously in busy timelines per
- * `_design.md` §5.8.1 and the implementation note in task_15.
+ * `working` chips can render simultaneously in busy timelines.
  */
 const TICK_MS = 1_000;
 

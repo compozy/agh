@@ -9,7 +9,7 @@ export type StatusDotVariant = "solid" | "ring";
 export type StatusDotSize = "default" | "sm";
 
 export interface StatusDotProps extends Omit<React.ComponentProps<"span">, "children"> {
-  /** Color family applied to the dot (per ADR-006 §3 inbox vocabulary). */
+  /** Color family applied to the dot (per inbox vocabulary). */
   tone: StatusDotTone;
   /** `solid` fills the dot; `ring` paints a 1 px outline only. */
   variant?: StatusDotVariant;

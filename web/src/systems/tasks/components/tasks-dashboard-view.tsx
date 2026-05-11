@@ -15,9 +15,9 @@ export interface TasksDashboardViewProps {
 }
 
 /**
- * Tasks dashboard composition per ADR-006 §2 + §7 — KPI strip → queue health +
+ * Tasks dashboard composition + §7 — KPI strip → queue health +
  * status breakdown → active runs. The live/stale page-head pill is deferred
- * per ADR-016 §8; the bottom of the view ships a static totals eyebrow only
+ *; the bottom of the view ships a static totals eyebrow only
  * (no freshness label rendered).
  */
 export function TasksDashboardView({

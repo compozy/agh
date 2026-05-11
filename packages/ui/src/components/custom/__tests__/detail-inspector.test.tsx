@@ -124,7 +124,7 @@ describe("DetailInspector", () => {
     expect(lastMock?._listeners.size).toBe(0);
   });
 
-  it("Should default the breakpoint to 1440 (ADR-014 §2)", () => {
+  it("Should default the breakpoint to 1440", () => {
     expect(DETAIL_INSPECTOR_INLINE_BREAKPOINT).toBe(1440);
     expect(DETAIL_INSPECTOR_INLINE_WIDTH).toBe(320);
   });

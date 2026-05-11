@@ -158,7 +158,7 @@ describe("TasksRoute", () => {
     renderTasksRoute();
     expect(screen.getByTestId("tasks-shell")).toBeInTheDocument();
     // Full-width route shell (PageShell density="route") replaces the legacy
-    // SplitPane body wrapper per ADR-006 §8 / ADR-003 §1.
+    // SplitPane body wrapper
     expect(screen.getByTestId("tasks-shell")).toHaveAttribute("data-density", "route");
   });
 
@@ -179,7 +179,7 @@ describe("TasksRoute", () => {
     renderTasksRoute();
     expect(screen.getByTestId("tasks-outlet")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
-    // ADR-007: detail child route takes over the full canvas; the list panel
+    // The detail child route takes over the full canvas; the list panel
     // is no longer rendered side-by-side with the detail (no SplitPane).
     expect(screen.queryByTestId("tasks-list-panel")).not.toBeInTheDocument();
   });
@@ -212,7 +212,7 @@ describe("TasksRoute", () => {
       const inboxTab = screen.getByTestId("tasks-mode-inbox");
       expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
     });
-    // Approval items now live under the `Needs review` UI group per ADR-006 §3.
+    // Approval items now live under the `Needs review` UI group
     expect(screen.getByTestId("tasks-inbox-group-needs_review")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tasks-inbox-item-approve-task_apr"));
@@ -227,7 +227,7 @@ describe("TasksRoute", () => {
     fireEvent.click(screen.getByTestId("tasks-mode-inbox"));
     await waitFor(() => expect(getTaskInboxMock).toHaveBeenCalled());
 
-    // Lane filtering is now client-side per ADR-006 §5 — the backend `lane`
+    // Lane filtering is now client-side — the backend `lane`
     // param is no longer passed and the switcher just retunes the in-memory
     // view. Clicking a lane should not refetch with a `lane` query.
     const callsBefore = getTaskInboxMock.mock.calls.length;

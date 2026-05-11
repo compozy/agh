@@ -23,7 +23,7 @@ dependencies:
 - REFERENCE TECHSPEC for implementation details — do not duplicate here
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
-- TESTS REQUIRED — every task MUST include tests in deliverables
+- TEST DECISION REQUIRED — every task MUST identify the invariant, owning layer, canonical suite, and verification command; new tests are added only when justified
 </critical>
 
 <requirements>
@@ -53,18 +53,19 @@ Reference the TechSpec implementation section for code patterns and interface de
 ## Deliverables
 - [Concrete output 1]
 - [Concrete output 2]
-- Unit tests with 80%+ coverage **(REQUIRED)**
-- Integration tests for [feature] **(REQUIRED)**
+- Test placement decision **(REQUIRED)**: invariant, owning layer, canonical suite, and verification command
+- Updates to the canonical test suite when the invariant requires automated coverage
+- No-new-test rationale when an existing suite/gate already proves the invariant
 
 ## Tests
-- Unit tests:
-  - [ ] [Test case 1 — e.g., "Happy path: valid input returns expected output"]
-  - [ ] [Test case 2 — e.g., "Error path: invalid input returns descriptive error"]
-  - [ ] [Edge cases and boundary conditions]
-- Integration tests:
-  - [ ] [Test case — e.g., "End-to-end flow from request to response"]
-- Test coverage target: >=80%
-- All tests must pass
+- Invariant: [Rule that must stay true]
+- Owning layer: [unit | integration | end-to-end | static analysis | codegen | visual QA | documentation build | manual QA evidence]
+- Canonical suite: [Existing suite to update, or "none - new suite justified because ..."]
+- Test cases, when justified:
+  - [ ] [Specific behavior, input/condition, and expected evidence]
+  - [ ] [Specific failure mode, if relevant]
+- No-new-test rationale, when applicable: [Existing suite/gate/evidence that already owns the invariant]
+- Verification command: [Narrow command plus required repo gate]
 
 ## Success Criteria
 - All tests passing
@@ -76,7 +77,8 @@ Reference the TechSpec implementation section for code patterns and interface de
 ## Guidelines
 
 - Every task must be independently implementable when its dependencies are met.
-- Every task MUST include a Tests section and test items in Deliverables.
+- Every task MUST include a Tests section and a test placement decision in Deliverables.
+- Do not create tests by checklist. Add or update tests only when the invariant, owning layer, and canonical suite justify them.
 - Never create separate tasks dedicated solely to testing.
 - Subtasks describe WHAT needs to happen, not HOW to implement it.
 - Minimize code in tasks. Show code only to illustrate current structure or problem areas.

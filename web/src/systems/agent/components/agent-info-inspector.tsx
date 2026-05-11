@@ -28,8 +28,8 @@ export interface AgentInfoInspectorProps {
 
 /**
  * Agent-detail right rail consuming the `<DetailInspector>` primitive per
- * ADR-014 §3. Renders one tab (MCP) listing the agent's declared MCP servers
- * with transport rendered via `<Eyebrow>` per ADR-014 §4.
+ * Renders one tab (MCP) listing the agent's declared MCP servers
+ * with transport rendered via `<Eyebrow>`
  */
 export function AgentInfoInspector({
   agent,

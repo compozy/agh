@@ -1,6 +1,6 @@
 # Proposal-mock capture (URL-driven React mocks)
 
-The redesign-v2 audit also needs screenshots from `docs/design/new-proposal/agh-refined-7.html` — a single-file React app that does not use a router. Static screenshots of the file at `/` always show the default view; alternate views (kanban, dashboard, inbox, detail, new-task editor, empty state) need a different boot path.
+Design audits may need screenshots from `docs/design/new-proposal/agh-refined-7.html` — a single-file React app that does not use a router. Static screenshots of the file at `/` always show the default view; alternate views (kanban, dashboard, inbox, detail, new-task editor, empty state) need a different boot path.
 
 ## Pattern: clone-and-patch wrapper
 

@@ -98,7 +98,7 @@ export const Sizes: Story = {
     docs: {
       description: {
         story:
-          "All sizes share the flat `rounded-(--radius-xs)` (4 px) chip radius per ADR-004 §3. Heights: xs = 17 px, sm = 19 px, md = 22 px.",
+          "All sizes share the flat `rounded-(--radius-xs)` (4 px) chip radius Heights: xs = 17 px, sm = 19 px, md = 22 px.",
       },
     },
   },
@@ -123,7 +123,7 @@ export const TonesBySizeMatrix: Story = {
     docs: {
       description: {
         story:
-          "Every tone × every size — used to lock visual baselines for the redesign-v2 PR-2 primitives.",
+          "Every tone × every size — used to lock visual baselines for the design-system primitives.",
       },
     },
   },

@@ -13,9 +13,15 @@ trigger: implicit
 
 # AGH Test Conventions
 
-40%+ of CodeRabbit review issues across all AGH PRs are test-shape violations. The CLAUDE.md rules are correct but agents keep ignoring them when adding "just one more case." This skill is the pre-edit gate: load it before writing or modifying any Go test in AGH.
+40%+ of CodeRabbit review issues across all AGH PRs are test-shape violations. The CLAUDE.md rules are correct but agents keep ignoring them when adding "just one more case." This skill is the Go test-shape gate after `consolidate-test-suites` has justified the invariant, owning layer, and canonical suite.
 
 ## Procedures
+
+**Step 0: Confirm Placement**
+
+1. Use `consolidate-test-suites` before creating a new Go test file, moving coverage, or adding tests primarily for a task checklist or coverage target.
+2. Record the invariant, owning layer, and canonical suite before applying Go-specific shape rules.
+3. If no invariant or owning layer exists, stop. Do not add a Go test just to raise coverage.
 
 **Step 1: Identify the Edit Surface**
 

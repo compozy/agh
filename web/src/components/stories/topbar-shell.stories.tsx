@@ -14,7 +14,7 @@ const meta: Meta<typeof TopbarShell> = {
     docs: {
       description: {
         component:
-          "Shell-level topbar host (ADR-002). Mounts a single `<Topbar>` for the entire `_app` outlet, hosts a `<TopbarSlotProvider>` so any descendant route can push tabs/search/actions via `useTopbarSlot`, subscribes to router `onResolved` to clear the slot on navigation and move focus to the topbar h1 for keyboard handoff. The Storybook stories simulate the route-context + slot-push pattern outside a real router.",
+          "Shell-level topbar host. Mounts a single `<Topbar>` for the entire `_app` outlet, hosts a `<TopbarSlotProvider>` so any descendant route can push tabs/search/actions via `useTopbarSlot`, subscribes to router `onResolved` to clear the slot on navigation and move focus to the topbar h1 for keyboard handoff. The Storybook stories simulate the route-context + slot-push pattern outside a real router.",
       },
     },
   },

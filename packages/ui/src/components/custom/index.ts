@@ -231,7 +231,7 @@ export {
   type OperationalLinksRowProps,
 } from "./operational-links-row";
 
-// Redesign-v2 PR-2 content primitives (task_11) — markdown + run/tool/avatar surfaces.
+// Content primitives — markdown + run/tool/avatar surfaces.
 export {
   DescriptionCard,
   STREAMDOWN_SAFE_CONFIG,
@@ -257,7 +257,7 @@ export {
 } from "./chat-tool-card";
 export { OwnerAvatar, type OwnerAvatarProps, type OwnerAvatarSize } from "./owner-avatar";
 
-// Redesign-v2 PR-2 slot + system primitives (task_12).
+// Slot + system primitives.
 export { RestartBanner, type RestartBannerProps, type RestartBannerTone } from "./restart-banner";
 export { PageActionsTopbarSlot, type PageActionsTopbarSlotProps } from "./page-actions-topbar-slot";
 export {

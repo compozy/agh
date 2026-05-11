@@ -13,7 +13,7 @@ const meta: Meta<typeof RadioCard> = {
     docs: {
       description: {
         component:
-          "Single radio choice rendered as a card. Resting state is flat on `--canvas-soft`; selected state lifts to `--surface-glaze` with a 1 px inset `--line-strong` ring (no accent, per ADR-004 §8).",
+          "Single radio choice rendered as a card. Resting state is flat on `--canvas-soft`; selected state lifts to `--surface-glaze` with a 1 px inset `--line-strong` ring (no accent).",
       },
     },
   },

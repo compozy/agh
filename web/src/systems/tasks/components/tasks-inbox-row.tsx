@@ -7,7 +7,7 @@ import type { InboxGroupId } from "../lib/inbox-grouping";
 export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   taskId: string;
   /**
-   * Inbox group this row belongs to. Drives the rail tone per ADR-006 §8 —
+   * Inbox group this row belongs to. Drives the rail tone —
    * `needs_review` paints warning, `blocked` paints danger, `stuck` paints
    * warning ring, `mentions` paints accent, `updates` paints faint.
    */
@@ -25,7 +25,7 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
 }
 
 /**
- * Inbox row primitive per ADR-006 §8 — 3-column grid `[ rail | body | meta ]`.
+ * Inbox row primitive — 3-column grid `[ rail | body | meta ]`.
  * The rail is painted by the row's group tone (not `border-l-2`); body holds
  * the top + detail content; the meta column carries optional right-aligned
  * actions or meta.

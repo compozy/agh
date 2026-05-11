@@ -10,7 +10,7 @@ describe("StatusDot", () => {
     ["warning", "ring"],
     ["accent", "solid"],
     ["faint", "ring"],
-  ] as const)("Should render the ADR-006 §3 %s/%s tone", (tone, variant) => {
+  ] as const)("Should render the %s/%s tone", (tone, variant) => {
     const { container } = render(<StatusDot tone={tone} variant={variant} />);
     const node = container.querySelector<HTMLElement>('[data-slot="status-dot"]');
     expect(node?.dataset.tone).toBe(tone);

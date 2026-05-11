@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
 type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "danger" | "info";
 
 /**
- * Logo well size, per ADR-011 §8.
+ * Logo well size,
  * `default` — 24 × 24 (`--size-catalog-logo`); browse/marketplace surfaces.
  * `lg` — 40 × 40 (`--size-provider-logo-well`); configured/connected provider surfaces.
  */

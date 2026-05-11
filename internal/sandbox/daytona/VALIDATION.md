@@ -111,7 +111,7 @@ That evidence is why the blocking gate moved from raw SSH validation to the dedi
 
 Approve the Daytona launcher for the current repository state.
 
-The repository now uses the transport split intended by ADR-002:
+The repository now uses the approved transport split:
 
 - SSH for workspace sync and tool-host terminals
 - sandbox sidecar for ACP launcher stdio
@@ -122,7 +122,6 @@ live Daytona credentials.
 
 ## References
 
-- `.compozy/tasks/sandbox/adrs/adr-002.md`
 - `internal/sandbox/daytona/launcher_transport_integration_test.go`
 - `internal/sandbox/daytona/provider_integration_test.go`
 - Daytona SSH docs: `https://www.daytona.io/docs/en/ssh-access/`

@@ -52,7 +52,7 @@ describe("StatusCard", () => {
     }
   );
 
-  it("Should render flat — no default border on the card root (ADR-004 §5)", () => {
+  it("Should render flat — no default border on the card root", () => {
     render(
       <StatusCard data-testid="card" tone="neutral">
         <StatusCard.Header label="Flat" />

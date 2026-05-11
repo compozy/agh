@@ -23,7 +23,7 @@ export interface StatusLineTopbarSlotProps extends React.ComponentProps<"div"> {
   status: ConnectionStatus;
   /** Optional override for the connection LED label. */
   daemonLabel?: React.ReactNode;
-  /** Typed item array per ADR-015 §1 + N-013 / N-005. Replaces the legacy `ReactNode[]` shape. */
+  /** Typed item array + N-013 / N-005. Replaces the legacy `ReactNode[]` shape. */
   items: ReadonlyArray<StatusLineTopbarSlotItem>;
 }
 

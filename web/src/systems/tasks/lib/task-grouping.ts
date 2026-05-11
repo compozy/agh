@@ -1,7 +1,7 @@
 import type { TaskListItem, TaskStatus } from "../types";
 
 /**
- * Kanban column set per ADR-006 §8 (master rollup §2.6): four columns in
+ * Kanban column set (master rollup §2.6): four columns in
  * declared order — `Pending · In progress · Blocked · Done`. The previous
  * `Pending / Running / Done / Failed` set is gone (greenfield, no aliases).
  *
@@ -25,7 +25,7 @@ const KANBAN_COLUMNS: TaskKanbanColumn[] = [
 ];
 
 /**
- * List-view group buckets per ADR-006 §8 — six groups in proposal order:
+ * List-view group buckets — six groups in proposal order:
  * Active · Blocked · Stuck · Queued · Done · Failed.
  *
  * `stuck` carries no status mapping today (techspec MVP excludes the

@@ -20,7 +20,7 @@ export interface TaskTemplate {
 }
 
 /**
- * Badge tones consume the 6-tone `PillTone` vocabulary per ADR-006 §8. The
+ * Badge tones consume the 6-tone `PillTone` vocabulary The
  * empty-state template grid renders only `accent | info | warning | neutral`.
  */
 export type TaskTemplateBadgeTone = Extract<PillTone, "accent" | "info" | "warning" | "neutral">;

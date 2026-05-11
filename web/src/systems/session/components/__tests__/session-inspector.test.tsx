@@ -65,7 +65,7 @@ function openMemoryTab() {
   fireEvent.click(screen.getByTestId("session-inspector-tab-memory"));
 }
 
-describe("SessionInspector — DetailInspector chrome (ADR-014 §2 / §3)", () => {
+describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
   it("Should consume <DetailInspector> with 5 tabs in a single flat tab strip", () => {
     const ledger = makeLedger();
     render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);

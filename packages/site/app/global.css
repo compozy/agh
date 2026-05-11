@@ -19,7 +19,9 @@
 @theme inline {
   --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
-  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Courier New", monospace;
+  --font-mono:
+    var(--font-jetbrains-mono), "JetBrains Mono Variable", "JetBrains Mono", "Courier New",
+    monospace;
   --text-eyebrow: 0.6875rem;
   --text-eyebrow--line-height: 1rem;
   --text-display-2xl: 1.75rem;

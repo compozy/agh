@@ -6,12 +6,10 @@
  * loading. This file stays font-source agnostic so each surface can choose its
  * own delivery path without shipping duplicate faces.
  *
- * Authority: `DESIGN.md` (repo root). Reference contract:
- * `.compozy/tasks/redesign-v2/_techspec.md` → "Data Models — Token contract delta".
+ * Authority: `DESIGN.md` (repo root).
  *
- * All redesign-v2 staged token deletions are now complete (PR-1 → PR-4). See
- * `.compozy/tasks/redesign-v2/_techspec.md` §"Data Models — Deletions" for the
- * historical list and per-PR atomicity rationale.
+ * Staged token deletions are complete. Removed tokens do not get compatibility
+ * aliases.
  */
 @import "tw-animate-css";
 
@@ -28,8 +26,8 @@
   --sidebar: #1a1918;
   --elevated: #232220;
   /* --hover aliases the glaze ladder so consumers of `hover:bg-(--hover)` resolve
-     the canonical row-hover tint (ADR-001 §6). Fixes live bug N-45
-     (activity-feed.tsx:121 referenced the alias before it existed). */
+ the canonical row-hover tint. Fixes live bug N-45
+ (activity-feed.tsx:121 referenced the alias before it existed). */
   --hover: var(--row-hover);
   --disabled: #4a4847;
 
@@ -72,10 +70,10 @@
   --overlay-blur: 3px;
   --overlay-ghost-hover: rgba(255, 255, 255, 0.06);
 
-  /* Surface glaze ladder — ADR-001 §6.
-     Inline rgba(255,255,255,0.0XX) literals across web/src/** and packages/ui/src/**
-     must migrate to these tokens (lint plugin `no-design-glaze-rgba` flips to error
-     in PR 4). The `--hover` alias above resolves to `--row-hover`. */
+  /* Surface glaze ladder
+ Inline rgba(255,255,255,0.0XX) literals across web/src/** and packages/ui/src/**
+  must migrate to these tokens. The `--hover` alias above resolves to
+  `--row-hover`. */
   --row-hover: rgba(255, 255, 255, 0.022);
   --row-selected: rgba(255, 255, 255, 0.03);
   --surface-glaze: rgba(255, 255, 255, 0.04);
@@ -85,9 +83,9 @@
   --btn-default-hover: rgba(255, 255, 255, 0.07);
   --badge-fill: rgba(255, 255, 255, 0.05);
 
-  /* Owner avatar palette — ADR-001 §7 + ADR-010 §6.
-     `web/src/lib/owner-palette.ts` resolves these via `colorsFor(ownerKind, ownerId)`.
-     Storybook + design ref tools must consume the same source as the runtime. */
+  /* Owner avatar palette +
+ `web/src/lib/owner-palette.ts` resolves these via `colorsFor(ownerKind, ownerId)`.
+ Storybook + design ref tools must consume the same source as the runtime. */
   --avatar-agent-0-bg: rgba(232, 144, 99, 0.18);
   --avatar-agent-0-fg: #f2b895;
   --avatar-agent-1-bg: rgba(168, 178, 220, 0.16);
@@ -105,14 +103,14 @@
   --avatar-system-bg: var(--elevated);
   --avatar-system-fg: var(--subtle);
 
-  /* Modal width ladder — ADR-011 §1. */
+  /* Modal width ladder */
   --width-modal-sm: 560px;
   --width-modal-md: 720px;
   --width-modal-lg: 880px;
 
-  /* Sizing tokens — ADR-015 §2.
-     `--size-catalog-logo` for browse/install surfaces (CatalogCard logoSize="default").
-     `--size-provider-logo-well` for connected/configured surfaces (logoSize="lg"). */
+  /* Sizing tokens
+ `--size-catalog-logo` for browse/install surfaces (CatalogCard logoSize="default").
+ `--size-provider-logo-well` for connected/configured surfaces (logoSize="lg"). */
   --size-catalog-logo: 1.5rem;
   --size-provider-logo-well: 2.5rem;
 
@@ -125,19 +123,19 @@
   --color-kind-trace: var(--info);
   --color-kind-whois: var(--neutral);
 
-  /* Pinned radii at :root — ADR-001 §9.
-     Mirrored under @theme inline below so Tailwind utilities (rounded-xs, rounded)
-     stay generated; pinning at :root makes them resolvable inside any custom
-     property cascade without the `@theme inline` layer. */
+  /* Pinned radii at:root
+ Mirrored under @theme inline below so Tailwind utilities (rounded-xs, rounded)
+ stay generated; pinning at:root makes them resolvable inside any custom
+ property cascade without the `@theme inline` layer. */
   --radius-xs: 4px;
   --radius: 6px;
 
   /* Shared mono / pill-group constants.
-     `--radius-mono-badge` value moved from 6px to 4px (ADR-003 §6); name preserved
-     for callsite stability.
-     `--height-pill-group-segment-md` lifted from 22px to 24px per ADR-004 §4
-     (replaces `--height-mono-badge` after the PillGroup rewrite drops the
-     mono-badge appearance). */
+ `--radius-mono-badge` value moved from 6px to 4px; name preserved
+ for callsite stability.
+ `--height-pill-group-segment-md` lifted from 22px to 24px
+ (replaces `--height-mono-badge` after the PillGroup rewrite drops the
+ mono-badge appearance). */
   --tracking-mono: 0.06em;
   --radius-chip: 5px;
   --radius-mono-badge: 4px;
@@ -152,15 +150,12 @@
   --space-pill-group-badge-x: 4px;
   --text-pill-group-badge: 0.5625rem;
 
-  /* Font — display alias reserved for explicit logo/wordmark surfaces only.
-     ADR-001 §5: forbidden inside type-ramp callers under web/src/** and
-     packages/ui/src/** (lint enforced; see lint-plugins/compozy-design-system.mjs).
-     Site re-binds this to Playfair Display in packages/site/app/global.css. */
+  /* Font — display alias reserved for explicit logo/wordmark surfaces only.: forbidden inside type-ramp callers under web/src/** and
+ packages/ui/src/** (lint enforced; see lint-plugins/compozy-design-system.mjs).
+ Site re-binds this to Playfair Display in packages/site/app/global.css. */
   --font-display: var(--font-sans);
 
-  /* Motion — single fast tier + slow tier; one ease curve.
-     `--ease-in-out`, `--duration-fast/base/slow`, `--ease-out` are staged for
-     deletion in task_16 / PR-2 together with the pill-group.tsx rewrite. */
+  /* Motion — single fast tier + slow tier; one ease curve. */
   --dur: 140ms;
   --dur-slow: 200ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -170,7 +165,7 @@
   --duration-slow: var(--dur-slow);
   --ease-out: var(--ease);
 
-  /* Shadows — whitelist (ADR-003). Every other surface stays flat. */
+  /* Shadows — whitelist. Every other surface stays flat. */
   --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
   --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 
@@ -206,18 +201,17 @@
   --sidebar-border: var(--line);
   --sidebar-ring: var(--line-strong);
 }
-
 .dark {
   color-scheme: dark;
 }
 
 @theme inline {
   --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
-  --font-mono: "JetBrains Mono", "Courier New", monospace;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
 
-  /* Weight ladder — DESIGN.md §"Type Ladder (Inter-510 runtime kit)". */
+  /* Weight ladder */
   --font-weight-normal: 400;
-  --font-weight-medium: 510;
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
@@ -242,7 +236,7 @@
   --leading-small-body: var(--text-small-body--line-height);
   --tracking-mono: 0.06em;
 
-  /* Type ladder additions — ADR-002 §10. */
+  /* Type ladder additions */
   --text-detail-h1: 1.5rem;
   --text-empty-h1: 1.125rem;
   --text-modal-title: 0.84375rem;
@@ -258,7 +252,7 @@
   --text-ws-name: 0.8125rem;
   --text-mono-id: 0.65625rem;
 
-  /* Tracking ladder additions — ADR-002 §10. */
+  /* Tracking ladder additions */
   --tracking-detail-h1: -0.028em;
   --tracking-empty-h1: -0.022em;
   --tracking-modal-title: -0.012em;
@@ -320,8 +314,8 @@
   --color-disabled: var(--disabled);
 
   /* Hairline utilities — border-line-soft / border-line-strong.
-     `--color-line` is intentionally NOT redeclared (test contract: hairlines
-     consolidate around `--line`; the Tailwind `border-line` utility is unused). */
+ `--color-line` is intentionally NOT redeclared (test contract: hairlines
+ consolidate around `--line`; the Tailwind `border-line` utility is unused). */
   --color-line-soft: var(--line-soft);
   --color-line-strong: var(--line-strong);
 
@@ -368,7 +362,7 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    /* Body baseline — ADR-002 §6 / §9. */
+    /* Body baseline / §9. */
     font-size: 0.84375rem;
     line-height: 1.5;
     letter-spacing: -0.006em;
@@ -376,8 +370,26 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Text selection — warm accent at 10% (ADR-001 §1). Replaces the legacy
-     --overlay-selection (28%) token deleted in task_02 / PR-1. */
+  /* JetBrains Mono override:
+    Inter is calibrated for grayscale (`antialiased`) and its OpenType
+    features (cv01/ss03/cv11) are inherited from body. Both rules thin and
+    distort JetBrains Mono on macOS Chrome/Safari, where its narrower strokes
+    pay a much higher visual penalty than Inter's. Restore subpixel rendering
+    and reset font-feature-settings so the variable wght axis is read at full
+    stroke weight on every mono surface. */
+  .font-mono,
+  [class*="font-mono"],
+  code,
+  kbd,
+  samp,
+  pre {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+    font-feature-settings: normal;
+  }
+
+  /* Text selection — warm accent at 10%. The legacy --overlay-selection token is
+intentionally absent. */
   ::selection {
     background: var(--accent-tint);
     color: var(--fg-strong);
@@ -398,14 +410,14 @@
 }
 
 /*
- * Single eyebrow utility — ADR-002 §1 / §11, lesson L-022.
+ * Single eyebrow utility / §11, lesson L-022.
  * Inter UC 11/600/-0.005em is the only eyebrow contract. The previous
  * `eyebrow-badge` (10 px) and `eyebrow-micro` (9 px) variants are deleted
  * (greenfield rule, SD-002 — no transitional alias). Consumers render
  * through `<Eyebrow>` (`@agh/ui`) or this utility on structural HTML.
  */
 @utility eyebrow {
-  @apply font-sans text-[length:var(--text-eyebrow)] font-semibold uppercase;
+  @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
   letter-spacing: var(--tracking-eyebrow);
 }
 
@@ -423,7 +435,7 @@
 }
 
 /*
- * Reduced-motion guard — ADR-010 §1.
+ * Reduced-motion guard
  * Applies to every animation and transition, not only `--dur*` token references.
  * Required because `tw-animate-css` and the `shimmer` / `typing-bounce` keyframes
  * hardcode their durations and would otherwise keep playing. `0.001ms` (not 0)

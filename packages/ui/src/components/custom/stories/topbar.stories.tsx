@@ -15,7 +15,7 @@ const meta: Meta<typeof Topbar> = {
     docs: {
       description: {
         component:
-          "Shell-level topbar (ADR-002). Route context (icon, title, count) comes from TanStack Router; live tabs/search/actions are pushed into a single dynamic slot via `useTopbarSlot`. Title is focusable so the shell can move focus on route resolve.",
+          "Shell-level topbar. Route context (icon, title, count) comes from TanStack Router; live tabs/search/actions are pushed into a single dynamic slot via `useTopbarSlot`. Title is focusable so the shell can move focus on route resolve.",
       },
     },
   },
@@ -166,7 +166,7 @@ function DetailModeSetup() {
 }
 
 /**
- * Detail-mode topbar (ADR-005 §5/§8) — back chevron, meta line, overflow menu.
+ * Detail-mode topbar (/§8) — back chevron, meta line, overflow menu.
  */
 export const DetailMode: Story = {
   args: {},

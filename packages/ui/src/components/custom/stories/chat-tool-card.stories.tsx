@@ -11,7 +11,7 @@ const meta: Meta<typeof ChatToolCard> = {
     docs: {
       description: {
         component:
-          "Tool-call surface per ADR-014 §6 — head row with `<MonoId>` tool name + status pill + optional relative `<Time>`, plus collapsible input + output regions, an actions slot, and a `--danger-tint` failure state with inline error message. Outputs longer than 200 lines collapse by default.",
+          "Tool-call surface — head row with `<MonoId>` tool name + status pill + optional relative `<Time>`, plus collapsible input + output regions, an actions slot, and a `--danger-tint` failure state with inline error message. Outputs longer than 200 lines collapse by default.",
       },
     },
   },

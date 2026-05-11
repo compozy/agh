@@ -11,7 +11,7 @@ const meta: Meta<typeof StatusDot> = {
     docs: {
       description: {
         component:
-          "Five-tone glyph per ADR-006 §3 inbox vocabulary — warning solid (Needs review), danger solid (Blocked), warning ring (Stuck), accent solid (Mentions), faint ring (Updates). Composes next to an Eyebrow group label.",
+          "Five-tone glyph inbox vocabulary — warning solid (Needs review), danger solid (Blocked), warning ring (Stuck), accent solid (Mentions), faint ring (Updates). Composes next to an Eyebrow group label.",
       },
     },
   },

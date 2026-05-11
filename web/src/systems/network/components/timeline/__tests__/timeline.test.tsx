@@ -47,7 +47,7 @@ describe("Timeline", () => {
     expect(screen.getByText("Sample body content")).toBeInTheDocument();
   });
 
-  it("Should NOT render the role pill on message rows per ADR-013 §2", () => {
+  it("Should NOT render the role pill on message rows", () => {
     render(<Timeline messages={[makeMessage({ message_id: "m1", text: "Sample" })]} />);
 
     expect(screen.queryByTestId("network-message-role-chip")).toBeNull();
@@ -147,7 +147,7 @@ describe("Timeline", () => {
     expect(avatar.className).not.toContain("rounded-full");
   });
 
-  it("Should NOT render the hover-toolbar reactions button per ADR-013 §5", () => {
+  it("Should NOT render the hover-toolbar reactions button", () => {
     render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
 
     expect(screen.queryByRole("button", { name: /add reaction/i })).toBeNull();

@@ -11,7 +11,7 @@ const LEVEL_FILL_CLASS: Record<PriorityLevel, string> = {
 };
 
 describe("PriorityBars", () => {
-  it("Should render exactly three bars per ADR-006 §4 (count never varies with level)", () => {
+  it("Should render exactly three bars (count never varies with level)", () => {
     for (const level of ["low", "medium", "high", "urgent"] as const) {
       const { container } = render(<PriorityBars level={level} />);
       const bars = container.querySelectorAll('[data-slot="priority-bars-bar"]');
@@ -37,7 +37,7 @@ describe("PriorityBars", () => {
     expect(bars[2]?.className).toMatch(/\bh-3\b/);
   });
 
-  it("Should expose role=img and aria-label='{level} priority' by default per ADR-006 §4", () => {
+  it("Should expose role=img and aria-label='{level} priority' by default", () => {
     const { container } = render(<PriorityBars level="high" />);
     const root = container.querySelector('[data-slot="priority-bars"]');
     expect(root).toHaveAttribute("role", "img");

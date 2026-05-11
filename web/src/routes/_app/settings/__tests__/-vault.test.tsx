@@ -184,7 +184,7 @@ describe("VaultSettingsPage", () => {
     expect(confirmDelete).toHaveBeenCalled();
   });
 
-  it("session-scoped delete uses a single Confirm button without confirmTyping per ADR-012 §9", () => {
+  it("session-scoped delete uses a single Confirm button without confirmTyping", () => {
     mockUseSettingsVaultPage.mockReturnValue(
       makeState({
         deleteTarget: { mode: "open", secret: sessionSecret },
@@ -199,7 +199,7 @@ describe("VaultSettingsPage", () => {
     expect(screen.getByTestId("settings-vault-delete-confirm")).toBeEnabled();
   });
 
-  it("cross-scope delete gates the Confirm button behind confirmTyping per ADR-012 §9", () => {
+  it("cross-scope delete gates the Confirm button behind confirmTyping", () => {
     const providerSecret: VaultSecret = {
       ref: "vault:providers/codex/api_key",
       namespace: "providers",
@@ -226,7 +226,7 @@ describe("VaultSettingsPage", () => {
     expect(screen.getByTestId("settings-vault-delete-confirm")).toBeEnabled();
   });
 
-  it("renders an Empty action retry button when the vault table fails to load per ADR-012 §11", () => {
+  it("renders an Empty action retry button when the vault table fails to load", () => {
     const refetch = vi.fn();
     mockUseSettingsVaultPage.mockReturnValue(
       makeState({

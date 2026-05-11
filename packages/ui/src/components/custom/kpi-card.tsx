@@ -19,7 +19,7 @@ export interface KpiCardProps extends React.ComponentProps<"div"> {
 }
 
 /**
- * Dashboard KPI tile per ADR-004 §9 — flat on `--canvas-soft`, no border.
+ * Dashboard KPI tile — flat on `--canvas-soft`, no border.
  * 28 px Inter UC value, Eyebrow label, optional 12 px detail line.
  */
 function KpiCard({

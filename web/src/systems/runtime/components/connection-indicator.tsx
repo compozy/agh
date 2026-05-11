@@ -22,7 +22,7 @@ export interface RuntimeConnectionIndicatorProps extends React.ComponentProps<"d
 }
 
 /**
- * Encapsulates ADR-005 §1 tone-and-pulse rule for the daemon connection LED:
+ * Encapsulates tone-and-pulse rule for the daemon connection LED:
  *  - success solid → daemon reachable, recent activity within heartbeat window
  *  - success pulse → daemon reachable, degraded heartbeat
  *  - danger solid  → daemon unreachable

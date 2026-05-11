@@ -16,7 +16,7 @@ const secrets: VaultSecret[] = [
 ];
 
 describe("SessionVaultPanel", () => {
-  it("Should render session vault rows with 'Vault secret' title + mono ref subtitle per ADR-012 §12", () => {
+  it("Should render session vault rows with 'Vault secret' title + mono ref subtitle", () => {
     render(<SessionVaultPanel secrets={secrets} sessionId="session_01" />);
 
     const list = screen.getByTestId("session-inspector-vault-list");

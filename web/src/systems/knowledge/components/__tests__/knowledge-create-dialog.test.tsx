@@ -23,7 +23,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
 }
 
 describe("KnowledgeCreateDialog", () => {
-  it("Should render a 2-col RadioCard grid for the Type picker per ADR-012 §4", () => {
+  it("Should render a 2-col RadioCard grid for the Type picker", () => {
     renderDialog();
     const grid = screen.getByTestId("knowledge-create-type-grid");
     expect(grid).toHaveAttribute("role", "radiogroup");

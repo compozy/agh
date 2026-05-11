@@ -11,7 +11,7 @@ const meta: Meta<typeof OwnerAvatar> = {
     docs: {
       description: {
         component:
-          'Owner avatar primitive per ADR-010 §6 + ADR-001 §7 — resolves background/foreground via `colorsFor(ownerKind, ownerId)` against the tokenised palette (`--avatar-agent-N-*`, `--avatar-human-N-*`, `--avatar-system-*`). Renders a 2-char monogram by default; accepts a glyph slot for system owners. Emits `aria-label="{Role} {Name}"` so screen readers announce the role per ADR-013 §2.',
+          'Owner avatar primitive — resolves background/foreground via `colorsFor(ownerKind, ownerId)` against the tokenised palette (`--avatar-agent-N-*`, `--avatar-human-N-*`, `--avatar-system-*`). Renders a 2-char monogram by default; accepts a glyph slot for system owners. Emits `aria-label="{Role} {Name}"` so screen readers announce the role',
       },
     },
   },

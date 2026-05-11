@@ -11,7 +11,7 @@ const meta: Meta<typeof PageActionsTopbarSlot> = {
     docs: {
       description: {
         component:
-          "Topbar trailing slot per ADR-015 §1 carrying save / discard buttons for any page with dirty state. Both controls disable when `dirty === false` or while `saving` is true.",
+          "Topbar trailing slot carrying save / discard buttons for any page with dirty state. Both controls disable when `dirty === false` or while `saving` is true.",
       },
     },
   },

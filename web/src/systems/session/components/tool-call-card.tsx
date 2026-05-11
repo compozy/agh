@@ -50,7 +50,7 @@ function progressLabelFor(message: UIMessage, status: ChatToolStatus): string {
 }
 
 /**
- * Chat-thread tool surface consuming `<ChatToolCard>` per ADR-014 §6. Maps
+ * Chat-thread tool surface consuming `<ChatToolCard>` Maps
  * the legacy `UIMessage.toolResult / toolError / toolName` shape onto the
  * primitive's `{ toolName, status, input, output, errorMessage }` API and
  * delegates per-tool output rendering to the existing `ExpandedToolContent`

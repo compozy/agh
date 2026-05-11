@@ -30,7 +30,7 @@ interface UseSessionTopbarSlotInput {
 }
 
 /**
- * Composes the session detail-route topbar slot per ADR-014 §1 — agent name as
+ * Composes the session detail-route topbar slot — agent name as
  * the slot title, agent state + provider as the meta slot, and the lifecycle
  * controls (delete/stop/resume) as the actions slot.
  */

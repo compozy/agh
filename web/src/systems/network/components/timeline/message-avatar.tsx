@@ -21,7 +21,7 @@ export interface MessageAvatarProps {
    */
   sizePx: 36 | 32 | 20;
   /**
-   * Owner role drives the `role="img"` aria-label per ADR-013 §2. When
+   * Owner role drives the `role="img"` aria-label When
    * provided, the avatar announces `{Role} {Name}` so screen readers retain
    * the signal that previously came from the role pill on message rows.
    */

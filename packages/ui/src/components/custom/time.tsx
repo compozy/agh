@@ -14,7 +14,7 @@ export interface TimeProps extends Omit<React.ComponentProps<"time">, "title" | 
   mode?: TimeMode;
   /**
    * Tick interval for `relative` mode in milliseconds. Defaults to 30 s per
-   * ADR-012 §7.
+   *
    */
   refreshMs?: number;
 }

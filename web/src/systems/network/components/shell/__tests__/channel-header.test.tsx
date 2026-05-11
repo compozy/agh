@@ -78,7 +78,7 @@ const sampleChannel: NetworkChannelSummary = {
 };
 
 describe("ChannelHeader", () => {
-  it("Should emit a <DetailHeader> 24 px H1 per ADR-009 §4", () => {
+  it("Should emit a <DetailHeader> 24 px H1", () => {
     renderHeader();
     const wrapper = screen.getByTestId("network-channel-header");
     const detailHeader = wrapper.querySelector('[data-slot="detail-header"]');
@@ -89,7 +89,7 @@ describe("ChannelHeader", () => {
     expect(screen.getByTestId("network-channel-title")).toHaveTextContent("ops");
   });
 
-  it("Should NOT render the channel-search button per ADR-013 §5", () => {
+  it("Should NOT render the channel-search button", () => {
     renderHeader();
     expect(screen.queryByTestId("network-channel-search")).toBeNull();
     expect(screen.queryByRole("button", { name: /search/i })).toBeNull();

@@ -8,6 +8,7 @@ Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16
 - **Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording.
 - **Hero positioning is locked**: headline "An open workplace for AI agents." with subhead "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts." Open-workplace-first. Do not propose alternative hero copy without explicit user approval.
 - **`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md).
+- **Test placement is mandatory before creating site tests.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites before creating a new file. Do not add prose-string, snapshot, generated-output, or file-existence tests unless that artifact is the product contract and no stronger gate exists.
 
 ## Build Commands
 
@@ -39,6 +40,7 @@ make cli-docs                                           # regenerate CLI referen
 | Next.js / SSR / app router      | `next-best-practices`                                 | `vercel-react-best-practices`               |
 | Tailwind v4 styling             | `tailwindcss`                                         |                                             |
 | TanStack (when used in site)    | `tanstack` + `tanstack-router-best-practices`         |                                             |
+| Site testing                    | `consolidate-test-suites` + `vitest`                  | `testing-anti-patterns`                     |
 
 ## Coding Style
 
@@ -57,6 +59,8 @@ make cli-docs                                           # regenerate CLI referen
 
 ## Testing
 
+- Before adding or moving a site test, use `consolidate-test-suites` to record the invariant, owning layer, canonical suite, and verification command.
+- A docs/site task needs a test decision, not automatic new Vitest coverage. "No new automated test" is valid when source generation, route metadata, lint, typecheck, build, link checks, or an existing suite already owns the invariant.
 - The package `test` script is `vitest run`, but validation MUST invoke it through Turbo: `bunx turbo run test --filter=./packages/site` or `make bun-test` from the repo root.
 - Do not use `cd packages/site && bun run test` or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph.
 - Snapshot tests cover MDX rendering; UI tests cover marketing components.

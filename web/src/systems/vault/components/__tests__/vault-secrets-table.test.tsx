@@ -35,7 +35,7 @@ describe("VaultSecretsTable", () => {
     expect(screen.getByText("providers")).toHaveAttribute("data-tone", "neutral");
   });
 
-  it("Should render the secret kind as a neutral pill (ADR-012 §8 — no tone until enum lands)", () => {
+  it("Should render the secret kind as a neutral pill (— no tone until enum lands)", () => {
     render(<VaultSecretsTable secrets={secrets} />);
     const kindPill = screen.getByTestId(`vault-secrets-kind-${secrets[0].ref}`);
     expect(kindPill).toHaveAttribute("data-tone", "neutral");

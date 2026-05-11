@@ -16,8 +16,8 @@ export interface TaskKanbanCardProps {
 }
 
 /**
- * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier per ADR-001
- * §3.5 / ADR-007. Agent sessions, automation runs, extensions, network peers,
+ * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier
+ * §3.5 /. Agent sessions, automation runs, extensions, network peers,
  * and worker pools all read as `agent` for color selection; humans get the
  * `human` slot ladder; unassigned tasks fall back to the system palette.
  */

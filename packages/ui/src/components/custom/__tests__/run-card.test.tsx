@@ -44,7 +44,7 @@ describe("RunCard", () => {
     expect(labelSlots).toEqual(["CHANNEL", "QUEUED", "STARTED", "ELAPSED"]);
   });
 
-  it("Should NOT include any border-l-2 / border-l-(--accent) rail (ADR-001 ban)", () => {
+  it("Should NOT include any border-l-2 / border-l-(--accent) rail (ban)", () => {
     const { container } = render(<RunCard status="completed" runId={RUN_ID} />);
     const root = container.querySelector<HTMLElement>('[data-slot="run-card"]');
     expect(root?.className).not.toContain("border-l-2");

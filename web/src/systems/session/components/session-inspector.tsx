@@ -434,9 +434,9 @@ function InspectorTabRenderer({
 }
 
 /**
- * Right-hand session inspector — consumes `<DetailInspector>` per ADR-014 §3
+ * Right-hand session inspector — consumes `<DetailInspector>`
  * and renders 5 tabs (Trace · Usage · Memory · Files · Vault) inside the
- * primitive's chrome. Inline at ≥ 1440 px viewport (ADR-014 §2); collapses
+ * primitive's chrome. Inline at ≥ 1440 px viewport; collapses
  * into a right-anchored sheet drawer below that breakpoint, with the open
  * state controlled by the consumer through `drawerOpen` / `onDrawerOpenChange`.
  */

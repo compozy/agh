@@ -61,7 +61,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Runtime shell sidebar per ADR-005. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus four labeled sections (Agents with whole-tree live count, Operate, Catalog, System); the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) and the daemon version badge. The wordmark lives in the app-shell header one level up.",
+          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus four labeled sections (Agents with whole-tree live count, Operate, Catalog, System); the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) and the daemon version badge. The wordmark lives in the app-shell header one level up.",
       },
     },
   },

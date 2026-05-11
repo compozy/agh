@@ -10,7 +10,7 @@ const meta: Meta<typeof RuntimeConnectionIndicator> = {
     docs: {
       description: {
         component:
-          "Single owner of the daemon connection LED per ADR-005 §1. Three states: `success` solid (reachable + recent activity), `success` pulse (reachable + degraded heartbeat), `danger` solid (unreachable). The sidebar footer is the only mount point; the rail no longer carries a duplicate LED.",
+          "Single owner of the daemon connection LED Three states: `success` solid (reachable + recent activity), `success` pulse (reachable + degraded heartbeat), `danger` solid (unreachable). The sidebar footer is the only mount point; the rail no longer carries a duplicate LED.",
       },
     },
   },

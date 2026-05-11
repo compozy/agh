@@ -11,7 +11,7 @@ React 19 SPA with Vite 8, TanStack Router (file-based), TanStack Query v5, Tailw
 - Type stack: **Inter** (UI + body), **JetBrains Mono** (all metadata, uppercase, tracking 0.06em+), **Playfair Display** (marketing `.site-home` only), **NuixyberNext** (the `agh` wordmark only).
 - Signal palette — color is information, never decoration: accent `#E8572A` = action, `#30D158` = success, `#FF453A` = danger, `#FFD60A` = warning, `#BF5AF2` = info. Status/kind chips use the 15%-tint formula; no solid semantic banners.
 - Tokens live in `packages/ui/src/tokens.css`; never override with ad-hoc hex values in components.
-- For tasks under `.compozy/tasks/redesign/`, implementation runs through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and MUST activate the mandatory design skills below.
+- For design-system or UI redesign tasks, implementation runs through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and MUST activate the mandatory design skills below.
 
 ## Copy System - `COPY.md` is the source of truth
 
@@ -35,41 +35,44 @@ No production users exist. Never sacrifice code quality for backward compatibili
 - **Native DOM wrappers** — if a component’s root is a single native element (`button`, `input`, `a`, …), its props MUST extend that element’s intrinsic type (`React.ComponentProps<"…">`), merge `className`, and spread `{...props}` onto the node (use `forwardRef` when refs apply). CVA + `VariantProps`: follow the `shadcn` skill. Canonical rule: `.agents/skills/react/SKILL.md` → _Extend native element props_.
 - **Never add JS dependencies by hand in `package.json`** — always use `bun add`
 - **Check dependent package APIs** before writing integration code or tests
+- **Test placement is mandatory before creating Vitest or Playwright coverage.** Name the invariant, owning layer, and canonical suite; update existing route/hook/component/story/e2e suites before creating a new file. Do not add CSS literal, snapshot, generated-output, or prose-string tests unless that artifact is the product contract and no stronger gate exists.
 - **Local QA against an isolated daemon MUST read `AGH_WEB_API_PROXY_TARGET` from the active bootstrap manifest/env** — never hardcode `http://localhost:2123` when `agh-qa-bootstrap` or another isolated QA envelope is in use.
 
 ## Skill Dispatch
 
 Activate skills **before** writing code. Match task domain → activate all required skills:
 
-| Domain                        | Required Skills                                                  | Conditional Skills                           |
-| ----------------------------- | ---------------------------------------------------------------- | -------------------------------------------- |
-| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`          | `shadcn`                                     |
-| Routing                       | `tanstack-router-best-practices`                                 | `tanstack`                                   |
-| Data fetching                 | `tanstack-query-best-practices` + `app-renderer-systems`         |                                              |
-| State management              | `zustand`                                                        |                                              |
-| Schema / Validation           | `zod`                                                            | `typescript-advanced`                        |
-| Web testing                   | `vitest` + `react` + `testing-anti-patterns`                     |                                              |
-| TypeScript (types)            | `typescript-advanced`                                            | `context7`                                   |
-| UI / UX Design (any surface)  | `agh-design` + `impeccable`                                      | `shadcn` + `agh-ui-screenshot`               |
-| UI verification / visual diff | `agh-ui-screenshot`                                              |                                              |
-| UI microcopy / product labels | `copywriting` + `documentation-writer`                           |                                              |
-| Storybook / component stories | `storybook-stories`                                              | `shadcn`                                     |
-| Animation / motion            | `motion-react`                                                   | `motion`                                     |
-| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`    |                                              |
-| AI / Streaming                | `ai-sdk`                                                         | `tanstack-query-best-practices`              |
-| Bug fix                       | `systematic-debugging` + `no-workarounds`                        | `testing-anti-patterns`                      |
-| Design polish passes          | `impeccable:polish` + `impeccable:layout` + `impeccable:typeset` | `impeccable:delight` + `impeccable:critique` |
-| External docs lookup          | `context7` + `find-docs`                                         | `exa-web-search-free`                        |
-| Task completion               | `cy-final-verify`                                                |                                              |
+| Domain                        | Required Skills                                                          | Conditional Skills                           |
+| ----------------------------- | ------------------------------------------------------------------------ | -------------------------------------------- |
+| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`                  | `shadcn`                                     |
+| Routing                       | `tanstack-router-best-practices`                                         | `tanstack`                                   |
+| Data fetching                 | `tanstack-query-best-practices` + `app-renderer-systems`                 |                                              |
+| State management              | `zustand`                                                                |                                              |
+| Schema / Validation           | `zod`                                                                    | `typescript-advanced`                        |
+| Web testing                   | `consolidate-test-suites` + `vitest` + `react` + `testing-anti-patterns` |                                              |
+| TypeScript (types)            | `typescript-advanced`                                                    | `context7`                                   |
+| UI / UX Design (any surface)  | `agh-design` + `impeccable`                                              | `shadcn` + `agh-ui-screenshot`               |
+| UI verification / visual diff | `agh-ui-screenshot`                                                      |                                              |
+| UI microcopy / product labels | `copywriting` + `documentation-writer`                                   |                                              |
+| Storybook / component stories | `storybook-stories`                                                      | `shadcn`                                     |
+| Animation / motion            | `motion-react`                                                           | `motion`                                     |
+| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`            |                                              |
+| AI / Streaming                | `ai-sdk`                                                                 | `tanstack-query-best-practices`              |
+| Bug fix                       | `systematic-debugging` + `no-workarounds`                                | `testing-anti-patterns`                      |
+| Design polish passes          | `impeccable:polish` + `impeccable:layout` + `impeccable:typeset`         | `impeccable:delight` + `impeccable:critique` |
+| External docs lookup          | `context7` + `find-docs`                                                 | `exa-web-search-free`                        |
+| Task completion               | `cy-final-verify`                                                        |                                              |
 
-**Redesign tasks (`.compozy/tasks/redesign/*`)**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `impeccable` before touching any component. `DESIGN.md` tokens win over anything informal already in the codebase.
+**Design-system / redesign passes**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `impeccable` before touching any component. `DESIGN.md` tokens win over anything informal already in the codebase.
 
 **Visual verification with `agh-ui-screenshot` is mandatory for every UI change in this workspace.** Tests verify code, not pixels.
 
-- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`) on port 6006 and diff against `.compozy/tasks/redesign-v2/screenshots/proposal/` or a trusted prior baseline.
+- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`) on port 6006 and diff against a trusted prior baseline.
 - Surface-wide passes (primitive swap, token retune): capture before + after.
 - Use `list-stories.mjs` to resolve valid story ids — misaligned ids land on the "Couldn't find story" fallback (sub-20 KB PNG).
 - Cite the capture file(s) when reporting done. Claiming success without screenshots is non-compliant.
+
+**Web test placement**: `consolidate-test-suites` runs before any new Vitest or Playwright file. A web task needs a test decision: invariant, owning layer, canonical suite, and verification command. "No new automated test" is valid when visual QA, lint, typecheck, codegen, Storybook capture, or an existing suite already owns the invariant.
 
 ## Build Commands
 

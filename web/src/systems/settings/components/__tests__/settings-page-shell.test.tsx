@@ -83,7 +83,7 @@ describe("PageShell", () => {
     expect(screen.queryByTestId("settings-page-general-header")).not.toBeInTheDocument();
   });
 
-  it("renders the section title with the canonical --tracking-section-head token (ADR-003 §2)", () => {
+  it("renders the section title with the canonical --tracking-section-head token", () => {
     render(
       <Section divided label="Runtime">
         <span>content</span>

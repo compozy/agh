@@ -23,7 +23,7 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 - `internal/automation/**` — automation lifecycle changes affect `/jobs` and `/triggers` UI.
 - `internal/network/**` — wire-format or capability changes affect `web/src/systems/network`, agent operations, and protocol docs.
 - `internal/memory/**` — memory health/history changes affect memory views.
-- `internal/scheduler/**`, `internal/task/**`, `internal/coordinator/**` — autonomy changes propagate to Tasks/Sessions/Coordinator UI per ADR-011 co-ship rule.
+- `internal/scheduler/**`, `internal/task/**`, `internal/coordinator/**` — autonomy changes propagate to Tasks/Sessions/Coordinator UI per the contract co-ship rule.
 
 ## No-trigger (typical no-impact)
 

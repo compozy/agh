@@ -27,7 +27,7 @@ export interface DetailInspectorProps {
   onTabChange?: (id: string) => void;
   /** Body region rendered for the active tab. */
   children: React.ReactNode;
-  /** Custom breakpoint in pixels. Defaults to 1440 (ADR-014 §2). */
+  /** Custom breakpoint in pixels. Defaults to 1440. */
   inlineBreakpoint?: number;
   /** Drawer open state when the viewport is below `inlineBreakpoint`. */
   open?: boolean;

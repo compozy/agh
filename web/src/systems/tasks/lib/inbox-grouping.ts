@@ -3,7 +3,7 @@ import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@agh/ui";
 import type { TaskInboxItem, TaskInboxLane } from "../types";
 
 /**
- * UI-only inbox lane vocabulary per ADR-006 §5 — five lanes in declared order
+ * UI-only inbox lane vocabulary — five lanes in declared order
  * (`My work · Mentions · Failed runs · Updates · Approvals`). The backend
  * inbox query also exposes `blocked` and `archived` lanes; both flow into
  * `My work` when present so the lane switcher matches the proposal exactly.
@@ -26,7 +26,7 @@ export const INBOX_UI_LANES: InboxLaneDefinition[] = [
 ];
 
 /**
- * UI-only inbox group vocabulary per ADR-006 §3 — five groups with a dot tone
+ * UI-only inbox group vocabulary — five groups with a dot tone
  * each (warning solid / danger solid / warning ring / accent solid / faint
  * ring). Group membership is derived from backend item shape via
  * `resolveInboxGroupId`.
@@ -90,7 +90,7 @@ export function backendLaneToUiLane(lane: TaskInboxLane): InboxUiLane {
     case "failed_runs":
       return "failed_runs";
     default:
-      // `blocked`, `archived`, `my_work` collapse into `My work` per ADR-006 §5
+      // `blocked`, `archived`, `my_work` collapse into `My work`
       // — the proposal kanban surfaces all backend lanes without a dedicated
       // archive switch.
       return "my_work";

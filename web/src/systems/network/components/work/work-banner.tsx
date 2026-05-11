@@ -10,7 +10,7 @@ const COLLAPSE_MS = 200;
 const TOTAL_HIDE_BUDGET_MS = FADE_OUT_MS + COLLAPSE_MS;
 
 /**
- * Hard-stop threshold per ADR-013 §4. Crossing this boundary upward fires a
+ * Hard-stop threshold Crossing this boundary upward fires a
  * single `<Sonner>` toast — the banner itself stays tint-only across every
  * severity (info/warning/danger). The debounce guarantee: one toast per
  * `needs_input > 3` transition, not one per message.

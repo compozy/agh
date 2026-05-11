@@ -10,7 +10,7 @@ const meta: Meta<typeof MonoId> = {
     docs: {
       description: {
         component:
-          "Bare lowercase mono identifier (no Pill chrome) per ADR-016 wave-2. Replaces 30+ inline `font-mono lowercase tracking-0` tuples; supersedes `<Pill mono>` for identifier contexts.",
+          "Bare lowercase mono identifier (no Pill chrome) wave-2. Replaces 30+ inline `font-mono lowercase tracking-0` tuples; supersedes `<Pill mono>` for identifier contexts.",
       },
     },
   },

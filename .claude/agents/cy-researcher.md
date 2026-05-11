@@ -5,7 +5,7 @@ description: |
 
   <example>
   Context: Parent skill `cy-research-competitors` needs an analysis of hermes for the techspec.
-  user (parent dispatch): "Research `.resources/hermes/` for the redesign-v2 techspec and write `.compozy/tasks/redesign-v2/analysis/analysis_hermes.md`."
+  user (parent dispatch): "Research `.resources/hermes/` for the <slug> techspec and write `.compozy/tasks/<slug>/analysis/analysis_hermes.md`."
   assistant: "I'll use the cy-researcher agent to read `.resources/hermes/`, draft the seven-section schema, and write the analysis file directly."
   <commentary>
   The dispatch names a single competitor directory and a single target analysis path — exactly what cy-researcher expects.

@@ -6,7 +6,7 @@ import { Streamdown, defaultUrlTransform } from "streamdown";
 import { cn } from "../../lib/utils";
 
 /**
- * Markdown Safe-Mode Contract (TechSpec §"Markdown Safe-Mode Contract").
+ * Markdown Safe-Mode Contract.
  *
  * Operator-authored markdown is user input rendered to other operators — an XSS surface.
  * This is the explicit allowlist the runtime ships:

@@ -5,7 +5,7 @@ import { cn } from "../lib/utils";
 export type TextareaVariant = "default" | "mono";
 
 export interface TextareaProps extends React.ComponentProps<"textarea"> {
-  /** `mono` switches to `font-mono` + 12 px per ADR-016 wave-2 / analysis §4. */
+  /** `mono` switches to `font-mono` + 12 px wave-2 / analysis §4. */
   variant?: TextareaVariant;
 }
 

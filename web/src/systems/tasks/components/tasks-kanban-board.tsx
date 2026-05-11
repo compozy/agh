@@ -7,7 +7,7 @@ import type { KanbanColumnGroup, TaskKanbanColumnId } from "../lib/task-grouping
 import type { PillTone } from "@agh/ui";
 
 /**
- * Column header tone per ADR-006 §8 + ADR-010 §5 STATUS_TONE — `In progress`
+ * Column header tone STATUS_TONE — `In progress`
  * reads as `info` (live work without accent recolor), `Blocked` reads as
  * `danger`, terminal `Done` and `Pending` stay neutral.
  */

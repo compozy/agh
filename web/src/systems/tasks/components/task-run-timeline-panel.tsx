@@ -132,7 +132,7 @@ function computeElapsed(startedAt?: string | null, endedAt?: string | null): str
 
 /**
  * Run detail timeline panel — single `<RunCard>` header + `<TimelineEvent>`
- * rows scoped to the run (per ADR-007 §9 + ADR-008 §3). Replaces the old
+ * rows scoped to the run (per). Replaces the old
  * `MetadataList` Identity panel which duplicated `<RunCard>` data.
  */
 export function TaskRunTimelinePanel({

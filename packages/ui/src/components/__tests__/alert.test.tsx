@@ -39,7 +39,7 @@ describe("Alert", () => {
     }
   });
 
-  it("Should keep its tone-aware border (signal-card regression check — ADR-004 §5)", () => {
+  it("Should keep its tone-aware border (signal-card regression check)", () => {
     render(
       <Alert data-testid="alert" variant="warning">
         <AlertTitle>Heads up</AlertTitle>

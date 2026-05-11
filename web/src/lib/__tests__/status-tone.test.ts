@@ -43,7 +43,7 @@ describe("TASK_STATUS_TONE", () => {
     expect(Object.keys(TASK_STATUS_TONE).sort()).toEqual([...EXPECTED_TASK_STATUS_KEYS].sort());
   });
 
-  it("Should not include the deferred 'stuck' UI tone (ADR-007 §4)", () => {
+  it("Should not include the deferred 'stuck' UI tone", () => {
     expect(Object.keys(TASK_STATUS_TONE)).not.toContain("stuck");
   });
 
@@ -89,11 +89,11 @@ describe("TASK_LANE_TONE", () => {
     expect(Object.keys(TASK_LANE_TONE).sort()).toEqual([...EXPECTED_LANE_KEYS].sort());
   });
 
-  it("Should map approvals to info per ADR-010 §2", () => {
+  it("Should map approvals to info", () => {
     expect(TASK_LANE_TONE.approvals).toBe("info");
   });
 
-  it("Should map mentions to accent per ADR-010 §2", () => {
+  it("Should map mentions to accent", () => {
     expect(TASK_LANE_TONE.mentions).toBe("accent");
   });
 

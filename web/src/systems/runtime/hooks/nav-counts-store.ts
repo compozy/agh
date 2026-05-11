@@ -1,5 +1,5 @@
 /**
- * Process-singleton Zustand store backing useNavCounts() (ADR-005 §3, TechSpec
+ * Process-singleton Zustand store backing useNavCounts (TechSpec
  * §"Core Interface — useNavCounts()"). One SSE channel + one polling timer
  * lifecycle per process; consumers refcount-retain the store so the SSE socket
  * and polling timers only run while at least one mount is active.
