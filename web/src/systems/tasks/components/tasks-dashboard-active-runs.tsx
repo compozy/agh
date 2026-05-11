@@ -30,7 +30,7 @@ export function TasksDashboardActiveRuns({
       bodyClassName="p-0"
       data-testid="tasks-dashboard-active-runs"
       right={
-        <Eyebrow className="text-(--muted)">
+        <Eyebrow className="text-muted">
           {dashboard.active_runs.running} running · {dashboard.active_runs.queued} queued ·{" "}
           {dashboard.active_runs.claimed} claimed
         </Eyebrow>
@@ -39,21 +39,18 @@ export function TasksDashboardActiveRuns({
     >
       {visible.length === 0 ? (
         <p
-          className="px-4 py-6 text-[12px] text-(--muted)"
+          className="px-4 py-6 text-[12px] text-muted"
           data-testid="tasks-dashboard-active-runs-empty"
         >
           No active runs right now.
         </p>
       ) : (
-        <ul
-          className="divide-y divide-(--line-soft)"
-          data-testid="tasks-dashboard-active-runs-list"
-        >
+        <ul className="divide-y divide-line-soft" data-testid="tasks-dashboard-active-runs-list">
           {visible.map(run => {
             const signal = taskStatusSignal(run.task_status);
             return (
               <li
-                className="grid grid-cols-[14px_minmax(0,1fr)_96px_100px_84px_84px] items-center gap-3 px-4 py-[9px] text-[12px] hover:bg-(--row-hover)"
+                className="grid grid-cols-[14px_minmax(0,1fr)_96px_100px_84px_84px] items-center gap-3 px-4 py-[9px] text-[12px] hover:bg-row-hover"
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >
@@ -61,19 +58,19 @@ export function TasksDashboardActiveRuns({
                   <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
                 </span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 truncate text-[12.5px] font-medium tracking-section-head text-(--fg-strong)">
+                  <span className="min-w-0 truncate text-[12.5px] font-medium tracking-section-head text-fg-strong">
                     {run.task_title}
                   </span>
                   {run.task_identifier ? (
-                    <span className="shrink-0 font-mono text-[10.5px] text-(--faint)">
+                    <span className="shrink-0 font-mono text-[10.5px] text-faint">
                       {run.task_identifier}
                     </span>
                   ) : null}
                 </div>
-                <span className="font-mono text-[11px] tabular-nums text-(--muted)">
+                <span className="font-mono text-[11px] tabular-nums text-muted">
                   {formatAttemptLabel(run.attempt, run.max_attempts) ?? "—"}
                 </span>
-                <span className="font-mono text-[11px] tabular-nums text-(--muted)">
+                <span className="font-mono text-[11px] tabular-nums text-muted">
                   age {formatDurationMs(run.age_ms)}
                 </span>
                 <div className="flex min-w-0 items-center gap-1">
@@ -103,7 +100,7 @@ export function TasksDashboardActiveRuns({
                 </Pill.Link>
                 {run.error ? (
                   <p
-                    className="col-span-6 flex items-start gap-1 pt-1 text-[11.5px] text-(--danger)"
+                    className="col-span-6 flex items-start gap-1 pt-1 text-[11.5px] text-danger"
                     data-testid={`tasks-dashboard-active-run-error-${run.run_id}`}
                   >
                     <AlertCircle className="mt-px size-3 shrink-0" />
@@ -118,7 +115,7 @@ export function TasksDashboardActiveRuns({
 
       {hidden > 0 ? (
         <Eyebrow
-          className="text-(--muted) block px-4 pt-3 pb-3"
+          className="text-muted block px-4 pt-3 pb-3"
           data-testid="tasks-dashboard-active-runs-more"
         >
           +{hidden} more active runs

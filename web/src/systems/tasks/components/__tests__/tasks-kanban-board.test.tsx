@@ -227,7 +227,7 @@ describe("TaskKanbanCard", () => {
 
     const card = screen.getByTestId("tasks-kanban-card-ring");
     expect(card.className).toContain("shadow-[inset_0_0_0_1px_var(--line-soft)]");
-    expect(card.className).not.toContain("border-(--line)");
+    expect(card.className).not.toContain("border-line");
   });
 
   it("Should not render an accent rail when the card is selected", () => {
@@ -242,7 +242,7 @@ describe("TaskKanbanCard", () => {
 
     const card = screen.getByTestId("tasks-kanban-card-sel");
     expect(card).toHaveAttribute("data-selected", "true");
-    expect(card.querySelector("[class*='bg-(--accent)']")).toBeNull();
+    expect(card.querySelector("[class*='bg-accent']")).toBeNull();
     // Ensure no accent rail wrapper anywhere inside the card.
     expect(container.querySelectorAll(".bg-\\(--accent\\)").length).toBe(0);
   });

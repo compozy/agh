@@ -62,10 +62,10 @@ function NetworkChannelDirectsRoute() {
       data-testid="network-directs-tab"
     >
       <header
-        className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
+        className="flex items-center justify-between gap-3 border-b border-line px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <Eyebrow className="text-(--subtle)">{subheaderLabel}</Eyebrow>
+        <Eyebrow className="text-subtle">{subheaderLabel}</Eyebrow>
         <Button
           aria-label="Open new direct room"
           data-testid="network-directs-new-direct"

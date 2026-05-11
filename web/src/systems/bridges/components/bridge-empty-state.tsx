@@ -36,7 +36,7 @@ export function BridgeEmptyState({ onCreate, providers }: BridgeEmptyStateProps)
         Create Bridge
       </Button>
       {!canCreate && hasInstalledProviders ? (
-        <p className="text-xs text-(--subtle)">
+        <p className="text-xs text-subtle">
           Installed providers are currently unavailable. Resolve extension health first.
         </p>
       ) : null}
@@ -50,7 +50,7 @@ export function BridgeEmptyState({ onCreate, providers }: BridgeEmptyStateProps)
 
         {hasInstalledProviders ? (
           <Section label="Installed providers">
-            <p className="text-small-body text-(--muted)">
+            <p className="text-small-body text-muted">
               Providers come from installed bridge-capable extensions. Unavailable providers stay
               visible so the operator can diagnose runtime state.
             </p>
@@ -92,7 +92,7 @@ function BridgeProviderCatalogCard({ provider }: BridgeProviderCatalogCardProps)
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <KindChip kind={provider.platform} />
-            <Eyebrow className="text-(--muted)">{provider.extension_name}</Eyebrow>
+            <Eyebrow className="text-muted">{provider.extension_name}</Eyebrow>
           </div>
         </div>
       </div>
@@ -109,7 +109,7 @@ function BridgeProviderCatalogCard({ provider }: BridgeProviderCatalogCardProps)
           </Pill>
         )}
       </CatalogCard.Actions>
-      <p className="text-eyebrow leading-relaxed text-(--subtle)">
+      <p className="text-eyebrow leading-relaxed text-subtle">
         {provider.health_message ||
           (selectable
             ? "This provider can be used to create a bridge instance."

@@ -21,7 +21,7 @@ const meta: Meta<typeof Topbar> = {
   },
   decorators: [
     Story => (
-      <div className="w-full bg-background border border-(--line)">
+      <div className="w-full bg-background border border-line">
         <Story />
       </div>
     ),
@@ -151,8 +151,8 @@ function DetailModeSetup() {
     back: () => undefined,
     meta: (
       <>
-        <span className="font-mono text-[10.5px] text-(--faint)">task_01H</span>
-        <span className="text-[12px] text-(--muted)">created 2h ago</span>
+        <span className="font-mono text-[10.5px] text-faint">task_01H</span>
+        <span className="text-[12px] text-muted">created 2h ago</span>
       </>
     ),
     actions: <Button size="sm">Run</Button>,

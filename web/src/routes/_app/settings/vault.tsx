@@ -189,16 +189,16 @@ function VaultFilterBar({
 }: VaultFilterBarProps) {
   return (
     <div
-      className="grid gap-4 rounded-lg border border-(--line) bg-(--canvas-soft) p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
+      className="grid gap-4 rounded-lg border border-line bg-canvas-soft p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
       data-testid="settings-page-vault-filters"
     >
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
-        <Eyebrow className="text-(--muted)">Namespace</Eyebrow>
+        <Eyebrow className="text-muted">Namespace</Eyebrow>
         <select
           id="settings-page-vault-namespace"
           value={namespace}
           onChange={event => onNamespaceChange(event.target.value as VaultNamespaceFilter)}
-          className="h-9 rounded-md border border-(--line) bg-(--elevated) px-3 text-sm text-(--fg) outline-none"
+          className="h-9 rounded-md border border-line bg-elevated px-3 text-sm text-fg outline-none"
           data-testid="settings-page-vault-namespace"
         >
           <option value="all">All namespaces</option>
@@ -210,7 +210,7 @@ function VaultFilterBar({
         </select>
       </label>
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
-        <Eyebrow className="text-(--muted)">Prefix</Eyebrow>
+        <Eyebrow className="text-muted">Prefix</Eyebrow>
         <Input
           id="settings-page-vault-prefix"
           value={prefix}
@@ -351,7 +351,7 @@ function VaultDeleteDialog({
         target ? (
           <span>
             Delete metadata and encrypted value for{" "}
-            <code className="font-mono text-(--fg)">{target.ref}</code>.
+            <code className="font-mono text-fg">{target.ref}</code>.
             {sessionScope
               ? " This is a session-scoped secret; it is removed immediately."
               : " Cross-scope vault entries require typed confirmation."}

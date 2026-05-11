@@ -28,12 +28,12 @@ export interface StatusLineTopbarSlotProps extends React.ComponentProps<"div"> {
 }
 
 const TONE_TEXT_CLASS: Record<PillTone, string> = {
-  neutral: "text-(--muted)",
-  accent: "text-(--accent)",
-  success: "text-(--success)",
-  warning: "text-(--warning)",
-  danger: "text-(--danger)",
-  info: "text-(--info)",
+  neutral: "text-muted",
+  accent: "text-accent",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-danger",
+  info: "text-info",
 };
 
 function StatusLineTopbarSlot({
@@ -60,11 +60,11 @@ function StatusLineTopbarSlot({
             data-tone={tone}
             className="flex items-center gap-1.5"
           >
-            <span aria-hidden="true" className="text-(--subtle)">
+            <span aria-hidden="true" className="text-subtle">
               ·
             </span>
             {item.label ? (
-              <Eyebrow data-slot="status-line-topbar-slot-item-label" className="text-(--muted)">
+              <Eyebrow data-slot="status-line-topbar-slot-item-label" className="text-muted">
                 {item.label}
               </Eyebrow>
             ) : null}

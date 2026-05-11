@@ -79,7 +79,7 @@ export function TasksDetailChildrenPanel({
                 <LinkedRecordTable.Cell className="w-8 pl-4" />
                 <LinkedRecordTable.Cell className="max-w-[360px]">
                   <LinkedRecordTable.Title>
-                    <span className="truncate text-small-body text-(--fg)">{child.title}</span>
+                    <span className="truncate text-small-body text-fg">{child.title}</span>
                     <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
                       <MonoId value={child.identifier ?? child.id} />
                       {child.priority ? (
@@ -95,10 +95,10 @@ export function TasksDetailChildrenPanel({
                     {taskStatusLabel(child.status)}
                   </Pill>
                 </LinkedRecordTable.Cell>
-                <LinkedRecordTable.Cell className="text-xs text-(--muted)">
+                <LinkedRecordTable.Cell className="text-xs text-muted">
                   {taskOwnerLabel(child.owner)}
                 </LinkedRecordTable.Cell>
-                <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--subtle)">
+                <LinkedRecordTable.Cell className="font-mono text-eyebrow text-subtle">
                   {child.last_activity_at ? (
                     <Time iso={child.last_activity_at} mode="relative" />
                   ) : (
@@ -118,15 +118,15 @@ export function TasksDetailChildrenPanel({
               {showProgress ? (
                 <tr
                   data-testid={`tasks-detail-children-progress-row-${child.id}`}
-                  className="border-b border-(--line)"
+                  className="border-b border-line"
                 >
                   <td colSpan={6} className="p-0">
                     <div
                       aria-hidden="true"
-                      className="h-1 w-full overflow-hidden bg-(--accent-tint)"
+                      className="h-1 w-full overflow-hidden bg-accent-tint"
                       data-testid={`tasks-detail-children-progress-${child.id}`}
                     >
-                      <div className="h-full w-1/3 animate-pulse bg-(--accent)" />
+                      <div className="h-full w-1/3 animate-pulse bg-accent" />
                     </div>
                   </td>
                 </tr>

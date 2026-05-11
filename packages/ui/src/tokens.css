@@ -1,215 +1,166 @@
 /*
- * Shared design tokens for AGH (P1 token contract).
- *
- * Consumers (`packages/site`, `web/`) own framework-level stylesheet setup,
- * including the single `@import "tailwindcss"` call and any concrete font
- * loading. This file stays font-source agnostic so each surface can choose its
- * own delivery path without shipping duplicate faces.
+ * Shared design tokens for AGH (canonical Tailwind v4 single-layer `@theme`).
  *
  * Authority: `DESIGN.md` (repo root).
  *
- * Staged token deletions are complete. Removed tokens do not get compatibility
- * aliases.
+ * Consumers (`web/`, `packages/site`) own framework-level stylesheet setup,
+ * including the single `@import "tailwindcss"` call and any concrete font
+ * loading. This file stays font-source agnostic so each surface can choose
+ * its own delivery path without shipping duplicate faces.
+ *
+ * Token contract: every design-system token meant to generate a utility is
+ * declared once inside `@theme` with its canonical Tailwind v4 namespace
+ * prefix (`--color-*`, `--text-*`, `--tracking-*`, `--leading-*`,
+ * `--radius-*`, `--duration-*`, `--ease-*`, `--shadow-*`, `--font-*`,
+ * `--font-weight-*`). Tailwind both generates the bare utility (`text-fg`,
+ * `bg-canvas-soft`, `duration-base`, `shadow-overlay`, …) AND exposes each
+ * token as a global CSS custom property (`var(--color-fg)`, etc.).
+ *
+ * Component-internal sizing/spacing tokens (modal widths, catalog/provider
+ * logo wells, PillGroup segment heights, PillGroup spacing) stay in `:root`
+ * and are consumed via arbitrary-value syntax inside the owning component
+ * (e.g. `w-(--width-modal-md)` in Dialog, `min-h-(--height-pill-group-segment-md)`
+ * in PillGroup). They are NOT in `@theme` because they are not part of a
+ * scale that benefits from utility generation, and adding them invites
+ * value-matching false positives in third-party tools that infer theme
+ * mappings from numeric values.
  */
+
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  color-scheme: dark;
-
+@theme {
   /* Surface ramp — warm-dark, layered backgrounds (depth without shadows). */
-  --rail: #0c0b0b;
-  --canvas: #131211;
-  --canvas-soft: #1a1918;
-  --canvas-tint: #1c1b1a;
-  --sidebar: #1a1918;
-  --elevated: #232220;
-  /* --hover aliases the glaze ladder so consumers of `hover:bg-(--hover)` resolve
- the canonical row-hover tint. Fixes live bug N-45
- (activity-feed.tsx:121 referenced the alias before it existed). */
-  --hover: var(--row-hover);
-  --disabled: #4a4847;
+  --color-rail: #0c0b0b;
+  --color-canvas: #131211;
+  --color-canvas-soft: #1a1918;
+  --color-canvas-tint: #1c1b1a;
+  --color-sidebar: #1a1918;
+  --color-elevated: #232220;
+  --color-hover: var(--color-row-hover);
+  --color-disabled: #4a4847;
 
   /* Hairlines — translucent rails derived from white. */
-  --line: rgba(255, 255, 255, 0.055);
-  --line-soft: rgba(255, 255, 255, 0.03);
-  --line-strong: rgba(255, 255, 255, 0.09);
+  --color-line: rgba(255, 255, 255, 0.055);
+  --color-line-soft: rgba(255, 255, 255, 0.03);
+  --color-line-strong: rgba(255, 255, 255, 0.09);
 
   /* Text. */
-  --fg: #ececef;
-  --fg-strong: #f6f6f8;
-  --muted: #9a9a9f;
-  --subtle: #76767c;
-  --faint: #545458;
+  --color-fg: #ececef;
+  --color-fg-strong: #f6f6f8;
+  --color-muted: #9a9a9f;
+  --color-subtle: #76767c;
+  --color-faint: #545458;
 
   /* Accent — warm operator orange (the only non-neutral hue). */
-  --accent: #e8572a;
-  --accent-hover: #d14e25;
-  --accent-strong: #f6874f;
-  --accent-ink: #17110f;
-  --accent-tint: rgba(232, 87, 42, 0.1);
-  --accent-tint-strong: rgba(232, 87, 42, 0.16);
-  --accent-dim: rgba(232, 87, 42, 0.24);
-  --accent-glow: rgba(232, 87, 42, 0.05);
+  --color-accent: #e8572a;
+  --color-accent-hover: #d14e25;
+  --color-accent-strong: #f6874f;
+  --color-accent-ink: #17110f;
+  --color-accent-tint: rgba(232, 87, 42, 0.1);
+  --color-accent-tint-strong: rgba(232, 87, 42, 0.16);
+  --color-accent-dim: rgba(232, 87, 42, 0.24);
+  --color-accent-glow: rgba(232, 87, 42, 0.05);
 
   /* Signal palette — desaturated; tints at 6–12% alpha. */
-  --success: #5fbf85;
-  --success-tint: rgba(95, 191, 133, 0.08);
-  --warning: #d6a647;
-  --warning-tint: rgba(214, 166, 71, 0.08);
-  --danger: #e0635a;
-  --danger-tint: rgba(224, 99, 90, 0.09);
-  --info: #8e8eb5;
-  --info-tint: rgba(142, 142, 181, 0.12);
-  --neutral: #7a7a80;
-  --neutral-tint: rgba(150, 150, 155, 0.06);
+  --color-success: #5fbf85;
+  --color-success-tint: rgba(95, 191, 133, 0.08);
+  --color-warning: #d6a647;
+  --color-warning-tint: rgba(214, 166, 71, 0.08);
+  --color-danger: #e0635a;
+  --color-danger-tint: rgba(224, 99, 90, 0.09);
+  --color-info: #8e8eb5;
+  --color-info-tint: rgba(142, 142, 181, 0.12);
+  --color-neutral: #7a7a80;
+  --color-neutral-tint: rgba(150, 150, 155, 0.06);
+
+  /* Surface glaze ladder — translucent white tints over the warm ramp. */
+  --color-row-hover: rgba(255, 255, 255, 0.022);
+  --color-row-selected: rgba(255, 255, 255, 0.03);
+  --color-surface-glaze: rgba(255, 255, 255, 0.04);
+  --color-bar-fill: rgba(255, 255, 255, 0.085);
+  --color-input-fill: rgba(255, 255, 255, 0.025);
+  --color-btn-default-fill: rgba(255, 255, 255, 0.04);
+  --color-btn-default-hover: rgba(255, 255, 255, 0.07);
+  --color-badge-fill: rgba(255, 255, 255, 0.05);
 
   /* Overlays. */
-  --overlay-scrim: rgba(0, 0, 0, 0.55);
-  --overlay-blur: 3px;
-  --overlay-ghost-hover: rgba(255, 255, 255, 0.06);
+  --color-overlay-scrim: rgba(0, 0, 0, 0.55);
+  --color-overlay-ghost-hover: rgba(255, 255, 255, 0.06);
 
-  /* Surface glaze ladder
- Inline rgba(255,255,255,0.0XX) literals across web/src/** and packages/ui/src/**
-  must migrate to these tokens. The `--hover` alias above resolves to
-  `--row-hover`. */
-  --row-hover: rgba(255, 255, 255, 0.022);
-  --row-selected: rgba(255, 255, 255, 0.03);
-  --surface-glaze: rgba(255, 255, 255, 0.04);
-  --bar-fill: rgba(255, 255, 255, 0.085);
-  --input-fill: rgba(255, 255, 255, 0.025);
-  --btn-default-fill: rgba(255, 255, 255, 0.04);
-  --btn-default-hover: rgba(255, 255, 255, 0.07);
-  --badge-fill: rgba(255, 255, 255, 0.05);
+  /* Protocol kind colors. */
+  --color-kind-say: var(--color-neutral);
+  --color-kind-greet: var(--color-info);
+  --color-kind-direct: var(--color-accent);
+  --color-kind-receipt: var(--color-success);
+  --color-kind-capability: var(--color-warning);
+  --color-kind-trace: var(--color-info);
+  --color-kind-whois: var(--color-neutral);
 
-  /* Owner avatar palette +
- `web/src/lib/owner-palette.ts` resolves these via `colorsFor(ownerKind, ownerId)`.
- Storybook + design ref tools must consume the same source as the runtime. */
-  --avatar-agent-0-bg: rgba(232, 144, 99, 0.18);
-  --avatar-agent-0-fg: #f2b895;
-  --avatar-agent-1-bg: rgba(168, 178, 220, 0.16);
-  --avatar-agent-1-fg: #c5cce7;
-  --avatar-agent-2-bg: rgba(143, 196, 178, 0.18);
-  --avatar-agent-2-fg: #a9d9c7;
-  --avatar-agent-3-bg: rgba(214, 168, 192, 0.18);
-  --avatar-agent-3-fg: #e0bcd0;
-  --avatar-human-0-bg: rgba(220, 192, 134, 0.2);
-  --avatar-human-0-fg: #e5cc9a;
-  --avatar-human-1-bg: rgba(195, 178, 156, 0.2);
-  --avatar-human-1-fg: #d6c5aa;
-  --avatar-human-2-bg: rgba(192, 173, 178, 0.2);
-  --avatar-human-2-fg: #d2bfc5;
-  --avatar-system-bg: var(--elevated);
-  --avatar-system-fg: var(--subtle);
+  /* Owner avatar palette.
+     `packages/ui/src/lib/owner-palette.ts` resolves these via
+     `colorsFor(ownerKind, ownerId)`. Storybook + design ref tools must
+     consume the same source as the runtime. */
+  --color-avatar-agent-0-bg: rgba(232, 144, 99, 0.18);
+  --color-avatar-agent-0-fg: #f2b895;
+  --color-avatar-agent-1-bg: rgba(168, 178, 220, 0.16);
+  --color-avatar-agent-1-fg: #c5cce7;
+  --color-avatar-agent-2-bg: rgba(143, 196, 178, 0.18);
+  --color-avatar-agent-2-fg: #a9d9c7;
+  --color-avatar-agent-3-bg: rgba(214, 168, 192, 0.18);
+  --color-avatar-agent-3-fg: #e0bcd0;
+  --color-avatar-human-0-bg: rgba(220, 192, 134, 0.2);
+  --color-avatar-human-0-fg: #e5cc9a;
+  --color-avatar-human-1-bg: rgba(195, 178, 156, 0.2);
+  --color-avatar-human-1-fg: #d6c5aa;
+  --color-avatar-human-2-bg: rgba(192, 173, 178, 0.2);
+  --color-avatar-human-2-fg: #d2bfc5;
+  --color-avatar-system-bg: var(--color-elevated);
+  --color-avatar-system-fg: var(--color-subtle);
 
-  /* Modal width ladder */
-  --width-modal-sm: 560px;
-  --width-modal-md: 720px;
-  --width-modal-lg: 880px;
+  /* shadcn semantic aliases — mapped onto the canonical contract. */
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-fg);
+  --color-card: var(--color-canvas-soft);
+  --color-card-foreground: var(--color-fg);
+  --color-popover: var(--color-canvas-soft);
+  --color-popover-foreground: var(--color-fg);
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-accent-ink);
+  --color-secondary: transparent;
+  --color-secondary-foreground: var(--color-fg);
+  --color-muted-foreground: var(--color-muted);
+  --color-accent-foreground: var(--color-accent-ink);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-fg-strong);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-line-strong);
+  --color-chart-1: var(--color-accent);
+  --color-chart-2: var(--color-success);
+  --color-chart-3: var(--color-info);
+  --color-chart-4: var(--color-warning);
+  --color-chart-5: var(--color-danger);
+  --color-sidebar-foreground: var(--color-fg);
+  --color-sidebar-primary: var(--color-accent);
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: var(--color-elevated);
+  --color-sidebar-accent-foreground: var(--color-fg);
+  --color-sidebar-border: var(--color-line);
+  --color-sidebar-ring: var(--color-line-strong);
 
-  /* Sizing tokens
- `--size-catalog-logo` for browse/install surfaces (CatalogCard logoSize="default").
- `--size-provider-logo-well` for connected/configured surfaces (logoSize="lg"). */
-  --size-catalog-logo: 1.5rem;
-  --size-provider-logo-well: 2.5rem;
-
-  /* Protocol kind colors — keyed off the new signal palette. */
-  --color-kind-say: var(--neutral);
-  --color-kind-greet: var(--info);
-  --color-kind-direct: var(--accent);
-  --color-kind-receipt: var(--success);
-  --color-kind-capability: var(--warning);
-  --color-kind-trace: var(--info);
-  --color-kind-whois: var(--neutral);
-
-  /* Pinned radii at:root
- Mirrored under @theme inline below so Tailwind utilities (rounded-xs, rounded)
- stay generated; pinning at:root makes them resolvable inside any custom
- property cascade without the `@theme inline` layer. */
-  --radius-xs: 4px;
-  --radius: 6px;
-
-  /* Shared mono / pill-group constants.
- `--radius-mono-badge` value moved from 6px to 4px; name preserved
- for callsite stability.
- `--height-pill-group-segment-md` lifted from 22px to 24px
- (replaces `--height-mono-badge` after the PillGroup rewrite drops the
- mono-badge appearance). */
-  --tracking-mono: 0.06em;
-  --radius-chip: 5px;
-  --radius-mono-badge: 4px;
-  --radius-icon-well: 10px;
-  --height-pill-group-segment-md: 24px;
-  --height-pill-group-segment-sm: 20px;
-  --size-pill-group-badge: 14px;
-  --space-pill-group-track-gap: 1px;
-  --space-pill-group-track-padding: 2px;
-  --space-pill-group-segment-sm-x: 8px;
-  --space-pill-group-segment-md-x: 10px;
-  --space-pill-group-badge-x: 4px;
-  --text-pill-group-badge: 0.5625rem;
-
-  /* Font — display alias reserved for explicit logo/wordmark surfaces only.: forbidden inside type-ramp callers under web/src/** and
- packages/ui/src/** (lint enforced; see lint-plugins/compozy-design-system.mjs).
- Site re-binds this to Playfair Display in packages/site/app/global.css. */
-  --font-display: var(--font-sans);
-
-  /* Motion — single fast tier + slow tier; one ease curve. */
-  --dur: 140ms;
-  --dur-slow: 200ms;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --duration-fast: 100ms;
-  --duration-base: var(--dur);
-  --duration-slow: var(--dur-slow);
-  --ease-out: var(--ease);
-
-  /* Shadows — whitelist. Every other surface stays flat. */
-  --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
-  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-
-  /* shadcn theme variables — mapped onto the new contract. */
-  --background: var(--canvas);
-  --foreground: var(--fg);
-  --card: var(--canvas-soft);
-  --card-foreground: var(--fg);
-  --popover: var(--canvas-soft);
-  --popover-foreground: var(--fg);
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-ink);
-  --secondary: transparent;
-  --secondary-foreground: var(--fg);
-  --muted-foreground: var(--muted);
-  --accent-foreground: var(--accent-ink);
-  --destructive: var(--danger);
-  --destructive-foreground: var(--fg-strong);
-  --border: var(--line);
-  --input: var(--line);
-  --ring: var(--line-strong);
-  --chart-1: var(--accent);
-  --chart-2: var(--success);
-  --chart-3: var(--info);
-  --chart-4: var(--warning);
-  --chart-5: var(--danger);
-
-  --sidebar-foreground: var(--fg);
-  --sidebar-primary: var(--accent);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--elevated);
-  --sidebar-accent-foreground: var(--fg);
-  --sidebar-border: var(--line);
-  --sidebar-ring: var(--line-strong);
-}
-.dark {
-  color-scheme: dark;
-}
-
-@theme inline {
+  /* Font families. */
   --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
+  /* Display alias reserved for explicit logo/wordmark surfaces only.
+     `font-display` utility is forbidden inside type-ramp callers under
+     `web/src/**` and `packages/ui/src/**` (lint enforced; see
+     `lint-plugins/compozy-design-system.mjs`).
+     Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
+  --font-display: var(--font-sans);
 
-  /* Weight ladder */
+  /* Weight ladder. */
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -233,10 +184,8 @@
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;
-  --leading-small-body: var(--text-small-body--line-height);
-  --tracking-mono: 0.06em;
 
-  /* Type ladder additions */
+  /* Type ladder additions. */
   --text-detail-h1: 1.5rem;
   --text-empty-h1: 1.125rem;
   --text-modal-title: 0.84375rem;
@@ -251,8 +200,13 @@
   --text-rail-avatar: 0.71875rem;
   --text-ws-name: 0.8125rem;
   --text-mono-id: 0.65625rem;
+  --text-pill-group-badge: 0.5625rem;
 
-  /* Tracking ladder additions */
+  /* Leading. */
+  --leading-small-body: var(--text-small-body--line-height);
+
+  /* Tracking ladder. */
+  --tracking-mono: 0.06em;
   --tracking-detail-h1: -0.028em;
   --tracking-empty-h1: -0.022em;
   --tracking-modal-title: -0.012em;
@@ -261,7 +215,8 @@
   --tracking-eyebrow: -0.005em;
   --tracking-mono-id: 0;
 
-  /* Radii ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
+  /* Radii — base + ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
+  --radius: 6px;
   --radius-xs: 4px;
   --radius-sm: 5px;
   --radius-md: 8px;
@@ -270,83 +225,49 @@
   --radius-pill: 9999px;
   --radius-chip: 5px;
   --radius-mono-badge: 4px;
-  --radius-icon-well: 0.625rem;
+  --radius-icon-well: 10px;
 
-  /* shadcn / Tailwind utility surface colors. */
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
+  /* Motion — single fast tier + slow tier; one ease curve. */
+  --duration-fast: 100ms;
+  --duration-base: 140ms;
+  --duration-slow: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Surface ramp utilities — bg-rail / bg-canvas / bg-canvas-soft / bg-elevated / bg-hover / bg-disabled. */
-  --color-rail: var(--rail);
-  --color-canvas: var(--canvas);
-  --color-canvas-soft: var(--canvas-soft);
-  --color-canvas-tint: var(--canvas-tint);
-  --color-elevated: var(--elevated);
-  --color-hover: var(--hover);
-  --color-disabled: var(--disabled);
+  /* Shadows — whitelist. Every other surface stays flat. */
+  --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+  --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
 
-  /* Hairline utilities — border-line-soft / border-line-strong.
- `--color-line` is intentionally NOT redeclared (test contract: hairlines
- consolidate around `--line`; the Tailwind `border-line` utility is unused). */
-  --color-line-soft: var(--line-soft);
-  --color-line-strong: var(--line-strong);
+:root {
+  color-scheme: dark;
 
-  /* Text utilities — text-fg / text-fg-strong / text-muted / text-subtle / text-faint. */
-  --color-fg: var(--fg);
-  --color-fg-strong: var(--fg-strong);
-  --color-muted: var(--muted);
-  --color-subtle: var(--subtle);
-  --color-faint: var(--faint);
+  /* Non-utility runtime var: consumed inside `backdrop-filter: blur(...)` on
+     dialog/sheet scrims; no Tailwind namespace matches `backdrop-filter`
+     directly so this stays out of `@theme`. */
+  --overlay-blur: 3px;
 
-  /* Accent utilities — text-accent / bg-accent / border-accent / ramp variants. */
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-strong: var(--accent-strong);
-  --color-accent-ink: var(--accent-ink);
-  --color-accent-tint: var(--accent-tint);
-  --color-accent-tint-strong: var(--accent-tint-strong);
-  --color-accent-dim: var(--accent-dim);
-  --color-accent-glow: var(--accent-glow);
+  /* Component-internal sizing — consumed via arbitrary syntax inside the
+     owning component only. Kept out of `@theme` to prevent third-party
+     tooling from inferring generic 2px / 720px / 1.5rem matches against
+     these names. Names mirror the callsites verbatim. */
+  --width-modal-sm: 560px;
+  --width-modal-md: 720px;
+  --width-modal-lg: 880px;
+  --size-catalog-logo: 1.5rem;
+  --size-provider-logo-well: 2.5rem;
+  --size-pill-group-badge: 14px;
+  --height-pill-group-segment-md: 24px;
+  --height-pill-group-segment-sm: 20px;
+  --space-pill-group-track-gap: 1px;
+  --space-pill-group-track-padding: 2px;
+  --space-pill-group-segment-sm-x: 8px;
+  --space-pill-group-segment-md-x: 10px;
+  --space-pill-group-badge-x: 4px;
+}
 
-  /* Signal palette utilities — text-success / bg-warning-tint / etc. */
-  --color-success: var(--success);
-  --color-success-tint: var(--success-tint);
-  --color-warning: var(--warning);
-  --color-warning-tint: var(--warning-tint);
-  --color-danger: var(--danger);
-  --color-danger-tint: var(--danger-tint);
-  --color-info: var(--info);
-  --color-info-tint: var(--info-tint);
-  --color-neutral: var(--neutral);
-  --color-neutral-tint: var(--neutral-tint);
+.dark {
+  color-scheme: dark;
 }
 
 @layer base {
@@ -371,12 +292,12 @@
   }
 
   /* JetBrains Mono override:
-    Inter is calibrated for grayscale (`antialiased`) and its OpenType
-    features (cv01/ss03/cv11) are inherited from body. Both rules thin and
-    distort JetBrains Mono on macOS Chrome/Safari, where its narrower strokes
-    pay a much higher visual penalty than Inter's. Restore subpixel rendering
-    and reset font-feature-settings so the variable wght axis is read at full
-    stroke weight on every mono surface. */
+     Inter is calibrated for grayscale (`antialiased`) and its OpenType
+     features (cv01/ss03/cv11) are inherited from body. Both rules thin and
+     distort JetBrains Mono on macOS Chrome/Safari, where its narrower
+     strokes pay a much higher visual penalty than Inter's. Restore subpixel
+     rendering and reset font-feature-settings so the variable wght axis is
+     read at full stroke weight on every mono surface. */
   .font-mono,
   [class*="font-mono"],
   code,
@@ -388,11 +309,10 @@
     font-feature-settings: normal;
   }
 
-  /* Text selection — warm accent at 10%. The legacy --overlay-selection token is
-intentionally absent. */
+  /* Text selection — warm accent at 10%. */
   ::selection {
-    background: var(--accent-tint);
-    color: var(--fg-strong);
+    background: var(--color-accent-tint);
+    color: var(--color-fg-strong);
   }
 }
 
@@ -435,11 +355,12 @@ intentionally absent. */
 }
 
 /*
- * Reduced-motion guard
- * Applies to every animation and transition, not only `--dur*` token references.
- * Required because `tw-animate-css` and the `shimmer` / `typing-bounce` keyframes
- * hardcode their durations and would otherwise keep playing. `0.001ms` (not 0)
- * preserves CSS animation-callback timing (libraries relying on `animationend`).
+ * Reduced-motion guard.
+ * Applies to every animation and transition, not only `--duration-*` token
+ * references. Required because `tw-animate-css` and the `shimmer` /
+ * `typing-bounce` keyframes hardcode their durations and would otherwise
+ * keep playing. `0.001ms` (not 0) preserves CSS animation-callback timing
+ * (libraries relying on `animationend`).
  */
 @media (prefers-reduced-motion: reduce) {
   *,

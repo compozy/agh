@@ -65,7 +65,7 @@ function AppLayout() {
           <main
             id="app-content"
             data-testid="app-content"
-            className="relative col-start-3 row-start-2 flex min-h-0 flex-col overflow-hidden bg-(--canvas)"
+            className="relative col-start-3 row-start-2 flex min-h-0 flex-col overflow-hidden bg-canvas"
           >
             <Outlet />
           </main>

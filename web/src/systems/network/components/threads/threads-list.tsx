@@ -59,8 +59,8 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
     <Item
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-none border-b border-(--line) px-5 py-4",
-        active ? "bg-(--canvas-soft)" : null
+        "rounded-none border-b border-line px-5 py-4",
+        active ? "bg-canvas-soft" : null
       )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
       indicator={active ? "rail" : "none"}
@@ -81,7 +81,7 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
           <ThreadWorkPill openWorkCount={openWorkCount} />
         </ItemHeader>
 
-        <p className="line-clamp-2 text-small-body text-(--muted)">
+        <p className="line-clamp-2 text-small-body text-muted">
           {thread.last_message_preview ?? "No messages yet."}
         </p>
 
@@ -111,7 +111,7 @@ function ThreadsListSkeleton() {
     <SkeletonRows
       count={5}
       data-testid="network-thread-list-skeleton"
-      rowClassName="border-b border-(--line) px-5 py-4"
+      rowClassName="border-b border-line px-5 py-4"
     >
       <Skeleton className="h-3.5 w-2/3" />
       <Skeleton className="h-3 w-full" />

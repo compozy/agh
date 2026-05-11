@@ -49,7 +49,7 @@ function NetworkChannelThreadsRoute() {
 
         {showOverlay && isFullPage ? (
           <div
-            className="flex min-h-0 flex-1 flex-col bg-(--canvas)"
+            className="flex min-h-0 flex-1 flex-col bg-canvas"
             data-testid="network-thread-overlay-fullpage"
           >
             <Outlet />

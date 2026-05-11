@@ -55,13 +55,13 @@ export function AgentCommandSelect({
             <AgentIcon
               provider={selectedAgent.provider}
               size="xs"
-              className="shrink-0 text-(--muted)"
+              className="shrink-0 text-muted"
             />
-            <span className="truncate text-sm text-(--fg)">{selectedAgent.name}</span>
-            <Eyebrow className="text-(--muted)">{selectedAgent.provider}</Eyebrow>
+            <span className="truncate text-sm text-fg">{selectedAgent.name}</span>
+            <Eyebrow className="text-muted">{selectedAgent.provider}</Eyebrow>
             {selectedAgent.category_path && selectedAgent.category_path.length > 0 ? (
               <Eyebrow
-                className="text-(--muted) ml-auto truncate"
+                className="text-muted ml-auto truncate"
                 data-testid="agent-command-select-trigger-category"
               >
                 {formatCategoryLabel(selectedAgent.category_path)}
@@ -69,7 +69,7 @@ export function AgentCommandSelect({
             ) : null}
           </span>
         ) : (
-          <span className="truncate text-(--muted)">{placeholder}</span>
+          <span className="truncate text-muted">{placeholder}</span>
         )}
       </CommandSelectTrigger>
       <CommandSelectShell

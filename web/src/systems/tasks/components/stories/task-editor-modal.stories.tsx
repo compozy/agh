@@ -27,7 +27,7 @@ function NewModeStory({ templateId = "one_shot" }: { templateId?: TaskTemplateId
   );
   const [activeTemplate, setActiveTemplate] = useState<TaskTemplateId>(templateId);
   return (
-    <div className="min-h-screen bg-(--canvas) p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <TaskEditorModal
         canSubmit={draft.title.trim().length > 0}
         draft={draft}
@@ -74,7 +74,7 @@ function EditModeStory() {
     maxAttempts: 3,
   }));
   return (
-    <div className="min-h-screen bg-(--canvas) p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <TaskEditorModal
         canSubmit={draft.title.trim().length > 0}
         draft={draft}

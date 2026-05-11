@@ -97,7 +97,7 @@ function ProvidersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-providers-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -109,10 +109,8 @@ function ProvidersSettingsPage() {
         data-testid="settings-page-providers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
-            {page.error?.message ?? "Failed to load providers"}
-          </p>
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">{page.error?.message ?? "Failed to load providers"}</p>
         </div>
       </div>
     );
@@ -548,7 +546,7 @@ function renderProviderEditor({
           hint="OPTIONAL"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-(--subtle)" />
+              <KeyRound className="size-3.5 text-subtle" />
               <Input
                 className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
@@ -570,7 +568,7 @@ function renderProviderEditor({
           hint="BOUND"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-(--subtle)" />
+              <KeyRound className="size-3.5 text-subtle" />
               <Input
                 className="w-72 font-mono"
                 data-testid="settings-providers-editor-secret-ref-input"
@@ -633,7 +631,7 @@ function AdditionalCredentialSlotsEditor({
         <div className="flex w-full max-w-176 flex-col gap-2">
           {additionalSlots.length === 0 ? (
             <span
-              className="font-mono text-xs text-(--subtle)"
+              className="font-mono text-xs text-subtle"
               data-testid="settings-providers-editor-credential-slots-empty"
             >
               No additional credential slots
@@ -643,7 +641,7 @@ function AdditionalCredentialSlotsEditor({
               const index = offset + 1;
               return (
                 <div
-                  className="grid gap-2 rounded-md border border-(--line) p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
+                  className="grid gap-2 rounded-md border border-line p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
                   data-testid={`settings-providers-editor-credential-slot-${index}`}
                   key={slot.name || slot.target_env || slot.secret_ref || slot.kind}
                 >

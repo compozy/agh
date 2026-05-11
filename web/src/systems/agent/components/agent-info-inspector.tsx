@@ -77,7 +77,7 @@ export function AgentInfoInspector({
                     <ItemContent>
                       <ItemTitle>{server.name}</ItemTitle>
                       {server.command || server.url ? (
-                        <ItemDescription className="truncate font-mono text-badge tracking-mono text-(--subtle)">
+                        <ItemDescription className="truncate font-mono text-badge tracking-mono text-subtle">
                           {server.url ?? server.command}
                         </ItemDescription>
                       ) : null}
@@ -85,7 +85,7 @@ export function AgentInfoInspector({
                     <ItemActions>
                       <Eyebrow
                         data-testid={`agent-info-mcp-kind-${server.name}`}
-                        className="text-(--muted)"
+                        className="text-muted"
                       >
                         {transport.toUpperCase()}
                       </Eyebrow>

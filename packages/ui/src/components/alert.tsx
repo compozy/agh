@@ -8,18 +8,18 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-(--canvas-soft) border-(--line) text-(--fg)",
+        default: "bg-canvas-soft border-line text-fg",
         neutral:
-          "border-(--neutral)/20 bg-(--neutral-tint) text-(--fg) *:data-[slot=alert-description]:text-(--muted)",
+          "border-neutral/20 bg-neutral-tint text-fg *:data-[slot=alert-description]:text-muted",
         danger:
-          "border-(--danger)/20 bg-(--danger-tint) text-(--danger) *:data-[slot=alert-description]:text-(--danger)/85",
+          "border-danger/20 bg-danger-tint text-danger *:data-[slot=alert-description]:text-danger/85",
         warning:
-          "border-(--warning)/20 bg-(--warning-tint) text-(--warning) *:data-[slot=alert-description]:text-(--warning)/85",
+          "border-warning/20 bg-warning-tint text-warning *:data-[slot=alert-description]:text-warning/85",
         success:
-          "border-(--success)/20 bg-(--success-tint) text-(--success) *:data-[slot=alert-description]:text-(--success)/85",
-        info: "border-(--info)/20 bg-(--info-tint) text-(--info) *:data-[slot=alert-description]:text-(--info)/85",
+          "border-success/20 bg-success-tint text-success *:data-[slot=alert-description]:text-success/85",
+        info: "border-info/20 bg-info-tint text-info *:data-[slot=alert-description]:text-info/85",
         accent:
-          "border-(--accent)/20 bg-(--accent-tint) text-(--accent) *:data-[slot=alert-description]:text-(--accent)/85",
+          "border-accent/20 bg-accent-tint text-accent *:data-[slot=alert-description]:text-accent/85",
       },
     },
     defaultVariants: {
@@ -47,7 +47,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-medium tracking-eyebrow group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-(--fg-strong)",
+        "font-medium tracking-eyebrow group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg-strong",
         className
       )}
       {...props}
@@ -60,7 +60,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="alert-description"
       className={cn(
-        "text-[13px] text-balance md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-(--fg-strong) [&_p:not(:last-child)]:mb-4",
+        "text-[13px] text-balance md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg-strong [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}

@@ -42,7 +42,7 @@ function MonoId({
       data-slot="mono-id"
       data-size={size}
       className={cn(
-        "inline-flex min-w-0 items-center gap-1 font-mono tracking-(--tracking-mono-id) text-(--faint) tabular-nums",
+        "inline-flex min-w-0 items-center gap-1 font-mono tracking-mono-id text-faint tabular-nums",
         SIZE_CLASSNAME[size],
         className
       )}
@@ -99,7 +99,7 @@ function MonoIdCopyButton({
         event.preventDefault();
         void handleCopy();
       }}
-      className="inline-flex size-3.5 shrink-0 items-center justify-center rounded-(--radius-xs) text-(--subtle) transition-colors duration-(--dur) ease-(--ease) hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+      className="inline-flex size-3.5 shrink-0 items-center justify-center rounded-xs text-subtle transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
     >
       {copied ? (
         <CheckIcon width={10} height={10} strokeWidth={2} />

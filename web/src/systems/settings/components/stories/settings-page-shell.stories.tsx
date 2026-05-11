@@ -41,7 +41,7 @@ export const Default: Story = {
     <PageShell
       slug="providers"
       footer={
-        <div className="px-6 py-3 text-small-body text-(--muted)">
+        <div className="px-6 py-3 text-small-body text-muted">
           Restart required after provider command changes.
         </div>
       }

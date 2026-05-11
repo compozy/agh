@@ -102,7 +102,8 @@
         "compozy-design-system/no-inline-eyebrow": "error",
         "compozy-design-system/no-design-glaze-rgba": "error",
         "compozy-design-system/no-banned-imports": "error",
-        "compozy-design-system/no-inline-design-tuples": "error"
+        "compozy-design-system/no-inline-design-tuples": "error",
+        "compozy-design-system/prefer-bare-token-utility": "error"
     },
     "overrides": [
         {

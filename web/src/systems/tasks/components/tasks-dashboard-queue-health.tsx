@@ -47,7 +47,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
       }
       title="Queue health · 24h"
     >
-      <p className="text-[12px] text-(--muted)">
+      <p className="text-[12px] text-muted">
         {totals.runs_total} runs tracked · {totals.completed_runs} completed
       </p>
 
@@ -58,7 +58,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
             data={series}
             height={SPARKLINE_HEIGHT}
           />
-          <div className="flex items-center justify-between font-mono text-[10px] text-(--faint)">
+          <div className="flex items-center justify-between font-mono text-[10px] text-faint">
             <span>24h ago</span>
             <span>now</span>
           </div>
@@ -76,10 +76,10 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
 
       {queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0 ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-lg bg-(--warning-tint) px-3 py-2 text-xs text-(--fg)"
+          className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-xs text-fg"
           data-testid="tasks-dashboard-warning"
         >
-          <AlertTriangle className="mt-px size-4 shrink-0 text-(--warning)" />
+          <AlertTriangle className="mt-px size-4 shrink-0 text-warning" />
           <span>
             {queue.backlog_warning
               ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)} -- oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
@@ -90,7 +90,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </div>
       ) : (
         <div
-          className="mt-4 flex items-center gap-2 text-xs text-(--success)"
+          className="mt-4 flex items-center gap-2 text-xs text-success"
           data-testid="tasks-dashboard-ok"
         >
           <Check className="size-4" /> Queue is healthy.

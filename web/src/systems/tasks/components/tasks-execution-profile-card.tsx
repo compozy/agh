@@ -47,7 +47,7 @@ function ListSlot({ label, values }: ListSlotProps) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-badge text-(--subtle)">{label}</span>
+      <span className="text-badge text-subtle">{label}</span>
       <div className="flex flex-wrap gap-1.5">
         {items.map(value => (
           <Pill key={`${label}:${value}`} mono>
@@ -68,7 +68,7 @@ interface PillRowProps {
 function PillRow({ label, value, tone }: PillRowProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-badge text-(--subtle)">{label}</span>
+      <span className="text-badge text-subtle">{label}</span>
       <Pill tone={tone ?? "neutral"}>{value}</Pill>
     </div>
   );
@@ -176,7 +176,7 @@ function TasksExecutionProfileCardView({
     >
       {hasActiveRun ? (
         <p
-          className="rounded-xl border border-(--line) bg-(--warning-tint) px-3 py-2 text-xs text-(--warning)"
+          className="rounded-xl border border-line bg-warning-tint px-3 py-2 text-xs text-warning"
           data-testid="tasks-execution-profile-active-run-warning"
         >
           Profile mutation is blocked while this task has an active run. Cancel or wait for the
@@ -209,7 +209,7 @@ function TasksExecutionProfileCardView({
       ) : null}
       {profile ? (
         <div
-          className="flex flex-col gap-4 rounded-xl border border-(--line) bg-(--elevated) px-4 py-3"
+          className="flex flex-col gap-4 rounded-xl border border-line bg-elevated px-4 py-3"
           data-testid="tasks-execution-profile-summary"
         >
           <div className="flex flex-wrap items-center gap-3">
@@ -219,20 +219,18 @@ function TasksExecutionProfileCardView({
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <h3 className="text-eyebrow text-(--muted)">Worker</h3>
-              <div className="flex flex-col gap-2 text-small-body text-(--fg)">
+              <h3 className="text-eyebrow text-muted">Worker</h3>
+              <div className="flex flex-col gap-2 text-small-body text-fg">
                 {profile.worker?.agent_name ? (
                   <span className="font-mono text-xs">agent {profile.worker.agent_name}</span>
                 ) : null}
                 {profile.worker?.provider ? (
-                  <span className="font-mono text-xs text-(--muted)">
+                  <span className="font-mono text-xs text-muted">
                     provider {profile.worker.provider}
                   </span>
                 ) : null}
                 {profile.worker?.model ? (
-                  <span className="font-mono text-xs text-(--muted)">
-                    model {profile.worker.model}
-                  </span>
+                  <span className="font-mono text-xs text-muted">model {profile.worker.model}</span>
                 ) : null}
                 <ListSlot label="Allowed agents" values={profile.worker?.allowed_agent_names} />
                 <ListSlot label="Preferred agents" values={profile.worker?.preferred_agent_names} />
@@ -247,43 +245,41 @@ function TasksExecutionProfileCardView({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="text-eyebrow text-(--muted)">Coordinator</h3>
-              <div className="flex flex-col gap-2 text-small-body text-(--fg)">
+              <h3 className="text-eyebrow text-muted">Coordinator</h3>
+              <div className="flex flex-col gap-2 text-small-body text-fg">
                 {profile.coordinator?.agent_name ? (
                   <span className="font-mono text-xs">agent {profile.coordinator.agent_name}</span>
                 ) : null}
                 {profile.coordinator?.provider ? (
-                  <span className="font-mono text-xs text-(--muted)">
+                  <span className="font-mono text-xs text-muted">
                     provider {profile.coordinator.provider}
                   </span>
                 ) : null}
                 {profile.coordinator?.model ? (
-                  <span className="font-mono text-xs text-(--muted)">
+                  <span className="font-mono text-xs text-muted">
                     model {profile.coordinator.model}
                   </span>
                 ) : null}
                 {profile.coordinator?.guidance ? (
-                  <p className="whitespace-pre-wrap text-xs text-(--muted)">
+                  <p className="whitespace-pre-wrap text-xs text-muted">
                     {profile.coordinator.guidance}
                   </p>
                 ) : null}
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="text-eyebrow text-(--muted)">Review selectors</h3>
+              <h3 className="text-eyebrow text-muted">Review selectors</h3>
               <div className="flex flex-col gap-2 text-small-body">
                 {profile.review?.agent_name ? (
                   <span className="font-mono text-xs">reviewer {profile.review.agent_name}</span>
                 ) : null}
                 {profile.review?.provider ? (
-                  <span className="font-mono text-xs text-(--muted)">
+                  <span className="font-mono text-xs text-muted">
                     provider {profile.review.provider}
                   </span>
                 ) : null}
                 {profile.review?.model ? (
-                  <span className="font-mono text-xs text-(--muted)">
-                    model {profile.review.model}
-                  </span>
+                  <span className="font-mono text-xs text-muted">model {profile.review.model}</span>
                 ) : null}
                 <ListSlot label="Allowed agents" values={profile.review?.allowed_agent_names} />
                 <ListSlot label="Preferred agents" values={profile.review?.preferred_agent_names} />
@@ -296,7 +292,7 @@ function TasksExecutionProfileCardView({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="text-eyebrow text-(--muted)">Sandbox + participants</h3>
+              <h3 className="text-eyebrow text-muted">Sandbox + participants</h3>
               <div className="flex flex-col gap-2 text-small-body">
                 {profile.sandbox?.sandbox_ref ? (
                   <span className="font-mono text-xs">sandbox {profile.sandbox.sandbox_ref}</span>
@@ -321,7 +317,7 @@ function TasksExecutionProfileCardView({
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 border-t border-(--line) pt-3 text-eyebrow text-(--subtle)">
+          <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3 text-eyebrow text-subtle">
             <span>created {formatRelativeTime(profile.created_at)}</span>
             <span>updated {formatRelativeTime(profile.updated_at)}</span>
           </div>
@@ -368,7 +364,7 @@ function ExecutionProfileEditorDialog({
         </DialogHeader>
         <textarea
           aria-label="Execution profile JSON"
-          className="min-h-[280px] w-full rounded-xl border border-(--line) bg-(--canvas-soft) p-3 font-mono text-xs text-(--fg) focus:outline-none focus:ring-1 focus:ring-(--accent)"
+          className="min-h-[280px] w-full rounded-xl border border-line bg-canvas-soft p-3 font-mono text-xs text-fg focus:outline-none focus:ring-1 focus:ring-accent"
           data-testid="tasks-execution-profile-editor-input"
           disabled={isSetPending}
           onChange={event => editor.setValue(event.target.value)}
@@ -376,7 +372,7 @@ function ExecutionProfileEditorDialog({
           value={editor.value}
         />
         {editor.error ? (
-          <p className="text-xs text-(--danger)" data-testid="tasks-execution-profile-editor-error">
+          <p className="text-xs text-danger" data-testid="tasks-execution-profile-editor-error">
             {editor.error}
           </p>
         ) : null}

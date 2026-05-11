@@ -45,7 +45,7 @@ export function TasksStreamResumeCard({
       data-testid="tasks-stream-resume-card"
       label="Stream resume"
     >
-      <p className="text-xs text-(--subtle)" data-testid="tasks-stream-resume-disclaimer">
+      <p className="text-xs text-subtle" data-testid="tasks-stream-resume-disclaimer">
         The web client seeds task SSE through Last-Event-ID derived from the task's latest_event_seq
         projection. Reconnects resume from the seeded sequence; named SSE frames invalidate read
         queries without inferring authority.
@@ -70,7 +70,7 @@ export function TasksStreamResumeCard({
       </div>
       {streamState === "error" && streamErrorMessage ? (
         <p
-          className="inline-flex items-center gap-2 text-xs text-(--danger)"
+          className="inline-flex items-center gap-2 text-xs text-danger"
           data-testid="tasks-stream-resume-error"
         >
           <AlertCircle className="size-3.5" />
@@ -79,7 +79,7 @@ export function TasksStreamResumeCard({
       ) : null}
       {streamState === "disabled" ? (
         <p
-          className="inline-flex items-center gap-2 text-xs text-(--subtle)"
+          className="inline-flex items-center gap-2 text-xs text-subtle"
           data-testid="tasks-stream-resume-disabled"
         >
           <Activity className="size-3.5" />

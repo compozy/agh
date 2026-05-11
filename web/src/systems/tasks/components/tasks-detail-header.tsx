@@ -91,11 +91,11 @@ export function TasksDetailHeader({
           <Link
             data-testid="tasks-detail-breadcrumb-tasks"
             to="/tasks"
-            className="transition-colors duration-(--dur) ease-(--ease) hover:text-(--fg)"
+            className="transition-colors duration-base ease-out hover:text-fg"
           >
             Tasks
           </Link>
-          <span aria-hidden="true" className="text-(--faint)">
+          <span aria-hidden="true" className="text-faint">
             ·
           </span>
           <span>{identifier}</span>
@@ -153,21 +153,21 @@ export function TasksDetailHeader({
           <span data-testid="tasks-detail-lifecycle-hint">
             {taskLifecyclePhaseDescription(lifecyclePhase)}
           </span>
-          <span aria-hidden="true" className="text-(--faint)">
+          <span aria-hidden="true" className="text-faint">
             ·
           </span>
           <span>Owner {taskOwnerLabel(record.owner)}</span>
-          <span aria-hidden="true" className="text-(--faint)">
+          <span aria-hidden="true" className="text-faint">
             ·
           </span>
           <span>Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
-          <span aria-hidden="true" className="text-(--faint)">
+          <span aria-hidden="true" className="text-faint">
             ·
           </span>
           <span>
-            Created by <span className="text-(--fg)">{record.created_by?.ref ?? "unknown"}</span>
+            Created by <span className="text-fg">{record.created_by?.ref ?? "unknown"}</span>
           </span>
-          <span aria-hidden="true" className="text-(--faint)">
+          <span aria-hidden="true" className="text-faint">
             ·
           </span>
           <span className="inline-flex items-center gap-1">

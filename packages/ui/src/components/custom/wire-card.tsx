@@ -22,7 +22,7 @@ function WireCard({ inline = false, className, ...props }: WireCardProps) {
       data-slot="wire-card"
       data-inline={inline ? "true" : undefined}
       className={cn(
-        "bg-(--canvas-soft)",
+        "bg-canvas-soft",
         inline
           ? "inline-flex items-center gap-2 rounded-[6px] px-2.5 py-1.5"
           : "max-w-[520px] overflow-hidden rounded-[6px]",
@@ -38,7 +38,7 @@ function WireCardHead({ className, ...props }: React.ComponentProps<"div">) {
       {...props}
       data-slot="wire-card-head"
       className={cn(
-        "eyebrow flex items-center gap-1.5 border-b border-(--line) bg-(--canvas) px-2.5 py-1.5 text-(--subtle)",
+        "eyebrow flex items-center gap-1.5 border-b border-line bg-canvas px-2.5 py-1.5 text-subtle",
         className
       )}
     />
@@ -61,7 +61,7 @@ function WireCardFoot({ className, ...props }: React.ComponentProps<"div">) {
       {...props}
       data-slot="wire-card-foot"
       className={cn(
-        "flex items-center gap-1.5 border-t border-(--line) bg-(--canvas) px-2.5 py-1.5",
+        "flex items-center gap-1.5 border-t border-line bg-canvas px-2.5 py-1.5",
         className
       )}
     />

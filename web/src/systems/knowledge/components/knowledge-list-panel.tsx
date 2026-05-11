@@ -61,7 +61,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
   return (
     <Item
       as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3"
+      className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
       indicator={isSelected ? "rail" : "none"}
@@ -70,13 +70,13 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
       selected={isSelected}
     >
       <ItemHeader>
-        <ItemTitle className="min-w-0 flex-1 text-small-body text-(--fg)">{memory.name}</ItemTitle>
-        <Eyebrow className="text-(--subtle) shrink-0">
+        <ItemTitle className="min-w-0 flex-1 text-small-body text-fg">{memory.name}</ItemTitle>
+        <Eyebrow className="text-subtle shrink-0">
           <Time iso={memory.mod_time} />
         </Eyebrow>
       </ItemHeader>
       {memory.description ? (
-        <ItemDescription className="basis-full truncate text-xs text-(--muted)">
+        <ItemDescription className="basis-full truncate text-xs text-muted">
           {memory.description}
         </ItemDescription>
       ) : null}
@@ -142,7 +142,7 @@ function KnowledgeListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
-      <div className="border-b border-(--line) p-3">
+      <div className="border-b border-line p-3">
         <SearchInput
           aria-label="Search knowledge"
           data-testid="knowledge-search-input"
@@ -151,7 +151,7 @@ function KnowledgeListPanel({
           value={searchQuery}
         />
         {searchInfo ? (
-          <Eyebrow className="text-(--subtle) mt-2 block" data-testid="knowledge-search-info">
+          <Eyebrow className="text-subtle mt-2 block" data-testid="knowledge-search-info">
             {searchInfo}
           </Eyebrow>
         ) : null}
@@ -163,7 +163,7 @@ function KnowledgeListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="knowledge-list-loading"
           >
-            <Spinner className="size-5 text-(--subtle)" />
+            <Spinner className="size-5 text-subtle" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div

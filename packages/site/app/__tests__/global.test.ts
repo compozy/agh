@@ -32,13 +32,13 @@ describe("site global styles", () => {
   });
 
   it("maps Fumadocs semantic tokens to the AGH signal palette in dark mode", () => {
-    expect(globalCSS).toContain("--color-fd-info: var(--info);");
-    expect(globalCSS).toContain("--color-fd-warning: var(--warning);");
-    expect(globalCSS).toContain("--color-fd-error: var(--danger);");
-    expect(globalCSS).toContain("--color-fd-success: var(--success);");
-    expect(globalCSS).toContain("--color-fd-idea: var(--accent);");
-    expect(globalCSS).toContain("--color-fd-diff-remove: var(--danger-tint);");
-    expect(globalCSS).toContain("--color-fd-diff-add: var(--success-tint);");
+    expect(globalCSS).toContain("--color-fd-info: var(--color-info);");
+    expect(globalCSS).toContain("--color-fd-warning: var(--color-warning);");
+    expect(globalCSS).toContain("--color-fd-error: var(--color-danger);");
+    expect(globalCSS).toContain("--color-fd-success: var(--color-success);");
+    expect(globalCSS).toContain("--color-fd-idea: var(--color-accent);");
+    expect(globalCSS).toContain("--color-fd-diff-remove: var(--color-danger-tint);");
+    expect(globalCSS).toContain("--color-fd-diff-add: var(--color-success-tint);");
   });
 
   it("limits inline code chrome to textual content instead of fenced code blocks", () => {

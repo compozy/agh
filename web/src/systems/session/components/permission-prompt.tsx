@@ -93,8 +93,8 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
     >
       <div
         className={cn(
-          "flex max-w-3xl gap-3 rounded-lg p-3 shadow-(--highlight)",
-          isHighStakes ? "bg-(--danger-tint)" : "bg-(--warning-tint)"
+          "flex max-w-3xl gap-3 rounded-lg p-3 shadow-highlight",
+          isHighStakes ? "bg-danger-tint" : "bg-warning-tint"
         )}
         data-testid="permission-prompt-card"
       >
@@ -103,29 +103,29 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
           <header className="flex flex-col gap-1">
             <Eyebrow
               data-testid="permission-prompt-eyebrow"
-              className={cn(isHighStakes ? "text-(--danger)" : "text-(--warning)")}
+              className={cn(isHighStakes ? "text-danger" : "text-warning")}
             >
               Permission Required
             </Eyebrow>
-            <p className="text-[13px] text-(--fg)">
+            <p className="text-[13px] text-fg">
               The agent is requesting permission before it continues this turn.
             </p>
           </header>
-          <dl className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-(--muted)">
+          <dl className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
             <div className="flex items-center gap-1.5">
-              <dt className="text-(--subtle)">Tool</dt>
-              <dd className="font-mono text-(--fg)">{permission.toolName}</dd>
+              <dt className="text-subtle">Tool</dt>
+              <dd className="font-mono text-fg">{permission.toolName}</dd>
             </div>
             {permission.action ? (
               <div className="flex items-center gap-1.5">
-                <dt className="text-(--subtle)">Action</dt>
+                <dt className="text-subtle">Action</dt>
                 <dd>{permission.action}</dd>
               </div>
             ) : null}
             {permission.resource ? (
               <div className="flex min-w-0 items-center gap-1.5">
-                <dt className="text-(--subtle)">Resource</dt>
-                <dd className="truncate font-mono text-(--fg)">{permission.resource}</dd>
+                <dt className="text-subtle">Resource</dt>
+                <dd className="truncate font-mono text-fg">{permission.resource}</dd>
               </div>
             ) : null}
           </dl>
@@ -199,9 +199,9 @@ function PermissionToneTile({ tone }: PermissionToneTileProps) {
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded-(--radius)",
-        "text-(--canvas)",
-        isDanger ? "bg-(--danger)" : "bg-(--warning)"
+        "flex size-6 shrink-0 items-center justify-center rounded",
+        "text-canvas",
+        isDanger ? "bg-danger" : "bg-warning"
       )}
     >
       <ShieldAlert className="size-3.5" />
@@ -236,14 +236,14 @@ function PermissionRejectedNotice({ permission }: { permission: PermissionReques
       <div
         className={cn(
           "flex max-w-3xl items-start gap-2 rounded-md border px-3 py-2",
-          "border-(--danger)/30 bg-(--danger)/8",
-          "text-xs text-(--danger)"
+          "border-danger/30 bg-danger/8",
+          "text-xs text-danger"
         )}
       >
         <ShieldOff aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-(--fg)">Permission Rejected</div>
-          <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-(--muted)">
+          <div className="font-medium text-fg">Permission Rejected</div>
+          <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-muted">
             <span className="font-mono">{permission.toolName}</span>
             {permission.resource ? <span className="truncate">{permission.resource}</span> : null}
           </div>

@@ -49,7 +49,7 @@ function PermissionPromptHarness({
   return (
     <CenteredSurface className="flex-col gap-4">
       {resolvedState ? (
-        <div className="w-full max-w-xl rounded-xl border border-(--line) bg-(--canvas-soft) px-4 py-3 text-sm text-(--fg)">
+        <div className="w-full max-w-xl rounded-xl border border-line bg-canvas-soft px-4 py-3 text-sm text-fg">
           {resolvedState === "allow-once"
             ? "Permission approved for this turn."
             : "Permission rejected for this turn."}

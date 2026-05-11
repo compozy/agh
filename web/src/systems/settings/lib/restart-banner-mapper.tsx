@@ -56,7 +56,7 @@ export function restartBannerPropsFor(
       <span
         key="op"
         data-testid={`settings-page-${slug}-restart-banner-op`}
-        className="font-mono text-[10.5px] font-medium text-(--muted)"
+        className="font-mono text-[10.5px] font-medium text-muted"
       >
         {state.operationId}
       </span>
@@ -67,7 +67,7 @@ export function restartBannerPropsFor(
       <span
         key="sessions"
         data-testid={`settings-page-${slug}-restart-banner-active-sessions`}
-        className="font-mono text-[10.5px] font-medium text-(--muted)"
+        className="font-mono text-[10.5px] font-medium text-muted"
       >
         {sessions}
       </span>

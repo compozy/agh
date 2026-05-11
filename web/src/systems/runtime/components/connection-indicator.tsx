@@ -81,7 +81,7 @@ export function RuntimeConnectionIndicator({
         tone={tone}
       />
       {dotOnly ? null : (
-        <span className="eyebrow text-(--muted)" data-slot="connection-indicator-label">
+        <span className="eyebrow text-muted" data-slot="connection-indicator-label">
           {label}
         </span>
       )}

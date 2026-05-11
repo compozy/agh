@@ -160,7 +160,7 @@ function TreeItemLabel<T>({
     <span
       data-slot="tree-item-label"
       className={cn(
-        "flex items-center gap-1 transition-colors not-in-data-[folder=true]:ps-7 bg-transparent text-(--fg) hover:bg-(--hover) in-data-[selected=true]:bg-(--elevated) in-data-[selected=true]:text-(--fg-strong) in-data-[drag-target=true]:bg-(--accent-tint) in-data-[search-match=true]:bg-(--info-tint) in-focus-visible:outline-none in-focus-visible:shadow-[0_0_0_1px_var(--line-strong)] [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex items-center gap-1 transition-colors not-in-data-[folder=true]:ps-7 bg-transparent text-fg hover:bg-hover in-data-[selected=true]:bg-elevated in-data-[selected=true]:text-fg-strong in-data-[drag-target=true]:bg-accent-tint in-data-[search-match=true]:bg-info-tint in-focus-visible:outline-none in-focus-visible:shadow-[0_0_0_1px_var(--line-strong)] [&_svg]:pointer-events-none [&_svg]:shrink-0",
         "rounded-sm",
         "py-1.5",
         "px-2",
@@ -172,12 +172,12 @@ function TreeItemLabel<T>({
       {isFolder &&
         (toggleIconType === "plus-minus" ? (
           isExpanded ? (
-            <MinusIcon className="text-(--muted) size-3.5" stroke="currentColor" strokeWidth="1" />
+            <MinusIcon className="text-muted size-3.5" stroke="currentColor" strokeWidth="1" />
           ) : (
-            <PlusIcon className="text-(--muted) size-3.5" stroke="currentColor" strokeWidth="1" />
+            <PlusIcon className="text-muted size-3.5" stroke="currentColor" strokeWidth="1" />
           )
         ) : (
-          <ChevronDownIcon className="text-(--muted) size-4 in-aria-[expanded=false]:-rotate-90" />
+          <ChevronDownIcon className="text-muted size-4 in-aria-[expanded=false]:-rotate-90" />
         ))}
       {children ?? item.getItemName()}
     </span>
@@ -205,7 +205,7 @@ function TreeDragLine<T>({ className, tree: propTree, ...props }: TreeDragLinePr
     <div
       style={dragLine}
       className={cn(
-        "bg-(--accent) before:bg-(--canvas) before:border-(--accent) absolute z-30 -mt-px h-0.5 w-[unset] before:absolute before:top-[-3px] before:left-0 before:size-2 before:border-2",
+        "bg-accent before:bg-canvas before:border-accent absolute z-30 -mt-px h-0.5 w-[unset] before:absolute before:top-[-3px] before:left-0 before:size-2 before:border-2",
         "before:rounded-full",
         className
       )}

@@ -244,7 +244,7 @@ const noDesignGlazeRgba = {
     },
     messages: {
       inlineGlaze:
-        "Inline surface glaze rgba in className. Use named glaze tokens such as bg-(--row-hover), bg-(--row-selected), bg-(--surface-glaze), bg-(--bar-fill), bg-(--input-fill), bg-(--btn-default-fill), bg-(--btn-default-hover), or bg-(--badge-fill). See DESIGN.md §2.5.",
+        "Inline surface glaze rgba in className. Use named glaze utilities: bg-row-hover, bg-row-selected, bg-surface-glaze, bg-bar-fill, bg-input-fill, bg-btn-default-fill, bg-btn-default-hover, or bg-badge-fill. See DESIGN.md §2.5.",
     },
     schema: [],
   },
@@ -345,6 +345,93 @@ const noInlineDesignTuples = {
   },
 };
 
+/**
+ * Tokens whose `<prefix>-(--<name>)` arbitrary form is flagged because the
+ * bare utility `<prefix>-<name>` (or a renamed canonical form) exists in
+ * `packages/ui/src/tokens.css` `@theme`. The lint rule does NOT attempt the
+ * rewrite — that is the job of `scripts/codemod/tokens-bare-utilities.mjs`.
+ * The whitelist below covers runtime vars (Radix-injected, JS-resolved
+ * sizing, or component-internal tokens kept in `:root`) that legitimately
+ * stay in arbitrary form.
+ */
+const PREFER_BARE_UTILITY_WHITELIST = new Set([
+  // Radix-injected (popover, tooltip, dropdown, select, menu)
+  "anchor-width",
+  "anchor-height",
+  "available-width",
+  "available-height",
+  "transform-origin",
+  "accordion-panel-height",
+  // App-injected runtime
+  "detail-inspector-width",
+  "tree-padding",
+  // Component-internal sizing kept in :root (NOT in @theme — see L-023)
+  "width-modal-sm",
+  "width-modal-md",
+  "width-modal-lg",
+  "size-catalog-logo",
+  "size-provider-logo-well",
+  "size-pill-group-badge",
+  "height-pill-group-segment-md",
+  "height-pill-group-segment-sm",
+  "space-pill-group-track-gap",
+  "space-pill-group-track-padding",
+  "space-pill-group-segment-sm-x",
+  "space-pill-group-segment-md-x",
+  "space-pill-group-badge-x",
+  // Eyebrow utility uses arbitrary length syntax internally (allowed)
+  "length:--text-eyebrow",
+]);
+
+const PREFER_BARE_RE =
+  /\b([a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z][a-zA-Z0-9]*){0,2})-\(--([a-zA-Z0-9-]+)\)/g;
+
+function findArbitraryTokenViolations(value) {
+  if (!value || typeof value !== "string") return [];
+  const out = [];
+  for (const match of value.matchAll(PREFER_BARE_RE)) {
+    const [, prefix, name] = match;
+    if (PREFER_BARE_UTILITY_WHITELIST.has(name)) continue;
+    if (name.startsWith("radix-")) continue;
+    out.push({ prefix, name, full: match[0] });
+  }
+  return out;
+}
+
+const preferBareTokenUtility = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Prefer the bare Tailwind v4 utility over arbitrary-value `(--token)` syntax when the token exists in @theme. Run scripts/codemod/tokens-bare-utilities.mjs to auto-fix.",
+      recommended: false,
+    },
+    messages: {
+      preferBare:
+        'Use the bare utility instead of "{{full}}". Run `node scripts/codemod/tokens-bare-utilities.mjs --write` from the repo root. See L-023.',
+    },
+    schema: [],
+  },
+  create(context) {
+    const filename = context.filename || "";
+    if (!isRuntimeSourcePath(filename) || isTestOrStoryPath(normalizeFilename(filename))) {
+      return {};
+    }
+    return {
+      JSXAttribute(node) {
+        if (!node.name || node.name.name !== "className") return;
+        const values = extractStringValues(node.value);
+        for (const value of values) {
+          const violations = findArbitraryTokenViolations(value);
+          for (const v of violations) {
+            context.report({ node, messageId: "preferBare", data: { full: v.full } });
+          }
+        }
+      },
+    };
+  },
+};
+
 const plugin = {
   meta: {
     name: "compozy-design-system",
@@ -354,6 +441,7 @@ const plugin = {
     "no-design-glaze-rgba": noDesignGlazeRgba,
     "no-banned-imports": noBannedImports,
     "no-inline-design-tuples": noInlineDesignTuples,
+    "prefer-bare-token-utility": preferBareTokenUtility,
   },
 };
 

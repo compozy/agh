@@ -16,22 +16,22 @@ describe("owner-palette", () => {
       expect(a).toEqual(b);
     });
 
-    it("Should resolve agent slots to var(--avatar-agent-N-{bg,fg}) within slot count", () => {
+    it("Should resolve agent slots to var(--color-avatar-agent-N-{bg,fg}) within slot count", () => {
       const colors = colorsFor("agent", "scout");
-      expect(colors.bg).toMatch(/^var\(--avatar-agent-[0-3]-bg\)$/);
-      expect(colors.fg).toMatch(/^var\(--avatar-agent-[0-3]-fg\)$/);
+      expect(colors.bg).toMatch(/^var\(--color-avatar-agent-[0-3]-bg\)$/);
+      expect(colors.fg).toMatch(/^var\(--color-avatar-agent-[0-3]-fg\)$/);
     });
 
-    it("Should resolve human slots to var(--avatar-human-N-{bg,fg}) within slot count", () => {
+    it("Should resolve human slots to var(--color-avatar-human-N-{bg,fg}) within slot count", () => {
       const colors = colorsFor("human", "pedro");
-      expect(colors.bg).toMatch(/^var\(--avatar-human-[0-2]-bg\)$/);
-      expect(colors.fg).toMatch(/^var\(--avatar-human-[0-2]-fg\)$/);
+      expect(colors.bg).toMatch(/^var\(--color-avatar-human-[0-2]-bg\)$/);
+      expect(colors.fg).toMatch(/^var\(--color-avatar-human-[0-2]-fg\)$/);
     });
 
-    it("Should resolve system to the single var(--avatar-system-{bg,fg}) slot", () => {
+    it("Should resolve system to the single var(--color-avatar-system-{bg,fg}) slot", () => {
       expect(colorsFor("system", "daemon")).toEqual({
-        bg: "var(--avatar-system-bg)",
-        fg: "var(--avatar-system-fg)",
+        bg: "var(--color-avatar-system-bg)",
+        fg: "var(--color-avatar-system-fg)",
       });
       // System slot is identity-independent (only one ramp slot).
       expect(colorsFor("system", "scheduler")).toEqual(colorsFor("system", "daemon"));
@@ -40,7 +40,7 @@ describe("owner-palette", () => {
     it("Should tolerate empty ownerId without throwing", () => {
       expect(() => colorsFor("agent", "")).not.toThrow();
       const colors = colorsFor("agent", "");
-      expect(colors.bg).toMatch(/^var\(--avatar-agent-[0-3]-bg\)$/);
+      expect(colors.bg).toMatch(/^var\(--color-avatar-agent-[0-3]-bg\)$/);
     });
 
     it("Should distribute across the palette for a sample of ownerIds", () => {

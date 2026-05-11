@@ -44,7 +44,7 @@ function ButtonGroupText({ className, render, ...props }: useRender.ComponentPro
     props: mergeProps<"div">(
       {
         className: cn(
-          "flex items-center gap-2 rounded-md border border-(--line) bg-(--canvas-tint) px-2.5 text-[13px] text-(--fg) [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
+          "flex items-center gap-2 rounded-md border border-line bg-canvas-tint px-2.5 text-[13px] text-fg [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
           className
         ),
       },
@@ -67,7 +67,7 @@ function ButtonGroupSeparator({
       data-slot="button-group-separator"
       orientation={orientation}
       className={cn(
-        "relative self-stretch bg-(--line) data-horizontal:mx-px data-horizontal:w-auto data-vertical:my-px data-vertical:h-auto",
+        "relative self-stretch bg-line data-horizontal:mx-px data-horizontal:w-auto data-vertical:my-px data-vertical:h-auto",
         className
       )}
       {...props}

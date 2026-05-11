@@ -38,7 +38,7 @@ function FieldRow({
       <label
         data-slot="field-row-label"
         htmlFor={htmlFor}
-        className="text-[12px] font-medium tracking-eyebrow text-(--fg)"
+        className="text-[12px] font-medium tracking-eyebrow text-fg"
       >
         {label}
       </label>
@@ -52,7 +52,7 @@ function FieldRow({
         <p
           data-slot="field-row-description"
           className={cn(
-            "text-[12px] text-(--muted)",
+            "text-[12px] text-muted",
             layout === "two-column" && "col-start-1 row-start-2"
           )}
         >

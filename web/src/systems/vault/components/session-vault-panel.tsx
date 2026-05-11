@@ -64,20 +64,20 @@ export function SessionVaultPanel({
               <ItemMedia>
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-6 items-center justify-center rounded-(--radius-sm) bg-(--canvas-soft) text-(--muted)"
+                  className="inline-flex size-6 items-center justify-center rounded-sm bg-canvas-soft text-muted"
                 >
                   <KeyRound className="size-3.5" />
                 </span>
               </ItemMedia>
               <ItemContent>
                 <ItemTitle
-                  className="text-small-body text-(--fg-strong)"
+                  className="text-small-body text-fg-strong"
                   data-testid="session-inspector-vault-title"
                 >
                   Vault secret
                 </ItemTitle>
                 <ItemDescription
-                  className="block min-w-0 truncate font-mono text-eyebrow text-(--faint)"
+                  className="block min-w-0 truncate font-mono text-eyebrow text-faint"
                   data-testid="session-inspector-vault-ref"
                   title={secret.ref}
                 >
@@ -86,7 +86,7 @@ export function SessionVaultPanel({
               </ItemContent>
               <ItemActions>
                 <Time
-                  className="shrink-0 font-mono text-badge text-(--subtle)"
+                  className="shrink-0 font-mono text-badge text-subtle"
                   data-testid="session-inspector-vault-updated"
                   iso={secret.updated_at}
                 />

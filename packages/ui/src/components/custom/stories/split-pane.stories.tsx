@@ -38,7 +38,7 @@ const ROWS: Row[] = [
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex bg-(--canvas) text-(--fg)" style={{ width: 960, height: 520 }}>
+    <div className="flex bg-canvas text-fg" style={{ width: 960, height: 520 }}>
       {children}
     </div>
   );
@@ -55,7 +55,7 @@ function ListColumn({
     <div className="flex h-full flex-col">
       <div className="flex h-11 items-center justify-between border-b border-border px-3">
         <span className="text-sm font-medium">Runs</span>
-        <span className="font-mono text-badge uppercase tracking-badge text-(--subtle)">
+        <span className="font-mono text-badge uppercase tracking-badge text-subtle">
           {ROWS.length}
         </span>
       </div>
@@ -66,10 +66,10 @@ function ListColumn({
               type="button"
               data-active={selected === row.id}
               onClick={() => onSelect(row.id)}
-              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-(--hover) data-[active=true]:bg-(--canvas-tint)"
+              className="flex w-full flex-col gap-1 border-b border-border p-3 text-left transition-colors hover:bg-hover data-[active=true]:bg-canvas-tint"
             >
               <span className="text-[13px] font-medium text-foreground">{row.name}</span>
-              <span className="font-mono text-badge uppercase tracking-badge text-(--subtle)">
+              <span className="font-mono text-badge uppercase tracking-badge text-subtle">
                 {row.meta}
               </span>
             </button>
@@ -85,9 +85,7 @@ function DetailView({ row }: { row: Row }) {
     <div className="flex h-full flex-col">
       <div className="flex h-11 items-center gap-3 border-b border-border px-4">
         <span className="text-sm font-medium">{row.name}</span>
-        <span className="font-mono text-badge uppercase tracking-badge text-(--subtle)">
-          {row.id}
-        </span>
+        <span className="font-mono text-badge uppercase tracking-badge text-subtle">{row.id}</span>
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-4 text-sm text-muted-foreground">
         Detail view for run {row.id}, event timeline, artifacts, diff.
@@ -99,7 +97,7 @@ function DetailView({ row }: { row: Row }) {
 function DetailEmpty() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
-      <div className="flex size-12 items-center justify-center rounded-xl bg-(--elevated) text-muted-foreground">
+      <div className="flex size-12 items-center justify-center rounded-xl bg-elevated text-muted-foreground">
         <InboxIcon className="size-5" aria-hidden="true" />
       </div>
       <h3 className="text-[15px] font-medium text-foreground">Select a run</h3>
@@ -171,7 +169,7 @@ export const NarrowViewport: Story = {
     },
   },
   render: () => (
-    <div className="flex bg-(--canvas) text-(--fg)" style={{ width: 420, height: 520 }}>
+    <div className="flex bg-canvas text-fg" style={{ width: 420, height: 520 }}>
       <Interactive initial="1" />
     </div>
   ),

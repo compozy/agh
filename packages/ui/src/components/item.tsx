@@ -32,20 +32,20 @@ function ItemSeparator({ className, ...props }: React.ComponentProps<typeof Sepa
 }
 
 const itemVariants = cva(
-  "group/item flex w-full flex-wrap items-center rounded-lg border text-[13px] text-(--fg) transition-colors duration-(--dur) outline-none focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] [a]:transition-colors [a]:hover:bg-(--hover)",
+  "group/item flex w-full flex-wrap items-center rounded-lg border text-[13px] text-fg transition-colors duration-base outline-none focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] [a]:transition-colors [a]:hover:bg-hover",
   {
     variants: {
       variant: {
         default: "border-transparent",
-        outline: "border-(--line)",
-        muted: "border-transparent bg-(--canvas-tint)",
+        outline: "border-line",
+        muted: "border-transparent bg-canvas-tint",
       },
       selectable: {
-        true: "relative text-left hover:bg-(--hover)",
+        true: "relative text-left hover:bg-hover",
         false: "",
       },
       selected: {
-        true: "bg-(--elevated) text-(--fg-strong)",
+        true: "bg-elevated text-fg-strong",
         false: "",
       },
       size: {
@@ -235,7 +235,7 @@ function ItemSelectionIndicator({
 }: ItemSelectionIndicatorProps) {
   if (kind === "none") return null;
 
-  const toneClass = tone === "accent" ? "bg-(--accent)" : "bg-(--fg-strong)";
+  const toneClass = tone === "accent" ? "bg-accent" : "bg-fg-strong";
 
   return (
     <span
@@ -305,7 +305,7 @@ function ItemTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="item-title"
       className={cn(
-        "line-clamp-1 flex w-fit items-center gap-2 text-[14px] leading-snug font-medium text-(--fg-strong) underline-offset-4",
+        "line-clamp-1 flex w-fit items-center gap-2 text-[14px] leading-snug font-medium text-fg-strong underline-offset-4",
         className
       )}
       {...props}
@@ -318,7 +318,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="item-description"
       className={cn(
-        "line-clamp-2 text-left text-[13px] leading-normal font-normal text-(--muted) group-data-[size=xs]/item:text-[12px] [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-(--accent)",
+        "line-clamp-2 text-left text-[13px] leading-normal font-normal text-muted group-data-[size=xs]/item:text-[12px] [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-accent",
         className
       )}
       {...props}

@@ -58,7 +58,7 @@ function DetailHeader({
   return (
     <header
       data-slot="detail-header"
-      className={cn("flex flex-col gap-2 border-b border-(--line) px-9 py-7", className)}
+      className={cn("flex flex-col gap-2 border-b border-line px-9 py-7", className)}
       {...props}
     >
       {crumbs ? (
@@ -69,21 +69,18 @@ function DetailHeader({
               data-slot="detail-header-back"
               aria-label={backLabel}
               onClick={back}
-              className="-ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-(--radius-xs) text-(--muted) transition-colors duration-(--dur) ease-(--ease) hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+              className="-ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-xs text-muted transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
             >
               <ChevronLeft width={12} height={12} strokeWidth={1.75} />
             </button>
           ) : null}
-          <Eyebrow
-            data-slot="detail-header-crumbs-label"
-            className="min-w-0 truncate text-(--muted)"
-          >
+          <Eyebrow data-slot="detail-header-crumbs-label" className="min-w-0 truncate text-muted">
             {isCrumbArray(crumbs) ? <DetailHeaderCrumbList crumbs={crumbs} /> : crumbs}
           </Eyebrow>
         </div>
       ) : null}
       {preTitle ? (
-        <Eyebrow data-slot="detail-header-pre-title" className="text-(--muted)">
+        <Eyebrow data-slot="detail-header-pre-title" className="text-muted">
           {preTitle}
         </Eyebrow>
       ) : null}
@@ -91,7 +88,7 @@ function DetailHeader({
         <div data-slot="detail-header-title-block" className="flex min-w-0 flex-col gap-1.5">
           <h1
             data-slot="detail-header-title"
-            className="truncate text-detail-h1 font-medium tracking-detail-h1 text-(--fg-strong)"
+            className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong"
             style={{ fontWeight: 510 }}
           >
             {title}
@@ -104,7 +101,7 @@ function DetailHeader({
           {meta ? (
             <div
               data-slot="detail-header-meta"
-              className="flex flex-wrap items-center gap-3 text-[12px] text-(--muted)"
+              className="flex flex-wrap items-center gap-3 text-[12px] text-muted"
             >
               {meta}
             </div>
@@ -136,7 +133,7 @@ function DetailHeaderCrumbList({ crumbs }: { crumbs: ReadonlyArray<DetailHeaderC
         return (
           <React.Fragment key={key}>
             {index > 0 ? (
-              <span aria-hidden="true" className="text-(--faint)">
+              <span aria-hidden="true" className="text-faint">
                 ·
               </span>
             ) : null}
@@ -152,7 +149,7 @@ function DetailHeaderCrumbList({ crumbs }: { crumbs: ReadonlyArray<DetailHeaderC
                       }
                     : undefined
                 }
-                className="truncate transition-colors duration-(--dur) ease-(--ease) hover:text-(--fg)"
+                className="truncate transition-colors duration-base ease-out hover:text-fg"
               >
                 {crumb.label}
               </a>

@@ -16,8 +16,8 @@ const meta: Meta<typeof RightRail> = {
   },
   decorators: [
     Story => (
-      <div className="flex h-[400px] w-full bg-background border border-(--line)">
-        <div className="flex-1 p-4 text-[13px] text-(--muted)">Main pane</div>
+      <div className="flex h-[400px] w-full bg-background border border-line">
+        <div className="flex-1 p-4 text-[13px] text-muted">Main pane</div>
         <Story />
       </div>
     ),
@@ -34,13 +34,11 @@ export const Inspector: Story = {
   args: {},
   render: () => (
     <RightRail open mode="inspector">
-      <div className="border-b border-(--line) px-4 py-3">
-        <h2 className="text-[13px] font-medium text-(--fg-strong)">Channel inspector</h2>
-        <p className="text-[12px] text-(--muted)">12 members · 3 active</p>
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="text-[13px] font-medium text-fg-strong">Channel inspector</h2>
+        <p className="text-[12px] text-muted">12 members · 3 active</p>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 text-[13px] text-(--muted)">
-        Inspector body
-      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3 text-[13px] text-muted">Inspector body</div>
     </RightRail>
   ),
 };
@@ -52,13 +50,11 @@ export const Thread: Story = {
   args: {},
   render: () => (
     <RightRail open mode="thread">
-      <div className="border-b border-(--line) px-4 py-3">
-        <h2 className="text-[13px] font-medium text-(--fg-strong)">Thread</h2>
-        <p className="text-[12px] text-(--muted)">2 replies</p>
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="text-[13px] font-medium text-fg-strong">Thread</h2>
+        <p className="text-[12px] text-muted">2 replies</p>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 text-[13px] text-(--muted)">
-        Thread replies
-      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3 text-[13px] text-muted">Thread replies</div>
     </RightRail>
   ),
 };

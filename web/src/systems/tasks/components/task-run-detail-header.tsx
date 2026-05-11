@@ -75,12 +75,12 @@ export function TaskRunDetailHeader({
   return (
     <header
       data-slot="page-header"
-      className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
+      className="flex min-h-11 flex-col gap-2 border-b border-line px-4 py-2.5"
       data-testid="task-run-detail-header"
     >
-      <Eyebrow data-slot="page-header-breadcrumb" className="text-(--muted) min-w-0 block">
+      <Eyebrow data-slot="page-header-breadcrumb" className="text-muted min-w-0 block">
         <Breadcrumb data-testid="task-run-detail-breadcrumb">
-          <BreadcrumbList className="text-(--muted)">
+          <BreadcrumbList className="text-muted">
             <BreadcrumbItem>
               <BreadcrumbLink
                 data-testid="task-run-detail-breadcrumb-tasks"
@@ -100,7 +100,7 @@ export function TaskRunDetailHeader({
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage className="text-(--muted)">{record.id}</BreadcrumbPage>
+              <BreadcrumbPage className="text-muted">{record.id}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -113,15 +113,15 @@ export function TaskRunDetailHeader({
           <span
             aria-hidden="true"
             data-slot="page-header-icon"
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
           >
             <Play className="size-3.5" />
           </span>
-          <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-(--fg-strong)">
+          <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
             <span className="flex min-w-0 items-center gap-2">
               <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
               <span
-                className="flex min-w-0 items-center gap-1.5 text-item-title font-medium text-(--fg)"
+                className="flex min-w-0 items-center gap-1.5 text-item-title font-medium text-fg"
                 data-testid="task-run-detail-title"
               >
                 Run{" "}
@@ -135,7 +135,7 @@ export function TaskRunDetailHeader({
         </div>
         <div
           data-slot="page-header-meta"
-          className="ml-auto flex shrink-0 flex-wrap items-center gap-2 text-[13px] text-(--muted)"
+          className="ml-auto flex shrink-0 flex-wrap items-center gap-2 text-[13px] text-muted"
         >
           {elapsed ? (
             <Pill mono data-testid="task-run-detail-duration">
@@ -180,7 +180,7 @@ export function TaskRunDetailHeader({
       </div>
       <div
         data-slot="page-header-status-row"
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-(--muted)"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted"
         data-testid="task-run-detail-meta"
       >
         <span>attempt {record.attempt}</span>

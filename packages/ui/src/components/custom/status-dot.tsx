@@ -24,10 +24,10 @@ export interface StatusDotProps extends Omit<React.ComponentProps<"span">, "chil
 }
 
 const TONE_TEXT_COLOR: Record<StatusDotTone, string> = {
-  warning: "text-(--warning)",
-  danger: "text-(--danger)",
-  accent: "text-(--accent)",
-  faint: "text-(--faint)",
+  warning: "text-warning",
+  danger: "text-danger",
+  accent: "text-accent",
+  faint: "text-faint",
 };
 
 const SIZE_PX: Record<StatusDotSize, string> = {

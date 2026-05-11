@@ -19,12 +19,12 @@ export interface StackedProgressProps extends React.ComponentProps<"div"> {
 }
 
 const TONE_CLASS: Record<PillTone, string> = {
-  neutral: "bg-(--muted)",
-  accent: "bg-(--accent)",
-  success: "bg-(--success)",
-  warning: "bg-(--warning)",
-  danger: "bg-(--danger)",
-  info: "bg-(--info)",
+  neutral: "bg-muted",
+  accent: "bg-accent",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
 };
 
 function StackedProgress({
@@ -40,7 +40,7 @@ function StackedProgress({
       data-slot="stacked-progress"
       role="img"
       aria-label={ariaLabel}
-      className={cn("flex h-1.5 w-full overflow-hidden rounded-pill bg-(--canvas)", className)}
+      className={cn("flex h-1.5 w-full overflow-hidden rounded-pill bg-canvas", className)}
       {...props}
     >
       {segments.map((segment, index) => {

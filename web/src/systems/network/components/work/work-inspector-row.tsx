@@ -20,7 +20,7 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
 
   return (
     <Item
-      className={cn("rounded-none border-b border-(--line) px-4 py-3 last:border-b-0", className)}
+      className={cn("rounded-none border-b border-line px-4 py-3 last:border-b-0", className)}
       data-testid={`network-work-inspector-row-${entry.workId}`}
       role="listitem"
     >
@@ -40,8 +40,8 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
             </Button>
           </ItemActions>
         </ItemHeader>
-        <p className="font-mono text-eyebrow text-(--muted)">
-          <span className="text-(--subtle)">target </span>
+        <p className="font-mono text-eyebrow text-muted">
+          <span className="text-subtle">target </span>
           {target}
         </p>
         <ItemFooter>

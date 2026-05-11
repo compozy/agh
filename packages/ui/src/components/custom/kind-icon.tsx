@@ -1,21 +1,41 @@
 import * as React from "react";
-import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "lucide-react";
+import {
+  Bot,
+  BrainCircuit,
+  Code,
+  GitBranch,
+  MessageSquare,
+  Send,
+  Sparkles,
+  SquareKanban,
+  Terminal,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 import { cn } from "../../lib/utils";
 import {
   BlackboxLogo,
   ClaudeLogo,
   ClineLogo,
+  DiscordLogo,
   GeminiLogo,
+  GithubLogo,
   GooseLogo,
+  GoogleChatLogo,
   HermesLogo,
   JunieLogo,
   KimiLogo,
+  LinearLogo,
+  MicrosoftTeamsLogo,
   OpenAILogo,
   OpenClawLogo,
   OpenHandsLogo,
   QoderLogo,
   QwenLogo,
+  SlackLogo,
+  TelegramLogo,
+  WhatsAppLogo,
 } from "../../logos";
 
 type KindIconTone = "default" | "muted" | "accent";
@@ -46,9 +66,9 @@ interface KindIconProps<K extends string = string>
 }
 
 const KIND_ICON_TONE: Record<KindIconTone, string> = {
-  default: "text-(--fg)",
-  muted: "text-(--subtle)",
-  accent: "text-(--accent)",
+  default: "text-fg",
+  muted: "text-subtle",
+  accent: "text-accent",
 };
 
 const KIND_ICON_SIZE: Record<KindIconSize, string> = {
@@ -61,6 +81,10 @@ const KIND_ICON_GLYPH_CLASS = "size-full shrink-0";
 
 function OpenAIKindLogo(props: KindIconGlyphProps) {
   return <OpenAILogo {...props} mode="dark" />;
+}
+
+function LinearKindLogo(props: KindIconGlyphProps) {
+  return <LinearLogo {...props} mode="dark" />;
 }
 
 const providerKindIconRegistry = {
@@ -79,6 +103,19 @@ const providerKindIconRegistry = {
   openhands: { brand: OpenHandsLogo, fallback: Code },
   qoder: { brand: QoderLogo, fallback: Code },
   "qwen-code": { brand: QwenLogo, fallback: Sparkles },
+} satisfies KindIconRegistry;
+
+const bridgeKindIconRegistry = {
+  discord: { brand: DiscordLogo, fallback: MessageSquare },
+  github: { brand: GithubLogo, fallback: GitBranch },
+  "google-chat": { brand: GoogleChatLogo, fallback: MessageSquare },
+  google_chat: { brand: GoogleChatLogo, fallback: MessageSquare },
+  linear: { render: props => <LinearKindLogo {...props} />, fallback: SquareKanban },
+  "microsoft-teams": { brand: MicrosoftTeamsLogo, fallback: Users },
+  microsoft_teams: { brand: MicrosoftTeamsLogo, fallback: Users },
+  slack: { brand: SlackLogo, fallback: MessageSquare },
+  telegram: { brand: TelegramLogo, fallback: Send },
+  whatsapp: { brand: WhatsAppLogo, fallback: MessageSquare },
 } satisfies KindIconRegistry;
 
 function normalizeKind(kind: string): string {
@@ -139,5 +176,5 @@ function KindIcon<K extends string = string>({
   );
 }
 
-export { KindIcon, providerKindIconRegistry };
+export { KindIcon, bridgeKindIconRegistry, providerKindIconRegistry };
 export type { KindIconProps, KindIconRegistry, KindIconRegistryEntry, KindIconSize, KindIconTone };

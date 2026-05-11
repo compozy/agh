@@ -45,7 +45,7 @@ export function MessageBodyText({ message, className }: MessageBodyTextProps) {
 
   return (
     <p
-      className={className ?? "whitespace-pre-wrap text-item-title leading-normal text-(--fg)"}
+      className={className ?? "whitespace-pre-wrap text-item-title leading-normal text-fg"}
       data-testid="network-message-body"
     >
       {body}

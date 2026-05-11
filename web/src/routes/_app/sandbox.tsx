@@ -80,7 +80,7 @@ function SandboxPage() {
   if (page.isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-loading">
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -89,10 +89,8 @@ function SandboxPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-error">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
-            {page.error?.message ?? "Failed to load sandboxes"}
-          </p>
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">{page.error?.message ?? "Failed to load sandboxes"}</p>
         </div>
       </div>
     );
@@ -180,19 +178,16 @@ function SandboxTable({
   onDelete: (entry: SettingsSandboxEntry) => void;
 }) {
   return (
-    <div
-      className="overflow-hidden rounded-lg border border-(--line)"
-      data-testid="sandbox-page-list"
-    >
+    <div className="overflow-hidden rounded-lg border border-line" data-testid="sandbox-page-list">
       <Table>
         <TableHeader>
-          <TableRow className="bg-(--elevated)">
-            <TableHead className="eyebrow text-(--muted)">Name</TableHead>
-            <TableHead className="eyebrow text-(--muted)">Backend</TableHead>
-            <TableHead className="eyebrow text-(--muted)">Profile</TableHead>
-            <TableHead className="eyebrow text-(--muted)">Source</TableHead>
-            <TableHead className="eyebrow text-right text-(--muted)">Usage</TableHead>
-            <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Actions</TableHead>
+          <TableRow className="bg-elevated">
+            <TableHead className="eyebrow text-muted">Name</TableHead>
+            <TableHead className="eyebrow text-muted">Backend</TableHead>
+            <TableHead className="eyebrow text-muted">Profile</TableHead>
+            <TableHead className="eyebrow text-muted">Source</TableHead>
+            <TableHead className="eyebrow text-right text-muted">Usage</TableHead>
+            <TableHead className="eyebrow w-[1%] text-right text-muted">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -222,14 +217,14 @@ function SandboxRow({
   return (
     <TableRow data-testid={`sandbox-page-card-${entry.name}`}>
       <TableCell>
-        <span className="font-mono text-sm text-(--fg)">{entry.name}</span>
+        <span className="font-mono text-sm text-fg">{entry.name}</span>
       </TableCell>
       <TableCell>
         <div className="flex flex-col gap-1">
           <Pill mono tone={backendTone(profile.backend)}>
             {profile.backend}
           </Pill>
-          <span className="text-xs text-(--subtle)">{backendLabel(profile.backend)}</span>
+          <span className="text-xs text-subtle">{backendLabel(profile.backend)}</span>
         </div>
       </TableCell>
       <TableCell className="text-xs">
@@ -250,7 +245,7 @@ function SandboxRow({
         />
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-(--muted)"
+        className="text-right font-mono text-xs text-muted"
         data-testid={`sandbox-page-card-${entry.name}-usage`}
       >
         {entry.workspace_usage_count}{" "}
@@ -293,8 +288,8 @@ function SandboxRow({
 function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
-      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
-      <span className="font-mono text-(--fg)">{value}</span>
+      <Eyebrow className="text-muted">{label}</Eyebrow>
+      <span className="font-mono text-fg">{value}</span>
     </span>
   );
 }
@@ -371,7 +366,7 @@ function SandboxEditor({
               shadowed={entry.source_metadata.shadowed_sources ?? []}
             />
             {entry.workspace_usage_count > 0 ? (
-              <span className="text-xs text-(--subtle)" data-testid="sandbox-editor-usage">
+              <span className="text-xs text-subtle" data-testid="sandbox-editor-usage">
                 {entry.workspace_usage_count} workspaces depend on this profile
               </span>
             ) : null}
@@ -498,10 +493,10 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
   if (preserved.length === 0) return null;
   return (
     <p
-      className="rounded-md border border-(--line) bg-(--elevated) px-3 py-2 text-xs text-(--subtle)"
+      className="rounded-md border border-line bg-elevated px-3 py-2 text-xs text-subtle"
       data-testid="sandbox-editor-preserved"
     >
-      <Eyebrow className="text-(--muted)">preserved on save</Eyebrow>
+      <Eyebrow className="text-muted">preserved on save</Eyebrow>
       <span className="ml-2">
         {preserved.join(", ")} -- edited outside this dialog and included as-is in the PUT replace.
       </span>

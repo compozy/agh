@@ -25,26 +25,23 @@ function MetadataTile({
   return (
     <div
       data-slot="metadata-tile"
-      className={cn(
-        "flex min-w-0 flex-col gap-1 rounded-(--radius) bg-(--canvas-soft) px-3 py-2.5",
-        className
-      )}
+      className={cn("flex min-w-0 flex-col gap-1 rounded bg-canvas-soft px-3 py-2.5", className)}
       {...props}
     >
       <div data-slot="metadata-tile-head" className="flex min-w-0 items-center gap-1.5">
-        {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 text-(--muted)" /> : null}
-        <Eyebrow data-slot="metadata-tile-label" className="min-w-0 truncate text-(--muted)">
+        {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 text-muted" /> : null}
+        <Eyebrow data-slot="metadata-tile-label" className="min-w-0 truncate text-muted">
           {label}
         </Eyebrow>
       </div>
       <div
         data-slot="metadata-tile-value"
-        className="truncate text-[13px] font-medium text-(--fg) tabular-nums"
+        className="truncate text-[13px] font-medium text-fg tabular-nums"
       >
         {value}
       </div>
       {detail ? (
-        <p data-slot="metadata-tile-detail" className="truncate text-[11.5px] text-(--subtle)">
+        <p data-slot="metadata-tile-detail" className="truncate text-[11.5px] text-subtle">
           {detail}
         </p>
       ) : null}

@@ -49,7 +49,7 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
   const isLoading = peersQuery.isLoading;
 
   if (isLoading) {
-    return <p className="px-2 py-3 text-xs text-(--subtle)">Loading peers…</p>;
+    return <p className="px-2 py-3 text-xs text-subtle">Loading peers…</p>;
   }
 
   if (candidates.length === 0) {
@@ -77,9 +77,7 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
             onSelect={() => onSelect(peer)}
             value={peer.peer_id}
           >
-            <span className="truncate text-small-body text-(--fg)">
-              @{getPeerDisplayName(peer)}
-            </span>
+            <span className="truncate text-small-body text-fg">@{getPeerDisplayName(peer)}</span>
             <Eyebrow>{peer.peer_id}</Eyebrow>
           </CommandItem>
         ))}
@@ -144,11 +142,7 @@ export function NewDirectDialog({
         />
 
         {error ? (
-          <p
-            className="text-xs text-(--danger)"
-            data-testid="network-new-direct-error"
-            role="alert"
-          >
+          <p className="text-xs text-danger" data-testid="network-new-direct-error" role="alert">
             {error.message}
           </p>
         ) : null}

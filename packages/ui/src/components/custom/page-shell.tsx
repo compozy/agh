@@ -64,7 +64,7 @@ function PageShell({
       </div>
 
       {footer ? (
-        <div className="border-t border-(--line)" data-testid={footerTestId}>
+        <div className="border-t border-line" data-testid={footerTestId}>
           {footer}
         </div>
       ) : null}

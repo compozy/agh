@@ -101,7 +101,7 @@ function ObservabilitySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-observability-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -113,8 +113,8 @@ function ObservabilitySettingsPage() {
         data-testid="settings-page-observability-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load observability settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -393,16 +393,16 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
   return (
     <Section divided label="Log tail" note="daemon log stream">
       <div
-        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-(--line) bg-(--elevated) px-4 py-3"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-elevated px-4 py-3"
         data-testid="settings-page-observability-log-tail"
         data-available={logTail.available ? "true" : "false"}
       >
         <div className="flex flex-col gap-1">
-          <span className="text-sm text-(--fg)">
+          <span className="text-sm text-fg">
             {logTail.available ? "Live log tail available" : "Log tail unavailable"}
           </span>
           <Eyebrow
-            className="text-(--muted)"
+            className="text-muted"
             data-testid="settings-page-observability-log-tail-transport"
           >
             transport: {logTail.transport ?? "none"}
@@ -410,7 +410,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
         </div>
         {logTail.available && logTail.stream_url ? (
           <a
-            className="inline-flex items-center gap-1.5 text-sm text-(--accent) hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
             data-testid="settings-page-observability-log-tail-link"
             href={logTail.stream_url}
             rel="noreferrer"
@@ -446,7 +446,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
+      <Eyebrow className="text-muted">{label}</Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           className="w-full"
@@ -456,9 +456,9 @@ function NumberField({
           onValidityChange={onValidityChange}
           onValueChange={onChange}
         />
-        {suffix ? <Eyebrow className="text-(--muted)">{suffix}</Eyebrow> : null}
+        {suffix ? <Eyebrow className="text-muted">{suffix}</Eyebrow> : null}
       </div>
-      {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}
+      {errorMessage ? <span className="text-xs text-danger">{errorMessage}</span> : null}
     </div>
   );
 }
@@ -476,28 +476,28 @@ function UsageBreakdown({ globalBytes, sessionBytes, cap }: UsageBreakdownProps)
 
   return (
     <div className="flex flex-col gap-2" data-testid="settings-page-observability-usage-breakdown">
-      <div className="flex items-center justify-between text-xs text-(--subtle)">
-        <Eyebrow className="text-(--muted)">Usage breakdown</Eyebrow>
+      <div className="flex items-center justify-between text-xs text-subtle">
+        <Eyebrow className="text-muted">Usage breakdown</Eyebrow>
       </div>
-      <div className="relative h-2 w-full overflow-hidden rounded-full bg-(--canvas-soft)">
+      <div className="relative h-2 w-full overflow-hidden rounded-full bg-canvas-soft">
         <div
-          className="absolute inset-y-0 left-0 bg-(--accent-tint-strong)"
+          className="absolute inset-y-0 left-0 bg-accent-tint-strong"
           style={{ width: `${globalPct}%` }}
           data-testid="settings-page-observability-usage-bar-global"
         />
         <div
-          className="absolute inset-y-0 bg-(--info-tint)"
+          className="absolute inset-y-0 bg-info-tint"
           style={{ left: `${globalPct}%`, width: `${sessionPct}%` }}
           data-testid="settings-page-observability-usage-bar-sessions"
         />
       </div>
-      <div className="flex flex-wrap gap-4 text-xs text-(--muted)">
+      <div className="flex flex-wrap gap-4 text-xs text-muted">
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-(--accent-tint-strong)" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-accent-tint-strong" />
           global DB {formatBytes(globalBytes)}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-(--info-tint)" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-info-tint" />
           session DB {formatBytes(sessionBytes)}
         </span>
       </div>

@@ -37,12 +37,12 @@ function SearchInput({
       data-slot="search-input"
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex h-[26px] min-w-[220px] items-center gap-2 rounded-(--radius) border border-(--line) bg-(--canvas-soft) px-2 text-[13px] text-(--fg) transition-colors focus-within:border-(--line-strong) focus-within:shadow-[0_0_0_1px_var(--line-strong)]",
+        "flex h-[26px] min-w-[220px] items-center gap-2 rounded border border-line bg-canvas-soft px-2 text-[13px] text-fg transition-colors focus-within:border-line-strong focus-within:shadow-[0_0_0_1px_var(--line-strong)]",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60",
         containerClassName
       )}
     >
-      <SearchIcon aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
+      <SearchIcon aria-hidden="true" className="size-3 shrink-0 text-subtle" />
       <input
         type="search"
         data-slot="search-input-control"
@@ -51,7 +51,7 @@ function SearchInput({
         onChange={event => onChange?.(event.target.value)}
         disabled={disabled}
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-[13px] text-(--fg) outline-none placeholder:text-(--subtle) disabled:cursor-not-allowed",
+          "min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-subtle disabled:cursor-not-allowed",
           className
         )}
         {...props}
@@ -60,7 +60,7 @@ function SearchInput({
         <span
           data-slot="search-input-kbd"
           aria-hidden="true"
-          className="eyebrow hidden items-center rounded-(--radius-xs) border border-(--line) bg-(--canvas-soft) px-1 py-px text-(--subtle) sm:inline-flex"
+          className="eyebrow hidden items-center rounded-xs border border-line bg-canvas-soft px-1 py-px text-subtle sm:inline-flex"
         >
           {kbd}
         </span>

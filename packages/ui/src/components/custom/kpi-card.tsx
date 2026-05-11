@@ -35,10 +35,7 @@ function KpiCard({
   return (
     <div
       data-slot="kpi-card"
-      className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-lg bg-(--canvas-soft) px-5 py-4",
-        className
-      )}
+      className={cn("flex min-w-0 flex-col gap-2 rounded-lg bg-canvas-soft px-5 py-4", className)}
       {...props}
     >
       <div data-slot="kpi-card-head" className="flex min-w-0 items-center gap-2">
@@ -46,12 +43,12 @@ function KpiCard({
           <span
             aria-hidden="true"
             data-slot="kpi-card-icon"
-            className="inline-flex size-5 shrink-0 items-center justify-center text-(--muted)"
+            className="inline-flex size-5 shrink-0 items-center justify-center text-muted"
           >
             <Icon className="size-3.5" />
           </span>
         ) : null}
-        <Eyebrow data-slot="kpi-card-label" className="min-w-0 truncate text-(--muted)">
+        <Eyebrow data-slot="kpi-card-label" className="min-w-0 truncate text-muted">
           {label}
         </Eyebrow>
         {trailing ? (
@@ -62,12 +59,12 @@ function KpiCard({
       </div>
       <div
         data-slot="kpi-card-value"
-        className="text-[28px] font-medium leading-none tracking-detail-h1 text-(--fg-strong) tabular-nums"
+        className="text-[28px] font-medium leading-none tracking-detail-h1 text-fg-strong tabular-nums"
       >
         {value}
       </div>
       {detail ? (
-        <p data-slot="kpi-card-detail" className="text-[12px] text-(--muted)">
+        <p data-slot="kpi-card-detail" className="text-[12px] text-muted">
           {detail}
         </p>
       ) : null}

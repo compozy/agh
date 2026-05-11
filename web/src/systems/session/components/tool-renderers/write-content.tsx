@@ -26,7 +26,7 @@ export function WriteContent({ message }: { message: UIMessage }) {
 
   return (
     <div className="space-y-1.5 text-xs" data-testid="write-content">
-      {filePath && <div className="font-mono text-eyebrow text-(--subtle)">{filePath}</div>}
+      {filePath && <div className="font-mono text-eyebrow text-subtle">{filePath}</div>}
       {content && (
         <CodeBlock
           code={`${displayContent}${isTruncated ? "\u2026" : ""}`}
@@ -39,7 +39,7 @@ export function WriteContent({ message }: { message: UIMessage }) {
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="flex items-center gap-1 text-eyebrow text-(--subtle) hover:text-(--muted) transition-colors"
+          className="flex items-center gap-1 text-eyebrow text-subtle hover:text-muted transition-colors"
         >
           <ChevronsUpDown className="size-3" />
           Show full content ({content.length.toLocaleString()} chars)

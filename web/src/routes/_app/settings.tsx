@@ -106,7 +106,7 @@ function SettingsSectionNav() {
   return (
     <nav
       aria-label="Settings sections"
-      className="flex w-full shrink-0 flex-wrap gap-1 overflow-y-auto border-b border-(--line) bg-(--canvas) px-2 py-2 xl:w-56 xl:flex-col xl:flex-nowrap xl:border-r xl:border-b-0 xl:py-3"
+      className="flex w-full shrink-0 flex-wrap gap-1 overflow-y-auto border-b border-line bg-canvas px-2 py-2 xl:w-56 xl:flex-col xl:flex-nowrap xl:border-r xl:border-b-0 xl:py-3"
       data-testid="settings-section-nav"
     >
       <SidebarSectionLabel className="hidden px-2 pt-2 pb-1 xl:block">Settings</SidebarSectionLabel>

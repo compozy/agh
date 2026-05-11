@@ -214,7 +214,7 @@ function renderTasksBridgeNotificationsCard({
         </Button>
       }
     >
-      <p className="text-xs text-(--subtle)" data-testid="tasks-bridge-notifications-disclaimer">
+      <p className="text-xs text-subtle" data-testid="tasks-bridge-notifications-disclaimer">
         Cursor diagnostics are read-only delivery progress. Zero-state cursors render as no sequence
         and no delivery id; advancement happens only after a confirmed bridge delivery.
       </p>
@@ -273,33 +273,33 @@ function renderTasksBridgeNotificationsCard({
                         <Pill tone="info">{sub.scope}</Pill>
                         <Pill tone="neutral">{sub.delivery_mode}</Pill>
                       </div>
-                      <span className="text-badge text-(--subtle)">
+                      <span className="text-badge text-subtle">
                         Created {formatRelativeTime(sub.created_at)}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 text-xs">
-                      <span className="font-mono text-xs text-(--fg)">
+                      <span className="font-mono text-xs text-fg">
                         bridge {sub.bridge_instance_id}
                       </span>
                       {sub.workspace_id ? (
-                        <span className="font-mono text-eyebrow text-(--muted)">
+                        <span className="font-mono text-eyebrow text-muted">
                           workspace {sub.workspace_id}
                         </span>
                       ) : null}
                       {sub.peer_id ? (
-                        <span className="font-mono text-eyebrow text-(--muted)">
+                        <span className="font-mono text-eyebrow text-muted">
                           peer {sub.peer_id}
                         </span>
                       ) : null}
                       {sub.group_id ? (
-                        <span className="font-mono text-eyebrow text-(--muted)">
+                        <span className="font-mono text-eyebrow text-muted">
                           group {sub.group_id}
                         </span>
                       ) : null}
                       {sub.thread_id ? (
-                        <span className="font-mono text-eyebrow text-(--muted)">
+                        <span className="font-mono text-eyebrow text-muted">
                           thread {sub.thread_id}
                         </span>
                       ) : null}
@@ -308,28 +308,28 @@ function renderTasksBridgeNotificationsCard({
                   <TableCell>
                     {isZeroCursor ? (
                       <span
-                        className="inline-flex items-center gap-1 text-eyebrow text-(--subtle)"
+                        className="inline-flex items-center gap-1 text-eyebrow text-subtle"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-zero`}
                       >
                         <Pill tone="neutral">zero state</Pill>
                         seq 0
                       </span>
                     ) : (
-                      <div className="flex flex-col gap-0.5 font-mono text-eyebrow text-(--fg)">
+                      <div className="flex flex-col gap-0.5 font-mono text-eyebrow text-fg">
                         <span
                           data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-seq`}
                         >
                           seq {formatLastSequence(cursor?.last_sequence)}
                         </span>
                         {cursor?.last_delivery_id ? (
-                          <span className="text-badge text-(--subtle)">
+                          <span className="text-badge text-subtle">
                             delivery {cursor.last_delivery_id}
                           </span>
                         ) : null}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-eyebrow text-(--subtle)">
+                  <TableCell className="font-mono text-eyebrow text-subtle">
                     {cursor?.last_delivered_at
                       ? formatRelativeTime(cursor.last_delivered_at)
                       : "--"}
@@ -342,14 +342,14 @@ function renderTasksBridgeNotificationsCard({
                   <TableCell className="max-w-[220px] text-xs">
                     {cursor?.last_error ? (
                       <span
-                        className="inline-flex items-center gap-1 text-(--warning)"
+                        className="inline-flex items-center gap-1 text-warning"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-error`}
                       >
                         <TriangleAlert className="size-3.5" />
                         {cursor.last_error}
                       </span>
                     ) : (
-                      <span className="font-mono text-eyebrow text-(--subtle)">--</span>
+                      <span className="font-mono text-eyebrow text-subtle">--</span>
                     )}
                   </TableCell>
                   <TableCell className="w-8 pr-4">
@@ -512,7 +512,7 @@ function renderTasksBridgeNotificationsCard({
             </div>
             {createError ? (
               <p
-                className="text-xs text-(--danger)"
+                className="text-xs text-danger"
                 data-testid="tasks-bridge-notifications-create-error"
               >
                 {createError}
@@ -564,7 +564,7 @@ function renderTasksBridgeNotificationsCard({
             </DialogDescription>
           </DialogHeader>
           {deleteTarget ? (
-            <p className="font-mono text-xs text-(--muted)">{deleteTarget.subscription_id}</p>
+            <p className="font-mono text-xs text-muted">{deleteTarget.subscription_id}</p>
           ) : null}
           <DialogFooter className="gap-2">
             <Button

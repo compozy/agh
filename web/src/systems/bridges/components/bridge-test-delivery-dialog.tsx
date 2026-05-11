@@ -61,11 +61,7 @@ export function BridgeTestDeliveryDialog({
 }: BridgeTestDeliveryDialogProps) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent
-        className="gap-0 p-0 text-(--fg) sm:max-w-2xl"
-        showCloseButton={false}
-        unframed
-      >
+      <DialogContent className="gap-0 p-0 text-fg sm:max-w-2xl" showCloseButton={false} unframed>
         <div
           className="flex max-h-[min(80vh,760px)] flex-col"
           data-testid="bridge-test-delivery-dialog"
@@ -195,11 +191,11 @@ export function BridgeTestDeliveryDialog({
                     </Pill>
                   }
                 >
-                  <p className="text-small-body text-(--fg)">
+                  <p className="text-small-body text-fg">
                     {describeBridgeTestTarget(result.delivery_target)}
                   </p>
                   {result.message ? (
-                    <p className="mt-2 text-small-body leading-relaxed text-(--muted)">
+                    <p className="mt-2 text-small-body leading-relaxed text-muted">
                       Message: {result.message}
                     </p>
                   ) : null}

@@ -81,7 +81,7 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-loading"
         role="status"
       >
-        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }
@@ -93,8 +93,8 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load network settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -154,10 +154,10 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
         <Link
           to="/network"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-network-link-network"
         >
-          <ExternalLink className="size-3.5 text-(--subtle)" />
+          <ExternalLink className="size-3.5 text-subtle" />
           Open Network
         </Link>
       </div>
@@ -393,7 +393,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
+      <Eyebrow className="text-muted">{label}</Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           aria-label={label}
@@ -404,9 +404,9 @@ function NumberField({
           onValidityChange={onValidityChange}
           onValueChange={onChange}
         />
-        {suffix ? <Eyebrow className="text-(--muted)">{suffix}</Eyebrow> : null}
+        {suffix ? <Eyebrow className="text-muted">{suffix}</Eyebrow> : null}
       </div>
-      {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}
+      {errorMessage ? <span className="text-xs text-danger">{errorMessage}</span> : null}
     </div>
   );
 }

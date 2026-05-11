@@ -40,13 +40,13 @@ function EditorFooter({
       role="contentinfo"
       onKeyDown={handleKeyDown}
       className={cn(
-        "sticky bottom-0 z-10 flex min-h-[52px] flex-wrap items-center gap-3 border-t border-(--line) bg-(--canvas) px-4 py-2.5",
+        "sticky bottom-0 z-10 flex min-h-[52px] flex-wrap items-center gap-3 border-t border-line bg-canvas px-4 py-2.5",
         className
       )}
       {...props}
     >
       {meta ? (
-        <div data-slot="editor-footer-meta" className="text-[12px] text-(--muted)">
+        <div data-slot="editor-footer-meta" className="text-[12px] text-muted">
           {meta}
         </div>
       ) : null}

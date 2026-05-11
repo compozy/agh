@@ -26,40 +26,93 @@ function renderShowcase() {
 
 /**
  * Tokens that the showcase intentionally surfaces as discrete swatches. Shadcn
- * theme aliases (`--background`, `--primary`, ...) re-map to these AGH tokens
- * and are covered by the primitives themselves rather than the swatch wall.
+ * theme aliases (`--color-background`, `--color-primary`, ...) re-map to AGH
+ * tokens and are covered by the primitives themselves rather than the swatch
+ * wall.
  */
 const SHADCN_ALIASES: ReadonlySet<string> = new Set([
-  "--background",
-  "--foreground",
-  "--card",
-  "--card-foreground",
-  "--popover",
-  "--popover-foreground",
-  "--primary",
-  "--primary-foreground",
-  "--secondary",
-  "--secondary-foreground",
-  "--muted-foreground",
-  "--accent-foreground",
-  "--destructive",
-  "--destructive-foreground",
-  "--border",
-  "--input",
-  "--ring",
-  "--chart-1",
-  "--chart-2",
-  "--chart-3",
-  "--chart-4",
-  "--chart-5",
-  "--radius",
-  "--sidebar-foreground",
-  "--sidebar-primary",
-  "--sidebar-primary-foreground",
-  "--sidebar-accent",
-  "--sidebar-accent-foreground",
-  "--sidebar-border",
-  "--sidebar-ring",
+  "--color-background",
+  "--color-foreground",
+  "--color-card",
+  "--color-card-foreground",
+  "--color-popover",
+  "--color-popover-foreground",
+  "--color-primary",
+  "--color-primary-foreground",
+  "--color-secondary",
+  "--color-secondary-foreground",
+  "--color-muted-foreground",
+  "--color-accent-foreground",
+  "--color-destructive",
+  "--color-destructive-foreground",
+  "--color-border",
+  "--color-input",
+  "--color-ring",
+  "--color-chart-1",
+  "--color-chart-2",
+  "--color-chart-3",
+  "--color-chart-4",
+  "--color-chart-5",
+  "--color-sidebar",
+  "--color-sidebar-foreground",
+  "--color-sidebar-primary",
+  "--color-sidebar-primary-foreground",
+  "--color-sidebar-accent",
+  "--color-sidebar-accent-foreground",
+  "--color-sidebar-border",
+  "--color-sidebar-ring",
+  // Tailwind v4 default scale / weight ladder, not AGH-specific
+  "--font-sans",
+  "--font-mono",
+  "--font-display",
+  "--font-weight-normal",
+  "--font-weight-medium",
+  "--font-weight-semibold",
+  "--font-weight-bold",
+  // Type ladder is exercised by typography stories, not by swatches
+  "--text-item-title",
+  "--text-small-body",
+  "--text-badge",
+  "--text-eyebrow",
+  "--text-display-2xl",
+  "--text-site-lead",
+  "--text-micro",
+  "--text-inline-code",
+  "--text-accent-glyph",
+  "--text-ui-title-lg",
+  "--text-detail-h1",
+  "--text-empty-h1",
+  "--text-modal-title",
+  "--text-section-head",
+  "--text-form-input",
+  "--text-form-label",
+  "--text-form-hint",
+  "--text-form-required",
+  "--text-metric-value",
+  "--text-kpi-value",
+  "--text-agent-metric",
+  "--text-rail-avatar",
+  "--text-ws-name",
+  "--text-mono-id",
+  // Tracking ladder
+  "--tracking-detail-h1",
+  "--tracking-empty-h1",
+  "--tracking-modal-title",
+  "--tracking-section-head",
+  "--tracking-tight",
+  "--tracking-eyebrow",
+  "--tracking-mono-id",
+  "--leading-small-body",
+  // CSS-only companion properties for --text-* tokens
+  "--text-item-title--line-height",
+  "--text-small-body--line-height",
+  "--text-badge--line-height",
+  "--text-eyebrow--line-height",
+  "--text-display-2xl--line-height",
+  "--text-site-lead--line-height",
+  "--text-micro--line-height",
+  // Shadow utilities exercised through component primitives, not swatches
+  "--shadow-highlight",
 ]);
 
 const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
@@ -84,34 +137,41 @@ const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
   "--ease-in-out",
 ]);
 
+function extractDeclBlocks(source: string): string[] {
+  const blocks: string[] = [];
+  const themeMatch = source.match(/@theme\s*\{([\s\S]*?)\n\}/);
+  if (themeMatch) blocks.push(themeMatch[1]);
+  const rootMatch = source.match(/:root\s*\{([\s\S]*?)\}/);
+  if (rootMatch) blocks.push(rootMatch[1]);
+  return blocks;
+}
+
 function extractAghTokens(source: string): string[] {
   const tokens = new Set<string>();
-  const rootMatch = source.match(/:root\s*{([\s\S]*?)}/);
-  if (!rootMatch) return [];
-  const body = rootMatch[1];
-  for (const line of body.split("\n")) {
-    const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
-    if (!match) continue;
-    const [, name, rawValue] = match;
-    const value = rawValue.trim();
-    if (value.startsWith("var(")) continue;
-    if (SHADCN_ALIASES.has(name)) continue;
-    if (COMPONENT_GEOMETRY_TOKENS.has(name)) continue;
-    tokens.add(name);
+  for (const body of extractDeclBlocks(source)) {
+    for (const line of body.split("\n")) {
+      const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
+      if (!match) continue;
+      const [, name, rawValue] = match;
+      const value = rawValue.trim();
+      if (value.startsWith("var(")) continue;
+      if (SHADCN_ALIASES.has(name)) continue;
+      if (COMPONENT_GEOMETRY_TOKENS.has(name)) continue;
+      tokens.add(name);
+    }
   }
   return [...tokens];
 }
 
 function extractTokenValueMap(source: string): Map<string, string> {
   const values = new Map<string, string>();
-  const rootMatch = source.match(/:root\s*{([\s\S]*?)}/);
-  if (!rootMatch) return values;
-  const body = rootMatch[1];
-  for (const line of body.split("\n")) {
-    const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
-    if (!match) continue;
-    const [, name, rawValue] = match;
-    values.set(name, rawValue.trim());
+  for (const body of extractDeclBlocks(source)) {
+    for (const line of body.split("\n")) {
+      const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
+      if (!match) continue;
+      const [, name, rawValue] = match;
+      values.set(name, rawValue.trim());
+    }
   }
   return values;
 }

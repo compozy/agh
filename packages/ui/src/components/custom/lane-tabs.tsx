@@ -68,7 +68,7 @@ function LaneTabs<T extends string>({
       data-slot="lane-tabs"
       role="tablist"
       aria-label={ariaLabel}
-      className={cn("inline-flex items-center gap-1 border-b border-(--line)", className)}
+      className={cn("inline-flex items-center gap-1 border-b border-line", className)}
       {...props}
     >
       {items.map(item => {
@@ -91,17 +91,17 @@ function LaneTabs<T extends string>({
             onClick={() => onChange(item.value)}
             onKeyDown={onKeyDown}
             className={cn(
-              "relative inline-flex h-9 items-center gap-1.5 px-2 text-[12px] font-medium tracking-eyebrow transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0",
+              "relative inline-flex h-9 items-center gap-1.5 px-2 text-[12px] font-medium tracking-eyebrow transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0",
               isActive
-                ? "text-(--fg-strong) after:absolute after:right-0 after:-bottom-px after:left-0 after:h-[1.5px] after:bg-(--accent)"
-                : "text-(--muted) hover:text-(--fg)"
+                ? "text-fg-strong after:absolute after:right-0 after:-bottom-px after:left-0 after:h-[1.5px] after:bg-accent"
+                : "text-muted hover:text-fg"
             )}
           >
             <span>{item.label}</span>
             {hasCount ? (
               <span
                 data-slot="lane-tabs-count"
-                className="inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-(--radius-mono-badge) bg-(--canvas-soft) px-1 font-mono text-[10px] font-medium tabular-nums text-(--muted)"
+                className="inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1 font-mono text-[10px] font-medium tabular-nums text-muted"
               >
                 {item.count}
               </span>

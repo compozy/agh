@@ -57,7 +57,7 @@ export const PendingSubmit: Story = {
 
 /**
  * RejectedByPolicy — controller rejection surfaces inline in the footer error
- * row. Demonstrates the canonical token-driven `text-(--danger)` error styling
+ * row. Demonstrates the canonical token-driven `text-danger` error styling
  * (no arbitrary color values).
  */
 export const RejectedByPolicy: Story = {

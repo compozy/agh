@@ -58,7 +58,7 @@ export const Default: Story = {
   },
   render: args => (
     <CenteredSurface>
-      <div className="w-full max-w-md rounded-md border border-(--line) bg-(--canvas-soft) p-4">
+      <div className="w-full max-w-md rounded-md border border-line bg-canvas-soft p-4">
         <ProviderModelCatalogStatus {...args} />
       </div>
     </CenteredSurface>
@@ -101,7 +101,7 @@ export const StaleSources: Story = {
   },
   render: args => (
     <CenteredSurface>
-      <div className="w-full max-w-md rounded-md border border-(--line) bg-(--canvas-soft) p-4">
+      <div className="w-full max-w-md rounded-md border border-line bg-canvas-soft p-4">
         <ProviderModelCatalogStatus {...args} />
       </div>
     </CenteredSurface>
@@ -127,7 +127,7 @@ export const EmptySources: Story = {
   },
   render: args => (
     <CenteredSurface>
-      <div className="w-full max-w-md rounded-md border border-(--line) bg-(--canvas-soft) p-4">
+      <div className="w-full max-w-md rounded-md border border-line bg-canvas-soft p-4">
         <ProviderModelCatalogStatus {...args} />
       </div>
     </CenteredSurface>

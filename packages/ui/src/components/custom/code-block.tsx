@@ -63,11 +63,11 @@ function CodeBlock({
     <div
       data-slot="code-block"
       data-tone={tone}
-      className={cn("relative rounded-lg bg-(--canvas)", codeBlockToneClass(tone), className)}
+      className={cn("relative rounded-lg bg-canvas", codeBlockToneClass(tone), className)}
       {...props}
     >
       {language ? (
-        <Eyebrow data-slot="code-block-language" className="absolute top-3 left-5 text-(--subtle)">
+        <Eyebrow data-slot="code-block-language" className="absolute top-3 left-5 text-subtle">
           {language}
         </Eyebrow>
       ) : null}
@@ -76,7 +76,7 @@ function CodeBlock({
           value={code}
           copyLabel={copyLabel}
           copiedLabel={copiedLabel}
-          className="absolute top-2 right-2 text-(--subtle) hover:text-(--accent) data-[copied=true]:text-(--success)"
+          className="absolute top-2 right-2 text-subtle hover:text-accent data-[copied=true]:text-success"
         />
       ) : null}
       <pre
@@ -85,7 +85,7 @@ function CodeBlock({
           clampedLines ? ({ "--code-block-lines": clampedLines } as React.CSSProperties) : undefined
         }
         className={cn(
-          "overflow-x-auto px-5 py-4 font-mono text-[14px] leading-[1.6] text-(--fg)",
+          "overflow-x-auto px-5 py-4 font-mono text-[14px] leading-[1.6] text-fg",
           codeBlockToneTextClass(tone),
           language ? "pt-9" : null,
           copyable ? "pr-12" : null,
@@ -101,7 +101,7 @@ function CodeBlock({
                   <span
                     data-slot="code-block-prompt"
                     aria-hidden="true"
-                    className="text-(--accent) select-none"
+                    className="text-accent select-none"
                   >
                     {"$ "}
                   </span>
@@ -175,15 +175,15 @@ function CopyIconButton({
 function codeBlockToneClass(tone: CodeBlockTone): string {
   switch (tone) {
     case "warning":
-      return "ring-1 ring-(--warning)/35 bg-(--warning-tint)";
+      return "ring-1 ring-warning/35 bg-warning-tint";
     case "danger":
-      return "ring-1 ring-(--danger)/35 bg-(--danger-tint)";
+      return "ring-1 ring-danger/35 bg-danger-tint";
     case "success":
-      return "ring-1 ring-(--success)/35 bg-(--success-tint)";
+      return "ring-1 ring-success/35 bg-success-tint";
     case "info":
-      return "ring-1 ring-(--info)/35 bg-(--info-tint)";
+      return "ring-1 ring-info/35 bg-info-tint";
     case "accent":
-      return "ring-1 ring-(--accent)/35 bg-(--accent-tint)";
+      return "ring-1 ring-accent/35 bg-accent-tint";
     default:
       return "";
   }
@@ -192,15 +192,15 @@ function codeBlockToneClass(tone: CodeBlockTone): string {
 function codeBlockToneTextClass(tone: CodeBlockTone): string {
   switch (tone) {
     case "warning":
-      return "text-(--warning)";
+      return "text-warning";
     case "danger":
-      return "text-(--danger)";
+      return "text-danger";
     case "success":
-      return "text-(--success)";
+      return "text-success";
     case "info":
-      return "text-(--info)";
+      return "text-info";
     case "accent":
-      return "text-(--accent)";
+      return "text-accent";
     default:
       return "";
   }

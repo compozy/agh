@@ -126,7 +126,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
       ) : (
         <Section data-testid="tasks-detail-active-run-empty" label="Execution">
           <p
-            className="text-small-body text-(--muted)"
+            className="text-small-body text-muted"
             data-testid="tasks-detail-active-run-empty-hint"
           >
             {taskLifecyclePhaseDescription(lifecyclePhase)}
@@ -142,7 +142,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
         ) : (
           <p
             data-testid="tasks-detail-description-empty"
-            className="text-small-body italic text-(--subtle)"
+            className="text-small-body italic text-subtle"
           >
             No description provided.
           </p>

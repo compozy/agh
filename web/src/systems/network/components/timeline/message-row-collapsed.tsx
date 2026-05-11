@@ -48,7 +48,7 @@ export function MessageRowCollapsed({
       >
         <time
           aria-hidden="true"
-          className="absolute top-1 left-0 right-0 text-center font-mono text-badge tracking-mono text-(--subtle) opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          className="absolute top-1 left-0 right-0 text-center font-mono text-badge tracking-mono text-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
           data-testid="network-message-collapsed-timestamp"
           dateTime={iso}
           title={iso}

@@ -44,26 +44,24 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
           <Pill mono tone={tone}>
             {statusLabel}
           </Pill>
-          <span className="font-mono text-eyebrow text-(--subtle)">attempt {run.attempt}</span>
+          <span className="font-mono text-eyebrow text-subtle">attempt {run.attempt}</span>
         </div>
-        {run.error ? <p className="text-xs leading-relaxed text-(--danger)">{run.error}</p> : null}
+        {run.error ? <p className="text-xs leading-relaxed text-danger">{run.error}</p> : null}
         {run.delivery_error ? (
-          <p className="text-xs leading-relaxed text-(--danger)">
-            {`Delivery: ${run.delivery_error}`}
-          </p>
+          <p className="text-xs leading-relaxed text-danger">{`Delivery: ${run.delivery_error}`}</p>
         ) : null}
         {run.fire_id ? (
-          <p className="break-all font-mono text-badge text-(--subtle)">{run.fire_id}</p>
+          <p className="break-all font-mono text-badge text-subtle">{run.fire_id}</p>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-        <span className="text-small-body text-(--muted)">{startedAt}</span>
+        <span className="text-small-body text-muted">{startedAt}</span>
         {run.scheduled_at ? (
-          <Eyebrow className="text-(--subtle)">
+          <Eyebrow className="text-subtle">
             {`scheduled ${formatDateTime(run.scheduled_at)}`}
           </Eyebrow>
         ) : null}
-        <span className="font-mono text-eyebrow text-(--subtle)">{duration}</span>
+        <span className="font-mono text-eyebrow text-subtle">{duration}</span>
       </div>
     </>
   );
@@ -72,7 +70,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
     return (
       <Link
         aria-label={ariaLabel}
-        className="group/run-row flex min-w-0 items-start gap-4 border-b border-(--line) px-4 py-3 text-left text-(--fg) transition-colors duration-(--dur) ease-(--ease) last:border-b-0 hover:bg-(--hover) focus-visible:bg-(--hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--line-strong)"
+        className="group/run-row flex min-w-0 items-start gap-4 border-b border-line px-4 py-3 text-left text-fg transition-colors duration-base ease-out last:border-b-0 hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-line-strong"
         data-testid={testId}
         params={{ id: run.session_id }}
         to="/session/$id"
@@ -80,7 +78,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
         {body}
         <ChevronRight
           aria-hidden="true"
-          className="ml-2 mt-1 size-3 shrink-0 text-(--subtle) transition-colors duration-(--dur) ease-(--ease) group-hover/run-row:text-(--fg)"
+          className="ml-2 mt-1 size-3 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
           strokeWidth={1.75}
           width={12}
           height={12}
@@ -92,13 +90,13 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
   return (
     <div
       aria-label={ariaLabel}
-      className="flex min-w-0 items-start gap-4 border-b border-(--line) px-4 py-3 last:border-b-0"
+      className="flex min-w-0 items-start gap-4 border-b border-line px-4 py-3 last:border-b-0"
       data-testid={testId}
     >
       {body}
       <span
         aria-hidden="true"
-        className="ml-2 mt-1 inline-flex shrink-0 items-center font-mono text-eyebrow text-(--subtle)"
+        className="ml-2 mt-1 inline-flex shrink-0 items-center font-mono text-eyebrow text-subtle"
       >
         pending
       </span>
@@ -122,10 +120,10 @@ export function AutomationRunHistory({
     >
       {isLoading ? (
         <div
-          className="flex min-h-28 items-center justify-center rounded-md bg-(--canvas-soft) px-4 py-8"
+          className="flex min-h-28 items-center justify-center rounded-md bg-canvas-soft px-4 py-8"
           data-testid="automation-run-history-loading"
         >
-          <Spinner className="text-(--subtle)" />
+          <Spinner className="text-subtle" />
         </div>
       ) : error ? (
         <div className="flex justify-center px-2 py-6" data-testid="automation-run-history-error">
@@ -142,7 +140,7 @@ export function AutomationRunHistory({
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg bg-(--canvas-soft)"
+          className="overflow-hidden rounded-lg bg-canvas-soft"
           data-testid="automation-run-history-rows"
           role="list"
         >

@@ -35,12 +35,12 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2",
-          "border-(--line) bg-(--canvas)",
-          "text-xs text-(--subtle)"
+          "border-line bg-canvas",
+          "text-xs text-subtle"
         )}
       >
         <Spinner className="size-3.5" />
-        <Eyebrow className="text-(--subtle)">{part.toolName}</Eyebrow>
+        <Eyebrow className="text-subtle">{part.toolName}</Eyebrow>
         <span>preparing input</span>
       </div>
     );
@@ -51,8 +51,8 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2",
-          "border-(--danger)/30 bg-(--danger)/8",
-          "text-xs text-(--danger)"
+          "border-danger/30 bg-danger/8",
+          "text-xs text-danger"
         )}
       >
         <AlertCircle className="size-3.5" />

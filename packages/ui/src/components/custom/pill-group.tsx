@@ -6,12 +6,12 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 const pillGroupSegmentVariants = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-xs) text-[12px] font-[510] tracking-eyebrow transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-xs text-[12px] font-[510] tracking-eyebrow transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "bg-(--elevated) text-(--fg-strong) shadow-(--highlight)",
-        false: "bg-transparent text-(--subtle) hover:text-(--muted)",
+        true: "bg-elevated text-fg-strong shadow-highlight",
+        false: "bg-transparent text-subtle hover:text-muted",
       },
       size: {
         sm: "min-h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x)",
@@ -59,7 +59,7 @@ function PillGroup<V extends string = string>({
       data-slot="pill-group"
       role="group"
       className={cn(
-        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-md bg-(--canvas-soft) p-(--space-pill-group-track-padding)",
+        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-md bg-canvas-soft p-(--space-pill-group-track-padding)",
         className
       )}
       {...props}
@@ -86,7 +86,7 @@ function PillGroup<V extends string = string>({
             {typeof item.badge === "number" && item.badge > 0 ? (
               <span
                 data-slot="pill-group-badge"
-                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-[3px] bg-(--badge-fill) px-(--space-pill-group-badge-x) text-(--text-pill-group-badge) font-medium tabular-nums text-(--muted)"
+                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-[3px] bg-badge-fill px-(--space-pill-group-badge-x) text-pill-group-badge font-medium tabular-nums text-muted"
               >
                 {item.badge}
               </span>

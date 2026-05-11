@@ -43,8 +43,8 @@ export function TasksKanbanBoard({
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="tasks-kanban-error">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">{errorMessage}</p>
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">{errorMessage}</p>
         </div>
       </div>
     );
@@ -92,16 +92,16 @@ function KanbanCardSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="flex w-full min-w-0 animate-pulse flex-col gap-[7px] rounded-md bg-(--canvas-tint) p-[11px] shadow-[inset_0_0_0_1px_var(--line-soft)]"
+      className="flex w-full min-w-0 animate-pulse flex-col gap-[7px] rounded-md bg-canvas-tint p-[11px] shadow-[inset_0_0_0_1px_var(--line-soft)]"
       data-testid="tasks-kanban-card-skeleton"
     >
-      <div className="h-3.5 w-4/5 rounded-xs bg-(--line)" />
+      <div className="h-3.5 w-4/5 rounded-xs bg-line" />
       <div className="flex gap-[7px]">
-        <div className="h-[17px] w-12 rounded-(--radius-chip) bg-(--line)" />
+        <div className="h-[17px] w-12 rounded-chip bg-line" />
       </div>
       <div className="flex items-center justify-between gap-2">
-        <div className="h-3 w-24 rounded-xs bg-(--line)" />
-        <div className="h-3 w-8 rounded-xs bg-(--line)" />
+        <div className="h-3 w-24 rounded-xs bg-line" />
+        <div className="h-3 w-8 rounded-xs bg-line" />
       </div>
     </div>
   );

@@ -98,7 +98,7 @@ export const Sizes: Story = {
     docs: {
       description: {
         story:
-          "All sizes share the flat `rounded-(--radius-xs)` (4 px) chip radius Heights: xs = 17 px, sm = 19 px, md = 22 px.",
+          "All sizes share the flat `rounded-xs` (4 px) chip radius Heights: xs = 17 px, sm = 19 px, md = 22 px.",
       },
     },
   },
@@ -226,15 +226,15 @@ export const ConnectionIndicator: Story = {
     <div className="flex flex-col gap-2">
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="success" />
-        <span className="eyebrow text-(--subtle)">Connected</span>
+        <span className="eyebrow text-subtle">Connected</span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="warning" pulse />
-        <span className="eyebrow text-(--subtle)">Reconnecting</span>
+        <span className="eyebrow text-subtle">Reconnecting</span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="danger" />
-        <span className="eyebrow text-(--subtle)">Disconnected</span>
+        <span className="eyebrow text-subtle">Disconnected</span>
       </div>
     </div>
   ),
@@ -255,7 +255,7 @@ export const StandaloneDots: Story = {
       {TONES.map(tone => (
         <div key={tone} className="flex items-center gap-2" data-testid={`pill-dot-${tone}`}>
           <Pill.Dot tone={tone} />
-          <span className="eyebrow text-(--subtle)">{tone}</span>
+          <span className="eyebrow text-subtle">{tone}</span>
         </div>
       ))}
     </div>
@@ -277,11 +277,11 @@ export const DotSizes: Story = {
     <div className="flex items-center gap-6">
       <div className="flex items-center gap-2">
         <Pill.Dot size="sm" tone="success" />
-        <span className="eyebrow text-(--subtle)">sm · 6px</span>
+        <span className="eyebrow text-subtle">sm · 6px</span>
       </div>
       <div className="flex items-center gap-2">
         <Pill.Dot size="md" tone="success" />
-        <span className="eyebrow text-(--subtle)">md · 8px</span>
+        <span className="eyebrow text-subtle">md · 8px</span>
       </div>
     </div>
   ),

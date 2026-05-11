@@ -100,7 +100,7 @@ function SkillsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-skills-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -112,8 +112,8 @@ function SkillsSettingsPage() {
         data-testid="settings-page-skills-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load skills settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -289,10 +289,10 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
         <Link
           to="/skills"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-skills-link-skills"
         >
-          <ExternalLink className="size-3.5 text-(--subtle)" />
+          <ExternalLink className="size-3.5 text-subtle" />
           Open Skills
         </Link>
       </div>
@@ -371,15 +371,15 @@ function DisabledSkillsSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--line)"
+          className="overflow-hidden rounded-lg border border-line"
           data-testid="settings-page-skills-disabled-list"
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-(--elevated)">
-                <TableHead className="eyebrow text-(--muted)">Skill</TableHead>
-                <TableHead className="eyebrow text-(--muted)">Identifier</TableHead>
-                <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Disabled</TableHead>
+              <TableRow className="bg-elevated">
+                <TableHead className="eyebrow text-muted">Skill</TableHead>
+                <TableHead className="eyebrow text-muted">Identifier</TableHead>
+                <TableHead className="eyebrow w-[1%] text-right text-muted">Disabled</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -387,11 +387,11 @@ function DisabledSkillsSection({
                 <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
-                      <Wrench className="size-3.5 text-(--subtle)" />
-                      <span className="truncate text-sm text-(--fg)">{name}</span>
+                      <Wrench className="size-3.5 text-subtle" />
+                      <span className="truncate text-sm text-fg">{name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-(--muted)">{name}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted">{name}</TableCell>
                   <TableCell className="text-right">
                     <Switch
                       data-testid={`settings-page-skills-disabled-toggle-${name}`}
@@ -418,7 +418,7 @@ function AgentScopePolicyNotice() {
       note="read-only in agent scope"
       data-testid="settings-page-skills-agent-policy-note"
     >
-      <p className="text-sm text-(--muted)">
+      <p className="text-sm text-muted">
         Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
         poll interval, and marketplace allowlists remain global settings.
       </p>
@@ -651,29 +651,23 @@ function SaveControls({
     >
       <div className="min-w-0" role="status" aria-live={liveRegion}>
         {error ? (
-          <span
-            className="text-xs text-(--danger)"
-            data-testid={`settings-page-skills-${slug}-error`}
-          >
+          <span className="text-xs text-danger" data-testid={`settings-page-skills-${slug}-error`}>
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
           <span
-            className="text-xs text-(--warning)"
+            className="text-xs text-warning"
             data-testid={`settings-page-skills-${slug}-warning`}
           >
             {warnings.join(" · ")}
           </span>
         ) : isDirty ? (
-          <span
-            className="text-xs text-(--subtle)"
-            data-testid={`settings-page-skills-${slug}-dirty`}
-          >
+          <span className="text-xs text-subtle" data-testid={`settings-page-skills-${slug}-dirty`}>
             Unsaved changes
           </span>
         ) : lastAppliedLabel ? (
           <span
-            className="text-xs text-(--subtle)"
+            className="text-xs text-subtle"
             data-testid={`settings-page-skills-${slug}-applied`}
           >
             {lastAppliedLabel}

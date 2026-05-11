@@ -40,11 +40,7 @@ const LANE_LABELS: Record<TaskInboxLane, string> = {
 
 function MetaSeparator() {
   return (
-    <span
-      aria-hidden="true"
-      className="text-(--faint) opacity-60"
-      data-slot="tasks-list-row-meta-sep"
-    >
+    <span aria-hidden="true" className="text-faint opacity-60" data-slot="tasks-list-row-meta-sep">
       ·
     </span>
   );
@@ -108,10 +104,10 @@ function TasksListRow({
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "relative grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-[14px] border-b border-(--line-soft) py-[11px] pr-[10px] pl-[14px] text-left transition-colors duration-(--dur) ease-(--ease)",
+        "relative grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-[14px] border-b border-line-soft py-[11px] pr-[10px] pl-[14px] text-left transition-colors duration-base ease-out",
         clickable &&
-          "cursor-pointer hover:bg-(--row-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong) focus-visible:ring-inset",
-        selected && "bg-(--row-selected)",
+          "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
+        selected && "bg-row-selected",
         className
       )}
       {...props}
@@ -119,7 +115,7 @@ function TasksListRow({
       {showRail ? (
         <span
           aria-hidden="true"
-          className="absolute top-[8px] bottom-[8px] left-0 w-[2px] rounded-tr-[2px] rounded-br-[2px] bg-(--accent)"
+          className="absolute top-[8px] bottom-[8px] left-0 w-[2px] rounded-tr-[2px] rounded-br-[2px] bg-accent"
         />
       ) : null}
 
@@ -130,7 +126,7 @@ function TasksListRow({
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h3
-            className="min-w-0 max-w-full truncate text-[13px] font-medium tracking-tight text-(--fg-strong)"
+            className="min-w-0 max-w-full truncate text-[13px] font-medium tracking-tight text-fg-strong"
             data-slot="tasks-list-row-title"
           >
             {task.title}
@@ -142,13 +138,13 @@ function TasksListRow({
           ) : null}
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-[9px] text-[11.5px] tracking-eyebrow text-(--subtle)">
-          <span className="font-mono text-[10.5px] text-(--faint)" data-slot="tasks-list-row-id">
+        <div className="flex min-w-0 flex-wrap items-center gap-[9px] text-[11.5px] tracking-eyebrow text-subtle">
+          <span className="font-mono text-[10.5px] text-faint" data-slot="tasks-list-row-id">
             {identifier}
           </span>
           <MetaSeparator />
           <span
-            className="font-mono text-[10.5px] tabular-nums text-(--faint)"
+            className="font-mono text-[10.5px] tabular-nums text-faint"
             data-slot="tasks-list-row-timestamp"
           >
             {timestamp}

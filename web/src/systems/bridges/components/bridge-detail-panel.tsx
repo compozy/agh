@@ -93,9 +93,9 @@ interface BridgeMetrics {
   successTone: "default" | "accent" | "success" | "warning" | "danger";
 }
 
-const METADATA_TILE_CLASS = "rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3";
-const METADATA_TERM_CLASS = "mb-2 text-(--muted)";
-const METADATA_VALUE_CLASS = "text-small-body text-(--fg)";
+const METADATA_TILE_CLASS = "rounded-md border border-line bg-canvas-soft px-4 py-3";
+const METADATA_TERM_CLASS = "mb-2 text-muted";
+const METADATA_VALUE_CLASS = "text-small-body text-fg";
 const EMPTY_SECRET_BINDINGS: BridgeSecretBinding[] = [];
 const EMPTY_SECRET_INPUT_VALUES: Record<string, string> = {};
 
@@ -153,11 +153,11 @@ function SecretSlotCard({
 }: SecretSlotCardProps) {
   return (
     <article
-      className="rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3"
+      className="rounded-md border border-line bg-canvas-soft px-4 py-3"
       data-testid={`bridge-secret-binding-${slot.name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Eyebrow className="text-(--accent)">{slot.name}</Eyebrow>
+        <Eyebrow className="text-accent">{slot.name}</Eyebrow>
         <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
           {slot.required === false ? "OPTIONAL" : "REQUIRED"}
         </Pill>
@@ -165,9 +165,7 @@ function SecretSlotCard({
           {binding ? "BOUND" : "UNBOUND"}
         </Pill>
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-(--muted)">
-        {describeBridgeSecretSlot(slot)}
-      </p>
+      <p className="mt-2 text-xs leading-relaxed text-muted">{describeBridgeSecretSlot(slot)}</p>
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <Field>
           <FieldContent>
@@ -185,11 +183,11 @@ function SecretSlotCard({
             value={inputValue}
           />
           {binding ? (
-            <p className="text-xs text-(--muted)">
+            <p className="text-xs text-muted">
               Current ref: <span className="font-mono">{binding.secret_ref}</span>
             </p>
           ) : (
-            <p className="text-xs text-(--subtle)">No secret binding stored.</p>
+            <p className="text-xs text-subtle">No secret binding stored.</p>
           )}
         </Field>
         <div className="flex flex-wrap items-center gap-2">
@@ -318,7 +316,7 @@ function BridgeEventStreamSection({
   return (
     <Section label="Event stream" right={<Pill mono>{routes.length}</Pill>}>
       <div
-        className="overflow-hidden rounded-md border border-(--line) bg-(--canvas-soft)"
+        className="overflow-hidden rounded-md border border-line bg-canvas-soft"
         data-testid="bridge-routes-table"
       >
         <Table>
@@ -357,14 +355,14 @@ function BridgeEventStreamSection({
                 </TableCell>
                 <TableCell>
                   <div className="min-w-0">
-                    <div className="text-small-body text-(--fg)">{route.agent_name}</div>
-                    <div className="mt-1 break-all font-mono text-eyebrow text-(--subtle)">
+                    <div className="text-small-body text-fg">{route.agent_name}</div>
+                    <div className="mt-1 break-all font-mono text-eyebrow text-subtle">
                       <Eyebrow className="mr-1">Session</Eyebrow>
                       <span>{route.session_id}</span>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-(--muted)">
+                <TableCell className="font-mono text-xs text-muted">
                   {describeBridgeRouteTarget(route)}
                 </TableCell>
                 <TableCell>
@@ -372,7 +370,7 @@ function BridgeEventStreamSection({
                     {route.scope}
                   </Pill>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-(--subtle)">
+                <TableCell className="font-mono text-xs text-subtle">
                   {formatBridgeRelativeTime(route.last_activity_at)}
                 </TableCell>
               </TableRow>
@@ -502,7 +500,7 @@ function BridgeProviderRuntimeSection({
       </MetadataList>
 
       {provider?.description ? (
-        <p className="mt-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 text-small-body leading-relaxed text-(--muted)">
+        <p className="mt-3 rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">
           {provider.description}
         </p>
       ) : null}
@@ -523,14 +521,14 @@ function BridgeProviderRuntimeSection({
           ))}
         </div>
       ) : isSecretBindingsLoading ? (
-        <div className="mt-3 flex items-center gap-2 text-small-body text-(--subtle)">
+        <div className="mt-3 flex items-center gap-2 text-small-body text-subtle">
           <Spinner aria-label="Loading secret bindings" className="size-4" />
           <span>Loading secret bindings…</span>
         </div>
       ) : null}
 
       <div className="mt-3">
-        <Eyebrow className="text-(--muted) mb-2 block">Provider config</Eyebrow>
+        <Eyebrow className="text-muted mb-2 block">Provider config</Eyebrow>
         {providerConfig ? (
           <CodeBlock
             code={providerConfig}
@@ -539,7 +537,7 @@ function BridgeProviderRuntimeSection({
             showPrompt={false}
           />
         ) : (
-          <p className="rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 text-small-body leading-relaxed text-(--muted)">
+          <p className="rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">
             No provider runtime config stored for this bridge.
           </p>
         )}
@@ -730,7 +728,7 @@ export function BridgeDetailPanel({
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {restartRequired ? (
           <div
-            className="rounded-md border border-(--warning)/40 bg-(--warning-tint) px-4 py-3 text-small-body text-(--warning)"
+            className="rounded-md border border-warning/40 bg-warning-tint px-4 py-3 text-small-body text-warning"
             data-testid="bridge-restart-required"
           >
             Pending runtime changes require a restart or enable action before the provider picks
@@ -756,10 +754,10 @@ export function BridgeDetailPanel({
 
         <BridgeEventStreamSection isRoutesLoading={isRoutesLoading} routes={routes} />
 
-        <div className="flex items-center justify-between gap-3 rounded-md border border-(--line) bg-(--canvas-soft) px-5 py-4">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-canvas-soft px-5 py-4">
           <div className="space-y-1">
-            <Eyebrow className="text-(--muted) block">Test delivery</Eyebrow>
-            <p className="text-small-body text-(--muted)">
+            <Eyebrow className="text-muted block">Test delivery</Eyebrow>
+            <p className="text-small-body text-muted">
               Resolve the outbound target using bridge defaults plus any explicit target override.
             </p>
           </div>

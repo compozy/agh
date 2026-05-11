@@ -43,7 +43,7 @@ function ToggleFiltersDemo({ initial = [] as Filter<boolean>[] }) {
   const [filters, setFilters] = useState<Filter<boolean>[]>(initial);
 
   return (
-    <div className="w-full max-w-2xl rounded-md border border-(--line) p-3">
+    <div className="w-full max-w-2xl rounded-md border border-line p-3">
       <Filters<boolean>
         allowMultiple={false}
         fields={TOGGLE_FIELDS}

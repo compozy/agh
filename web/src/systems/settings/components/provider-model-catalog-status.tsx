@@ -32,7 +32,7 @@ export function ProviderModelCatalogStatus({
 
   if (statusQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-(--subtle)">
+      <div className="flex items-center gap-2 text-xs text-subtle">
         <Spinner className="size-3.5" />
         <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
       </div>
@@ -50,17 +50,17 @@ export function ProviderModelCatalogStatus({
   return (
     <div className="flex flex-col gap-2" data-testid={testId}>
       {queryError ? (
-        <p className="text-xs text-(--danger)" data-testid={`${testId}-error`}>
+        <p className="text-xs text-danger" data-testid={`${testId}-error`}>
           {queryError}
         </p>
       ) : null}
       {sources.length === 0 && !queryError ? (
-        <p className="text-xs text-(--subtle)" data-testid={`${testId}-empty`}>
+        <p className="text-xs text-subtle" data-testid={`${testId}-empty`}>
           No catalog sources reporting yet.
         </p>
       ) : (
         <ItemGroup
-          className="flex flex-col gap-1 font-mono text-eyebrow text-(--muted)"
+          className="flex flex-col gap-1 font-mono text-eyebrow text-muted"
           data-testid={`${testId}-list`}
         >
           {sources.map(source => (
@@ -85,7 +85,7 @@ export function ProviderModelCatalogStatus({
                   </Pill>
                 ) : null}
                 <span
-                  className="text-(--subtle)"
+                  className="text-subtle"
                   data-testid={`${testId}-source-${source.source_id}-rows`}
                 >
                   {formatRowCount(source)}
@@ -96,7 +96,7 @@ export function ProviderModelCatalogStatus({
         </ItemGroup>
       )}
       {refreshError ? (
-        <p className="text-xs text-(--danger)" data-testid={`${testId}-refresh-error`}>
+        <p className="text-xs text-danger" data-testid={`${testId}-refresh-error`}>
           {refreshError}
         </p>
       ) : null}

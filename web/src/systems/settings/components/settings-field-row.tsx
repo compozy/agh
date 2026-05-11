@@ -83,7 +83,7 @@ function SettingsFieldRow({
   let renderedLabel: ReactNode = (
     <FieldLabel
       id={labelId}
-      className="text-sm font-medium text-(--fg)"
+      className="text-sm font-medium text-fg"
       data-testid={testId ? `${testId}-label` : undefined}
     >
       {label}
@@ -117,7 +117,7 @@ function SettingsFieldRow({
           <FieldLabel
             htmlFor={controlId}
             id={labelId}
-            className="text-sm font-medium text-(--fg)"
+            className="text-sm font-medium text-fg"
             data-testid={testId ? `${testId}-label` : undefined}
           >
             {label}
@@ -134,7 +134,7 @@ function SettingsFieldRow({
       orientation="vertical"
       data-variant={variant}
       className={cn(
-        "grid gap-3 border-t border-(--line) pt-5 first:border-t-0 first:pt-0",
+        "grid gap-3 border-t border-line pt-5 first:border-t-0 first:pt-0",
         !isModal && "lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
         className
       )}
@@ -144,13 +144,13 @@ function SettingsFieldRow({
         <div className="flex flex-wrap items-center gap-2">
           {renderedLabel}
           {hint && isModal ? (
-            <Eyebrow className="text-(--muted)" data-testid={testId ? `${testId}-hint` : undefined}>
+            <Eyebrow className="text-muted" data-testid={testId ? `${testId}-hint` : undefined}>
               {hint}
             </Eyebrow>
           ) : null}
           {hint && !isModal ? (
             <Eyebrow
-              className="text-(--muted) lg:hidden"
+              className="text-muted lg:hidden"
               data-testid={testId ? `${testId}-hint` : undefined}
             >
               {hint}
@@ -158,15 +158,12 @@ function SettingsFieldRow({
           ) : null}
         </div>
         {description ? (
-          <FieldDescription
-            id={descriptionId}
-            className="max-w-136 text-xs leading-5 text-(--muted)"
-          >
+          <FieldDescription id={descriptionId} className="max-w-136 text-xs leading-5 text-muted">
             {description}
           </FieldDescription>
         ) : null}
         {error ? (
-          <FieldError id={errorId} className="text-xs text-(--danger)">
+          <FieldError id={errorId} className="text-xs text-danger">
             {error}
           </FieldError>
         ) : null}
@@ -180,7 +177,7 @@ function SettingsFieldRow({
         >
           {renderedControl}
           {hint && !isModal ? (
-            <Eyebrow className="text-(--muted) hidden lg:inline">{hint}</Eyebrow>
+            <Eyebrow className="text-muted hidden lg:inline">{hint}</Eyebrow>
           ) : null}
         </div>
       </div>

@@ -153,7 +153,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
       data-slot="topbar"
       data-mode={back ? "detail" : "default"}
       className={cn(
-        "flex h-12 min-w-0 shrink-0 items-center gap-3 border-b border-(--line) bg-(--canvas) px-4",
+        "flex h-12 min-w-0 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4",
         className
       )}
       {...props}
@@ -161,7 +161,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
       {back ? (
         <button
           aria-label={backLabel}
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded-(--radius-sm) text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
           data-slot="topbar-back"
           data-testid="topbar-back"
           onClick={back}
@@ -175,7 +175,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           <span
             aria-hidden="true"
             data-slot="topbar-icon"
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
           >
             <Icon className="size-3.5" />
           </span>
@@ -184,7 +184,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           ref={titleRef}
           tabIndex={-1}
           data-testid="topbar-title-text"
-          className="truncate text-[14px] font-medium tracking-tight text-(--fg-strong) outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+          className="truncate text-[14px] font-medium tracking-tight text-fg-strong outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
         >
           {renderedTitle}
         </h1>
@@ -192,7 +192,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           <span
             data-slot="topbar-count"
             data-testid="topbar-count"
-            className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-(--radius-mono-badge) bg-(--canvas-soft) px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-(--muted)"
+            className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
           >
             {resolvedCount}
           </span>
@@ -201,7 +201,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           <div
             data-slot="topbar-meta"
             data-testid="topbar-meta"
-            className="flex min-w-0 items-center gap-2 text-(--muted)"
+            className="flex min-w-0 items-center gap-2 text-muted"
           >
             {slot.meta}
           </div>

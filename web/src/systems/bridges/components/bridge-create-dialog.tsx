@@ -10,6 +10,7 @@ import {
 import { useId, useMemo, useState } from "react";
 
 import {
+  bridgeKindIconRegistry,
   Button,
   CatalogCard,
   Dialog,
@@ -23,6 +24,7 @@ import {
   FormSection,
   Input,
   KindChip,
+  KindIcon,
   NativeSelect,
   NativeSelectOption,
   Pill,
@@ -128,19 +130,19 @@ function renderBridgeCreateDialog({
       >
         <header
           data-slot="bridge-wizard-head"
-          className="flex items-center justify-between gap-3 border-b border-(--line) px-[18px] py-[13px]"
+          className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-[13px]"
         >
           <DialogTitle
             id={titleId}
             data-testid="bridge-wizard-title"
-            className="text-modal-title tracking-modal-title text-(--fg-strong)"
+            className="text-modal-title tracking-modal-title text-fg-strong"
             style={{ fontWeight: 510 }}
           >
             Create bridge
           </DialogTitle>
           {selectedProvider ? (
             <span
-              className="font-mono text-[12px] text-(--muted)"
+              className="font-mono text-[12px] text-muted"
               data-testid="bridge-wizard-active-provider"
             >
               {selectedProvider.display_name}
@@ -150,7 +152,7 @@ function renderBridgeCreateDialog({
 
         <nav
           aria-label="Bridge create steps"
-          className="flex items-center gap-2 border-b border-(--line) bg-(--canvas-tint) px-[18px] py-[10px] text-eyebrow"
+          className="flex items-center gap-2 border-b border-line bg-canvas-tint px-[18px] py-[10px] text-eyebrow"
           data-testid="bridge-wizard-stepper"
         >
           {WIZARD_STEPS.map((item, index) => {
@@ -173,7 +175,7 @@ function renderBridgeCreateDialog({
                     <span className="font-mono text-eyebrow">{index + 1}</span>
                   )}
                 </span>
-                <Eyebrow className={status === "current" ? "text-(--fg-strong)" : "text-(--muted)"}>
+                <Eyebrow className={status === "current" ? "text-fg-strong" : "text-muted"}>
                   {item.label}
                 </Eyebrow>
                 {index < WIZARD_STEPS.length - 1 ? (
@@ -182,7 +184,7 @@ function renderBridgeCreateDialog({
                     width={12}
                     height={12}
                     strokeWidth={1.75}
-                    className="ml-1 text-(--faint)"
+                    className="ml-1 text-faint"
                   />
                 ) : null}
               </span>
@@ -232,13 +234,10 @@ function renderBridgeCreateDialog({
         </div>
 
         <footer
-          className="flex flex-wrap items-center gap-3 border-t border-(--line) bg-(--canvas-soft) px-[18px] py-[13px]"
+          className="flex flex-wrap items-center gap-3 border-t border-line bg-canvas-soft px-[18px] py-[13px]"
           data-slot="bridge-wizard-footer"
         >
-          <span
-            className="font-mono text-[12px] text-(--muted)"
-            data-testid="bridge-wizard-progress"
-          >
+          <span className="font-mono text-[12px] text-muted" data-testid="bridge-wizard-progress">
             Step {currentIndex + 1} of {WIZARD_STEPS.length}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -307,10 +306,10 @@ function stepStatus(index: number, currentIndex: number): "complete" | "current"
 
 function cnStepBadge(status: "complete" | "current" | "pending"): string {
   const base =
-    "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-(--fg-strong) transition-colors duration-(--dur) ease-(--ease)";
-  if (status === "complete") return `${base} bg-(--success-tint) text-(--success)`;
-  if (status === "current") return `${base} bg-(--surface-glaze) text-(--fg-strong)`;
-  return `${base} bg-(--canvas-soft) text-(--subtle)`;
+    "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-fg-strong transition-colors duration-base ease-out";
+  if (status === "complete") return `${base} bg-success-tint text-success`;
+  if (status === "current") return `${base} bg-surface-glaze text-fg-strong`;
+  return `${base} bg-canvas-soft text-subtle`;
 }
 
 interface ProviderStepProps {
@@ -329,7 +328,7 @@ function ProviderStep({ providers, selectedProviderKey, onSelect }: ProviderStep
     >
       {providers.length === 0 ? (
         <div
-          className="rounded-(--radius) bg-(--canvas-tint) px-5 py-8 text-center text-small-body leading-6 text-(--muted)"
+          className="rounded bg-canvas-tint px-5 py-8 text-center text-small-body leading-6 text-muted"
           data-testid="bridge-provider-empty"
         >
           No bridge providers are currently available. Install or enable a bridge adapter extension
@@ -390,7 +389,14 @@ function BridgeProviderCatalogCard({
       }
     >
       <div className="flex items-start gap-3">
-        <CatalogCard.Logo size="lg" />
+        <CatalogCard.Logo size="lg">
+          <KindIcon
+            kind={provider.platform}
+            registry={bridgeKindIconRegistry}
+            size="md"
+            tone="default"
+          />
+        </CatalogCard.Logo>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <CatalogCard.Title className="min-w-0">{provider.display_name}</CatalogCard.Title>
@@ -400,7 +406,7 @@ function BridgeProviderCatalogCard({
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <KindChip kind={provider.platform} />
-            <Eyebrow className="text-(--muted)">{provider.extension_name}</Eyebrow>
+            <Eyebrow className="text-muted">{provider.extension_name}</Eyebrow>
           </div>
         </div>
       </div>
@@ -515,24 +521,21 @@ function RuntimeStep({
             {provider.secret_slots?.length ? (
               <ul className="mt-1 flex flex-col gap-1.5" data-testid="bridge-provider-secret-slots">
                 {provider.secret_slots.map(slot => (
-                  <li
-                    className="rounded-(--radius-xs) bg-(--canvas-tint) px-3 py-2"
-                    key={slot.name}
-                  >
+                  <li className="rounded-xs bg-canvas-tint px-3 py-2" key={slot.name}>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <Eyebrow className="text-(--muted)">{slot.name}</Eyebrow>
+                      <Eyebrow className="text-muted">{slot.name}</Eyebrow>
                       <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
                         {slot.required === false ? "OPTIONAL" : "REQUIRED"}
                       </Pill>
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-(--muted)">
+                    <p className="mt-1 text-xs leading-relaxed text-muted">
                       {describeBridgeSecretSlot(slot)}
                     </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-small-body leading-relaxed text-(--muted)">
+              <p className="text-small-body leading-relaxed text-muted">
                 This provider does not declare secret slot requirements in its manifest.
               </p>
             )}
@@ -586,14 +589,11 @@ function RuntimeStep({
             value={draft.providerConfigText}
           />
           {providerConfigError ? (
-            <p
-              className="text-small-body text-(--danger)"
-              data-testid="bridge-provider-config-error"
-            >
+            <p className="text-small-body text-danger" data-testid="bridge-provider-config-error">
               {providerConfigError}
             </p>
           ) : (
-            <p className="text-xs leading-relaxed text-(--subtle)">Hint: {configSchema}</p>
+            <p className="text-xs leading-relaxed text-subtle">Hint: {configSchema}</p>
           )}
         </Field>
       </FormSection>
@@ -608,7 +608,7 @@ function RuntimeMissingProviderState() {
       icon={Plug}
       title="Provider runtime"
     >
-      <p className="text-small-body text-(--muted)">
+      <p className="text-small-body text-muted">
         Select a provider before configuring runtime details.
       </p>
     </FormSection>
@@ -623,12 +623,12 @@ interface RuntimeMetadataTileProps {
 
 function RuntimeMetadataTile({ label, right, children }: RuntimeMetadataTileProps) {
   return (
-    <div className="flex flex-col gap-1 rounded-(--radius) bg-(--canvas-tint) px-3 py-2.5">
+    <div className="flex flex-col gap-1 rounded bg-canvas-tint px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
-        <Eyebrow className="text-(--muted)">{label}</Eyebrow>
+        <Eyebrow className="text-muted">{label}</Eyebrow>
         {right ?? null}
       </div>
-      <div className="text-small-body text-(--fg)">{children}</div>
+      <div className="text-small-body text-fg">{children}</div>
     </div>
   );
 }

@@ -105,7 +105,7 @@ function NetworkShellHarness({
           threadCount={networkThreadsFixture.length}
           unpinnedChannels={unpinned}
         >
-          <div className="px-6 py-4 text-small-body text-(--muted)">
+          <div className="px-6 py-4 text-small-body text-muted">
             Tab content placeholder for message rows.
           </div>
         </NetworkShell>

@@ -12,6 +12,6 @@ describe("provider-card source", () => {
   });
 
   it("Should hover on the canvas-soft surface tone", () => {
-    expect(source).toMatch(/hover:bg-\(--hover\)/);
+    expect(source).toMatch(/hover:bg-hover\b/);
   });
 });

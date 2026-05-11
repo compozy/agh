@@ -112,7 +112,7 @@ function DetailInspector({
         data-mode="inline"
         aria-label={typeof title === "string" ? title : undefined}
         className={cn(
-          "flex h-full min-h-0 shrink-0 flex-col border-l border-(--line) bg-(--canvas-soft)",
+          "flex h-full min-h-0 shrink-0 flex-col border-l border-line bg-canvas-soft",
           className
         )}
         style={{ width: DETAIL_INSPECTOR_INLINE_WIDTH }}
@@ -120,7 +120,7 @@ function DetailInspector({
         {title ? (
           <header
             data-slot="detail-inspector-header"
-            className="flex shrink-0 items-center gap-2 border-b border-(--line) px-4 py-3 text-[13px] font-medium text-(--fg-strong)"
+            className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3 text-[13px] font-medium text-fg-strong"
           >
             {title}
           </header>

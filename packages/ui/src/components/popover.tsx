@@ -105,7 +105,7 @@ function PopoverContent({
                 />
               }
               className={cn(
-                "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-(--canvas-soft) p-2.5 text-[13px] text-(--fg) shadow-[0_0_0_1px_var(--line-soft)] outline-hidden",
+                "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-canvas-soft p-2.5 text-[13px] text-fg shadow-[0_0_0_1px_var(--line-soft)] outline-hidden",
                 className
               )}
               {...props}
@@ -133,7 +133,7 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   return (
     <PopoverPrimitive.Title
       data-slot="popover-title"
-      className={cn("font-medium tracking-eyebrow text-(--fg-strong)", className)}
+      className={cn("font-medium tracking-eyebrow text-fg-strong", className)}
       {...props}
     />
   );
@@ -143,7 +143,7 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
   return (
     <PopoverPrimitive.Description
       data-slot="popover-description"
-      className={cn("text-(--muted)", className)}
+      className={cn("text-muted", className)}
       {...props}
     />
   );

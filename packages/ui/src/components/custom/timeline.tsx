@@ -14,7 +14,7 @@ function Timeline({ ariaLabel, className, children, ...props }: TimelineProps) {
       data-slot="timeline"
       aria-label={ariaLabel}
       className={cn(
-        "relative flex flex-col before:absolute before:top-2 before:bottom-2 before:left-2 before:w-px before:bg-(--line)",
+        "relative flex flex-col before:absolute before:top-2 before:bottom-2 before:left-2 before:w-px before:bg-line",
         className
       )}
       {...props}

@@ -55,8 +55,8 @@ export interface RunCardProps extends Omit<React.ComponentProps<"section">, "tit
 }
 
 const WARNING_TONE_CLASS: Record<RunCardWarningTone, string> = {
-  warning: "bg-(--warning-tint) text-(--warning)",
-  danger: "bg-(--danger-tint) text-(--danger)",
+  warning: "bg-warning-tint text-warning",
+  danger: "bg-danger-tint text-danger",
 };
 
 const PLACEHOLDER = "—";
@@ -80,24 +80,24 @@ function RunCard({
     <section
       data-slot="run-card"
       data-status={status}
-      className={cn("flex flex-col gap-3 rounded-lg bg-(--canvas-soft) px-[18px] py-4", className)}
+      className={cn("flex flex-col gap-3 rounded-lg bg-canvas-soft px-[18px] py-4", className)}
       {...props}
     >
       <header
         data-slot="run-card-pills"
-        className="flex flex-wrap items-center gap-2 text-[12px] text-(--muted)"
+        className="flex flex-wrap items-center gap-2 text-[12px] text-muted"
       >
         <Pill data-slot="run-card-status" tone={tone}>
           {statusLabel}
         </Pill>
         <MonoId data-slot="run-card-id" value={runId} />
         {sessionInfo ? (
-          <span data-slot="run-card-session-info" className="min-w-0 truncate text-(--muted)">
+          <span data-slot="run-card-session-info" className="min-w-0 truncate text-muted">
             {sessionInfo}
           </span>
         ) : null}
         {typeof attempt === "number" ? (
-          <span data-slot="run-card-attempt" className="text-(--muted) tabular-nums">
+          <span data-slot="run-card-attempt" className="text-muted tabular-nums">
             attempt {attempt}
           </span>
         ) : null}
@@ -106,10 +106,7 @@ function RunCard({
         <div
           data-slot="run-card-warning"
           data-tone={warning.tone}
-          className={cn(
-            "rounded-(--radius) px-3 py-2 text-[12.5px]",
-            WARNING_TONE_CLASS[warning.tone]
-          )}
+          className={cn("rounded px-3 py-2 text-[12.5px]", WARNING_TONE_CLASS[warning.tone])}
           role="status"
         >
           {warning.message}
@@ -144,13 +141,10 @@ function RunCardStat({
 }) {
   return (
     <div data-slot={`run-card-${slot}`} className="flex min-w-0 flex-col gap-1">
-      <Eyebrow data-slot={`run-card-${slot}-label`} className="text-(--muted)">
+      <Eyebrow data-slot={`run-card-${slot}-label`} className="text-muted">
         {label}
       </Eyebrow>
-      <span
-        data-slot={`run-card-${slot}-value`}
-        className="min-w-0 truncate text-[12.5px] text-(--fg)"
-      >
+      <span data-slot={`run-card-${slot}-value`} className="min-w-0 truncate text-[12.5px] text-fg">
         {value}
       </span>
     </div>

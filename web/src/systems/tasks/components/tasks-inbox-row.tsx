@@ -34,10 +34,10 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
  * consumer); the rail tone is owned by the group, not the unread flag.
  */
 const RAIL_CLASS: Record<InboxGroupId, string> = {
-  needs_review: "bg-(--warning)",
-  blocked: "bg-(--danger)",
+  needs_review: "bg-warning",
+  blocked: "bg-danger",
   stuck: "bg-transparent shadow-[inset_0_0_0_1px_var(--warning)]",
-  mentions: "bg-(--accent)",
+  mentions: "bg-accent",
   updates: "bg-transparent shadow-[inset_0_0_0_1px_var(--faint)]",
 };
 
@@ -78,10 +78,10 @@ function TasksInboxRow({
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "grid min-h-[44px] items-stretch gap-[12px] border-b border-(--line-soft) py-3 pr-[14px] text-left transition-colors duration-(--dur) ease-(--ease)",
+        "grid min-h-[44px] items-stretch gap-[12px] border-b border-line-soft py-3 pr-[14px] text-left transition-colors duration-base ease-out",
         trailing ? "grid-cols-[3px_minmax(0,1fr)_auto]" : "grid-cols-[3px_minmax(0,1fr)]",
         clickable &&
-          "cursor-pointer hover:bg-(--hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong) focus-visible:ring-inset",
+          "cursor-pointer hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
         className
       )}
       {...props}
@@ -101,7 +101,7 @@ function TasksInboxRow({
         </div>
         {detail !== undefined ? (
           <div
-            className="flex min-w-0 flex-col gap-1 text-[11.5px] tracking-eyebrow text-(--muted)"
+            className="flex min-w-0 flex-col gap-1 text-[11.5px] tracking-eyebrow text-muted"
             data-slot="tasks-inbox-row-detail"
           >
             {detail}

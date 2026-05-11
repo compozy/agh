@@ -24,22 +24,22 @@ type Story = StoryObj<typeof meta>;
 export const SizeRamp: Story = {
   args: { as: Sparkles },
   render: () => (
-    <div className="flex items-end gap-4 text-(--fg-strong)">
+    <div className="flex items-end gap-4 text-fg-strong">
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="xs" />
-        <span className="text-[10px] text-(--muted)">xs · 11</span>
+        <span className="text-[10px] text-muted">xs · 11</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="sm" />
-        <span className="text-[10px] text-(--muted)">sm · 12</span>
+        <span className="text-[10px] text-muted">sm · 12</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} />
-        <span className="text-[10px] text-(--muted)">default · 14</span>
+        <span className="text-[10px] text-muted">default · 14</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="lg" />
-        <span className="text-[10px] text-(--muted)">lg · 16</span>
+        <span className="text-[10px] text-muted">lg · 16</span>
       </div>
     </div>
   ),
@@ -50,10 +50,10 @@ export const Tones: Story = {
   args: { as: Sparkles },
   render: () => (
     <div className="flex items-center gap-4">
-      <Icon as={Activity} className="text-(--accent)" />
-      <Icon as={AlertTriangle} className="text-(--warning)" />
-      <Icon as={CircleAlert} className="text-(--danger)" />
-      <Icon as={Sparkles} className="text-(--success)" />
+      <Icon as={Activity} className="text-accent" />
+      <Icon as={AlertTriangle} className="text-warning" />
+      <Icon as={CircleAlert} className="text-danger" />
+      <Icon as={Sparkles} className="text-success" />
     </div>
   ),
 };
@@ -62,7 +62,7 @@ export const Tones: Story = {
 export const StrokeOverride: Story = {
   args: { as: Sparkles },
   render: () => (
-    <div className="flex items-center gap-4 text-(--fg-strong)">
+    <div className="flex items-center gap-4 text-fg-strong">
       <Icon as={Sparkles} strokeWidth={1.25} />
       <Icon as={Sparkles} />
       <Icon as={Sparkles} strokeWidth={2.5} />

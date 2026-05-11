@@ -153,10 +153,10 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
         </Pill>
       }
     >
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-canvas-soft px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-item-title text-(--fg)">{expression}</p>
-          <p className="mt-1 text-xs text-(--muted)">{describeSchedule(job.schedule)}</p>
+          <p className="font-mono text-item-title text-fg">{expression}</p>
+          <p className="mt-1 text-xs text-muted">{describeSchedule(job.schedule)}</p>
         </div>
       </div>
     </Section>
@@ -218,37 +218,35 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
       }
     >
       <div
-        className="grid gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 md:grid-cols-2"
+        className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2"
         data-testid="automation-job-scheduler"
       >
         <div>
-          <Eyebrow className="text-(--muted)">Next cursor</Eyebrow>
-          <p className="mt-1 text-small-body text-(--muted)">
-            {formatDateTime(scheduler.next_run_at)}
-          </p>
+          <Eyebrow className="text-muted">Next cursor</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">{formatDateTime(scheduler.next_run_at)}</p>
         </div>
         <div>
-          <Eyebrow className="text-(--muted)">Last scheduled</Eyebrow>
-          <p className="mt-1 text-small-body text-(--muted)">
+          <Eyebrow className="text-muted">Last scheduled</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">
             {formatDateTime(scheduler.last_scheduled_at)}
           </p>
         </div>
         <div>
-          <Eyebrow className="text-(--muted)">Fire ID</Eyebrow>
-          <p className="mt-1 break-all font-mono text-xs text-(--muted)">
+          <Eyebrow className="text-muted">Fire ID</Eyebrow>
+          <p className="mt-1 break-all font-mono text-xs text-muted">
             {scheduler.last_fire_id || "--"}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Eyebrow className="text-(--muted)">Catch-up</Eyebrow>
-            <p className="mt-1 font-mono text-xs text-(--muted)">
+            <Eyebrow className="text-muted">Catch-up</Eyebrow>
+            <p className="mt-1 font-mono text-xs text-muted">
               {scheduler.catch_up_policy ?? "skip_missed"}
             </p>
           </div>
           <div>
-            <Eyebrow className="text-(--muted)">Misfires</Eyebrow>
-            <p className="mt-1 font-mono text-xs text-(--muted)">{scheduler.misfire_count ?? 0}</p>
+            <Eyebrow className="text-muted">Misfires</Eyebrow>
+            <p className="mt-1 font-mono text-xs text-muted">{scheduler.misfire_count ?? 0}</p>
           </div>
         </div>
       </div>
@@ -261,17 +259,17 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
 
   return (
     <Section label="Hook" right={<KindChip kind={trigger.event} />}>
-      <div className="space-y-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
+      <div className="space-y-3 rounded-md border border-line bg-canvas-soft px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Eyebrow className="text-(--muted)">Event</Eyebrow>
+          <Eyebrow className="text-muted">Event</Eyebrow>
           <Pill mono tone="info">
             {trigger.event}
           </Pill>
         </div>
         <div className="space-y-1.5">
-          <Eyebrow className="text-(--muted)">Filters</Eyebrow>
+          <Eyebrow className="text-muted">Filters</Eyebrow>
           {filters.length === 0 ? (
-            <p className="text-xs text-(--subtle)">No filters</p>
+            <p className="text-xs text-subtle">No filters</p>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {filters.map(([key, value]) => (
@@ -285,22 +283,20 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         {trigger.event === "webhook" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <Eyebrow className="text-(--muted)">Endpoint</Eyebrow>
-              <p className="mt-1 font-mono text-small-body text-(--fg)">
+              <Eyebrow className="text-muted">Endpoint</Eyebrow>
+              <p className="mt-1 font-mono text-small-body text-fg">
                 {trigger.endpoint_slug ?? "--"}
               </p>
             </div>
             <div>
-              <Eyebrow className="text-(--muted)">Webhook id</Eyebrow>
-              <p className="mt-1 font-mono text-small-body text-(--fg)">
-                {trigger.webhook_id ?? "--"}
-              </p>
+              <Eyebrow className="text-muted">Webhook id</Eyebrow>
+              <p className="mt-1 font-mono text-small-body text-fg">{trigger.webhook_id ?? "--"}</p>
             </div>
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <Bot className="size-3.5 text-(--subtle)" />
-          <span className="text-small-body text-(--muted)">Dispatches to</span>
+          <Bot className="size-3.5 text-subtle" />
+          <span className="text-small-body text-muted">Dispatches to</span>
           <Pill mono tone="neutral">
             {trigger.agent_name}
           </Pill>
@@ -330,16 +326,14 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
 function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }) {
   return (
     <Section label="Governance">
-      <div className="grid gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 md:grid-cols-2">
+      <div className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2">
         <div>
-          <Eyebrow className="text-(--muted)">Retry</Eyebrow>
-          <p className="mt-1 text-small-body text-(--muted)">{describeRetry(item.retry)}</p>
+          <Eyebrow className="text-muted">Retry</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">{describeRetry(item.retry)}</p>
         </div>
         <div>
-          <Eyebrow className="text-(--muted)">Fire limit</Eyebrow>
-          <p className="mt-1 text-small-body text-(--muted)">
-            {describeFireLimit(item.fire_limit)}
-          </p>
+          <Eyebrow className="text-muted">Fire limit</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">{describeFireLimit(item.fire_limit)}</p>
         </div>
       </div>
     </Section>
@@ -367,7 +361,7 @@ export function AutomationDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="automation-detail-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -489,7 +483,7 @@ export function AutomationDetailPanel({
               {automationSourceLabel(item.source)}
             </Pill>
             {item.source === "config" ? (
-              <Lock aria-hidden="true" className="size-3.5 text-(--subtle)" />
+              <Lock aria-hidden="true" className="size-3.5 text-subtle" />
             ) : null}
           </>
         }
@@ -498,8 +492,8 @@ export function AutomationDetailPanel({
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {!isDynamic ? (
-          <div className="flex items-start gap-2 rounded-md border border-dashed border-(--line) px-4 py-3 text-xs text-(--muted)">
-            <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-(--subtle)" />
+          <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
+            <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
             <p>
               This automation is defined in configuration files. Only the enabled state can be
               toggled from the UI.

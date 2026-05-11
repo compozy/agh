@@ -101,18 +101,18 @@ function ChatToolSection({
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen(value => !value)}
-        className="inline-flex w-full items-center gap-1.5 rounded-(--radius-xs) px-1 py-1 text-left transition-colors duration-(--dur) ease-(--ease) hover:bg-(--hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+        className="inline-flex w-full items-center gap-1.5 rounded-xs px-1 py-1 text-left transition-colors duration-base ease-out hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
       >
         <ChevronRight
           width={12}
           height={12}
           strokeWidth={1.75}
           className={cn(
-            "shrink-0 text-(--muted) transition-transform duration-(--dur) ease-(--ease)",
+            "shrink-0 text-muted transition-transform duration-base ease-out",
             open && "rotate-90"
           )}
         />
-        <Eyebrow className="text-(--muted)">{label}</Eyebrow>
+        <Eyebrow className="text-muted">{label}</Eyebrow>
       </button>
       {open ? (
         <div id={id} data-slot={`${slot}-body`} className="mt-1 pl-[18px]">
@@ -130,7 +130,7 @@ function ChatToolSectionBody({ section }: { section: ChatToolCardSection }) {
   const source = section.source ?? "";
   if (section.format === "code") {
     return (
-      <pre className="overflow-x-auto rounded-(--radius) bg-(--canvas) p-3 font-mono text-[12px] text-(--fg)">
+      <pre className="overflow-x-auto rounded bg-canvas p-3 font-mono text-[12px] text-fg">
         <code>{source}</code>
       </pre>
     );
@@ -138,7 +138,7 @@ function ChatToolSectionBody({ section }: { section: ChatToolCardSection }) {
   return (
     <div
       data-slot="chat-tool-card-markdown"
-      className="text-(length:--text-body) leading-[1.6] text-(--fg) [&_code]:font-mono [&_code]:text-[12px] [&_p]:my-2"
+      className="text-(length:--text-body) leading-[1.6] text-fg [&_code]:font-mono [&_code]:text-[12px] [&_p]:my-2"
     >
       <Streamdown {...STREAMDOWN_SAFE_CONFIG}>{source}</Streamdown>
     </div>
@@ -171,7 +171,7 @@ function ChatToolCard({
       data-status={status}
       className={cn(
         "flex flex-col gap-2 rounded-lg px-3 py-2.5",
-        failureTint ? "bg-(--danger-tint)" : "bg-(--canvas-soft)",
+        failureTint ? "bg-danger-tint" : "bg-canvas-soft",
         className
       )}
       {...props}
@@ -186,7 +186,7 @@ function ChatToolCard({
             data-slot="chat-tool-card-time"
             iso={timestamp}
             mode="relative"
-            className="text-[12px] text-(--muted)"
+            className="text-[12px] text-muted"
           />
         ) : null}
         {actions ? (
@@ -196,7 +196,7 @@ function ChatToolCard({
         ) : null}
       </header>
       {errorMessage ? (
-        <p data-slot="chat-tool-card-error" className="text-[12.5px] text-(--danger)">
+        <p data-slot="chat-tool-card-error" className="text-[12.5px] text-danger">
           {errorMessage}
         </p>
       ) : null}

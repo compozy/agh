@@ -48,7 +48,7 @@ export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: Wo
   const tone = STATE_TONE[state] ?? "neutral";
   const stateClassName = cn(
     state === "needs_input" && "motion-safe:animate-pulse",
-    state === "canceled" && "bg-transparent text-(--subtle)"
+    state === "canceled" && "bg-transparent text-subtle"
   );
 
   if (onClick) {

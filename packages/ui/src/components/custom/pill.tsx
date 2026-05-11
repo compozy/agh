@@ -30,16 +30,16 @@ type PillContextValue = {
 const PillContext = React.createContext<PillContextValue | null>(null);
 
 const pillVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-xs) transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xs transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       tone: {
-        neutral: "bg-(--neutral-tint) text-(--muted)",
-        accent: "bg-(--accent-tint) text-(--accent)",
-        success: "bg-(--success-tint) text-(--success)",
-        warning: "bg-(--warning-tint) text-(--warning)",
-        danger: "bg-(--danger-tint) text-(--danger)",
-        info: "bg-(--info-tint) text-(--info)",
+        neutral: "bg-neutral-tint text-muted",
+        accent: "bg-accent-tint text-accent",
+        success: "bg-success-tint text-success",
+        warning: "bg-warning-tint text-warning",
+        danger: "bg-danger-tint text-danger",
+        info: "bg-info-tint text-info",
       },
       size: {
         xs: "h-[17px] px-1.5 leading-none",
@@ -60,15 +60,15 @@ const pillVariants = cva(
       { mono: false, size: "xs", className: "text-[11px] font-medium tracking-eyebrow" },
       { mono: false, size: "sm", className: "text-[11px] font-medium tracking-eyebrow" },
       { mono: false, size: "md", className: "text-[11px] font-medium tracking-eyebrow" },
-      { solid: true, tone: "neutral", className: "bg-(--muted) text-(--canvas)" },
-      { solid: true, tone: "accent", className: "bg-(--accent) text-(--accent-ink)" },
-      { solid: true, tone: "success", className: "bg-(--success) text-(--canvas)" },
-      { solid: true, tone: "warning", className: "bg-(--warning) text-(--canvas)" },
-      { solid: true, tone: "danger", className: "bg-(--danger) text-(--canvas)" },
-      { solid: true, tone: "info", className: "bg-(--info) text-(--canvas)" },
+      { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
+      { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
+      { solid: true, tone: "success", className: "bg-success text-canvas" },
+      { solid: true, tone: "warning", className: "bg-warning text-canvas" },
+      { solid: true, tone: "danger", className: "bg-danger text-canvas" },
+      { solid: true, tone: "info", className: "bg-info text-canvas" },
       {
         active: true,
-        className: "bg-(--elevated) text-(--fg-strong)",
+        className: "bg-elevated text-fg-strong",
       },
     ],
     defaultVariants: {
@@ -200,7 +200,7 @@ function PillLink({
       tone={tone}
       size={size}
       mono={mono}
-      className={cn("hover:border-(--accent) hover:text-(--accent)", className)}
+      className={cn("hover:border-accent hover:text-accent", className)}
       render={render ?? <a href={href ?? "#"} />}
       {...props}
     >

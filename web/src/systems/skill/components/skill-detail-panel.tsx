@@ -70,11 +70,11 @@ function SkillContentSection({
   if (isLoading) {
     return (
       <Card
-        className="flex-row items-center px-4 py-3 text-small-body text-(--muted)"
+        className="flex-row items-center px-4 py-3 text-small-body text-muted"
         data-testid="content-loading"
         size="sm"
       >
-        <Spinner aria-hidden="true" className="size-4 text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-4 text-subtle" />
         Loading full skill content…
       </Card>
     );
@@ -82,7 +82,7 @@ function SkillContentSection({
   if (error) {
     return (
       <Card className="px-4 py-3" data-testid="content-error" size="sm">
-        <p className="text-small-body text-(--danger)">
+        <p className="text-small-body text-danger">
           {error.message ?? "Failed to load full content."}
         </p>
         <Button
@@ -99,7 +99,7 @@ function SkillContentSection({
   }
   return (
     <Card className="px-4 py-3" data-testid="content-empty" size="sm">
-      <p className="text-small-body leading-relaxed text-(--muted)">
+      <p className="text-small-body leading-relaxed text-muted">
         Full skill instructions are loaded on demand.
       </p>
       <div>
@@ -164,7 +164,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--line)"
+          className="overflow-hidden rounded-lg border border-line"
           data-testid="skill-recent-calls-table"
         >
           <Table>
@@ -188,8 +188,8 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                       variant={call.status === "pending" ? "ring" : "solid"}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-(--muted)">{call.label}</TableCell>
-                  <TableCell className="text-right font-mono text-eyebrow text-(--subtle)">
+                  <TableCell className="font-mono text-xs text-muted">{call.label}</TableCell>
+                  <TableCell className="text-right font-mono text-eyebrow text-subtle">
                     {call.timestamp ? <Time iso={call.timestamp} /> : "--"}
                   </TableCell>
                 </TableRow>
@@ -221,7 +221,7 @@ function SkillDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="skill-detail-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }
@@ -287,7 +287,7 @@ function SkillDetailPanel({
         }
         actions={
           <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
-            <Eyebrow className="text-(--muted)" id="skill-enabled-label">
+            <Eyebrow className="text-muted" id="skill-enabled-label">
               {skill.enabled ? "Enabled" : "Disabled"}
             </Eyebrow>
             <Switch
@@ -304,8 +304,8 @@ function SkillDetailPanel({
       <div className="flex flex-col gap-6 px-6 py-5">
         <Section label="Overview">
           <div className="flex flex-col gap-3">
-            <p className="text-small-body leading-relaxed text-(--muted)">{skill.description}</p>
-            <span className="truncate font-mono text-eyebrow text-(--subtle)">{skill.dir}</span>
+            <p className="text-small-body leading-relaxed text-muted">{skill.description}</p>
+            <span className="truncate font-mono text-eyebrow text-subtle">{skill.dir}</span>
             <SkillContentSection
               content={content}
               error={contentError}

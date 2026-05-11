@@ -30,7 +30,7 @@ interface SessionThreadProps {
 
 function SessionTextPart({ text }: { text: string }) {
   return (
-    <div className="text-sm leading-7 text-(--fg)">
+    <div className="text-sm leading-7 text-fg">
       <MessageMarkdown content={text} />
     </div>
   );
@@ -46,7 +46,7 @@ function SessionMessageEmpty({ status }: { status: { type: string } }) {
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm text-(--subtle)">
+    <div className="flex items-center gap-2 text-sm text-subtle">
       <Spinner />
       <span>Thinking…</span>
     </div>
@@ -59,7 +59,7 @@ function UserMessage() {
       <div
         className={cn(
           "max-w-[min(80%,42rem)] rounded-xl border px-4 py-3",
-          "border-(--line) bg-(--canvas-soft)"
+          "border-line bg-canvas-soft"
         )}
       >
         <MessagePrimitive.Parts
@@ -91,8 +91,8 @@ function AssistantMessage() {
           <div
             className={cn(
               "rounded-md border px-3 py-2 text-sm",
-              "border-(--danger)/30 bg-(--danger)/8",
-              "text-(--danger)"
+              "border-danger/30 bg-danger/8",
+              "text-danger"
             )}
           >
             <MessagePrimitive.Error />
@@ -129,12 +129,12 @@ function SessionComposer({
 
   return (
     <>
-      <div className={cn("border-t px-4 py-3", "border-(--line) bg-(--canvas-soft)")}>
+      <div className={cn("border-t px-4 py-3", "border-line bg-canvas-soft")}>
         <ComposerPrimitive.Root
           className={cn(
             "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
-            "border-(--line) bg-(--canvas-soft)",
-            "focus-within:border-(--accent) transition-colors"
+            "border-line bg-canvas-soft",
+            "focus-within:border-accent transition-colors"
           )}
         >
           <ComposerPrimitive.Input
@@ -147,7 +147,7 @@ function SessionComposer({
             submitMode="enter"
             className={cn(
               "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
-              "text-(--fg) placeholder:text-(--subtle)",
+              "text-fg placeholder:text-subtle",
               "outline-none focus-visible:border-transparent focus-visible:ring-0",
               "dark:bg-transparent"
             )}
@@ -179,8 +179,8 @@ function SessionComposer({
                 onClick={onCancelPrompt}
                 className={cn(
                   "inline-flex h-9 items-center gap-2 rounded-full px-3",
-                  "bg-(--danger)/12 text-(--danger)",
-                  "transition-colors hover:bg-(--danger)/18"
+                  "bg-danger/12 text-danger",
+                  "transition-colors hover:bg-danger/18"
                 )}
               >
                 <Square className="size-3.5 fill-current" />
@@ -191,8 +191,8 @@ function SessionComposer({
                 aria-label="Send message"
                 className={cn(
                   "inline-flex size-9 items-center justify-center rounded-full",
-                  "bg-(--accent) text-(--accent-ink) transition-colors",
-                  "hover:bg-(--accent-hover) disabled:cursor-not-allowed disabled:opacity-50"
+                  "bg-accent text-accent-ink transition-colors",
+                  "hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                 )}
                 data-testid="composer-send-button"
               >
@@ -256,8 +256,8 @@ function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
   return (
     <div className="mx-auto flex size-full max-w-3xl items-center justify-center px-4 py-12">
       <div className="max-w-md text-center">
-        <Eyebrow className="text-(--subtle)">{agentName}</Eyebrow>
-        <p className="mt-2 text-sm text-(--muted)">
+        <Eyebrow className="text-subtle">{agentName}</Eyebrow>
+        <p className="mt-2 text-sm text-muted">
           Start a conversation. The assistant thread replays persisted history and continues live
           over the daemon stream.
         </p>

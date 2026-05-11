@@ -66,7 +66,7 @@ function MetadataListTerm({ className, ...props }: MetadataListTermProps) {
   return (
     <dt
       data-slot="metadata-list-term"
-      className={cn("eyebrow shrink-0 text-(--subtle)", className)}
+      className={cn("eyebrow shrink-0 text-subtle", className)}
       {...props}
     />
   );
@@ -76,7 +76,7 @@ function MetadataListValue({ className, ...props }: MetadataListValueProps) {
   return (
     <dd
       data-slot="metadata-list-value"
-      className={cn("min-w-0 text-small-body text-(--muted)", className)}
+      className={cn("min-w-0 text-small-body text-muted", className)}
       {...props}
     />
   );

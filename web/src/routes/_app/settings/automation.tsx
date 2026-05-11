@@ -79,7 +79,7 @@ function AutomationSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-automation-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -91,8 +91,8 @@ function AutomationSettingsPage() {
         data-testid="settings-page-automation-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load automation settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -150,18 +150,18 @@ function OperationalLinksRow() {
       >
         <Link
           to="/jobs"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-automation-link-jobs"
         >
-          <ExternalLink className="size-3.5 text-(--subtle)" />
+          <ExternalLink className="size-3.5 text-subtle" />
           Open Jobs
         </Link>
         <Link
           to="/triggers"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-automation-link-triggers"
         >
-          <ExternalLink className="size-3.5 text-(--subtle)" />
+          <ExternalLink className="size-3.5 text-subtle" />
           Open Triggers
         </Link>
       </div>
@@ -325,8 +325,8 @@ function LimitsSection({
                 })
               }
             />
-            <Eyebrow className="text-(--muted)">fires</Eyebrow>
-            <span className="text-xs text-(--subtle)">per</span>
+            <Eyebrow className="text-muted">fires</Eyebrow>
+            <span className="text-xs text-subtle">per</span>
             <Input
               className="w-24 font-mono"
               data-testid="settings-page-automation-fire-limit-window-input"

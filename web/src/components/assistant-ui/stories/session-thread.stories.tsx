@@ -27,7 +27,7 @@ const meta: Meta<typeof SessionThread> = {
   },
   decorators: [
     Story => (
-      <div className="flex h-[640px] w-full flex-col bg-background border border-(--line)">
+      <div className="flex h-[640px] w-full flex-col bg-background border border-line">
         <Story />
       </div>
     ),

@@ -72,7 +72,7 @@ export function AutomationOperationsPage({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid={`${titlePrefix}-loading`}
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }

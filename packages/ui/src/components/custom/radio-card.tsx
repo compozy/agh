@@ -56,10 +56,10 @@ function RadioCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-1.5 rounded-(--radius) bg-(--canvas-soft) px-[11px] py-[9px] text-left transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0",
+        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-[11px] py-[9px] text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0",
         selected
-          ? "bg-(--surface-glaze) shadow-[inset_0_0_0_1px_var(--line-strong)]"
-          : "hover:bg-(--elevated)",
+          ? "bg-surface-glaze shadow-[inset_0_0_0_1px_var(--line-strong)]"
+          : "hover:bg-elevated",
         className
       )}
       {...props}
@@ -70,7 +70,7 @@ function RadioCard({
             aria-hidden="true"
             className={cn(
               "inline-flex size-5 shrink-0 items-center justify-center",
-              selected ? "text-(--fg-strong)" : "text-(--muted)"
+              selected ? "text-fg-strong" : "text-muted"
             )}
           >
             <Icon className="size-3.5" />
@@ -80,7 +80,7 @@ function RadioCard({
           data-slot="radio-card-title"
           className={cn(
             "min-w-0 truncate text-[13px] font-medium tracking-eyebrow",
-            selected ? "text-(--fg-strong)" : "text-(--fg)"
+            selected ? "text-fg-strong" : "text-fg"
           )}
         >
           {title}
@@ -92,7 +92,7 @@ function RadioCard({
         ) : null}
       </div>
       {description ? (
-        <p data-slot="radio-card-description" className="text-[12px] text-(--muted)">
+        <p data-slot="radio-card-description" className="text-[12px] text-muted">
           {description}
         </p>
       ) : null}

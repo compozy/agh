@@ -71,13 +71,13 @@ function Metric({
       data-tone={tone}
       data-size={size}
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-lg bg-(--canvas-soft)",
+        "flex min-w-0 flex-col gap-2 rounded-lg bg-canvas-soft",
         SIZE_CONTAINER_CLASS[size],
         className
       )}
       {...props}
     >
-      <Eyebrow data-slot="metric-label" className="block truncate leading-4 text-(--subtle)">
+      <Eyebrow data-slot="metric-label" className="block truncate leading-4 text-subtle">
         {label}
       </Eyebrow>
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
@@ -91,14 +91,14 @@ function Metric({
         {detail !== undefined ? (
           <span
             data-slot="metric-detail"
-            className="shrink-0 truncate font-mono text-eyebrow leading-4 text-(--subtle)"
+            className="shrink-0 truncate font-mono text-eyebrow leading-4 text-subtle"
           >
             {detail}
           </span>
         ) : null}
       </div>
       {subtext !== undefined ? (
-        <p data-slot="metric-subtext" className="truncate text-[13px] leading-5 text-(--muted)">
+        <p data-slot="metric-subtext" className="truncate text-[13px] leading-5 text-muted">
           {subtext}
         </p>
       ) : null}

@@ -111,7 +111,7 @@ function GeneralSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-general-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -123,8 +123,8 @@ function GeneralSettingsPage() {
         data-testid="settings-page-general-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load general settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -215,13 +215,13 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
         />
       }
     >
-      <ExternalLink className="size-3.5 text-(--subtle)" />
+      <ExternalLink className="size-3.5 text-subtle" />
       Release notes
     </Button>
   ) : null;
   const refreshIndicator = update.isFetching ? (
-    <span className="inline-flex items-center gap-1.5 text-xs text-(--muted)">
-      <Spinner className="size-3.5 text-(--subtle)" />
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+      <Spinner className="size-3.5 text-subtle" />
       Checking
     </span>
   ) : null;
@@ -297,9 +297,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           label="Next action"
           description="Exact command or package-manager path for this install"
           control={
-            <span className="max-w-136 font-mono text-xs text-(--fg)">
-              {snapshot.recommendation}
-            </span>
+            <span className="max-w-136 font-mono text-xs text-fg">{snapshot.recommendation}</span>
           }
         />
       ) : null}
@@ -308,7 +306,7 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
           data-testid="settings-page-general-update-last-error"
           label="Last error"
           description="The last update refresh that failed"
-          control={<span className="max-w-136 font-mono text-xs text-(--danger)">{lastError}</span>}
+          control={<span className="max-w-136 font-mono text-xs text-danger">{lastError}</span>}
         />
       ) : null}
     </Section>
@@ -415,7 +413,7 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
           testId: `settings-page-general-permission-${mode}`,
         }))}
       />
-      <p className="text-xs text-(--subtle)">{describePermissionMode(draft.permissions.mode)}</p>
+      <p className="text-xs text-subtle">{describePermissionMode(draft.permissions.mode)}</p>
     </Section>
   );
 }
@@ -455,7 +453,7 @@ function SessionSection({
                 })
               }
             />
-            <Eyebrow className="text-(--muted)">seconds</Eyebrow>
+            <Eyebrow className="text-muted">seconds</Eyebrow>
           </div>
         }
       />

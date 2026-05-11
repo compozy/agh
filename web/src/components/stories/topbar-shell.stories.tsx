@@ -20,7 +20,7 @@ const meta: Meta<typeof TopbarShell> = {
   },
   decorators: [
     Story => (
-      <div className="w-full bg-background border border-(--line)">
+      <div className="w-full bg-background border border-line">
         <Story />
       </div>
     ),
@@ -38,7 +38,7 @@ export const Default: Story = {
   args: {},
   render: () => (
     <TopbarShell>
-      <main className="px-6 py-5 text-[13px] text-(--muted)">
+      <main className="px-6 py-5 text-[13px] text-muted">
         Outlet content. The topbar overhead reads `topbar` route context via TanStack Router; in
         Storybook the route falls back to "Untitled".
       </main>
@@ -67,7 +67,7 @@ export const WithSlotPush: Story = {
   render: () => (
     <TopbarShell>
       <SlotPusher />
-      <main className="px-6 py-5 flex items-center gap-3 text-[13px] text-(--muted)">
+      <main className="px-6 py-5 flex items-center gap-3 text-[13px] text-muted">
         <Pill tone="accent">Live</Pill>
         Outlet content with topbar slot push.
       </main>
@@ -83,7 +83,7 @@ function ChannelSlotPusher() {
       <input
         type="search"
         placeholder="Search channels..."
-        className="h-7 w-48 rounded-(--radius) border border-(--line) bg-(--canvas-soft) px-2 text-[13px] text-(--fg) outline-none placeholder:text-(--subtle) focus:border-(--line-strong)"
+        className="h-7 w-48 rounded border border-line bg-canvas-soft px-2 text-[13px] text-fg outline-none placeholder:text-subtle focus:border-line-strong"
       />
     ),
     actions: <Button size="sm">New channel</Button>,
@@ -99,8 +99,8 @@ export const WithSearchAndActions: Story = {
   render: () => (
     <TopbarShell>
       <ChannelSlotPusher />
-      <main className="px-6 py-5 flex items-center gap-3 text-[13px] text-(--muted)">
-        <NetworkIcon className="size-4 text-(--subtle)" />
+      <main className="px-6 py-5 flex items-center gap-3 text-[13px] text-muted">
+        <NetworkIcon className="size-4 text-subtle" />
         Channel list outlet
       </main>
     </TopbarShell>

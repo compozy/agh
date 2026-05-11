@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <CenteredSurface>
-      <div className="prose prose-invert max-w-3xl rounded-2xl border border-(--line) bg-(--canvas-soft) p-6 text-sm">
+      <div className="prose prose-invert max-w-3xl rounded-2xl border border-line bg-canvas-soft p-6 text-sm">
         <MessageMarkdown content={markdownFixture} />
       </div>
     </CenteredSurface>

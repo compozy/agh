@@ -59,15 +59,15 @@ function resolveTone(hasNeedsInput: boolean, needsInputCount: number | undefined
 }
 
 const TONE_BG: Record<WorkBannerTone, string> = {
-  info: "bg-(--info-tint)",
-  warning: "bg-(--warning-tint)",
-  danger: "bg-(--danger-tint)",
+  info: "bg-info-tint",
+  warning: "bg-warning-tint",
+  danger: "bg-danger-tint",
 };
 
 const TONE_VIEW_TEXT: Record<WorkBannerTone, string> = {
-  info: "text-(--info) hover:bg-(--info-tint)/40",
-  warning: "text-(--warning) hover:bg-(--warning-tint)/40",
-  danger: "text-(--danger) hover:bg-(--danger-tint)/40",
+  info: "text-info hover:bg-info-tint/40",
+  warning: "text-warning hover:bg-warning-tint/40",
+  danger: "text-danger hover:bg-danger-tint/40",
 };
 
 const TONE_ALERT_VARIANT: Record<WorkBannerTone, "info" | "warning" | "danger"> = {
@@ -128,7 +128,7 @@ export function WorkBanner({
     <Alert
       aria-live="polite"
       className={cn(
-        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-(--line) px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
+        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
         TONE_BG[tone],
         fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
         className

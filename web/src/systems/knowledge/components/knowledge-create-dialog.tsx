@@ -114,7 +114,7 @@ function KnowledgeCreateDialog({
         data-testid="knowledge-create-dialog"
         showCloseButton={false}
       >
-        <DialogHeader className="gap-2 border-b border-(--line) px-5 py-4">
+        <DialogHeader className="gap-2 border-b border-line px-5 py-4">
           <DialogTitle>Create knowledge entry</DialogTitle>
           <DialogDescription>
             Add knowledge in the {scope} scope through the controller. The entry is recorded as a
@@ -123,7 +123,7 @@ function KnowledgeCreateDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4 px-5 py-4">
           <div className="flex flex-col gap-2">
-            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-name">
+            <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
               Type
             </Label>
             <div
@@ -146,7 +146,7 @@ function KnowledgeCreateDialog({
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-name">
+            <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
               Name
             </Label>
             <Input
@@ -158,7 +158,7 @@ function KnowledgeCreateDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-description">
+            <Label className="eyebrow text-muted" htmlFor="knowledge-create-description">
               Description
             </Label>
             <Input
@@ -170,7 +170,7 @@ function KnowledgeCreateDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-content">
+            <Label className="eyebrow text-muted" htmlFor="knowledge-create-content">
               Content
             </Label>
             <Textarea
@@ -184,13 +184,13 @@ function KnowledgeCreateDialog({
         </div>
         {error ? (
           <div
-            className="border-t border-(--line) px-5 py-3 text-xs text-(--danger)"
+            className="border-t border-line px-5 py-3 text-xs text-danger"
             data-testid="knowledge-create-dialog-error"
           >
             {error}
           </div>
         ) : null}
-        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-(--line) bg-transparent px-5 py-3">
+        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-line bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-create-memory-btn"
             onClick={() => onOpenChange(false)}

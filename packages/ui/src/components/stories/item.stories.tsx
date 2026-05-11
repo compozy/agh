@@ -141,7 +141,7 @@ export const SelectableRail: Story = {
             selectable
             selected={index === 0}
             indicator={index === 0 ? "rail" : "none"}
-            className="rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3"
+            className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
           >
             <ItemMedia variant="icon">
               <agent.icon />

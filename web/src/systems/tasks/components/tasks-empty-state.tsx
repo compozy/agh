@@ -28,10 +28,10 @@ const TEMPLATE_SLOTS: TemplateSlot[] = [
 ];
 
 const TONE_CLASS: Record<TasksEmptyStateTone, string> = {
-  accent: "bg-(--accent-tint) text-(--accent)",
-  info: "bg-(--info-tint) text-(--info)",
-  warning: "bg-(--warning-tint) text-(--warning)",
-  neutral: "bg-(--canvas-tint) text-(--muted)",
+  accent: "bg-accent-tint text-accent",
+  info: "bg-info-tint text-info",
+  warning: "bg-warning-tint text-warning",
+  neutral: "bg-canvas-tint text-muted",
 };
 
 export interface TasksEmptyStateProps {
@@ -88,7 +88,7 @@ export function TasksEmptyState({
         <section data-testid="tasks-empty-templates" className="flex flex-col gap-4">
           <header className="flex items-baseline justify-between gap-2">
             <Eyebrow data-testid="tasks-empty-templates-eyebrow">Start from a template</Eyebrow>
-            <Eyebrow className="text-(--muted)">{TEMPLATE_SLOTS.length} templates</Eyebrow>
+            <Eyebrow className="text-muted">{TEMPLATE_SLOTS.length} templates</Eyebrow>
           </header>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {TEMPLATE_SLOTS.map(slot => (
@@ -116,8 +116,8 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
   return (
     <button
       className={cn(
-        "flex h-full min-h-[156px] flex-col gap-3 rounded-lg bg-(--canvas-soft) p-5 text-left transition-colors duration-(--dur) ease-(--ease)",
-        "hover:bg-(--elevated) focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)]"
+        "flex h-full min-h-[156px] flex-col gap-3 rounded-lg bg-canvas-soft p-5 text-left transition-colors duration-base ease-out",
+        "hover:bg-elevated focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)]"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
       data-tone={slot.tone}
@@ -130,10 +130,10 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
       >
         {slot.icon}
       </span>
-      <span className="text-[13px] font-medium tracking-modal-title text-(--fg-strong)">
+      <span className="text-[13px] font-medium tracking-modal-title text-fg-strong">
         {template.label}
       </span>
-      <p className="text-[12px] leading-relaxed text-(--muted)">{template.description}</p>
+      <p className="text-[12px] leading-relaxed text-muted">{template.description}</p>
     </button>
   );
 }

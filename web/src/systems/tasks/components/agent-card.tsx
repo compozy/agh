@@ -47,7 +47,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
       data-testid={`tasks-multi-agent-agent-${task.id}`}
       data-is-live={isLive ? "true" : "false"}
       data-is-root={isRoot ? "true" : "false"}
-      className="flex w-full min-w-0 flex-col gap-3 rounded-lg bg-(--canvas-soft) px-[18px] py-4"
+      className="flex w-full min-w-0 flex-col gap-3 rounded-lg bg-canvas-soft px-[18px] py-4"
     >
       <header className="flex items-start gap-3">
         <OwnerAvatar
@@ -60,7 +60,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className="truncate text-[13px] font-[510] tracking-eyebrow text-(--fg-strong)"
+              className="truncate text-[13px] font-[510] tracking-eyebrow text-fg-strong"
               data-testid={`tasks-multi-agent-agent-label-${task.id}`}
             >
               {ownerName}
@@ -69,14 +69,14 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
               <Pill data-testid={`tasks-multi-agent-agent-live-${task.id}`} tone="accent">
                 <span
                   aria-hidden="true"
-                  className="inline-block size-1.5 animate-pulse rounded-full bg-(--accent)"
+                  className="inline-block size-1.5 animate-pulse rounded-full bg-accent"
                 />
                 Live
               </Pill>
             ) : null}
           </div>
           <div
-            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-eyebrow text-(--subtle)"
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-eyebrow text-subtle"
             data-testid={`tasks-multi-agent-agent-meta-${task.id}`}
           >
             <span data-testid={`tasks-multi-agent-agent-id-${task.id}`}>
@@ -99,7 +99,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
 
       {failureMessage ? (
         <p
-          className="flex items-start gap-1 rounded-(--radius) bg-(--danger-tint) px-2.5 py-1.5 text-eyebrow text-(--danger)"
+          className="flex items-start gap-1 rounded bg-danger-tint px-2.5 py-1.5 text-eyebrow text-danger"
           data-testid={`tasks-multi-agent-agent-error-${task.id}`}
         >
           <AlertCircle className="mt-0.5 size-3 shrink-0" strokeWidth={1.75} />
@@ -118,16 +118,12 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
               data-testid={`tasks-multi-agent-agent-event-${event.event_id}`}
               key={event.event_id}
             >
-              <span aria-hidden className="text-(--faint) tabular-nums">
+              <span aria-hidden className="text-faint tabular-nums">
                 ·
               </span>
-              <span className="truncate font-mono text-(--muted)">{event.event_type}</span>
+              <span className="truncate font-mono text-muted">{event.event_type}</span>
               {event.timestamp ? (
-                <Time
-                  className="text-right text-(--subtle)"
-                  iso={event.timestamp}
-                  mode="relative"
-                />
+                <Time className="text-right text-subtle" iso={event.timestamp} mode="relative" />
               ) : (
                 <span aria-hidden />
               )}
@@ -137,12 +133,12 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
       ) : null}
 
       <footer
-        className="flex items-center justify-center border-t border-(--line) pt-3"
+        className="flex items-center justify-center border-t border-line pt-3"
         data-testid={`tasks-multi-agent-agent-footer-${task.id}`}
       >
         <Link
           aria-label={isRoot ? "View full timeline" : `Open agent ${task.identifier ?? task.id}`}
-          className="inline-flex w-full items-center justify-center gap-1.5 text-eyebrow text-(--muted) transition-colors duration-(--dur) ease-(--ease) hover:text-(--fg-strong)"
+          className="inline-flex w-full items-center justify-center gap-1.5 text-eyebrow text-muted transition-colors duration-base ease-out hover:text-fg-strong"
           data-testid={`tasks-multi-agent-agent-link-${task.id}`}
           params={{ id: task.id }}
           to="/tasks/$id"
@@ -163,8 +159,8 @@ interface AgentMetricProps {
 function AgentMetric({ label, value }: AgentMetricProps) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
-      <span className="text-[16px] font-[510] tabular-nums text-(--fg-strong)">{value}</span>
+      <Eyebrow className="text-muted">{label}</Eyebrow>
+      <span className="text-[16px] font-[510] tabular-nums text-fg-strong">{value}</span>
     </div>
   );
 }

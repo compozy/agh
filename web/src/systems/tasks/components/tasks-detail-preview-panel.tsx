@@ -74,7 +74,7 @@ export function TasksDetailPreviewPanel({
   if (!task) {
     return (
       <div
-        className="flex flex-1 items-center justify-center px-6 py-10 text-sm text-(--subtle)"
+        className="flex flex-1 items-center justify-center px-6 py-10 text-sm text-subtle"
         data-testid="tasks-detail-preview-empty"
       >
         Select a task to inspect its overview.
@@ -101,8 +101,8 @@ export function TasksDetailPreviewPanel({
         data-testid="tasks-detail-preview-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">{errorMessage}</p>
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">{errorMessage}</p>
         </div>
       </div>
     );
@@ -144,7 +144,7 @@ export function TasksDetailPreviewPanel({
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto bg-(--canvas) px-6 py-5"
+      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto bg-canvas px-6 py-5"
       data-testid="tasks-detail-preview-panel"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -152,14 +152,14 @@ export function TasksDetailPreviewPanel({
           <div className="flex min-w-0 items-center gap-2">
             <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
             <h2
-              className="truncate text-ui-title-lg font-medium tracking-tight text-(--fg)"
+              className="truncate text-ui-title-lg font-medium tracking-tight text-fg"
               data-testid="tasks-detail-preview-title"
             >
               {record.title}
             </h2>
             <Pill mono>{identifier}</Pill>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-small-body text-(--muted)">
+          <div className="flex flex-wrap items-center gap-2 text-small-body text-muted">
             <Pill tone={taskStatusTone(record.status)}>{taskStatusLabel(record.status)}</Pill>
             <Pill
               data-testid="tasks-detail-preview-lifecycle"
@@ -256,7 +256,7 @@ export function TasksDetailPreviewPanel({
         </div>
       </header>
 
-      <p className="text-xs text-(--subtle)" data-testid="tasks-detail-preview-lifecycle-hint">
+      <p className="text-xs text-subtle" data-testid="tasks-detail-preview-lifecycle-hint">
         {taskLifecyclePhaseDescription(lifecyclePhase)}
       </p>
 
@@ -292,11 +292,11 @@ export function TasksDetailPreviewPanel({
         }
       >
         {description ? (
-          <p className="whitespace-pre-wrap text-small-body leading-relaxed text-(--muted)">
+          <p className="whitespace-pre-wrap text-small-body leading-relaxed text-muted">
             {description}
           </p>
         ) : (
-          <p className="text-small-body italic text-(--subtle)">
+          <p className="text-small-body italic text-subtle">
             No description provided yet. Open the full detail view to inspect timeline, runs, and
             dependencies.
           </p>

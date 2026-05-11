@@ -68,7 +68,7 @@ function SkillsPage() {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="skills-loading">
-        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }
@@ -92,7 +92,7 @@ function SkillsPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="skills-shell">
       {page.backgroundError ? (
-        <div className="border-b border-(--line) px-6 py-3">
+        <div className="border-b border-line px-6 py-3">
           <Alert data-testid="skills-background-error" variant="warning">
             <AlertCircle aria-hidden="true" className="size-4" />
             <AlertTitle>Showing cached skills</AlertTitle>

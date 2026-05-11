@@ -19,9 +19,9 @@ function TypingDots({ className, ...props }: TypingDotsProps) {
       aria-hidden="true"
       className={cn("inline-flex items-center gap-[2px]", className)}
     >
-      <span className="size-1 rounded-full bg-(--subtle) animate-[typing-bounce_1.2s_infinite_ease-in-out]" />
-      <span className="size-1 rounded-full bg-(--subtle) animate-[typing-bounce_1.2s_infinite_ease-in-out_0.15s]" />
-      <span className="size-1 rounded-full bg-(--subtle) animate-[typing-bounce_1.2s_infinite_ease-in-out_0.3s]" />
+      <span className="size-1 rounded-full bg-subtle animate-[typing-bounce_1.2s_infinite_ease-in-out]" />
+      <span className="size-1 rounded-full bg-subtle animate-[typing-bounce_1.2s_infinite_ease-in-out_0.15s]" />
+      <span className="size-1 rounded-full bg-subtle animate-[typing-bounce_1.2s_infinite_ease-in-out_0.3s]" />
     </span>
   );
 }

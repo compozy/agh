@@ -70,21 +70,21 @@ export function TasksInboxItem({
     <>
       <h3
         className={cn(
-          "min-w-0 max-w-full truncate text-[13px] tracking-modal-title text-(--fg-strong)",
+          "min-w-0 max-w-full truncate text-[13px] tracking-modal-title text-fg-strong",
           unread ? "font-medium" : "font-normal"
         )}
         data-slot="tasks-inbox-row-title"
       >
         {task.title}
       </h3>
-      <span className="font-mono text-[10.5px] text-(--faint)" data-slot="tasks-inbox-row-id">
+      <span className="font-mono text-[10.5px] text-faint" data-slot="tasks-inbox-row-id">
         {identifier}
       </span>
       <Pill size="sm" tone={taskStatusTone(task.status)}>
         {taskStatusLabel(task.status)}
       </Pill>
       {run ? (
-        <Eyebrow className="text-(--muted)" data-testid={`tasks-inbox-item-run-${taskId}`}>
+        <Eyebrow className="text-muted" data-testid={`tasks-inbox-item-run-${taskId}`}>
           run {run.id}
           {typeof run.attempt === "number"
             ? ` · ${formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}`
@@ -102,7 +102,7 @@ export function TasksInboxItem({
 
       {failedError ? (
         <p
-          className="flex items-start gap-1 text-(--danger)"
+          className="flex items-start gap-1 text-danger"
           data-testid={`tasks-inbox-item-error-${taskId}`}
         >
           <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
@@ -116,7 +116,7 @@ export function TasksInboxItem({
         </p>
       ) : null}
 
-      <p className="flex flex-wrap items-center gap-1 text-(--subtle)">
+      <p className="flex flex-wrap items-center gap-1 text-subtle">
         <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
         <span aria-hidden="true">·</span>
         <span>{lastActivity} ago</span>
@@ -301,7 +301,7 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       size="xs"
       type="button"
       variant={buttonVariant}
-      className={cn(variant === "destructive-ghost" && "text-(--danger) hover:text-(--danger)")}
+      className={cn(variant === "destructive-ghost" && "text-danger hover:text-danger")}
     >
       {icon}
       {label}

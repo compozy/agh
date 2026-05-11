@@ -26,7 +26,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
       data-testid="tasks-dashboard-status-breakdown"
       right={
         total > 0 ? (
-          <Eyebrow className="text-(--muted)" data-testid="tasks-dashboard-status-breakdown-total">
+          <Eyebrow className="text-muted" data-testid="tasks-dashboard-status-breakdown-total">
             total {total}
           </Eyebrow>
         ) : undefined
@@ -34,10 +34,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
       title="Status breakdown"
     >
       {entries.length === 0 ? (
-        <p
-          className="text-[12px] text-(--muted)"
-          data-testid="tasks-dashboard-status-breakdown-empty"
-        >
+        <p className="text-[12px] text-muted" data-testid="tasks-dashboard-status-breakdown-empty">
           No task activity yet.
         </p>
       ) : (
@@ -58,13 +55,13 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                 <div className="flex min-w-0 flex-col gap-1">
                   <div className="flex min-w-0 items-baseline justify-between gap-2">
                     <span
-                      className="min-w-0 truncate text-[12px] font-medium tracking-eyebrow text-(--fg)"
+                      className="min-w-0 truncate text-[12px] font-medium tracking-eyebrow text-fg"
                       data-testid={`tasks-dashboard-status-label-${entry.status}`}
                     >
                       {taskStatusLabel(entry.status)}
                     </span>
                     <span
-                      className="shrink-0 font-mono text-[10.5px] tabular-nums text-(--faint)"
+                      className="shrink-0 font-mono text-[10.5px] tabular-nums text-faint"
                       data-testid={`tasks-dashboard-status-count-${entry.status}`}
                     >
                       {entry.count}
@@ -72,7 +69,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                   </div>
                   <div
                     aria-hidden="true"
-                    className="h-[3px] overflow-hidden rounded-[2px] bg-(--surface-glaze)"
+                    className="h-[3px] overflow-hidden rounded-[2px] bg-surface-glaze"
                   >
                     <div
                       className="h-full rounded-[2px] opacity-85"
@@ -85,7 +82,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                   </div>
                 </div>
                 <span
-                  className="text-right font-mono text-[11px] font-medium tabular-nums text-(--muted)"
+                  className="text-right font-mono text-[11px] font-medium tabular-nums text-muted"
                   data-testid={`tasks-dashboard-status-share-${entry.status}`}
                 >
                   {formatPercent(sharePct)}

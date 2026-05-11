@@ -546,7 +546,7 @@ function TraceSection({ events, total, limit, onViewAll }: TraceSectionProps) {
           size="sm"
           onClick={onViewAll}
           data-testid="session-inspector-trace-view-all"
-          className="mt-3 h-7 gap-1 self-start px-1 text-(--muted) hover:text-(--fg)"
+          className="mt-3 h-7 gap-1 self-start px-1 text-muted hover:text-fg"
         >
           View all
           <ChevronRight className="size-3" />
@@ -575,10 +575,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
         data-testid="session-inspector-trace-dot"
       />
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Eyebrow
-          data-testid="session-inspector-trace-timestamp"
-          className="text-(--subtle) shrink-0"
-        >
+        <Eyebrow data-testid="session-inspector-trace-timestamp" className="text-subtle shrink-0">
           {ts}
         </Eyebrow>
         <Pill
@@ -591,7 +588,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
         </Pill>
         <span
           data-testid="session-inspector-trace-label"
-          className="min-w-0 flex-1 truncate text-small-body text-(--fg)"
+          className="min-w-0 flex-1 truncate text-small-body text-fg"
         >
           {event.label}
         </span>
@@ -678,7 +675,7 @@ function MemorySection({ memory }: MemorySectionProps) {
       >
         <div
           data-testid="session-inspector-memory-loading"
-          className="flex items-center gap-2 px-1 py-3 text-xs text-(--subtle)"
+          className="flex items-center gap-2 px-1 py-3 text-xs text-subtle"
         >
           <Spinner aria-hidden="true" />
           Loading session ledger…
@@ -786,7 +783,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
         <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
           LEDGER
         </Pill>
-        <Eyebrow className="text-(--muted)">Forensic</Eyebrow>
+        <Eyebrow className="text-muted">Forensic</Eyebrow>
       </div>
       <MetadataList>
         {items.map(item => (
@@ -798,7 +795,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
             <MetadataList.Term>{item.label}</MetadataList.Term>
             <MetadataList.Value
               className={cn(
-                "min-w-0 flex-1 break-all text-right text-xs text-(--fg)",
+                "min-w-0 flex-1 break-all text-right text-xs text-fg",
                 item.mono ? "font-mono text-eyebrow" : null
               )}
               data-testid={`session-inspector-memory-meta-${item.testId}-value`}
@@ -825,9 +822,9 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       className="flex flex-col gap-2"
     >
       <div className="flex items-center justify-between gap-2">
-        <Eyebrow className="text-(--muted)">Ledger events</Eyebrow>
+        <Eyebrow className="text-muted">Ledger events</Eyebrow>
         <span
-          className="font-mono text-badge text-(--subtle)"
+          className="font-mono text-badge text-subtle"
           data-testid="session-inspector-memory-events-count"
         >
           {events.length}
@@ -843,7 +840,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       ) : (
         <ul
           data-testid="session-inspector-memory-events-list"
-          className="flex flex-col divide-y divide-(--line)"
+          className="flex flex-col divide-y divide-line"
         >
           {visible.map(event => (
             <li
@@ -853,7 +850,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
             >
               <Eyebrow
                 data-testid="session-inspector-memory-event-sequence"
-                className="text-(--subtle) shrink-0"
+                className="text-subtle shrink-0"
               >
                 #{event.sequence}
               </Eyebrow>
@@ -862,7 +859,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
               </Pill>
               <span
                 data-testid="session-inspector-memory-event-timestamp"
-                className="ml-auto shrink-0 font-mono text-badge text-(--subtle)"
+                className="ml-auto shrink-0 font-mono text-badge text-subtle"
               >
                 {formatLedgerTimestamp(event.emitted_at)}
               </span>
@@ -903,11 +900,11 @@ function FilesSection({ files }: FilesSectionProps) {
       ) : (
         <ScrollArea
           data-testid="session-inspector-files-scroll"
-          className="max-h-[240px] rounded-md border border-(--line) bg-(--canvas-soft)"
+          className="max-h-[240px] rounded-md border border-line bg-canvas-soft"
         >
           <ul
             data-testid="session-inspector-files-list"
-            className="flex flex-col divide-y divide-(--line)"
+            className="flex flex-col divide-y divide-line"
           >
             {files.map(file => (
               <li
@@ -915,16 +912,16 @@ function FilesSection({ files }: FilesSectionProps) {
                 data-testid="session-inspector-files-row"
                 className="flex items-center gap-2 px-2 py-1.5"
               >
-                <FileCode aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
+                <FileCode aria-hidden="true" className="size-3 shrink-0 text-subtle" />
                 <span
                   data-testid="session-inspector-files-path"
-                  className="min-w-0 flex-1 truncate font-mono text-eyebrow text-(--fg)"
+                  className="min-w-0 flex-1 truncate font-mono text-eyebrow text-fg"
                 >
                   {file.path}
                 </span>
                 <span
                   data-testid="session-inspector-files-count"
-                  className="shrink-0 font-mono text-badge text-(--subtle)"
+                  className="shrink-0 font-mono text-badge text-subtle"
                 >
                   ×{file.readCount}
                 </span>

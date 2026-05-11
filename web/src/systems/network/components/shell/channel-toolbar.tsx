@@ -143,7 +143,7 @@ export function ChannelToolbar({
 
   return (
     <div
-      className="flex items-center gap-3 border-b border-(--line) px-5"
+      className="flex items-center gap-3 border-b border-line px-5"
       data-testid="network-channel-toolbar"
     >
       <LaneTabs<ChannelTab>
@@ -188,8 +188,8 @@ export function ChannelToolbar({
               />
             }
           >
-            <span className="text-(--muted)">{SORT_LABELS[sort]}</span>
-            <ChevronDown aria-hidden="true" className="size-3.5 text-(--subtle)" />
+            <span className="text-muted">{SORT_LABELS[sort]}</span>
+            <ChevronDown aria-hidden="true" className="size-3.5 text-subtle" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {(Object.keys(SORT_LABELS) as NetworkListSort[]).map(option => (

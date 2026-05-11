@@ -112,14 +112,14 @@ export function SessionActivityInline({ activity }: { activity?: RuntimeActivity
       data-testid="session-activity-inline"
       className={cn(
         "hidden min-w-0 max-w-[20rem] items-center gap-1.5 rounded-sm border px-2 py-1 md:flex",
-        "border-(--line) bg-(--canvas)",
-        "text-eyebrow text-(--muted)"
+        "border-line bg-canvas",
+        "text-eyebrow text-muted"
       )}
     >
       {activity.current_tool ? (
-        <Wrench aria-hidden="true" className="size-3 shrink-0 text-(--accent)" />
+        <Wrench aria-hidden="true" className="size-3 shrink-0 text-accent" />
       ) : (
-        <Clock aria-hidden="true" className="size-3 shrink-0 text-(--subtle)" />
+        <Clock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
       )}
       <span className="truncate" title={detail}>
         {detail}

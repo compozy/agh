@@ -37,7 +37,7 @@ function KnowledgeDecisionsSection({
     <Section data-testid="knowledge-decisions-section" label="Recent controller decisions">
       {isLoading ? (
         <div
-          className="flex items-center gap-2 px-1 py-3 text-xs text-(--subtle)"
+          className="flex items-center gap-2 px-1 py-3 text-xs text-subtle"
           data-testid="knowledge-decisions-loading"
         >
           <Spinner /> Loading decisions…
@@ -137,7 +137,7 @@ function KnowledgeDecisionsSection({
               >
                 {revertError && isReverting ? (
                   <p
-                    className="text-small-body text-(--danger)"
+                    className="text-small-body text-danger"
                     data-testid={`knowledge-decision-revert-error-${decision.id}`}
                   >
                     {revertError}

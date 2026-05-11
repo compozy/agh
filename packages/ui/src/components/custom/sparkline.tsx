@@ -44,7 +44,7 @@ function Sparkline({
             data-slot="sparkline-bar"
             data-index={index}
             aria-hidden="true"
-            className="flex-1 rounded-[2px] bg-(--accent-tint-strong)"
+            className="flex-1 rounded-[2px] bg-accent-tint-strong"
             style={{ height: barHeight }}
           />
         );

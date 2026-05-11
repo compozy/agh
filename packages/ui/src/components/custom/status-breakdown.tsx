@@ -18,12 +18,12 @@ export interface StatusBreakdownProps extends React.ComponentProps<"div"> {
 }
 
 const TONE_BAR_CLASS: Record<PillTone, string> = {
-  neutral: "bg-(--muted)",
-  accent: "bg-(--accent)",
-  success: "bg-(--success)",
-  warning: "bg-(--warning)",
-  danger: "bg-(--danger)",
-  info: "bg-(--info)",
+  neutral: "bg-muted",
+  accent: "bg-accent",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
 };
 
 function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownProps) {
@@ -40,17 +40,17 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
               data-slot="status-breakdown-row"
               className="flex items-center gap-3"
             >
-              <span className="inline-flex w-24 shrink-0 truncate text-[12px] text-(--muted)">
+              <span className="inline-flex w-24 shrink-0 truncate text-[12px] text-muted">
                 {item.label}
               </span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-(--canvas)">
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas">
                 <span
                   data-slot="status-breakdown-bar"
                   className={cn("absolute inset-y-0 left-0 rounded-pill", TONE_BAR_CLASS[tone])}
                   style={{ width: `${Math.round(ratio * 100)}%` }}
                 />
               </div>
-              <span className="inline-flex w-12 shrink-0 justify-end font-mono text-[10.5px] tabular-nums text-(--muted)">
+              <span className="inline-flex w-12 shrink-0 justify-end font-mono text-[10.5px] tabular-nums text-muted">
                 {item.value}
               </span>
             </li>

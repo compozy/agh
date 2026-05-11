@@ -65,7 +65,7 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
   }
   if (task.parent_task_id) {
     metaItems.push(
-      <span className="font-mono text-[10.5px] text-(--faint)" key="parent">
+      <span className="font-mono text-[10.5px] text-faint" key="parent">
         parent {task.parent_task_id}
       </span>
     );
@@ -73,7 +73,7 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
   if (failedRunError) {
     metaItems.push(
       <span
-        className="min-w-0 truncate text-(--danger)"
+        className="min-w-0 truncate text-danger"
         data-testid={`task-card-error-${task.id}`}
         key="error"
         title={failedRunError}

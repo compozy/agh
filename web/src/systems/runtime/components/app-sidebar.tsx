@@ -47,7 +47,7 @@ function RailSlot({
         to="/"
         aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--canvas)"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       >
         <Logo variant="symbol" decorative className="size-7" />
       </Link>
@@ -65,8 +65,8 @@ function RailSlot({
             aria-label={`Workspace: ${workspace.name}`}
             aria-pressed={isActive}
             className={cn(
-              "inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-(--elevated) font-mono text-eyebrow font-medium text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
-              isActive && "border-(--accent) text-(--fg)"
+              "inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-elevated font-mono text-eyebrow font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              isActive && "border-accent text-fg"
             )}
           >
             {letter}
@@ -78,7 +78,7 @@ function RailSlot({
         onClick={onAddWorkspace}
         data-testid="add-workspace-btn"
         aria-label="Add workspace"
-        className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-(--line) text-(--subtle) transition-colors hover:border-(--accent) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-line text-subtle transition-colors hover:border-accent hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Plus aria-hidden="true" className="size-3" />
       </button>
@@ -186,7 +186,7 @@ function NavSlot({ agents, agentsLoading, agentsError, sessions }: NavSlotProps)
       <SectionLabel className="mt-4">
         <span>Agents</span>
         {agentsCount.total > 0 ? (
-          <span className="ml-auto tabular-nums text-(--subtle)" data-testid="agents-live-count">
+          <span className="ml-auto tabular-nums text-subtle" data-testid="agents-live-count">
             {agentsCount.live}/{agentsCount.total} live
           </span>
         ) : null}
@@ -247,20 +247,20 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
       <span
         aria-hidden="true"
         data-testid="workspace-switcher-avatar"
-        className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) font-mono text-eyebrow font-medium tracking-mono text-(--fg)"
+        className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
       >
         {initial}
       </span>
       <span
         data-testid="workspace-switcher-name"
-        className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-tight text-(--fg)"
+        className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-tight text-fg"
       >
         {label}
       </span>
       <ChevronsUpDown
         aria-hidden="true"
         data-testid="workspace-switcher-chevron"
-        className="size-3.5 shrink-0 text-(--subtle)"
+        className="size-3.5 shrink-0 text-subtle"
       />
     </div>
   );
@@ -275,10 +275,7 @@ function FooterSlot({ health }: FooterSlotProps) {
     <div data-testid="sidebar-footer" className="flex items-center gap-2 px-2">
       <RuntimeConnectionIndicator />
       {health && (
-        <span
-          data-testid="sidebar-version"
-          className="ml-auto font-mono text-badge text-(--subtle)"
-        >
+        <span data-testid="sidebar-version" className="ml-auto font-mono text-badge text-subtle">
           v{health.version}
         </span>
       )}

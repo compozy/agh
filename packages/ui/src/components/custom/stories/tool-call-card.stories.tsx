@@ -58,7 +58,7 @@ export const WithOutputBody: Story = {
     filePath: "packages/runtime",
     status: "done",
     children: (
-      <pre className="font-mono text-[12px] leading-[1.6] text-(--muted)">
+      <pre className="font-mono text-[12px] leading-[1.6] text-muted">
         $ rg &quot;onToolCall&quot; packages/runtime -l{"\n"}
         packages/runtime/src/session/stream.ts{"\n"}
         packages/runtime/src/session/replay.ts

@@ -59,7 +59,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
   if (page.agentLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="agent-detail-loading">
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }

@@ -97,15 +97,15 @@
   --color-fd-accent: #2e2c2b;
   --color-fd-accent-foreground: #e5e5e7;
   --color-fd-ring: #e8572a;
-  --color-fd-info: var(--info);
-  --color-fd-warning: var(--warning);
-  --color-fd-error: var(--danger);
-  --color-fd-success: var(--success);
-  --color-fd-idea: var(--accent);
-  --color-fd-diff-remove: var(--danger-tint);
-  --color-fd-diff-remove-symbol: var(--danger);
-  --color-fd-diff-add: var(--success-tint);
-  --color-fd-diff-add-symbol: var(--success);
+  --color-fd-info: var(--color-info);
+  --color-fd-warning: var(--color-warning);
+  --color-fd-error: var(--color-danger);
+  --color-fd-success: var(--color-success);
+  --color-fd-idea: var(--color-accent);
+  --color-fd-diff-remove: var(--color-danger-tint);
+  --color-fd-diff-remove-symbol: var(--color-danger);
+  --color-fd-diff-add: var(--color-success-tint);
+  --color-fd-diff-add-symbol: var(--color-success);
 }
 
 /* Remove fumadocs banner wrapper padding on landing page only */
@@ -122,8 +122,8 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
 }
 
 body {
-  background: var(--canvas);
-  color: var(--fg);
+  background: var(--color-canvas);
+  color: var(--color-fg);
   text-rendering: optimizeLegibility;
 }
 
@@ -132,23 +132,23 @@ a {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
-  color: var(--fg);
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: var(--color-fg);
 }
 
 #nd-sidebar {
-  border-inline-end: 1px solid var(--line);
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--canvas-soft) 92%, var(--canvas)) !important;
+  border-inline-end: 1px solid var(--color-line);
+  border-color: var(--color-line);
+  background: color-mix(in srgb, var(--color-canvas-soft) 92%, var(--color-canvas)) !important;
 }
 
 #nd-sidebar [data-active="true"] {
-  background: var(--accent-tint);
-  color: var(--accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
 }
 
 #nd-sidebar [data-active="true"]::before {
-  background: var(--accent);
+  background: var(--color-accent);
 }
 
 #nd-sidebar [data-sidebar-body] {
@@ -169,18 +169,18 @@ a {
 
 #nd-toc {
   width: var(--site-doc-toc-width);
-  border-inline-start: 1px solid var(--line);
+  border-inline-start: 1px solid var(--color-line);
   padding-inline-start: 1rem;
 }
 
 #nd-toc [aria-current="true"],
 #nd-toc [data-active="true"],
 #nd-toc a:hover {
-  color: var(--accent);
+  color: var(--color-accent);
 }
 
 .site-doc-body {
-  color: var(--muted);
+  color: var(--color-muted);
   font-size: 1rem;
   line-height: 1.8;
 }
@@ -192,13 +192,13 @@ a {
 .site-doc-body h2 {
   margin-top: 4rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--color-line);
   font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(1.7rem, 3vw, 2.45rem);
   line-height: 1.1;
   letter-spacing: -0.02em;
-  color: var(--fg);
+  color: var(--color-fg);
 }
 
 .site-doc-body h3 {
@@ -206,7 +206,7 @@ a {
   font-size: 1.25rem;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: var(--fg);
+  color: var(--color-fg);
 }
 
 .site-doc-body :is(h1, h2, h3, h4, h5, h6) a.peer {
@@ -227,36 +227,36 @@ a {
 }
 
 .site-doc-body li::marker {
-  color: var(--accent);
+  color: var(--color-accent);
 }
 
 .site-doc-body strong {
-  color: var(--fg);
+  color: var(--color-fg);
 }
 
 .site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-line);
   border-radius: 0.55rem;
-  background: var(--elevated);
+  background: var(--color-elevated);
   padding-inline: 0.38rem;
   padding-block: 0.12rem;
-  color: var(--fg);
+  color: var(--color-fg);
 }
 
 .site-doc-body hr {
-  border-color: var(--line);
+  border-color: var(--color-line);
 }
 
 .site-doc-body table {
-  border-color: var(--line);
+  border-color: var(--color-line);
 }
 
 .site-doc-body a {
-  color: var(--fg);
+  color: var(--color-fg);
 }
 
 .site-doc-body a:hover {
-  color: var(--accent);
+  color: var(--color-accent);
 }
 
 a p.text-fd-muted-foreground.truncate {
@@ -273,15 +273,15 @@ button span.truncate[class*="transition-"] {
 }
 
 .agh-mermaid {
-  --agh-mermaid-bg: var(--canvas-soft);
-  --agh-mermaid-node-bg: var(--elevated);
-  --agh-mermaid-node-border: var(--accent);
-  --agh-mermaid-node-text: var(--fg);
-  --agh-mermaid-muted: var(--muted);
+  --agh-mermaid-bg: var(--color-canvas-soft);
+  --agh-mermaid-node-bg: var(--color-elevated);
+  --agh-mermaid-node-border: var(--color-accent);
+  --agh-mermaid-node-text: var(--color-fg);
+  --agh-mermaid-muted: var(--color-muted);
 }
 
 .agh-mermaid .agh-mermaid-svg {
-  color: var(--fg);
+  color: var(--color-fg);
 }
 
 .agh-mermaid .node rect,
@@ -295,8 +295,8 @@ button span.truncate[class*="transition-"] {
 }
 
 .agh-mermaid .cluster rect {
-  fill: var(--canvas-soft) !important;
-  stroke: var(--line) !important;
+  fill: var(--color-canvas-soft) !important;
+  stroke: var(--color-line) !important;
 }
 
 .agh-mermaid .edgePath path,
@@ -304,13 +304,13 @@ button span.truncate[class*="transition-"] {
 .agh-mermaid .messageLine0,
 .agh-mermaid .messageLine1,
 .agh-mermaid .transition {
-  stroke: var(--subtle) !important;
+  stroke: var(--color-subtle) !important;
 }
 
 .agh-mermaid marker path,
 .agh-mermaid marker polygon {
-  fill: var(--subtle) !important;
-  stroke: var(--subtle) !important;
+  fill: var(--color-subtle) !important;
+  stroke: var(--color-subtle) !important;
 }
 
 .agh-mermaid text,
@@ -342,14 +342,14 @@ button span.truncate[class*="transition-"] {
 }
 
 .agh-mermaid .actor {
-  fill: var(--elevated) !important;
-  stroke: var(--line) !important;
+  fill: var(--color-elevated) !important;
+  stroke: var(--color-line) !important;
 }
 
 .agh-mermaid .note,
 .agh-mermaid .labelBox {
-  fill: var(--canvas-soft) !important;
-  stroke: var(--line) !important;
+  fill: var(--color-canvas-soft) !important;
+  stroke: var(--color-line) !important;
 }
 
 .site-home h1,
@@ -360,8 +360,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-runtime {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--rail) 68%, transparent) 0%,
-    color-mix(in srgb, var(--rail) 18%, transparent) 42%,
+    color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
     transparent 68%
   );
 }
@@ -369,8 +369,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-network {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--rail) 94%, transparent) 0%,
-    color-mix(in srgb, var(--rail) 78%, transparent) 21%,
+    color-mix(in srgb, var(--color-rail) 94%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 78%, transparent) 21%,
     transparent 48%
   );
 }
@@ -378,8 +378,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-bridges {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--rail) 84%, transparent) 0%,
-    color-mix(in srgb, var(--rail) 40%, transparent) 30%,
+    color-mix(in srgb, var(--color-rail) 84%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 40%, transparent) 30%,
     transparent 64%
   );
 }
@@ -387,8 +387,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-memory {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--rail) 72%, transparent) 27%,
+    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 72%, transparent) 27%,
     transparent 58%
   );
 }
@@ -396,8 +396,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-extensibility {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--rail) 66%, transparent) 26%,
+    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
     transparent 58%
   );
 }

@@ -78,7 +78,7 @@ function ActivityFeedSkeleton() {
     <SkeletonRows
       count={4}
       data-testid="network-activity-feed-skeleton"
-      rowClassName="border-b border-(--line) px-5 py-3"
+      rowClassName="border-b border-line px-5 py-3"
     >
       <Skeleton className="h-3 w-24" />
       <Skeleton className="h-4 w-2/3" />
@@ -113,12 +113,12 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
       className="flex flex-1 flex-col overflow-y-auto"
       data-testid="network-activity-feed"
     >
-      <div className="border-b border-(--line) px-5 py-2" data-testid="network-activity-subheader">
+      <div className="border-b border-line px-5 py-2" data-testid="network-activity-subheader">
         <Eyebrow>Recent activity / Read-only</Eyebrow>
       </div>
       {entries.map(entry => {
         const linkClass = cn(
-          "flex flex-col gap-1 border-b border-(--line) px-5 py-3 text-left transition-colors hover:bg-(--hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--accent)"
+          "flex flex-col gap-1 border-b border-line px-5 py-3 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
         );
         const meta = (
           <>
@@ -134,8 +134,8 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
               <Eyebrow aria-hidden="true">/</Eyebrow>
               <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
             </div>
-            <p className="truncate text-sm font-medium text-(--fg)">{entry.title}</p>
-            <p className="line-clamp-2 text-small-body text-(--muted)">{entry.preview}</p>
+            <p className="truncate text-sm font-medium text-fg">{entry.title}</p>
+            <p className="line-clamp-2 text-small-body text-muted">{entry.preview}</p>
           </>
         );
         if (entry.kind === "thread") {

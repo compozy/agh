@@ -101,7 +101,7 @@ export function ChannelHeader({
       {metaSegments.map((segment, index) => (
         <span key={segment}>
           {index > 0 ? (
-            <span aria-hidden="true" className="mx-2 text-(--subtle)">
+            <span aria-hidden="true" className="mx-2 text-subtle">
               /
             </span>
           ) : null}
@@ -116,7 +116,7 @@ export function ChannelHeader({
       <Button
         aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
         aria-pressed={inspectorOpen}
-        className={cn(inspectorOpen ? "bg-(--elevated) text-(--fg)" : null)}
+        className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
         data-state={inspectorOpen ? "open" : "closed"}
         data-testid="network-channel-inspector-toggle"
         onClick={onInspectorToggle}
@@ -168,7 +168,7 @@ export function ChannelHeader({
             <span
               aria-hidden="true"
               data-slot="page-header-icon"
-              className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
             >
               <Hash className="size-3.5" />
             </span>

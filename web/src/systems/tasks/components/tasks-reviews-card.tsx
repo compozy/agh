@@ -125,7 +125,7 @@ export function TasksReviewsCard({
 
   return (
     <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
-      <p className="text-xs text-(--subtle)" data-testid={`${testId}-disclaimer`}>
+      <p className="text-xs text-subtle" data-testid={`${testId}-disclaimer`}>
         Status reflects the persisted review row. Outcomes appear once a bound reviewer session
         submits through submit_run_review. This view is read-only -- operator sessions cannot bind a
         verdict.
@@ -152,12 +152,10 @@ export function TasksReviewsCard({
                 <TableCell className="max-w-[320px]">
                   <div className="flex min-w-0 flex-col gap-1">
                     <Pill mono>{review.review_id}</Pill>
-                    <span className="font-mono text-eyebrow text-(--subtle)">
-                      run {review.run_id}
-                    </span>
+                    <span className="font-mono text-eyebrow text-subtle">run {review.run_id}</span>
                     {review.reason ? (
                       <p
-                        className="line-clamp-2 text-xs text-(--muted)"
+                        className="line-clamp-2 text-xs text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-reason`}
                       >
                         {review.reason}
@@ -165,7 +163,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {review.next_round_guidance ? (
                       <p
-                        className="line-clamp-3 rounded border border-(--line) bg-(--canvas-soft) px-2 py-1 text-eyebrow text-(--muted)"
+                        className="line-clamp-3 rounded border border-line bg-canvas-soft px-2 py-1 text-eyebrow text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-guidance`}
                       >
                         {review.next_round_guidance}
@@ -173,7 +171,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {missingWorkCount > 0 ? (
                       <span
-                        className="text-badge text-(--warning)"
+                        className="text-badge text-warning"
                         data-testid={`${testIdPrefix}-${review.review_id}-missing-work`}
                       >
                         Missing work · {missingWorkCount}
@@ -190,7 +188,7 @@ export function TasksReviewsCard({
                       {status}
                     </Pill>
                   ) : (
-                    <span className="font-mono text-eyebrow text-(--subtle)">--</span>
+                    <span className="font-mono text-eyebrow text-subtle">--</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -203,28 +201,28 @@ export function TasksReviewsCard({
                     </Pill>
                   ) : (
                     <span
-                      className="font-mono text-eyebrow text-(--subtle)"
+                      className="font-mono text-eyebrow text-subtle"
                       data-testid={`${testIdPrefix}-${review.review_id}-outcome-pending`}
                     >
                       pending
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--muted)">
+                <TableCell className="font-mono text-eyebrow text-muted">
                   {review.reviewer_agent_name ?? "--"}
                   {review.reviewer_session_id ? (
-                    <span className="ml-2 text-badge text-(--subtle)">
+                    <span className="ml-2 text-badge text-subtle">
                       session {review.reviewer_session_id}
                     </span>
                   ) : null}
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--muted)">
+                <TableCell className="font-mono text-eyebrow text-muted">
                   round {review.review_round} · attempt {review.attempt}
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--subtle)">
+                <TableCell className="font-mono text-eyebrow text-subtle">
                   {formatRelativeTime(review.requested_at)}
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--subtle)">
+                <TableCell className="font-mono text-eyebrow text-subtle">
                   {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
                 </TableCell>
               </TableRow>

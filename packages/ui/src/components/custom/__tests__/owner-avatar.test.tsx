@@ -5,28 +5,28 @@ import { describe, expect, it } from "vitest";
 import { OwnerAvatar } from "../owner-avatar";
 
 describe("OwnerAvatar", () => {
-  it("Should resolve bg/fg to var(--avatar-agent-N-{bg,fg}) for agent owners", () => {
+  it("Should resolve bg/fg to var(--color-avatar-agent-N-{bg,fg}) for agent owners", () => {
     const { container } = render(
       <OwnerAvatar ownerKind="agent" ownerId="planner-prime" name="Planner Prime" />
     );
     const root = container.querySelector<HTMLElement>('[data-slot="owner-avatar"]');
     expect(root?.dataset.ownerKind).toBe("agent");
-    expect(root?.style.backgroundColor).toMatch(/^var\(--avatar-agent-[0-3]-bg\)$/);
-    expect(root?.style.color).toMatch(/^var\(--avatar-agent-[0-3]-fg\)$/);
+    expect(root?.style.backgroundColor).toMatch(/^var\(--color-avatar-agent-[0-3]-bg\)$/);
+    expect(root?.style.color).toMatch(/^var\(--color-avatar-agent-[0-3]-fg\)$/);
   });
 
-  it("Should resolve to var(--avatar-human-N-{bg,fg}) for human owners", () => {
+  it("Should resolve to var(--color-avatar-human-N-{bg,fg}) for human owners", () => {
     const { container } = render(<OwnerAvatar ownerKind="human" ownerId="pedro" name="Pedro" />);
     const root = container.querySelector<HTMLElement>('[data-slot="owner-avatar"]');
-    expect(root?.style.backgroundColor).toMatch(/^var\(--avatar-human-[0-2]-bg\)$/);
-    expect(root?.style.color).toMatch(/^var\(--avatar-human-[0-2]-fg\)$/);
+    expect(root?.style.backgroundColor).toMatch(/^var\(--color-avatar-human-[0-2]-bg\)$/);
+    expect(root?.style.color).toMatch(/^var\(--color-avatar-human-[0-2]-fg\)$/);
   });
 
-  it("Should resolve to var(--avatar-system-{bg,fg}) for system owners", () => {
+  it("Should resolve to var(--color-avatar-system-{bg,fg}) for system owners", () => {
     const { container } = render(<OwnerAvatar ownerKind="system" ownerId="daemon" name="Daemon" />);
     const root = container.querySelector<HTMLElement>('[data-slot="owner-avatar"]');
-    expect(root?.style.backgroundColor).toBe("var(--avatar-system-bg)");
-    expect(root?.style.color).toBe("var(--avatar-system-fg)");
+    expect(root?.style.backgroundColor).toBe("var(--color-avatar-system-bg)");
+    expect(root?.style.color).toBe("var(--color-avatar-system-fg)");
   });
 
   it("Should emit aria-label with the role prefix", () => {

@@ -221,12 +221,13 @@ async function expectAllowed(input) {
 
 describe("compozy-design-system lint plugin", () => {
   describe("rule visitors", () => {
-    it("registers the four task_04 rules", () => {
+    it("registers the design-system rules", () => {
       expect(Object.keys(plugin.rules).sort()).toEqual([
         "no-banned-imports",
         "no-design-glaze-rgba",
         "no-inline-design-tuples",
         "no-inline-eyebrow",
+        "prefer-bare-token-utility",
       ]);
     });
 
@@ -656,6 +657,88 @@ describe("compozy-design-system lint plugin", () => {
         source: `
           export function View() {
             return <h1 className="text-(--text-detail-h1) tracking-detail-h1">Title</h1>;
+          }
+        `,
+      });
+    });
+  });
+
+  describe("prefer-bare-token-utility", () => {
+    const rule = "compozy-design-system/prefer-bare-token-utility";
+
+    it("flags color arbitrary-value syntax that has a bare utility in @theme", async () => {
+      await expectViolation(
+        {
+          filename: "web/src/foo.tsx",
+          rule,
+          source: `
+            export function View() {
+              return <div className="text-(--muted)">x</div>;
+            }
+          `,
+        },
+        "text-(--muted)"
+      );
+    });
+
+    it("flags surface-glaze arbitrary syntax", async () => {
+      await expectViolation(
+        {
+          filename: "web/src/foo.tsx",
+          rule,
+          source: `
+            export function View() {
+              return <div className="bg-(--row-hover)">x</div>;
+            }
+          `,
+        },
+        "bg-(--row-hover)"
+      );
+    });
+
+    it("allows runtime vars injected by Radix (anchor-width, available-height)", async () => {
+      await expectAllowed({
+        filename: "web/src/foo.tsx",
+        rule,
+        source: `
+          export function View() {
+            return <div className="w-(--anchor-width) max-h-(--available-height)">x</div>;
+          }
+        `,
+      });
+    });
+
+    it("allows component-internal tokens kept in :root (modal width, PillGroup heights)", async () => {
+      await expectAllowed({
+        filename: "web/src/foo.tsx",
+        rule,
+        source: `
+          export function View() {
+            return <div className="w-(--width-modal-md) min-h-(--height-pill-group-segment-md)">x</div>;
+          }
+        `,
+      });
+    });
+
+    it("does not run inside test or story files", async () => {
+      await expectAllowed({
+        filename: "web/src/__tests__/foo.test.tsx",
+        rule,
+        source: `
+          export function View() {
+            return <div className="text-(--muted)">x</div>;
+          }
+        `,
+      });
+    });
+
+    it("allows the eyebrow utility's internal length:--text-eyebrow syntax", async () => {
+      await expectAllowed({
+        filename: "web/src/foo.tsx",
+        rule,
+        source: `
+          export function View() {
+            return <span className="text-(length:--text-eyebrow)">x</span>;
           }
         `,
       });

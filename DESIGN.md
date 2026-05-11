@@ -123,18 +123,18 @@ The runtime kit's blur is bounded to dialog / sheet scrims only. Every other sur
 
 ## 2.5 Surface glaze ladder
 
-Translucent white tints layered on top of the warm surface ramp. They compose consistently across `--canvas`, `--canvas-soft`, `--canvas-tint`, and `--elevated` — that's the whole reason they exist. Inline `rgba(255, 255, 255, 0.0XX)` literals are forbidden under `web/src/**` and `packages/ui/src/**`; the lint plugin enforces this through `no-design-glaze-rgba`.
+Translucent white tints layered on top of the warm surface ramp. They compose consistently across `bg-canvas`, `bg-canvas-soft`, `bg-canvas-tint`, and `bg-elevated` — that's the whole reason they exist. Inline `rgba(255, 255, 255, 0.0XX)` literals are forbidden under `web/src/**` and `packages/ui/src/**`; the lint plugin enforces this through `no-design-glaze-rgba`. Consume each layer through its canonical Tailwind utility (`bg-row-hover`, `bg-row-selected`, etc.) — every entry below is exported via `@theme { --color-* }`.
 
-| Token                 | Value                        | Role                                                                |
-| --------------------- | ---------------------------- | ------------------------------------------------------------------- |
-| `--row-hover`         | `rgba(255, 255, 255, 0.022)` | List row / nav item hover; also aliased as `--hover`                |
-| `--row-selected`      | `rgba(255, 255, 255, 0.030)` | List row / nav item selected baseline                               |
-| `--surface-glaze`     | `rgba(255, 255, 255, 0.040)` | Selected card surface (RadioCard, kanban card selected, panel head) |
-| `--bar-fill`          | `rgba(255, 255, 255, 0.085)` | Bar fills (priority bars, progress strips, usage bars)              |
-| `--input-fill`        | `rgba(255, 255, 255, 0.025)` | Composer / textarea / sentinel input surface                        |
-| `--btn-default-fill`  | `rgba(255, 255, 255, 0.040)` | Neutral `<Button>` default fill                                     |
-| `--btn-default-hover` | `rgba(255, 255, 255, 0.070)` | Neutral `<Button>` hover fill                                       |
-| `--badge-fill`        | `rgba(255, 255, 255, 0.050)` | `<PillGroup>` count badge background                                |
+| Token                       | Utility                | Value                        | Role                                                                |
+| --------------------------- | ---------------------- | ---------------------------- | ------------------------------------------------------------------- |
+| `--color-row-hover`         | `bg-row-hover`         | `rgba(255, 255, 255, 0.022)` | List row / nav item hover; aliased as `--color-hover` (`bg-hover`)  |
+| `--color-row-selected`      | `bg-row-selected`      | `rgba(255, 255, 255, 0.030)` | List row / nav item selected baseline                               |
+| `--color-surface-glaze`     | `bg-surface-glaze`     | `rgba(255, 255, 255, 0.040)` | Selected card surface (RadioCard, kanban card selected, panel head) |
+| `--color-bar-fill`          | `bg-bar-fill`          | `rgba(255, 255, 255, 0.085)` | Bar fills (priority bars, progress strips, usage bars)              |
+| `--color-input-fill`        | `bg-input-fill`        | `rgba(255, 255, 255, 0.025)` | Composer / textarea / sentinel input surface                        |
+| `--color-btn-default-fill`  | `bg-btn-default-fill`  | `rgba(255, 255, 255, 0.040)` | Neutral `<Button>` default fill                                     |
+| `--color-btn-default-hover` | `bg-btn-default-hover` | `rgba(255, 255, 255, 0.070)` | Neutral `<Button>` hover fill                                       |
+| `--color-badge-fill`        | `bg-badge-fill`        | `rgba(255, 255, 255, 0.050)` | `<PillGroup>` count badge background                                |
 
 `--hover` is declared as `var(--row-hover)` so `hover:bg-(--hover)` resolves the canonical row-hover tint (fixes the live N-45 bug where the alias was referenced but undefined). Surfaces that want a stronger lift (`--row-selected`) or selection emphasis (`--surface-glaze`) consume the explicit token, not `--hover`.
 

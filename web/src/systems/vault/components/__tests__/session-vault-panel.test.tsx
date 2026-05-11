@@ -27,7 +27,7 @@ describe("SessionVaultPanel", () => {
     const ref = screen.getByTestId("session-inspector-vault-ref");
     expect(ref).toHaveTextContent("api_key");
     expect(ref.className).toMatch(/font-mono/);
-    expect(ref.className).toMatch(/text-\(--faint\)/);
+    expect(ref.className).toMatch(/\btext-faint\b/);
   });
 
   it("Should render the row's updated timestamp via <Time>", () => {

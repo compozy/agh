@@ -29,7 +29,7 @@ function Surface({ state }: { state: DataSurfaceState }) {
         title="No records"
         description="Records appear here after the daemon returns metadata."
       />
-      <DataSurface.Content className="overflow-hidden rounded-lg border border-(--line)">
+      <DataSurface.Content className="overflow-hidden rounded-lg border border-line">
         <Table>
           <TableHeader>
             <TableRow>

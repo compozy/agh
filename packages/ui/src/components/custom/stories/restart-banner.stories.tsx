@@ -46,7 +46,7 @@ export const Polling: Story = {
     tone: "info",
     busy: true,
     message: "Restarting daemon · stopping",
-    detail: <span className="font-mono text-[10.5px] text-(--muted)">op_abcdef</span>,
+    detail: <span className="font-mono text-[10.5px] text-muted">op_abcdef</span>,
   },
 };
 

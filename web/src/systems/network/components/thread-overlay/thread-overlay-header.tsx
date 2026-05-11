@@ -53,7 +53,7 @@ export function ThreadOverlayHeader({ channel, threadId, detail }: ThreadOverlay
           {participantLabel ? <Eyebrow>{participantLabel}</Eyebrow> : null}
           <Button
             aria-label="Open thread in main pane"
-            className="h-7 text-xs text-(--muted)"
+            className="h-7 text-xs text-muted"
             data-testid="network-thread-overlay-open-main"
             onClick={() => {
               void navigate({

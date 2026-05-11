@@ -58,7 +58,7 @@ function NetworkRouteShell() {
           data-testid="network-loading"
           role="status"
         >
-          <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
+          <Spinner aria-hidden="true" className="size-5 text-subtle" />
         </div>
         {view.networkCreate.dialog}
       </>

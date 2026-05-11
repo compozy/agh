@@ -20,10 +20,10 @@ export interface PriorityBarsProps extends React.ComponentProps<"span"> {
  * signal tokens; `low` recedes into `--faint`.
  */
 const LEVEL_FILL: Record<PriorityLevel, string> = {
-  low: "bg-(--faint)",
-  medium: "bg-(--fg)",
-  high: "bg-(--warning)",
-  urgent: "bg-(--danger)",
+  low: "bg-faint",
+  medium: "bg-fg",
+  high: "bg-warning",
+  urgent: "bg-danger",
 };
 
 const BAR_HEIGHTS = ["h-1", "h-2", "h-3"] as const;

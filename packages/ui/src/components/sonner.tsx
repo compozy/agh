@@ -17,11 +17,11 @@ function Toaster({ closeButton = true, theme = "dark", ...props }: ToasterProps)
       theme={theme}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="size-4 text-(--success)" />,
-        info: <InfoIcon className="size-4 text-(--info)" />,
-        warning: <TriangleAlertIcon className="size-4 text-(--warning)" />,
-        error: <OctagonXIcon className="size-4 text-(--danger)" />,
-        loading: <Loader2Icon className="size-4 animate-spin text-(--muted)" />,
+        success: <CircleCheckIcon className="size-4 text-success" />,
+        info: <InfoIcon className="size-4 text-info" />,
+        warning: <TriangleAlertIcon className="size-4 text-warning" />,
+        error: <OctagonXIcon className="size-4 text-danger" />,
+        loading: <Loader2Icon className="size-4 animate-spin text-muted" />,
       }}
       style={
         {

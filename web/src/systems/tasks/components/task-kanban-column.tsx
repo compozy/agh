@@ -33,7 +33,7 @@ export function TaskKanbanColumn({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-lg bg-(--canvas-soft)",
+        "flex min-w-0 flex-col overflow-hidden rounded-lg bg-canvas-soft",
         "min-h-[460px] max-h-[calc(100vh-220px)]",
         className
       )}
@@ -42,11 +42,9 @@ export function TaskKanbanColumn({
     >
       <header className="flex shrink-0 items-center gap-2 px-3 pt-[11px] pb-[9px]">
         <Pill.Dot tone={tone} />
-        <h2 className="text-[12px] font-medium tracking-eyebrow text-(--fg-strong)">
-          {column.label}
-        </h2>
+        <h2 className="text-[12px] font-medium tracking-eyebrow text-fg-strong">{column.label}</h2>
         <span
-          className="font-mono text-[10.5px] tracking-normal tabular-nums text-(--faint)"
+          className="font-mono text-[10.5px] tracking-normal tabular-nums text-faint"
           data-testid={`tasks-kanban-column-count-${column.id}`}
         >
           {count}
@@ -73,7 +71,7 @@ export function TaskKanbanColumn({
         {isEmpty
           ? (emptyState ?? (
               <div
-                className="flex flex-1 items-center justify-center rounded-md border border-dashed border-(--line) px-3 py-8 text-center text-[12px] text-(--subtle)"
+                className="flex flex-1 items-center justify-center rounded-md border border-dashed border-line px-3 py-8 text-center text-[12px] text-subtle"
                 data-testid={`tasks-kanban-column-empty-${column.id}`}
               >
                 No tasks

@@ -42,17 +42,17 @@ function ChatMessageBubble({
         data-slot="chat-message"
         data-role="system"
         data-align={resolvedAlign}
-        className={cn("flex w-full items-center gap-3 py-2 text-(--subtle)", className)}
+        className={cn("flex w-full items-center gap-3 py-2 text-subtle", className)}
         {...props}
       >
-        <span aria-hidden="true" className="h-px flex-1 bg-(--line)" />
+        <span aria-hidden="true" className="h-px flex-1 bg-line" />
         <div
           data-slot="chat-message-body"
           className="font-mono text-eyebrow leading-[16px] tracking-mono"
         >
           {children}
         </div>
-        <span aria-hidden="true" className="h-px flex-1 bg-(--line)" />
+        <span aria-hidden="true" className="h-px flex-1 bg-line" />
       </div>
     );
   }
@@ -77,17 +77,14 @@ function ChatMessageBubble({
           {meta ? (
             <Eyebrow
               data-slot="chat-message-meta"
-              className={cn(
-                "text-(--subtle)",
-                resolvedAlign === "right" ? "text-right" : "text-left"
-              )}
+              className={cn("text-subtle", resolvedAlign === "right" ? "text-right" : "text-left")}
             >
               {meta}
             </Eyebrow>
           ) : null}
           <div
             data-slot="chat-message-body"
-            className="rounded-lg bg-(--elevated) px-5 py-4 text-[14px] leading-[1.6] text-(--fg)"
+            className="rounded-lg bg-elevated px-5 py-4 text-[14px] leading-[1.6] text-fg"
           >
             {children}
           </div>
@@ -108,12 +105,12 @@ function ChatMessageBubble({
         {meta ? (
           <Eyebrow
             data-slot="chat-message-meta"
-            className={cn("flex items-center gap-2 text-(--muted)", nonUserMetaAlignClass)}
+            className={cn("flex items-center gap-2 text-muted", nonUserMetaAlignClass)}
           >
             {meta}
           </Eyebrow>
         ) : null}
-        <div data-slot="chat-message-body" className="text-[14px] leading-[1.6] text-(--muted)">
+        <div data-slot="chat-message-body" className="text-[14px] leading-[1.6] text-muted">
           {children}
         </div>
       </div>
@@ -131,7 +128,7 @@ function ChatMessageBubble({
       {meta ? (
         <Eyebrow
           data-slot="chat-message-meta"
-          className={cn("flex items-center gap-2 text-(--muted)", nonUserMetaAlignClass)}
+          className={cn("flex items-center gap-2 text-muted", nonUserMetaAlignClass)}
         >
           {meta}
         </Eyebrow>

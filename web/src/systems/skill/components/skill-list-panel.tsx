@@ -70,7 +70,7 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
   return (
     <Item
       as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3"
+      className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`skill-item-${skill.name}`}
       onClick={onSelect}
@@ -89,7 +89,7 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
           <ItemTitle className="w-full">
             <span className="min-w-0 flex-1 truncate">{skill.name}</span>
             {skill.version ? (
-              <Eyebrow className="text-(--subtle) shrink-0">v{skill.version}</Eyebrow>
+              <Eyebrow className="text-subtle shrink-0">v{skill.version}</Eyebrow>
             ) : null}
           </ItemTitle>
         </ItemContent>
@@ -118,7 +118,7 @@ function SkillListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="skill-list-panel">
-      <div className="border-b border-(--line) p-3">
+      <div className="border-b border-line p-3">
         <SearchInput
           aria-label="Search installed skills"
           data-testid="skill-search-input"
@@ -134,7 +134,7 @@ function SkillListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="skill-list-loading"
           >
-            <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
+            <Spinner aria-hidden="true" className="size-5 text-subtle" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div

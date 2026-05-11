@@ -59,7 +59,7 @@ function BridgesPage() {
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="bridges-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }

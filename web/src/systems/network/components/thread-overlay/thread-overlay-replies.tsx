@@ -44,9 +44,7 @@ export function ThreadOverlayReplies({
         ariaLabel="Thread replies"
         density="overlay"
         emptyState={
-          emptyOverride ?? (
-            <p className="text-center text-xs text-(--subtle)">Thread has no replies.</p>
-          )
+          emptyOverride ?? <p className="text-center text-xs text-subtle">Thread has no replies.</p>
         }
         isLoading={isLoading}
         lastReadAt={lastReadAt}

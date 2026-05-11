@@ -79,8 +79,8 @@ export function TasksListPanel({
   const isEmpty = tasks.length === 0;
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col bg-(--canvas)" data-testid="tasks-list-panel">
-      <div className="flex flex-col gap-3 border-b border-(--line) px-4 py-3">
+    <aside className="flex min-h-0 flex-1 flex-col bg-canvas" data-testid="tasks-list-panel">
+      <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
         <SearchInput
           value={searchQuery}
           onChange={onSearchChange}
@@ -113,7 +113,7 @@ export function TasksListPanel({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between border-b border-(--line) px-4 py-2 text-badge text-(--muted)">
+      <div className="flex items-center justify-between border-b border-line px-4 py-2 text-badge text-muted">
         <span data-testid="tasks-list-headline">
           {getStatusHeadline(statusFilter)}
           {tasks.length > 0 ? <span className="ml-2">{tasks.length}</span> : null}
@@ -125,7 +125,7 @@ export function TasksListPanel({
         {isLoading && isEmpty ? (
           <div className="space-y-3 p-4" data-testid="tasks-list-loading">
             {TASK_LIST_SKELETON_IDS.map(id => (
-              <div className="rounded-xl border border-(--line) bg-(--canvas-soft) p-4" key={id}>
+              <div className="rounded-xl border border-line bg-canvas-soft p-4" key={id}>
                 <Skeleton className="h-2.5 w-20 rounded-full" />
                 <Skeleton className="mt-3 h-3.5 w-3/4 rounded-full" />
                 <Skeleton className="mt-2 h-2.5 w-1/2 rounded-full" />
@@ -138,8 +138,8 @@ export function TasksListPanel({
             data-testid="tasks-list-error"
           >
             <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-              <AlertCircle className="size-5 text-(--danger)" />
-              <p className="text-sm text-(--muted)">{errorMessage}</p>
+              <AlertCircle className="size-5 text-danger" />
+              <p className="text-sm text-muted">{errorMessage}</p>
             </div>
           </div>
         ) : isEmpty ? (

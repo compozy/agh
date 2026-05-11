@@ -1,6 +1,6 @@
 /**
  * Owner-avatar palette resolution against the tokenised CSS variables declared in
- * `packages/ui/src/tokens.css` (`--avatar-{agent,human,system}-*-{bg,fg}`).
+ * `packages/ui/src/tokens.css` (`--color-avatar-{agent,human,system}-*-{bg,fg}`).
  *
  * the palette is a glance-aid resolved via CSS variables;
  * `<OwnerAvatar>` and downstream surfaces consume the `var(...)` strings so retunes
@@ -55,13 +55,13 @@ export function seed(kind: OwnerKind, ownerId: string): number {
 export function colorsFor(kind: OwnerKind, ownerId: string): OwnerColors {
   if (kind === "system") {
     return {
-      bg: "var(--avatar-system-bg)",
-      fg: "var(--avatar-system-fg)",
+      bg: "var(--color-avatar-system-bg)",
+      fg: "var(--color-avatar-system-fg)",
     };
   }
   const index = seed(kind, ownerId);
   return {
-    bg: `var(--avatar-${kind}-${index}-bg)`,
-    fg: `var(--avatar-${kind}-${index}-fg)`,
+    bg: `var(--color-avatar-${kind}-${index}-bg)`,
+    fg: `var(--color-avatar-${kind}-${index}-fg)`,
   };
 }

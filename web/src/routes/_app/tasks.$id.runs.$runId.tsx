@@ -29,7 +29,7 @@ function TaskRunDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-run-detail-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -40,8 +40,8 @@ function TaskRunDetailRoute() {
         className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
         data-testid="tasks-run-detail-not-found"
       >
-        <AlertCircle className="size-6 text-(--danger)" />
-        <p className="text-sm text-(--muted)">
+        <AlertCircle className="size-6 text-danger" />
+        <p className="text-sm text-muted">
           {page.fatalError?.message ?? `Run ${runId} not found.`}
         </p>
       </div>
@@ -55,7 +55,7 @@ function TaskRunDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-run-detail-placeholder"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }

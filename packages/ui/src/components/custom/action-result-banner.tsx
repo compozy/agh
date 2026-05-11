@@ -17,11 +17,11 @@ export interface ActionResultBannerProps extends Omit<React.ComponentProps<"div"
 }
 
 const TONE_CHROME: Record<ActionResultBannerTone, string> = {
-  success: "border-(--success-tint) bg-(--success-tint) text-(--success)",
-  danger: "border-(--danger-tint) bg-(--danger-tint) text-(--danger)",
-  warning: "border-(--warning-tint) bg-(--warning-tint) text-(--warning)",
-  info: "border-(--info-tint) bg-(--info-tint) text-(--info)",
-  neutral: "border-(--line) bg-(--canvas-soft) text-(--muted)",
+  success: "border-success-tint bg-success-tint text-success",
+  danger: "border-danger-tint bg-danger-tint text-danger",
+  warning: "border-warning-tint bg-warning-tint text-warning",
+  info: "border-info-tint bg-info-tint text-info",
+  neutral: "border-line bg-canvas-soft text-muted",
 };
 
 function ActionResultBanner({

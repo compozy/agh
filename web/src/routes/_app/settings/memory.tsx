@@ -94,7 +94,7 @@ export function MemorySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid={`${TEST_PREFIX}-loading`}
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -103,8 +103,8 @@ export function MemorySettingsPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid={`${TEST_PREFIX}-error`}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load memory settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -1790,7 +1790,7 @@ function renderDreamSection({
         }
       />
       {actionMessage ? (
-        <p className="text-xs text-(--subtle)" data-testid={`${TEST_PREFIX}-action-message`}>
+        <p className="text-xs text-subtle" data-testid={`${TEST_PREFIX}-action-message`}>
           {actionMessage}
         </p>
       ) : null}

@@ -206,27 +206,24 @@ export function TaskEditorModal({
       >
         <header
           data-slot="task-editor-modal-head"
-          className="flex items-center justify-between gap-3 border-b border-(--line) px-[18px] py-[13px]"
+          className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-[13px]"
         >
           <DialogTitle
             id={titleId}
             data-testid="task-editor-modal-title"
-            className="text-modal-title tracking-modal-title text-(--fg-strong)"
+            className="text-modal-title tracking-modal-title text-fg-strong"
             style={{ fontWeight: 510 }}
           >
             {title}
           </DialogTitle>
           {isNewMode && template ? (
-            <span
-              data-testid="task-editor-modal-template-hint"
-              className="text-[12px] text-(--muted)"
-            >
+            <span data-testid="task-editor-modal-template-hint" className="text-[12px] text-muted">
               {template.label}
             </span>
           ) : task?.identifier ? (
             <span
               data-testid="task-editor-modal-task-id"
-              className="font-mono text-[12px] text-(--muted)"
+              className="font-mono text-[12px] text-muted"
             >
               {task.identifier}
             </span>
@@ -263,7 +260,7 @@ export function TaskEditorModal({
                   >
                     Title
                   </FieldLabel>
-                  <span className="text-eyebrow text-(--subtle)">Required</span>
+                  <span className="text-eyebrow text-subtle">Required</span>
                 </div>
                 <Input
                   className="h-10"
@@ -460,10 +457,10 @@ export function TaskEditorModal({
           <footer
             data-slot="task-editor-modal-foot"
             data-testid="task-editor-modal-footer"
-            className="flex flex-wrap items-center justify-between gap-3 border-t border-(--line) bg-(--canvas-soft) px-[18px] py-[11px]"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas-soft px-[18px] py-[11px]"
           >
             <p
-              className="min-w-0 flex-1 text-[12px] text-(--muted)"
+              className="min-w-0 flex-1 text-[12px] text-muted"
               data-testid="task-editor-modal-hint"
             >
               {FOOTER_HINT}

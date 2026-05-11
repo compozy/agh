@@ -106,7 +106,7 @@ function MCPServersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-mcp-servers-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -118,8 +118,8 @@ function MCPServersSettingsPage() {
         data-testid="settings-page-mcp-servers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load MCP servers"}
           </p>
         </div>
@@ -272,7 +272,7 @@ function ScopeSelector({
       />
       {workspaceScopeAvailable && workspaces.length === 0 && !isLoadingWorkspaces ? (
         <Eyebrow
-          className="text-(--subtle)"
+          className="text-subtle"
           data-testid="settings-page-mcp-servers-scope-workspace-empty"
         >
           no workspaces yet
@@ -286,7 +286,7 @@ function ScopeLabel({ primary, mono }: { primary: string; mono: string }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span className="font-medium">{primary}</span>
-      <span className="font-mono text-badge normal-case tracking-mono text-(--subtle)">{mono}</span>
+      <span className="font-mono text-badge normal-case tracking-mono text-subtle">{mono}</span>
     </span>
   );
 }
@@ -302,18 +302,18 @@ function MCPServersTable({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-(--line)"
+      className="overflow-hidden rounded-lg border border-line"
       data-testid="settings-page-mcp-servers-list"
     >
       <Table>
         <TableHeader>
-          <TableRow className="bg-(--elevated)">
-            <TableHead className="eyebrow text-(--muted)">Name</TableHead>
-            <TableHead className="eyebrow text-(--muted)">Endpoint</TableHead>
-            <TableHead className="eyebrow text-(--muted)">Source</TableHead>
-            <TableHead className="eyebrow text-right text-(--muted)">Env</TableHead>
-            <TableHead className="eyebrow text-right text-(--muted)">Args</TableHead>
-            <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Actions</TableHead>
+          <TableRow className="bg-elevated">
+            <TableHead className="eyebrow text-muted">Name</TableHead>
+            <TableHead className="eyebrow text-muted">Endpoint</TableHead>
+            <TableHead className="eyebrow text-muted">Source</TableHead>
+            <TableHead className="eyebrow text-right text-muted">Env</TableHead>
+            <TableHead className="eyebrow text-right text-muted">Args</TableHead>
+            <TableHead className="eyebrow w-[1%] text-right text-muted">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -357,11 +357,11 @@ function MCPServerRow({
             data-testid={`settings-page-mcp-servers-row-${server.name}-status`}
             data-tone="configured"
           />
-          <span className="font-mono text-sm text-(--fg)">{server.name}</span>
+          <span className="font-mono text-sm text-fg">{server.name}</span>
         </div>
       </TableCell>
       <TableCell
-        className="font-mono text-xs text-(--muted)"
+        className="font-mono text-xs text-muted"
         data-testid={`settings-page-mcp-servers-row-${server.name}-command`}
       >
         {endpoint ?? "-"}
@@ -374,13 +374,13 @@ function MCPServerRow({
         />
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-(--muted)"
+        className="text-right font-mono text-xs text-muted"
         data-testid={`settings-page-mcp-servers-row-${server.name}-env`}
       >
         {envCount}
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-(--muted)"
+        className="text-right font-mono text-xs text-muted"
         data-testid={`settings-page-mcp-servers-row-${server.name}-args`}
       >
         {argsCount}
@@ -606,7 +606,7 @@ function TargetSelector({
           </NativeSelect>
           {entry ? (
             <div
-              className="eyebrow flex flex-wrap items-center gap-1 text-(--muted)"
+              className="eyebrow flex flex-wrap items-center gap-1 text-muted"
               data-testid="settings-mcp-servers-editor-available-targets"
             >
               <span>allowed:</span>
@@ -835,7 +835,7 @@ function MCPServerDeleteDialog({
             >
               <label
                 htmlFor="settings-mcp-servers-delete-target-input"
-                className="eyebrow text-(--muted)"
+                className="eyebrow text-muted"
               >
                 target
               </label>

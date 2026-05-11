@@ -69,7 +69,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     {
       label: "Type",
       value: (
-        <span className="font-mono text-(--fg)" data-testid="context-type-value">
+        <span className="font-mono text-fg" data-testid="context-type-value">
           {memory.type}
         </span>
       ),
@@ -77,7 +77,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     {
       label: "Knowledge tier",
       value: (
-        <span className="font-mono text-(--muted)" data-testid="context-tier-value">
+        <span className="font-mono text-muted" data-testid="context-tier-value">
           {knowledgeType}
         </span>
       ),
@@ -94,7 +94,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     entries.push({
       label: "Agent tier",
       value: (
-        <span className="font-mono text-(--muted)" data-testid="context-agent-tier-value">
+        <span className="font-mono text-muted" data-testid="context-agent-tier-value">
           {knowledgeAgentTierLabel(memory.agent_tier)}
         </span>
       ),
@@ -104,7 +104,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     entries.push({
       label: "Agent",
       value: (
-        <span className="font-mono text-(--fg)" data-testid="context-agent-value">
+        <span className="font-mono text-fg" data-testid="context-agent-value">
           {memory.agent_name}
         </span>
       ),
@@ -114,7 +114,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     entries.push({
       label: "Workspace",
       value: (
-        <span className="font-mono text-(--muted)" data-testid="context-workspace-value">
+        <span className="font-mono text-muted" data-testid="context-workspace-value">
           {memory.workspace_id}
         </span>
       ),
@@ -124,7 +124,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     label: "Modified",
     value: (
       <Time
-        className="text-(--muted)"
+        className="text-muted"
         data-testid="context-modified-value"
         iso={memory.mod_time}
         mode="absolute"
@@ -134,7 +134,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
   entries.push({
     label: "Recalls",
     value: (
-      <span className="font-mono text-(--fg)" data-testid="context-recalls-value">
+      <span className="font-mono text-fg" data-testid="context-recalls-value">
         {memory.recall_count}
       </span>
     ),
@@ -144,7 +144,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
       label: "Last recalled",
       value: (
         <Time
-          className="text-(--muted)"
+          className="text-muted"
           data-testid="context-last-recalled-value"
           iso={memory.last_recalled_at}
           mode="absolute"
@@ -156,7 +156,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     entries.push({
       label: "Superseded by",
       value: (
-        <span className="font-mono text-(--fg)" data-testid="context-superseded-value">
+        <span className="font-mono text-fg" data-testid="context-superseded-value">
           {memory.superseded_by}
         </span>
       ),
@@ -165,7 +165,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
   entries.push({
     label: "Injection",
     value: (
-      <span className="font-mono text-(--muted)" data-testid="context-injection-value">
+      <span className="font-mono text-muted" data-testid="context-injection-value">
         {memory.injection ? "true" : "false"}
       </span>
     ),
@@ -174,7 +174,7 @@ function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
     entries.push({
       label: "System managed",
       value: (
-        <span className="font-mono text-(--muted)" data-testid="context-system-managed-value">
+        <span className="font-mono text-muted" data-testid="context-system-managed-value">
           true
         </span>
       ),
@@ -214,7 +214,7 @@ function KnowledgeDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="knowledge-detail-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -308,7 +308,7 @@ function KnowledgeDetailPanel({
 
         {memory.description ? (
           <Section label="Description">
-            <p className="text-small-body leading-relaxed text-(--muted)">{memory.description}</p>
+            <p className="text-small-body leading-relaxed text-muted">{memory.description}</p>
           </Section>
         ) : null}
 
@@ -328,7 +328,7 @@ function KnowledgeDetailPanel({
         />
       </div>
 
-      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-(--line) px-6 py-4">
+      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-line px-6 py-4">
         {onEdit ? (
           <Button
             data-testid="edit-memory-btn"
@@ -354,12 +354,12 @@ function KnowledgeDetailPanel({
           Delete
         </Button>
         {deleteError ? (
-          <span className="text-xs text-(--danger)" data-testid="knowledge-delete-error">
+          <span className="text-xs text-danger" data-testid="knowledge-delete-error">
             {deleteError}
           </span>
         ) : null}
         {editError ? (
-          <span className="text-xs text-(--danger)" data-testid="knowledge-edit-error">
+          <span className="text-xs text-danger" data-testid="knowledge-edit-error">
             {editError}
           </span>
         ) : null}

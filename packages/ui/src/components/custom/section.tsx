@@ -12,7 +12,7 @@ export interface SectionProps extends React.ComponentProps<"section"> {
   right?: React.ReactNode;
   divided?: boolean;
   /**
-   * When `true`, the section head renders a bottom hairline via `border-b border-(--line)`.
+   * When `true`, the section head renders a bottom hairline via `border-b border-line`.
    * Default is `false` (flat-depth pass) — depth comes from the warm-surface ramp.
    */
   bordered?: boolean;
@@ -53,7 +53,7 @@ function Section({
       data-slot="section"
       className={cn(
         "flex min-w-0 flex-col gap-3",
-        divided && "border-t border-(--line) pt-5 first:border-t-0 first:pt-0",
+        divided && "border-t border-line pt-5 first:border-t-0 first:pt-0",
         className
       )}
       {...props}
@@ -64,7 +64,7 @@ function Section({
           data-bordered={bordered ? "true" : undefined}
           className={cn(
             "flex flex-col gap-3 pb-2 lg:flex-row lg:items-start lg:justify-between",
-            bordered && "border-b border-(--line)"
+            bordered && "border-b border-line"
           )}
         >
           <div className="flex min-w-0 flex-col gap-2">
@@ -74,21 +74,21 @@ function Section({
                   <span
                     aria-hidden="true"
                     data-slot="section-icon"
-                    className="inline-flex size-5 shrink-0 items-center justify-center text-(--accent)"
+                    className="inline-flex size-5 shrink-0 items-center justify-center text-accent"
                   >
                     <Icon className="size-3.5" />
                   </span>
                 ) : null}
                 <h2
                   data-slot="section-label"
-                  className="truncate text-(length:--text-section-head) font-[510] tracking-section-head text-(--fg-strong)"
+                  className="truncate text-(length:--text-section-head) font-[510] tracking-section-head text-fg-strong"
                 >
                   {label}
                 </h2>
                 {hasCount ? (
                   <span
                     data-slot="section-count"
-                    className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-(--radius-mono-badge) bg-(--canvas-soft) px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-(--muted)"
+                    className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
                   >
                     {count}
                   </span>
@@ -96,7 +96,7 @@ function Section({
               </div>
             ) : null}
             {hasNote ? (
-              <div data-slot="section-note" className="max-w-152 text-small-body text-(--muted)">
+              <div data-slot="section-note" className="max-w-152 text-small-body text-muted">
                 {note}
               </div>
             ) : null}

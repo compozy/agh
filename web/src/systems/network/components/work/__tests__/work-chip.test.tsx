@@ -21,10 +21,10 @@ describe("WorkChip silence rules (`_design.md` §6.6)", () => {
       const cls = chip.className;
       if (state === "failed") {
         expect(chip).toHaveAttribute("data-tone", "danger");
-        expect(cls).toContain("--danger");
+        expect(cls).toContain("text-danger");
       } else {
         expect(chip).toHaveAttribute("data-tone", "warning");
-        expect(cls).toContain("--warning");
+        expect(cls).toContain("text-warning");
       }
     }
   );
@@ -33,9 +33,9 @@ describe("WorkChip silence rules (`_design.md` §6.6)", () => {
     render(<WorkChip state="canceled" />);
     const chip = screen.getByTestId("network-work-chip");
     expect(chip).toHaveAttribute("data-state", "canceled");
-    expect(chip.className).toContain("--subtle");
-    expect(chip.className).not.toContain("bg-(--warning-tint)");
-    expect(chip.className).not.toContain("bg-(--danger-tint)");
+    expect(chip.className).toContain("text-subtle");
+    expect(chip.className).not.toContain("bg-warning-tint");
+    expect(chip.className).not.toContain("bg-danger-tint");
   });
 
   it("Should render `working` chip text without an elapsed suffix when no startedAt is provided", () => {

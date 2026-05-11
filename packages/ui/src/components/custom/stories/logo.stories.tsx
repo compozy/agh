@@ -56,10 +56,10 @@ export const Lettering: Story = {
 
 export const Variants: Story = {
   render: () => (
-    <div className="grid min-w-[520px] gap-6 rounded-lg border border-(--line) bg-(--canvas-soft) p-6">
+    <div className="grid min-w-[520px] gap-6 rounded-lg border border-line bg-canvas-soft p-6">
       {VARIANTS.map(variant => (
         <div key={variant} className="grid grid-cols-[7rem_1fr] items-center gap-6">
-          <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
+          <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-subtle">
             {variant}
           </span>
           <Logo

@@ -21,7 +21,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   render: () => (
-    <span className="inline-flex items-center gap-2 font-mono text-eyebrow text-(--subtle)">
+    <span className="inline-flex items-center gap-2 font-mono text-eyebrow text-subtle">
       <TypingDots />
       <span>codex@laptop is typing...</span>
     </span>

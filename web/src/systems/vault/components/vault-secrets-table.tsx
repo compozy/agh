@@ -53,7 +53,7 @@ export function VaultSecretsTable({
         data-testid={`${testId}-empty`}
       />
       <DataSurface.Content
-        className="overflow-hidden rounded-lg border border-(--line)"
+        className="overflow-hidden rounded-lg border border-line"
         data-testid={testId}
       >
         <Table>
@@ -72,7 +72,7 @@ export function VaultSecretsTable({
               return (
                 <TableRow key={secret.ref} data-testid="vault-secrets-row">
                   <TableCell className="min-w-0">
-                    <span className="block max-w-2xl truncate font-mono text-xs text-(--fg)">
+                    <span className="block max-w-2xl truncate font-mono text-xs text-fg">
                       {secret.ref}
                     </span>
                   </TableCell>
@@ -88,7 +88,7 @@ export function VaultSecretsTable({
                       </Pill>
                     ) : (
                       <span
-                        className="font-mono text-xs text-(--muted)"
+                        className="font-mono text-xs text-muted"
                         data-testid={`vault-secrets-kind-empty-${secret.ref}`}
                       >
                         --
@@ -97,7 +97,7 @@ export function VaultSecretsTable({
                   </TableCell>
                   <TableCell>
                     <Time
-                      className="font-mono text-xs text-(--subtle)"
+                      className="font-mono text-xs text-subtle"
                       data-testid={`vault-secrets-updated-${secret.ref}`}
                       iso={secret.updated_at}
                     />

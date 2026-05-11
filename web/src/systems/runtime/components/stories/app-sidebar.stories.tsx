@@ -14,9 +14,9 @@ const categorizedAgentFixtures = withStoryAgentCategories(agentFixtures);
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-[640px] bg-(--canvas) text-(--fg)" style={{ width: 960 }}>
+    <div className="flex min-h-[640px] bg-canvas text-fg" style={{ width: 960 }}>
       {children}
-      <div className="flex min-h-0 flex-1 items-center justify-center px-10 text-sm text-(--muted)">
+      <div className="flex min-h-0 flex-1 items-center justify-center px-10 text-sm text-muted">
         Outlet content
       </div>
     </div>

@@ -162,10 +162,7 @@ function Sidebar({
       data-state={effectivelyCollapsed ? "collapsed" : "expanded"}
       data-narrow={isDrawer ? "true" : "false"}
       data-viewport={viewport}
-      className={cn(
-        "relative flex h-full shrink-0 border-r border-(--line) bg-(--rail)",
-        className
-      )}
+      className={cn("relative flex h-full shrink-0 border-r border-line bg-rail", className)}
       {...props}
     >
       {isDrawer && panelVisible ? (
@@ -173,13 +170,13 @@ function Sidebar({
           type="button"
           aria-label="Close sidebar navigation"
           onClick={() => setMobileOpen(false)}
-          className="absolute inset-y-0 z-40 bg-(--overlay-scrim)"
+          className="absolute inset-y-0 z-40 bg-overlay-scrim"
           style={{ left: SIDEBAR_RAIL_WIDTH, width: "100vw" }}
         />
       ) : null}
       <div
         data-slot="sidebar-rail"
-        className="relative z-50 flex shrink-0 flex-col items-center gap-1.5 border-r border-(--line) bg-(--rail) py-3"
+        className="relative z-50 flex shrink-0 flex-col items-center gap-1.5 border-r border-line bg-rail py-3"
         style={{ width: SIDEBAR_RAIL_WIDTH }}
       >
         {rail ? (
@@ -199,7 +196,7 @@ function Sidebar({
           }
           aria-expanded={panelVisible}
           onClick={handleToggle}
-          className="inline-flex size-7 items-center justify-center rounded-md text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:outline-none"
+          className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:outline-none"
         >
           <PanelLeftIcon aria-hidden="true" className="size-3.5" />
         </button>
@@ -212,9 +209,9 @@ function Sidebar({
           ...(isDrawer ? { left: SIDEBAR_RAIL_WIDTH } : {}),
         }}
         className={cn(
-          "flex min-h-0 flex-col overflow-hidden bg-(--sidebar)",
+          "flex min-h-0 flex-col overflow-hidden bg-sidebar",
           panelVisible ? "visible pointer-events-auto" : "pointer-events-none invisible",
-          isDrawer && "absolute inset-y-0 z-50 border-r border-(--line)"
+          isDrawer && "absolute inset-y-0 z-50 border-r border-line"
         )}
         aria-hidden={effectivelyCollapsed}
       >
@@ -225,7 +222,7 @@ function Sidebar({
           {header ? (
             <div
               data-slot="sidebar-header"
-              className="flex min-h-12 shrink-0 items-center gap-2 border-b border-(--line) px-2"
+              className="flex min-h-12 shrink-0 items-center gap-2 border-b border-line px-2"
             >
               {header}
             </div>
@@ -234,10 +231,7 @@ function Sidebar({
             {nav}
           </div>
           {footer ? (
-            <div
-              data-slot="sidebar-footer"
-              className="shrink-0 border-t border-(--line) px-2 py-2.5"
-            >
+            <div data-slot="sidebar-footer" className="shrink-0 border-t border-line px-2 py-2.5">
               {footer}
             </div>
           ) : null}
@@ -252,7 +246,7 @@ function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div"
     <div
       {...props}
       data-slot="sidebar-section-label"
-      className={cn("eyebrow flex items-center px-2 pt-3 pb-1.5 text-(--muted)", className)}
+      className={cn("eyebrow flex items-center px-2 pt-3 pb-1.5 text-muted", className)}
     />
   );
 }

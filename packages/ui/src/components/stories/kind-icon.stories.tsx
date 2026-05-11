@@ -42,10 +42,10 @@ export const ProviderMatrix: Story = {
       {providerKeys.map(provider => (
         <div
           key={provider}
-          className="flex min-w-0 items-center gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-3 py-2"
+          className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-canvas-soft px-3 py-2"
         >
           <KindIcon kind={provider} tone="default" />
-          <span className="eyebrow truncate text-(--muted)">{provider}</span>
+          <span className="eyebrow truncate text-muted">{provider}</span>
         </div>
       ))}
     </div>

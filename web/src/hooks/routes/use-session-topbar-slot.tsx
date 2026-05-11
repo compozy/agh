@@ -59,17 +59,17 @@ export function useSessionTopbarSlot({
           data-testid="agent-status-dot"
           aria-label={`Session state: ${signal.label}`}
         />
-        <span data-testid="session-topbar-state" className="font-mono text-[11px] text-(--faint)">
+        <span data-testid="session-topbar-state" className="font-mono text-[11px] text-faint">
           {signal.label}
         </span>
         {providerLabel ? (
           <>
-            <span aria-hidden="true" className="text-(--subtle)">
+            <span aria-hidden="true" className="text-subtle">
               ·
             </span>
             <span
               data-testid="session-topbar-provider"
-              className="font-mono text-[11px] text-(--faint)"
+              className="font-mono text-[11px] text-faint"
             >
               {providerLabel}
             </span>
@@ -77,10 +77,10 @@ export function useSessionTopbarSlot({
         ) : null}
         {session.name?.trim() && session.name.trim() !== session.id ? (
           <>
-            <span aria-hidden="true" className="text-(--subtle)">
+            <span aria-hidden="true" className="text-subtle">
               ·
             </span>
-            <span data-testid="session-topbar-name" className="truncate text-[11px] text-(--muted)">
+            <span data-testid="session-topbar-name" className="truncate text-[11px] text-muted">
               {session.name.trim()}
             </span>
           </>

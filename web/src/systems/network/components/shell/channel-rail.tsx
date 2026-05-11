@@ -103,7 +103,7 @@ function DirectRoomRailRow({ channel, direct, active, selfPeerId }: DirectRoomRa
       />
       <span className="min-w-0 flex-1 truncate">@{otherPeerId}</span>
       {lastActivity ? (
-        <span className="shrink-0 font-mono text-badge text-(--subtle)">{lastActivity}</span>
+        <span className="shrink-0 font-mono text-badge text-subtle">{lastActivity}</span>
       ) : null}
     </Link>
   );
@@ -142,7 +142,7 @@ export function ChannelRail({
   return (
     <aside
       aria-label="Network channels"
-      className={cn("flex min-h-0 shrink-0 flex-col border-r border-(--line) bg-(--canvas)")}
+      className={cn("flex min-h-0 shrink-0 flex-col border-r border-line bg-canvas")}
       data-testid="network-channel-rail"
       data-viewport={viewport}
       style={{ width: panelWidth }}
@@ -160,10 +160,7 @@ export function ChannelRail({
               <Skeleton className="h-4 w-3/5" />
             </div>
           ) : !hasAnyChannel ? (
-            <p
-              className="px-2 py-1 text-eyebrow text-(--subtle)"
-              data-testid="network-channels-empty"
-            >
+            <p className="px-2 py-1 text-eyebrow text-subtle" data-testid="network-channels-empty">
               No channels yet.
             </p>
           ) : (
@@ -196,7 +193,7 @@ export function ChannelRail({
           <SidebarSectionLabel>{DIRECT_ROOMS_HEADING}</SidebarSectionLabel>
           {!activeChannel ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--subtle)"
+              className="px-2 py-1 text-eyebrow text-subtle"
               data-testid="network-rail-directs-empty"
             >
               Select a channel to see direct rooms.
@@ -209,7 +206,7 @@ export function ChannelRail({
             </div>
           ) : !hasAnyDirect ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--subtle)"
+              className="px-2 py-1 text-eyebrow text-subtle"
               data-testid="network-rail-directs-empty"
             >
               No direct rooms yet.

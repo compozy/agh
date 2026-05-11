@@ -150,7 +150,7 @@ export function TasksInboxView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-inbox-view">
-      <div className="border-b border-(--line) px-4 py-2.5" data-testid="tasks-inbox-lane-tabs">
+      <div className="border-b border-line px-4 py-2.5" data-testid="tasks-inbox-lane-tabs">
         <Tabs
           onValueChange={next => onLaneChange(next as InboxLaneFilterId)}
           orientation="horizontal"
@@ -183,7 +183,7 @@ export function TasksInboxView({
         </Tabs>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-(--line) px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
         <SearchInput
           className="h-9 min-w-[220px] flex-1"
           data-testid="tasks-inbox-search"
@@ -201,7 +201,7 @@ export function TasksInboxView({
             id="tasks-inbox-unread-only"
             onCheckedChange={onToggleUnread}
           />
-          <Eyebrow className="text-(--muted)">Unread only</Eyebrow>
+          <Eyebrow className="text-muted">Unread only</Eyebrow>
         </label>
         <Eyebrow data-testid="tasks-inbox-totals">
           {inbox?.unread_total ?? 0} unread · {inbox?.archived_total ?? 0} archived

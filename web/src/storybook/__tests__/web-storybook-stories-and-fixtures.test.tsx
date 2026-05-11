@@ -119,8 +119,8 @@ describe("storybook story and fixture regressions", () => {
     expect(knowledgeListStory).toContain("memory-item-${knowledgeMemoryKey(defaultMemories[2])}");
     expect(knowledgeListStory).toContain("Executive Risk Memo");
     expect(knowledgeDetailStory).toContain("Own the launch outcome end to end.");
-    expect(stylesSource).toContain("animation-duration: var(--dur);");
-    expect(stylesSource).toContain("animation-timing-function: var(--ease);");
+    expect(stylesSource).toContain("animation-duration: var(--duration-base);");
+    expect(stylesSource).toContain("animation-timing-function: var(--ease-out);");
     expect(networkCreateDialogStory).toContain(
       'import { NetworkCreateChannelDialog } from "../network-create-channel-dialog";'
     );

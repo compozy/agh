@@ -100,7 +100,7 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
           </Button>
         ) : (
           <div
-            className="flex items-center gap-2 text-eyebrow text-(--muted)"
+            className="flex items-center gap-2 text-eyebrow text-muted"
             data-testid={`catalog-state-${skill.name}`}
           >
             <Pill mono data-testid={`readonly-pill-${skill.name}`} tone="neutral">
@@ -137,7 +137,7 @@ function MarketplaceView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="marketplace-view">
-      <div className="flex flex-col gap-3 border-b border-(--line) px-4 py-3">
+      <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
         {isBrowseOnly && installUnavailableReason ? (
           <Alert data-testid="marketplace-readonly-notice" variant="warning">
             <AlertCircle aria-hidden="true" className="size-4" />

@@ -69,7 +69,7 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
           <div
             data-slot="direct-room-meta"
             data-testid="network-direct-identity-row-meta"
-            className="flex items-center gap-2 text-[13px] text-(--muted)"
+            className="flex items-center gap-2 text-[13px] text-muted"
           >
             <Eyebrow>agent</Eyebrow>
             <PresenceDot state={room.presence.state} />

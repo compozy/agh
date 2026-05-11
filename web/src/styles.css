@@ -17,8 +17,8 @@
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: var(--dur);
-  animation-timing-function: var(--ease);
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {

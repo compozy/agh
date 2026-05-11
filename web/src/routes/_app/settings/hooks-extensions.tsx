@@ -99,7 +99,7 @@ function HooksExtensionsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-hooks-extensions-loading"
       >
-        <Spinner className="size-5 text-(--subtle)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -111,8 +111,8 @@ function HooksExtensionsSettingsPage() {
         data-testid="settings-page-hooks-extensions-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--danger)" />
-          <p className="text-sm text-(--subtle)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load hooks & extensions settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -190,9 +190,7 @@ function TransportParityBanner({
     >
       <AlertTriangle className="size-3.5" />
       <AlertDescription className="text-xs">
-        <span className="font-medium text-(--warning)">
-          Some operations are unavailable over HTTP.
-        </span>{" "}
+        <span className="font-medium text-warning">Some operations are unavailable over HTTP.</span>{" "}
         HTTP is bound outside the loopback host. {unavailable} stay available over UDS but return
         403 on HTTP. Use the CLI or rebind to loopback to edit from the web app.
       </AlertDescription>
@@ -237,7 +235,7 @@ function HooksSection({
     >
       {hookError ? (
         <span
-          className="text-xs text-(--danger)"
+          className="text-xs text-danger"
           data-testid="settings-page-hooks-extensions-hooks-error"
         >
           {hookError}
@@ -252,17 +250,17 @@ function HooksSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--line)"
+          className="overflow-hidden rounded-lg border border-line"
           data-testid="settings-page-hooks-extensions-hooks-list"
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-(--elevated)">
-                <TableHead className="eyebrow text-(--muted)">Name</TableHead>
-                <TableHead className="eyebrow text-(--muted)">Event</TableHead>
-                <TableHead className="eyebrow text-(--muted)">Mode</TableHead>
-                <TableHead className="eyebrow text-(--muted)">Matcher</TableHead>
-                <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Enabled</TableHead>
+              <TableRow className="bg-elevated">
+                <TableHead className="eyebrow text-muted">Name</TableHead>
+                <TableHead className="eyebrow text-muted">Event</TableHead>
+                <TableHead className="eyebrow text-muted">Mode</TableHead>
+                <TableHead className="eyebrow text-muted">Matcher</TableHead>
+                <TableHead className="eyebrow w-[1%] text-right text-muted">Enabled</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -303,9 +301,9 @@ function HookRow({
     <TableRow data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}`}>
       <TableCell>
         <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-sm text-(--fg)">{entry.name}</span>
+          <span className="font-mono text-sm text-fg">{entry.name}</span>
           {declaration.command ? (
-            <span className="font-mono text-badge text-(--subtle)">
+            <span className="font-mono text-badge text-subtle">
               {[declaration.command, ...(declaration.args ?? [])].join(" ")}
             </span>
           ) : null}
@@ -316,16 +314,16 @@ function HookRow({
           {declaration.event}
         </Pill>
       </TableCell>
-      <TableCell className="font-mono text-xs text-(--muted)">{mode}</TableCell>
+      <TableCell className="font-mono text-xs text-muted">{mode}</TableCell>
       <TableCell
-        className="font-mono text-xs text-(--muted)"
+        className="font-mono text-xs text-muted"
         data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-matcher`}
       >
         {matcherSummary || "--"}
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-2">
-          {pending ? <Spinner className="size-3.5 text-(--subtle)" /> : null}
+          {pending ? <Spinner className="size-3.5 text-subtle" /> : null}
           <Switch
             data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-toggle`}
             checked={enabled}
@@ -372,7 +370,7 @@ function ExtensionsSection({
     >
       {error ? (
         <span
-          className="text-xs text-(--danger)"
+          className="text-xs text-danger"
           data-testid="settings-page-hooks-extensions-extensions-error"
         >
           {error}
@@ -380,7 +378,7 @@ function ExtensionsSection({
       ) : null}
       {isLoading && extensions.length === 0 ? (
         <div
-          className="flex items-center gap-2 text-xs text-(--subtle)"
+          className="flex items-center gap-2 text-xs text-subtle"
           data-testid="settings-page-hooks-extensions-extensions-loading"
         >
           <Spinner className="size-3.5" />
@@ -436,14 +434,14 @@ function ExtensionRow({
 
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-md border border-(--line) bg-(--elevated) px-3 py-2"
+      className="flex items-center justify-between gap-3 rounded-md border border-line bg-elevated px-3 py-2"
       data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}`}
     >
       <div className="flex min-w-0 items-center gap-3">
         <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate font-mono text-sm text-(--fg)">{entry.name}</span>
-          <Eyebrow className="text-(--subtle) flex flex-wrap items-center gap-1.5">
+          <span className="truncate font-mono text-sm text-fg">{entry.name}</span>
+          <Eyebrow className="text-subtle flex flex-wrap items-center gap-1.5">
             <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
             {entry.version ? (
               <Pill mono tone="neutral">
@@ -463,7 +461,7 @@ function ExtensionRow({
           </Eyebrow>
           {entry.last_error ? (
             <span
-              className="text-badge text-(--danger)"
+              className="text-badge text-danger"
               data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-error`}
             >
               {entry.last_error}
@@ -471,7 +469,7 @@ function ExtensionRow({
           ) : null}
           {missingEnv.length > 0 ? (
             <span
-              className="max-w-full break-all font-mono text-badge text-(--warning)"
+              className="max-w-full break-all font-mono text-badge text-warning"
               data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-missing-env`}
             >
               Missing env: {missingEnv.join(", ")}
@@ -480,7 +478,7 @@ function ExtensionRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {pending ? <Spinner className="size-3.5 text-(--subtle)" /> : null}
+        {pending ? <Spinner className="size-3.5 text-subtle" /> : null}
         <Switch
           data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-toggle`}
           checked={entry.enabled}
@@ -768,7 +766,7 @@ function RateLimitRow({
             onValidityChange={onRequestsValidityChange}
             onValueChange={next => onChange({ ...value, requests: next })}
           />
-          <Eyebrow className="text-(--muted)">per</Eyebrow>
+          <Eyebrow className="text-muted">per</Eyebrow>
           <Input
             className="w-20 font-mono"
             data-testid={`${testId}-window`}
@@ -777,7 +775,7 @@ function RateLimitRow({
             disabled={!canMutate}
             onChange={event => onChange({ ...value, window: event.target.value })}
           />
-          <Eyebrow className="text-(--muted)">queue</Eyebrow>
+          <Eyebrow className="text-muted">queue</Eyebrow>
           <SettingsNumberInput
             min={0}
             className="w-16 font-mono"
@@ -819,35 +817,35 @@ function SaveControls({ state, error, warnings, onSave, onReset }: SaveControlsP
       <div className="min-w-0" role="status" aria-live={error ? "assertive" : "polite"}>
         {error ? (
           <span
-            className="text-xs text-(--danger)"
+            className="text-xs text-danger"
             data-testid="settings-page-hooks-extensions-policy-error"
           >
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
           <span
-            className="text-xs text-(--warning)"
+            className="text-xs text-warning"
             data-testid="settings-page-hooks-extensions-policy-warning"
           >
             {warnings.join(" · ")}
           </span>
         ) : !canMutate ? (
           <span
-            className="text-xs text-(--warning)"
+            className="text-xs text-warning"
             data-testid="settings-page-hooks-extensions-policy-unavailable"
           >
             Policy edits are unavailable over HTTP
           </span>
         ) : isInvalid ? (
           <span
-            className="text-xs text-(--warning)"
+            className="text-xs text-warning"
             data-testid="settings-page-hooks-extensions-policy-invalid"
           >
             Resolve validation errors before saving
           </span>
         ) : isDirty ? (
           <span
-            className="text-xs text-(--subtle)"
+            className="text-xs text-subtle"
             data-testid="settings-page-hooks-extensions-policy-dirty"
           >
             Unsaved changes

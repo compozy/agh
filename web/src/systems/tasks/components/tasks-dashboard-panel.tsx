@@ -30,24 +30,24 @@ export function TasksDashboardPanel({
 }: TasksDashboardPanelProps) {
   return (
     <section
-      className={cn("rounded-lg bg-(--canvas-soft)", className)}
+      className={cn("rounded-lg bg-canvas-soft", className)}
       data-slot="tasks-dashboard-panel"
       {...props}
     >
       <header
-        className="flex items-center justify-between gap-2 border-b border-(--line-soft) px-[18px] py-[13px]"
+        className="flex items-center justify-between gap-2 border-b border-line-soft px-[18px] py-[13px]"
         data-slot="tasks-dashboard-panel-head"
       >
         <div className="flex min-w-0 items-baseline gap-2">
           <h3
-            className="truncate text-[12.5px] font-medium tracking-eyebrow text-(--fg-strong)"
+            className="truncate text-[12.5px] font-medium tracking-eyebrow text-fg-strong"
             data-slot="tasks-dashboard-panel-title"
           >
             {title}
           </h3>
           {meta !== undefined ? (
             <span
-              className="shrink-0 font-mono text-[10.5px] tabular-nums text-(--faint)"
+              className="shrink-0 font-mono text-[10.5px] tabular-nums text-faint"
               data-slot="tasks-dashboard-panel-meta"
             >
               {meta}

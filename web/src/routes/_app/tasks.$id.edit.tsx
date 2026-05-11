@@ -30,7 +30,7 @@ function TaskEditRoute() {
   if (page.isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="task-edit-loading">
-        <span className="text-sm text-(--muted)">Loading task…</span>
+        <span className="text-sm text-muted">Loading task…</span>
       </div>
     );
   }
@@ -38,7 +38,7 @@ function TaskEditRoute() {
   if (!page.task || !page.isInitialized) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="task-edit-empty">
-        <span className="text-sm text-(--muted)">We couldn&apos;t load this task for editing.</span>
+        <span className="text-sm text-muted">We couldn&apos;t load this task for editing.</span>
       </div>
     );
   }

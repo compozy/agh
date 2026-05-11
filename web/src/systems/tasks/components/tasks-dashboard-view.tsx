@@ -73,7 +73,7 @@ export function TasksDashboardView({
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
       <div
-        className="flex items-center justify-end gap-2 border-t border-(--line) pt-3"
+        className="flex items-center justify-end gap-2 border-t border-line pt-3"
         data-testid="tasks-dashboard-totals"
       >
         <Eyebrow>

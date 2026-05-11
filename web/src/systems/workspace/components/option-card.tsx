@@ -90,8 +90,8 @@ function OptionCardIcon({ className, tone = "neutral", children, ...props }: Opt
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-(--radius) bg-(--surface-glaze)",
-        tone === "accent" ? "text-(--accent)" : "text-(--fg)",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-glaze",
+        tone === "accent" ? "text-accent" : "text-fg",
         className
       )}
       {...props}
@@ -115,7 +115,7 @@ function OptionCardTitle({ className, children, ...props }: React.ComponentProps
   return (
     <p
       data-slot="option-card-title"
-      className={cn("text-sm font-medium text-(--fg)", className)}
+      className={cn("text-sm font-medium text-fg", className)}
       {...props}
     >
       {children}
@@ -128,7 +128,7 @@ function OptionCardDescription({ className, children, ...props }: React.Componen
   return (
     <p
       data-slot="option-card-description"
-      className={cn("mt-1 text-sm leading-6 text-(--muted)", className)}
+      className={cn("mt-1 text-sm leading-6 text-muted", className)}
       {...props}
     >
       {children}
@@ -141,7 +141,7 @@ function OptionCardMeta({ className, children, ...props }: React.ComponentProps<
   return (
     <p
       data-slot="option-card-meta"
-      className={cn("mt-3 truncate font-mono text-eyebrow text-(--subtle)", className)}
+      className={cn("mt-3 truncate font-mono text-eyebrow text-subtle", className)}
       {...props}
     >
       {children}
