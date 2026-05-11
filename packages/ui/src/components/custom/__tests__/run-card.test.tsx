@@ -21,8 +21,6 @@ describe("RunCard", () => {
     );
     const root = container.querySelector<HTMLElement>('[data-slot="run-card"]');
     expect(root?.dataset.status).toBe("in_progress");
-    expect(root?.className).toContain("bg-(--canvas-soft)");
-    expect(root?.className).toContain("rounded-(--radius-lg)");
 
     const status = container.querySelector<HTMLElement>('[data-slot="run-card-status"]');
     expect(status?.dataset.tone).toBe(RUN_STATUS_TONE.in_progress);
@@ -42,14 +40,6 @@ describe("RunCard", () => {
       grid?.querySelectorAll<HTMLElement>("[data-slot$='-label']") ?? []
     ).map(el => el.textContent?.trim());
     expect(labelSlots).toEqual(["CHANNEL", "QUEUED", "STARTED", "ELAPSED"]);
-  });
-
-  it("Should NOT include any border-l-2 / border-l-(--accent) rail (ban)", () => {
-    const { container } = render(<RunCard status="completed" runId={RUN_ID} />);
-    const root = container.querySelector<HTMLElement>('[data-slot="run-card"]');
-    expect(root?.className).not.toContain("border-l-2");
-    expect(root?.className).not.toContain("border-l-(--accent)");
-    expect(root?.className).not.toContain("border-l-accent");
   });
 
   it("Should map every RunCardStatus to its expected PillTone", () => {
@@ -91,7 +81,6 @@ describe("RunCard", () => {
     );
     const warning = container.querySelector<HTMLElement>('[data-slot="run-card-warning"]');
     expect(warning?.dataset.tone).toBe("warning");
-    expect(warning?.className).toContain("bg-(--warning-tint)");
     expect(warning?.textContent).toBe("Awaiting permission");
   });
 

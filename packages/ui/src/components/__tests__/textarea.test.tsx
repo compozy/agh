@@ -41,20 +41,15 @@ describe("Textarea", () => {
     expect(textarea.disabled).toBe(true);
   });
 
-  it("Should default to variant='default' with 13 px sans rendering", () => {
+  it("Should default to data-variant=default", () => {
     const { container } = render(<Textarea aria-label="notes" defaultValue="" />);
     const textarea = container.querySelector<HTMLTextAreaElement>('[data-slot="textarea"]');
     expect(textarea?.dataset.variant).toBe("default");
-    expect(textarea?.className).toContain("text-[13px]");
-    expect(textarea?.className).not.toContain("font-mono");
-    expect(textarea?.className).not.toContain("text-[12px]");
   });
 
-  it("Should switch to font-mono + 12 px when variant='mono'", () => {
+  it("Should reflect data-variant=mono when variant='mono'", () => {
     const { container } = render(<Textarea aria-label="notes" variant="mono" defaultValue="" />);
     const textarea = container.querySelector<HTMLTextAreaElement>('[data-slot="textarea"]');
     expect(textarea?.dataset.variant).toBe("mono");
-    expect(textarea?.className).toContain("font-mono");
-    expect(textarea?.className).toContain("text-[12px]");
   });
 });

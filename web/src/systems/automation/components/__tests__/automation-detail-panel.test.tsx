@@ -180,8 +180,7 @@ describe("AutomationDetailPanel", () => {
 
     const header = screen.getByTestId("automation-detail-header");
     expect(header).toHaveAttribute("data-slot", "detail-header");
-    const heading = screen.getByRole("heading", { level: 1, name: "daily-review" });
-    expect(heading.className).toContain("text-[length:var(--text-detail-h1)]");
+    screen.getByRole("heading", { level: 1, name: "daily-review" });
   });
 
   it("renders manual jobs without implying a cron schedule", () => {

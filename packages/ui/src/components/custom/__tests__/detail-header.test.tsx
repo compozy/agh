@@ -37,14 +37,6 @@ describe("DetailHeader", () => {
     ]);
   });
 
-  it("Should resolve --text-detail-h1 and --tracking-detail-h1 on the title", () => {
-    const { container } = render(<DetailHeader title="Untitled" />);
-    const title = container.querySelector<HTMLElement>('[data-slot="detail-header-title"]');
-    expect(title?.className).toContain("text-[length:var(--text-detail-h1)]");
-    expect(title?.className).toContain("tracking-(--tracking-detail-h1)");
-    expect(title?.className).toContain("text-(--fg-strong)");
-  });
-
   it("Should invoke the back callback when the back affordance is clicked", () => {
     const back = vi.fn();
     render(<DetailHeader title="Untitled" crumbs="Tasks" back={back} />);

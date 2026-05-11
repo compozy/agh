@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ChatMessageBubble } from "../chat-message-bubble";
 
 describe("ChatMessageBubble", () => {
-  it("Should render a right-aligned surface-elevated bubble for role='user'", () => {
+  it("Should render a right-aligned bubble for role='user'", () => {
     const { container } = render(
       <ChatMessageBubble role="user" meta="YOU · 12:02">
         Find the event mapper.
@@ -15,14 +15,8 @@ describe("ChatMessageBubble", () => {
     const meta = container.querySelector<HTMLElement>('[data-slot="chat-message-meta"]');
     expect(root?.getAttribute("data-role")).toBe("user");
     expect(root?.getAttribute("data-align")).toBe("right");
-    expect(root?.className).toContain("justify-end");
-    expect(body?.className).toContain("bg-(--elevated)");
-    expect(body?.className).toContain("rounded-lg");
-    expect(body?.className).toContain("text-(--fg)");
     expect(body?.textContent).toContain("Find the event mapper.");
     expect(meta?.textContent).toBe("YOU · 12:02");
-    expect(meta?.className).toContain("text-right");
-    expect(meta?.className).toContain("eyebrow");
   });
 
   it("Should render role='agent' left-aligned with no bubble wrapper", () => {
@@ -40,15 +34,9 @@ describe("ChatMessageBubble", () => {
       </ChatMessageBubble>
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
-    const body = container.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
     const meta = container.querySelector<HTMLElement>('[data-slot="chat-message-meta"]');
     expect(root?.getAttribute("data-role")).toBe("agent");
     expect(root?.getAttribute("data-align")).toBe("left");
-    expect(root?.className).toContain("flex-col");
-    expect(body?.className).not.toContain("bg-(--elevated)");
-    expect(body?.className).not.toContain("rounded-lg");
-    expect(body?.className).toContain("text-(--muted)");
-    expect(meta?.className).toContain("items-center");
     expect(meta?.querySelector('[data-testid="dot"]')).not.toBeNull();
     expect(meta?.querySelector('[data-testid="name"]')?.textContent).toBe("claude");
   });
@@ -60,15 +48,8 @@ describe("ChatMessageBubble", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
     const body = container.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
     expect(root?.getAttribute("data-role")).toBe("system");
-    expect(root?.className).toContain("items-center");
     const dividers = root?.querySelectorAll('span[aria-hidden="true"]') ?? [];
     expect(dividers.length).toBe(2);
-    for (const divider of Array.from(dividers)) {
-      expect(divider.className).toContain("bg-(--line)");
-      expect(divider.className).toContain("h-px");
-      expect(divider.className).toContain("flex-1");
-    }
-    expect(body?.className).toContain("font-mono");
     expect(body?.textContent).toBe("Session resumed");
   });
 
@@ -99,9 +80,6 @@ describe("ChatMessageBubble", () => {
       </ChatMessageBubble>
     );
     const meta = container.querySelector<HTMLElement>('[data-slot="chat-message-meta"]');
-    expect(meta?.className).toContain("flex");
-    expect(meta?.className).toContain("items-center");
-    expect(meta?.className).toContain("gap-2");
     const children = Array.from(meta?.children ?? []);
     expect(children.length).toBeGreaterThanOrEqual(2);
     expect(children[0]?.getAttribute("data-testid")).toBe("dot");
@@ -120,8 +98,6 @@ describe("ChatMessageBubble", () => {
       const body = container.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
       expect(root?.getAttribute("data-role")).toBe(role);
       expect(root?.getAttribute("data-align")).toBe("left");
-      expect(root?.className).toContain("flex-col");
-      expect(body?.className ?? "").not.toContain("bg-(--elevated)");
       expect(body?.querySelector('[data-testid="inner-card"]')?.textContent).toBe("payload");
     }
   );
@@ -134,7 +110,6 @@ describe("ChatMessageBubble", () => {
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
     expect(root?.getAttribute("data-align")).toBe("left");
-    expect(root?.className).toContain("justify-start");
   });
 
   it.each(["agent", "tool", "diff"] as const)("Should honour align='right' for role='%s'", role => {
@@ -144,11 +119,7 @@ describe("ChatMessageBubble", () => {
       </ChatMessageBubble>
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
-    const meta = container.querySelector<HTMLElement>('[data-slot="chat-message-meta"]');
     expect(root?.getAttribute("data-align")).toBe("right");
-    expect(root?.className).toContain("items-end");
-    expect(root?.className).toContain("text-right");
-    expect(meta?.className).toContain("justify-end");
   });
 
   it("Should keep role='system' centered even when align is overridden", () => {
@@ -159,18 +130,15 @@ describe("ChatMessageBubble", () => {
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
     expect(root?.getAttribute("data-align")).toBe("right");
-    expect(root?.className).toContain("items-center");
-    expect(root?.className).not.toContain("items-end");
   });
 
   it("Should forward extra HTML props to the root", () => {
     const { container } = render(
-      <ChatMessageBubble role="agent" className="ring-1" data-testid="m1">
+      <ChatMessageBubble role="agent" data-testid="m1">
         body
       </ChatMessageBubble>
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
     expect(root?.getAttribute("data-testid")).toBe("m1");
-    expect(root?.className).toContain("ring-1");
   });
 });

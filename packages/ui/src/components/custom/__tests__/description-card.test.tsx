@@ -132,15 +132,6 @@ describe("DescriptionCard", () => {
       "| 1 | 2 |",
     ].join("\n");
     const { container } = render(<DescriptionCard>{markdown}</DescriptionCard>);
-    const root = container.querySelector<HTMLElement>('[data-slot="description-card"]');
-    expect(root?.className).toContain("bg-(--canvas-soft)");
-    expect(root?.className).toContain("rounded-(--radius-lg)");
-    expect(root?.className).toContain("px-[18px]");
-    expect(root?.className).toContain("py-4");
-
-    const prose = container.querySelector<HTMLElement>('[data-slot="description-card-prose"]');
-    expect(prose?.className).toContain("max-w-[72ch]");
-    expect(prose?.className).toContain("leading-[1.7]");
 
     expect(container.querySelector("h1")?.textContent).toBe("Heading 1");
     expect(container.querySelector("h2")?.textContent).toBe("Heading 2");

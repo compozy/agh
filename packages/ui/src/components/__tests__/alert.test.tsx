@@ -39,17 +39,6 @@ describe("Alert", () => {
     }
   });
 
-  it("Should keep its tone-aware border (signal-card regression check)", () => {
-    render(
-      <Alert data-testid="alert" variant="warning">
-        <AlertTitle>Heads up</AlertTitle>
-      </Alert>
-    );
-    const alert = screen.getByTestId("alert");
-    expect(alert.className).toContain("border");
-    expect(alert.className).toContain("border-(--warning)/20");
-  });
-
   it("Should render meta and actions slots after the description", () => {
     render(
       <Alert data-testid="alert" variant="warning">

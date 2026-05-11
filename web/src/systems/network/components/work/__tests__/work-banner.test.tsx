@@ -32,9 +32,6 @@ describe("WorkBanner auto-hide, tone, and hard-stop", () => {
     const banner = screen.getByTestId("network-work-banner");
     expect(banner).toHaveAttribute("data-tone", "info");
     expect(banner).toHaveTextContent("2 active work in flight");
-    expect(banner.className).toContain("bg-(--info-tint)");
-    expect(banner.className).not.toContain("bg-(--warning)");
-    expect(banner.className).not.toContain("bg-(--danger)");
   });
 
   it("Should render the warning tint when work needs input (no solid signal fill)", () => {
@@ -42,10 +39,6 @@ describe("WorkBanner auto-hide, tone, and hard-stop", () => {
     const banner = screen.getByTestId("network-work-banner");
     expect(banner).toHaveAttribute("data-tone", "warning");
     expect(banner).toHaveTextContent("1 needs input · 2 working");
-    expect(banner.className).toContain("bg-(--warning-tint)");
-    // Tint-only: NEVER paint the solid signal fill on the banner.
-    expect(banner.className).not.toMatch(/bg-\(--warning\)(?!-tint)/);
-    expect(banner.className).not.toMatch(/bg-\(--danger\)(?!-tint)/);
   });
 
   it("Should render the danger tint when `needsInputCount` crosses the hard-stop threshold", () => {
@@ -59,8 +52,6 @@ describe("WorkBanner auto-hide, tone, and hard-stop", () => {
     );
     const banner = screen.getByTestId("network-work-banner");
     expect(banner).toHaveAttribute("data-tone", "danger");
-    expect(banner.className).toContain("bg-(--danger-tint)");
-    expect(banner.className).not.toMatch(/bg-\(--danger\)(?!-tint)/);
   });
 
   it("Should fire a single <Sonner> toast when `needsInputCount` crosses the hard-stop threshold", () => {

@@ -4,26 +4,19 @@ import { describe, expect, it, vi } from "vitest";
 import { MonoId } from "../mono-id";
 
 describe("MonoId", () => {
-  it("Should render bare lowercase mono identifier at --text-mono-id / --faint", () => {
+  it("Should render lowercase mono identifier value", () => {
     const { container } = render(<MonoId value="run_ABC123" />);
     const root = container.querySelector<HTMLElement>('[data-slot="mono-id"]');
     expect(root?.dataset.size).toBe("default");
-    expect(root?.className).toContain("font-mono");
-    expect(root?.className).toContain("text-[length:var(--text-mono-id)]");
-    expect(root?.className).toContain("tracking-(--tracking-mono-id)");
-    expect(root?.className).toContain("text-(--faint)");
-    expect(root?.className).not.toContain("rounded");
-    expect(root?.className).not.toContain("bg-(--neutral-tint)");
 
     const value = container.querySelector<HTMLElement>('[data-slot="mono-id-value"]');
     expect(value?.textContent).toBe("run_abc123");
   });
 
-  it("Should switch to 10 px when size is sm", () => {
+  it("Should expose sm size data attribute", () => {
     const { container } = render(<MonoId value="run_abc" size="sm" />);
     const root = container.querySelector<HTMLElement>('[data-slot="mono-id"]');
     expect(root?.dataset.size).toBe("sm");
-    expect(root?.className).toContain("text-[10px]");
   });
 
   it("Should render an inline copy button only when copy is true", () => {

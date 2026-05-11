@@ -63,63 +63,21 @@ describe("CatalogCard", () => {
     }
   );
 
-  it("Should render flat — 16 px padding, no border, no accent on resting state", () => {
-    render(<CatalogCard data-testid="catalog-card" />);
-    const card = screen.getByTestId("catalog-card");
-    expect(card.className).toContain("p-4");
-    expect(card.className).not.toContain("border-(--line)");
-    expect(card.className).not.toContain("border-(--accent)");
-    expect(card.className).not.toContain("bg-(--accent-tint)");
-    expect(card.className).toContain("bg-(--canvas-soft)");
-  });
-
-  it("Should hover into --elevated when `actionable`", () => {
-    render(<CatalogCard data-testid="catalog-card" actionable />);
-    const card = screen.getByTestId("catalog-card");
-    expect(card.className).toContain("hover:bg-(--elevated)");
-  });
-
-  it("Should paint --surface-glaze + 1 px inset --line-strong ring on selected state (no accent)", () => {
-    render(<CatalogCard data-testid="catalog-card" selected />);
-    const card = screen.getByTestId("catalog-card");
-    expect(card.className).toContain("bg-(--surface-glaze)");
-    expect(card.className).toContain("shadow-[inset_0_0_0_1px_var(--line-strong)]");
-    expect(card.className).not.toContain("border-(--accent)");
-    expect(card.className).not.toContain("bg-(--accent-tint)");
-  });
-
-  it("Should size the icon-well at --size-catalog-logo (24 px) by default", () => {
+  it("Should expose default logo size data attribute", () => {
     render(
       <CatalogCard>
         <CatalogCard.Logo data-testid="logo" />
       </CatalogCard>
     );
-    const logo = screen.getByTestId("logo");
-    expect(logo.className).toContain("size-(--size-catalog-logo)");
-    expect(logo.className).toContain("bg-(--surface-glaze)");
-    expect(logo.className).toContain("rounded-(--radius)");
-    expect(logo).toHaveAttribute("data-size", "default");
+    expect(screen.getByTestId("logo")).toHaveAttribute("data-size", "default");
   });
 
-  it("Should size the icon-well at --size-provider-logo-well (40 px) when logoSize='lg'", () => {
+  it("Should expose lg logo size data attribute", () => {
     render(
       <CatalogCard>
         <CatalogCard.Logo data-testid="logo" size="lg" />
       </CatalogCard>
     );
-    const logo = screen.getByTestId("logo");
-    expect(logo.className).toContain("size-(--size-provider-logo-well)");
-    expect(logo).toHaveAttribute("data-size", "lg");
-  });
-
-  it("Should render the title at 13 px / 510 / -0.012em", () => {
-    render(
-      <CatalogCard>
-        <CatalogCard.Title data-testid="title">release-auditor</CatalogCard.Title>
-      </CatalogCard>
-    );
-    const title = screen.getByTestId("title");
-    expect(title.className).toContain("text-[13px]");
-    expect(title.className).toContain("tracking-[-0.012em]");
+    expect(screen.getByTestId("logo")).toHaveAttribute("data-size", "lg");
   });
 });

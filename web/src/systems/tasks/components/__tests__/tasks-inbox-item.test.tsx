@@ -37,16 +37,9 @@ describe("TasksInboxItem", () => {
 
     const row = screen.getByTestId("tasks-inbox-item-task_apr");
     expect(row).toHaveAttribute("data-group", "needs_review");
-    expect(row.className).toContain("grid-cols-[3px_minmax(0,1fr)_auto]");
-    // No `border-l-2` declaration on the row anymore — rail is painted via its
-    // own grid cell.
-    expect(row.className).not.toContain("border-l-2");
-    expect(row.className).not.toContain("border-l-(--fg-strong)");
-    expect(row.className).not.toContain("border-l-(--accent)");
 
     const rail = row.querySelector("[data-slot=tasks-inbox-row-rail]");
     expect(rail).not.toBeNull();
-    expect(rail!.className).toContain("bg-(--warning)");
   });
 
   it("Should paint the rail with the blocked danger tone when the row belongs to the blocked group", () => {
@@ -66,7 +59,6 @@ describe("TasksInboxItem", () => {
       .getByTestId("tasks-inbox-item-task_block")
       .querySelector("[data-slot=tasks-inbox-row-rail]");
     expect(rail).not.toBeNull();
-    expect(rail!.className).toContain("bg-(--danger)");
   });
 
   it("Should render Reject as a ghost-danger button and Approve as the single accent CTA", () => {

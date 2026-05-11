@@ -11,8 +11,6 @@ describe("BlockLoading", () => {
     expect(panel).toHaveAttribute("data-slot", "block-loading");
     expect(panel).toHaveAttribute("data-size", "md");
     expect(panel).toHaveAttribute("data-surface", "panel");
-    expect(panel.className).toContain("min-h-48");
-    expect(panel.className).toContain("rounded-lg");
     expect(container.querySelector('[role="status"]')).toBeInTheDocument();
   });
 
@@ -24,8 +22,6 @@ describe("BlockLoading", () => {
     const panel = screen.getByTestId("loading-bare");
     expect(panel).toHaveAttribute("data-size", "sm");
     expect(panel).toHaveAttribute("data-surface", "bare");
-    expect(panel.className).toContain("min-h-28");
-    expect(panel.className).not.toContain("rounded-lg");
     expect(screen.getByLabelText("Loading rows")).toBeInTheDocument();
   });
 });

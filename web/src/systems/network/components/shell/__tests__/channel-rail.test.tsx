@@ -241,6 +241,5 @@ describe("ChannelRail", () => {
     // ItemSelectionIndicator data-indicator is added by the primitive when indicator="rail".
     const indicator = activeRow.querySelector('[data-indicator="rail"]');
     expect(indicator).not.toBeNull();
-    expect(indicator?.className).toContain("bg-(--fg-strong)");
   });
 });

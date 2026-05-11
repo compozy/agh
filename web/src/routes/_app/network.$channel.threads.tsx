@@ -6,9 +6,8 @@ import {
   ChannelThreadComposer,
   ThreadsList,
   useNetworkChannelThreadsRoute,
-  useNetworkListFilters,
+  useNetworkListFiltersContext,
 } from "@/systems/network";
-import { ListFilterBar } from "@/systems/network/components/shell";
 
 interface ThreadsRouteSearch {
   view?: "full";
@@ -29,11 +28,7 @@ function NetworkChannelThreadsRoute() {
   const search = Route.useSearch();
   const route = useNetworkChannelThreadsRoute({ channel, view: search.view });
   const { activeThreadId, isFullPage, showOverlay, showList, threadsQuery, activeSession } = route;
-  const filters = useNetworkListFilters({
-    channel,
-    threads: threadsQuery.threads,
-    directs: [],
-  });
+  const { filteredThreads } = useNetworkListFiltersContext();
 
   return (
     <section
@@ -41,18 +36,6 @@ function NetworkChannelThreadsRoute() {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-threads-tab"
     >
-      {showList && !showOverlay ? (
-        <ListFilterBar
-          counts={filters.counts}
-          filter={filters.filter}
-          isMarkAllReadDisabled={filters.counts.unread === 0}
-          onFilterChange={filters.setFilter}
-          onMarkAllRead={filters.markAllRead}
-          onSortChange={filters.setSort}
-          sort={filters.sort}
-        />
-      ) : null}
-
       <div className="flex min-h-0 flex-1">
         {showList ? (
           <ThreadsList
@@ -60,7 +43,7 @@ function NetworkChannelThreadsRoute() {
             channel={channel}
             dim={showOverlay && !isFullPage}
             isLoading={threadsQuery.isLoading}
-            threads={filters.filteredThreads}
+            threads={filteredThreads}
           />
         ) : null}
 

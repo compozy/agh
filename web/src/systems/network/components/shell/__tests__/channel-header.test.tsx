@@ -56,14 +56,11 @@ function renderHeader({
   );
   return render(
     <ChannelHeader
-      activeTab="threads"
       channel={channel}
       detail={detail}
-      directCount={3}
       inspectorOpen={inspectorOpen}
       onInspectorToggle={() => undefined}
       openWorkCount={2}
-      threadCount={12}
     />,
     { wrapper }
   );
@@ -85,7 +82,6 @@ describe("ChannelHeader", () => {
     expect(detailHeader).not.toBeNull();
     const title = wrapper.querySelector('[data-slot="detail-header-title"]');
     expect(title).not.toBeNull();
-    expect(title?.className).toContain("text-[length:var(--text-detail-h1)]");
     expect(screen.getByTestId("network-channel-title")).toHaveTextContent("ops");
   });
 

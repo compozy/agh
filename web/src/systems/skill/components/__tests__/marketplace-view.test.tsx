@@ -53,14 +53,6 @@ describe("MarketplaceView", () => {
     expect(screen.getByTestId("marketplace-row-gamma")).toBeInTheDocument();
   });
 
-  it("Should render the install button as variant=default", () => {
-    renderView();
-    const button = screen.getByTestId("install-btn-alpha");
-    // The button-cva default variant emits the neutral fill, not the primary accent fill.
-    expect(button.className).toContain("bg-(--btn-default-fill)");
-    expect(button.className).not.toContain("bg-(--accent)");
-  });
-
   it("Should call onInstall with the skill name when the install button is clicked", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn();

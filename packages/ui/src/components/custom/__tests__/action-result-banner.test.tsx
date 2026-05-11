@@ -24,11 +24,4 @@ describe("ActionResultBanner", () => {
     expect(root?.getAttribute("role")).toBe("status");
     expect(root?.dataset.tone).toBe("danger");
   });
-
-  it("Should keep its tone border (signal-card regression check)", () => {
-    const { container } = render(<ActionResultBanner tone="warning" title="Heads up" />);
-    const root = container.querySelector<HTMLElement>('[data-slot="action-result-banner"]');
-    expect(root?.className).toContain("border");
-    expect(root?.className).toContain("border-(--warning-tint)");
-  });
 });

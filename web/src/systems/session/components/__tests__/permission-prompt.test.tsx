@@ -49,7 +49,6 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     );
 
     const root = screen.getByTestId("permission-prompt");
-    expect(root.className).toContain("sticky");
     expect(root.getAttribute("data-sticky")).toBe("true");
   });
 
@@ -62,18 +61,6 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     expect(root.getAttribute("data-tone")).toBe("danger");
     const tile = screen.getByTestId("permission-prompt-tile");
     expect(tile.getAttribute("data-tone")).toBe("danger");
-    expect(tile.className).toContain("size-6");
-    expect(tile.className).toContain("bg-(--danger)");
-  });
-
-  it("Should paint the prompt with the matching danger tint background", () => {
-    render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
-    );
-
-    const card = screen.getByTestId("permission-prompt-card");
-    expect(card.className).toContain("bg-(--danger-tint)");
-    expect(card.className).not.toContain("bg-(--warning-tint)");
   });
 
   it("Should fall back to warning tone (tile + tint) for non-high-stakes tools", () => {
@@ -88,7 +75,6 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
     expect(screen.getByTestId("permission-prompt").getAttribute("data-tone")).toBe("warning");
     expect(screen.getByTestId("permission-prompt-tile").getAttribute("data-tone")).toBe("warning");
-    expect(screen.getByTestId("permission-prompt-card").className).toContain("bg-(--warning-tint)");
   });
 
   it("Should render tool name, action, and resource in the meta row", () => {

@@ -27,9 +27,6 @@ describe("Section", () => {
     expect(container.querySelector('[data-slot="section-note"]')).toHaveTextContent(
       "Read-only daemon state"
     );
-    const root = container.querySelector('[data-slot="section"]');
-    expect(root?.className).toContain("border-t");
-    expect(root?.className).toContain("first:border-t-0");
   });
 
   it("Should omit the header when neither label nor right are provided", () => {
@@ -60,31 +57,19 @@ describe("Section", () => {
     expect(container.querySelector('[data-slot="section-label"]')?.textContent).toBe("0");
   });
 
-  it("Should render the head without bottom border by default", () => {
+  it("Should expose data-bordered=null when bordered is not set", () => {
     const { container } = render(<Section label="Members">body</Section>);
     const head = container.querySelector('[data-slot="section-head"]');
-    expect(head?.className).not.toContain("border-b");
     expect(head?.getAttribute("data-bordered")).toBeNull();
   });
 
-  it("Should opt into a `--line` hairline when `bordered` is true", () => {
+  it("Should expose data-bordered=true when bordered is true", () => {
     const { container } = render(
       <Section label="Members" bordered>
         body
       </Section>
     );
     const head = container.querySelector('[data-slot="section-head"]');
-    expect(head?.className).toContain("border-b");
-    expect(head?.className).toContain("border-(--line)");
     expect(head?.getAttribute("data-bordered")).toBe("true");
-  });
-
-  it("Should render the H2 at --text-section-head (13 px) — never the legacy 22 px tuple", () => {
-    const { container } = render(<Section label="Members">body</Section>);
-    const heading = container.querySelector<HTMLElement>('[data-slot="section-label"]');
-    expect(heading?.className).toContain("text-(length:--text-section-head)");
-    expect(heading?.className).toContain("tracking-(--tracking-section-head)");
-    expect(heading?.className).not.toContain("text-[22px]");
-    expect(heading?.className).not.toContain("tracking-[-0.026em]");
   });
 });

@@ -10,9 +10,8 @@ import {
   DirectsList,
   NewDirectDialog,
   useNetworkChannelDirectsRoute,
-  useNetworkListFilters,
+  useNetworkListFiltersContext,
 } from "@/systems/network";
-import { ListFilterBar } from "@/systems/network/components/shell";
 
 interface DirectDetailParams {
   directId?: string;
@@ -29,11 +28,7 @@ function NetworkChannelDirectsRoute() {
   const { channel } = Route.useParams();
   const detailParams = useParams({ strict: false }) as DirectDetailParams;
   const route = useNetworkChannelDirectsRoute(channel);
-  const filters = useNetworkListFilters({
-    channel,
-    threads: [],
-    directs: route.directs.directs,
-  });
+  const { filteredDirects } = useNetworkListFiltersContext();
   const [newDirectOpen, setNewDirectOpen] = useState(false);
 
   if (detailParams.directId) {
@@ -51,7 +46,7 @@ function NetworkChannelDirectsRoute() {
   const directsQuery = route.directs;
   const activeSession = route.session;
   const channelMembers = route.members;
-  const visibleDirects = filters.filteredDirects;
+  const visibleDirects = filteredDirects;
   const showEmpty = !directsQuery.isLoading && visibleDirects.length === 0;
   const sessionId = activeSession.session?.sessionId ?? "";
   const totalDirects = directsQuery.directs.length;
@@ -66,16 +61,6 @@ function NetworkChannelDirectsRoute() {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-directs-tab"
     >
-      <ListFilterBar
-        counts={filters.counts}
-        filter={filters.filter}
-        isMarkAllReadDisabled={filters.counts.unread === 0}
-        onFilterChange={filters.setFilter}
-        onMarkAllRead={filters.markAllRead}
-        onSortChange={filters.setSort}
-        sort={filters.sort}
-      />
-
       <header
         className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
         data-testid="network-directs-subheader"

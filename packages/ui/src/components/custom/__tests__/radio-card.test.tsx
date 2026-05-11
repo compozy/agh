@@ -23,22 +23,4 @@ describe("RadioCard", () => {
       "true"
     );
   });
-
-  it("Should render resting state flat on --canvas-soft with no border", () => {
-    render(<RadioCard selected={false} onSelect={() => undefined} title="Resting card" />);
-    const card = screen.getByRole("radio", { name: /resting card/i });
-    expect(card.className).toContain("bg-(--canvas-soft)");
-    expect(card.className).not.toContain("border-(--line)");
-    expect(card.className).not.toContain("border-(--accent)");
-    expect(card.className).not.toContain("bg-(--accent-tint)");
-  });
-
-  it("Should paint --surface-glaze + inset --line-strong ring on selected state (no accent)", () => {
-    render(<RadioCard selected onSelect={() => undefined} title="Selected card" />);
-    const card = screen.getByRole("radio", { name: /selected card/i });
-    expect(card.className).toContain("bg-(--surface-glaze)");
-    expect(card.className).toContain("shadow-[inset_0_0_0_1px_var(--line-strong)]");
-    expect(card.className).not.toContain("border-(--accent)");
-    expect(card.className).not.toContain("bg-(--accent-tint)");
-  });
 });

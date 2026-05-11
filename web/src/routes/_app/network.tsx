@@ -4,7 +4,16 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
 import type { TopbarRouteContext } from "@/types/topbar";
-import { DaemonDown, NetworkEmpty, ThreadOverlay, useNetworkRouteView } from "@/systems/network";
+import {
+  DaemonDown,
+  NetworkEmpty,
+  ThreadOverlay,
+  useNetworkDirects,
+  useNetworkListFilters,
+  useNetworkRouteView,
+  useNetworkThreads,
+} from "@/systems/network";
+import { NetworkListFiltersProvider } from "@/systems/network/contexts/network-list-filters-context";
 import { NetworkInspector, NetworkShell } from "@/systems/network/components/shell";
 
 export const Route = createFileRoute("/_app/network")({
@@ -29,6 +38,15 @@ function NetworkRouteShell() {
   useTopbarSlot({
     count: totalChannelCount,
     actions: page.status ? view.networkCreate.action : undefined,
+  });
+
+  const activeChannelKey = activeChannel?.channel ?? null;
+  const toolbarThreads = useNetworkThreads(activeChannelKey);
+  const toolbarDirects = useNetworkDirects(activeChannelKey);
+  const filters = useNetworkListFilters({
+    channel: activeChannelKey ?? "",
+    threads: toolbarThreads.threads,
+    directs: toolbarDirects.directs,
   });
 
   if (page.isStatusLoading) {
@@ -78,40 +96,42 @@ function NetworkRouteShell() {
   if (page.channels.length === 0 && !page.isChannelsLoading) {
     return (
       <>
-        <NetworkShell
-          activeChannel={null}
-          activeChannelDetail={null}
-          activeDirectId={null}
-          activeTab="threads"
-          directCount={null}
-          directs={[]}
-          hasUnread={() => false}
-          inspectorOpen={false}
-          loading={{ channels: false, directs: false, recents: false }}
-          isPinned={() => false}
-          onInspectorToggle={() => undefined}
-          onTogglePinned={page.togglePinned}
-          openWorkCount={0}
-          pinnedChannels={[]}
-          recents={[]}
-          rightRailMode="thread"
-          rightRailOpen={false}
-          selfPeerId={null}
-          threadCount={null}
-          unpinnedChannels={[]}
-        >
-          <div
-            className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-            data-testid="network-no-channels-state"
+        <NetworkListFiltersProvider value={filters}>
+          <NetworkShell
+            activeChannel={null}
+            activeChannelDetail={null}
+            activeDirectId={null}
+            activeTab="threads"
+            directCount={null}
+            directs={[]}
+            hasUnread={() => false}
+            inspectorOpen={false}
+            loading={{ channels: false, directs: false, recents: false }}
+            isPinned={() => false}
+            onInspectorToggle={() => undefined}
+            onTogglePinned={page.togglePinned}
+            openWorkCount={0}
+            pinnedChannels={[]}
+            recents={[]}
+            rightRailMode="thread"
+            rightRailOpen={false}
+            selfPeerId={null}
+            threadCount={null}
+            unpinnedChannels={[]}
           >
-            <Empty
-              className="max-w-xl"
-              description="Create one or accept an invite."
-              icon={NetworkIcon}
-              title="No channels yet."
-            />
-          </div>
-        </NetworkShell>
+            <div
+              className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+              data-testid="network-no-channels-state"
+            >
+              <Empty
+                className="max-w-xl"
+                description="Create one or accept an invite."
+                icon={NetworkIcon}
+                title="No channels yet."
+              />
+            </div>
+          </NetworkShell>
+        </NetworkListFiltersProvider>
         {view.networkCreate.dialog}
       </>
     );
@@ -137,37 +157,42 @@ function NetworkRouteShell() {
       />
     ) : null;
 
+  const threadCount = activeChannelKey ? toolbarThreads.threads.length : null;
+  const directCount = activeChannelKey ? toolbarDirects.directs.length : null;
+
   return (
     <>
-      <NetworkShell
-        activeChannel={activeChannel}
-        activeChannelDetail={null}
-        activeDirectId={activeDirectId}
-        activeTab={activeTab}
-        directCount={null}
-        directs={view.railView.directs.directs}
-        hasUnread={hasUnread}
-        inspectorOpen={inspector.open}
-        loading={{
-          channels: page.isChannelsLoading,
-          directs: view.railView.directs.isLoading,
-          recents: page.isRecentsLoading,
-        }}
-        isPinned={page.isPinned}
-        onInspectorToggle={inspector.toggle}
-        onTogglePinned={page.togglePinned}
-        openWorkCount={view.openWork.openCount}
-        pinnedChannels={page.pinnedChannels}
-        recents={page.recents}
-        rightRailContent={rightRailContent}
-        rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
-        rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
-        selfPeerId={view.railView.session.session?.peerId ?? null}
-        threadCount={null}
-        unpinnedChannels={page.unpinnedChannels}
-      >
-        <Outlet />
-      </NetworkShell>
+      <NetworkListFiltersProvider value={filters}>
+        <NetworkShell
+          activeChannel={activeChannel}
+          activeChannelDetail={null}
+          activeDirectId={activeDirectId}
+          activeTab={activeTab}
+          directCount={directCount}
+          directs={view.railView.directs.directs}
+          hasUnread={hasUnread}
+          inspectorOpen={inspector.open}
+          loading={{
+            channels: page.isChannelsLoading,
+            directs: view.railView.directs.isLoading,
+            recents: page.isRecentsLoading,
+          }}
+          isPinned={page.isPinned}
+          onInspectorToggle={inspector.toggle}
+          onTogglePinned={page.togglePinned}
+          openWorkCount={view.openWork.openCount}
+          pinnedChannels={page.pinnedChannels}
+          recents={page.recents}
+          rightRailContent={rightRailContent}
+          rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
+          rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
+          selfPeerId={view.railView.session.session?.peerId ?? null}
+          threadCount={threadCount}
+          unpinnedChannels={page.unpinnedChannels}
+        >
+          <Outlet />
+        </NetworkShell>
+      </NetworkListFiltersProvider>
       {view.networkCreate.dialog}
     </>
   );

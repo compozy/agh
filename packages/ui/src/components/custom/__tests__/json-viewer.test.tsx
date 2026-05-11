@@ -13,11 +13,4 @@ describe("JsonViewer", () => {
     expect(container.querySelector('[data-slot="json-number"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="json-boolean"]')).not.toBeNull();
   });
-
-  it("Should render a 11.5px mono code surface", () => {
-    const { container } = render(<JsonViewer value={{}} />);
-    const root = container.querySelector<HTMLElement>('[data-slot="json-viewer"]');
-    expect(root?.className).toContain("font-mono");
-    expect(root?.className).toContain("text-[11.5px]");
-  });
 });

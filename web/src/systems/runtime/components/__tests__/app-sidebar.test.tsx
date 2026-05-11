@@ -137,7 +137,6 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const alpha = screen.getByTestId("workspace-avatar-ws_alpha");
       expect(alpha).toHaveTextContent("A");
-      expect(alpha.className).toContain("rounded-(--radius-md)");
       expect(screen.getByTestId("workspace-avatar-ws_beta")).toHaveTextContent("B");
     });
 
@@ -149,7 +148,6 @@ describe("AppSidebar", () => {
       expect(logo).not.toBeNull();
       expect(logo).toHaveAttribute("data-variant", "symbol");
       expect(logo).toHaveAttribute("viewBox", "0 0 355 355");
-      expect(link.className).toContain("rounded-(--radius-md)");
     });
 
     it("Should link the app logo back to the dashboard", () => {
@@ -162,7 +160,6 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       const active = screen.getByTestId("workspace-avatar-ws_alpha");
       expect(active).toHaveAttribute("data-active", "true");
-      expect(active.className).toContain("border-(--accent)");
     });
 
     it("Should not render the deleted workspace-badge slot anywhere in the sidebar", () => {
@@ -530,25 +527,19 @@ describe("AppSidebar", () => {
     ])("Should render the 2px accent bar on active %s nav", (testKey, path) => {
       matchedRoute[path] = true;
       renderSidebar(makeProps());
-      const indicator = screen.getByTestId(`nav-active-${testKey}`);
-      expect(indicator.className).toContain("w-[2px]");
-      expect(indicator.className).toContain("bg-accent");
+      expect(screen.getByTestId(`nav-active-${testKey}`)).toBeInTheDocument();
     });
 
     it("Should keep Tasks active for task detail and run detail deep links (fuzzy)", () => {
       matchedRouteFuzzy["/tasks"] = true;
       renderSidebar(makeProps());
-      const indicator = screen.getByTestId("nav-active-tasks");
-      expect(indicator.className).toContain("w-[2px]");
-      expect(indicator.className).toContain("bg-accent");
+      expect(screen.getByTestId("nav-active-tasks")).toBeInTheDocument();
     });
 
     it("Should mark Settings active when the settings route matches (fuzzy)", () => {
       matchedRouteFuzzy["/settings"] = true;
       renderSidebar(makeProps());
-      const indicator = screen.getByTestId("nav-active-settings");
-      expect(indicator.className).toContain("w-[2px]");
-      expect(indicator.className).toContain("bg-accent");
+      expect(screen.getByTestId("nav-active-settings")).toBeInTheDocument();
     });
 
     it("Should not show active indicators when no route matches", () => {

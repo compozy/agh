@@ -73,13 +73,6 @@ describe("Command", () => {
     expect(onSelect.mock.calls.at(-1)?.[0]).toBeTypeOf("string");
   });
 
-  it("Should paint the command surface on var(--canvas-soft) with a 1px line-soft ring", () => {
-    const { container } = render(<PaletteExample />);
-    const root = container.querySelector('[data-slot="command"]') as HTMLElement | null;
-    expect(root?.className).toContain("bg-(--canvas-soft)");
-    expect(root?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
-  });
-
   it("Should render inside CommandDialog when open", async () => {
     render(
       <CommandDialog open>

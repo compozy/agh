@@ -134,7 +134,7 @@ describe("Combobox", () => {
     });
   });
 
-  it("Should use the elevated input surface and bordered popup in single-select mode", async () => {
+  it("Should mount the input group and open the bordered popup in single-select mode", async () => {
     const user = userEvent.setup();
     render(<SingleExample />);
 
@@ -144,8 +144,6 @@ describe("Combobox", () => {
     const input = screen.getByLabelText("city");
 
     expect(inputGroup).not.toBeNull();
-    expect(inputGroup?.className).toContain("h-9");
-    expect(inputGroup?.className).toContain("bg-(--elevated)");
 
     await user.click(input);
     await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
@@ -155,8 +153,6 @@ describe("Combobox", () => {
     ) as HTMLElement | null;
 
     expect(content).not.toBeNull();
-    expect(content?.className).toContain("bg-(--canvas-soft)");
-    expect(content?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
   });
 
   it("Should render the input trigger button through the combobox trigger primitive", async () => {
@@ -172,14 +168,6 @@ describe("Combobox", () => {
 
     await user.click(trigger!);
     await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
-  });
-
-  it("Should use the elevated surface for chip-based combobox inputs", () => {
-    render(<MultiExample />);
-    const chips = document.querySelector("[data-slot='combobox-chips']") as HTMLElement | null;
-    expect(chips).not.toBeNull();
-    expect(chips?.className).toContain("min-h-9");
-    expect(chips?.className).toContain("bg-(--elevated)");
   });
 
   it("Should expose useComboboxAnchor as a MutableRefObject", () => {

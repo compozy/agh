@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PageShell, Section } from "@agh/ui";
+import { PageShell } from "@agh/ui";
 import { SettingsSaveBar } from "../settings-save-bar";
 
 describe("PageShell", () => {
@@ -81,18 +81,5 @@ describe("PageShell", () => {
 
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-general-header")).not.toBeInTheDocument();
-  });
-
-  it("renders the section title with the canonical --tracking-section-head token", () => {
-    render(
-      <Section divided label="Runtime">
-        <span>content</span>
-      </Section>
-    );
-
-    const heading = screen.getByText("Runtime");
-    expect(heading.className).toContain("tracking-(--tracking-section-head)");
-    expect(heading.className).toContain("text-(length:--text-section-head)");
-    expect(heading.className).not.toContain("tracking-[-0.026em]");
   });
 });

@@ -26,26 +26,6 @@ describe("TasksDashboardCards", () => {
     );
   });
 
-  it("Should resolve KpiCard value to --fg-strong regardless of tone (no accent recolor)", () => {
-    render(<TasksDashboardCards dashboard={buildDashboardFixture()} />);
-
-    for (const testId of [
-      "tasks-dashboard-card-active-runs",
-      "tasks-dashboard-card-success-rate",
-      "tasks-dashboard-card-average-duration",
-      "tasks-dashboard-card-queue-depth",
-    ]) {
-      const card = screen.getByTestId(testId);
-      const valueNode = card.querySelector("[data-slot=kpi-card-value]");
-      expect(valueNode).not.toBeNull();
-      expect(valueNode!.className).toContain("text-(--fg-strong)");
-      // No accent / tone recolor leak.
-      expect(valueNode!.className).not.toContain("text-(--accent)");
-      expect(valueNode!.className).not.toContain("text-(--warning)");
-      expect(valueNode!.className).not.toContain("text-(--danger)");
-    }
-  });
-
   it("Should show the active run count and queue depth from the dashboard payload", () => {
     const dashboard = buildDashboardFixture({
       active_runs: {

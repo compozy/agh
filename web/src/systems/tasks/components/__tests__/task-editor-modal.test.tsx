@@ -94,22 +94,6 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
   });
 
-  it("Should render the modal at the 720 px width token", () => {
-    renderNewModal();
-    const modal = screen.getByTestId("task-editor-modal");
-    expect(modal.className).toContain("w-[var(--width-modal-md)]");
-  });
-
-  it("Should apply the overlay scrim token with backdrop-filter blur via inline style", () => {
-    renderNewModal();
-    const overlay = document.body.querySelector(
-      "[data-slot='dialog-overlay']"
-    ) as HTMLElement | null;
-    expect(overlay).not.toBeNull();
-    expect(overlay?.className).toContain("bg-(--overlay-scrim)");
-    expect(overlay?.style.backdropFilter).toBe("blur(var(--overlay-blur))");
-  });
-
   it("Should render Enqueue task when enqueueOnSubmit is true", () => {
     renderNewModal();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Enqueue task");

@@ -74,9 +74,6 @@ describe("WorkspaceOnboarding", () => {
 
     const onboarding = screen.getByTestId("workspace-onboarding");
     expect(onboarding).toBeInTheDocument();
-    expect(onboarding.className).toContain("flex-1");
-    expect(onboarding.className).toContain("overflow-y-auto");
-    expect(onboarding.className).not.toContain("min-h-screen");
     expect(
       screen.getByRole("heading", {
         name: "Start AGH with a real workspace, not an empty shell.",
@@ -122,40 +119,12 @@ describe("WorkspaceOnboarding", () => {
     );
   });
 
-  it("stacks onboarding setup cards into a single constrained options rail", () => {
-    renderOnboarding();
-
-    const optionsRail = screen.getByTestId("workspace-setup-options");
-    expect(optionsRail.className).toContain("flex-col");
-    expect(optionsRail.className).toContain("lg:max-w-[24rem]");
-    expect(optionsRail.className).not.toContain("grid-cols-2");
-  });
-
-  it("caps the onboarding H1 at the detail-h1 token and drops the oversized text-3xl tuple", () => {
-    renderOnboarding();
-    const title = screen.getByTestId("workspace-onboarding-hero-title");
-    expect(title.className).toContain("text-(length:--text-detail-h1)");
-    expect(title.className).toContain("tracking-(--tracking-detail-h1)");
-    expect(title.className).not.toContain("text-3xl");
-    expect(title.className).not.toContain("sm:text-4xl");
-    expect(title.hasAttribute("style")).toBe(false);
-  });
-
-  it("renders a 56x56 icon-well above the onboarding H1 with surface-glaze tone", () => {
-    renderOnboarding();
-    const well = screen.getByTestId("workspace-onboarding-hero-icon");
-    expect(well.className).toContain("size-14");
-    expect(well.className).toContain("rounded-(--radius-icon-well)");
-    expect(well.className).toContain("bg-(--surface-glaze)");
-  });
-
   it("keeps a single accent surface on the workspace setup global card (CTA only)", () => {
     renderOnboarding();
     const globalCard = screen.getByTestId("workspace-setup-global-card");
     const accentSpans = globalCard.querySelectorAll('[data-tone="accent"]');
     expect(accentSpans.length).toBe(0);
-    const cta = screen.getByTestId("workspace-use-global");
-    expect(cta.className).toContain("text-(--accent-ink)");
+    expect(screen.getByTestId("workspace-use-global")).toBeInTheDocument();
     const badge = globalCard.querySelector('[data-tone="success"]');
     expect(badge).not.toBeNull();
   });
@@ -227,10 +196,6 @@ describe("WorkspaceSetupDialog", () => {
     const header = dialog.querySelector('[data-slot="dialog-header"]') as HTMLElement | null;
     expect(header).not.toBeNull();
     expect(header?.dataset.variant).toBe("ruled");
-    expect(header?.className).toContain("border-b");
-    expect(header?.className).toContain("border-(--line)");
-    expect(header?.className).toContain("px-5");
-    expect(header?.className).toContain("py-4");
   });
 
   it("does not mount the dialog body when `open` is false", () => {

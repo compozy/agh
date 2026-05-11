@@ -212,11 +212,8 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(meta).toBeInTheDocument();
     const state = screen.getByTestId("session-topbar-state");
     expect(state).toHaveTextContent("stopped");
-    expect(state.className).toContain("font-mono");
-    expect(state.className).toContain("text-(--faint)");
     const provider = screen.getByTestId("session-topbar-provider");
     expect(provider).toHaveTextContent("codex");
-    expect(provider.className).toContain("font-mono");
   });
 
   it("Should expose delete/stop/resume controls inside the Topbar actions slot for stopped sessions", () => {

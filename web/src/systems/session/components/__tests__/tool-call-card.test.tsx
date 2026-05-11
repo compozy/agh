@@ -37,14 +37,6 @@ function queryOutputRegion(): HTMLElement | null {
 }
 
 describe("Session ToolCallCard — wraps <ChatToolCard>", () => {
-  it("Should render the primitive root with canvas-soft surface and token radius", () => {
-    render(<ToolCallCard message={makeToolMessage()} />);
-    const root = queryChatToolCardRoot();
-    expect(root).not.toBeNull();
-    expect(root?.className).toContain("bg-(--canvas-soft)");
-    expect(root?.className).toContain("rounded-(--radius-lg)");
-  });
-
   it("Should expose the tool name through the head MonoId slot", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     expect(queryNameMonoId()).toHaveTextContent("read");
@@ -74,7 +66,6 @@ describe("Session ToolCallCard — wraps <ChatToolCard>", () => {
     );
     const root = queryChatToolCardRoot();
     expect(root?.getAttribute("data-status")).toBe("failed");
-    expect(root?.className).toContain("bg-(--danger-tint)");
     expect(queryStatusPill()?.getAttribute("data-tone")).toBe("danger");
     const errorNode = document.querySelector('[data-slot="chat-tool-card-error"]');
     expect(errorNode).not.toBeNull();

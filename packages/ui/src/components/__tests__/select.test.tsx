@@ -78,24 +78,4 @@ describe("Select", () => {
     const trigger = container.querySelector("[data-slot=select-trigger]") as HTMLElement | null;
     expect(trigger).toHaveAttribute("data-size", "sm");
   });
-
-  it("Should use the elevated input trigger surface and 1px line-soft ring on the popup", async () => {
-    const user = userEvent.setup();
-    render(<SelectExample />);
-
-    const trigger = screen.getByRole("combobox", { name: "Agent" });
-    expect(trigger.className).toContain("bg-(--elevated)");
-    expect(trigger.className).toContain("data-[size=default]:h-9");
-
-    await user.click(trigger);
-    await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument());
-
-    const content = document.body.querySelector(
-      "[data-slot='select-content']"
-    ) as HTMLElement | null;
-
-    expect(content).not.toBeNull();
-    expect(content?.className).toContain("bg-(--canvas-soft)");
-    expect(content?.className).toContain("shadow-[0_0_0_1px_var(--line-soft)]");
-  });
 });

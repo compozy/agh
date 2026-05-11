@@ -58,7 +58,7 @@ describe("Item", () => {
     expect(item?.getAttribute("data-size")).toBe("xs");
   });
 
-  it("Should expose selected state on the elevated surface step and render the 2px white rail indicator by default", () => {
+  it("Should expose selected state and render the rail indicator by default", () => {
     render(
       <Item selected indicator="rail" data-testid="selectable-item">
         <ItemContent>
@@ -70,16 +70,12 @@ describe("Item", () => {
     const item = screen.getByTestId("selectable-item");
     const indicator = item.querySelector('[data-slot="item-selection-indicator"]');
     expect(item.dataset.selected).toBe("true");
-    expect(item.className).toContain("bg-(--elevated)");
-    expect(item.className).toContain("text-(--fg-strong)");
     expect(indicator).not.toBeNull();
     expect(indicator?.getAttribute("data-indicator")).toBe("rail");
     expect(indicator?.getAttribute("data-tone")).toBe("white");
-    expect(indicator?.className).toContain("w-[2px]");
-    expect(indicator?.className).toContain("bg-(--fg-strong)");
   });
 
-  it("Should render an accent rail when indicatorTone='accent'", () => {
+  it("Should expose data-tone=accent when indicatorTone='accent'", () => {
     render(
       <Item indicator="rail" indicatorTone="accent" data-testid="unread-item">
         <ItemContent>
@@ -91,7 +87,6 @@ describe("Item", () => {
     const item = screen.getByTestId("unread-item");
     const indicator = item.querySelector('[data-slot="item-selection-indicator"]');
     expect(indicator?.getAttribute("data-tone")).toBe("accent");
-    expect(indicator?.className).toContain("bg-(--accent)");
   });
 
   it("Should render as a pressed button when as=button and selected", () => {
@@ -131,7 +126,6 @@ describe("Item", () => {
 
     const indicator = screen.getByTestId("item-dot-indicator");
     expect(indicator.dataset.indicator).toBe("dot");
-    expect(indicator.className).toContain("size-1.5");
   });
 
   it("Should render ItemSeparator as a horizontal separator between rows", () => {

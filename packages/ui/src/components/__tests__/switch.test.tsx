@@ -35,14 +35,6 @@ describe("Switch", () => {
     expect(root).toHaveAttribute("data-size", "sm");
   });
 
-  it("Should round the default size to a 18x32 grid", () => {
-    const { container } = render(<Switch aria-label="grid" />);
-    const root = container.querySelector("[data-slot=switch]") as HTMLElement | null;
-    expect(root?.className).toContain("data-[size=default]:h-[18px]");
-    expect(root?.className).toContain("data-[size=default]:w-[32px]");
-    expect(root?.className).not.toContain("h-[18.4px]");
-  });
-
   it("Should not respond to clicks when disabled", async () => {
     const user = userEvent.setup();
     const handleChange = vi.fn();

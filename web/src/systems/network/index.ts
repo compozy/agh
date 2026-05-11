@@ -138,11 +138,23 @@ export type {
   UseNetworkRailViewArgs,
   UseNetworkRailViewResult,
 } from "./hooks/use-network-rail-view";
-export { useNetworkListFilters } from "./hooks/use-network-list-filters";
+export {
+  createNetworkChipFilter,
+  NETWORK_FILTER_KEYS,
+  useNetworkListFilters,
+} from "./hooks/use-network-list-filters";
 export type {
+  NetworkChipFilter,
+  NetworkFilterKey,
+  NetworkListFilterCounts,
+  NetworkListSort,
   UseNetworkListFiltersArgs,
   UseNetworkListFiltersResult,
 } from "./hooks/use-network-list-filters";
+export {
+  NetworkListFiltersProvider,
+  useNetworkListFiltersContext,
+} from "./contexts/network-list-filters-context";
 export { useNetworkChannels } from "./hooks/use-channels";
 export { useLastRead, buildLastReadStorageKey } from "./hooks/use-last-read";
 export type { NetworkLastReadKey, UseLastReadResult } from "./hooks/use-last-read";

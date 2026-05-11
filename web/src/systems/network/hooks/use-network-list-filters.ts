@@ -1,15 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { createFilter, type Filter as ReuiFilter } from "@agh/ui/components/reui/filters";
+
 import { useActiveNetworkSession } from "./use-active-session";
 import { useLastRead, type NetworkLastReadKey } from "./use-last-read";
 import type { NetworkDirectRoomSummary, NetworkSurface, NetworkThreadSummary } from "../types";
-import type {
-  NetworkListFilter,
-  NetworkListFilterCounts,
-  NetworkListSort,
-} from "../components/shell/list-filter-bar";
 
 const PINNED_STORAGE_KEY = "network:pinned-items";
+
+export type NetworkListSort = "recent_activity" | "created" | "alphabetical";
+
+export type NetworkFilterKey = "has_work" | "mentions_me" | "pinned" | "unread";
+
+export const NETWORK_FILTER_KEYS = [
+  "has_work",
+  "mentions_me",
+  "pinned",
+  "unread",
+] as const satisfies ReadonlyArray<NetworkFilterKey>;
+
+export interface NetworkListFilterCounts {
+  all: number;
+  hasWork: number;
+  me: number;
+  pinned: number;
+  unread: number;
+}
+
+export type NetworkChipFilter = ReuiFilter<boolean>;
 
 type PinnedStore = Record<string, true>;
 
@@ -53,6 +71,24 @@ function writePinned(store: PinnedStore): void {
   }
 }
 
+function isKnownChipKey(field: string): field is NetworkFilterKey {
+  return (NETWORK_FILTER_KEYS as ReadonlyArray<string>).includes(field);
+}
+
+function chipKeySet(filters: ReadonlyArray<NetworkChipFilter>): Set<NetworkFilterKey> {
+  const out = new Set<NetworkFilterKey>();
+  for (const filter of filters) {
+    if (isKnownChipKey(filter.field)) {
+      out.add(filter.field);
+    }
+  }
+  return out;
+}
+
+export function createNetworkChipFilter(key: NetworkFilterKey): NetworkChipFilter {
+  return createFilter<boolean>(key, "is", [true]);
+}
+
 export interface UseNetworkListFiltersArgs {
   channel: string;
   threads: ReadonlyArray<NetworkThreadSummary>;
@@ -60,10 +96,10 @@ export interface UseNetworkListFiltersArgs {
 }
 
 export interface UseNetworkListFiltersResult {
-  filter: NetworkListFilter;
+  filters: NetworkChipFilter[];
   sort: NetworkListSort;
   counts: NetworkListFilterCounts;
-  setFilter: (next: NetworkListFilter) => void;
+  setFilters: (next: NetworkChipFilter[]) => void;
   setSort: (next: NetworkListSort) => void;
   filteredThreads: NetworkThreadSummary[];
   filteredDirects: NetworkDirectRoomSummary[];
@@ -71,6 +107,7 @@ export interface UseNetworkListFiltersResult {
   unpin: (surface: NetworkSurface, id: string) => void;
   isPinned: (surface: NetworkSurface, id: string) => boolean;
   markAllRead: () => void;
+  isMarkAllReadDisabled: boolean;
 }
 
 function compareTimestampDesc(a: string | null | undefined, b: string | null | undefined): number {
@@ -118,17 +155,18 @@ function applyDirectSort(
 /**
  * Per-channel filter / sort / mark-all-read state for the network list views.
  *
- * Filters and sort run client-side over the loaded list — server-side push
- * down is documented as a follow-up TechSpec (see plan §C.1) so the response
- * envelope stays unchanged for now. `Pinned` and `Unread` are derived from
- * the existing client-only stores (`network:pinned-items`, `network:last-read`).
+ * Filters compose: each `NetworkChipFilter` in `filters` represents an active
+ * boolean toggle (`has_work`, `mentions_me`, `pinned`, `unread`). An empty
+ * `filters` array means no filter — all rows pass. Filters and sort run
+ * client-side over the loaded list; server-side push down is documented as a
+ * follow-up TechSpec so the response envelope stays unchanged for now.
  */
 export function useNetworkListFilters({
   channel,
   threads,
   directs,
 }: UseNetworkListFiltersArgs): UseNetworkListFiltersResult {
-  const [filter, setFilter] = useState<NetworkListFilter>("all");
+  const [filters, setFilters] = useState<NetworkChipFilter[]>([]);
   const [sort, setSort] = useState<NetworkListSort>("recent_activity");
   const [pinnedStore, setPinnedStore] = useState<PinnedStore>(() => readPinned());
   const lastRead = useLastRead();
@@ -277,46 +315,32 @@ export function useNetworkListFilters({
   }, [threads, directs, isThreadMine, isDirectMine, isPinned, isThreadUnread, isDirectUnread]);
 
   const filteredThreads = useMemo(() => {
+    const active = chipKeySet(filters);
     let scope: NetworkThreadSummary[] = threads.filter(thread => {
-      switch (filter) {
-        case "all":
-          return true;
-        case "has_work":
-          return thread.open_work_count > 0;
-        case "me":
-          return isThreadMine(thread);
-        case "pinned":
-          return isPinned("thread", thread.thread_id);
-        case "unread":
-          return isThreadUnread(thread);
-        default:
-          return true;
-      }
+      if (active.size === 0) return true;
+      if (active.has("has_work") && thread.open_work_count <= 0) return false;
+      if (active.has("mentions_me") && !isThreadMine(thread)) return false;
+      if (active.has("pinned") && !isPinned("thread", thread.thread_id)) return false;
+      if (active.has("unread") && !isThreadUnread(thread)) return false;
+      return true;
     });
     scope = applyThreadSort(scope, sort);
     return scope;
-  }, [threads, filter, sort, isThreadMine, isPinned, isThreadUnread]);
+  }, [threads, filters, sort, isThreadMine, isPinned, isThreadUnread]);
 
   const filteredDirects = useMemo(() => {
+    const active = chipKeySet(filters);
     let scope: NetworkDirectRoomSummary[] = directs.filter(direct => {
-      switch (filter) {
-        case "all":
-          return true;
-        case "has_work":
-          return direct.open_work_count > 0;
-        case "me":
-          return isDirectMine(direct);
-        case "pinned":
-          return isPinned("direct", direct.direct_id);
-        case "unread":
-          return isDirectUnread(direct);
-        default:
-          return true;
-      }
+      if (active.size === 0) return true;
+      if (active.has("has_work") && direct.open_work_count <= 0) return false;
+      if (active.has("mentions_me") && !isDirectMine(direct)) return false;
+      if (active.has("pinned") && !isPinned("direct", direct.direct_id)) return false;
+      if (active.has("unread") && !isDirectUnread(direct)) return false;
+      return true;
     });
     scope = applyDirectSort(scope, sort);
     return scope;
-  }, [directs, filter, sort, isDirectMine, isPinned, isDirectUnread]);
+  }, [directs, filters, sort, isDirectMine, isPinned, isDirectUnread]);
 
   const markAllRead = useCallback(() => {
     for (const thread of filteredThreads) {
@@ -343,11 +367,13 @@ export function useNetworkListFilters({
     }
   }, [channel, filteredThreads, filteredDirects, lastRead]);
 
+  const isMarkAllReadDisabled = counts.unread === 0;
+
   return {
-    filter,
+    filters,
     sort,
     counts,
-    setFilter,
+    setFilters,
     setSort,
     filteredThreads,
     filteredDirects,
@@ -355,5 +381,6 @@ export function useNetworkListFilters({
     unpin,
     isPinned,
     markAllRead,
+    isMarkAllReadDisabled,
   };
 }

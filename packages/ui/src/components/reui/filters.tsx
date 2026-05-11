@@ -429,7 +429,7 @@ export interface FilterFieldConfig<T = unknown> {
   key?: string;
   label?: string;
   icon?: React.ReactNode;
-  type?: "select" | "multiselect" | "text" | "custom" | "separator";
+  type?: "select" | "multiselect" | "text" | "custom" | "separator" | "toggle";
   // Group-level configuration
   group?: string;
   fields?: FilterFieldConfig<T>[];
@@ -949,6 +949,10 @@ function FilterValueSelector<T = unknown>({
     return null;
   }
 
+  if (field.type === "toggle") {
+    return null;
+  }
+
   if (field.customRenderer) {
     return (
       <ButtonGroupText className="hover:bg-accent aria-expanded:bg-accent bg-background dark:bg-input/30 text-start whitespace-nowrap outline-hidden">
@@ -1044,6 +1048,18 @@ export const FiltersContent = <T = unknown,>({
       {filters.map(filter => {
         const field = fieldsMap[filter.field];
         if (!field) return null;
+
+        if (field.type === "toggle") {
+          return (
+            <ButtonGroup key={filter.id}>
+              <ButtonGroupText>
+                {field.icon}
+                {field.label}
+              </ButtonGroupText>
+              <FilterRemoveButton onClick={() => removeFilter(filter.id)} />
+            </ButtonGroup>
+          );
+        }
 
         return (
           <ButtonGroup key={filter.id}>
@@ -1429,7 +1445,8 @@ export function Filters<T = unknown>({
       if (field && field.key) {
         const defaultOperator =
           field.defaultOperator || (field.type === "multiselect" ? "is_any_of" : "is");
-        const defaultValues: unknown[] = field.type === "text" ? [""] : [];
+        const defaultValues: unknown[] =
+          field.type === "text" ? [""] : field.type === "toggle" ? [true] : [];
         const newFilter = createFilter<T>(fieldKey, defaultOperator, defaultValues as T[]);
         setLastAddedFilterId(newFilter.id);
         onChange([...filters, newFilter]);
@@ -1750,6 +1767,17 @@ export function Filters<T = unknown>({
         {filters.map(filter => {
           const field = fieldsMap[filter.field];
           if (!field) return null;
+          if (field.type === "toggle") {
+            return (
+              <ButtonGroup key={filter.id}>
+                <ButtonGroupText className="bg-background dark:bg-input/30">
+                  {field.icon}
+                  {field.label}
+                </ButtonGroupText>
+                <FilterRemoveButton onClick={() => removeFilter(filter.id)} />
+              </ButtonGroup>
+            );
+          }
           return (
             <ButtonGroup key={filter.id}>
               <ButtonGroupText className="bg-background dark:bg-input/30">

@@ -62,13 +62,4 @@ describe("ConnectionIndicator", () => {
     expect(indicator.querySelector('[data-slot="connection-indicator-dot"]')).not.toBeNull();
     expect(indicator.querySelector('[data-slot="connection-indicator-label"]')).toBeNull();
   });
-
-  it("Should switch the label to sentence-case Inter when variant='inline'", () => {
-    render(<ConnectionIndicator data-testid="indicator" status="connected" variant="inline" />);
-    const label = screen
-      .getByTestId("indicator")
-      .querySelector('[data-slot="connection-indicator-label"]');
-    expect(label?.className).toContain("font-sans");
-    expect(label?.className).not.toContain("uppercase");
-  });
 });

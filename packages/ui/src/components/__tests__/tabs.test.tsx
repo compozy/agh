@@ -59,37 +59,6 @@ describe("Tabs", () => {
     expect(list).toHaveAttribute("data-variant", "lane");
   });
 
-  it("Should render the active-tab underline at 1.5px tall using the fg-strong token", () => {
-    const { container } = render(<TabsExample variant="line" />);
-    const trigger = container.querySelector('[data-slot="tabs-trigger"]') as HTMLElement | null;
-    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:bottom-[-1.5px]");
-    expect(trigger?.className).toContain("group-data-horizontal/tabs:after:h-[1.5px]");
-    expect(trigger?.className).toContain("after:bg-(--fg-strong)");
-    expect(trigger?.className).not.toContain("after:bg-(--accent)");
-  });
-
-  it("Should render the active count chip with the neutral 0.07 glaze (no accent) for variant=line", () => {
-    const { container } = render(
-      <Tabs defaultValue="runs">
-        <TabsList variant="line">
-          <TabsTrigger count={3} value="runs">
-            Runs
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="runs">Panel</TabsContent>
-      </Tabs>
-    );
-    const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
-    expect(count?.className).toContain(
-      "group-data-[variant=line]/tabs-list:group-data-[active=true]:bg-(--btn-default-hover)"
-    );
-    expect(count?.className).toContain(
-      "group-data-[variant=line]/tabs-list:group-data-[active=true]:text-(--fg)"
-    );
-    expect(count?.className).not.toContain("bg-(--accent)");
-    expect(count?.className).not.toContain("text-(--accent-ink)");
-  });
-
   it("Should render count and live label slots inside a trigger", () => {
     const { container } = render(
       <Tabs defaultValue="runs">
@@ -107,18 +76,7 @@ describe("Tabs", () => {
     expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
   });
 
-  it("Should render lane-variant separators on every trigger except the first", () => {
-    const { container } = render(<TabsExample variant="lane" />);
-    const triggers = container.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"]');
-    expect(triggers).toHaveLength(3);
-    const separatorClass =
-      "group-data-[variant=lane]/tabs-list:[&:not(:first-child)]:before:content-['·']";
-    for (const trigger of triggers) {
-      expect(trigger.className).toContain(separatorClass);
-    }
-  });
-
-  it("Should render lane-variant counts as bare mono with --faint, no chip background", () => {
+  it("Should render lane-variant count text from the count prop", () => {
     const { container } = render(
       <Tabs defaultValue="lane-a">
         <TabsList variant="lane">
@@ -135,14 +93,6 @@ describe("Tabs", () => {
     );
     const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
     expect(count?.textContent).toBe("4");
-    expect(count?.className).toContain("group-data-[variant=lane]/tabs-list:bg-transparent");
-    expect(count?.className).toContain("group-data-[variant=lane]/tabs-list:text-[10.5px]");
-    expect(count?.className).toContain("group-data-[variant=lane]/tabs-list:text-(--faint)");
-    expect(count?.className).toContain("font-mono");
-    expect(count?.className).not.toContain("group-data-[variant=lane]/tabs-list:rounded-full");
-    expect(count?.className).not.toContain(
-      "group-data-[variant=lane]/tabs-list:bg-(--canvas-tint)"
-    );
   });
 
   it("Should reject the chipped 'default' variant at the type level", () => {

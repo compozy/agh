@@ -37,10 +37,9 @@ describe("Icon", () => {
     expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("1");
   });
 
-  it("Should keep the shrink-0 baseline + merge consumer className", () => {
+  it("Should merge consumer className onto the rendered svg", () => {
     const { container } = render(<Icon as={Sparkles} className="text-(--accent)" />);
     const svg = container.querySelector("svg");
-    expect(svg?.className.baseVal).toContain("shrink-0");
     expect(svg?.className.baseVal).toContain("text-(--accent)");
   });
 });

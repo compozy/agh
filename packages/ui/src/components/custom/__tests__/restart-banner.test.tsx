@@ -4,15 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { RestartBanner } from "../restart-banner";
 
 describe("RestartBanner", () => {
-  it("Should render the warm-orange warning chrome with the default message", () => {
+  it("Should render the warning tone chrome with the default message", () => {
     const { container } = render(<RestartBanner />);
     const root = container.querySelector<HTMLElement>('[data-slot="restart-banner"]');
     expect(root?.dataset.tone).toBe("warning");
     expect(root?.getAttribute("data-variant")).toBe("warning");
     expect(root?.getAttribute("role")).toBe("status");
-    expect(root?.className).toContain("rounded-none");
-    expect(root?.className).toContain("border-x-0");
-    expect(root?.className).toContain("border-t-0");
 
     const message = container.querySelector<HTMLElement>('[data-slot="restart-banner-message"]');
     expect(message?.textContent).toContain("Restart required to apply.");

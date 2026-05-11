@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useChildMatches, useNavigate, useParams } from "@tanstack/react-router";
 
-import type { ChannelTab } from "../components/shell/channel-tabs";
+import type { ChannelTab } from "../components/shell/channel-tabs-types";
 import type { NetworkChannelSummary, NetworkRecentEntry } from "../types";
 import { useLastRead } from "./use-last-read";
 import { useNetworkPage, type UseNetworkPageResult } from "./use-network-page";

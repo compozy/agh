@@ -10,7 +10,6 @@ import {
   ChannelRail,
   ChannelRailRecents,
   ChannelRailRow,
-  ChannelTabs,
 } from "@/systems/network/components/shell";
 import type { NetworkChannelSummary, NetworkRecentEntry, NetworkSurface } from "@/systems/network";
 
@@ -112,8 +111,7 @@ export const Empty: Story = {
 };
 
 /**
- * Individual rail row, recents, and tab primitives used inside the channel rail
- * and network header.
+ * Individual rail row and recents primitives used inside the channel rail.
  */
 export const RailPrimitives: StoryObj<typeof ChannelRailRow> = {
   render: () => (
@@ -136,12 +134,6 @@ export const RailPrimitives: StoryObj<typeof ChannelRailRow> = {
           />
         </div>
         <ChannelRailRecents recents={recents} isLoading={false} />
-        <ChannelTabs
-          channel={allChannels[0]?.channel ?? "launch-war-room"}
-          activeTab="threads"
-          threadCount={12}
-          directCount={3}
-        />
       </div>
     </PanelSurface>
   ),

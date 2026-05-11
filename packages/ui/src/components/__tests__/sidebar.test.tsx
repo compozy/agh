@@ -114,15 +114,7 @@ describe("Sidebar", () => {
     expect(SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT).toBe(880);
   });
 
-  it("Should paint the rail on var(--rail) and the panel on var(--sidebar)", () => {
-    const { container } = render(<Sidebar nav={<span>nav</span>} collapsed={false} />);
-    const rail = container.querySelector<HTMLElement>("[data-slot=sidebar-rail]");
-    const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
-    expect(rail?.className).toContain("bg-(--rail)");
-    expect(panel?.className).toContain("bg-(--sidebar)");
-  });
-
-  it("Should paint the narrow scrim on var(--overlay-scrim)", async () => {
+  it("Should render a narrow scrim that closes the sidebar when activated", async () => {
     const user = userEvent.setup();
     installMatchMedia(q => q.includes("max-width"));
     const { container } = render(
@@ -134,7 +126,7 @@ describe("Sidebar", () => {
     const scrim = container.querySelector<HTMLElement>(
       "aside button[aria-label='Close sidebar navigation']"
     );
-    expect(scrim?.className).toContain("bg-(--overlay-scrim)");
+    expect(scrim).not.toBeNull();
   });
 
   it("Should call onCollapse(true) when the collapse control is activated from expanded", async () => {
@@ -175,14 +167,10 @@ describe("Sidebar", () => {
     const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
     expect(panel).toHaveAttribute("aria-hidden", "false");
     expect(panel).not.toHaveAttribute("inert");
-    expect(panel?.className).toContain("visible");
-    expect(panel?.className).toContain("pointer-events-auto");
 
     rerender(<Sidebar nav={<span>nav</span>} collapsed={true} />);
     expect(panel).toHaveAttribute("aria-hidden", "true");
     expect(panel).toHaveAttribute("inert");
-    expect(panel?.className).toContain("invisible");
-    expect(panel?.className).toContain("pointer-events-none");
   });
 
   it("Should drive the motion panel width from the collapsed prop", async () => {

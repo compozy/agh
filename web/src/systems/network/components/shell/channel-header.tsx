@@ -16,14 +16,10 @@ import { cn } from "@/lib/utils";
 import { useChannelMembers } from "../../hooks/use-channel-members";
 import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
-import { ChannelTabs, type ChannelTab } from "./channel-tabs";
 
 export interface ChannelHeaderProps {
   channel: NetworkChannelSummary;
   detail: NetworkChannel | null;
-  activeTab: ChannelTab;
-  threadCount: number | null;
-  directCount: number | null;
   openWorkCount: number;
   inspectorOpen: boolean;
   onInspectorToggle: () => void;
@@ -80,9 +76,6 @@ function buildMetaSegments({
 export function ChannelHeader({
   channel,
   detail,
-  activeTab,
-  threadCount,
-  directCount,
   openWorkCount,
   inspectorOpen,
   onInspectorToggle,
@@ -165,7 +158,7 @@ export function ChannelHeader({
   );
 
   return (
-    <header className="flex flex-col" data-testid="network-channel-header">
+    <header data-testid="network-channel-header">
       <DetailHeader
         actions={actions}
         className="px-5 py-3"
@@ -184,13 +177,6 @@ export function ChannelHeader({
             </span>
           </span>
         }
-      />
-
-      <ChannelTabs
-        activeTab={activeTab}
-        channel={channel.channel}
-        directCount={directCount}
-        threadCount={threadCount}
       />
     </header>
   );

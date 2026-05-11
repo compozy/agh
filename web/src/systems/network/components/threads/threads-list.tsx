@@ -140,8 +140,6 @@ export function ThreadsList({
     );
   }
 
-  const total = threads.length;
-
   return (
     <div
       aria-label={`Threads in #${channel}`}
@@ -153,15 +151,6 @@ export function ThreadsList({
       data-dim={dim ? "true" : "false"}
       data-testid="network-thread-list"
     >
-      <div
-        className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
-        data-testid="network-thread-list-subheader"
-      >
-        <Eyebrow>
-          {total} {total === 1 ? "thread" : "threads"}
-        </Eyebrow>
-        <Eyebrow aria-hidden="true">Sorted by recent activity</Eyebrow>
-      </div>
       {threads.map(thread => (
         <ThreadsListRow
           active={thread.thread_id === activeThreadId}

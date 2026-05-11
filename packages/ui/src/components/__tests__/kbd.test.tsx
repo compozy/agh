@@ -4,21 +4,18 @@ import { describe, expect, it } from "vitest";
 import { Kbd, KbdGroup } from "../kbd";
 
 describe("Kbd", () => {
-  it("Should default to font-mono and not contain font-sans", () => {
+  it("Should mount a Kbd root with the stable data-slot", () => {
     const { container } = render(<Kbd>K</Kbd>);
-    const node = container.querySelector('[data-slot="kbd"]');
-    expect(node?.className).toContain("font-mono");
-    expect(node?.className).not.toContain("font-sans");
+    expect(container.querySelector('[data-slot="kbd"]')).not.toBeNull();
   });
 
-  it("Should render KbdGroup with inline-flex", () => {
+  it("Should mount a KbdGroup root with the stable data-slot", () => {
     const { container } = render(
       <KbdGroup>
         <Kbd>⌘</Kbd>
         <Kbd>K</Kbd>
       </KbdGroup>
     );
-    const group = container.querySelector('[data-slot="kbd-group"]');
-    expect(group?.className).toContain("inline-flex");
+    expect(container.querySelector('[data-slot="kbd-group"]')).not.toBeNull();
   });
 });

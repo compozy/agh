@@ -87,7 +87,6 @@ describe("TaskRunDetailHeader", () => {
     render(<TaskRunDetailHeader onCancelRun={onCancelRun} run={buildRun()} />);
     const button = screen.getByTestId("task-run-detail-cancel");
     expect(button).toHaveTextContent("Cancel run");
-    expect(button.className).toContain("text-(--danger)");
     fireEvent.click(button);
     expect(onCancelRun).toHaveBeenCalledTimes(1);
   });

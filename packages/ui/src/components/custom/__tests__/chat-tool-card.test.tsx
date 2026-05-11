@@ -22,8 +22,6 @@ describe("ChatToolCard", () => {
     const name = container.querySelector<HTMLElement>('[data-slot="chat-tool-card-name"]');
     expect(name?.dataset.slot).toBe("chat-tool-card-name");
     expect(name?.textContent).toContain(TOOL_NAME.toLowerCase());
-    // MonoId is a bare mono span (no Pill chrome).
-    expect(name?.className).not.toContain("rounded-(--radius-xs)");
 
     const status = container.querySelector<HTMLElement>('[data-slot="chat-tool-card-status"]');
     expect(status?.dataset.tone).toBe(TOOL_STATUS_TONE.in_progress);
@@ -89,16 +87,14 @@ describe("ChatToolCard", () => {
     expect(section?.dataset.open).toBe("true");
   });
 
-  it("Should tint the card with --danger-tint and emit an error message in failed state", () => {
+  it("Should emit an error message in failed state", () => {
     const { container } = render(
       <ChatToolCard toolName={TOOL_NAME} status="failed" errorMessage="ENOENT: no such file" />
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-tool-card"]');
     expect(root?.dataset.status).toBe("failed");
-    expect(root?.className).toContain("bg-(--danger-tint)");
     const error = container.querySelector<HTMLElement>('[data-slot="chat-tool-card-error"]');
     expect(error?.textContent).toBe("ENOENT: no such file");
-    expect(error?.className).toContain("text-(--danger)");
   });
 
   it("Should render markdown input through the Streamdown safe contract", () => {

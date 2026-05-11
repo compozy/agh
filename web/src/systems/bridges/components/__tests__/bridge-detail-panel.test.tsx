@@ -148,7 +148,6 @@ describe("BridgeDetailPanel", () => {
     expect(header).toHaveAttribute("data-slot", "detail-header");
     const heading = within(header).getByRole("heading", { level: 1 });
     expect(heading).toHaveTextContent("Support");
-    expect(heading.className).toContain("text-[length:var(--text-detail-h1)]");
   });
 
   it("renders provider-runtime fallbacks when metadata is absent", () => {

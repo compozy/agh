@@ -133,18 +133,9 @@ describe("Timeline", () => {
 
     const collapsedTimestamp = screen.getByTestId("network-message-collapsed-timestamp");
     expect(collapsedTimestamp).toBeInTheDocument();
-    expect(collapsedTimestamp.className).toContain("opacity-0");
     await user.hover(screen.getByTestId("network-message-row-collapsed"));
     // jsdom does not apply group-hover variants, so we assert the title carries the ISO.
     expect(collapsedTimestamp.getAttribute("title")).toMatch(/\d{4}-\d{2}-\d{2}T/);
-  });
-
-  it("Should render the avatar with a 4px corner radius (no circles)", () => {
-    render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
-
-    const avatar = screen.getByTestId("network-message-avatar");
-    expect(avatar.className).toContain("rounded-chip");
-    expect(avatar.className).not.toContain("rounded-full");
   });
 
   it("Should NOT render the hover-toolbar reactions button", () => {

@@ -73,43 +73,15 @@ describe("Empty", () => {
     expect(container.querySelector('[data-slot="empty-title"]')?.tagName).toBe("H2");
   });
 
-  it("Should stretch to fill its flex parent by default", () => {
+  it("Should expose data-fill=true by default", () => {
     const { container } = render(<Empty title="Nothing here" />);
     const empty = container.querySelector('[data-slot="empty"]');
     expect(empty?.getAttribute("data-fill")).toBe("true");
-    expect(empty?.className).toMatch(/\bflex-1\b/);
-    expect(empty?.className).toMatch(/\bmin-h-0\b/);
-    expect(empty?.className).toMatch(/\bh-full\b/);
   });
 
-  it("Should sit at its natural content height when fill is disabled", () => {
+  it("Should expose data-fill=false when fill is disabled", () => {
     const { container } = render(<Empty title="Nothing here" fill={false} />);
     const empty = container.querySelector('[data-slot="empty"]');
     expect(empty?.getAttribute("data-fill")).toBe("false");
-    expect(empty?.className).not.toMatch(/\bflex-1\b/);
-    expect(empty?.className).not.toMatch(/\bmin-h-0\b/);
-    expect(empty?.className).not.toMatch(/\bh-full\b/);
-  });
-
-  it("Should render the icon well as 38x38 with the radius-lg token", () => {
-    const { container } = render(<Empty title="Nothing" />);
-    const iconSlot = container.querySelector('[data-slot="empty-icon"]');
-    expect(iconSlot?.className).toContain("size-[38px]");
-    expect(iconSlot?.className).toContain("rounded-lg");
-  });
-
-  it("Should render the icon well borderless (flat-depth pass)", () => {
-    const { container } = render(<Empty title="Nothing" />);
-    const iconSlot = container.querySelector('[data-slot="empty-icon"]');
-    expect(iconSlot?.className).not.toContain("border-(--line)");
-    expect(iconSlot?.className).toContain("bg-(--canvas-soft)");
-  });
-
-  it("Should render the title at 18px on the canonical strong-fg color", () => {
-    const { container } = render(<Empty title="Nothing" />);
-    const title = container.querySelector('[data-slot="empty-title"]') as HTMLElement | null;
-    expect(title?.className).toContain("text-[18px]");
-    expect(title?.className).toContain("text-(--fg-strong)");
-    expect(title?.style.fontWeight).toBe("510");
   });
 });

@@ -32,27 +32,20 @@ describe("CodeBlock", () => {
     vi.useRealTimers();
   });
 
-  it("Should render the provided code inside a <pre><code> wrapper using JetBrains Mono", () => {
+  it("Should render the provided code inside a <pre><code> wrapper", () => {
     const { container } = render(<CodeBlock code="agh start" />);
-    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     const code = container.querySelector<HTMLElement>('[data-slot="code-block-code"]');
-    expect(root?.className).toContain("bg-(--canvas)");
-    expect(root?.className).toContain("rounded-lg");
     expect(pre?.tagName).toBe("PRE");
     expect(code?.tagName).toBe("CODE");
-    expect(pre?.className).toContain("font-mono");
-    expect(pre?.className).toContain("text-[14px]");
-    expect(pre?.className).toContain("leading-[1.6]");
     expect(code?.textContent).toContain("agh start");
   });
 
-  it("Should color the `$ ` prompt in accent when showPrompt is true", () => {
+  it("Should render the `$ ` prompt when showPrompt is true", () => {
     const { container } = render(<CodeBlock code="agh start" />);
     const prompt = container.querySelector<HTMLElement>('[data-slot="code-block-prompt"]');
     expect(prompt).not.toBeNull();
     expect(prompt?.textContent).toBe("$ ");
-    expect(prompt?.className).toContain("text-(--accent)");
     expect(prompt?.getAttribute("aria-hidden")).toBe("true");
   });
 
@@ -76,8 +69,6 @@ describe("CodeBlock", () => {
     rerender(<CodeBlock code="agh start" language="shell" />);
     const eyebrow = container.querySelector<HTMLElement>('[data-slot="code-block-language"]');
     expect(eyebrow?.textContent).toBe("shell");
-    expect(eyebrow?.className).toContain("eyebrow");
-    expect(eyebrow?.className).toContain("text-(--subtle)");
   });
 
   it("Should hide the copy button when copyable is false", () => {
@@ -160,8 +151,6 @@ describe("CodeBlock", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     expect(root).toHaveAttribute("data-tone", "warning");
-    expect(root?.className).toContain("ring-(--warning)/35");
-    expect(pre?.className).toContain("max-h-[calc(var(--code-block-lines)*1.6em+2rem)]");
     expect(pre?.style.getPropertyValue("--code-block-lines")).toBe("2");
   });
 

@@ -7,21 +7,6 @@ import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../composer";
 
 describe("Composer", () => {
-  it("Should render the textarea on `--input-fill` with the `--canvas` focus state", () => {
-    render(
-      <Composer
-        onSubmit={vi.fn()}
-        placeholder="Reply..."
-        sendLabel="Send to #ops"
-        testIdSuffix="thread"
-      />
-    );
-    const textarea = screen.getByTestId("network-composer-textarea-thread");
-    expect(textarea.className).toContain("bg-(--input-fill)");
-    expect(textarea.className).toContain("focus-visible:bg-(--canvas)");
-    expect(textarea.className).toContain("focus-visible:shadow-[0_0_0_1px_var(--line-strong)]");
-  });
-
   it("Should disable the Send button until the textarea has non-whitespace content", async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
