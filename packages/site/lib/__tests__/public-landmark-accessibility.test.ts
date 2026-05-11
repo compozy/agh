@@ -47,7 +47,7 @@ describe("public landmark accessibility", () => {
     expect(layout).toContain("Skip to content");
     expect(layout).toContain("sr-only");
     expect(layout).toContain("focus:not-sr-only");
-    expect(layout).toContain("focus:bg-(--color-surface-elevated)");
+    expect(layout).toContain("focus:bg-(--elevated)");
   });
 
   it("keeps every public route family reachable from the skip link", () => {

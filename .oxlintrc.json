@@ -5,7 +5,7 @@
         "./lint-plugins/react-component-complexity.mjs",
         "./lint-plugins/react-hooks-separation.mjs",
         "./lint-plugins/test-file-location.mjs",
-        "./lint-plugins/no-inline-eyebrow.mjs"
+        "./lint-plugins/compozy-design-system.mjs"
     ],
     "categories": {},
     "rules": {
@@ -99,7 +99,10 @@
         "unicorn/prefer-set-size": "warn",
         "unicorn/prefer-string-starts-ends-with": "warn",
         "compozy-testing/tests-in-tests-dir": "error",
-        "compozy-design-system/no-inline-eyebrow": "error"
+        "compozy-design-system/no-inline-eyebrow": "error",
+        "compozy-design-system/no-design-glaze-rgba": "error",
+        "compozy-design-system/no-banned-imports": "error",
+        "compozy-design-system/no-inline-design-tuples": "error"
     },
     "overrides": [
         {

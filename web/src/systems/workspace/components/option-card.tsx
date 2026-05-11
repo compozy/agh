@@ -1,12 +1,12 @@
 import * as React from "react";
 
-import { cn, Section } from "@agh/ui";
+import { cn, FormSection } from "@agh/ui";
 
 import { useOptionCardSlot } from "../hooks/use-option-card-slot";
 import {
   OptionCardContext,
   type OptionCardContextValue,
-  type OptionCardDensity,
+  type OptionCardSize,
 } from "./option-card-context";
 
 type OptionCardTone = "neutral" | "accent";
@@ -25,17 +25,15 @@ function isHeaderElement(node: React.ReactNode): node is React.ReactElement<Opti
   return React.isValidElement(node) && node.type === OptionCardHeaderSentinel;
 }
 
-interface OptionCardProps extends React.ComponentProps<typeof Section> {
-  density?: OptionCardDensity;
+interface OptionCardProps extends Omit<
+  React.ComponentProps<typeof FormSection>,
+  "title" | "rightLabel" | "size"
+> {
+  size?: OptionCardSize;
 }
 
-function OptionCardRoot({
-  className,
-  density = "comfortable",
-  children,
-  ...props
-}: OptionCardProps) {
-  const ctx = React.useMemo<OptionCardContextValue>(() => ({ density }), [density]);
+function OptionCardRoot({ className, size = "comfortable", children, ...props }: OptionCardProps) {
+  const ctx = React.useMemo<OptionCardContextValue>(() => ({ size }), [size]);
 
   let headerEyebrow: React.ReactNode;
   let headerRight: React.ReactNode;
@@ -52,20 +50,17 @@ function OptionCardRoot({
 
   return (
     <OptionCardContext.Provider value={ctx}>
-      <Section
+      <FormSection
         {...props}
         data-slot="option-card"
-        data-density={density}
-        label={headerEyebrow}
-        right={headerRight}
-        className={cn(
-          "rounded-2xl border border-(--line) bg-(--canvas-soft)",
-          density === "comfortable" ? "p-5" : "p-4",
-          className
-        )}
+        data-size={size}
+        size={size}
+        title={headerEyebrow}
+        rightLabel={headerRight}
+        className={className}
       >
         {body}
-      </Section>
+      </FormSection>
     </OptionCardContext.Provider>
   );
 }
@@ -95,7 +90,7 @@ function OptionCardIcon({ className, tone = "neutral", children, ...props }: Opt
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-(--line) bg-(--canvas-soft)",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded-(--radius) bg-(--surface-glaze)",
         tone === "accent" ? "text-(--accent)" : "text-(--fg)",
         className
       )}
@@ -176,9 +171,9 @@ const OptionCard = Object.assign(OptionCardRoot, {
 
 export { OptionCard };
 export type {
-  OptionCardDensity,
   OptionCardHeaderProps,
   OptionCardIconProps,
   OptionCardProps,
+  OptionCardSize,
   OptionCardTone,
 };

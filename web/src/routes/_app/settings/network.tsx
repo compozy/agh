@@ -1,4 +1,4 @@
-import { AlertCircle, ExternalLink, Loader2, Network as NetworkIcon } from "lucide-react";
+import { AlertCircle, ExternalLink, Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -9,7 +9,10 @@ import {
   Metric,
   MetricGrid,
   PageShell,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Switch,
   useTopbarSlot,
 } from "@agh/ui";
@@ -19,11 +22,9 @@ import type { SettingsNetworkSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/network")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -53,19 +54,22 @@ function NetworkSettingsPage() {
   const runtime = page.envelope?.runtime;
   useTopbarSlot({
     tabs: runtime ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="settings-page-network-status-line"
         status={runtime.available ? "connected" : "error"}
         items={[
-          <span key="status">{runtime.status ?? (runtime.enabled ? "enabled" : "disabled")}</span>,
-          <span key="peers">
-            {runtime.local_peers} local · {runtime.remote_peers} remote peers
-          </span>,
+          {
+            key: "status",
+            value: runtime.status ?? (runtime.enabled ? "enabled" : "disabled"),
+            tone: "neutral",
+          },
+          {
+            key: "peers",
+            value: `${runtime.local_peers} local · ${runtime.remote_peers} remote peers`,
+            tone: "neutral",
+          },
         ]}
       />
-    ) : undefined,
-    actions: page.envelope ? (
-      <SettingsPageActions slug="network" restart={page.restart} />
     ) : undefined,
   });
 
@@ -77,7 +81,7 @@ function NetworkSettingsPage() {
         data-testid="settings-page-network-loading"
         role="status"
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -106,10 +110,12 @@ function NetworkSettingsPage() {
   }
   const { draft, setDraft, restart } = page;
 
+  const bannerProps = restartBannerPropsFor("network", restart);
+
   return (
     <PageShell
       slug="network"
-      banner={<SettingsRestartBanner slug="network" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="network"
@@ -387,9 +393,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <Eyebrow case="upper" tone="muted" size="badge">
-        {label}
-      </Eyebrow>
+      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           aria-label={label}
@@ -400,11 +404,7 @@ function NumberField({
           onValidityChange={onValidityChange}
           onValueChange={onChange}
         />
-        {suffix ? (
-          <Eyebrow case="upper" tone="muted" size="badge">
-            {suffix}
-          </Eyebrow>
-        ) : null}
+        {suffix ? <Eyebrow className="text-(--muted)">{suffix}</Eyebrow> : null}
       </div>
       {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}
     </div>

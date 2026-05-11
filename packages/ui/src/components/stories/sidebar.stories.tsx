@@ -108,9 +108,7 @@ const NAV_ITEMS = [
 function NavContent() {
   return (
     <div className="flex flex-col gap-1 px-2 py-3">
-      <span className="px-2 pb-1 font-mono text-micro font-medium uppercase tracking-mono text-(--subtle)">
-        Workspace
-      </span>
+      <span className="eyebrow px-2 pb-1 text-(--subtle)">Workspace</span>
       {NAV_ITEMS.map(item => (
         <button
           key={item.label}

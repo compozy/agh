@@ -13,7 +13,7 @@ import { TasksInboxItem } from "../tasks-inbox-item";
 import { buildInboxItemFixture } from "../test-fixtures";
 
 describe("TasksInboxItem", () => {
-  it("flags unread rows with a 2px accent left-rail (not a StatusDot)", () => {
+  it("Should render a 3-col grid (rail / body / meta) with the rail painted by the group tone, not a left border", () => {
     const item = buildInboxItemFixture({
       lane: "approvals",
       task: {
@@ -33,36 +33,43 @@ describe("TasksInboxItem", () => {
       },
     });
 
-    render(<TasksInboxItem item={item} />);
+    render(<TasksInboxItem group="needs_review" item={item} />);
 
     const row = screen.getByTestId("tasks-inbox-item-task_apr");
-    expect(row).toHaveAttribute("data-unread", "true");
-    expect(row.className).toContain("border-l-(--accent)");
+    expect(row).toHaveAttribute("data-group", "needs_review");
+    expect(row.className).toContain("grid-cols-[3px_minmax(0,1fr)_auto]");
+    // No `border-l-2` declaration on the row anymore — rail is painted via its
+    // own grid cell.
+    expect(row.className).not.toContain("border-l-2");
+    expect(row.className).not.toContain("border-l-(--fg-strong)");
+    expect(row.className).not.toContain("border-l-(--accent)");
 
-    // The old unread StatusDot has been removed -- the rail carries the signal.
-    expect(screen.queryByTestId("tasks-inbox-item-unread-task_apr")).not.toBeInTheDocument();
+    const rail = row.querySelector("[data-slot=tasks-inbox-row-rail]");
+    expect(rail).not.toBeNull();
+    expect(rail!.className).toContain("bg-(--warning)");
   });
 
-  it("renders a transparent left-rail when the row is read", () => {
+  it("Should paint the rail with the blocked danger tone when the row belongs to the blocked group", () => {
     const item = buildInboxItemFixture({
-      triage: {
-        actor: { kind: "human", ref: "op" },
-        archived: false,
-        dismissed: false,
-        read: true,
-        task_id: "task_inbox_001",
-        updated_at: "2026-04-17T10:00:00Z",
+      lane: "blocked",
+      task: {
+        id: "task_block",
+        identifier: "TASK-99",
+        scope: "workspace",
+        status: "blocked",
+        title: "Blocked task",
       },
     });
 
-    render(<TasksInboxItem item={item} />);
-
-    const row = screen.getByTestId("tasks-inbox-item-task_inbox_001");
-    expect(row).toHaveAttribute("data-unread", "false");
-    expect(row.className).toContain("border-l-transparent");
+    render(<TasksInboxItem group="blocked" item={item} />);
+    const rail = screen
+      .getByTestId("tasks-inbox-item-task_block")
+      .querySelector("[data-slot=tasks-inbox-row-rail]");
+    expect(rail).not.toBeNull();
+    expect(rail!.className).toContain("bg-(--danger)");
   });
 
-  it("renders Reject as a ghost-danger button and Approve as the single accent CTA", () => {
+  it("Should render Reject as a ghost-danger button and Approve as the single accent CTA", () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();
     const item = buildInboxItemFixture({
@@ -78,7 +85,9 @@ describe("TasksInboxItem", () => {
       },
     });
 
-    render(<TasksInboxItem item={item} onApprove={onApprove} onReject={onReject} />);
+    render(
+      <TasksInboxItem group="needs_review" item={item} onApprove={onApprove} onReject={onReject} />
+    );
 
     const actions = screen.getByTestId("tasks-inbox-item-actions-task_apr");
     const buttons = actions.querySelectorAll("[data-slot=button]");
@@ -99,7 +108,7 @@ describe("TasksInboxItem", () => {
     expect(onApprove).toHaveBeenCalledWith("task_apr");
   });
 
-  it("does not invoke row selection when the Reject button is clicked", () => {
+  it("Should not invoke row selection when the Reject button is clicked", () => {
     const onOpen = vi.fn();
     const onReject = vi.fn();
     const item = buildInboxItemFixture({
@@ -115,7 +124,15 @@ describe("TasksInboxItem", () => {
       },
     });
 
-    render(<TasksInboxItem item={item} onApprove={vi.fn()} onOpen={onOpen} onReject={onReject} />);
+    render(
+      <TasksInboxItem
+        group="needs_review"
+        item={item}
+        onApprove={vi.fn()}
+        onOpen={onOpen}
+        onReject={onReject}
+      />
+    );
 
     fireEvent.click(screen.getByTestId("tasks-inbox-item-reject-task_apr"));
 

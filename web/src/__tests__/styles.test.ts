@@ -45,7 +45,8 @@ const NEW_CONTRACT_HEXES = [
   "#1a1918",
   "#1c1b1a",
   "#232220",
-  "#1f1e1d",
+  // `#1f1e1d` was the legacy --hover fill; ADR-001 §6 + redesign-v2 task_01
+  // re-bind --hover to alias var(--row-hover). The hex is no longer in tokens.css.
   "#4a4847",
   "#5fbf85",
   "#d6a647",
@@ -139,8 +140,8 @@ describe("Token contract — packages/ui/src/tokens.css", () => {
     expect(tokens).not.toMatch(/--radius-diagram\s*:\s*12px/i);
   });
 
-  it("Should not declare --font-display in the kit token sheet", () => {
-    expect(tokens).not.toMatch(/--font-display\b/);
+  it("Should declare --font-display as an Inter alias (ADR-001 §5)", () => {
+    expect(tokens).toMatch(/--font-display:\s*var\(--font-sans\)/);
   });
 
   it("Should not declare --font-wordmark in the kit token sheet", () => {
@@ -170,15 +171,14 @@ describe("Token contract — packages/ui/src/tokens.css", () => {
     expect(tokens).not.toMatch(/@fontsource\/bricolage-grotesque/);
   });
 
-  it("Should embed the universal-selector reduced-motion guard", () => {
+  it("Should embed the universal-selector reduced-motion guard (ADR-010 §1)", () => {
     const block = tokens.match(/@media\s+\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\}\s*\}/);
     expect(block, "expected the reduced-motion block to exist").toBeTruthy();
     const blockText = block?.[0] ?? "";
     expect(blockText).toMatch(/\*,\s*\*::before,\s*\*::after/);
-    expect(blockText).toMatch(/animation-duration\s*:\s*0\.01ms\s*!important/i);
-    expect(blockText).toMatch(/animation-iteration-count\s*:\s*1\s*!important/i);
-    expect(blockText).toMatch(/transition-duration\s*:\s*0\.01ms\s*!important/i);
-    expect(blockText).toMatch(/scroll-behavior\s*:\s*auto\s*!important/i);
+    expect(blockText).toMatch(/animation-duration\s*:\s*0\.001ms\s*!important/i);
+    expect(blockText).toMatch(/animation-delay\s*:\s*0\.001ms\s*!important/i);
+    expect(blockText).toMatch(/transition-duration\s*:\s*0\.001ms\s*!important/i);
   });
 
   it("Should not contain oklch() values", () => {

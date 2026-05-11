@@ -13,7 +13,7 @@ const meta: Meta<typeof RadioCard> = {
     docs: {
       description: {
         component:
-          "Single radio choice rendered as a card. Selected state shifts the border to `--accent` and the surface to `--accent-tint` so the chosen option reads at a glance without raising the surface step.",
+          "Single radio choice rendered as a card. Resting state is flat on `--canvas-soft`; selected state lifts to `--surface-glaze` with a 1 px inset `--line-strong` ring (no accent, per ADR-004 §8).",
       },
     },
   },
@@ -88,14 +88,14 @@ export const SelectedVsRest: Story = {
     <div role="radiogroup" aria-label="Sample" className="flex flex-col gap-2">
       <RadioCard
         title="Selected option"
-        description="Border + tint applied."
+        description="`--surface-glaze` background + 1 px inset `--line-strong` ring."
         icon={CpuIcon}
         selected
         onSelect={() => undefined}
       />
       <RadioCard
         title="Resting option"
-        description="Hover lifts the border to `--line-strong`."
+        description="Hover lifts the surface to `--elevated`."
         icon={ZapIcon}
         selected={false}
         onSelect={() => undefined}

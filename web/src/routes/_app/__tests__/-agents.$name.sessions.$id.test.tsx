@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TopbarSlotProvider, useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
 import type {
   InspectorMemoryState,
   SessionLedgerResponse,
@@ -36,7 +37,6 @@ const {
   mockUseSession,
   mockUseSessionVaultSecrets,
   mockUseSessionLedger,
-  mockUseWorkspaces,
   mockSessionInspector,
   mockResume,
   mockStop,
@@ -57,7 +57,6 @@ const {
     isLoading: false,
     error: null,
   })),
-  mockUseWorkspaces: vi.fn(() => ({ data: [] })),
   mockSessionInspector: vi.fn<(props: SessionInspectorPropsForTest) => ReactNode>(() => (
     <div data-testid="session-inspector">inspector</div>
   )),
@@ -111,10 +110,6 @@ vi.mock("@/systems/session/hooks/use-sessions", () => ({
     mockUseSessionLedger(id, options),
 }));
 
-vi.mock("@/systems/workspace", () => ({
-  useWorkspaces: () => mockUseWorkspaces(),
-}));
-
 vi.mock("@/systems/vault", () => ({
   useSessionVaultSecrets: (sessionId: string) => mockUseSessionVaultSecrets(sessionId),
 }));
@@ -139,6 +134,31 @@ vi.mock("@assistant-ui/react", () => ({
 
 import { SessionPage } from "../agents.$name.sessions.$id";
 
+function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | null } }) {
+  const slot = useTopbarSlotValue();
+  slotRef.current = slot;
+  return (
+    <div data-testid="topbar-probe">
+      <span data-testid="topbar-probe-title">
+        {typeof slot?.title === "string" ? slot.title : ""}
+      </span>
+      <div data-testid="topbar-probe-meta">{slot?.meta ?? null}</div>
+      <div data-testid="topbar-probe-actions">{slot?.actions ?? null}</div>
+    </div>
+  );
+}
+
+function renderSessionPage() {
+  const slotRef: { current: TopbarSlotValue | null } = { current: null };
+  const utils = render(
+    <TopbarSlotProvider>
+      <SessionPage />
+      <TopbarSlotProbe slotRef={slotRef} />
+    </TopbarSlotProvider>
+  );
+  return { ...utils, slotRef };
+}
+
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     id: "sess_123",
@@ -154,7 +174,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   };
 }
 
-describe("Nested agent session route , resume failure UX", () => {
+describe("Nested agent session route — Topbar slot migration (ADR-014 §1)", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockResume.mutate.mockReset();
@@ -168,8 +188,83 @@ describe("Nested agent session route , resume failure UX", () => {
     mockUseSessionLedger.mockReset();
     mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
     mockSessionInspector.mockClear();
-    mockUseWorkspaces.mockReset();
-    mockUseWorkspaces.mockReturnValue({ data: [] });
+    mockUseSession.mockReturnValue({
+      data: makeSession(),
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  it("Should never render the legacy <ChatHeader>", () => {
+    renderSessionPage();
+    expect(screen.queryByTestId("chat-header")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chat-breadcrumb")).not.toBeInTheDocument();
+  });
+
+  it("Should push the agent name into the Topbar title slot", () => {
+    const { slotRef } = renderSessionPage();
+    expect(slotRef.current?.title).toBe("claude-agent");
+  });
+
+  it("Should render the agent state + provider as bare mono identifiers in the Topbar meta slot", () => {
+    renderSessionPage();
+    const meta = screen.getByTestId("session-topbar-meta");
+    expect(meta).toBeInTheDocument();
+    const state = screen.getByTestId("session-topbar-state");
+    expect(state).toHaveTextContent("stopped");
+    expect(state.className).toContain("font-mono");
+    expect(state.className).toContain("text-(--faint)");
+    const provider = screen.getByTestId("session-topbar-provider");
+    expect(provider).toHaveTextContent("codex");
+    expect(provider.className).toContain("font-mono");
+  });
+
+  it("Should expose delete/stop/resume controls inside the Topbar actions slot for stopped sessions", () => {
+    renderSessionPage();
+    expect(screen.getByTestId("session-topbar-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("delete-button")).toBeInTheDocument();
+    expect(screen.getByTestId("resume-button")).toBeInTheDocument();
+    expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
+  });
+
+  it("Should expose the stop control inside the Topbar actions slot for active sessions", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ state: "active" }),
+      isLoading: false,
+      error: null,
+    });
+    renderSessionPage();
+    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
+  });
+
+  it("Should flip the agent-status-dot to warning+pulse for starting sessions (ADR-016 §3)", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ state: "starting" }),
+      isLoading: false,
+      error: null,
+    });
+    renderSessionPage();
+    const dot = screen.getByTestId("agent-status-dot");
+    expect(dot.getAttribute("data-tone")).toBe("warning");
+    expect(dot.getAttribute("data-pulse")).toBe("true");
+  });
+});
+
+describe("Nested agent session route — resume failure UX", () => {
+  beforeEach(() => {
+    mockNavigate.mockReset();
+    mockResume.mutate.mockReset();
+    mockResume.isPending = false;
+    mockStop.mutate.mockReset();
+    mockClear.mutate.mockReset();
+    mockDelete.mutate.mockReset();
+    mockUseSession.mockReset();
+    mockUseSessionVaultSecrets.mockReset();
+    mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseSessionLedger.mockReset();
+    mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
+    mockSessionInspector.mockClear();
     mockUseSession.mockReturnValue({
       data: makeSession(),
       isLoading: false,
@@ -186,7 +281,7 @@ describe("Nested agent session route , resume failure UX", () => {
       );
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     fireEvent.click(screen.getByTestId("resume-button"));
 
@@ -206,7 +301,7 @@ describe("Nested agent session route , resume failure UX", () => {
       );
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     fireEvent.click(screen.getByTestId("resume-button"));
     expect(screen.getByTestId("session-resume-failure")).toBeInTheDocument();
@@ -218,11 +313,6 @@ describe("Nested agent session route , resume failure UX", () => {
     expect(screen.queryByTestId("session-resume-failure")).not.toBeInTheDocument();
   });
 
-  it("renders the effective provider badge in the chat header", () => {
-    render(<SessionPage />);
-    expect(screen.getByTestId("session-provider-badge")).toHaveTextContent("codex");
-  });
-
   it("replaces history when a missing session redirects to the agent page", () => {
     mockUseSession.mockReturnValue({
       data: undefined,
@@ -230,7 +320,7 @@ describe("Nested agent session route , resume failure UX", () => {
       error: new Error("Session not found: sess_123"),
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/agents/$name",
@@ -251,7 +341,7 @@ describe("Nested agent session route , resume failure UX", () => {
       }
     );
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     fireEvent.click(screen.getByTestId("delete-button"));
     fireEvent.click(screen.getByTestId("delete-dialog-confirm"));
@@ -279,7 +369,7 @@ describe("Nested agent session route , resume failure UX", () => {
       error: null,
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockUseSessionVaultSecrets).toHaveBeenCalledWith("sess_123");
     const inspectorProps =
@@ -313,7 +403,7 @@ describe("Nested agent session route , resume failure UX", () => {
     };
     mockUseSessionLedger.mockReturnValue({ data: ledger, isLoading: false, error: null });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: true });
     const inspectorProps =
@@ -328,7 +418,7 @@ describe("Nested agent session route , resume failure UX", () => {
   it("forwards ledger loading state into the inspector memory prop", () => {
     mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: true, error: null });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     const inspectorProps =
       mockSessionInspector.mock.calls[mockSessionInspector.mock.calls.length - 1]?.[0];
@@ -346,7 +436,7 @@ describe("Nested agent session route , resume failure UX", () => {
       error: null,
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
   });
@@ -358,7 +448,7 @@ describe("Nested agent session route , resume failure UX", () => {
       error: null,
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
   });
@@ -370,7 +460,7 @@ describe("Nested agent session route , resume failure UX", () => {
       error: null,
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
   });
@@ -382,7 +472,7 @@ describe("Nested agent session route , resume failure UX", () => {
       error: null,
     });
 
-    render(<SessionPage />);
+    renderSessionPage();
 
     expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: true });
   });

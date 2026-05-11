@@ -1,4 +1,4 @@
-import { AlertCircle, ExternalLink, Loader2, Settings as SettingsIcon } from "lucide-react";
+import { AlertCircle, ExternalLink, Settings as SettingsIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -10,7 +10,10 @@ import {
   MetricGrid,
   PageShell,
   PillGroup,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   useTopbarSlot,
 } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -19,11 +22,9 @@ import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/set
 import {
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/general")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -85,22 +86,23 @@ function GeneralSettingsPage() {
   useTopbarSlot({
     tabs:
       runtime && configPaths ? (
-        <SettingsStatusLine
+        <StatusLineTopbarSlot
           data-testid="settings-page-general-status-line"
           status={runtime.available ? "connected" : "error"}
           items={[
-            <span key="sessions">
-              {runtime.active_sessions} active sessions · {runtime.active_agents} agents
-            </span>,
-            <span key="config" className="font-mono text-eyebrow">
-              config: {configPaths.global_config}
-            </span>,
+            {
+              key: "sessions",
+              value: `${runtime.active_sessions} active sessions · ${runtime.active_agents} agents`,
+              tone: "neutral",
+            },
+            {
+              key: "config",
+              value: <span className="font-mono">config: {configPaths.global_config}</span>,
+              tone: "neutral",
+            },
           ]}
         />
       ) : undefined,
-    actions: page.envelope ? (
-      <SettingsPageActions slug="general" restart={page.restart} />
-    ) : undefined,
   });
 
   if (page.isLoading) {
@@ -109,7 +111,7 @@ function GeneralSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-general-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -135,10 +137,12 @@ function GeneralSettingsPage() {
 
   const { envelope, draft, setDraft, restart, update } = page;
 
+  const bannerProps = restartBannerPropsFor("general", restart);
+
   return (
     <PageShell
       slug="general"
-      banner={<SettingsRestartBanner slug="general" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="general"
@@ -199,20 +203,25 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
   const transportError =
     update.error instanceof Error ? update.error.message : "Failed to load update status";
   const releaseLink = snapshot?.release_url ? (
-    <a
-      href={snapshot.release_url}
-      rel="noreferrer"
-      target="_blank"
-      className="inline-flex items-center gap-1.5 rounded-md border border-(--line) bg-(--elevated) px-3 py-1.5 text-xs font-medium text-(--fg) hover:bg-(--hover)"
-      data-testid="settings-page-general-update-release-link"
+    <Button
+      variant="outline"
+      size="sm"
+      render={
+        <a
+          href={snapshot.release_url}
+          rel="noreferrer"
+          target="_blank"
+          data-testid="settings-page-general-update-release-link"
+        />
+      }
     >
       <ExternalLink className="size-3.5 text-(--subtle)" />
       Release notes
-    </a>
+    </Button>
   ) : null;
   const refreshIndicator = update.isFetching ? (
     <span className="inline-flex items-center gap-1.5 text-xs text-(--muted)">
-      <Loader2 className="size-3.5 animate-spin text-(--subtle)" />
+      <Spinner className="size-3.5 text-(--subtle)" />
       Checking
     </span>
   ) : null;
@@ -446,9 +455,7 @@ function SessionSection({
                 })
               }
             />
-            <Eyebrow case="upper" tone="muted" size="badge">
-              seconds
-            </Eyebrow>
+            <Eyebrow className="text-(--muted)">seconds</Eyebrow>
           </div>
         }
       />

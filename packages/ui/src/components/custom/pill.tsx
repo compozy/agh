@@ -30,7 +30,7 @@ type PillContextValue = {
 const PillContext = React.createContext<PillContextValue | null>(null);
 
 const pillVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border border-transparent transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-xs) transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       tone: {
@@ -42,25 +42,21 @@ const pillVariants = cva(
         info: "bg-(--info-tint) text-(--info)",
       },
       size: {
-        xs: "h-[17px] rounded-(--radius-chip) px-1.5 leading-none",
-        sm: "h-[19px] rounded-(--radius-mono-badge) px-2 leading-none",
-        md: "h-[22px] rounded-(--radius-pill) px-2.5 leading-none",
+        xs: "h-[17px] px-1.5 leading-none",
+        sm: "h-[19px] px-2 leading-none",
+        md: "h-[22px] px-2.5 leading-none",
       },
       mono: {
         true: "font-mono",
         false: "font-sans",
       },
-      uppercase: {
-        true: "uppercase",
-        false: "normal-case",
-      },
       solid: { true: "", false: "" },
       active: { true: "", false: "" },
     },
     compoundVariants: [
-      { mono: true, size: "xs", className: "text-[10.5px] font-medium tracking-[0]" },
-      { mono: true, size: "sm", className: "text-[10.5px] font-medium tracking-[0]" },
-      { mono: true, size: "md", className: "text-[10.5px] font-medium tracking-[0]" },
+      { mono: true, size: "xs", className: "text-[10.5px] font-semibold tracking-[0]" },
+      { mono: true, size: "sm", className: "text-[10.5px] font-semibold tracking-[0]" },
+      { mono: true, size: "md", className: "text-[10.5px] font-semibold tracking-[0]" },
       { mono: false, size: "xs", className: "text-[11px] font-medium tracking-[-0.005em]" },
       { mono: false, size: "sm", className: "text-[11px] font-medium tracking-[-0.005em]" },
       { mono: false, size: "md", className: "text-[11px] font-medium tracking-[-0.005em]" },
@@ -72,14 +68,7 @@ const pillVariants = cva(
       { solid: true, tone: "info", className: "bg-(--info) text-(--canvas)" },
       {
         active: true,
-        className: "border-(--line-strong) bg-(--elevated) text-(--fg-strong)",
-      },
-      {
-        active: false,
-        tone: "neutral",
-        solid: false,
-        className:
-          "border-(--line) bg-(--canvas-soft) text-(--muted) hover:border-(--line-strong) hover:text-(--fg)",
+        className: "bg-(--elevated) text-(--fg-strong)",
       },
     ],
     defaultVariants: {
@@ -87,7 +76,6 @@ const pillVariants = cva(
       size: "sm",
       mono: false,
       solid: false,
-      uppercase: false,
     },
   }
 );
@@ -100,8 +88,6 @@ export interface PillProps
     Pick<PillVariantOptions, "tone" | "size" | "mono" | "solid"> {
   /** Toggle state. Only meaningful when the Pill is rendered as a control (e.g. `render={<button />}`). */
   active?: boolean;
-  /** Apply uppercase. Defaults to `false`; callers opt in (sidebar, table head, run-cell, context-box). */
-  uppercase?: boolean;
   /** Propagate a pulsing state to the inner `Pill.Dot` when the dot does not set `pulse` itself. */
   pulse?: boolean;
 }
@@ -118,7 +104,6 @@ function Pill({
   mono: monoProp,
   solid: solidProp,
   active,
-  uppercase,
   pulse,
   className,
   render,
@@ -128,7 +113,6 @@ function Pill({
   const size: PillSize = sizeProp ?? "sm";
   const mono = Boolean(monoProp);
   const solid = Boolean(solidProp);
-  const computedUppercase = uppercase ?? false;
   const ctx = React.useMemo<PillContextValue>(
     () => ({ size, mono, tone, pulse: Boolean(pulse) }),
     [size, mono, tone, pulse]
@@ -137,10 +121,7 @@ function Pill({
     defaultTagName: "span",
     props: mergeProps<"span">(
       {
-        className: cn(
-          pillVariants({ tone, size, mono, solid, active, uppercase: computedUppercase }),
-          className
-        ),
+        className: cn(pillVariants({ tone, size, mono, solid, active }), className),
       } as Record<string, unknown>,
       {
         "data-slot": "pill",
@@ -208,7 +189,6 @@ function PillLink({
   tone = "accent",
   size = "sm",
   mono = true,
-  uppercase,
   className,
   href,
   render,
@@ -220,7 +200,6 @@ function PillLink({
       tone={tone}
       size={size}
       mono={mono}
-      uppercase={uppercase}
       className={cn("hover:border-(--accent) hover:text-(--accent)", className)}
       render={render ?? <a href={href ?? "#"} />}
       {...props}

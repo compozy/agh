@@ -4,11 +4,13 @@ import {
   Button,
   Card,
   CodeBlock,
+  DetailHeader,
   Empty,
   Eyebrow,
   Pill,
   Section,
   Spinner,
+  StatusDot,
   Switch,
   Table,
   TableBody,
@@ -16,13 +18,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Time,
 } from "@agh/ui";
 
 import {
   deriveSkillAuthor,
   deriveSkillCapabilities,
   deriveSkillRecentCalls,
-  formatSkillRelativeTime,
   skillSourceTone,
 } from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
@@ -39,21 +41,6 @@ interface SkillDetailPanelProps {
   onDisable: (name: string) => void;
   onEnable: (name: string) => void;
   isActionPending: boolean;
-}
-
-function SkillDetailMeta({ skill }: { skill: SkillPayload }) {
-  const author = deriveSkillAuthor(skill);
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {skill.version ? (
-        <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
-      ) : null}
-      {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
-      <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
-        {skill.source}
-      </Pill>
-    </div>
-  );
 }
 
 interface SkillContentSectionProps {
@@ -146,12 +133,7 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
       ) : (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="skill-capabilities-list">
           {capabilities.map(capability => (
-            <Pill
-              mono
-              data-testid={`skill-capability-${capability}`}
-              key={capability}
-              uppercase={false}
-            >
+            <Pill mono data-testid={`skill-capability-${capability}`} key={capability}>
               {capability}
             </Pill>
           ))}
@@ -160,6 +142,12 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
     </Section>
   );
 }
+
+const RECENT_STATUS_TONE = {
+  success: "faint",
+  error: "danger",
+  pending: "accent",
+} as const;
 
 function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
   const calls = deriveSkillRecentCalls(skill);
@@ -194,20 +182,15 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                   key={`${call.label}-${call.timestamp ?? call.status}`}
                 >
                   <TableCell>
-                    <Pill.Dot
-                      pulse={call.status === "pending"}
-                      tone={
-                        call.status === "error"
-                          ? "danger"
-                          : call.status === "pending"
-                            ? "accent"
-                            : "success"
-                      }
+                    <StatusDot
+                      label={call.status}
+                      tone={RECENT_STATUS_TONE[call.status]}
+                      variant={call.status === "pending" ? "ring" : "solid"}
                     />
                   </TableCell>
                   <TableCell className="font-mono text-xs text-(--muted)">{call.label}</TableCell>
                   <TableCell className="text-right font-mono text-eyebrow text-(--subtle)">
-                    {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "--"}
+                    {call.timestamp ? <Time iso={call.timestamp} /> : "--"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -284,55 +267,42 @@ function SkillDetailPanel({
     }
   };
 
+  const author = deriveSkillAuthor(skill);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="skill-detail-panel">
-      <header
-        data-slot="page-header"
-        className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
-      >
-        <div
-          data-slot="page-header-main"
-          className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
-        >
-          <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
-            <span
-              aria-hidden="true"
-              data-slot="page-header-icon"
-              className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
-            >
-              <Wrench className="size-3.5" data-testid="skill-detail-icon" />
-            </span>
-            <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
-              <span data-testid="skill-detail-title">{skill.name}</span>
-            </h1>
+      <DetailHeader
+        data-testid="skill-detail-header"
+        title={<span data-testid="skill-detail-title">{skill.name}</span>}
+        pills={
+          <>
+            {skill.version ? (
+              <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
+            ) : null}
+            {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
+            <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
+              {skill.source}
+            </Pill>
+          </>
+        }
+        actions={
+          <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
+            <Eyebrow className="text-(--muted)" id="skill-enabled-label">
+              {skill.enabled ? "Enabled" : "Disabled"}
+            </Eyebrow>
+            <Switch
+              aria-labelledby="skill-enabled-label"
+              checked={skill.enabled}
+              data-testid="skill-enabled-switch"
+              disabled={isActionPending}
+              onCheckedChange={handleToggle}
+            />
           </div>
-          <div
-            data-slot="page-header-meta"
-            className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-(--muted)"
-          >
-            <SkillDetailMeta skill={skill} />
-          </div>
-        </div>
-      </header>
+        }
+      />
 
       <div className="flex flex-col gap-6 px-6 py-5">
-        <Section
-          label="Overview"
-          right={
-            <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
-              <Eyebrow case="upper" tone="muted" id="skill-enabled-label">
-                {skill.enabled ? "Enabled" : "Disabled"}
-              </Eyebrow>
-              <Switch
-                aria-labelledby="skill-enabled-label"
-                checked={skill.enabled}
-                data-testid="skill-enabled-switch"
-                disabled={isActionPending}
-                onCheckedChange={handleToggle}
-              />
-            </div>
-          }
-        >
+        <Section label="Overview">
           <div className="flex flex-col gap-3">
             <p className="text-small-body leading-relaxed text-(--muted)">{skill.description}</p>
             <span className="truncate font-mono text-eyebrow text-(--subtle)">{skill.dir}</span>

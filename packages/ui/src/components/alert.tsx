@@ -1,5 +1,5 @@
-import type * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
 
 import { cn } from "../lib/utils";
 
@@ -47,7 +47,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-[510] tracking-[-0.005em] group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-(--fg-strong)",
+        "font-medium tracking-[-0.005em] group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-(--fg-strong)",
         className
       )}
       {...props}
@@ -79,7 +79,7 @@ function AlertMeta({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-meta"
       className={cn(
-        "mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-badge uppercase tracking-mono text-current/75 group-has-[>svg]/alert:col-start-2",
+        "eyebrow mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-current/75 group-has-[>svg]/alert:col-start-2",
         className
       )}
       {...props}
@@ -100,5 +100,5 @@ function AlertActions({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { Alert, AlertTitle, AlertDescription, AlertAction, AlertMeta, AlertActions, alertVariants };
+export { Alert, AlertAction, AlertActions, AlertDescription, AlertMeta, AlertTitle, alertVariants };
 export type { AlertProps };

@@ -1,6 +1,12 @@
 export { ChannelHeader } from "./channel-header";
 export type { ChannelHeaderProps } from "./channel-header";
-export { ChannelRail } from "./channel-rail";
+export {
+  ChannelRail,
+  CHANNEL_RAIL_COLLAPSE_BREAKPOINT,
+  CHANNEL_RAIL_MD_BREAKPOINT,
+  CHANNEL_RAIL_WIDTH_DEFAULT,
+  CHANNEL_RAIL_WIDTH_MD,
+} from "./channel-rail";
 export type { ChannelRailProps } from "./channel-rail";
 export { ChannelRailRecents } from "./channel-rail-recents";
 export type { ChannelRailRecentsProps } from "./channel-rail-recents";

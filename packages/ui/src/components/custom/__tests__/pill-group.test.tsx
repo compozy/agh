@@ -41,14 +41,55 @@ describe("PillGroup", () => {
     expect(list).toHaveAttribute("data-active", "false");
   });
 
-  it("Should render the badge count next to the item label when badge > 0", () => {
+  it("Should render the active segment with elevated background plus the highlight box-shadow", () => {
+    render(<PillGroup value="kanban" onChange={() => {}} items={items} />);
+    const kanban = screen.getByRole("button", { name: /kanban/i });
+    expect(kanban.className).toContain("bg-(--elevated)");
+    expect(kanban.className).toContain("text-(--fg-strong)");
+    expect(kanban.className).toContain("shadow-(--highlight)");
+  });
+
+  it("Should render segment text as Inter sentence-case 12px / 510 / -0.005em (no font-mono, no uppercase)", () => {
+    render(<PillGroup value="list" onChange={() => {}} items={items} />);
+    const segments = screen
+      .getAllByRole("button")
+      .filter(node => node.dataset.slot === "pill-group-item");
+    expect(segments).not.toHaveLength(0);
+    for (const seg of segments) {
+      expect(seg.className).toContain("text-[12px]");
+      expect(seg.className).toContain("font-[510]");
+      expect(seg.className).toContain("tracking-[-0.005em]");
+      expect(seg.className).not.toContain("font-mono");
+      expect(seg.className).not.toContain("uppercase");
+      expect(seg.className).not.toContain("tracking-(--tracking-badge)");
+    }
+  });
+
+  it("Should render the track without a border, with --canvas-soft fill, --radius-md corners, 2px padding and 1px gap", () => {
+    const { container } = render(<PillGroup value="list" onChange={() => {}} items={items} />);
+    const track = container.querySelector('[data-slot="pill-group"]') as HTMLElement | null;
+    expect(track).not.toBeNull();
+    expect(track?.className).toContain("bg-(--canvas-soft)");
+    expect(track?.className).toContain("rounded-(--radius-md)");
+    expect(track?.className).toContain("p-(--space-pill-group-track-padding)");
+    expect(track?.className).toContain("gap-(--space-pill-group-track-gap)");
+    expect(track?.className).not.toContain("border");
+  });
+
+  it("Should render the count badge as a 3px-radius neutral chip with tabular-nums and sentence-case", () => {
     render(<PillGroup value="list" onChange={() => {}} items={items} />);
     const inbox = screen.getByRole("button", { name: /inbox/i });
-    const badge = inbox.querySelector('[data-slot="pill-group-badge"]');
+    const badge = inbox.querySelector('[data-slot="pill-group-badge"]') as HTMLElement | null;
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("3");
-    expect(badge?.className).toContain("bg-(--accent)");
-    expect(badge?.className).toContain("text-(--accent-ink)");
+    expect(badge?.className).toContain("rounded-[3px]");
+    expect(badge?.className).toContain("bg-(--badge-fill)");
+    expect(badge?.className).toContain("text-(--muted)");
+    expect(badge?.className).toContain("tabular-nums");
+    expect(badge?.className).not.toContain("uppercase");
+    expect(badge?.className).not.toContain("font-mono");
+    expect(badge?.className).not.toContain("bg-(--accent)");
+    expect(badge?.className).not.toContain("text-(--accent-ink)");
   });
 
   it("Should not fire onChange for a disabled item", async () => {
@@ -91,10 +132,10 @@ describe("PillGroup", () => {
       <PillGroup value="list" onChange={() => {}} items={items} />
     );
     let segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
-    expect(segments[0]?.className).toContain("h-(--height-mono-badge)");
+    expect(segments[0]?.className).toContain("min-h-(--height-pill-group-segment-md)");
 
     rerender(<PillGroup value="list" onChange={() => {}} items={items} size="sm" />);
     segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
-    expect(segments[0]?.className).toContain("h-(--height-pill-group-segment-sm)");
+    expect(segments[0]?.className).toContain("min-h-(--height-pill-group-segment-sm)");
   });
 });

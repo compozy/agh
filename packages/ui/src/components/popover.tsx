@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { AnimatePresence, m } from "motion/react";
+import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { useInitialState } from "./use-initial-state";
@@ -133,7 +133,7 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   return (
     <PopoverPrimitive.Title
       data-slot="popover-title"
-      className={cn("font-[510] tracking-[-0.005em] text-(--fg-strong)", className)}
+      className={cn("font-medium tracking-[-0.005em] text-(--fg-strong)", className)}
       {...props}
     />
   );

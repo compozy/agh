@@ -131,10 +131,8 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
               >
                 {entry.kind === "thread" ? "[TH]" : "[DM]"}
               </Pill>
-              <Eyebrow aria-hidden="true" weight="medium">
-                /
-              </Eyebrow>
-              <Eyebrow weight="medium">{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
+              <Eyebrow aria-hidden="true">/</Eyebrow>
+              <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
             </div>
             <p className="truncate text-sm font-medium text-(--fg)">{entry.title}</p>
             <p className="line-clamp-2 text-small-body text-(--muted)">{entry.preview}</p>

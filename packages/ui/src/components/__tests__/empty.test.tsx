@@ -98,6 +98,13 @@ describe("Empty", () => {
     expect(iconSlot?.className).toContain("rounded-lg");
   });
 
+  it("Should render the icon well borderless (ADR-004 §6 flat-depth pass)", () => {
+    const { container } = render(<Empty title="Nothing" />);
+    const iconSlot = container.querySelector('[data-slot="empty-icon"]');
+    expect(iconSlot?.className).not.toContain("border-(--line)");
+    expect(iconSlot?.className).toContain("bg-(--canvas-soft)");
+  });
+
   it("Should render the title at 18px on the canonical strong-fg color", () => {
     const { container } = render(<Empty title="Nothing" />);
     const title = container.querySelector('[data-slot="empty-title"]') as HTMLElement | null;

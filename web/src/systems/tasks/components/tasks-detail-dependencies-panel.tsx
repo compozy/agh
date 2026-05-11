@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, GitBranch } from "lucide-react";
 
 import { Empty, LinkedRecordTable, Pill } from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   taskOwnerLabel,
@@ -71,7 +70,7 @@ export function TasksDetailDependenciesPanel({
                     <Pill mono>
                       {taskShortId({ id: target.id, identifier: target.identifier })}
                     </Pill>
-                    <Pill tone={pillToneFromLegacyTone(taskStatusTone(target.status))}>
+                    <Pill tone={taskStatusTone(target.status)}>
                       {taskStatusLabel(target.status)}
                     </Pill>
                   </div>

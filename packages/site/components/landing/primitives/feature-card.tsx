@@ -24,26 +24,22 @@ export function FeatureCard({
   return (
     <article
       className={cn(
-        "flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-6 transition-colors hover:border-accent/40",
+        "flex flex-col gap-3 rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-6 transition-colors hover:border-accent/40",
         className
       )}
     >
       {icon ? (
-        <div className="flex size-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) text-accent">
+        <div className="flex size-10 items-center justify-center rounded-icon-well bg-(--elevated) text-accent">
           {icon}
         </div>
       ) : null}
-      {eyebrow ? (
-        <Eyebrow case="upper" tone="muted" size="badge" weight="semibold" className="text-accent">
-          {eyebrow}
-        </Eyebrow>
-      ) : null}
-      <h3 className="text-base font-medium leading-snug text-(--color-text-primary)">{title}</h3>
-      <p className="text-sm leading-relaxed text-(--color-text-secondary)">{description}</p>
+      {eyebrow ? <Eyebrow className="text-accent">{eyebrow}</Eyebrow> : null}
+      <h3 className="text-base font-medium leading-snug text-(--fg)">{title}</h3>
+      <p className="text-sm leading-relaxed text-(--muted)">{description}</p>
       {cite ? (
         <Link
           href={cite.href}
-          className="mt-auto inline-flex items-center gap-1 pt-2 font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary) transition-colors hover:text-accent"
+          className="eyebrow mt-auto inline-flex items-center gap-1 pt-2 text-(--subtle) transition-colors hover:text-accent"
         >
           {cite.label ?? "source"}
           <ArrowUpRight aria-hidden className="size-3" />

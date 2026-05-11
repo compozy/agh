@@ -24,7 +24,7 @@ describe("ToolCallCard", () => {
     const tool = container.querySelector<HTMLElement>('[data-slot="tool-call-card-tool"]');
     const path = container.querySelector<HTMLElement>('[data-slot="tool-call-card-path"]');
     expect(root?.className).toContain("bg-(--canvas-soft)");
-    expect(root?.className).toContain("border-(--line)");
+    expect(root?.className).not.toContain("border-(--line)");
     expect(root?.className).toContain("rounded-md");
     expect(icon).not.toBeNull();
     expect((icon as unknown as SVGElement).classList.contains("lucide-terminal")).toBe(true);

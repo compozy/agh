@@ -9,8 +9,9 @@ import {
   deriveSkillRecentCalls,
   deriveSkillTags,
   filterSkillsByQuery,
-  formatSkillRelativeTime,
+  MARKETPLACE_CATEGORIES,
   matchesMarketplaceCategory,
+  skillSourceLabel,
   skillSourceTone,
   skillStatusTone,
 } from "../skill-formatters";
@@ -41,6 +42,12 @@ describe("skill-formatters", () => {
     expect(skillSourceTone("user")).toBe("warning");
     expect(skillSourceTone("additional")).toBe("neutral");
     expect(skillSourceTone("unknown")).toBe("neutral");
+  });
+
+  it("Should return sentence-case source labels per ADR-012 §14", () => {
+    expect(skillSourceLabel("bundled")).toBe("bundled");
+    expect(skillSourceLabel("workspace")).toBe("workspace");
+    expect(skillSourceLabel("marketplace")).toBe("marketplace");
   });
 
   it("Should map enabled flag to status dot tone", () => {
@@ -83,12 +90,27 @@ describe("skill-formatters", () => {
     ).toEqual(["a", "b"]);
   });
 
+  it("Should expose sentence-case marketplace category vocabulary per ADR-012 §14", () => {
+    expect(MARKETPLACE_CATEGORIES).toEqual([
+      "all",
+      "testing",
+      "database",
+      "deploy",
+      "ai",
+      "devops",
+      "security",
+    ]);
+    for (const category of MARKETPLACE_CATEGORIES) {
+      expect(category).toBe(category.toLowerCase());
+    }
+  });
+
   it("Should match marketplace category against tags (case-insensitive)", () => {
     const skill = makeSkill({ metadata: { tags: ["Testing", "AI"] } });
-    expect(matchesMarketplaceCategory(skill, "ALL")).toBe(true);
-    expect(matchesMarketplaceCategory(skill, "TESTING")).toBe(true);
-    expect(matchesMarketplaceCategory(skill, "AI")).toBe(true);
-    expect(matchesMarketplaceCategory(skill, "DATABASE")).toBe(false);
+    expect(matchesMarketplaceCategory(skill, "all")).toBe(true);
+    expect(matchesMarketplaceCategory(skill, "testing")).toBe(true);
+    expect(matchesMarketplaceCategory(skill, "ai")).toBe(true);
+    expect(matchesMarketplaceCategory(skill, "database")).toBe(false);
   });
 
   it("Should filter skills by name, description, and tags", () => {
@@ -132,16 +154,5 @@ describe("skill-formatters", () => {
       { label: "skill.fail", status: "error", timestamp: undefined },
       { label: "skill.pending", status: "success", timestamp: undefined },
     ]);
-  });
-
-  it("Should format relative time (minutes, hours, days)", () => {
-    const now = Date.now();
-    const minutesAgo = new Date(now - 5 * 60 * 1000).toISOString();
-    const hoursAgo = new Date(now - 3 * 60 * 60 * 1000).toISOString();
-    const daysAgo = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
-    expect(formatSkillRelativeTime(minutesAgo)).toBe("5m ago");
-    expect(formatSkillRelativeTime(hoursAgo)).toBe("3h ago");
-    expect(formatSkillRelativeTime(daysAgo)).toBe("2d ago");
-    expect(formatSkillRelativeTime("not-a-date")).toBe("not-a-date");
   });
 });

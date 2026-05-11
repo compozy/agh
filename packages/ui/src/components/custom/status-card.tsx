@@ -36,7 +36,7 @@ function StatusCard({ tone = "neutral", className, children, ...props }: StatusC
     <StatusCardContext.Provider value={{ tone }}>
       <section
         className={cn(
-          "flex min-w-0 flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) px-5 py-4",
+          "flex min-w-0 flex-col gap-3 rounded-lg bg-(--canvas-soft) px-5 py-4",
           className
         )}
         data-slot="status-card"

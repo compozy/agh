@@ -5,7 +5,7 @@ import { TasksDashboardStatusBreakdown } from "../tasks-dashboard-status-breakdo
 import { buildDashboardFixture } from "../test-fixtures";
 
 describe("TasksDashboardStatusBreakdown", () => {
-  it("renders one pill per status with its count, and the pill sum matches the total badge", () => {
+  it("renders one row per status with its count, and the row sum matches the total badge", () => {
     const dashboard = buildDashboardFixture({
       status_breakdown: [
         { count: 5, share_percent: 50, status: "completed" },
@@ -16,11 +16,11 @@ describe("TasksDashboardStatusBreakdown", () => {
 
     render(<TasksDashboardStatusBreakdown dashboard={dashboard} />);
 
-    const pills = screen.getAllByTestId(/tasks-dashboard-status-pill-/);
-    expect(pills).toHaveLength(3);
+    const rows = screen.getAllByTestId(/tasks-dashboard-status-row-/);
+    expect(rows).toHaveLength(3);
 
-    const counts = pills.map(pill => {
-      const count = within(pill).getByTestId(/tasks-dashboard-status-count-/);
+    const counts = rows.map(row => {
+      const count = within(row).getByTestId(/tasks-dashboard-status-count-/);
       return Number(count.textContent);
     });
     const sum = counts.reduce((acc, value) => acc + value, 0);

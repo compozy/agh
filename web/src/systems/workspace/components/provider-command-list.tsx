@@ -93,9 +93,7 @@ export function ProviderCommandList({
                   <span className="truncate text-sm text-(--fg)">
                     {option.display_name?.trim() || option.name}
                   </span>
-                  <Eyebrow case="upper" tone="muted" size="badge">
-                    {option.harness ?? "acp"}
-                  </Eyebrow>
+                  <Eyebrow className="text-(--muted)">{option.harness ?? "acp"}</Eyebrow>
                 </div>
               </CommandItem>
             );

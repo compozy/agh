@@ -168,7 +168,7 @@ describe("useTasksPage", () => {
     expect(result.current.mode).toBe("inbox");
   });
 
-  it("maps inbox lane, unread and search state into the inbox query", async () => {
+  it("maps inbox unread + search state into the backend query (lane stays client-side)", async () => {
     const { result } = renderHook(() => useTasksPage({ initialMode: "inbox" }), {
       wrapper: createWrapper(),
     });
@@ -178,6 +178,8 @@ describe("useTasksPage", () => {
     });
 
     act(() => {
+      // Lane filter is now a pure client-side UI control per ADR-006 §5 —
+      // setting it must not trigger a backend refetch with a `lane` param.
       result.current.handleInboxLaneChange("approvals");
       result.current.handleInboxUnreadToggle(true);
       result.current.setInboxSearchQuery("rotate");
@@ -186,13 +188,15 @@ describe("useTasksPage", () => {
     await waitFor(() => {
       expect(getTaskInbox).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          lane: "approvals",
           unread: true,
           query: "rotate",
         }),
         expect.any(AbortSignal)
       );
     });
+    for (const [filters] of vi.mocked(getTaskInbox).mock.calls) {
+      expect((filters as { lane?: unknown }).lane).toBeUndefined();
+    }
   });
 
   it("maps scope and workspace into the dashboard query", async () => {

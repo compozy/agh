@@ -10,6 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Time,
 } from "@agh/ui";
 
 import { vaultNamespaceTone } from "../lib/vault-tones";
@@ -23,19 +24,6 @@ interface VaultSecretsTableProps {
   emptyTitle?: string;
   emptyDescription?: string;
   "data-testid"?: string;
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-  return date.toLocaleString([], {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  });
 }
 
 export function VaultSecretsTable({
@@ -79,44 +67,58 @@ export function VaultSecretsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {secrets.map(secret => (
-              <TableRow key={secret.ref} data-testid="vault-secrets-row">
-                <TableCell className="min-w-0">
-                  <span className="block max-w-2xl truncate font-mono text-xs text-(--fg)">
-                    {secret.ref}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Pill mono tone={vaultNamespaceTone(secret.namespace)}>
-                    {secret.namespace}
-                  </Pill>
-                </TableCell>
-                <TableCell>
-                  <span className="font-mono text-xs text-(--muted)">
-                    {secret.kind?.trim() || "--"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span className="font-mono text-xs text-(--subtle)">
-                    {formatDateTime(secret.updated_at)}
-                  </span>
-                </TableCell>
-                {onDelete ? (
-                  <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Delete ${secret.ref}`}
-                      onClick={() => onDelete(secret)}
-                      data-testid={`vault-secrets-delete-${secret.ref}`}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+            {secrets.map(secret => {
+              const trimmedKind = secret.kind?.trim();
+              return (
+                <TableRow key={secret.ref} data-testid="vault-secrets-row">
+                  <TableCell className="min-w-0">
+                    <span className="block max-w-2xl truncate font-mono text-xs text-(--fg)">
+                      {secret.ref}
+                    </span>
                   </TableCell>
-                ) : null}
-              </TableRow>
-            ))}
+                  <TableCell>
+                    <Pill mono tone={vaultNamespaceTone(secret.namespace)}>
+                      {secret.namespace}
+                    </Pill>
+                  </TableCell>
+                  <TableCell>
+                    {trimmedKind ? (
+                      <Pill mono data-testid={`vault-secrets-kind-${secret.ref}`} tone="neutral">
+                        {trimmedKind}
+                      </Pill>
+                    ) : (
+                      <span
+                        className="font-mono text-xs text-(--muted)"
+                        data-testid={`vault-secrets-kind-empty-${secret.ref}`}
+                      >
+                        --
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Time
+                      className="font-mono text-xs text-(--subtle)"
+                      data-testid={`vault-secrets-updated-${secret.ref}`}
+                      iso={secret.updated_at}
+                    />
+                  </TableCell>
+                  {onDelete ? (
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Delete ${secret.ref}`}
+                        onClick={() => onDelete(secret)}
+                        data-testid={`vault-secrets-delete-${secret.ref}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </DataSurface.Content>

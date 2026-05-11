@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import type { TaskListItem, TaskRun } from "../../types";
@@ -80,18 +84,20 @@ describe("task status and priority labels", () => {
 });
 
 describe("task semantic tones", () => {
-  it("maps task statuses to tones — terminal states resolve neutral", () => {
-    expect(taskStatusTone("completed")).toBe("neutral");
+  it("Should resolve task statuses through TASK_STATUS_TONE PillTone dictionary", () => {
+    expect(taskStatusTone("completed")).toBe("success");
     expect(taskStatusTone("failed")).toBe("danger");
-    expect(taskStatusTone("canceled")).toBe("danger");
-    expect(taskStatusTone("in_progress")).toBe("neutral");
-    expect(taskStatusTone("blocked")).toBe("amber");
+    expect(taskStatusTone("canceled")).toBe("neutral");
+    expect(taskStatusTone("in_progress")).toBe("info");
+    expect(taskStatusTone("blocked")).toBe("danger");
     expect(taskStatusTone("ready")).toBe("neutral");
     expect(taskStatusTone("draft")).toBe("neutral");
+    expect(taskStatusTone("pending")).toBe("neutral");
     expect(taskStatusTone(undefined)).toBe("neutral");
+    expect(taskStatusTone(null)).toBe("neutral");
   });
 
-  it("maps every priority level to neutral — priority never colorizes", () => {
+  it("Should always resolve priority to neutral — priority never colorizes", () => {
     expect(taskPriorityTone("urgent")).toBe("neutral");
     expect(taskPriorityTone("high")).toBe("neutral");
     expect(taskPriorityTone("medium")).toBe("neutral");
@@ -99,22 +105,73 @@ describe("task semantic tones", () => {
     expect(taskPriorityTone(undefined)).toBe("neutral");
   });
 
-  it("maps run statuses to tones — terminal runs resolve neutral", () => {
-    expect(taskRunStatusTone("running")).toBe("accent");
-    expect(taskRunStatusTone("completed")).toBe("neutral");
+  it("Should resolve run statuses through RUN_STATUS_TONE PillTone dictionary", () => {
+    expect(taskRunStatusTone("running")).toBe("info");
+    expect(taskRunStatusTone("completed")).toBe("success");
     expect(taskRunStatusTone("failed")).toBe("danger");
-    expect(taskRunStatusTone("canceled")).toBe("danger");
-    expect(taskRunStatusTone("queued")).toBe("amber");
-    expect(taskRunStatusTone("starting")).toBe("neutral");
-    expect(taskRunStatusTone("claimed")).toBe("neutral");
+    expect(taskRunStatusTone("canceled")).toBe("neutral");
+    expect(taskRunStatusTone("queued")).toBe("neutral");
+    expect(taskRunStatusTone("starting")).toBe("info");
+    expect(taskRunStatusTone("claimed")).toBe("info");
+    expect(taskRunStatusTone(null)).toBe("neutral");
   });
 
-  it("maps inbox lanes to tones", () => {
-    expect(taskLaneTone("approvals")).toBe("violet");
+  it("Should resolve inbox lanes through TASK_LANE_TONE — approvals collapses to info per ADR-010 §2", () => {
+    expect(taskLaneTone("approvals")).toBe("info");
     expect(taskLaneTone("failed_runs")).toBe("danger");
-    expect(taskLaneTone("blocked")).toBe("amber");
+    expect(taskLaneTone("blocked")).toBe("danger");
     expect(taskLaneTone("archived")).toBe("neutral");
-    expect(taskLaneTone("my_work")).toBe("green");
+    expect(taskLaneTone("my_work")).toBe("neutral");
+  });
+});
+
+describe("task-formatters source — STATUS_TONE migration exhaustiveness", () => {
+  const formatterSource = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../task-formatters.ts"),
+    "utf8"
+  );
+
+  it("Should not contain legacy tone identifiers (violet / amber / stuck / green) anywhere in the formatters source", () => {
+    expect(formatterSource).not.toMatch(/\bviolet\b/);
+    expect(formatterSource).not.toMatch(/\bamber\b/);
+    expect(formatterSource).not.toMatch(/\bstuck\b/);
+    expect(formatterSource).not.toMatch(/\bgreen\b/);
+  });
+
+  function extractFunctionBody(source: string, name: string): string {
+    const start = source.indexOf(`export function ${name}(`);
+    if (start < 0) throw new Error(`function ${name} not found`);
+    let depth = 0;
+    let openSeen = false;
+    for (let i = start; i < source.length; i += 1) {
+      const char = source[i];
+      if (char === "{") {
+        depth += 1;
+        openSeen = true;
+      } else if (char === "}") {
+        depth -= 1;
+        if (openSeen && depth === 0) {
+          return source.slice(start, i + 1);
+        }
+      }
+    }
+    throw new Error(`function ${name} body not balanced`);
+  }
+
+  it("Should not contain inlined `status -> tone` switch statements inside the three migrated function bodies", () => {
+    expect(extractFunctionBody(formatterSource, "taskStatusTone")).not.toMatch(/\bswitch\b/);
+    expect(extractFunctionBody(formatterSource, "taskRunStatusTone")).not.toMatch(/\bswitch\b/);
+    expect(extractFunctionBody(formatterSource, "taskLaneTone")).not.toMatch(/\bswitch\b/);
+  });
+
+  it("Should consume the central STATUS_TONE dictionaries from `web/src/lib/status-tone.ts`", () => {
+    expect(formatterSource).toMatch(/TASK_STATUS_TONE/);
+    expect(formatterSource).toMatch(/RUN_STATUS_TONE/);
+    expect(formatterSource).toMatch(/TASK_LANE_TONE/);
+    expect(formatterSource).toMatch(/from "@\/lib\/status-tone"/);
+    expect(extractFunctionBody(formatterSource, "taskStatusTone")).toMatch(/TASK_STATUS_TONE/);
+    expect(extractFunctionBody(formatterSource, "taskRunStatusTone")).toMatch(/RUN_STATUS_TONE/);
+    expect(extractFunctionBody(formatterSource, "taskLaneTone")).toMatch(/TASK_LANE_TONE/);
   });
 });
 
@@ -248,12 +305,16 @@ describe("task lifecycle phases — manual-first signaling", () => {
     expect(taskLifecyclePhase(makeTask({ status: "blocked", active_run: null }))).toBe("blocked");
   });
 
-  it("phase tones never mark saved intent or ready as activity", () => {
+  it("Should never mark saved intent or ready as activity in lifecycle tones", () => {
     expect(taskLifecyclePhaseTone("saved_intent")).toBe("neutral");
     expect(taskLifecyclePhaseTone("ready_to_start")).toBe("neutral");
-    expect(taskLifecyclePhaseTone("queued")).toBe("amber");
+    expect(taskLifecyclePhaseTone("queued")).toBe("neutral");
     expect(taskLifecyclePhaseTone("running")).toBe("accent");
-    expect(taskLifecyclePhaseTone("awaiting_approval")).toBe("violet");
+    expect(taskLifecyclePhaseTone("awaiting_approval")).toBe("info");
+    expect(taskLifecyclePhaseTone("blocked")).toBe("danger");
+    expect(taskLifecyclePhaseTone("failed")).toBe("danger");
+    expect(taskLifecyclePhaseTone("canceled")).toBe("danger");
+    expect(taskLifecyclePhaseTone("completed")).toBe("neutral");
   });
 });
 

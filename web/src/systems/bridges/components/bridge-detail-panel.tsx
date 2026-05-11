@@ -13,6 +13,7 @@ import {
   CodeBlock,
   ConfirmDialog,
   DataSurface,
+  DetailHeader,
   DialogTrigger,
   Empty,
   Eyebrow,
@@ -100,18 +101,7 @@ const EMPTY_SECRET_INPUT_VALUES: Record<string, string> = {};
 
 function statusToPillTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
-  switch (bridgeStatusTone(status)) {
-    case "green":
-      return "success";
-    case "amber":
-      return "warning";
-    case "danger":
-      return "danger";
-    case "violet":
-      return "info";
-    default:
-      return "neutral";
-  }
+  return bridgeStatusTone(status);
 }
 
 function computeBridgeMetrics(
@@ -167,7 +157,7 @@ function SecretSlotCard({
       data-testid={`bridge-secret-binding-${slot.name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Eyebrow tone="accent">{slot.name}</Eyebrow>
+        <Eyebrow className="text-(--accent)">{slot.name}</Eyebrow>
         <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
           {slot.required === false ? "OPTIONAL" : "REQUIRED"}
         </Pill>
@@ -369,9 +359,7 @@ function BridgeEventStreamSection({
                   <div className="min-w-0">
                     <div className="text-small-body text-(--fg)">{route.agent_name}</div>
                     <div className="mt-1 break-all font-mono text-eyebrow text-(--subtle)">
-                      <Eyebrow className="mr-1" weight="semibold">
-                        Session
-                      </Eyebrow>
+                      <Eyebrow className="mr-1">Session</Eyebrow>
                       <span>{route.session_id}</span>
                     </div>
                   </div>
@@ -542,9 +530,7 @@ function BridgeProviderRuntimeSection({
       ) : null}
 
       <div className="mt-3">
-        <Eyebrow className="mb-2 block" tone="neutral">
-          Provider config
-        </Eyebrow>
+        <Eyebrow className="text-(--muted) mb-2 block">Provider config</Eyebrow>
         {providerConfig ? (
           <CodeBlock
             code={providerConfig}
@@ -584,94 +570,85 @@ function BridgeDetailHeader({
   const statusTone = statusToPillTone(effectiveStatus);
   const pulse = effectiveStatus === "starting";
 
-  return (
-    <header
-      data-slot="page-header"
-      className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-6 py-4"
-    >
-      <div
-        data-slot="page-header-main"
-        className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
-      >
-        <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
-          <span
-            aria-hidden="true"
-            data-slot="page-header-icon"
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
-          >
-            <Waypoints className="size-3.5" />
-          </span>
-          <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
-            {bridge.display_name}
-          </h1>
-        </div>
-        <div data-slot="page-header-controls" className="ml-auto flex shrink-0 items-center gap-2">
-          <Button
-            data-testid="edit-bridge-btn"
-            disabled={isLifecyclePending}
-            onClick={onOpenEdit}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Pencil className="size-3.5" />
-            Edit
-          </Button>
-          <Button
-            data-testid="restart-bridge-btn"
-            disabled={isLifecyclePending}
-            onClick={onRestartBridge}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <RotateCw className="size-3.5" />
-            Restart
-          </Button>
-          {bridge.enabled ? (
-            <Button
-              data-testid="disable-bridge-btn"
-              disabled={isLifecyclePending}
-              onClick={onDisableBridge}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Power className="size-3.5" />
-              Disable
-            </Button>
-          ) : (
-            <Button
-              data-testid="enable-bridge-btn"
-              disabled={isLifecyclePending}
-              onClick={onEnableBridge}
-              size="sm"
-              type="button"
-            >
-              <Power className="size-3.5" />
-              Enable
-            </Button>
-          )}
-        </div>
-      </div>
-      <div data-slot="page-header-subtitle" className="max-w-152 text-small-body text-(--muted)">
-        {bridge.platform} / {bridge.extension_name}
-      </div>
-      <div
-        data-slot="page-header-status-row"
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-(--muted)"
-      >
-        <span className="flex items-center gap-2">
-          <Pill.Dot pulse={pulse} tone={statusTone} />
-          <Pill mono tone={statusTone}>
-            {effectiveStatus}
-          </Pill>
-        </span>
-        <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
-          {bridge.scope}
+  const pills = (
+    <>
+      <span className="flex items-center gap-2">
+        <Pill.Dot pulse={pulse} tone={statusTone} />
+        <Pill mono tone={statusTone}>
+          {effectiveStatus}
         </Pill>
-      </div>
-    </header>
+      </span>
+      <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
+        {bridge.scope}
+      </Pill>
+    </>
+  );
+
+  const meta = (
+    <span data-testid="bridge-detail-meta-platform">
+      {bridge.platform} / {bridge.extension_name}
+    </span>
+  );
+
+  const actions = (
+    <>
+      <Button
+        data-testid="edit-bridge-btn"
+        disabled={isLifecyclePending}
+        onClick={onOpenEdit}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <Pencil className="size-3.5" />
+        Edit
+      </Button>
+      <Button
+        data-testid="restart-bridge-btn"
+        disabled={isLifecyclePending}
+        onClick={onRestartBridge}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <RotateCw className="size-3.5" />
+        Restart
+      </Button>
+      {bridge.enabled ? (
+        <Button
+          data-testid="disable-bridge-btn"
+          disabled={isLifecyclePending}
+          onClick={onDisableBridge}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <Power className="size-3.5" />
+          Disable
+        </Button>
+      ) : (
+        <Button
+          data-testid="enable-bridge-btn"
+          disabled={isLifecyclePending}
+          onClick={onEnableBridge}
+          size="sm"
+          type="button"
+        >
+          <Power className="size-3.5" />
+          Enable
+        </Button>
+      )}
+    </>
+  );
+
+  return (
+    <DetailHeader
+      actions={actions}
+      data-testid="bridge-detail-header"
+      meta={meta}
+      pills={pills}
+      title={bridge.display_name}
+    />
   );
 }
 
@@ -781,9 +758,7 @@ export function BridgeDetailPanel({
 
         <div className="flex items-center justify-between gap-3 rounded-md border border-(--line) bg-(--canvas-soft) px-5 py-4">
           <div className="space-y-1">
-            <Eyebrow className="block" tone="neutral">
-              Test delivery
-            </Eyebrow>
+            <Eyebrow className="text-(--muted) block">Test delivery</Eyebrow>
             <p className="text-small-body text-(--muted)">
               Resolve the outbound target using bridge defaults plus any explicit target override.
             </p>

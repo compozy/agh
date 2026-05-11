@@ -1,9 +1,8 @@
 "use client";
 
-import { cn } from "@agh/ui";
+import { cn, Eyebrow } from "@agh/ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MonoEyebrow } from "./mono-eyebrow";
 import type { TocItem } from "./toc-utils";
 
 export type { TocItem } from "./toc-utils";
@@ -45,7 +44,7 @@ export function TocRail({ items }: TocRailProps) {
 
   return (
     <aside aria-label="Blog table of contents" className="sticky top-20 self-start">
-      <MonoEyebrow tracking="wide">On this page</MonoEyebrow>
+      <Eyebrow className="text-(--muted) tracking-badge!">On this page</Eyebrow>
       <ul className="mt-4 flex flex-col gap-2.5">
         {items.map(item => {
           const id = item.url.replace(/^#/, "");
@@ -57,9 +56,7 @@ export function TocRail({ items }: TocRailProps) {
                 aria-current={isActive ? "location" : undefined}
                 className={cn(
                   "block text-small-body leading-5 transition-colors",
-                  isActive
-                    ? "text-accent"
-                    : "text-(--color-text-secondary) hover:text-(--color-text-primary)",
+                  isActive ? "text-accent" : "text-(--muted) hover:text-(--fg)",
                   item.depth >= 3 && "pl-3"
                 )}
               >

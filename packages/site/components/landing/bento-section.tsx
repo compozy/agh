@@ -2,10 +2,9 @@ import Image from "next/image";
 import { Database, FileCode2, Layers, Network, Plug } from "lucide-react";
 
 const cardBase =
-  "group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) p-7 transition-colors hover:border-accent/40 sm:p-8 xl:p-10";
+  "group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--line) bg-(--rail) p-7 transition-colors hover:border-accent/40 sm:p-8 xl:p-10";
 
-const labelBase =
-  "mb-5 flex items-center gap-3 font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent";
+const labelBase = "eyebrow font-semibold! mb-5 flex items-center gap-3 text-accent";
 
 const imageBase = "h-full w-full select-none opacity-95";
 
@@ -14,7 +13,7 @@ export function BentoSection() {
     <section
       id="runtime-map"
       aria-label="AGH runtime map"
-      className="scroll-mt-24 border-y border-(--color-divider) bg-(--color-canvas-deep) px-4 py-6 sm:px-5 md:py-10 lg:px-5 lg:py-24"
+      className="scroll-mt-24 border-y border-(--line) bg-(--rail) px-4 py-6 sm:px-5 md:py-10 lg:px-5 lg:py-24"
     >
       <div
         data-testid="bento-grid"
@@ -57,7 +56,7 @@ function RuntimeCard() {
         </div>
         <h3
           aria-label="Your agents. Under control."
-          className="font-display text-site-bento-lg font-normal leading-tight text-(--color-text-primary) sm:text-site-bento-xl xl:text-site-bento-2xl"
+          className="font-display text-site-bento-lg font-normal leading-tight text-(--fg) sm:text-site-bento-xl xl:text-site-bento-2xl"
         >
           Your agents.
           <br />
@@ -96,7 +95,7 @@ function NetworkCard() {
         </div>
         <h3
           aria-label="Built-in network. Delegate. Deliver. Done."
-          className="font-display text-site-bento-md font-normal leading-tight text-(--color-text-primary) sm:text-4xl xl:text-site-bento-2xl"
+          className="font-display text-site-bento-md font-normal leading-tight text-(--fg) sm:text-4xl xl:text-site-bento-2xl"
         >
           Built-in network.
           <br />
@@ -133,7 +132,7 @@ function BridgesCard() {
         </div>
         <h3
           aria-label="From anywhere. Into a session."
-          className="font-display text-site-bento-xs font-normal leading-tight text-(--color-text-primary) sm:text-site-bento-md xl:text-site-bento-lg"
+          className="font-display text-site-bento-xs font-normal leading-tight text-(--fg) sm:text-site-bento-md xl:text-site-bento-lg"
         >
           From anywhere.
           <br />
@@ -170,7 +169,7 @@ function MemoryCard() {
         </div>
         <h3
           aria-label="Memory that compounds."
-          className="font-display text-site-bento-sm font-normal leading-tight text-(--color-text-primary) sm:text-site-bento-lg xl:text-4xl"
+          className="font-display text-site-bento-sm font-normal leading-tight text-(--fg) sm:text-site-bento-lg xl:text-4xl"
         >
           Memory that
           <br />
@@ -207,7 +206,7 @@ function ExtensibilityCard() {
         </div>
         <h3
           aria-label="Every layer. Pluggable."
-          className="font-display text-site-bento-sm font-normal leading-tight text-(--color-text-primary) sm:text-site-bento-lg xl:text-4xl"
+          className="font-display text-site-bento-sm font-normal leading-tight text-(--fg) sm:text-site-bento-lg xl:text-4xl"
         >
           Every layer.
           <br />

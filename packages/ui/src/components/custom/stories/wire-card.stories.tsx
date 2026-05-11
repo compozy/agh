@@ -42,13 +42,13 @@ export const Capability: Story = {
       </WireCardBody>
       <WireCardFoot>
         <button
-          className="rounded-xs border border-(--line) px-2 py-1 font-mono text-badge uppercase tracking-mono text-(--muted) hover:text-(--fg)"
+          className="eyebrow rounded-xs border border-(--line) px-2 py-1 text-(--muted) hover:text-(--fg)"
           type="button"
         >
           Call capability
         </button>
         <button
-          className="rounded-xs border border-(--line) px-2 py-1 font-mono text-badge uppercase tracking-mono text-(--muted) hover:text-(--fg)"
+          className="eyebrow rounded-xs border border-(--line) px-2 py-1 text-(--muted) hover:text-(--fg)"
           type="button"
         >
           View schema

@@ -26,7 +26,7 @@ AGH is an agent operating system — a Go single-binary daemon that manages AI a
 - <critical>NEVER ignore errors with `_` in production code or in tests — every error must be handled or have a written justification.</critical>
 - <critical>NEVER COMMITS `ai-docs/` or `.tmp/` TO THE REPO. They are local tracking artifacts.</critical>
 - **Always use subagents** for exploration to avoit bloat your own context.
-- **Subagents are read-only.** Use them for analysis, exploration, and parallel research. The author of every code change is the agent paired with the user. Subagent output is treated as evidence, not as committed work.
+- **Subagents default to read-only.** Use them for analysis, exploration, and parallel research. The author of every code change is the agent paired with the user, and subagent output is treated as evidence. A subagent may write, edit, or commit only when the parent's prompt explicitly delegates that action (e.g. "write the analysis file at X", "apply the fix in Y"); otherwise it must return its output for the parent to write.
 - **ALWAYS CHECK** the `internal/CLAUDE.md` when doing Go-related stuff
 - **ALWAYS CHECK** the `web/CLAUDE.md` when doing things related to the web package
 
@@ -65,6 +65,14 @@ These govern how features move from idea to ship. Internalize them before openin
 - Project context auto-loads from `DESIGN.md`. `DESIGN.md` always wins over the skill's generic guidance.
 - `PRODUCT.md` is missing: the first `impeccable craft` will block on the setup gate and ask you to run `impeccable teach` interactively. Do not synthesize it from a single prompt.
 - Common commands: `shape` / `craft` (build), `critique` / `audit` (review), `polish` / `layout` / `typeset` / `animate` / `harden` (refine), `live` (in-browser variants).
+
+### Verifying UI with `agh-ui-screenshot`
+
+Every UI change in `web/` or `packages/ui/` MUST be visually verified with `agh-ui-screenshot` before completion. Tests verify code, not pixels.
+
+- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`, etc.) and diff against `.compozy/tasks/redesign-v2/screenshots/proposal/` or a trusted prior baseline.
+- For surface-wide passes (token retune, primitive swap), capture before + after.
+- Cite the capture file(s) when reporting done. Claiming success without screenshots is non-compliant.
 
 ## Copy System
 
@@ -114,7 +122,8 @@ Match task domain → activate all required skills
 | Documentation (internal)              | `documentation-writer`                                                                   | `crafting-effective-readmes`                      |
 | Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                                       |
 | Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                                   |
-| UI / Design (any surface)             | `agh-design` + `impeccable`                                                              |                                                   |
+| UI / Design (any surface)             | `agh-design` + `impeccable`                                                              | `agh-ui-screenshot`                               |
+| UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                                   |
 
 Web-specific skill dispatch is in `web/CLAUDE.md` and `web/AGENTS.md`. Site-specific dispatch is in `packages/site/CLAUDE.md`.
 

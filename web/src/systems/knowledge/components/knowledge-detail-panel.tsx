@@ -1,16 +1,26 @@
 import { AlertCircle, BookOpen, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Button, CodeBlock, Empty, Pill, Section, Spinner } from "@agh/ui";
+import {
+  Button,
+  CodeBlock,
+  ContextBox,
+  type ContextBoxEntry,
+  DetailHeader,
+  Empty,
+  Pill,
+  Section,
+  Spinner,
+  StatusDot,
+  Time,
+} from "@agh/ui";
 
 import {
-  formatKnowledgeDateTime,
-  formatKnowledgeRelativeTime,
   knowledgeAgentTierLabel,
   knowledgeScopeLabel,
   memoryScopeTone,
-  memoryTypeTone,
 } from "@/systems/knowledge/lib/knowledge-formatters";
+import { knowledgeTypeFor } from "@/systems/knowledge/lib/knowledge-type-tone";
 import type {
   KnowledgeMemoryItem,
   KnowledgeScope,
@@ -47,62 +57,130 @@ interface KnowledgeDetailPanelProps {
   revertError?: string | null;
 }
 
-interface MetadataRow {
-  key: string;
-  value: string;
-  tone?: "mono" | "plain";
+function statusDotToneFromScope(scope: KnowledgeScope): "warning" | "accent" | "faint" {
+  if (scope === "agent") return "warning";
+  if (scope === "workspace") return "accent";
+  return "faint";
 }
 
-function buildMetadataRows(memory: KnowledgeMemoryItem): MetadataRow[] {
-  const rows: MetadataRow[] = [
-    { key: "Type", value: memory.type, tone: "mono" },
-    { key: "Scope", value: memory.scope, tone: "mono" },
+function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
+  const knowledgeType = knowledgeTypeFor(memory.type);
+  const entries: ContextBoxEntry[] = [
+    {
+      label: "Type",
+      value: (
+        <span className="font-mono text-(--fg)" data-testid="context-type-value">
+          {memory.type}
+        </span>
+      ),
+    },
+    {
+      label: "Knowledge tier",
+      value: (
+        <span className="font-mono text-(--muted)" data-testid="context-tier-value">
+          {knowledgeType}
+        </span>
+      ),
+    },
+    {
+      label: "Staleness",
+      value: (
+        <span data-testid="context-staleness-value">{memory.staleness_banner ?? "Active"}</span>
+      ),
+    },
   ];
+
   if (memory.scope === "agent" && memory.agent_tier) {
-    rows.push({
-      key: "Agent tier",
-      value: knowledgeAgentTierLabel(memory.agent_tier),
-      tone: "mono",
+    entries.push({
+      label: "Agent tier",
+      value: (
+        <span className="font-mono text-(--muted)" data-testid="context-agent-tier-value">
+          {knowledgeAgentTierLabel(memory.agent_tier)}
+        </span>
+      ),
     });
   }
   if (memory.agent_name) {
-    rows.push({ key: "Agent", value: memory.agent_name, tone: "mono" });
-  }
-  if (memory.workspace_id) {
-    rows.push({ key: "Workspace", value: memory.workspace_id, tone: "mono" });
-  }
-  rows.push({
-    key: "Modified",
-    value: formatKnowledgeDateTime(memory.mod_time),
-    tone: "plain",
-  });
-  rows.push({
-    key: "Recalls",
-    value: String(memory.recall_count),
-    tone: "mono",
-  });
-  if (memory.last_recalled_at) {
-    rows.push({
-      key: "Last recalled",
-      value: formatKnowledgeDateTime(memory.last_recalled_at),
-      tone: "plain",
+    entries.push({
+      label: "Agent",
+      value: (
+        <span className="font-mono text-(--fg)" data-testid="context-agent-value">
+          {memory.agent_name}
+        </span>
+      ),
     });
   }
-  if (memory.staleness_banner) {
-    rows.push({ key: "Staleness", value: memory.staleness_banner, tone: "plain" });
+  if (memory.workspace_id) {
+    entries.push({
+      label: "Workspace",
+      value: (
+        <span className="font-mono text-(--muted)" data-testid="context-workspace-value">
+          {memory.workspace_id}
+        </span>
+      ),
+    });
+  }
+  entries.push({
+    label: "Modified",
+    value: (
+      <Time
+        className="text-(--muted)"
+        data-testid="context-modified-value"
+        iso={memory.mod_time}
+        mode="absolute"
+      />
+    ),
+  });
+  entries.push({
+    label: "Recalls",
+    value: (
+      <span className="font-mono text-(--fg)" data-testid="context-recalls-value">
+        {memory.recall_count}
+      </span>
+    ),
+  });
+  if (memory.last_recalled_at) {
+    entries.push({
+      label: "Last recalled",
+      value: (
+        <Time
+          className="text-(--muted)"
+          data-testid="context-last-recalled-value"
+          iso={memory.last_recalled_at}
+          mode="absolute"
+        />
+      ),
+    });
   }
   if (memory.superseded_by) {
-    rows.push({ key: "Superseded by", value: memory.superseded_by, tone: "mono" });
+    entries.push({
+      label: "Superseded by",
+      value: (
+        <span className="font-mono text-(--fg)" data-testid="context-superseded-value">
+          {memory.superseded_by}
+        </span>
+      ),
+    });
   }
-  rows.push({
-    key: "Injection",
-    value: memory.injection ? "true" : "false",
-    tone: "mono",
+  entries.push({
+    label: "Injection",
+    value: (
+      <span className="font-mono text-(--muted)" data-testid="context-injection-value">
+        {memory.injection ? "true" : "false"}
+      </span>
+    ),
   });
   if (memory.system_managed) {
-    rows.push({ key: "System managed", value: "true", tone: "mono" });
+    entries.push({
+      label: "System managed",
+      value: (
+        <span className="font-mono text-(--muted)" data-testid="context-system-managed-value">
+          true
+        </span>
+      ),
+    });
   }
-  return rows;
+  return entries;
 }
 
 function KnowledgeDetailPanel({
@@ -170,9 +248,7 @@ function KnowledgeDetailPanel({
 
   const resolvedScope: KnowledgeScope = scope ?? memory.scope;
   const scopeTone = pillToneFromKnowledgeTone(memoryScopeTone(resolvedScope));
-  const typeTone = pillToneFromKnowledgeTone(memoryTypeTone(memory.type));
-
-  const metadataRows = buildMetadataRows(memory);
+  const contextEntries = buildContextEntries(memory);
 
   const handleConfirmDelete = async () => {
     try {
@@ -198,55 +274,38 @@ function KnowledgeDetailPanel({
       className="flex min-h-0 flex-1 flex-col overflow-y-auto"
       data-testid="knowledge-detail-panel"
     >
-      <header className="flex flex-col gap-3 border-b border-(--line) px-6 py-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              aria-hidden="true"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--elevated) text-(--accent)"
-            >
-              <BookOpen className="size-4" />
-            </span>
-            <div className="flex min-w-0 flex-col">
-              <h2 className="truncate text-item-title font-medium tracking-tight text-(--fg)">
-                {memory.name}
-              </h2>
-              <span className="truncate font-mono text-eyebrow text-(--subtle)">
-                {memory.filename}
-              </span>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Pill mono data-testid="detail-type-badge" tone={typeTone}>
-              {memory.type}
-            </Pill>
+      <DetailHeader
+        data-testid="knowledge-detail-header"
+        preTitle={
+          <span className="font-mono lowercase" data-testid="knowledge-detail-filename">
+            {memory.filename}
+          </span>
+        }
+        title={<span data-testid="knowledge-detail-title">{memory.name}</span>}
+        pills={
+          <>
             <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
+              <StatusDot
+                aria-hidden="true"
+                className="-ml-0.5"
+                tone={statusDotToneFromScope(resolvedScope)}
+              />
               {knowledgeScopeLabel(resolvedScope)}
             </Pill>
-            {memory.scope === "agent" && memory.agent_tier ? (
-              <Pill mono data-testid="detail-agent-tier-badge" tone="warning">
-                {knowledgeAgentTierLabel(memory.agent_tier)}
-              </Pill>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Pill.Dot tone={memory.staleness_banner ? "warning" : "success"} />
-          <span className="text-small-body text-(--muted)">
-            {memory.staleness_banner ?? "Active"}
-          </span>
-          <span className="font-mono text-eyebrow text-(--subtle)">
-            Updated {formatKnowledgeRelativeTime(memory.mod_time)}
-          </span>
-          {memory.superseded_by ? (
-            <Pill mono data-testid="detail-superseded-badge" tone="warning">
-              Superseded
+            <Pill mono data-testid="detail-age-badge" tone="neutral">
+              <Time iso={memory.mod_time} />
             </Pill>
-          ) : null}
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="flex flex-col gap-6 px-6 py-5">
+        <ContextBox
+          data-testid="knowledge-detail-context"
+          entries={contextEntries}
+          title="Overview"
+        />
+
         {memory.description ? (
           <Section label="Description">
             <p className="text-small-body leading-relaxed text-(--muted)">{memory.description}</p>
@@ -258,32 +317,6 @@ function KnowledgeDetailPanel({
             <CodeBlock code={content} copyable data-testid="content-preview" showPrompt={false} />
           </Section>
         ) : null}
-
-        <Section label="Metadata">
-          <dl
-            className="flex flex-col divide-y divide-(--line) rounded-lg border border-(--line) bg-(--canvas-soft)"
-            data-testid="metadata-table"
-          >
-            {metadataRows.map(row => (
-              <div
-                className="flex items-center justify-between gap-3 px-4 py-2.5"
-                data-testid={`metadata-row-${row.key}`}
-                key={row.key}
-              >
-                <dt className="font-mono text-eyebrow uppercase tracking-mono text-(--muted)">
-                  {row.key}
-                </dt>
-                <dd className="min-w-0 text-right">
-                  {row.tone === "mono" ? (
-                    <Pill mono>{row.value}</Pill>
-                  ) : (
-                    <span className="text-small-body text-(--fg)">{row.value}</span>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </Section>
 
         <KnowledgeDecisionsSection
           decisions={decisions}

@@ -7,15 +7,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let childMatches: Array<{ id: string; params?: { id?: string } }> = [];
 const navigateMock = vi.fn();
 
+let searchParams: Record<string, unknown> = {};
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
     return <a {...domRest}>{children}</a>;
   },
   Outlet: () => <div data-testid="tasks-outlet" />,
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-  }),
+  createFileRoute:
+    () =>
+    (opts: {
+      component: () => ReactNode;
+      validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
+    }) => ({
+      component: opts.component,
+      useSearch: () => (opts.validateSearch ? opts.validateSearch(searchParams) : searchParams),
+    }),
   useChildMatches: () => childMatches,
   useNavigate: () => navigateMock,
 }));
@@ -95,6 +103,7 @@ function renderTasksRoute() {
 describe("TasksRoute", () => {
   beforeEach(() => {
     childMatches = [];
+    searchParams = {};
     navigateMock.mockReset();
     listTasksMock.mockReset();
     listTasksMock.mockResolvedValue([]);
@@ -148,7 +157,9 @@ describe("TasksRoute", () => {
   it("renders the shared tasks shell body container", () => {
     renderTasksRoute();
     expect(screen.getByTestId("tasks-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-shell-body")).toBeInTheDocument();
+    // Full-width route shell (PageShell density="route") replaces the legacy
+    // SplitPane body wrapper per ADR-006 §8 / ADR-003 §1.
+    expect(screen.getByTestId("tasks-shell")).toHaveAttribute("data-density", "route");
   });
 
   it("renders mode pills, the create button, and the empty state when no tasks exist", async () => {
@@ -168,7 +179,9 @@ describe("TasksRoute", () => {
     renderTasksRoute();
     expect(screen.getByTestId("tasks-outlet")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-list-panel")).toBeInTheDocument();
+    // ADR-007: detail child route takes over the full canvas; the list panel
+    // is no longer rendered side-by-side with the detail (no SplitPane).
+    expect(screen.queryByTestId("tasks-list-panel")).not.toBeInTheDocument();
   });
 
   it("switches to the dashboard view and renders the cards + queue/health sections", async () => {
@@ -195,9 +208,12 @@ describe("TasksRoute", () => {
 
     expect(await screen.findByTestId("tasks-inbox-view")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument();
-    const inboxTab = screen.getByTestId("tasks-mode-inbox");
-    expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
-    expect(screen.getByTestId("tasks-inbox-group-approvals")).toBeInTheDocument();
+    await waitFor(() => {
+      const inboxTab = screen.getByTestId("tasks-mode-inbox");
+      expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
+    });
+    // Approval items now live under the `Needs review` UI group per ADR-006 §3.
+    expect(screen.getByTestId("tasks-inbox-group-needs_review")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tasks-inbox-item-approve-task_apr"));
     await waitFor(() => {
@@ -205,20 +221,25 @@ describe("TasksRoute", () => {
     });
   });
 
-  it("changes lane filter and re-queries the inbox endpoint", async () => {
+  it("changes lane filter (client-side) and keeps the same backend query", async () => {
     renderTasksRoute();
 
     fireEvent.click(screen.getByTestId("tasks-mode-inbox"));
     await waitFor(() => expect(getTaskInboxMock).toHaveBeenCalled());
 
+    // Lane filtering is now client-side per ADR-006 §5 — the backend `lane`
+    // param is no longer passed and the switcher just retunes the in-memory
+    // view. Clicking a lane should not refetch with a `lane` query.
+    const callsBefore = getTaskInboxMock.mock.calls.length;
     fireEvent.click(screen.getByTestId("tasks-inbox-lane-approvals"));
-
     await waitFor(() => {
-      expect(getTaskInboxMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ lane: "approvals" }),
-        expect.any(AbortSignal)
-      );
+      // No extra backend call triggered by the lane change.
+      expect(getTaskInboxMock.mock.calls.length).toBe(callsBefore);
     });
+    // And no backend call should ever have included a `lane` param.
+    for (const [filters] of getTaskInboxMock.mock.calls) {
+      expect((filters as { lane?: unknown }).lane).toBeUndefined();
+    }
   });
 
   it("navigates to the route-based editor when the create action is clicked", async () => {

@@ -1,4 +1,4 @@
-import { Activity, ListTodo, MoreHorizontal, Users, X, type LucideIcon } from "lucide-react";
+import { Activity, ListTodo, Users, X, type LucideIcon } from "lucide-react";
 
 import { Button, Eyebrow, Tabs, TabsList, TabsTrigger } from "@agh/ui";
 
@@ -124,19 +124,6 @@ export function NetworkInspector({
       <header className="flex items-center gap-2 border-b border-(--line) px-4 py-2.5">
         <Eyebrow>Inspector</Eyebrow>
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            aria-disabled="true"
-            aria-label="Inspector actions - coming soon"
-            data-testid="network-inspector-overflow"
-            onClick={event => event.preventDefault()}
-            size="icon-sm"
-            tabIndex={-1}
-            title="More actions · Coming soon"
-            type="button"
-            variant="ghost"
-          >
-            <MoreHorizontal aria-hidden="true" className="size-4" />
-          </Button>
           <Button
             aria-label="Close inspector"
             data-testid="network-inspector-close"

@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Loader2, Plus, Server, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Plus, Server, Trash2, X } from "lucide-react";
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -16,7 +16,10 @@ import {
   NativeSelectOption,
   PageShell,
   PillGroup,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Table,
   TableBody,
   TableCell,
@@ -43,11 +46,9 @@ import type {
 import {
   SettingsEditorDialog,
   SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSourceBadge,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/settings/mcp-servers")({
@@ -62,27 +63,40 @@ function MCPServersSettingsPage() {
   const envelopeForSlot = page.envelope;
   useTopbarSlot({
     tabs: envelopeForSlot ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="settings-page-mcp-servers-status-line"
         status="connected"
         items={[
-          <span key="total" data-testid="settings-page-mcp-servers-total">
-            {page.counts.total} servers
-          </span>,
-          <span key="scope" data-testid="settings-page-mcp-servers-scope-label">
-            scope:{" "}
-            {page.selection.scope === "global"
-              ? "global"
-              : (page.selectedWorkspace?.name ?? page.selection.workspaceId)}
-          </span>,
-          <span key="shadowed" data-testid="settings-page-mcp-servers-shadowed-total">
-            {page.counts.shadowed} shadowed sources
-          </span>,
+          {
+            key: "total",
+            value: (
+              <span data-testid="settings-page-mcp-servers-total">{page.counts.total} servers</span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "scope",
+            value: (
+              <span data-testid="settings-page-mcp-servers-scope-label">
+                scope:{" "}
+                {page.selection.scope === "global"
+                  ? "global"
+                  : (page.selectedWorkspace?.name ?? page.selection.workspaceId)}
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "shadowed",
+            value: (
+              <span data-testid="settings-page-mcp-servers-shadowed-total">
+                {page.counts.shadowed} shadowed sources
+              </span>
+            ),
+            tone: "neutral",
+          },
         ]}
       />
-    ) : undefined,
-    actions: envelopeForSlot ? (
-      <SettingsPageActions slug="mcp-servers" restart={page.restart} />
     ) : undefined,
   });
 
@@ -92,7 +106,7 @@ function MCPServersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-mcp-servers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -119,11 +133,10 @@ function MCPServersSettingsPage() {
       ? `${page.counts.total} defined · injected into every agent`
       : `${page.counts.total} overrides · scoped to ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`;
 
+  const bannerProps = restartBannerPropsFor("mcp-servers", page.restart);
+
   return (
-    <PageShell
-      slug="mcp-servers"
-      banner={<SettingsRestartBanner slug="mcp-servers" restart={page.restart} />}
-    >
+    <PageShell slug="mcp-servers" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
@@ -259,9 +272,7 @@ function ScopeSelector({
       />
       {workspaceScopeAvailable && workspaces.length === 0 && !isLoadingWorkspaces ? (
         <Eyebrow
-          case="upper"
-          tone="subtle"
-          size="badge"
+          className="text-(--subtle)"
           data-testid="settings-page-mcp-servers-scope-workspace-empty"
         >
           no workspaces yet
@@ -297,24 +308,12 @@ function MCPServersTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-(--elevated)">
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Name
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Endpoint
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Source
-            </TableHead>
-            <TableHead className="text-right text-badge uppercase tracking-mono text-(--muted)">
-              Env
-            </TableHead>
-            <TableHead className="text-right text-badge uppercase tracking-mono text-(--muted)">
-              Args
-            </TableHead>
-            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--muted)">
-              Actions
-            </TableHead>
+            <TableHead className="eyebrow text-(--muted)">Name</TableHead>
+            <TableHead className="eyebrow text-(--muted)">Endpoint</TableHead>
+            <TableHead className="eyebrow text-(--muted)">Source</TableHead>
+            <TableHead className="eyebrow text-right text-(--muted)">Env</TableHead>
+            <TableHead className="eyebrow text-right text-(--muted)">Args</TableHead>
+            <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -494,6 +493,7 @@ function MCPServerEditor({
     >
       <div className="flex flex-col gap-3">
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-mcp-servers-editor-name"
           label="Name"
           description={
@@ -514,6 +514,7 @@ function MCPServerEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-mcp-servers-editor-command"
           label="Command"
           description="Executable that speaks MCP over stdio (command + args)."
@@ -605,7 +606,7 @@ function TargetSelector({
           </NativeSelect>
           {entry ? (
             <div
-              className="flex flex-wrap items-center gap-1 text-badge uppercase tracking-mono text-(--muted)"
+              className="eyebrow flex flex-wrap items-center gap-1 text-(--muted)"
               data-testid="settings-mcp-servers-editor-available-targets"
             >
               <span>allowed:</span>
@@ -834,7 +835,7 @@ function MCPServerDeleteDialog({
             >
               <label
                 htmlFor="settings-mcp-servers-delete-target-input"
-                className="font-mono text-badge uppercase tracking-mono text-(--muted)"
+                className="eyebrow text-(--muted)"
               >
                 target
               </label>

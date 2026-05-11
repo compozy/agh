@@ -393,14 +393,15 @@ describe("KnowledgePage", () => {
     expect(screen.getByTestId("memory-item-agent:cto_tone.md")).toBeInTheDocument();
   });
 
-  it("Should render the detail panel with full Memory v2 metadata", () => {
+  it("Should render the detail panel with the Overview ContextBox metadata grid", () => {
     mockMemoryContent = "# Memory content";
     renderPage();
 
-    expect(screen.getByTestId("metadata-row-Type")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Scope")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Recalls")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Injection")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-detail-context")).toBeInTheDocument();
+    expect(screen.getByTestId("context-type-value")).toBeInTheDocument();
+    expect(screen.getByTestId("context-tier-value")).toBeInTheDocument();
+    expect(screen.getByTestId("context-recalls-value")).toBeInTheDocument();
+    expect(screen.getByTestId("context-injection-value")).toBeInTheDocument();
   });
 
   it("Should open the delete dialog and call the delete mutation with the full selector", async () => {
@@ -454,7 +455,7 @@ describe("KnowledgePage", () => {
 
     await user.click(screen.getByTestId("tab-workspace"));
     await user.click(screen.getByTestId("create-memory-btn"));
-    await user.selectOptions(screen.getByTestId("knowledge-create-type"), "project");
+    await user.click(screen.getByTestId("knowledge-create-type-project"));
     await user.type(screen.getByTestId("knowledge-create-name"), "Launch Memory");
     await user.type(screen.getByTestId("knowledge-create-description"), "workspace contract");
     await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
@@ -500,7 +501,7 @@ describe("KnowledgePage", () => {
 
     expect(screen.getByTestId("knowledge-decisions-list")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-decision-dec_1")).toBeInTheDocument();
-    expect(screen.getByTestId("knowledge-decision-op-dec_1")).toHaveTextContent("UPDATE");
+    expect(screen.getByTestId("knowledge-decision-op-dec_1")).toHaveTextContent("update");
   });
 
   it("Should revert an applied controller decision from the detail panel", async () => {

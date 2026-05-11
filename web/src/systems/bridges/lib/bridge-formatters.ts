@@ -1,3 +1,5 @@
+import type { PillTone } from "@agh/ui";
+
 import type {
   BridgeDeliveryDefaults,
   BridgeDmPolicy,
@@ -9,8 +11,6 @@ import type {
   BridgeScope,
   BridgeStatus,
 } from "@/systems/bridges/types";
-
-type BridgeTone = "amber" | "danger" | "green" | "neutral" | "violet";
 
 function normalizeText(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -35,55 +35,25 @@ export function isBridgeProviderSelectable(provider: BridgeProvider): boolean {
   return provider.enabled && provider.health !== "unhealthy";
 }
 
-export function bridgeStatusTone(status: BridgeStatus): BridgeTone {
-  switch (status) {
-    case "ready":
-      return "green";
-    case "auth_required":
-      return "violet";
-    case "error":
-      return "danger";
-    case "starting":
-    case "degraded":
-      return "amber";
-    case "disabled":
-    default:
-      return "neutral";
-  }
+const BRIDGE_STATUS_TONE = {
+  ready: "success",
+  auth_required: "info",
+  error: "danger",
+  starting: "info",
+  degraded: "warning",
+  disabled: "neutral",
+} as const satisfies Record<BridgeStatus, PillTone>;
+
+export function bridgeStatusTone(status: BridgeStatus): PillTone {
+  return BRIDGE_STATUS_TONE[status] ?? "neutral";
 }
 
 export function bridgeStatusLabel(status: BridgeStatus): string {
   return status.replaceAll("_", " ");
 }
 
-export function bridgeScopeTone(scope: BridgeScope): BridgeTone {
-  return scope === "workspace" ? "violet" : "neutral";
-}
-
-export function bridgeProviderHealthTone(health?: string): BridgeTone {
-  switch (health) {
-    case "healthy":
-      return "green";
-    case "unhealthy":
-      return "danger";
-    default:
-      return "neutral";
-  }
-}
-
-export function bridgeProviderStateTone(state?: string): BridgeTone {
-  switch (state) {
-    case "active":
-      return "green";
-    case "error":
-      return "danger";
-    case "registered":
-      return "violet";
-    case "enabled":
-      return "amber";
-    default:
-      return "neutral";
-  }
+export function bridgeScopeTone(scope: BridgeScope): PillTone {
+  return scope === "workspace" ? "info" : "neutral";
 }
 
 export function normalizeBridgeDeliveryDefaults(value: unknown): BridgeDeliveryDefaults {

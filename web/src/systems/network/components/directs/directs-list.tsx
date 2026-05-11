@@ -52,14 +52,12 @@ interface DirectsListRowProps {
 function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsListRowProps) {
   const otherPeerId = pickOtherPeerId(direct, selfPeerId);
   const lastActivity = formatNetworkRelativeTime(direct.last_activity_at ?? null);
+  const avatarRole = role === "human" ? "human" : "agent";
 
   return (
     <Item
       aria-current={active ? "page" : undefined}
-      className={cn(
-        "rounded-none border-b border-(--line) px-5 py-3",
-        active ? "bg-(--accent-tint)" : null
-      )}
+      className={cn("rounded-none border-b border-(--line) px-5 py-3")}
       data-testid={`network-direct-list-row-${direct.direct_id}`}
       indicator={active ? "rail" : "none"}
       render={
@@ -72,17 +70,20 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
       selected={active}
     >
       <ItemMedia>
-        <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={36} />
+        <MessageAvatar
+          initialFrom={otherPeerId}
+          name={otherPeerId}
+          role={avatarRole}
+          seed={otherPeerId}
+          sizePx={36}
+        />
       </ItemMedia>
 
       <ItemContent>
         <ItemHeader className="items-center justify-start">
           <ItemTitle className="min-w-0">@{otherPeerId}</ItemTitle>
           {role ? (
-            <Eyebrow
-              data-testid={`network-direct-list-row-role-${direct.direct_id}`}
-              weight="medium"
-            >
+            <Eyebrow data-testid={`network-direct-list-row-role-${direct.direct_id}`}>
               {role === "agent" ? "AGENT" : "HUMAN"}
             </Eyebrow>
           ) : null}
@@ -96,7 +97,6 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
         <Eyebrow
           className="shrink-0"
           data-testid={`network-direct-list-row-time-${direct.direct_id}`}
-          weight="medium"
         >
           {lastActivity}
         </Eyebrow>

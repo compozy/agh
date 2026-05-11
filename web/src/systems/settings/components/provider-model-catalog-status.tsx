@@ -1,6 +1,15 @@
-import { Loader2, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
-import { Button, Item, ItemActions, ItemContent, ItemGroup, ItemTitle, Pill } from "@agh/ui";
+import {
+  Button,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemGroup,
+  ItemTitle,
+  Pill,
+  Spinner,
+} from "@agh/ui";
 
 import {
   modelRefreshStateTone,
@@ -24,7 +33,7 @@ export function ProviderModelCatalogStatus({
   if (statusQuery.isLoading) {
     return (
       <div className="flex items-center gap-2 text-xs text-(--subtle)">
-        <Loader2 className="size-3.5 animate-spin" />
+        <Spinner className="size-3.5" />
         <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
       </div>
     );

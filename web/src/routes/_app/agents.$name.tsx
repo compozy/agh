@@ -1,11 +1,11 @@
-import { AlertCircle, Compass, Loader2, User2 } from "lucide-react";
+import { AlertCircle, Compass, User2 } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 
-import { Empty, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
-  AgentInfoPanel,
+  AgentInfoInspector,
   AgentPageActions,
   AgentPageStatusPill,
   AgentSessionsList,
@@ -59,7 +59,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
   if (page.agentLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="agent-detail-loading">
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -74,15 +74,16 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
             page.agentError?.message ?? `No agent named "${name}" was found in this workspace.`
           }
           action={
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={page.onGoHome}
-              className="inline-flex items-center gap-2 rounded-md border border-(--line) px-3 py-1.5 text-xs text-(--muted) transition-colors hover:border-(--accent) hover:text-(--fg)"
               data-testid="agent-detail-go-home"
             >
               <Compass className="size-3.5" />
               Go home
-            </button>
+            </Button>
           }
           data-testid="agent-detail-not-found"
         />
@@ -108,7 +109,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
           />
         </div>
       </div>
-      <AgentInfoPanel agent={page.agent} />
+      <AgentInfoInspector agent={page.agent} />
     </div>
   );
 }

@@ -1,22 +1,23 @@
 import { cn } from "@agh/ui";
 import type { ComponentProps } from "react";
 import { formatDate, formatDateCompact } from "./format";
-import type { MonoEyebrowTone } from "./mono-eyebrow";
+
+export type DateStampTone = "neutral" | "accent" | "success" | "danger" | "warning" | "info";
 
 export interface DateStampProps extends Omit<ComponentProps<"time">, "children" | "dateTime"> {
   date: string;
   format?: "default" | "compact" | "compact-year";
-  tone?: MonoEyebrowTone;
+  tone?: DateStampTone;
   tracking?: "default" | "wide";
 }
 
-const toneClass: Record<MonoEyebrowTone, string> = {
-  neutral: "text-(--color-text-label)",
+const toneClass: Record<DateStampTone, string> = {
+  neutral: "text-(--muted)",
   accent: "text-accent",
   success: "text-success",
-  danger: "text-(--color-danger)",
-  warning: "text-(--color-warning)",
-  info: "text-(--color-info)",
+  danger: "text-(--danger)",
+  warning: "text-(--warning)",
+  info: "text-(--info)",
 };
 
 function displayDate(date: string, format: NonNullable<DateStampProps["format"]>) {
@@ -42,8 +43,8 @@ export function DateStamp({
       dateTime={date}
       {...props}
       className={cn(
-        "font-mono text-eyebrow font-semibold uppercase",
-        tracking === "wide" ? "tracking-badge" : "tracking-mono",
+        "eyebrow font-semibold!",
+        tracking === "wide" && "tracking-badge!",
         toneClass[tone],
         className
       )}

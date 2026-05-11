@@ -1,26 +1,10 @@
 import { useEffect, useRef } from "react";
-import { useMatches, useRouter } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 
-import { Topbar, TopbarSlotContext, TopbarSlotProvider, type TopbarRouteContext } from "@agh/ui";
+import { Topbar, TopbarSlotContext, TopbarSlotProvider } from "@agh/ui";
 import * as React from "react";
 
-interface MaybeTopbarMatchContext {
-  topbar?: TopbarRouteContext;
-}
-
-function pickDeepestTopbarContext(
-  matches: ReadonlyArray<unknown> | undefined
-): TopbarRouteContext | null {
-  if (!matches) return null;
-  for (let index = matches.length - 1; index >= 0; index -= 1) {
-    const candidate = (matches[index] as { context?: MaybeTopbarMatchContext } | undefined)?.context
-      ?.topbar;
-    if (candidate && candidate.title) {
-      return candidate;
-    }
-  }
-  return null;
-}
+import { useTopbarShellModel } from "@/hooks/routes/use-topbar-shell-model";
 
 interface TopbarShellProps {
   children: React.ReactNode;
@@ -30,8 +14,8 @@ interface TopbarShellProps {
  * Mounts the shell-level `<Topbar>` once for the entire `_app` outlet.
  *
  * Behavior:
- * - Reads `useRouterState({ select: matches })` to find the deepest match
- *   whose `context.topbar` declares a `title`.
+ * - Resolves the deepest topbar route context plus the auto-resolved
+ *   `useNavCounts()` value via `useTopbarShellModel`.
  * - Hosts `<TopbarSlotProvider>` so any descendant route can call
  *   `useTopbarSlot` to push tabs/search/actions.
  * - Subscribes to `router.subscribe("onResolved")` to clear the slot on every
@@ -51,10 +35,7 @@ function TopbarShellInner({ children }: TopbarShellProps) {
   const slotContext = React.use(TopbarSlotContext);
   const setSlot = slotContext?.setSlot;
   const router = useRouter();
-  // useMatches exposes the active match chain ordered root → leaf so we can
-  // scan from the deepest match upward for the topbar context augmentation.
-  const matches = useMatches() as unknown as ReadonlyArray<unknown>;
-  const route = pickDeepestTopbarContext(matches);
+  const { route, navCount } = useTopbarShellModel();
 
   useEffect(() => {
     const unsubscribe = router.subscribe("onResolved", () => {
@@ -73,7 +54,7 @@ function TopbarShellInner({ children }: TopbarShellProps) {
 
   return (
     <>
-      <Topbar route={route} titleRef={titleRef} />
+      <Topbar navCount={navCount} route={route} titleRef={titleRef} />
       {children}
     </>
   );

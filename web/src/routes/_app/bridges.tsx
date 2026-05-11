@@ -1,7 +1,7 @@
-import { AlertCircle, Loader2, Plus, Waypoints } from "lucide-react";
+import { AlertCircle, Plus, Waypoints } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button, Empty, PillGroup, SplitPane, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
   BridgeCreateDialog,
@@ -59,7 +59,7 @@ function BridgesPage() {
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="bridges-loading"
       >
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
       </div>
     );
   }

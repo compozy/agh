@@ -45,9 +45,7 @@ export const ProviderMatrix: Story = {
           className="flex min-w-0 items-center gap-2 rounded-[var(--radius-md)] border border-(--line) bg-(--canvas-soft) px-3 py-2"
         >
           <KindIcon kind={provider} tone="default" />
-          <span className="truncate font-mono text-badge uppercase tracking-mono text-(--muted)">
-            {provider}
-          </span>
+          <span className="eyebrow truncate text-(--muted)">{provider}</span>
         </div>
       ))}
     </div>

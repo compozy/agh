@@ -33,7 +33,7 @@ No production users exist. Never sacrifice code quality for backward compatibili
 - **Oxlint has zero tolerance** — any warning is a blocking failure
 - **Follow shadcn kebab-case naming** for all files in `web/`
 - **Native DOM wrappers** — if a component’s root is a single native element (`button`, `input`, `a`, …), its props MUST extend that element’s intrinsic type (`React.ComponentProps<"…">`), merge `className`, and spread `{...props}` onto the node (use `forwardRef` when refs apply). CVA + `VariantProps`: follow the `shadcn` skill. Canonical rule: `.agents/skills/react/SKILL.md` → _Extend native element props_.
-- **Eyebrow markup is mandatory.** Every uppercase JetBrains Mono label MUST render through `<Eyebrow>` from `@agh/ui` (`case="upper"`, `size="eyebrow|badge|micro"`, `tone="muted|subtle|...|signal"`). Do NOT inline `font-mono` + `uppercase` + arbitrary `text-[Npx]` / `tracking-[Nem]` tuples in `<span>`, `<p>`, or product wrappers. Structural exceptions (`<dt>`, `<label>`, breadcrumb wrappers, sidebar/table primitives) live inside `@agh/ui` itself; consumers always go through the component. Canonical tokens: `--text-eyebrow` (11 px), `--text-badge` (10 px), `--text-micro` (9 px), `--tracking-mono` (0.06em). See `DESIGN.md` §3.
+- **Eyebrow markup is mandatory.** Every uppercase label MUST use either (a) the `<Eyebrow>` component from `@agh/ui` (children + `className` only — `case` / `family` / `tone` / `size` / `weight` props were removed per ADR-002 §1 / lesson L-022) or (b) the single static utility class `eyebrow` (defined in `packages/ui/src/tokens.css`) on `<dt>`, `<label>`, table/sidebar primitives, and other structural elements. Color tone is applied through `className` (`text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, signal palette). Do NOT inline `font-mono` + `uppercase` + arbitrary `text-[…]` + `tracking-[…]` tuples — that combination IS the eyebrow utility. The deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals are forbidden (`compozy-design-system/no-inline-eyebrow` flags them). Canonical tokens: `--text-eyebrow` (11 px), `--tracking-eyebrow` (-0.005em); the contract is **Inter UC 11/600/-0.005em**. See `DESIGN.md` §3 and lesson `L-022`.
 - **Never add JS dependencies by hand in `package.json`** — always use `bun add`
 - **Check dependent package APIs** before writing integration code or tests
 - **Local QA against an isolated daemon MUST read `AGH_WEB_API_PROXY_TARGET` from the active bootstrap manifest/env** — never hardcode `http://localhost:2123` when `agh-qa-bootstrap` or another isolated QA envelope is in use.
@@ -51,7 +51,8 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Schema / Validation           | `zod`                                                            | `typescript-advanced`                        |
 | Web testing                   | `vitest` + `react` + `testing-anti-patterns`                     |                                              |
 | TypeScript (types)            | `typescript-advanced`                                            | `context7`                                   |
-| UI / UX Design (any surface)  | `agh-design` + `impeccable`                                      | `shadcn`                                     |
+| UI / UX Design (any surface)  | `agh-design` + `impeccable`                                      | `shadcn` + `agh-ui-screenshot`               |
+| UI verification / visual diff | `agh-ui-screenshot`                                              |                                              |
 | UI microcopy / product labels | `copywriting` + `documentation-writer`                           |                                              |
 | Storybook / component stories | `storybook-stories`                                              | `shadcn`                                     |
 | Animation / motion            | `motion-react`                                                   | `motion`                                     |
@@ -63,6 +64,13 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Task completion               | `cy-final-verify`                                                |                                              |
 
 **Redesign tasks (`.compozy/tasks/redesign/*`)**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `impeccable` before touching any component. `DESIGN.md` tokens win over anything informal already in the codebase.
+
+**Visual verification with `agh-ui-screenshot` is mandatory for every UI change in this workspace.** Tests verify code, not pixels.
+
+- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`) on port 6006 and diff against `.compozy/tasks/redesign-v2/screenshots/proposal/` or a trusted prior baseline.
+- Surface-wide passes (primitive swap, token retune): capture before + after.
+- Use `list-stories.mjs` to resolve valid story ids — misaligned ids land on the "Couldn't find story" fallback (sub-20 KB PNG).
+- Cite the capture file(s) when reporting done. Claiming success without screenshots is non-compliant.
 
 ## Build Commands
 

@@ -7,25 +7,19 @@ import {
   Gauge,
   KeyRound,
   Library,
-  Loader2,
-  PanelRightOpen,
 } from "lucide-react";
 import type { AssistantState } from "@assistant-ui/react";
 
 import {
   Button,
+  DetailInspector,
   Empty,
   Eyebrow,
   MetadataList,
   Metric,
   Pill,
   ScrollArea,
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-  Tabs,
-  TabsList,
-  TabsTrigger,
+  Spinner,
   cn,
   type PillTone,
 } from "@agh/ui";
@@ -108,11 +102,14 @@ export interface SessionInspectorProps {
   /** Number of latest trace events to render in the Trace section. Defaults to 6. */
   traceLimit?: number;
   onViewAllTrace?: () => void;
+  /** Drawer open state when viewport is below the inline breakpoint. */
+  drawerOpen?: boolean;
+  /** Drawer open-state change handler. */
+  onDrawerOpenChange?: (open: boolean) => void;
   className?: string;
 }
 
 const TRACE_LIMIT_DEFAULT = 6;
-const INSPECTOR_WIDTH = 320;
 const LEDGER_EVENT_LIMIT = 20;
 const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
 const SECTION_LABELS = {
@@ -123,8 +120,23 @@ const SECTION_LABELS = {
   vault: "Vault",
 } as const;
 
-type TopTab = "trace" | "usage";
-type BottomTab = "memory" | "files" | "vault";
+type InspectorTabId = "trace" | "usage" | "memory" | "files" | "vault";
+
+const SESSION_INSPECTOR_TABS = [
+  { id: "trace", label: SECTION_LABELS.trace },
+  { id: "usage", label: SECTION_LABELS.usage },
+  { id: "memory", label: SECTION_LABELS.memory },
+  { id: "files", label: SECTION_LABELS.files },
+  { id: "vault", label: SECTION_LABELS.vault },
+] as const satisfies ReadonlyArray<{ id: InspectorTabId; label: string }>;
+
+const SESSION_INSPECTOR_TAB_TESTIDS: Record<InspectorTabId, string> = {
+  trace: "session-inspector-tab-trace",
+  usage: "session-inspector-tab-usage",
+  memory: "session-inspector-tab-memory",
+  files: "session-inspector-tab-files",
+  vault: "session-inspector-tab-vault",
+};
 
 const TRACE_STATUS_TONE: Record<InspectorTraceStatus, PillTone> = {
   ok: "success",
@@ -364,7 +376,8 @@ function deltaLabel(delta?: number): string | undefined {
   return `${prefix}${Math.abs(delta).toLocaleString()}`;
 }
 
-interface SectionBodyProps {
+interface InspectorTabRendererProps {
+  activeTab: InspectorTabId;
   traceEvents: InspectorTraceEvent[];
   traceTotal: number;
   traceLimit: number;
@@ -378,13 +391,8 @@ interface SectionBodyProps {
   files: InspectorFileEntry[];
 }
 
-/**
- * Inner inspector body — two stacked tabbed groups sharing the column 50/50.
- * Top row switches between Trace and Usage; bottom row switches between
- * Memory and Files. Backs both the fixed 320px `SessionInspector` column and
- * the `SessionInspectorDrawer` Sheet.
- */
-function InspectorBody({
+function InspectorTabRenderer({
+  activeTab,
   traceEvents,
   traceTotal,
   traceLimit,
@@ -396,126 +404,41 @@ function InspectorBody({
   vaultIsLoading,
   vaultError,
   files,
-}: SectionBodyProps) {
-  const [topTab, setTopTab] = useState<TopTab>("trace");
-  const [bottomTab, setBottomTab] = useState<BottomTab>("memory");
-  const handleTopChange = useCallback((value: string | null | undefined) => {
-    if (value === "trace" || value === "usage") setTopTab(value);
-  }, []);
-  const handleBottomChange = useCallback((value: string | null | undefined) => {
-    if (value === "memory" || value === "files" || value === "vault") setBottomTab(value);
-  }, []);
-
-  return (
-    <div data-testid="session-inspector-body" className="flex min-h-0 flex-1 flex-col">
-      <Tabs
-        aria-label="Trace and usage"
-        value={topTab}
-        onValueChange={handleTopChange}
-        className="flex min-h-0 flex-1 basis-0 flex-col gap-0"
-      >
-        <TabsList
-          variant="line"
-          className="w-full shrink-0 border-b border-(--line) px-2 group-data-horizontal/tabs:h-12"
-        >
-          <TabsTrigger
-            value="trace"
-            data-testid="session-inspector-tab-trace"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
-          >
-            <Activity className="size-3.5" />
-            <span>{SECTION_LABELS.trace}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="usage"
-            data-testid="session-inspector-tab-usage"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
-          >
-            <Gauge className="size-3.5" />
-            <span>{SECTION_LABELS.usage}</span>
-          </TabsTrigger>
-        </TabsList>
-        <ScrollArea className="flex-1 min-h-0">
-          <div
-            className="flex min-h-full flex-col gap-4 p-4"
-            data-testid="session-inspector-top-panel"
-            data-active-tab={topTab}
-          >
-            {topTab === "trace" && (
-              <TraceSection
-                events={traceEvents}
-                total={traceTotal}
-                limit={traceLimit}
-                onViewAll={onViewAllTrace}
-              />
-            )}
-            {topTab === "usage" && <UsageSection usage={usage} />}
-          </div>
-        </ScrollArea>
-      </Tabs>
-      <Tabs
-        aria-label="Memory, files, and vault"
-        value={bottomTab}
-        onValueChange={handleBottomChange}
-        className="flex min-h-0 flex-1 basis-0 flex-col gap-0 border-t border-(--line)"
-      >
-        <TabsList
-          variant="line"
-          className="w-full shrink-0 border-b border-(--line) px-2 group-data-horizontal/tabs:h-12"
-        >
-          <TabsTrigger
-            value="memory"
-            data-testid="session-inspector-tab-memory"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
-          >
-            <Library className="size-3.5" />
-            <span>{SECTION_LABELS.memory}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="files"
-            data-testid="session-inspector-tab-files"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
-          >
-            <FileCode className="size-3.5" />
-            <span>{SECTION_LABELS.files}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="vault"
-            data-testid="session-inspector-tab-vault"
-            className="h-12 gap-2 group-data-horizontal/tabs:after:-bottom-px"
-          >
-            <KeyRound className="size-3.5" />
-            <span>{SECTION_LABELS.vault}</span>
-          </TabsTrigger>
-        </TabsList>
-        <ScrollArea className="flex-1 min-h-0">
-          <div
-            className="flex min-h-full flex-col gap-4 p-4"
-            data-testid="session-inspector-bottom-panel"
-            data-active-tab={bottomTab}
-          >
-            {bottomTab === "memory" && <MemorySection memory={memory} />}
-            {bottomTab === "files" && <FilesSection files={files} />}
-            {bottomTab === "vault" && (
-              <SessionVaultPanel
-                secrets={vaultSecrets}
-                isLoading={vaultIsLoading}
-                error={vaultError}
-                sessionId={sessionId}
-              />
-            )}
-          </div>
-        </ScrollArea>
-      </Tabs>
-    </div>
-  );
+}: InspectorTabRendererProps) {
+  switch (activeTab) {
+    case "trace":
+      return (
+        <TraceSection
+          events={traceEvents}
+          total={traceTotal}
+          limit={traceLimit}
+          onViewAll={onViewAllTrace}
+        />
+      );
+    case "usage":
+      return <UsageSection usage={usage} />;
+    case "memory":
+      return <MemorySection memory={memory} />;
+    case "files":
+      return <FilesSection files={files} />;
+    case "vault":
+      return (
+        <SessionVaultPanel
+          secrets={vaultSecrets}
+          isLoading={vaultIsLoading}
+          error={vaultError}
+          sessionId={sessionId}
+        />
+      );
+  }
 }
 
 /**
- * Right-hand 320px session inspector. Composes `Tabs` / `Metric` /
- * `MonoBadge` / `StatusDot` / `ScrollArea` / `Empty` from `@agh/ui`.
- * Hidden on viewports narrower than 1200px — pair with `SessionInspectorDrawer`
- * to expose the same body inside a Sheet on compact viewports.
+ * Right-hand session inspector — consumes `<DetailInspector>` per ADR-014 §3
+ * and renders 5 tabs (Trace · Usage · Memory · Files · Vault) inside the
+ * primitive's chrome. Inline at ≥ 1440 px viewport (ADR-014 §2); collapses
+ * into a right-anchored sheet drawer below that breakpoint, with the open
+ * state controlled by the consumer through `drawerOpen` / `onDrawerOpenChange`.
  */
 export function SessionInspector({
   messages,
@@ -529,8 +452,17 @@ export function SessionInspector({
   totalTraceEvents,
   traceLimit = TRACE_LIMIT_DEFAULT,
   onViewAllTrace,
+  drawerOpen,
+  onDrawerOpenChange,
   className,
 }: SessionInspectorProps) {
+  const [activeTab, setActiveTab] = useState<InspectorTabId>("trace");
+  const handleTabChange = useCallback((id: string) => {
+    if (id === "trace" || id === "usage" || id === "memory" || id === "files" || id === "vault") {
+      setActiveTab(id);
+    }
+  }, []);
+
   const traceEvents = useMemo(
     () => deriveTraceEvents(messages, traceLimit),
     [messages, traceLimit]
@@ -539,32 +471,46 @@ export function SessionInspector({
   const traceTotal = totalTraceEvents ?? messages.length;
   const memoryState = memory ?? EMPTY_MEMORY_STATE;
 
+  const tabs = useMemo(
+    () =>
+      SESSION_INSPECTOR_TABS.map(tab => ({
+        id: tab.id,
+        label: <span data-testid={SESSION_INSPECTOR_TAB_TESTIDS[tab.id]}>{tab.label}</span>,
+      })),
+    []
+  );
+
   return (
-    <aside
+    <DetailInspector
       data-testid="session-inspector"
-      aria-label="Session inspector"
-      style={{ width: INSPECTOR_WIDTH }}
-      className={cn(
-        "hidden shrink-0 flex-col overflow-hidden border-l bg-(--canvas)",
-        "border-(--line) min-w-0",
-        "xl:flex",
-        className
-      )}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      open={drawerOpen}
+      onOpenChange={onDrawerOpenChange}
+      className={cn("min-w-0", className)}
     >
-      <InspectorBody
-        traceEvents={traceEvents}
-        traceTotal={traceTotal}
-        traceLimit={traceLimit}
-        onViewAllTrace={onViewAllTrace}
-        usage={usage}
-        memory={memoryState}
-        sessionId={sessionId}
-        vaultSecrets={vaultSecrets}
-        vaultIsLoading={vaultIsLoading}
-        vaultError={vaultError}
-        files={derivedFiles}
-      />
-    </aside>
+      <div
+        className="flex min-h-full flex-col gap-4 p-4"
+        data-testid="session-inspector-panel"
+        data-active-tab={activeTab}
+      >
+        <InspectorTabRenderer
+          activeTab={activeTab}
+          traceEvents={traceEvents}
+          traceTotal={traceTotal}
+          traceLimit={traceLimit}
+          onViewAllTrace={onViewAllTrace}
+          usage={usage}
+          memory={memoryState}
+          sessionId={sessionId}
+          vaultSecrets={vaultSecrets}
+          vaultIsLoading={vaultIsLoading}
+          vaultError={vaultError}
+          files={derivedFiles}
+        />
+      </div>
+    </DetailInspector>
   );
 }
 
@@ -631,10 +577,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <Eyebrow
           data-testid="session-inspector-trace-timestamp"
-          case="upper"
-          tone="subtle"
-          size="badge"
-          className="shrink-0"
+          className="text-(--subtle) shrink-0"
         >
           {ts}
         </Eyebrow>
@@ -737,7 +680,7 @@ function MemorySection({ memory }: MemorySectionProps) {
           data-testid="session-inspector-memory-loading"
           className="flex items-center gap-2 px-1 py-3 text-xs text-(--subtle)"
         >
-          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+          <Spinner aria-hidden="true" />
           Loading session ledger…
         </div>
       </div>
@@ -843,9 +786,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
         <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
           LEDGER
         </Pill>
-        <Eyebrow case="upper" tone="muted" size="badge">
-          Forensic
-        </Eyebrow>
+        <Eyebrow className="text-(--muted)">Forensic</Eyebrow>
       </div>
       <MetadataList>
         {items.map(item => (
@@ -884,9 +825,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
       className="flex flex-col gap-2"
     >
       <div className="flex items-center justify-between gap-2">
-        <Eyebrow case="upper" tone="muted" size="badge">
-          Ledger events
-        </Eyebrow>
+        <Eyebrow className="text-(--muted)">Ledger events</Eyebrow>
         <span
           className="font-mono text-badge text-(--subtle)"
           data-testid="session-inspector-memory-events-count"
@@ -914,10 +853,7 @@ function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
             >
               <Eyebrow
                 data-testid="session-inspector-memory-event-sequence"
-                case="upper"
-                tone="subtle"
-                size="badge"
-                className="shrink-0"
+                className="text-(--subtle) shrink-0"
               >
                 #{event.sequence}
               </Eyebrow>
@@ -1002,72 +938,7 @@ function FilesSection({ files }: FilesSectionProps) {
 }
 
 /**
- * Drawer wrapper around the inspector body for narrow viewports (<1200px).
- * Renders a ghost icon trigger that's only visible on narrow viewports (paired
- * with the inline `SessionInspector` which hides below `xl`). Opening the
- * trigger mounts the same `InspectorBody` inside a right-anchored `Sheet`.
+ * Vault icon export preserved for downstream consumers (kept to avoid breaking
+ * imports relying on the legacy KeyRound icon symbol).
  */
-export function SessionInspectorDrawer({
-  messages,
-  sessionId,
-  usage,
-  memory,
-  vaultSecrets = EMPTY_VAULT_SECRETS,
-  vaultIsLoading = false,
-  vaultError = null,
-  files = EMPTY_INSPECTOR_FILES,
-  totalTraceEvents,
-  traceLimit = TRACE_LIMIT_DEFAULT,
-  onViewAllTrace,
-}: SessionInspectorProps) {
-  const traceEvents = useMemo(
-    () => deriveTraceEvents(messages, traceLimit),
-    [messages, traceLimit]
-  );
-  const derivedFiles = useMemo(() => files ?? deriveFileReads(messages), [files, messages]);
-  const traceTotal = totalTraceEvents ?? messages.length;
-  const memoryState = memory ?? EMPTY_MEMORY_STATE;
-
-  return (
-    <Sheet>
-      <SheetTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Open session inspector"
-            data-testid="session-inspector-drawer-trigger"
-            className="inline-flex xl:hidden"
-          />
-        }
-      >
-        <PanelRightOpen aria-hidden="true" className="size-3.5" />
-      </SheetTrigger>
-      <SheetContent
-        side="right"
-        data-testid="session-inspector-drawer"
-        className="flex w-[min(88vw,360px)] max-w-[360px] flex-col gap-0 bg-(--canvas) p-0 sm:max-w-[360px]"
-      >
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-(--line) px-4">
-          <Eyebrow case="upper" tone="muted">
-            Inspector
-          </Eyebrow>
-        </header>
-        <InspectorBody
-          traceEvents={traceEvents}
-          traceTotal={traceTotal}
-          traceLimit={traceLimit}
-          onViewAllTrace={onViewAllTrace}
-          usage={usage}
-          memory={memoryState}
-          sessionId={sessionId}
-          vaultSecrets={vaultSecrets}
-          vaultIsLoading={vaultIsLoading}
-          vaultError={vaultError}
-          files={derivedFiles}
-        />
-      </SheetContent>
-    </Sheet>
-  );
-}
+export const SessionInspectorVaultIcon = KeyRound;

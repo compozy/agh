@@ -19,13 +19,13 @@ const SOURCE_TONE: Record<string, PillTone> = {
 };
 
 export const MARKETPLACE_CATEGORIES = [
-  "ALL",
-  "TESTING",
-  "DATABASE",
-  "DEPLOY",
-  "AI",
-  "DEVOPS",
-  "SECURITY",
+  "all",
+  "testing",
+  "database",
+  "deploy",
+  "ai",
+  "devops",
+  "security",
 ] as const;
 
 export type MarketplaceCategory = (typeof MARKETPLACE_CATEGORIES)[number];
@@ -39,7 +39,7 @@ export function skillSourceTone(source: string): PillTone {
 }
 
 export function skillSourceLabel(source: string): string {
-  return source.toUpperCase();
+  return source;
 }
 
 export function skillStatusTone(enabled: boolean): "success" | "neutral" {
@@ -92,9 +92,9 @@ export function matchesMarketplaceCategory(
   skill: SkillPayload,
   category: MarketplaceCategory
 ): boolean {
-  if (category === "ALL") return true;
+  if (category === "all") return true;
   const tags = deriveSkillTags(skill);
-  const needle = category.toLowerCase();
+  const needle = category;
   return tags.some(tag => tag.toLowerCase() === needle);
 }
 
@@ -107,24 +107,4 @@ export function filterSkillsByQuery(skills: SkillPayload[], query: string): Skil
     const inTags = deriveSkillTags(skill).some(tag => tag.toLowerCase().includes(normalized));
     return inName || inDescription || inTags;
   });
-}
-
-function safeDate(value: string): Date | null {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
-}
-
-export function formatSkillRelativeTime(value: string): string {
-  const date = safeDate(value);
-  if (!date) return value;
-  const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.floor(diffMs / (1000 * 60));
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) return `${diffD}d ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

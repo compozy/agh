@@ -39,6 +39,17 @@ describe("Alert", () => {
     }
   });
 
+  it("Should keep its tone-aware border (signal-card regression check — ADR-004 §5)", () => {
+    render(
+      <Alert data-testid="alert" variant="warning">
+        <AlertTitle>Heads up</AlertTitle>
+      </Alert>
+    );
+    const alert = screen.getByTestId("alert");
+    expect(alert.className).toContain("border");
+    expect(alert.className).toContain("border-(--warning)/20");
+  });
+
   it("Should render meta and actions slots after the description", () => {
     render(
       <Alert data-testid="alert" variant="warning">
@@ -52,7 +63,7 @@ describe("Alert", () => {
     );
 
     expect(screen.getByTestId("alert-meta")).toHaveAttribute("data-slot", "alert-meta");
-    expect(screen.getByTestId("alert-meta").className).toContain("tracking-mono");
+    expect(screen.getByTestId("alert-meta").className).toContain("eyebrow");
     expect(screen.getByTestId("alert-actions")).toHaveAttribute("data-slot", "alert-actions");
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(

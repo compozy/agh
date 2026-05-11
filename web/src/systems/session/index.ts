@@ -103,7 +103,6 @@ export {
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
 export { ToolCallCard, type ToolCallCardProps } from "./components/tool-call-card";
-export { ChatHeader, type ChatHeaderProps } from "./components/chat-header";
 export {
   SessionChatRuntimeProvider,
   type SessionChatRuntimeProviderProps,
@@ -112,7 +111,6 @@ export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-bl
 export { PermissionPrompt, type PermissionPromptProps } from "./components/permission-prompt";
 export {
   SessionInspector,
-  SessionInspectorDrawer,
   deriveFileReads,
   deriveTraceEvents,
   type InspectorFileEntry,

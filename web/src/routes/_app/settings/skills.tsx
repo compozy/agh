@@ -1,4 +1,4 @@
-import { AlertCircle, ExternalLink, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, ExternalLink, Wrench } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
@@ -10,7 +10,11 @@ import {
   NativeSelectOption,
   PageShell,
   PillGroup,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
+  type StatusLineTopbarSlotItem,
   Switch,
   Table,
   TableBody,
@@ -27,12 +31,8 @@ import {
 } from "@/hooks/routes/use-settings-skills-page";
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
-import {
-  SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
-  SettingsStatusLine,
-} from "@/systems/settings/components";
+import { SettingsFieldRow } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/settings/skills")({
@@ -47,30 +47,50 @@ type SkillsConfig = SettingsSkillsSection["config"];
 function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
   const envelopeForSlot = page.envelope;
+  const statusItems: StatusLineTopbarSlotItem[] = envelopeForSlot
+    ? [
+        {
+          key: "discovered",
+          value: `${envelopeForSlot.discovered_count} discovered`,
+          tone: "neutral",
+        },
+        {
+          key: "disabled",
+          value: `${envelopeForSlot.disabled_count} disabled`,
+          tone: "neutral",
+        },
+        {
+          key: "scope",
+          value: (
+            <span data-testid="settings-page-skills-scope-label">
+              scope:{" "}
+              {page.selection.scope === "global"
+                ? "global"
+                : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`}
+            </span>
+          ),
+          tone: "neutral",
+        },
+      ]
+    : [];
+  if (envelopeForSlot && page.selection.scope === "agent" && page.selectedWorkspaceContext) {
+    statusItems.push({
+      key: "context",
+      value: (
+        <span data-testid="settings-page-skills-workspace-context-summary">
+          context: {page.selectedWorkspaceContext.name}
+        </span>
+      ),
+      tone: "neutral",
+    });
+  }
   useTopbarSlot({
     tabs: envelopeForSlot ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="settings-page-skills-status-line"
         status={envelopeForSlot.runtime_available ? "connected" : "error"}
-        items={[
-          <span key="discovered">{envelopeForSlot.discovered_count} discovered</span>,
-          <span key="disabled">{envelopeForSlot.disabled_count} disabled</span>,
-          <span key="scope" data-testid="settings-page-skills-scope-label">
-            scope:{" "}
-            {page.selection.scope === "global"
-              ? "global"
-              : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`}
-          </span>,
-          page.selection.scope === "agent" && page.selectedWorkspaceContext ? (
-            <span key="context" data-testid="settings-page-skills-workspace-context-summary">
-              context: {page.selectedWorkspaceContext.name}
-            </span>
-          ) : null,
-        ]}
+        items={statusItems}
       />
-    ) : undefined,
-    actions: envelopeForSlot ? (
-      <SettingsPageActions slug="skills" restart={page.restart} />
     ) : undefined,
   });
 
@@ -80,7 +100,7 @@ function SkillsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-skills-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -105,9 +125,10 @@ function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
+  const bannerProps = restartBannerPropsFor("skills", restart);
 
   return (
-    <PageShell slug="skills" banner={<SettingsRestartBanner slug="skills" restart={restart} />}>
+    <PageShell slug="skills" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       <ScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}
@@ -356,15 +377,9 @@ function DisabledSkillsSection({
           <Table>
             <TableHeader>
               <TableRow className="bg-(--elevated)">
-                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-                  Skill
-                </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-                  Identifier
-                </TableHead>
-                <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--muted)">
-                  Disabled
-                </TableHead>
+                <TableHead className="eyebrow text-(--muted)">Skill</TableHead>
+                <TableHead className="eyebrow text-(--muted)">Identifier</TableHead>
+                <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Disabled</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -683,7 +698,7 @@ function SaveControls({
         disabled={disabled}
         data-testid={`settings-page-skills-${slug}-save`}
       >
-        {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+        {isSaving ? <Spinner className="size-3.5" /> : null}
         {isSaving ? "Saving..." : saveLabel}
       </Button>
     </div>

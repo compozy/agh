@@ -1,7 +1,7 @@
-import * as React from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Separator } from "./separator";
@@ -305,7 +305,7 @@ function ItemTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="item-title"
       className={cn(
-        "line-clamp-1 flex w-fit items-center gap-2 text-[14px] leading-snug font-[510] text-(--fg-strong) underline-offset-4",
+        "line-clamp-1 flex w-fit items-center gap-2 text-[14px] leading-snug font-medium text-(--fg-strong) underline-offset-4",
         className
       )}
       {...props}
@@ -354,15 +354,15 @@ function ItemFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
   Item,
-  ItemSelectionIndicator,
-  ItemMedia,
-  ItemContent,
   ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
   ItemGroup,
+  ItemHeader,
+  ItemMedia,
+  ItemSelectionIndicator,
   ItemSeparator,
   ItemTitle,
-  ItemDescription,
-  ItemHeader,
-  ItemFooter,
 };
 export type { ItemAs, ItemIndicator, ItemIndicatorTone, ItemProps, ItemSelectionIndicatorProps };

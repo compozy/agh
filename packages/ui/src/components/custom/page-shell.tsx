@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-type PageShellDensity = "comfortable" | "compact";
+type PageShellDensity = "comfortable" | "compact" | "route";
 
 interface PageShellProps extends Omit<React.ComponentProps<"div">, "title"> {
   slug?: string;
@@ -37,9 +37,15 @@ function PageShell({
   const bodyPadding =
     density === "compact"
       ? "px-4 py-3 sm:px-5 md:px-6"
-      : "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10";
+      : density === "route"
+        ? "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
+        : "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10";
   const bodyGap =
-    density === "compact" ? "gap-4 pb-8 md:gap-5 md:pb-10" : "gap-6 pb-12 md:gap-8 md:pb-16";
+    density === "compact"
+      ? "gap-4 pb-8 md:gap-5 md:pb-10"
+      : density === "route"
+        ? "gap-5 pb-10 md:gap-6 md:pb-12"
+        : "gap-6 pb-12 md:gap-8 md:pb-16";
 
   return (
     <div

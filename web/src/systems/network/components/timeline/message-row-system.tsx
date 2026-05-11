@@ -47,7 +47,7 @@ export function MessageRowSystem({ message, className }: MessageRowSystemProps) 
     >
       <span aria-hidden="true" className="block h-px w-9 shrink-0 bg-(--line)" />
       <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2 font-mono text-xs text-(--muted)">
-        <Eyebrow weight="medium">{message.kind}</Eyebrow>
+        <Eyebrow>{message.kind}</Eyebrow>
         <span className={cn("min-w-0", expanded ? "" : "truncate")}>{summary}</span>
       </span>
       <time className="shrink-0 font-mono text-badge text-(--subtle)" dateTime={iso} title={iso}>

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { KindChip } from "../kind-chip";
 
 describe("KindChip", () => {
-  it("Should render an upper-case mono pill keyed by `kind`", () => {
+  it("Should render a mono pill keyed by `kind`", () => {
     render(<KindChip kind="capability" />);
     const pill = screen.getByText("capability");
     expect(pill.parentElement?.dataset.slot).toBe("kind-chip");

@@ -55,9 +55,7 @@ export function ProviderCommandSelect({
             <span className="truncate text-sm text-(--fg)">
               {selected.display_name?.trim() || selected.name}
             </span>
-            <Eyebrow case="upper" tone="muted" size="badge">
-              {selected.harness ?? "acp"}
-            </Eyebrow>
+            <Eyebrow className="text-(--muted)">{selected.harness ?? "acp"}</Eyebrow>
           </span>
         ) : (
           <span className="truncate text-(--muted)">{placeholder}</span>

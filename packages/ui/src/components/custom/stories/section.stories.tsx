@@ -11,7 +11,8 @@ const meta: Meta<typeof Section> = {
     layout: "padded",
     docs: {
       description: {
-        component: "Section shell with mono eyebrow + optional right-aligned slot + body.",
+        component:
+          "Section shell with 13 px H2 label + optional right-aligned slot + body. Bottom border is opt-in via `bordered` (default `false`) per ADR-003 §2.",
       },
     },
   },
@@ -78,6 +79,20 @@ export const BodyOnly: Story = {
       <Section>
         <p className="text-sm text-(--muted)">
           Section with no eyebrow; the surrounding layout supplies the heading.
+        </p>
+      </Section>
+    </div>
+  ),
+};
+
+export const Bordered: Story = {
+  args: {},
+  render: () => (
+    <div className="w-[520px]">
+      <Section label="Members" bordered>
+        <p className="text-sm text-(--muted)">
+          Opt-in `bordered` paints a single `--line` hairline under the head when separation is
+          required. Default is borderless.
         </p>
       </Section>
     </div>

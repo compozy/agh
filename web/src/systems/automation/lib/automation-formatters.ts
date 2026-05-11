@@ -1,3 +1,5 @@
+import type { PillTone } from "@agh/ui";
+
 import type {
   AutomationKind,
   AutomationFireLimit,
@@ -10,8 +12,6 @@ import type {
   AutomationScopeFilter,
   AutomationTrigger,
 } from "../types";
-
-export type AutomationSemanticTone = "amber" | "danger" | "green" | "neutral" | "violet";
 
 export function formatRelativeTime(dateStr?: string | null): string {
   if (!dateStr) {
@@ -171,41 +171,21 @@ export function formatPromptPreview(prompt: string, maxLength = 72): string {
   return `${normalized.slice(0, maxLength - 1).trimEnd()}...`;
 }
 
-export function automationStatusTone(
-  status: AutomationRunStatus | "enabled" | "disabled"
-): "accent" | "success" | "warning" | "danger" | "neutral" {
-  switch (status) {
-    case "running":
-      return "accent";
-    case "completed":
-    case "enabled":
-      return "success";
-    case "scheduled":
-      return "warning";
-    case "failed":
-      return "danger";
-    case "canceled":
-    case "disabled":
-    default:
-      return "neutral";
-  }
-}
+type AutomationStatusKey = AutomationRunStatus | "enabled" | "disabled";
 
-export function automationSemanticTone(
-  status: AutomationRunStatus | "enabled" | "disabled"
-): AutomationSemanticTone {
-  switch (automationStatusTone(status)) {
-    case "accent":
-    case "warning":
-      return "amber";
-    case "success":
-      return "green";
-    case "danger":
-      return "danger";
-    case "neutral":
-    default:
-      return "neutral";
-  }
+const AUTOMATION_STATUS_TONE = {
+  running: "info",
+  scheduled: "warning",
+  delegated: "info",
+  completed: "success",
+  enabled: "success",
+  failed: "danger",
+  canceled: "neutral",
+  disabled: "neutral",
+} as const satisfies Record<AutomationStatusKey, PillTone>;
+
+export function automationStatusTone(status: AutomationStatusKey): PillTone {
+  return AUTOMATION_STATUS_TONE[status] ?? "neutral";
 }
 
 export function automationSourceLabel(source: AutomationJob["source"]): string {
@@ -216,12 +196,12 @@ export function automationScopeLabel(scope: AutomationScope): string {
   return scope === "workspace" ? "WORKSPACE" : "GLOBAL";
 }
 
-export function automationSourceTone(source: AutomationJob["source"]): AutomationSemanticTone {
-  return source === "dynamic" ? "amber" : "neutral";
+export function automationSourceTone(source: AutomationJob["source"]): PillTone {
+  return source === "dynamic" ? "info" : "neutral";
 }
 
-export function automationScopeTone(scope: AutomationScope): AutomationSemanticTone {
-  return scope === "workspace" ? "violet" : "neutral";
+export function automationScopeTone(scope: AutomationScope): PillTone {
+  return scope === "workspace" ? "info" : "neutral";
 }
 
 function searchableParts(parts: Array<string | null | undefined>): string {

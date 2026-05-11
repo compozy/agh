@@ -82,10 +82,13 @@ describe("TaskRunDetailHeader", () => {
     );
   });
 
-  it("fires cancel callback when the Kill run button is clicked", () => {
+  it("fires cancel callback when the Cancel run button is clicked", () => {
     const onCancelRun = vi.fn();
     render(<TaskRunDetailHeader onCancelRun={onCancelRun} run={buildRun()} />);
-    fireEvent.click(screen.getByTestId("task-run-detail-cancel"));
+    const button = screen.getByTestId("task-run-detail-cancel");
+    expect(button).toHaveTextContent("Cancel run");
+    expect(button.className).toContain("text-(--danger)");
+    fireEvent.click(button);
     expect(onCancelRun).toHaveBeenCalledTimes(1);
   });
 

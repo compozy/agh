@@ -6,7 +6,6 @@ import { BulletDivider } from "./divider";
 import { BlogEmptyState } from "./empty-state";
 import { DateStamp } from "./date-stamp";
 import { categoryLabel, formatReadingTime } from "./format";
-import { MonoEyebrow } from "./mono-eyebrow";
 
 export interface ContinueReadingProps {
   posts: Post[];
@@ -14,17 +13,15 @@ export interface ContinueReadingProps {
 
 export function ContinueReading({ posts }: ContinueReadingProps) {
   return (
-    <section className="border-t border-(--color-divider) bg-(--color-surface) px-4 py-16 lg:py-20">
+    <section className="border-t border-(--line) bg-(--canvas-soft) px-4 py-16 lg:py-20">
       <div className="mx-auto max-w-(--site-layout-width)">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="flex items-center gap-3">
-            <MonoEyebrow tracking="wide">Continue reading</MonoEyebrow>
-            <span className="inline-block h-px w-9 bg-(--color-divider)" />
-            <span className="font-sans text-small-body text-(--color-text-tertiary)">
-              Picked for this post
-            </span>
+            <Eyebrow className="text-(--muted) tracking-badge!">Continue reading</Eyebrow>
+            <span className="inline-block h-px w-9 bg-(--line)" />
+            <span className="font-sans text-small-body text-(--subtle)">Picked for this post</span>
           </div>
-          <Link href="/blog" className="text-small-body text-(--color-text-secondary)">
+          <Link href="/blog" className="text-small-body text-(--muted)">
             All posts →
           </Link>
         </div>
@@ -43,20 +40,20 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
             {posts.map(post => (
               <article
                 key={post.slug}
-                className="group rounded-xl border border-(--color-divider) bg-(--color-canvas) p-5"
+                className="group rounded-xl border border-(--line) bg-(--canvas) p-5"
               >
                 <div className="flex items-center gap-2.5">
-                  <MonoEyebrow tone="accent">{categoryLabel(post.category)}</MonoEyebrow>
+                  <Eyebrow className="text-accent">{categoryLabel(post.category)}</Eyebrow>
                   <BulletDivider />
                   <DateStamp date={post.date} format="compact" />
                 </div>
-                <h3 className="mt-4 font-sans text-lg font-medium leading-tight tracking-tight text-(--color-text-primary) group-hover:text-accent">
+                <h3 className="mt-4 font-sans text-lg font-medium leading-tight tracking-tight text-(--fg) group-hover:text-accent">
                   <Link href={post.permalink}>{post.title}</Link>
                 </h3>
                 <div className="mt-5 flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
+                  <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--subtle)">
                     <Clock size={11} aria-hidden />
-                    <Eyebrow case="upper">{formatReadingTime(post.metadata.readingTime)}</Eyebrow>
+                    <Eyebrow>{formatReadingTime(post.metadata.readingTime)}</Eyebrow>
                   </span>
                   <Link
                     href={post.permalink}

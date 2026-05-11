@@ -2,10 +2,12 @@
 
 **Class:** Frontend / Design system
 **Date discovered:** 2026-05-10 (DashboardCard inline-eyebrow audit while landing the redesign branch)
-**Evidence sources:** Audit run on the `redesign` branch ahead of the dashboard polish; fixed in
-the `eyebrow-adjusts` work — `packages/ui/src/components/custom/eyebrow.tsx`,
-`packages/ui/src/tokens.css`, `DESIGN.md` §3, `.claude/skills/agh-design/SKILL.md`,
-`packages/ui/src/lib/utils.ts`, and the 27-file `web/src` sweep.
+**Evidence sources:** Audit run on the `redesign` branch ahead of the dashboard polish; first fix in
+the `eyebrow-adjusts` work; final consolidation in `redesign-v2/task_06` (PR-2) — collapsed the
+prop matrix and the multi-utility CSS layer into a single Inter UC contract. Touched files:
+`packages/ui/src/components/custom/eyebrow.tsx`, `packages/ui/src/tokens.css`, `DESIGN.md` §3 / §11,
+`.agents/skills/agh-design/SKILL.md`, `packages/ui/src/lib/utils.ts`,
+`lint-plugins/compozy-design-system.mjs`, plus the cross-monorepo callsite sweep.
 
 ## Context
 
@@ -31,55 +33,82 @@ collapsed into the same "text-color" group, so `cn("text-eyebrow", "text-(--mute
 dropped the size. Any consumer that relied on token-aligned size + token-aligned color saw the
 size erased without warning.
 
+The first fix added size + tone variants to `<Eyebrow>` and rewrote `<extendTailwindMerge>`. But
+that fix preserved a multi-tier API (`case`, `family`, `tone`, `size`, `weight`) plus three CSS
+utilities (`eyebrow`, `eyebrow-badge`, `eyebrow-micro`). With multiple variants live, callsites
+still picked the "wrong" tier and the JetBrains-Mono contract leaked into surfaces that ADR-002
+§1 declared must be Inter UC. Redesign-v2 superseded the variant matrix with a single contract.
+
 ## Root cause
 
-The eyebrow style had **no single source of truth**. Three artifacts held overlapping authority
-(spec table / CSS token / component implementation), each authored at a different time, and the
-`<Eyebrow>` API wasn't expressive enough (no `size`, no `subtle`/`strong` tone) to stop callers
-from inlining their own variant. Because `cn()` quietly collapsed token-named text utilities
-into the text-color group, the few callers that did try to use tokens still couldn't compose
-size + color through `<Eyebrow>` cleanly. Every new feature kept reaching for arbitrary values
-(`text-[10.5px]` / `tracking-[0.05em]`) because the canonical tuple was simultaneously
-under-specified and contradicted between sources.
+The eyebrow style had **no single source of truth**, and even after the first fix it still had
+**too many variants**. Three artifacts held overlapping authority (spec table / CSS token /
+component implementation), each authored at a different time, and the `<Eyebrow>` API was
+expressive enough (case + family + tone + size + weight) that the wrong combination of props
+still produced drift. Tier proliferation invited the same callsite-by-callsite re-authoring that
+the primitive was supposed to prevent.
 
 ## Rule
 
-> One eyebrow primitive, one tracking value, three sizes, one set of tones — and `cn()` knows
-> the project's token names. Every uppercase JetBrains-Mono label in `web/`, `packages/site/`,
-> and `packages/ui/`'s public consumer surface MUST render through `<Eyebrow>` (`@agh/ui`) using
-> token classes. The canonical tracking is `--tracking-mono` (0.06em). The canonical sizes are
-> `--text-eyebrow` (11 px), `--text-badge` (10 px), `--text-micro` (9 px). The canonical tone
-> map covers `muted` (default), `subtle`, `strong`, plus the signal palette.
+> **One eyebrow primitive, one CSS utility, one Inter UC contract.** Every uppercase label
+> across `web/`, `packages/site/`, and `packages/ui/`'s public consumer surface MUST render
+> through `<Eyebrow>` (`@agh/ui`) — children + className only, no `case` / `family` / `tone` /
+> `size` / `weight` props — or through the single `.eyebrow` utility on structural HTML
+> (`<dt>`, `<label>`, `<th>`, breadcrumb wrappers). The canonical contract is **Inter UC
+> 11 px / weight 600 (semibold) / letter-spacing -0.005em**, bound to `--text-eyebrow` and
+> `--tracking-eyebrow` in `packages/ui/src/tokens.css`. Color is **not** baked into the
+> contract: pass `text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, or a signal token
+> through `className` when a tone is needed.
 
 Inlining `font-mono` + `uppercase` + a `text-*` + a `tracking-*` tuple in product `<span>`,
-`<p>`, or `<div>` content is forbidden. Structural primitives that must apply eyebrow typography
-to a non-span element (`<dt>`, `<label>`, breadcrumb wrappers, sidebar/table headers) live
-inside `@agh/ui` — consumers always reach for `<Eyebrow>`. Arbitrary values like
-`text-[10.5px]` / `tracking-[0.05em]` are forbidden everywhere, including the design-system
+`<p>`, or `<div>` content is forbidden. The deleted `.eyebrow-badge` / `.eyebrow-micro` utility
+classes are forbidden — `compozy-design-system/no-inline-eyebrow` flags them. Arbitrary values
+like `text-[10.5px]` / `tracking-[0.05em]` are forbidden everywhere, including the design-system
 implementation files.
 
 ## Operationalization
 
-- `packages/ui/src/components/custom/eyebrow.tsx` is the single primitive. Adding a new size or
-  tone happens there, behind a new prop variant — never inline.
+- `packages/ui/src/components/custom/eyebrow.tsx` is the single primitive. The render path is
+  `<span data-slot="eyebrow" className={cn("eyebrow", className)} {...props}>{children}</span>`
+  — no variant matrix. New visual variants do not exist; reach for a different primitive
+  (`<Pill>`, `<MonoId>`, bare span) when the rendered shape isn't Inter UC 11/600/-0.005em.
+- `packages/ui/src/tokens.css` declares one utility:
+  ```css
+  @utility eyebrow {
+    @apply font-sans text-[length:var(--text-eyebrow)] font-semibold uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+  }
+  ```
+  `--text-eyebrow` resolves to `0.6875rem` (11 px); `--tracking-eyebrow` resolves to `-0.005em`.
+  Both tokens are pinned in `tokens.css` `@theme inline` and gated by `tokens.test.ts`.
 - `packages/ui/src/lib/utils.ts` extends `tailwind-merge` with the project's `font-size` group
-  (`text-eyebrow`, `text-badge`, `text-micro`, `text-small-body`, `text-display-2xl`, …). Any
-  new `--text-*` token in `tokens.css` MUST be added to that group on the same change.
+  so `cn("text-eyebrow", "text-(--muted)")` no longer collapses the size into the color group.
+  Any new `--text-*` token in `tokens.css` MUST be added to that group on the same change.
 - `DESIGN.md` §3 holds the authoritative type ladder. The eyebrow row references the tokens by
   name. Drift between this row, `tokens.css`, the `agh-design` skill brief, and `<Eyebrow>` is
   treated as a code defect, not a documentation tweak.
-- A repo-wide guard rejects new inlined `font-mono` + `uppercase` tuples in `web/src` and
-  `packages/site` (see the redesign-branch oxlint setup).
-- When auditing for drift, search both `font-mono.*uppercase` and arbitrary `text-[Npx]` /
-  `tracking-[Nem]` patterns. The audit only tells the truth when both forms are scanned.
+- `lint-plugins/compozy-design-system.mjs::no-inline-eyebrow` rejects:
+  - `font-mono` + `uppercase` tuples in JSX `className`.
+  - `font-mono` + `uppercase` + arbitrary `text-[…]` / `tracking-[…]` tuples.
+  - The literal tokens `eyebrow-badge` and `eyebrow-micro` (the deleted utilities).
+    Exemptions: structural HTML primitives (`<dt>`, `<label>`, `<th>`, …), PascalCase components
+    (typography passes through), test/story files, and the `packages/ui` design-system
+    implementation surface.
+- When auditing for drift, grep both `font-mono.*uppercase` and arbitrary
+  `text-[Npx]` / `tracking-[Nem]` patterns AND the deleted utility names. The audit only tells
+  the truth when all three forms are scanned.
 
 ## Anti-pattern
 
 - Inlining `font-mono text-[10.5px] uppercase tracking-[0.05em] text-(--muted)` "just for one
   span" — every callsite that did this turned into a permanent drift point.
-- Updating `<Eyebrow>` to support a new visual variant by overriding its className at the
-  callsite instead of adding a prop variant.
-- Changing `--tracking-mono` to "match the component" instead of fixing the component to
+- Adding a new visual variant back into `<Eyebrow>` (a new `case`, a new `size`, a new `tone`).
+  The primitive is intentionally prop-less now; size/tone variations live in the className the
+  consumer passes (text-color utilities) or in a different primitive entirely.
+- Adding `.eyebrow-foo` utilities to `tokens.css` to "carve out" a special size. The deleted
+  `.eyebrow-badge` and `.eyebrow-micro` are the warning shot — re-introducing tier utilities
+  reopens the drift surface that took two passes to close.
+- Changing `--tracking-eyebrow` to "match the component" instead of fixing the component to
   match the token.
 - Adding a new `--text-*` token to `tokens.css` without registering it in the
   `extendTailwindMerge` config — it will silently collide with `text-color`.
@@ -88,15 +117,16 @@ implementation files.
 
 ## Source
 
-- `packages/ui/src/components/custom/eyebrow.tsx` — the single primitive (post-fix).
-- `packages/ui/src/components/custom/dashboard-card.tsx` — the original drift report (DashboardCard inlined the
-  eyebrow tuple instead of consuming `<Eyebrow>`).
+- `packages/ui/src/components/custom/eyebrow.tsx` — the single prop-less primitive
+  (`children` + `className` only).
+- `packages/ui/src/tokens.css` — `--text-eyebrow`, `--tracking-eyebrow`, and the single
+  `@utility eyebrow` declaration.
 - `packages/ui/src/lib/utils.ts` — `extendTailwindMerge` registration of project font-size
-  tokens.
-- `packages/ui/src/tokens.css` — `--text-eyebrow`, `--text-badge`, `--text-micro`,
-  `--tracking-mono`.
-- `DESIGN.md` §3 ("Type Ladder", "Typography Principles") — authoritative type ladder + Eyebrow
-  rule.
-- `.claude/skills/agh-design/SKILL.md` — brand brief reaffirming `--tracking-mono`.
+  tokens (kept around so future size tokens don't collide with text-color).
+- `lint-plugins/compozy-design-system.mjs` — `no-inline-eyebrow` rule covering the inline tuple
+  AND the deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals.
+- `DESIGN.md` §3 ("Type Ladder") and §11 ("Anti-patterns") — authoritative type ladder + Eyebrow
+  rule + misuse register.
+- `.agents/skills/agh-design/SKILL.md` — brand brief reaffirming the single Inter UC contract.
 - `web/CLAUDE.md` ("Critical Rules") and `packages/site/CLAUDE.md` ("Critical Rules") — surface
   guards for the rule.

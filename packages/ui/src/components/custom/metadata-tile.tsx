@@ -12,8 +12,6 @@ export interface MetadataTileProps extends React.ComponentProps<"div"> {
   value: React.ReactNode;
   detail?: React.ReactNode;
   icon?: IconComponent;
-  /** Casing for the label; mono UPPERCASE by default. */
-  labelCase?: "sentence" | "upper";
 }
 
 function MetadataTile({
@@ -21,7 +19,6 @@ function MetadataTile({
   value,
   detail,
   icon: Icon,
-  labelCase = "upper",
   className,
   ...props
 }: MetadataTileProps) {
@@ -29,19 +26,14 @@ function MetadataTile({
     <div
       data-slot="metadata-tile"
       className={cn(
-        "flex min-w-0 flex-col gap-1 rounded-(--radius) border border-(--line) bg-(--canvas-soft) px-3 py-2.5",
+        "flex min-w-0 flex-col gap-1 rounded-(--radius) bg-(--canvas-soft) px-3 py-2.5",
         className
       )}
       {...props}
     >
       <div data-slot="metadata-tile-head" className="flex min-w-0 items-center gap-1.5">
         {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 text-(--muted)" /> : null}
-        <Eyebrow
-          data-slot="metadata-tile-label"
-          case={labelCase}
-          tone="muted"
-          className="min-w-0 truncate"
-        >
+        <Eyebrow data-slot="metadata-tile-label" className="min-w-0 truncate text-(--muted)">
           {label}
         </Eyebrow>
       </div>

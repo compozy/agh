@@ -67,16 +67,12 @@ describe("changelog public components", () => {
     expect(alpha.getAttribute("href")).toBe("/changelog#v0.3.0");
     expect(stable.getAttribute("href")).toBe("/changelog#v0.2.0");
     expect(within(breaking).getByText("v0.5.0").getAttribute("class")).toContain(
-      "bg-(--color-danger-tint)"
+      "bg-(--danger-tint)"
     );
-    expect(within(beta).getByText("v0.4.0").getAttribute("class")).toContain(
-      "bg-(--color-info-tint)"
-    );
-    expect(within(alpha).getByText("v0.3.0").getAttribute("class")).toContain(
-      "bg-(--color-accent-tint)"
-    );
+    expect(within(beta).getByText("v0.4.0").getAttribute("class")).toContain("bg-(--info-tint)");
+    expect(within(alpha).getByText("v0.3.0").getAttribute("class")).toContain("bg-(--accent-tint)");
     expect(within(stable).getByText("v0.2.0").getAttribute("class")).toContain(
-      "bg-(--color-success-tint)"
+      "bg-(--success-tint)"
     );
     expect(within(breaking).getByText("May 01 · 2026").closest("time")?.dateTime).toBe(
       "2026-05-01T00:00:00.000Z"

@@ -8,7 +8,11 @@ import { useInitialState } from "./use-initial-state";
 
 const SIDEBAR_RAIL_WIDTH = 56;
 const SIDEBAR_PANEL_WIDTH_DEFAULT = 244;
-const SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT = 768;
+const SIDEBAR_PANEL_WIDTH_MD = 220;
+const SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT = 1100;
+const SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT = 880;
+
+export type SidebarViewport = "default" | "md" | "drawer";
 
 export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onChange"> {
   rail?: React.ReactNode;
@@ -18,24 +22,60 @@ export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onCha
   collapsed?: boolean;
   defaultCollapsed?: boolean;
   onCollapse?: (next: boolean) => void;
+  /** Explicit panel width override. When omitted the panel resolves from the viewport ladder. */
   panelWidth?: number;
+  /** Width below which the panel becomes the drawer (replaces the legacy 768 px breakpoint). */
   collapseBreakpoint?: number;
+  /** Width below which the panel shrinks from 244 px (default) to 220 px (md). */
+  mdBreakpoint?: number;
   collapseLabel?: string;
 }
 
-function useNarrowViewport(breakpoint: number): boolean {
-  const [narrow, setNarrow] = React.useState(false);
+interface ViewportThresholds {
+  drawer: number;
+  md: number;
+}
+
+/**
+ * Returns the active viewport tier per ADR-003 §4 / ADR-005 §4 — `"default"`
+ * above 1100 px, `"md"` between the drawer threshold and 1100 px, `"drawer"`
+ * at or below the drawer threshold. The previous boolean
+ * `useNarrowViewport(breakpoint)` collapsed the ladder into one query and
+ * lost the 220 px tier.
+ */
+export function useSidebarViewport(thresholds: ViewportThresholds): SidebarViewport {
+  const { drawer, md } = thresholds;
+  const [viewport, setViewport] = React.useState<SidebarViewport>("default");
   React.useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(`(max-width: ${Math.max(0, breakpoint - 1)}px)`);
-    const handler = (event: MediaQueryListEvent | MediaQueryList) => {
-      setNarrow(event.matches);
+    const drawerQuery = window.matchMedia(`(max-width: ${Math.max(0, drawer - 1)}px)`);
+    const mdQuery = window.matchMedia(`(max-width: ${Math.max(0, md - 1)}px)`);
+    function evaluate() {
+      if (drawerQuery.matches) {
+        setViewport("drawer");
+        return;
+      }
+      if (mdQuery.matches) {
+        setViewport("md");
+        return;
+      }
+      setViewport("default");
+    }
+    evaluate();
+    drawerQuery.addEventListener("change", evaluate);
+    mdQuery.addEventListener("change", evaluate);
+    return () => {
+      drawerQuery.removeEventListener("change", evaluate);
+      mdQuery.removeEventListener("change", evaluate);
     };
-    handler(query);
-    query.addEventListener("change", handler);
-    return () => query.removeEventListener("change", handler);
-  }, [breakpoint]);
-  return narrow;
+  }, [drawer, md]);
+  return viewport;
+}
+
+function resolvePanelWidth(viewport: SidebarViewport, override?: number): number {
+  if (override !== undefined) return override;
+  if (viewport === "md") return SIDEBAR_PANEL_WIDTH_MD;
+  return SIDEBAR_PANEL_WIDTH_DEFAULT;
 }
 
 function Sidebar({
@@ -46,8 +86,9 @@ function Sidebar({
   collapsed: collapsedProp,
   defaultCollapsed = false,
   onCollapse,
-  panelWidth = SIDEBAR_PANEL_WIDTH_DEFAULT,
+  panelWidth: panelWidthOverride,
   collapseBreakpoint = SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+  mdBreakpoint = SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   collapseLabel = "Toggle sidebar",
   className,
   ...props
@@ -57,9 +98,11 @@ function Sidebar({
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const userCollapsed = isControlled ? Boolean(collapsedProp) : uncontrolled;
-  const narrow = useNarrowViewport(collapseBreakpoint);
-  const panelVisible = narrow ? mobileOpen : !userCollapsed;
+  const viewport = useSidebarViewport({ drawer: collapseBreakpoint, md: mdBreakpoint });
+  const isDrawer = viewport === "drawer";
+  const panelVisible = isDrawer ? mobileOpen : !userCollapsed;
   const effectivelyCollapsed = !panelVisible;
+  const resolvedPanelWidth = resolvePanelWidth(viewport, panelWidthOverride);
 
   const setCollapsed = React.useCallback(
     (next: boolean) => {
@@ -70,22 +113,21 @@ function Sidebar({
   );
 
   const handleToggle = React.useCallback(() => {
-    if (narrow) {
+    if (isDrawer) {
       setMobileOpen(current => !current);
       return;
     }
-
     setCollapsed(!userCollapsed);
-  }, [narrow, setCollapsed, userCollapsed]);
+  }, [isDrawer, setCollapsed, userCollapsed]);
 
   React.useEffect(() => {
-    if (!narrow && mobileOpen) {
+    if (!isDrawer && mobileOpen) {
       setMobileOpen(false);
     }
-  }, [mobileOpen, narrow]);
+  }, [isDrawer, mobileOpen]);
 
   React.useEffect(() => {
-    if (!narrow || !mobileOpen || typeof window === "undefined") return;
+    if (!isDrawer || !mobileOpen || typeof window === "undefined") return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -95,7 +137,7 @@ function Sidebar({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mobileOpen, narrow]);
+  }, [isDrawer, mobileOpen]);
 
   React.useEffect(() => {
     const panel = panelRef.current;
@@ -118,14 +160,15 @@ function Sidebar({
     <aside
       data-slot="sidebar"
       data-state={effectivelyCollapsed ? "collapsed" : "expanded"}
-      data-narrow={narrow ? "true" : "false"}
+      data-narrow={isDrawer ? "true" : "false"}
+      data-viewport={viewport}
       className={cn(
         "relative flex h-full shrink-0 border-r border-(--line) bg-(--rail)",
         className
       )}
       {...props}
     >
-      {narrow && panelVisible ? (
+      {isDrawer && panelVisible ? (
         <button
           type="button"
           aria-label="Close sidebar navigation"
@@ -148,7 +191,7 @@ function Sidebar({
           type="button"
           data-slot="sidebar-collapse-trigger"
           aria-label={
-            narrow
+            isDrawer
               ? panelVisible
                 ? "Close sidebar navigation"
                 : "Open sidebar navigation"
@@ -165,17 +208,20 @@ function Sidebar({
         ref={panelRef}
         data-slot="sidebar-panel"
         style={{
-          width: panelVisible ? panelWidth : 0,
-          ...(narrow ? { left: SIDEBAR_RAIL_WIDTH } : {}),
+          width: panelVisible ? resolvedPanelWidth : 0,
+          ...(isDrawer ? { left: SIDEBAR_RAIL_WIDTH } : {}),
         }}
         className={cn(
           "flex min-h-0 flex-col overflow-hidden bg-(--sidebar)",
           panelVisible ? "visible pointer-events-auto" : "pointer-events-none invisible",
-          narrow && "absolute inset-y-0 z-50 border-r border-(--line)"
+          isDrawer && "absolute inset-y-0 z-50 border-r border-(--line)"
         )}
         aria-hidden={effectivelyCollapsed}
       >
-        <div className="flex h-full min-h-0 flex-col" style={{ width: panelWidth, flexShrink: 0 }}>
+        <div
+          className="flex h-full min-h-0 flex-col"
+          style={{ width: resolvedPanelWidth, flexShrink: 0 }}
+        >
           {header ? (
             <div
               data-slot="sidebar-header"
@@ -206,12 +252,17 @@ function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div"
     <div
       {...props}
       data-slot="sidebar-section-label"
-      className={cn(
-        "px-3 pt-3 pb-1.5 font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)",
-        className
-      )}
+      className={cn("eyebrow px-3 pt-3 pb-1.5 text-(--muted)", className)}
     />
   );
 }
 
-export { Sidebar, SidebarSectionLabel, SIDEBAR_RAIL_WIDTH, SIDEBAR_PANEL_WIDTH_DEFAULT };
+export {
+  Sidebar,
+  SidebarSectionLabel,
+  SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_MD,
+  SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+  SIDEBAR_RAIL_WIDTH,
+};

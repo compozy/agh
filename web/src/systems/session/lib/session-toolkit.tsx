@@ -1,8 +1,8 @@
 import type { Toolkit, ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow, Spinner } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 import { PermissionDataPart } from "../components/permission-prompt";
@@ -39,10 +39,8 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
           "text-xs text-(--subtle)"
         )}
       >
-        <Loader2 className="size-3.5 animate-spin" />
-        <Eyebrow case="upper" tone="subtle" size="badge">
-          {part.toolName}
-        </Eyebrow>
+        <Spinner className="size-3.5" />
+        <Eyebrow className="text-(--subtle)">{part.toolName}</Eyebrow>
         <span>preparing input</span>
       </div>
     );

@@ -42,10 +42,10 @@ function CatalogCardExample({ installed = false }: CatalogCardExampleProps) {
         Checks release notes, version policy, and operator-facing docs before a tagged build.
       </CatalogCard.Description>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Pill mono tone="neutral" uppercase={false}>
+        <Pill mono tone="neutral">
           release
         </Pill>
-        <Pill mono tone="neutral" uppercase={false}>
+        <Pill mono tone="neutral">
           docs
         </Pill>
       </div>
@@ -151,6 +151,52 @@ export const Error: Story = {
           Retry
         </Button>
       </CatalogCard.Actions>
+    </CatalogCard>
+  ),
+};
+
+/**
+ * Selected state — `--surface-glaze` + 1 px inset `--line-strong` ring per ADR-004 §7. No accent.
+ */
+export const Selected: Story = {
+  args: {},
+  render: () => (
+    <CatalogCard className="max-w-sm" data-testid="catalog-card-selected" selected>
+      <div className="flex items-start gap-3">
+        <CatalogCard.Logo>
+          <Wrench className="size-4" />
+        </CatalogCard.Logo>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <CatalogCard.Title>release-auditor</CatalogCard.Title>
+          <CatalogCard.Meta>
+            <span>@platform</span>
+            <span>v1.4.2</span>
+          </CatalogCard.Meta>
+        </div>
+      </div>
+    </CatalogCard>
+  ),
+};
+
+/**
+ * `logoSize="lg"` (40 × 40) for connected/configured provider surfaces (ADR-011 §8).
+ */
+export const ConfiguredProvider: Story = {
+  args: {},
+  render: () => (
+    <CatalogCard className="max-w-sm" data-testid="catalog-card-provider">
+      <div className="flex items-start gap-3">
+        <CatalogCard.Logo size="lg" tone="info">
+          <Wrench className="size-5" />
+        </CatalogCard.Logo>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <CatalogCard.Title>Anthropic</CatalogCard.Title>
+          <CatalogCard.Meta>
+            <span>configured</span>
+            <span>claude-opus-4-7</span>
+          </CatalogCard.Meta>
+        </div>
+      </div>
     </CatalogCard>
   ),
 };

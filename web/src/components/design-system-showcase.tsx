@@ -175,7 +175,12 @@ const TOKEN_GROUPS: TokenGroup[] = [
         role: "Active rows, segment-active",
         kind: "color",
       },
-      { token: "--hover", value: "#1f1e1d", role: "Generic hover", kind: "color" },
+      {
+        token: "--hover",
+        value: "var(--row-hover)",
+        role: "Generic hover (alias of --row-hover, ADR-001 §6)",
+        kind: "color",
+      },
       { token: "--disabled", value: "#4a4847", role: "Disabled fill", kind: "color" },
     ],
   },
@@ -294,14 +299,14 @@ const TOKEN_GROUPS: TokenGroup[] = [
       },
       {
         token: "--info-tint",
-        value: "rgba(142, 142, 181, 0.07)",
-        role: "Info chip bg",
+        value: "rgba(142, 142, 181, 0.12)",
+        role: "Info chip bg / Settings observability (ADR-015 §4)",
         kind: "color",
       },
       {
         token: "--neutral-tint",
-        value: "rgba(122, 122, 128, 0.06)",
-        role: "Neutral chip bg",
+        value: "rgba(150, 150, 155, 0.06)",
+        role: "Neutral chip bg (warmed for ramp parity, ADR-001 §8)",
         kind: "color",
       },
     ],
@@ -313,9 +318,15 @@ const TOKEN_GROUPS: TokenGroup[] = [
     swatches: [
       {
         token: "--overlay-scrim",
-        value: "rgba(0, 0, 0, 0.5)",
-        role: "Modal / dialog backdrop",
+        value: "rgba(0, 0, 0, 0.55)",
+        role: "Modal / dialog backdrop (ADR-001 §1)",
         kind: "color",
+      },
+      {
+        token: "--overlay-blur",
+        value: "3px",
+        role: "Dialog / sheet backdrop blur ONLY (ADR-001 §2)",
+        kind: "radius",
       },
       {
         token: "--overlay-ghost-hover",
@@ -323,11 +334,156 @@ const TOKEN_GROUPS: TokenGroup[] = [
         role: "Ghost hover on dark",
         kind: "color",
       },
+    ],
+  },
+  {
+    id: "glaze",
+    label: "Surface glaze ladder",
+    caption:
+      "Translucent white tints layered on the warm ramp. Inline rgba literals are forbidden.",
+    swatches: [
       {
-        token: "--overlay-selection",
-        value: "rgba(232, 87, 42, 0.28)",
-        role: "Text selection",
+        token: "--row-hover",
+        value: "rgba(255, 255, 255, 0.022)",
+        role: "List / nav hover (aliased as --hover)",
         kind: "color",
+      },
+      {
+        token: "--row-selected",
+        value: "rgba(255, 255, 255, 0.03)",
+        role: "List / nav selected baseline",
+        kind: "color",
+      },
+      {
+        token: "--surface-glaze",
+        value: "rgba(255, 255, 255, 0.04)",
+        role: "RadioCard / panel head selected",
+        kind: "color",
+      },
+      {
+        token: "--bar-fill",
+        value: "rgba(255, 255, 255, 0.085)",
+        role: "Priority / progress / usage bars",
+        kind: "color",
+      },
+      {
+        token: "--input-fill",
+        value: "rgba(255, 255, 255, 0.025)",
+        role: "Composer / textarea / search input",
+        kind: "color",
+      },
+      {
+        token: "--btn-default-fill",
+        value: "rgba(255, 255, 255, 0.04)",
+        role: "Neutral Button default fill (ADR-004)",
+        kind: "color",
+      },
+      {
+        token: "--btn-default-hover",
+        value: "rgba(255, 255, 255, 0.07)",
+        role: "Neutral Button hover fill",
+        kind: "color",
+      },
+      {
+        token: "--badge-fill",
+        value: "rgba(255, 255, 255, 0.05)",
+        role: "PillGroup count badge bg",
+        kind: "color",
+      },
+    ],
+  },
+  {
+    id: "avatars",
+    label: "Owner avatar palette",
+    caption:
+      "Tokenised owner palette resolved via web/src/lib/owner-palette.ts colorsFor(). Storybook + design ref tools read from the same source.",
+    swatches: [
+      {
+        token: "--avatar-agent-0-bg",
+        value: "rgba(232, 144, 99, 0.18)",
+        role: "Agent slot 0 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-agent-0-fg", value: "#f2b895", role: "Agent slot 0 — fg", kind: "color" },
+      {
+        token: "--avatar-agent-1-bg",
+        value: "rgba(168, 178, 220, 0.16)",
+        role: "Agent slot 1 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-agent-1-fg", value: "#c5cce7", role: "Agent slot 1 — fg", kind: "color" },
+      {
+        token: "--avatar-agent-2-bg",
+        value: "rgba(143, 196, 178, 0.18)",
+        role: "Agent slot 2 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-agent-2-fg", value: "#a9d9c7", role: "Agent slot 2 — fg", kind: "color" },
+      {
+        token: "--avatar-agent-3-bg",
+        value: "rgba(214, 168, 192, 0.18)",
+        role: "Agent slot 3 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-agent-3-fg", value: "#e0bcd0", role: "Agent slot 3 — fg", kind: "color" },
+      {
+        token: "--avatar-human-0-bg",
+        value: "rgba(220, 192, 134, 0.2)",
+        role: "Human slot 0 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-human-0-fg", value: "#e5cc9a", role: "Human slot 0 — fg", kind: "color" },
+      {
+        token: "--avatar-human-1-bg",
+        value: "rgba(195, 178, 156, 0.2)",
+        role: "Human slot 1 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-human-1-fg", value: "#d6c5aa", role: "Human slot 1 — fg", kind: "color" },
+      {
+        token: "--avatar-human-2-bg",
+        value: "rgba(192, 173, 178, 0.2)",
+        role: "Human slot 2 — bg",
+        kind: "color",
+      },
+      { token: "--avatar-human-2-fg", value: "#d2bfc5", role: "Human slot 2 — fg", kind: "color" },
+    ],
+  },
+  {
+    id: "layout-grammar",
+    label: "Layout grammar",
+    caption:
+      "Modal width ladder + logo well sizes. Inline arbitrary widths are forbidden in modal / catalog surfaces.",
+    swatches: [
+      {
+        token: "--width-modal-sm",
+        value: "560px",
+        role: "Confirm / single-field editor",
+        kind: "radius",
+      },
+      {
+        token: "--width-modal-md",
+        value: "720px",
+        role: "Task editor / settings field editor",
+        kind: "radius",
+      },
+      {
+        token: "--width-modal-lg",
+        value: "880px",
+        role: "Bridges wizard / knowledge create dialog",
+        kind: "radius",
+      },
+      {
+        token: "--size-catalog-logo",
+        value: "1.5rem",
+        role: "CatalogCard logoSize='default' (24 px)",
+        kind: "radius",
+      },
+      {
+        token: "--size-provider-logo-well",
+        value: "2.5rem",
+        role: "CatalogCard logoSize='lg' (40 px) / settings provider card",
+        kind: "radius",
       },
     ],
   },
@@ -406,12 +562,6 @@ const TOKEN_GROUPS: TokenGroup[] = [
         role: "Mono eyebrow tracking",
         kind: "tracking",
       },
-      {
-        token: "--tracking-badge",
-        value: "0.08em",
-        role: "Badge uppercase tracking",
-        kind: "tracking",
-      },
     ],
   },
 ];
@@ -461,7 +611,7 @@ function SectionLink({ section, children }: { section: ShowcaseSection; children
       className="inline-flex items-center gap-1.5 text-(--muted) transition-colors hover:text-accent"
     >
       <span>{children ?? section.label}</span>
-      <span aria-hidden="true" className="font-mono text-badge tracking-badge">
+      <span aria-hidden="true" className="font-mono text-badge tracking-(--tracking-mono)">
         {"↗"}
       </span>
     </a>
@@ -494,7 +644,7 @@ function DesignSystemShowcase() {
               >
                 <SparklesIcon className="size-3.5" />
               </span>
-              <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
+              <h1 className="truncate text-(length:--text-detail-h1) font-medium tracking-(--tracking-detail-h1) text-(--fg-strong)">
                 AGH design system
               </h1>
               <span
@@ -590,9 +740,7 @@ function FoundationsTokenSection() {
                 <h3 className="text-item-title font-medium text-(--fg)">{group.label}</h3>
                 <p className="mt-0.5 text-small-body text-(--muted)">{group.caption}</p>
               </div>
-              <Eyebrow case="upper" tone="subtle" size="badge">
-                {group.swatches.length} tokens
-              </Eyebrow>
+              <Eyebrow className="text-(--subtle)">{group.swatches.length} tokens</Eyebrow>
             </header>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
               {group.swatches.map(swatch => (
@@ -616,9 +764,7 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
     >
       <TokenPreview swatch={swatch} />
       <div className="flex flex-col gap-0.5">
-        <Eyebrow case="upper" tone="subtle">
-          {swatch.token}
-        </Eyebrow>
+        <Eyebrow className="text-(--subtle)">{swatch.token}</Eyebrow>
         <span className="font-mono text-eyebrow text-(--muted)">{swatch.value}</span>
         {swatch.role ? <span className="text-xs text-(--muted)">{swatch.role}</span> : null}
       </div>
@@ -652,9 +798,7 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
       aria-hidden="true"
       className="flex h-14 w-full items-center justify-center rounded-md bg-(--elevated)"
     >
-      <Eyebrow case="upper" tone="muted">
-        {swatch.value}
-      </Eyebrow>
+      <Eyebrow className="text-(--muted)">{swatch.value}</Eyebrow>
     </div>
   );
 }
@@ -690,9 +834,7 @@ function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Eyebrow case="upper" tone="muted">
-              Eyebrow · JetBrains Mono 11/600 0.06em
-            </Eyebrow>
+            <Eyebrow className="text-(--muted)">Eyebrow · JetBrains Mono 11/600 0.06em</Eyebrow>
             <p className="font-mono text-sm leading-7 text-(--fg)">
               agh-network/v0 · run_id_01hq8…
             </p>
@@ -940,9 +1082,7 @@ function StatusAndMetricSection() {
           <Spinner className="size-4 text-accent" />
           <Skeleton className="h-4 w-40" />
           <Separator orientation="vertical" className="h-6" />
-          <Eyebrow case="upper" tone="subtle">
-            spinners · skeletons · separators
-          </Eyebrow>
+          <Eyebrow className="text-(--subtle)">spinners · skeletons · separators</Eyebrow>
         </div>
         <Progress value={64} data-testid="showcase-progress">
           <ProgressLabel>Skill index rebuild</ProgressLabel>

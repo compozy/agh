@@ -77,9 +77,10 @@ function ChatMessageBubble({
           {meta ? (
             <Eyebrow
               data-slot="chat-message-meta"
-              case="upper"
-              tone="subtle"
-              className={cn(resolvedAlign === "right" ? "text-right" : "text-left")}
+              className={cn(
+                "text-(--subtle)",
+                resolvedAlign === "right" ? "text-right" : "text-left"
+              )}
             >
               {meta}
             </Eyebrow>
@@ -107,9 +108,7 @@ function ChatMessageBubble({
         {meta ? (
           <Eyebrow
             data-slot="chat-message-meta"
-            case="upper"
-            tone="muted"
-            className={cn("flex items-center gap-2", nonUserMetaAlignClass)}
+            className={cn("flex items-center gap-2 text-(--muted)", nonUserMetaAlignClass)}
           >
             {meta}
           </Eyebrow>
@@ -132,9 +131,7 @@ function ChatMessageBubble({
       {meta ? (
         <Eyebrow
           data-slot="chat-message-meta"
-          case="upper"
-          tone="muted"
-          className={cn("flex items-center gap-2", nonUserMetaAlignClass)}
+          className={cn("flex items-center gap-2 text-(--muted)", nonUserMetaAlignClass)}
         >
           {meta}
         </Eyebrow>

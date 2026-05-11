@@ -44,8 +44,8 @@ interface AutomationListPanelProps {
   triggers: AutomationTrigger[];
 }
 
-function sourceBadgeTone(source: AutomationJob["source"]): "accent" | "neutral" {
-  return source === "dynamic" ? "accent" : "neutral";
+function sourceBadgeTone(source: AutomationJob["source"]): "info" | "neutral" {
+  return source === "dynamic" ? "info" : "neutral";
 }
 
 function scopeBadgeTone(scope: AutomationJob["scope"]): "info" | "neutral" {
@@ -78,9 +78,7 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
             {job.name}
           </ItemTitle>
         </div>
-        <Eyebrow case="upper" tone="accent" size="badge" className="shrink-0">
-          {formatRelativeTime(job.next_run)}
-        </Eyebrow>
+        <Eyebrow className="text-(--accent) shrink-0">{formatRelativeTime(job.next_run)}</Eyebrow>
       </ItemHeader>
 
       <ItemDescription className="truncate text-xs text-(--muted)">
@@ -125,7 +123,7 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
             {trigger.name}
           </ItemTitle>
         </div>
-        <Pill mono uppercase={false} className="shrink-0" tone="info">
+        <Pill mono className="shrink-0" tone="info">
           {trigger.event}
         </Pill>
       </ItemHeader>

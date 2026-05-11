@@ -83,13 +83,16 @@ describe("PageShell", () => {
     expect(screen.queryByTestId("settings-page-general-header")).not.toBeInTheDocument();
   });
 
-  it("renders the section title with the new tracking token", () => {
+  it("renders the section title with the canonical --tracking-section-head token (ADR-003 §2)", () => {
     render(
       <Section divided label="Runtime">
         <span>content</span>
       </Section>
     );
 
-    expect(screen.getByText("Runtime").className).toContain("tracking-[-0.026em]");
+    const heading = screen.getByText("Runtime");
+    expect(heading.className).toContain("tracking-(--tracking-section-head)");
+    expect(heading.className).toContain("text-(length:--text-section-head)");
+    expect(heading.className).not.toContain("tracking-[-0.026em]");
   });
 });

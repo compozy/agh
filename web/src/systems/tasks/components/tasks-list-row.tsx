@@ -1,8 +1,7 @@
 import * as React from "react";
 
-import { Item, ItemContent, ItemFooter, ItemHeader, ItemTitle, Pill } from "@agh/ui";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -19,10 +18,14 @@ export interface TasksListRowProps extends Omit<React.ComponentProps<"div">, "on
   onSelect?: (taskId: string) => void;
   /** Optional lane badge -- used by the Inbox (task 18) to tag rows by lane. */
   lane?: TaskInboxLane | null;
-  /** Optional slot rendered after the metadata row (e.g. action buttons). */
+  /** Optional slot rendered as the right column (auto-width). */
   trailing?: React.ReactNode;
-  /** Optional slot rendered under the metadata row (e.g. failure reason). */
-  footer?: React.ReactNode;
+  /**
+   * Optional inline meta line rendered under the title row. Each child should
+   * be a span; the row inserts `·` separators between adjacent children.
+   * Mirrors `.task-row__meta` from the proposal.
+   */
+  meta?: React.ReactNode;
   /** Optional test-id override. Defaults to `task-card-${task.id}` for back-compat. */
   testId?: string;
 }
@@ -35,12 +38,32 @@ const LANE_LABELS: Record<TaskInboxLane, string> = {
   archived: "Archived",
 };
 
+function MetaSeparator() {
+  return (
+    <span
+      aria-hidden="true"
+      className="text-(--faint) opacity-60"
+      data-slot="tasks-list-row-meta-sep"
+    >
+      ·
+    </span>
+  );
+}
+
+function joinMeta(children: React.ReactNode): React.ReactNode[] {
+  const items = React.Children.toArray(children);
+  return items.flatMap((child, index) =>
+    index === 0 ? [child] : [<MetaSeparator key={`sep-${index}`} />, child]
+  );
+}
+
 /**
- * Shared list row primitive -- `StatusDot` tone + title + `MonoBadge` id + timestamp
- * + optional lane `Pills` badge. Consumed by `tasks-list-panel`, `task-card`, the
- * Kanban cards (task 18), and Inbox rows (task 18). DESIGN.md §4 list-row
- * composition; visual shape mirrors the mock at
- * `docs/design/web-inspiration/src/pages-core.jsx`.
+ * Shared list-row primitive built on the proposal's `.task-row` grammar
+ * (`docs/design/new-proposal/agh-refined-7.html` lines 260-269). 3-column grid:
+ * `[ status-dot ] [ main (title + meta) ] [ trailing ]`. Identifier renders
+ * as bare mono 10.5 px (NOT a `<Pill>`) per `.task-row__id`. Optional `meta`
+ * slot accepts ReactNodes joined by `·` separators inline. The Kanban and
+ * Inbox build dedicated row primitives instead of reusing this one.
  */
 function TasksListRow({
   task,
@@ -49,7 +72,7 @@ function TasksListRow({
   onSelect,
   lane = null,
   trailing,
-  footer,
+  meta,
   testId,
   className,
   ...props
@@ -71,71 +94,80 @@ function TasksListRow({
       }
     : undefined;
 
+  const showRail = rail || selected;
+
   return (
-    <Item
-      as="div"
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
+    <div
       aria-pressed={selected}
-      indicator={rail || selected ? "rail" : "none"}
-      selectable={clickable || selected}
-      selected={selected}
       data-slot="tasks-list-row"
+      data-selected={selected ? "true" : undefined}
+      data-status={task.status}
       data-testid={resolvedTestId}
       onClick={clickable ? () => onSelect?.(task.id) : undefined}
       onKeyDown={handleKeyDown}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "group relative flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--line) px-4 py-3.5 text-left",
+        "relative grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-[14px] border-b border-(--line-soft) py-[11px] pr-[10px] pl-[14px] text-left transition-colors duration-(--dur) ease-(--ease)",
         clickable &&
-          "cursor-pointer hover:bg-(--canvas-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
-        className,
-        rail || selected ? "border-l-2 border-l-(--accent)" : "border-l-2 border-l-transparent"
+          "cursor-pointer hover:bg-(--row-hover) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong) focus-visible:ring-inset",
+        selected && "bg-(--row-selected)",
+        className
       )}
       {...props}
     >
-      <ItemHeader className="justify-start">
-        <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-        <ItemTitle
-          data-slot="tasks-list-row-title"
-          className="min-w-0 flex-1 truncate text-small-body font-medium text-(--fg)"
-        >
-          {task.title}
-        </ItemTitle>
-        {lane ? (
-          <Pill
-            data-slot="tasks-list-row-lane"
-            size="sm"
-            tone={pillToneFromLegacyTone(taskLaneTone(lane))}
-          >
-            {LANE_LABELS[lane] ?? lane}
-          </Pill>
-        ) : null}
-      </ItemHeader>
-
-      <ItemContent className="flex-row items-center gap-2 text-eyebrow">
-        <Pill mono>{identifier}</Pill>
-        <span data-slot="tasks-list-row-timestamp" className="font-mono text-badge text-(--subtle)">
-          {timestamp}
-        </span>
-        {trailing !== undefined ? (
-          <div
-            data-slot="tasks-list-row-trailing"
-            className="ml-auto flex shrink-0 items-center gap-1.5"
-          >
-            {trailing}
-          </div>
-        ) : null}
-      </ItemContent>
-
-      {footer !== undefined ? (
-        <ItemFooter
-          data-slot="tasks-list-row-footer"
-          className="flex min-w-0 flex-col items-stretch gap-1"
-        >
-          {footer}
-        </ItemFooter>
+      {showRail ? (
+        <span
+          aria-hidden="true"
+          className="absolute top-[8px] bottom-[8px] left-0 w-[2px] rounded-tr-[2px] rounded-br-[2px] bg-(--accent)"
+        />
       ) : null}
-    </Item>
+
+      <span className="flex shrink-0 items-center justify-center">
+        <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
+      </span>
+
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h3
+            className="min-w-0 max-w-full truncate text-[13px] font-medium tracking-[-0.014em] text-(--fg-strong)"
+            data-slot="tasks-list-row-title"
+          >
+            {task.title}
+          </h3>
+          {lane ? (
+            <Pill data-slot="tasks-list-row-lane" size="sm" tone={taskLaneTone(lane)}>
+              {LANE_LABELS[lane] ?? lane}
+            </Pill>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-[9px] text-[11.5px] tracking-[-0.005em] text-(--subtle)">
+          <span className="font-mono text-[10.5px] text-(--faint)" data-slot="tasks-list-row-id">
+            {identifier}
+          </span>
+          <MetaSeparator />
+          <span
+            className="font-mono text-[10.5px] tabular-nums text-(--faint)"
+            data-slot="tasks-list-row-timestamp"
+          >
+            {timestamp}
+          </span>
+          {meta !== undefined ? (
+            <>
+              <MetaSeparator />
+              {joinMeta(meta)}
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {trailing !== undefined ? (
+        <div className="flex shrink-0 items-center gap-1.5" data-slot="tasks-list-row-trailing">
+          {trailing}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

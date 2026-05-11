@@ -1,9 +1,42 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@agh/ui";
 
 import { SessionLedgerUnavailableError } from "../../adapters/session-api";
 import type { SessionLedgerResponse } from "../../types";
 import { SessionInspector } from "../session-inspector";
+
+const ORIGINAL_MATCH_MEDIA = window.matchMedia;
+
+function installMatchMedia(matches: boolean): void {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
+beforeEach(() => {
+  installMatchMedia(true);
+});
+
+afterEach(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: ORIGINAL_MATCH_MEDIA,
+  });
+});
 
 function makeLedger(overrides?: Partial<SessionLedgerResponse>): SessionLedgerResponse {
   return {
@@ -32,7 +65,51 @@ function openMemoryTab() {
   fireEvent.click(screen.getByTestId("session-inspector-tab-memory"));
 }
 
-describe("SessionInspector , Memory v2 forensic ledger surface", () => {
+describe("SessionInspector — DetailInspector chrome (ADR-014 §2 / §3)", () => {
+  it("Should consume <DetailInspector> with 5 tabs in a single flat tab strip", () => {
+    const ledger = makeLedger();
+    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
+
+    expect(screen.getByTestId("session-inspector-tab-trace")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-tab-usage")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-tab-memory")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-tab-files")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-tab-vault")).toBeInTheDocument();
+  });
+
+  it("Should render inline at >= 1440 px viewport (data-mode=inline) at 320 px width", () => {
+    installMatchMedia(true);
+    const { container } = render(
+      <SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />
+    );
+    const root = container.querySelector<HTMLElement>(
+      '[data-slot="detail-inspector"][data-mode="inline"]'
+    );
+    expect(root).not.toBeNull();
+    expect(root?.style.width).toBe("320px");
+  });
+
+  it("Should collapse into the right-anchored sheet drawer below 1440 px", () => {
+    installMatchMedia(false);
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        memory={{ ledger: null }}
+        drawerOpen
+        onDrawerOpenChange={() => {}}
+      />
+    );
+    const drawer = document.querySelector('[data-slot="detail-inspector"][data-mode="drawer"]');
+    expect(drawer).not.toBeNull();
+  });
+
+  it("Should expose DETAIL_INSPECTOR_INLINE_BREAKPOINT as the canonical 1440 px constant", () => {
+    expect(DETAIL_INSPECTOR_INLINE_BREAKPOINT).toBe(1440);
+  });
+});
+
+describe("SessionInspector — Memory v2 forensic ledger surface", () => {
   it("Should render lineage meta and ledger events when the ledger is materialized", () => {
     const ledger = makeLedger();
 

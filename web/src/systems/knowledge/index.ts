@@ -81,8 +81,6 @@ export {
   compareKnowledgeScope,
   decisionOpLabel,
   decisionSourceLabel,
-  formatKnowledgeDateTime,
-  formatKnowledgeRelativeTime,
   knowledgeAgentTierLabel,
   knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
@@ -96,3 +94,9 @@ export {
   groupKnowledgeMemoriesByScope,
   sortKnowledgeMemories,
 } from "./lib/knowledge-list";
+export {
+  KNOWLEDGE_TYPE_TONE,
+  knowledgeTypeFor,
+  type KnowledgeType,
+  type KnowledgeTypeTone,
+} from "./lib/knowledge-type-tone";

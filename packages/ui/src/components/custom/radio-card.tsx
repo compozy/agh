@@ -15,6 +15,12 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
   badge?: React.ReactNode;
 }
 
+/**
+ * Single radio choice rendered as a card. Per ADR-004 §8:
+ * - resting state: `--canvas-soft` surface, no border (flat-depth).
+ * - selected state: `--surface-glaze` background + `box-shadow: 0 0 0 1px var(--line-strong) inset`.
+ *   No accent border, no `--accent-tint` fill — accent stays reserved for true CTAs.
+ */
 function RadioCard({
   selected,
   onSelect,
@@ -50,10 +56,10 @@ function RadioCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-1.5 rounded-(--radius-lg) border bg-(--canvas-soft) px-4 py-3 text-left transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0",
+        "group flex w-full min-w-0 flex-col gap-1.5 rounded-(--radius) bg-(--canvas-soft) px-[11px] py-[9px] text-left transition-colors duration-(--dur) ease-(--ease) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--line-strong) focus-visible:ring-offset-0",
         selected
-          ? "border-(--accent) bg-(--accent-tint)"
-          : "border-(--line) hover:border-(--line-strong)",
+          ? "bg-(--surface-glaze) shadow-[inset_0_0_0_1px_var(--line-strong)]"
+          : "hover:bg-(--elevated)",
         className
       )}
       {...props}
@@ -64,7 +70,7 @@ function RadioCard({
             aria-hidden="true"
             className={cn(
               "inline-flex size-5 shrink-0 items-center justify-center",
-              selected ? "text-(--accent)" : "text-(--muted)"
+              selected ? "text-(--fg-strong)" : "text-(--muted)"
             )}
           >
             <Icon className="size-3.5" />

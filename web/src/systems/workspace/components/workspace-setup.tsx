@@ -1,4 +1,4 @@
-import { FolderPlus, Home, Loader2, Sparkles } from "lucide-react";
+import { FolderPlus, Home, Sparkles } from "lucide-react";
 
 import {
   Button,
@@ -14,6 +14,7 @@ import {
   FieldLabel,
   Input,
   Pill,
+  Spinner,
 } from "@agh/ui";
 
 import { OptionCard } from "./option-card";
@@ -52,16 +53,16 @@ function WorkspaceSetupContent({
   const isGlobalDisabled = setup.submissionMode !== null || setup.globalUnavailableReason !== null;
   const globalMeta = setup.userHomeDir || setup.globalUnavailableReason || "";
   const manualInvalid = Boolean(setup.manualError);
-  const density = variant === "onboarding" ? "comfortable" : "compact";
+  const size = variant === "onboarding" ? "comfortable" : "compact";
 
   const globalCard = (
-    <OptionCard density={density} data-testid="workspace-setup-global-card">
+    <OptionCard size={size} data-testid="workspace-setup-global-card">
       <OptionCard.Header
         eyebrow="Global"
-        right={<Pill tone="accent">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
+        right={<Pill tone="success">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
       />
       <OptionCard.Body>
-        <OptionCard.Icon tone="accent">
+        <OptionCard.Icon tone="neutral">
           <Home className="size-4" />
         </OptionCard.Icon>
         <OptionCard.Content>
@@ -80,14 +81,14 @@ function WorkspaceSetupContent({
           data-testid="workspace-use-global"
         >
           <span>{WORKSPACE_SETUP_COPY.global.action}</span>
-          {isSubmittingGlobal ? <Loader2 className="animate-spin" /> : <Sparkles />}
+          {isSubmittingGlobal ? <Spinner /> : <Sparkles />}
         </Button>
       </OptionCard.Action>
     </OptionCard>
   );
 
   const manualCard = (
-    <OptionCard density={density} data-testid="workspace-setup-manual-card">
+    <OptionCard size={size} data-testid="workspace-setup-manual-card">
       <OptionCard.Header eyebrow="Path" right={<Pill>{WORKSPACE_SETUP_COPY.manual.badge}</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="neutral">
@@ -128,7 +129,7 @@ function WorkspaceSetupContent({
             data-testid="workspace-register-manual"
           >
             <span>{WORKSPACE_SETUP_COPY.manual.action}</span>
-            {isSubmittingManual ? <Loader2 className="animate-spin" /> : <FolderPlus />}
+            {isSubmittingManual ? <Spinner /> : <FolderPlus />}
           </Button>
         </form>
       </OptionCard.Action>
@@ -141,9 +142,7 @@ function WorkspaceSetupContent({
         {globalCard}
         <div className="flex items-center gap-3 px-1">
           <div className="h-px flex-1 bg-(--line)" />
-          <Eyebrow case="upper" tone="muted" size="badge">
-            {WORKSPACE_SETUP_COPY.manual.dividerLabel}
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">{WORKSPACE_SETUP_COPY.manual.dividerLabel}</Eyebrow>
           <div className="h-px flex-1 bg-(--line)" />
         </div>
         {manualCard}
@@ -205,11 +204,18 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,24rem)] lg:gap-8 xl:gap-10">
           <div className="flex flex-col justify-between gap-6">
             <div className="space-y-4">
-              <Pill tone="accent">{copy.eyebrow}</Pill>
+              <span
+                aria-hidden="true"
+                data-testid="workspace-onboarding-hero-icon"
+                className="inline-flex size-14 items-center justify-center rounded-(--radius-icon-well) bg-(--surface-glaze) text-(--accent)"
+              >
+                <Sparkles className="size-6" />
+              </span>
+              <Eyebrow className="text-(--muted)">{copy.eyebrow}</Eyebrow>
               <div className="space-y-3">
                 <h1
-                  className="max-w-xl text-3xl tracking-tight text-(--fg) sm:text-4xl"
-                  style={{ fontWeight: 510 }}
+                  data-testid="workspace-onboarding-hero-title"
+                  className="max-w-xl text-(length:--text-detail-h1) font-[510] tracking-(--tracking-detail-h1) text-(--fg)"
                 >
                   {copy.title}
                 </h1>
@@ -220,9 +226,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
             </div>
 
             <div className="rounded-2xl border border-(--line) bg-(--canvas-soft) p-4">
-              <Eyebrow case="upper" tone="muted" size="badge">
-                {copy.noteLabel}
-              </Eyebrow>
+              <Eyebrow className="text-(--muted)">{copy.noteLabel}</Eyebrow>
               <p className="mt-2 text-sm leading-6 text-(--muted)">{copy.noteBody}</p>
             </div>
           </div>

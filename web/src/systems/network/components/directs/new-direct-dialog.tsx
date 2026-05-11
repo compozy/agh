@@ -80,7 +80,7 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
             <span className="truncate text-small-body text-(--fg)">
               @{getPeerDisplayName(peer)}
             </span>
-            <Eyebrow weight="medium">{peer.peer_id}</Eyebrow>
+            <Eyebrow>{peer.peer_id}</Eyebrow>
           </CommandItem>
         ))}
       </CommandList>

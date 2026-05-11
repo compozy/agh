@@ -1,6 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ListChecksIcon } from "lucide-react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Topbar,
@@ -20,7 +20,9 @@ function SlotInspector({ probeId }: { probeId: string }) {
   return (
     <span data-testid={probeId}>
       tabs:{slot?.tabs ? "yes" : "no"} actions:{slot?.actions ? "yes" : "no"} search:
-      {slot?.search ? "yes" : "no"} title:{slot?.title ? "yes" : "no"}
+      {slot?.search ? "yes" : "no"} title:{slot?.title ? "yes" : "no"} meta:
+      {slot?.meta ? "yes" : "no"} overflow:{slot?.overflow ? "yes" : "no"} back:
+      {slot?.back ? "yes" : "no"}
     </span>
   );
 }
@@ -88,6 +90,136 @@ describe("Topbar", () => {
     expect(screen.queryByText("12")).toBeNull();
   });
 
+  it("Should auto-resolve count from the navCount prop when slot and route omit it", () => {
+    render(
+      <TopbarSlotProvider>
+        <Topbar navCount={7} route={{ title: "Tasks", navCountKey: "tasks" }} />
+      </TopbarSlotProvider>
+    );
+    const count = screen.getByTestId("topbar-count");
+    expect(count).toHaveTextContent("7");
+  });
+
+  it("Should prefer slot count over navCount when both are provided", () => {
+    function Setup() {
+      useTopbarSlot({ count: 99 });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar navCount={7} route={{ title: "Tasks", navCountKey: "tasks" }} />
+      </TopbarSlotProvider>
+    );
+    expect(screen.getByTestId("topbar-count")).toHaveTextContent("99");
+    expect(screen.queryByText("7")).toBeNull();
+  });
+
+  it("Should prefer route getCount over navCount when slot count is omitted", () => {
+    render(
+      <TopbarSlotProvider>
+        <Topbar navCount={7} route={{ title: "Tasks", getCount: () => 42, navCountKey: "tasks" }} />
+      </TopbarSlotProvider>
+    );
+    expect(screen.getByTestId("topbar-count")).toHaveTextContent("42");
+  });
+
+  it("Should not render the count chip when all sources are undefined", () => {
+    render(
+      <TopbarSlotProvider>
+        <Topbar route={{ title: "Tasks" }} />
+      </TopbarSlotProvider>
+    );
+    expect(screen.queryByTestId("topbar-count")).toBeNull();
+  });
+
+  it("Should render the back chevron when slot.back is provided", () => {
+    const onBack = vi.fn();
+    function Setup() {
+      useTopbarSlot({ back: onBack, backLabel: "Back to tasks" });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar route={{ title: "Detail" }} />
+      </TopbarSlotProvider>
+    );
+    const back = screen.getByTestId("topbar-back");
+    expect(back).toHaveAttribute("aria-label", "Back to tasks");
+    fireEvent.click(back);
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("Should default backLabel to 'Go back' when not provided", () => {
+    function Setup() {
+      useTopbarSlot({ back: () => undefined });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar route={{ title: "Detail" }} />
+      </TopbarSlotProvider>
+    );
+    expect(screen.getByTestId("topbar-back")).toHaveAttribute("aria-label", "Go back");
+  });
+
+  it("Should set data-mode='detail' when slot.back is present", () => {
+    function Setup() {
+      useTopbarSlot({ back: () => undefined });
+      return null;
+    }
+    const { container } = render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar route={{ title: "Detail" }} />
+      </TopbarSlotProvider>
+    );
+    const header = container.querySelector('[data-slot="topbar"]');
+    expect(header).toHaveAttribute("data-mode", "detail");
+  });
+
+  it("Should default data-mode='default' when slot.back is absent", () => {
+    const { container } = render(
+      <TopbarSlotProvider>
+        <Topbar route={{ title: "Tasks" }} />
+      </TopbarSlotProvider>
+    );
+    const header = container.querySelector('[data-slot="topbar"]');
+    expect(header).toHaveAttribute("data-mode", "default");
+  });
+
+  it("Should render the meta slot adjacent to the title", () => {
+    function Setup() {
+      useTopbarSlot({ meta: <span data-testid="meta-chip">meta</span> });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar route={{ title: "Detail" }} />
+      </TopbarSlotProvider>
+    );
+    expect(screen.getByTestId("topbar-meta")).toContainElement(screen.getByTestId("meta-chip"));
+  });
+
+  it("Should render the overflow slot at the trailing edge", () => {
+    function Setup() {
+      useTopbarSlot({ overflow: <span data-testid="overflow-trigger">…</span> });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar route={{ title: "Detail" }} />
+      </TopbarSlotProvider>
+    );
+    expect(screen.getByTestId("topbar-overflow")).toContainElement(
+      screen.getByTestId("overflow-trigger")
+    );
+  });
+
   it("Should mark the title element focusable so the shell can move focus on route resolve", () => {
     render(
       <TopbarSlotProvider>
@@ -126,7 +258,17 @@ describe("Topbar", () => {
     function Harness({ mounted }: { mounted: boolean }) {
       return (
         <>
-          {mounted ? <ProbeSlot slot={{ actions: <span data-testid="a" /> }} label="a" /> : null}
+          {mounted ? (
+            <ProbeSlot
+              slot={{
+                actions: <span data-testid="a" />,
+                back: () => undefined,
+                meta: <span data-testid="m" />,
+                overflow: <span data-testid="o" />,
+              }}
+              label="a"
+            />
+          ) : null}
           <SlotInspector probeId="inspector" />
         </>
       );
@@ -137,6 +279,9 @@ describe("Topbar", () => {
       </TopbarSlotProvider>
     );
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("meta:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("back:yes");
 
     act(() => {
       rerender(
@@ -150,6 +295,9 @@ describe("Topbar", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("tabs:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("search:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("title:no");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("meta:no");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:no");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("back:no");
   });
 
   it("Should be a no-op when used outside a TopbarSlotProvider (test ergonomics)", () => {

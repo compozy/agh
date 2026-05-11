@@ -47,11 +47,9 @@ export const Default: Story = {
 };
 
 /**
- * Sentence-case label when the surrounding rhythm is conversational (e.g. inline note).
+ * Detail line beneath the value (e.g. operator binding, age, source).
  */
-export const SentenceLabel: Story = {
+export const WithDetail: Story = {
   args: {},
-  render: () => (
-    <MetadataTile labelCase="sentence" label="Provider home" value="~/.claude" detail="bound" />
-  ),
+  render: () => <MetadataTile label="Provider home" value="~/.claude" detail="bound" />,
 };

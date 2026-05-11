@@ -1,8 +1,18 @@
-import { AlertCircle, Brain, Loader2, Play } from "lucide-react";
+import { AlertCircle, Brain, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, PageShell, Section, Switch, useTopbarSlot } from "@agh/ui";
+import {
+  Button,
+  Input,
+  PageShell,
+  RestartBanner,
+  Section,
+  Spinner,
+  StatusLineTopbarSlot,
+  Switch,
+  useTopbarSlot,
+} from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
@@ -10,11 +20,9 @@ import {
   SettingsDecimalInput,
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/memory")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -50,24 +58,33 @@ export function MemorySettingsPage() {
   const healthForSlot = page.envelope?.health;
   useTopbarSlot({
     tabs: healthForSlot ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid={`${TEST_PREFIX}-status-line`}
         status={healthForSlot.available ? "connected" : "error"}
         items={[
-          <span key="files">{healthForSlot.file_count} memory files</span>,
-          <span key="last" data-testid={`${TEST_PREFIX}-last-consolidated`}>
-            {healthForSlot.last_consolidated_at
-              ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
-              : "no dream runs yet"}
-          </span>,
-          <span key="dream-state">
-            {healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled"}
-          </span>,
+          {
+            key: "files",
+            value: `${healthForSlot.file_count} memory files`,
+            tone: "neutral",
+          },
+          {
+            key: "last",
+            value: (
+              <span data-testid={`${TEST_PREFIX}-last-consolidated`}>
+                {healthForSlot.last_consolidated_at
+                  ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
+                  : "no dream runs yet"}
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "dream-state",
+            value: healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled",
+            tone: "neutral",
+          },
         ]}
       />
-    ) : undefined,
-    actions: page.envelope ? (
-      <SettingsPageActions slug="memory" restart={page.restart} />
     ) : undefined,
   });
 
@@ -77,7 +94,7 @@ export function MemorySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid={`${TEST_PREFIX}-loading`}
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -102,10 +119,12 @@ export function MemorySettingsPage() {
   const dreamAvailable =
     envelope.actions.consolidate.available && envelope.health.dream_enabled && draft.dream.enabled;
 
+  const bannerProps = restartBannerPropsFor("memory", restart);
+
   return (
     <PageShell
       slug="memory"
-      banner={<SettingsRestartBanner slug="memory" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="memory"
@@ -1372,11 +1391,7 @@ function renderDreamSection({
           disabled={!dreamAvailable || dreamPending}
           onClick={onTriggerDream}
         >
-          {dreamPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Play className="size-3.5" />
-          )}
+          {dreamPending ? <Spinner className="size-3.5" /> : <Play className="size-3.5" />}
           Trigger dream
         </Button>
       }

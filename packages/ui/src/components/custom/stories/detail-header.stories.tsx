@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Button, Pill } from "@agh/ui";
-import { DetailHeader } from "../detail-header";
+import { Button, DetailHeader, Pill } from "@agh/ui";
 
 const meta: Meta<typeof DetailHeader> = {
   title: "components/custom/DetailHeader",
@@ -11,7 +10,7 @@ const meta: Meta<typeof DetailHeader> = {
     docs: {
       description: {
         component:
-          "Detail-page hero header. Mono UPPERCASE crumbs row above an Inter 24px / 510-weight title, optional pill row, optional dense meta row, and a trailing action cluster. Bottom rule on `--line`; surface stays canvas (no extra fill).",
+          "Six-row detail hero per ADR-003 §2 — crumbs / pre-title / 24 px H1 / pills / meta / actions. Bottom hairline on --line; surface stays canvas. Pass `back` to wire the chevron back affordance (router.history.back() with parent-route fallback per ADR-005 §5).",
       },
     },
   },
@@ -27,15 +26,15 @@ const meta: Meta<typeof DetailHeader> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * Full header with crumbs, title, pills, meta, and an action cluster.
- */
+/** Full anatomy with every row populated. */
 export const Full: Story = {
   args: {},
   render: () => (
     <DetailHeader
-      crumbs="Workspaces / personal / sessions"
+      crumbs={[{ label: "Workspaces" }, { label: "personal" }, { label: "Sessions" }]}
+      preTitle="Run #42"
       title="Refactor internal/network for the new agh-network/v0 contract"
+      back={() => undefined}
       pills={
         <>
           <Pill tone="accent">In progress</Pill>
@@ -60,10 +59,26 @@ export const Full: Story = {
   ),
 };
 
-/**
- * Title-only minimal — verifies the gap structure when the optional rows are omitted.
- */
+/** Title-only — verifies the gap structure when optional rows are omitted. */
 export const TitleOnly: Story = {
   args: {},
   render: () => <DetailHeader title="Untitled session" />,
+};
+
+/** Crumbs + back affordance only. */
+export const WithBack: Story = {
+  args: {},
+  render: () => (
+    <DetailHeader
+      title="Provider configuration"
+      crumbs="Settings / Providers"
+      back={() => undefined}
+    />
+  ),
+};
+
+/** Plain ReactNode crumbs (legacy bag of children). */
+export const NodeCrumbs: Story = {
+  args: {},
+  render: () => <DetailHeader title="Knowledge entry" crumbs="Knowledge / Notes / 2026-05-11" />,
 };

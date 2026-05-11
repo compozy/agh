@@ -39,7 +39,6 @@ export function KindChip({ kind, label, dotColor, className, ...props }: KindChi
       tone="neutral"
       data-slot="kind-chip"
       data-kind={kind}
-      uppercase
       className={className}
       {...props}
     >

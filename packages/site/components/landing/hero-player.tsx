@@ -21,7 +21,7 @@ export function HeroPlayer({ className }: HeroPlayerProps) {
   const containerClass = cn("relative mx-auto aspect-square w-full max-w-[560px]", className);
   const containerStyle = {
     background:
-      "radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 58%)",
+      "radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 58%)",
   } as const;
 
   if (reduced) {

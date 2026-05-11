@@ -146,7 +146,7 @@ export function InspectorActivityFeed({
               <ItemTitle className="min-w-0 text-xs">
                 <span className="truncate">{entry.title}</span>
               </ItemTitle>
-              <Eyebrow weight="medium">{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
+              <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
             </ItemFooter>
             <p className="line-clamp-2 text-xs text-(--muted)">{entry.preview}</p>
           </ItemContent>

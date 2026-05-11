@@ -1,5 +1,5 @@
 import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
-import { Loader2, SendHorizontal, Square, Trash2 } from "lucide-react";
+import { SendHorizontal, Square, Trash2 } from "lucide-react";
 import { AuiIf, ComposerPrimitive, MessagePrimitive, ThreadPrimitive } from "@assistant-ui/react";
 
 import {
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   Eyebrow,
+  Spinner,
 } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
@@ -46,7 +47,7 @@ function SessionMessageEmpty({ status }: { status: { type: string } }) {
 
   return (
     <div className="flex items-center gap-2 text-sm text-(--subtle)">
-      <Loader2 className="size-4 animate-spin" />
+      <Spinner />
       <span>Thinking…</span>
     </div>
   );
@@ -162,7 +163,7 @@ function SessionComposer({
                 data-testid="composer-clear-button"
               >
                 {isClearingConversation ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Spinner className="size-3.5" />
                 ) : (
                   <Trash2 className="size-3.5" />
                 )}
@@ -234,7 +235,7 @@ function SessionComposer({
             >
               {isClearingConversation ? (
                 <>
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Spinner className="size-3.5" />
                   Clearing
                 </>
               ) : (
@@ -255,9 +256,7 @@ function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
   return (
     <div className="mx-auto flex size-full max-w-3xl items-center justify-center px-4 py-12">
       <div className="max-w-md text-center">
-        <Eyebrow case="upper" tone="subtle">
-          {agentName}
-        </Eyebrow>
+        <Eyebrow className="text-(--subtle)">{agentName}</Eyebrow>
         <p className="mt-2 text-sm text-(--muted)">
           Start a conversation. The assistant thread replays persisted history and continues live
           over the daemon stream.

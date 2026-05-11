@@ -87,7 +87,7 @@ export function InspectorMembersList({
             <ItemTitle className="min-w-0 text-small-body">
               {member.displayName || `@${member.peerId}`}
             </ItemTitle>
-            <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`} weight="medium">
+            <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`}>
               {member.role === "agent" ? "AGENT" : "HUMAN"}
             </Eyebrow>
           </ItemContent>

@@ -13,6 +13,7 @@ import {
   Input,
   PageShell,
   Section,
+  StatusLineTopbarSlot,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -24,11 +25,7 @@ import {
   type VaultLastAction,
   type VaultNamespaceFilter,
 } from "@/hooks/routes/use-settings-vault-page";
-import {
-  SettingsEditorDialog,
-  SettingsFieldRow,
-  SettingsStatusLine,
-} from "@/systems/settings/components";
+import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings/components";
 import { VAULT_NAMESPACES, VaultSecretsTable, type VaultSecret } from "@/systems/vault";
 
 export const Route = createFileRoute("/_app/settings/vault")({
@@ -43,20 +40,34 @@ function VaultSettingsPage() {
 
   useTopbarSlot({
     tabs: !page.isLoading ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         daemonLabel={page.queryError ? "vault unavailable" : "vault available"}
         status={page.queryError ? "error" : "connected"}
         data-testid="settings-page-vault-status-line"
         items={[
-          <span key="total" data-testid="settings-page-vault-total">
-            {page.counts.total} secrets
-          </span>,
-          <span key="sessions" data-testid="settings-page-vault-sessions">
-            {page.counts.sessions} session-scoped
-          </span>,
-          <span key="providers" data-testid="settings-page-vault-providers">
-            {page.counts.providers} provider-scoped
-          </span>,
+          {
+            key: "total",
+            value: <span data-testid="settings-page-vault-total">{page.counts.total} secrets</span>,
+            tone: "neutral",
+          },
+          {
+            key: "sessions",
+            value: (
+              <span data-testid="settings-page-vault-sessions">
+                {page.counts.sessions} session-scoped
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "providers",
+            value: (
+              <span data-testid="settings-page-vault-providers">
+                {page.counts.providers} provider-scoped
+              </span>
+            ),
+            tone: "neutral",
+          },
         ]}
       />
     ) : undefined,
@@ -116,6 +127,19 @@ function VaultSettingsPage() {
           title="Unable to load vault metadata"
           description={page.queryError}
           data-testid="settings-page-vault-error"
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void page.refetch()}
+              disabled={page.isRefetching}
+              data-testid="settings-page-vault-error-retry"
+            >
+              <RefreshCw className={page.isRefetching ? "size-3.5 animate-spin" : "size-3.5"} />
+              Retry
+            </Button>
+          }
         />
       ) : (
         <VaultSecretsTable
@@ -169,9 +193,7 @@ function VaultFilterBar({
       data-testid="settings-page-vault-filters"
     >
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
-        <Eyebrow case="upper" tone="muted">
-          Namespace
-        </Eyebrow>
+        <Eyebrow className="text-(--muted)">Namespace</Eyebrow>
         <select
           id="settings-page-vault-namespace"
           value={namespace}
@@ -188,9 +210,7 @@ function VaultFilterBar({
         </select>
       </label>
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
-        <Eyebrow case="upper" tone="muted">
-          Prefix
-        </Eyebrow>
+        <Eyebrow className="text-(--muted)">Prefix</Eyebrow>
         <Input
           id="settings-page-vault-prefix"
           value={prefix}
@@ -310,6 +330,10 @@ interface VaultDeleteDialogProps {
   onConfirm: () => void;
 }
 
+function isSessionScopedVaultRef(ref: string): boolean {
+  return ref.startsWith("vault:sessions/");
+}
+
 function VaultDeleteDialog({
   target,
   error,
@@ -317,24 +341,33 @@ function VaultDeleteDialog({
   onClose,
   onConfirm,
 }: VaultDeleteDialogProps) {
+  const sessionScope = target ? isSessionScopedVaultRef(target.ref) : false;
+  const confirmTypingValue = target && !sessionScope ? target.ref : undefined;
   return (
     <ConfirmDialog
       open={target !== null}
-      title="Delete vault secret?"
+      title={sessionScope ? "Delete session vault secret?" : "Delete vault secret?"}
       description={
         target ? (
           <span>
             Delete metadata and encrypted value for{" "}
             <code className="font-mono text-(--fg)">{target.ref}</code>.
+            {sessionScope
+              ? " This is a session-scoped secret; it is removed immediately."
+              : " Cross-scope vault entries require typed confirmation."}
           </span>
         ) : null
       }
       error={error}
       isPending={isDeleting}
       cancelLabel="Cancel"
-      confirmLabel="Delete secret"
+      confirmLabel={sessionScope ? "Confirm" : "Delete secret"}
       confirmIcon={Trash2}
-      contentProps={{ "data-testid": "settings-vault-delete" }}
+      confirmTyping={confirmTypingValue}
+      contentProps={{
+        "data-testid": "settings-vault-delete",
+        "data-scope": sessionScope ? "session" : "cross",
+      }}
       descriptionProps={{ "data-testid": "settings-vault-delete-description" }}
       errorProps={{ "data-testid": "settings-vault-delete-error" }}
       cancelButtonProps={{
@@ -344,6 +377,7 @@ function VaultDeleteDialog({
       confirmButtonProps={{
         "data-testid": "settings-vault-delete-confirm",
       }}
+      confirmInputProps={{ "data-testid": "settings-vault-delete-confirm-typing" }}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();

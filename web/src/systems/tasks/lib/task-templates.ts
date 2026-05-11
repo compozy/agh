@@ -1,3 +1,5 @@
+import type { PillTone } from "@agh/ui";
+
 import type { CreateChildTaskRequest, CreateTaskRequest, TaskPriority } from "../types";
 
 export type TaskTemplateId =
@@ -17,9 +19,15 @@ export interface TaskTemplate {
   preview: TaskTemplatePreview;
 }
 
+/**
+ * Badge tones consume the 6-tone `PillTone` vocabulary per ADR-006 §8. The
+ * empty-state template grid renders only `accent | info | warning | neutral`.
+ */
+export type TaskTemplateBadgeTone = Extract<PillTone, "accent" | "info" | "warning" | "neutral">;
+
 export interface TaskTemplateBadge {
   label: string;
-  tone: "neutral" | "violet" | "amber";
+  tone: TaskTemplateBadgeTone;
 }
 
 export interface TaskTemplateDefaults {
@@ -50,7 +58,7 @@ const RECURRING_TEMPLATE: TaskTemplate = {
   description:
     "Bind a cron or schedule from Automation — re-enqueues a run every tick. Configure the schedule from the Automation area after the draft is saved.",
   defaults: { draft: true, priority: "medium" },
-  badges: [{ label: "Automation", tone: "violet" }],
+  badges: [{ label: "Automation", tone: "info" }],
   preview: {
     enqueueOnSubmit: false,
     notice: "Saves as a draft so Automation can attach the schedule later.",
@@ -63,7 +71,7 @@ const EPIC_TEMPLATE: TaskTemplate = {
   description:
     "A parent task that decomposes into child tasks. Reconciled via dependencies; child tasks can be added after creation.",
   defaults: { draft: false, priority: "high" },
-  badges: [{ label: "Epic", tone: "amber" }],
+  badges: [{ label: "Epic", tone: "warning" }],
   preview: { enqueueOnSubmit: true },
 };
 
@@ -73,7 +81,7 @@ const REMOTE_PEER_TEMPLATE: TaskTemplate = {
   description:
     "Ingress from a network channel. Remote peers enqueue; local owner claims when ready.",
   defaults: { draft: false, priority: "medium" },
-  badges: [{ label: "Network", tone: "violet" }],
+  badges: [{ label: "Network", tone: "info" }],
   preview: { enqueueOnSubmit: true },
 };
 
@@ -82,7 +90,7 @@ const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {
   label: "Human-in-the-loop",
   description: "Agent proposes, human approves. Pauses on blocked until approved in Inbox.",
   defaults: { draft: false, priority: "high", approval_policy: "manual" },
-  badges: [{ label: "Approvals", tone: "amber" }],
+  badges: [{ label: "Approvals", tone: "warning" }],
   preview: {
     enqueueOnSubmit: true,
     notice: "First run will wait for approval in the Inbox before claiming.",

@@ -7,7 +7,11 @@
  * own delivery path without shipping duplicate faces.
  *
  * Authority: `DESIGN.md` (repo root). Reference contract:
- * `.compozy/tasks/redesign/_techspec.md` → "Token Contract".
+ * `.compozy/tasks/redesign-v2/_techspec.md` → "Data Models — Token contract delta".
+ *
+ * All redesign-v2 staged token deletions are now complete (PR-1 → PR-4). See
+ * `.compozy/tasks/redesign-v2/_techspec.md` §"Data Models — Deletions" for the
+ * historical list and per-PR atomicity rationale.
  */
 @import "tw-animate-css";
 
@@ -23,7 +27,10 @@
   --canvas-tint: #1c1b1a;
   --sidebar: #1a1918;
   --elevated: #232220;
-  --hover: #1f1e1d;
+  /* --hover aliases the glaze ladder so consumers of `hover:bg-(--hover)` resolve
+     the canonical row-hover tint (ADR-001 §6). Fixes live bug N-45
+     (activity-feed.tsx:121 referenced the alias before it existed). */
+  --hover: var(--row-hover);
   --disabled: #4a4847;
 
   /* Hairlines — translucent rails derived from white. */
@@ -48,7 +55,7 @@
   --accent-dim: rgba(232, 87, 42, 0.24);
   --accent-glow: rgba(232, 87, 42, 0.05);
 
-  /* Signal palette — desaturated; tints at 6–10% alpha. */
+  /* Signal palette — desaturated; tints at 6–12% alpha. */
   --success: #5fbf85;
   --success-tint: rgba(95, 191, 133, 0.08);
   --warning: #d6a647;
@@ -56,14 +63,58 @@
   --danger: #e0635a;
   --danger-tint: rgba(224, 99, 90, 0.09);
   --info: #8e8eb5;
-  --info-tint: rgba(142, 142, 181, 0.07);
+  --info-tint: rgba(142, 142, 181, 0.12);
   --neutral: #7a7a80;
-  --neutral-tint: rgba(122, 122, 128, 0.06);
+  --neutral-tint: rgba(150, 150, 155, 0.06);
 
   /* Overlays. */
-  --overlay-scrim: rgba(0, 0, 0, 0.5);
+  --overlay-scrim: rgba(0, 0, 0, 0.55);
+  --overlay-blur: 3px;
   --overlay-ghost-hover: rgba(255, 255, 255, 0.06);
-  --overlay-selection: rgba(232, 87, 42, 0.28);
+
+  /* Surface glaze ladder — ADR-001 §6.
+     Inline rgba(255,255,255,0.0XX) literals across web/src/** and packages/ui/src/**
+     must migrate to these tokens (lint plugin `no-design-glaze-rgba` flips to error
+     in PR 4). The `--hover` alias above resolves to `--row-hover`. */
+  --row-hover: rgba(255, 255, 255, 0.022);
+  --row-selected: rgba(255, 255, 255, 0.03);
+  --surface-glaze: rgba(255, 255, 255, 0.04);
+  --bar-fill: rgba(255, 255, 255, 0.085);
+  --input-fill: rgba(255, 255, 255, 0.025);
+  --btn-default-fill: rgba(255, 255, 255, 0.04);
+  --btn-default-hover: rgba(255, 255, 255, 0.07);
+  --badge-fill: rgba(255, 255, 255, 0.05);
+
+  /* Owner avatar palette — ADR-001 §7 + ADR-010 §6.
+     `web/src/lib/owner-palette.ts` resolves these via `colorsFor(ownerKind, ownerId)`.
+     Storybook + design ref tools must consume the same source as the runtime. */
+  --avatar-agent-0-bg: rgba(232, 144, 99, 0.18);
+  --avatar-agent-0-fg: #f2b895;
+  --avatar-agent-1-bg: rgba(168, 178, 220, 0.16);
+  --avatar-agent-1-fg: #c5cce7;
+  --avatar-agent-2-bg: rgba(143, 196, 178, 0.18);
+  --avatar-agent-2-fg: #a9d9c7;
+  --avatar-agent-3-bg: rgba(214, 168, 192, 0.18);
+  --avatar-agent-3-fg: #e0bcd0;
+  --avatar-human-0-bg: rgba(220, 192, 134, 0.2);
+  --avatar-human-0-fg: #e5cc9a;
+  --avatar-human-1-bg: rgba(195, 178, 156, 0.2);
+  --avatar-human-1-fg: #d6c5aa;
+  --avatar-human-2-bg: rgba(192, 173, 178, 0.2);
+  --avatar-human-2-fg: #d2bfc5;
+  --avatar-system-bg: var(--elevated);
+  --avatar-system-fg: var(--subtle);
+
+  /* Modal width ladder — ADR-011 §1. */
+  --width-modal-sm: 560px;
+  --width-modal-md: 720px;
+  --width-modal-lg: 880px;
+
+  /* Sizing tokens — ADR-015 §2.
+     `--size-catalog-logo` for browse/install surfaces (CatalogCard logoSize="default").
+     `--size-provider-logo-well` for connected/configured surfaces (logoSize="lg"). */
+  --size-catalog-logo: 1.5rem;
+  --size-provider-logo-well: 2.5rem;
 
   /* Protocol kind colors — keyed off the new signal palette. */
   --color-kind-say: var(--neutral);
@@ -74,23 +125,42 @@
   --color-kind-trace: var(--info);
   --color-kind-whois: var(--neutral);
 
-  /* Shared mono / pill-group constants. */
+  /* Pinned radii at :root — ADR-001 §9.
+     Mirrored under @theme inline below so Tailwind utilities (rounded-xs, rounded)
+     stay generated; pinning at :root makes them resolvable inside any custom
+     property cascade without the `@theme inline` layer. */
+  --radius-xs: 4px;
+  --radius: 6px;
+
+  /* Shared mono / pill-group constants.
+     `--radius-mono-badge` value moved from 6px to 4px (ADR-003 §6); name preserved
+     for callsite stability.
+     `--height-pill-group-segment-md` lifted from 22px to 24px per ADR-004 §4
+     (replaces `--height-mono-badge` after the PillGroup rewrite drops the
+     mono-badge appearance). */
   --tracking-mono: 0.06em;
-  --tracking-badge: 0.08em;
   --radius-chip: 5px;
-  --radius-mono-badge: 6px;
+  --radius-mono-badge: 4px;
   --radius-icon-well: 10px;
-  --height-mono-badge: 22px;
+  --height-pill-group-segment-md: 24px;
   --height-pill-group-segment-sm: 20px;
   --size-pill-group-badge: 14px;
-  --space-pill-group-track-gap: 2px;
-  --space-pill-group-track-padding: 3px;
+  --space-pill-group-track-gap: 1px;
+  --space-pill-group-track-padding: 2px;
   --space-pill-group-segment-sm-x: 8px;
   --space-pill-group-segment-md-x: 10px;
   --space-pill-group-badge-x: 4px;
   --text-pill-group-badge: 0.5625rem;
 
-  /* Motion — single fast tier + slow tier; one ease curve. */
+  /* Font — display alias reserved for explicit logo/wordmark surfaces only.
+     ADR-001 §5: forbidden inside type-ramp callers under web/src/** and
+     packages/ui/src/** (lint enforced; see lint-plugins/compozy-design-system.mjs).
+     Site re-binds this to Playfair Display in packages/site/app/global.css. */
+  --font-display: var(--font-sans);
+
+  /* Motion — single fast tier + slow tier; one ease curve.
+     `--ease-in-out`, `--duration-fast/base/slow`, `--ease-out` are staged for
+     deletion in task_16 / PR-2 together with the pill-group.tsx rewrite. */
   --dur: 140ms;
   --dur-slow: 200ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -127,7 +197,6 @@
   --chart-3: var(--info);
   --chart-4: var(--warning);
   --chart-5: var(--danger);
-  --radius: 6px;
 
   --sidebar-foreground: var(--fg);
   --sidebar-primary: var(--accent);
@@ -145,6 +214,12 @@
 @theme inline {
   --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
+
+  /* Weight ladder — DESIGN.md §"Type Ladder (Inter-510 runtime kit)". */
+  --font-weight-normal: 400;
+  --font-weight-medium: 510;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
   /* Type scale shared with both web and site surfaces. */
   --text-item-title: 0.9375rem;
@@ -166,7 +241,31 @@
   --text-ui-title-lg: 1.35rem;
   --leading-small-body: var(--text-small-body--line-height);
   --tracking-mono: 0.06em;
-  --tracking-badge: 0.08em;
+
+  /* Type ladder additions — ADR-002 §10. */
+  --text-detail-h1: 1.5rem;
+  --text-empty-h1: 1.125rem;
+  --text-modal-title: 0.84375rem;
+  --text-section-head: 0.8125rem;
+  --text-form-input: 0.78125rem;
+  --text-form-label: 0.75rem;
+  --text-form-hint: 0.71875rem;
+  --text-form-required: 0.625rem;
+  --text-metric-value: 1.375rem;
+  --text-kpi-value: 1.75rem;
+  --text-agent-metric: 1rem;
+  --text-rail-avatar: 0.71875rem;
+  --text-ws-name: 0.8125rem;
+  --text-mono-id: 0.65625rem;
+
+  /* Tracking ladder additions — ADR-002 §10. */
+  --tracking-detail-h1: -0.028em;
+  --tracking-empty-h1: -0.022em;
+  --tracking-modal-title: -0.012em;
+  --tracking-section-head: -0.008em;
+  --tracking-tight: -0.014em;
+  --tracking-eyebrow: -0.005em;
+  --tracking-mono-id: 0;
 
   /* Radii ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
   --radius-xs: 4px;
@@ -176,7 +275,7 @@
   --radius-xl: 14px;
   --radius-pill: 9999px;
   --radius-chip: 5px;
-  --radius-mono-badge: 6px;
+  --radius-mono-badge: 4px;
   --radius-icon-well: 0.625rem;
 
   /* shadcn / Tailwind utility surface colors. */
@@ -210,6 +309,50 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+
+  /* Surface ramp utilities — bg-rail / bg-canvas / bg-canvas-soft / bg-elevated / bg-hover / bg-disabled. */
+  --color-rail: var(--rail);
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
+  --color-canvas-tint: var(--canvas-tint);
+  --color-elevated: var(--elevated);
+  --color-hover: var(--hover);
+  --color-disabled: var(--disabled);
+
+  /* Hairline utilities — border-line-soft / border-line-strong.
+     `--color-line` is intentionally NOT redeclared (test contract: hairlines
+     consolidate around `--line`; the Tailwind `border-line` utility is unused). */
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+
+  /* Text utilities — text-fg / text-fg-strong / text-muted / text-subtle / text-faint. */
+  --color-fg: var(--fg);
+  --color-fg-strong: var(--fg-strong);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-faint: var(--faint);
+
+  /* Accent utilities — text-accent / bg-accent / border-accent / ramp variants. */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-tint-strong: var(--accent-tint-strong);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-glow: var(--accent-glow);
+
+  /* Signal palette utilities — text-success / bg-warning-tint / etc. */
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+  --color-neutral: var(--neutral);
+  --color-neutral-tint: var(--neutral-tint);
 }
 
 @layer base {
@@ -225,7 +368,19 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    /* Body baseline — ADR-002 §6 / §9. */
+    font-size: 0.84375rem;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    font-feature-settings: "cv01", "ss03", "cv11";
     text-rendering: optimizeLegibility;
+  }
+
+  /* Text selection — warm accent at 10% (ADR-001 §1). Replaces the legacy
+     --overlay-selection (28%) token deleted in task_02 / PR-1. */
+  ::selection {
+    background: var(--accent-tint);
+    color: var(--fg-strong);
   }
 }
 
@@ -242,6 +397,18 @@
   animation: shimmer 2s ease-in-out infinite;
 }
 
+/*
+ * Single eyebrow utility — ADR-002 §1 / §11, lesson L-022.
+ * Inter UC 11/600/-0.005em is the only eyebrow contract. The previous
+ * `eyebrow-badge` (10 px) and `eyebrow-micro` (9 px) variants are deleted
+ * (greenfield rule, SD-002 — no transitional alias). Consumers render
+ * through `<Eyebrow>` (`@agh/ui`) or this utility on structural HTML.
+ */
+@utility eyebrow {
+  @apply font-sans text-[length:var(--text-eyebrow)] font-semibold uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+}
+
 @keyframes typing-bounce {
   0%,
   60%,
@@ -256,18 +423,18 @@
 }
 
 /*
- * Reduced-motion guard. Applies to every animation and transition, not only
- * `--dur*` token references. Required because `tw-animate-css` and the
- * `shimmer` / `typing-bounce` keyframes hardcode their durations and would
- * otherwise keep playing.
+ * Reduced-motion guard — ADR-010 §1.
+ * Applies to every animation and transition, not only `--dur*` token references.
+ * Required because `tw-animate-css` and the `shimmer` / `typing-bounce` keyframes
+ * hardcode their durations and would otherwise keep playing. `0.001ms` (not 0)
+ * preserves CSS animation-callback timing (libraries relying on `animationend`).
  */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
+    transition-duration: 0.001ms !important;
   }
 }

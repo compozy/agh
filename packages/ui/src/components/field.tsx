@@ -33,7 +33,7 @@ function FieldLegend({
       data-slot="field-legend"
       data-variant={variant}
       className={cn(
-        "mb-1.5 font-[510] tracking-[-0.005em] text-(--fg-strong) data-[variant=label]:text-[13px] data-[variant=legend]:text-[15px]",
+        "mb-1.5 font-medium tracking-[-0.005em] text-(--fg-strong) data-[variant=label]:text-[13px] data-[variant=legend]:text-[15px]",
         className
       )}
       {...props}
@@ -100,7 +100,7 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
     <Label
       data-slot="field-label"
       className={cn(
-        "group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-(--line-strong) has-data-checked:bg-(--accent-tint) has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border has-[>[data-slot=field]]:border-(--line) *:data-[slot=field]:p-2.5",
+        "group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-(--line-strong) has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border has-[>[data-slot=field]]:border-(--line) *:data-[slot=field]:p-2.5",
         "has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col",
         className
       )}
@@ -114,7 +114,7 @@ function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="field-label"
       className={cn(
-        "flex w-fit items-center gap-2 text-[13px] leading-snug font-[510] text-(--fg-strong) group-data-[disabled=true]/field:opacity-50",
+        "flex w-fit items-center gap-2 text-[13px] leading-snug font-medium text-(--fg-strong) group-data-[disabled=true]/field:opacity-50",
         className
       )}
       {...props}
@@ -212,13 +212,13 @@ function FieldError({
 
 export {
   Field,
-  FieldLabel,
+  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
+  FieldLabel,
   FieldLegend,
   FieldSeparator,
   FieldSet,
-  FieldContent,
   FieldTitle,
 };

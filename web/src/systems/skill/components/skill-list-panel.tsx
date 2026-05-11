@@ -89,9 +89,7 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
           <ItemTitle className="w-full">
             <span className="min-w-0 flex-1 truncate">{skill.name}</span>
             {skill.version ? (
-              <Eyebrow case="upper" tone="subtle" size="badge" className="shrink-0">
-                v{skill.version}
-              </Eyebrow>
+              <Eyebrow className="text-(--subtle) shrink-0">v{skill.version}</Eyebrow>
             ) : null}
           </ItemTitle>
         </ItemContent>

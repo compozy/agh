@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, ExternalLink, Loader2 } from "lucide-react";
+import { Activity, AlertCircle, ExternalLink } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -9,7 +9,10 @@ import {
   MetricGrid,
   PageShell,
   Pill,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Switch,
   useTopbarSlot,
 } from "@agh/ui";
@@ -19,11 +22,9 @@ import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/observability")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -71,20 +72,27 @@ function ObservabilitySettingsPage() {
   useTopbarSlot({
     tabs:
       runtimeForSlot && draftForSlot ? (
-        <SettingsStatusLine
+        <StatusLineTopbarSlot
           data-testid="settings-page-observability-status-line"
           status={runtimeForSlot.available ? "connected" : "error"}
           items={[
-            <span key="sessions">{runtimeForSlot.active_sessions} active sessions</span>,
-            <span key="storage" data-testid="settings-page-observability-storage-summary">
-              storage {formatBytes(totalStorageForSlot)} / {formatBytes(capForSlot)}
-            </span>,
+            {
+              key: "sessions",
+              value: `${runtimeForSlot.active_sessions} active sessions`,
+              tone: "neutral",
+            },
+            {
+              key: "storage",
+              value: (
+                <span data-testid="settings-page-observability-storage-summary">
+                  storage {formatBytes(totalStorageForSlot)} / {formatBytes(capForSlot)}
+                </span>
+              ),
+              tone: "neutral",
+            },
           ]}
         />
       ) : undefined,
-    actions: page.envelope ? (
-      <SettingsPageActions slug="observability" restart={page.restart} />
-    ) : undefined,
   });
 
   if (page.isLoading) {
@@ -93,7 +101,7 @@ function ObservabilitySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-observability-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -124,10 +132,12 @@ function ObservabilitySettingsPage() {
   const cap = draft.max_global_bytes;
   const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
 
+  const bannerProps = restartBannerPropsFor("observability", restart);
+
   return (
     <PageShell
       slug="observability"
-      banner={<SettingsRestartBanner slug="observability" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="observability"
@@ -392,9 +402,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
             {logTail.available ? "Live log tail available" : "Log tail unavailable"}
           </span>
           <Eyebrow
-            case="upper"
-            tone="muted"
-            size="badge"
+            className="text-(--muted)"
             data-testid="settings-page-observability-log-tail-transport"
           >
             transport: {logTail.transport ?? "none"}
@@ -438,9 +446,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <Eyebrow case="upper" tone="muted" size="badge">
-        {label}
-      </Eyebrow>
+      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           className="w-full"
@@ -450,11 +456,7 @@ function NumberField({
           onValidityChange={onValidityChange}
           onValueChange={onChange}
         />
-        {suffix ? (
-          <Eyebrow case="upper" tone="muted" size="badge">
-            {suffix}
-          </Eyebrow>
-        ) : null}
+        {suffix ? <Eyebrow className="text-(--muted)">{suffix}</Eyebrow> : null}
       </div>
       {errorMessage ? <span className="text-xs text-(--danger)">{errorMessage}</span> : null}
     </div>
@@ -475,29 +477,27 @@ function UsageBreakdown({ globalBytes, sessionBytes, cap }: UsageBreakdownProps)
   return (
     <div className="flex flex-col gap-2" data-testid="settings-page-observability-usage-breakdown">
       <div className="flex items-center justify-between text-xs text-(--subtle)">
-        <Eyebrow case="upper" tone="muted">
-          Usage breakdown
-        </Eyebrow>
+        <Eyebrow className="text-(--muted)">Usage breakdown</Eyebrow>
       </div>
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-(--canvas-soft)">
         <div
-          className="absolute inset-y-0 left-0 bg-accent"
+          className="absolute inset-y-0 left-0 bg-(--accent-tint-strong)"
           style={{ width: `${globalPct}%` }}
           data-testid="settings-page-observability-usage-bar-global"
         />
         <div
-          className="absolute inset-y-0 bg-(--info)"
+          className="absolute inset-y-0 bg-(--info-tint)"
           style={{ left: `${globalPct}%`, width: `${sessionPct}%` }}
           data-testid="settings-page-observability-usage-bar-sessions"
         />
       </div>
       <div className="flex flex-wrap gap-4 text-xs text-(--muted)">
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-(--accent-tint-strong)" />
           global DB {formatBytes(globalBytes)}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-(--info)" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-(--info-tint)" />
           session DB {formatBytes(sessionBytes)}
         </span>
       </div>

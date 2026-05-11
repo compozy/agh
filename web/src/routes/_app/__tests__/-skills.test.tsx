@@ -486,29 +486,29 @@ describe("SkillsPage", () => {
     render(<SkillsPage />);
 
     await user.click(screen.getByTestId("tab-marketplace"));
-    await user.click(screen.getByTestId("category-chip-TESTING"));
+    await user.click(screen.getByTestId("category-chip-testing"));
 
     // mp-plugin has "testing" tag
     expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
   });
 
-  it("marketplace row shows INSTALLED pill for already-installed skills", async () => {
+  it("marketplace row shows the sentence-case installed pill for already-installed skills", async () => {
     const user = userEvent.setup();
     render(<SkillsPage />);
 
     await user.click(screen.getByTestId("tab-marketplace"));
 
-    expect(screen.getByTestId("installed-pill-mp-plugin")).toHaveTextContent("INSTALLED");
+    expect(screen.getByTestId("installed-pill-mp-plugin")).toHaveTextContent("installed");
     expect(screen.queryByTestId("installed-pill-alpha-skill")).not.toBeInTheDocument();
   });
 
   it("marketplace category filter shows Empty when nothing matches", async () => {
     const user = userEvent.setup();
-    mockSkills = BUNDLED_SKILLS; // no tags, so DATABASE matches nothing
+    mockSkills = BUNDLED_SKILLS; // no tags, so database matches nothing
     render(<SkillsPage />);
 
     await user.click(screen.getByTestId("tab-marketplace"));
-    await user.click(screen.getByTestId("category-chip-DATABASE"));
+    await user.click(screen.getByTestId("category-chip-database"));
 
     expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-empty")).toHaveTextContent(

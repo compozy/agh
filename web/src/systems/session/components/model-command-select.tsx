@@ -126,9 +126,7 @@ export function ModelCommandSelect({
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate text-sm text-(--fg)">Use provider default</span>
                 {trimmedDefault ? (
-                  <Eyebrow case="upper" tone="muted" size="badge" className="ml-auto truncate">
-                    {trimmedDefault}
-                  </Eyebrow>
+                  <Eyebrow className="text-(--muted) ml-auto truncate">{trimmedDefault}</Eyebrow>
                 ) : null}
               </div>
             </CommandItem>

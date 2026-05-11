@@ -50,7 +50,8 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Schema / Validation           | `zod`                                                            | `typescript-advanced`                        |
 | Web testing                   | `vitest` + `react` + `testing-anti-patterns`                     |                                              |
 | TypeScript (types)            | `typescript-advanced`                                            | `context7`                                   |
-| UI / UX Design (any surface)  | `agh-design` + `impeccable`                                      | `shadcn`                                     |
+| UI / UX Design (any surface)  | `agh-design` + `impeccable`                                      | `shadcn` + `agh-ui-screenshot`               |
+| UI verification / visual diff | `agh-ui-screenshot`                                              |                                              |
 | UI microcopy / product labels | `copywriting` + `documentation-writer`                           |                                              |
 | Storybook / component stories | `storybook-stories`                                              | `shadcn`                                     |
 | Animation / motion            | `motion-react`                                                   | `motion`                                     |
@@ -62,6 +63,13 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Task completion               | `cy-final-verify`                                                |                                              |
 
 **Redesign tasks (`.compozy/tasks/redesign/*`)**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `impeccable` before touching any component. `DESIGN.md` tokens win over anything informal already in the codebase.
+
+**Visual verification with `agh-ui-screenshot` is mandatory for every UI change in this workspace.** Tests verify code, not pixels.
+
+- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`) on port 6006 and diff against `.compozy/tasks/redesign-v2/screenshots/proposal/` or a trusted prior baseline.
+- Surface-wide passes (primitive swap, token retune): capture before + after.
+- Use `list-stories.mjs` to resolve valid story ids — misaligned ids land on the "Couldn't find story" fallback (sub-20 KB PNG).
+- Cite the capture file(s) when reporting done. Claiming success without screenshots is non-compliant.
 
 ## Build Commands
 

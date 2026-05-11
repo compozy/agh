@@ -29,10 +29,10 @@ import {
 } from "@/systems/tasks/lib/task-editor";
 import { getKanbanColumns, groupTasksForKanban } from "@/systems/tasks/lib/task-grouping";
 import type { KanbanColumnGroup } from "@/systems/tasks/lib/task-grouping";
+import type { InboxLaneFilterId } from "@/systems/tasks/lib/inbox-grouping";
 import type {
   TaskDashboardFilter,
   TaskInboxFilter,
-  TaskInboxLane,
   TaskListFilter,
   TaskListItem,
   TaskOwnerKind,
@@ -43,7 +43,7 @@ import type {
 import { useActiveWorkspace } from "@/systems/workspace";
 
 type TaskScopeFilter = "all" | TaskScope;
-type InboxLaneFilter = "all" | TaskInboxLane;
+type InboxLaneFilter = InboxLaneFilterId;
 
 interface UseTasksPageOptions {
   initialMode?: TaskViewMode;
@@ -100,12 +100,11 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     () => ({
       scope: scopeFilter === "all" ? undefined : scopeFilter,
       workspace: scopedWorkspace,
-      lane: inboxLaneFilter === "all" ? undefined : inboxLaneFilter,
       unread: inboxUnreadOnly ? true : undefined,
       query: deferredInboxQuery.trim() ? deferredInboxQuery.trim() : undefined,
       limit: 100,
     }),
-    [deferredInboxQuery, inboxLaneFilter, inboxUnreadOnly, scopeFilter, scopedWorkspace]
+    [deferredInboxQuery, inboxUnreadOnly, scopeFilter, scopedWorkspace]
   );
 
   const isListTab = mode === "list" || mode === "kanban" || options.forceListData === true;

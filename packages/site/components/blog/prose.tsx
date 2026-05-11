@@ -30,7 +30,7 @@ export function ProseH2({ id, children, className, ...props }: ComponentProps<"h
       id={resolveHeadingID(id, children)}
       {...props}
       className={cn(
-        "mt-16 border-t border-(--color-divider) pt-4 font-sans text-site-doc-heading font-semibold leading-tight tracking-tight text-(--color-text-primary)",
+        "mt-16 border-t border-(--line) pt-4 font-sans text-site-doc-heading font-semibold leading-tight tracking-tight text-(--fg)",
         className
       )}
     >
@@ -45,7 +45,7 @@ export function ProseH3({ id, children, className, ...props }: ComponentProps<"h
       id={resolveHeadingID(id, children)}
       {...props}
       className={cn(
-        "mt-10 font-sans text-site-subheading font-semibold leading-tight tracking-tight text-(--color-text-primary)",
+        "mt-10 font-sans text-site-subheading font-semibold leading-tight tracking-tight text-(--fg)",
         className
       )}
     >
@@ -59,7 +59,7 @@ export function ProseParagraph({ children, className, ...props }: ComponentProps
     <p
       {...props}
       className={cn(
-        "mt-5 max-w-[72ch] font-sans text-base leading-doc-body text-(--color-text-secondary)",
+        "mt-5 max-w-[72ch] font-sans text-base leading-doc-body text-(--muted)",
         className
       )}
     >
@@ -73,7 +73,7 @@ export function ProseList({ children, className, ...props }: ComponentProps<"ul"
     <ul
       {...props}
       className={cn(
-        "mt-5 ml-5 max-w-[72ch] list-disc text-base leading-7 text-(--color-text-secondary) marker:text-(--color-text-tertiary) [&>li+li]:mt-2",
+        "mt-5 ml-5 max-w-[72ch] list-disc text-base leading-7 text-(--muted) marker:text-(--subtle) [&>li+li]:mt-2",
         className
       )}
     >
@@ -87,7 +87,7 @@ export function ProseOrderedList({ children, className, ...props }: ComponentPro
     <ol
       {...props}
       className={cn(
-        "mt-5 ml-5 max-w-[72ch] list-decimal text-base leading-7 text-(--color-text-secondary) marker:text-(--color-text-tertiary) [&>li+li]:mt-2",
+        "mt-5 ml-5 max-w-[72ch] list-decimal text-base leading-7 text-(--muted) marker:text-(--subtle) [&>li+li]:mt-2",
         className
       )}
     >
@@ -101,7 +101,7 @@ export function PullQuote({ children, className, ...props }: ComponentProps<"blo
     <blockquote
       {...props}
       className={cn(
-        "mt-9 mb-3 max-w-[40ch] border-l-2 border-accent pl-6 font-display text-site-quote font-normal leading-tight tracking-tight text-(--color-text-primary)",
+        "mt-9 mb-3 max-w-[40ch] border-l-2 border-accent pl-6 font-display text-site-quote font-normal leading-tight tracking-tight text-(--fg)",
         className
       )}
     >
@@ -130,7 +130,7 @@ export function Mono({ children, className, ...props }: MonoProps) {
     <code
       {...props}
       className={cn(
-        "rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-1.5 py-0.5 font-mono text-inline-code text-(--color-text-primary)",
+        "rounded-md border border-(--line) bg-(--elevated) px-1.5 py-0.5 font-mono text-inline-code text-(--fg)",
         className
       )}
     >
@@ -149,17 +149,17 @@ export interface CalloutProps {
 const calloutBorderClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
   accent: "border-l-accent",
   success: "border-l-success",
-  danger: "border-l-(--color-danger)",
-  warning: "border-l-(--color-warning)",
-  info: "border-l-(--color-info)",
+  danger: "border-l-(--danger)",
+  warning: "border-l-(--warning)",
+  info: "border-l-(--info)",
 };
 
 const calloutEyebrowToneClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
   accent: "text-accent",
   success: "text-success",
-  danger: "text-(--color-danger)",
-  warning: "text-(--color-warning)",
-  info: "text-(--color-info)",
+  danger: "text-(--danger)",
+  warning: "text-(--warning)",
+  info: "text-(--info)",
 };
 
 export function Callout({ tone = "accent", eyebrow, children, className }: CalloutProps) {
@@ -167,23 +167,17 @@ export function Callout({ tone = "accent", eyebrow, children, className }: Callo
     <aside
       role="note"
       className={cn(
-        "mt-7 rounded-xl border border-(--color-divider) border-l-4 bg-(--color-surface) p-5",
+        "mt-7 rounded-xl border border-(--line) border-l-4 bg-(--canvas-soft) p-5",
         calloutBorderClass[tone],
         className
       )}
     >
       {eyebrow && (
-        <Eyebrow
-          case="upper"
-          weight="semibold"
-          className={cn("block tracking-badge", calloutEyebrowToneClass[tone])}
-        >
+        <Eyebrow className={cn("block tracking-badge", calloutEyebrowToneClass[tone])}>
           {eyebrow}
         </Eyebrow>
       )}
-      <div className="mt-3 font-sans text-item-title leading-7 text-(--color-text-primary)">
-        {children}
-      </div>
+      <div className="mt-3 font-sans text-item-title leading-7 text-(--fg)">{children}</div>
     </aside>
   );
 }
@@ -195,12 +189,12 @@ export interface WireCardRow {
 }
 
 const wireValueToneClass: Record<NonNullable<WireCardRow["tone"]>, string> = {
-  neutral: "text-(--color-text-primary)",
+  neutral: "text-(--fg)",
   accent: "text-accent",
   success: "text-success",
-  danger: "text-(--color-danger)",
-  warning: "text-(--color-warning)",
-  info: "text-(--color-info)",
+  danger: "text-(--danger)",
+  warning: "text-(--warning)",
+  info: "text-(--info)",
 };
 
 export interface WireCardProps {
@@ -211,29 +205,21 @@ export interface WireCardProps {
 
 export function WireCard({ kind, rows, protocol = "v0" }: WireCardProps) {
   return (
-    <div className="mt-7 max-w-[520px] overflow-hidden rounded-md border border-(--color-divider) bg-(--color-surface)">
-      <Eyebrow
-        case="upper"
-        size="badge"
-        className="block border-b border-(--color-divider) bg-(--color-canvas-deep) px-3 py-1.5 text-(--color-text-tertiary)"
-      >
+    <div className="mt-7 max-w-[520px] overflow-hidden rounded-md border border-(--line) bg-(--canvas-soft)">
+      <Eyebrow className="block border-b border-(--line) bg-(--rail) px-3 py-1.5 text-(--subtle)">
         kind={kind} · {protocol}
       </Eyebrow>
       <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-1 p-3 font-mono text-eyebrow leading-7">
         {rows.map(row => (
           <div key={row.label} className="contents">
-            <span className="text-(--color-text-tertiary)">{row.label}</span>
+            <span className="text-(--subtle)">{row.label}</span>
             <span className={wireValueToneClass[row.tone ?? "neutral"]}>{row.value}</span>
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-3 border-t border-(--color-divider) bg-(--color-canvas-deep) px-3 py-1.5">
-        <Eyebrow case="upper" tone="muted" size="badge" className="text-(--color-text-tertiary)">
-          Inspect →
-        </Eyebrow>
-        <Eyebrow case="upper" tone="muted" size="badge" className="text-(--color-text-tertiary)">
-          Replay
-        </Eyebrow>
+      <div className="flex items-center gap-3 border-t border-(--line) bg-(--rail) px-3 py-1.5">
+        <Eyebrow className="text-(--subtle)">Inspect →</Eyebrow>
+        <Eyebrow className="text-(--subtle)">Replay</Eyebrow>
       </div>
     </div>
   );

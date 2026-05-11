@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, Check, Loader2, Puzzle, Webhook, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, Puzzle, Webhook, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -14,7 +14,10 @@ import {
   NativeSelectOption,
   PageShell,
   Pill,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Switch,
   Table,
   TableBody,
@@ -34,13 +37,8 @@ import type {
   SettingsHooksExtensionsSection,
   SettingsHooksExtensionsTransportParity,
 } from "@/systems/settings";
-import {
-  SettingsFieldRow,
-  SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
-  SettingsStatusLine,
-} from "@/systems/settings/components";
+import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/hooks-extensions")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -68,21 +66,30 @@ function HooksExtensionsSettingsPage() {
   const envelopeForSlot = page.envelope;
   useTopbarSlot({
     tabs: envelopeForSlot ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="settings-page-hooks-extensions-status-line"
         status="connected"
         items={[
-          <span key="hooks" data-testid="settings-page-hooks-extensions-hooks-total">
-            {page.hooksCounts.enabled}/{page.hooksCounts.total} hooks enabled
-          </span>,
-          <span key="extensions" data-testid="settings-page-hooks-extensions-extensions-total">
-            {page.extensionsCounts.enabled}/{page.extensionsCounts.total} extensions enabled
-          </span>,
+          {
+            key: "hooks",
+            value: (
+              <span data-testid="settings-page-hooks-extensions-hooks-total">
+                {page.hooksCounts.enabled}/{page.hooksCounts.total} hooks enabled
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "extensions",
+            value: (
+              <span data-testid="settings-page-hooks-extensions-extensions-total">
+                {page.extensionsCounts.enabled}/{page.extensionsCounts.total} extensions enabled
+              </span>
+            ),
+            tone: "neutral",
+          },
         ]}
       />
-    ) : undefined,
-    actions: envelopeForSlot ? (
-      <SettingsPageActions slug="hooks-extensions" restart={page.restart} />
     ) : undefined,
   });
 
@@ -92,7 +99,7 @@ function HooksExtensionsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-hooks-extensions-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -118,10 +125,12 @@ function HooksExtensionsSettingsPage() {
 
   const { draft, hooks, extensions, transportParity } = page;
 
+  const bannerProps = restartBannerPropsFor("hooks-extensions", page.restart);
+
   return (
     <PageShell
       slug="hooks-extensions"
-      banner={<SettingsRestartBanner slug="hooks-extensions" restart={page.restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
     >
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
@@ -249,21 +258,11 @@ function HooksSection({
           <Table>
             <TableHeader>
               <TableRow className="bg-(--elevated)">
-                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-                  Name
-                </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-                  Event
-                </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-                  Mode
-                </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-                  Matcher
-                </TableHead>
-                <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--muted)">
-                  Enabled
-                </TableHead>
+                <TableHead className="eyebrow text-(--muted)">Name</TableHead>
+                <TableHead className="eyebrow text-(--muted)">Event</TableHead>
+                <TableHead className="eyebrow text-(--muted)">Mode</TableHead>
+                <TableHead className="eyebrow text-(--muted)">Matcher</TableHead>
+                <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Enabled</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -326,7 +325,7 @@ function HookRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-2">
-          {pending ? <Loader2 className="size-3.5 animate-spin text-(--subtle)" /> : null}
+          {pending ? <Spinner className="size-3.5 text-(--subtle)" /> : null}
           <Switch
             data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-toggle`}
             checked={enabled}
@@ -384,7 +383,7 @@ function ExtensionsSection({
           className="flex items-center gap-2 text-xs text-(--subtle)"
           data-testid="settings-page-hooks-extensions-extensions-loading"
         >
-          <Loader2 className="size-3.5 animate-spin" />
+          <Spinner className="size-3.5" />
           Loading extensions…
         </div>
       ) : extensions.length === 0 ? (
@@ -444,12 +443,7 @@ function ExtensionRow({
         <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate font-mono text-sm text-(--fg)">{entry.name}</span>
-          <Eyebrow
-            case="upper"
-            tone="subtle"
-            size="badge"
-            className="flex flex-wrap items-center gap-1.5"
-          >
+          <Eyebrow className="text-(--subtle) flex flex-wrap items-center gap-1.5">
             <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
             {entry.version ? (
               <Pill mono tone="neutral">
@@ -486,7 +480,7 @@ function ExtensionRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {pending ? <Loader2 className="size-3.5 animate-spin text-(--subtle)" /> : null}
+        {pending ? <Spinner className="size-3.5 text-(--subtle)" /> : null}
         <Switch
           data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-toggle`}
           checked={entry.enabled}
@@ -774,9 +768,7 @@ function RateLimitRow({
             onValidityChange={onRequestsValidityChange}
             onValueChange={next => onChange({ ...value, requests: next })}
           />
-          <Eyebrow case="upper" tone="muted" size="badge">
-            per
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">per</Eyebrow>
           <Input
             className="w-20 font-mono"
             data-testid={`${testId}-window`}
@@ -785,9 +777,7 @@ function RateLimitRow({
             disabled={!canMutate}
             onChange={event => onChange({ ...value, window: event.target.value })}
           />
-          <Eyebrow case="upper" tone="muted" size="badge">
-            queue
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">queue</Eyebrow>
           <SettingsNumberInput
             min={0}
             className="w-16 font-mono"
@@ -882,7 +872,7 @@ function SaveControls({ state, error, warnings, onSave, onReset }: SaveControlsP
         disabled={disabled}
         data-testid="settings-page-hooks-extensions-policy-save"
       >
-        {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+        {isSaving ? <Spinner className="size-3.5" /> : null}
         {isSaving ? "Saving…" : "Save policy"}
       </Button>
     </div>

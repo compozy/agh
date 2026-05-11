@@ -1,8 +1,8 @@
+import { Eyebrow } from "@agh/ui";
 import type { Release } from "#site/content";
 import Link from "next/link";
 import { DateStamp } from "./date-stamp";
 import { MonoBadge, type MonoBadgeTone } from "./mono-badge";
-import { MonoEyebrow } from "./mono-eyebrow";
 
 export interface ChangelogRailProps {
   releases: Release[];
@@ -20,17 +20,14 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
   return (
     <aside
       aria-label="Recent changelog releases"
-      className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-5"
+      className="rounded-xl border border-(--line) bg-(--canvas-soft) p-5"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="inline-block size-1.5 rounded-full bg-success" />
-          <MonoEyebrow tracking="wide">Changelog</MonoEyebrow>
+          <Eyebrow className="text-(--muted) tracking-badge!">Changelog</Eyebrow>
         </div>
-        <Link
-          href="/changelog"
-          className="text-xs text-(--color-text-tertiary) hover:text-(--color-text-primary)"
-        >
+        <Link href="/changelog" className="text-xs text-(--subtle) hover:text-(--fg)">
           all versions →
         </Link>
       </div>
@@ -39,7 +36,7 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
           <li
             key={release.version}
             className={`flex items-start gap-3 py-3 ${
-              idx < items.length - 1 ? "border-b border-(--color-divider)" : ""
+              idx < items.length - 1 ? "border-b border-(--line)" : ""
             }`}
           >
             <Link href={`/changelog#${release.version}`} className="flex min-w-0 flex-1 gap-3">
@@ -47,7 +44,7 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
                 <MonoBadge tone={statusTone[release.status]}>{release.version}</MonoBadge>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-sans text-small-body leading-5 text-(--color-text-primary)">
+                <span className="block font-sans text-small-body leading-5 text-(--fg)">
                   {release.summary}
                 </span>
                 <DateStamp
@@ -62,7 +59,7 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
       </ul>
       <Link
         href="/changelog"
-        className="mt-4 inline-flex h-8 w-full items-center justify-center rounded-lg border border-(--color-divider) font-sans text-xs font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
+        className="mt-4 inline-flex h-8 w-full items-center justify-center rounded-lg border border-(--line) font-sans text-xs font-medium text-(--fg) transition-colors hover:bg-(--hover)"
       >
         Open the changelog
       </Link>

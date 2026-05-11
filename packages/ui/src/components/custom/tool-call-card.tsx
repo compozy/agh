@@ -71,8 +71,8 @@ function ToolCallCard({
       data-slot="tool-call-card"
       data-status={status}
       className={cn(
-        "overflow-hidden rounded-md border border-(--line) bg-(--canvas-soft)",
-        "data-[status=error]:border-(--danger)/40",
+        "overflow-hidden rounded-md bg-(--canvas-soft)",
+        "data-[status=error]:border data-[status=error]:border-(--danger)/40",
         className
       )}
       {...props}

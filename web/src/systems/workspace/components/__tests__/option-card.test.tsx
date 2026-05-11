@@ -9,7 +9,7 @@ import { OptionCard } from "../option-card";
 
 function renderCard(action?: React.ReactNode) {
   return render(
-    <OptionCard density="comfortable" data-testid="option-card-root">
+    <OptionCard size="comfortable" data-testid="option-card-root">
       <OptionCard.Header eyebrow="Global" right={<Pill tone="accent">HOME</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="accent" data-testid="option-card-icon">
@@ -33,22 +33,22 @@ describe("OptionCard", () => {
     renderCard();
 
     const root = screen.getByTestId("option-card-root");
-    expect(root.dataset.density).toBe("comfortable");
+    expect(root.dataset.size).toBe("comfortable");
     expect(screen.getByText("Global")).toBeInTheDocument();
     expect(screen.getByText("HOME")).toBeInTheDocument();
   });
 
-  it("Should apply the comfortable density padding", () => {
+  it("Should apply the comfortable size padding", () => {
     renderCard();
 
     const root = screen.getByTestId("option-card-root");
-    expect(root.className).toContain("p-5");
-    expect(root.className).not.toContain("p-4");
+    expect(root.className).toContain("px-5");
+    expect(root.className).toContain("py-[18px]");
   });
 
-  it("Should apply the compact density padding when density=compact", () => {
+  it("Should apply the compact size padding when size=compact", () => {
     render(
-      <OptionCard density="compact" data-testid="option-card-root">
+      <OptionCard size="compact" data-testid="option-card-root">
         <OptionCard.Body>
           <OptionCard.Content>
             <OptionCard.Title>Compact</OptionCard.Title>
@@ -58,8 +58,9 @@ describe("OptionCard", () => {
     );
 
     const root = screen.getByTestId("option-card-root");
-    expect(root.dataset.density).toBe("compact");
-    expect(root.className).toContain("p-4");
+    expect(root.dataset.size).toBe("compact");
+    expect(root.className).toContain("px-4");
+    expect(root.className).toContain("py-[14px]");
   });
 
   it("Should expose tone via data attribute on the icon slot", () => {

@@ -1,7 +1,7 @@
-import { AlertCircle, BookOpen, Loader2, Plus } from "lucide-react";
+import { AlertCircle, BookOpen, Plus } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button, Empty, Input, PillGroup, SplitPane, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, Input, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import {
@@ -104,7 +104,7 @@ export function KnowledgePage() {
           className="flex min-h-0 flex-1 items-center justify-center"
           data-testid="knowledge-loading"
         >
-          <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
+          <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
         </div>
       </div>
     );

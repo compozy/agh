@@ -12,8 +12,8 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
 import { Button, Empty, buttonVariants } from "@agh/ui";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import { TopbarShell } from "@/components/topbar-shell";
+import { AppSidebar } from "@/systems/runtime";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
@@ -55,7 +55,6 @@ function AppLayout() {
           onSelectWorkspace={page.setActiveWorkspaceId}
           onAddWorkspace={page.openWorkspaceSetup}
           health={page.health}
-          connectionStatus={page.connectionStatus}
           agents={page.agents}
           agentsLoading={page.agentsLoading}
           agentsError={page.agentsError}

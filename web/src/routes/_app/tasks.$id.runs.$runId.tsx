@@ -1,14 +1,14 @@
-import { AlertCircle, Loader2, Play } from "lucide-react";
+import { AlertCircle, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
 import {
-  TaskRunActivityPanel,
   TaskRunDetailHeader,
-  TaskRunIdentityPanel,
-  TaskRunProgressPanel,
+  TaskRunTimelinePanel,
   TasksReviewsCard,
+  useTaskTimeline,
 } from "@/systems/tasks";
 
 export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
 function TaskRunDetailRoute() {
   const { id, runId } = Route.useParams();
   const page = useTaskRunPage(id, runId);
+  const timelineQuery = useTaskTimeline(id, {}, { enabled: Boolean(id) });
 
   if (page.runLoading) {
     return (
@@ -28,7 +29,7 @@ function TaskRunDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-run-detail-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -54,10 +55,12 @@ function TaskRunDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-run-detail-placeholder"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
+
+  const timelineItems = timelineQuery.data ?? [];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
@@ -71,9 +74,12 @@ function TaskRunDetailRoute() {
         className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
         data-testid="tasks-run-detail-main"
       >
-        <TaskRunIdentityPanel run={run} />
-        <TaskRunProgressPanel run={run} />
-        <TaskRunActivityPanel run={run} />
+        <TaskRunTimelinePanel
+          isLive={page.isLive}
+          isLoading={timelineQuery.isLoading && timelineItems.length === 0}
+          items={timelineItems}
+          run={run}
+        />
         <TasksReviewsCard
           errorMessage={page.reviewsError?.message ?? null}
           isLoading={page.reviewsLoading}

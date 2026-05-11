@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  Spinner,
 } from "@agh/ui";
 
 import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
@@ -328,7 +329,7 @@ function SessionCreateDialog({
               Cancel
             </Button>
             <Button data-testid="session-create-dialog-submit" disabled={!canSubmit} type="submit">
-              {isSubmitting ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
+              {isSubmitting ? <Spinner aria-hidden="true" /> : null}
               Start session
             </Button>
           </DialogFooter>

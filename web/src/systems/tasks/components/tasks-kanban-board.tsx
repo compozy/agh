@@ -1,20 +1,24 @@
-import { AlertCircle, Plus } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { BlockLoading, Button, Section, Pill } from "@agh/ui";
-
+import { TaskKanbanCard } from "./task-kanban-card";
+import { TaskKanbanColumn } from "./task-kanban-column";
 import type { KanbanColumnGroup, TaskKanbanColumnId } from "../lib/task-grouping";
-import { formatAttemptLabel, taskOwnerLabel } from "../lib/task-formatters";
-import type { TaskListItem } from "../types";
-import { TasksListRow } from "./tasks-list-row";
 
 import type { PillTone } from "@agh/ui";
 
+/**
+ * Column header tone per ADR-006 §8 + ADR-010 §5 STATUS_TONE — `In progress`
+ * reads as `info` (live work without accent recolor), `Blocked` reads as
+ * `danger`, terminal `Done` and `Pending` stay neutral.
+ */
 const COLUMN_HEADER_TONE: Record<TaskKanbanColumnId, PillTone> = {
   pending: "neutral",
-  running: "accent",
-  done: "success",
-  failed: "danger",
+  in_progress: "info",
+  blocked: "danger",
+  done: "neutral",
 };
+
+const KANBAN_SKELETON_KEYS = ["a", "b", "c"] as const;
 
 export interface TasksKanbanBoardProps {
   columns: KanbanColumnGroup[];
@@ -35,18 +39,6 @@ export function TasksKanbanBoard({
   isLoading = false,
   errorMessage = null,
 }: TasksKanbanBoardProps) {
-  if (isLoading) {
-    return (
-      <BlockLoading
-        className="flex-1"
-        label="Loading kanban board"
-        size="md"
-        surface="bare"
-        data-testid="tasks-kanban-loading"
-      />
-    );
-  }
-
   if (errorMessage) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="tasks-kanban-error">
@@ -60,170 +52,57 @@ export function TasksKanbanBoard({
 
   return (
     <div
-      className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4"
+      className="grid min-h-0 flex-1 grid-cols-[repeat(4,minmax(0,1fr))] gap-3 overflow-y-auto px-4 pt-4 pb-15"
       data-testid="tasks-kanban-board"
       role="list"
     >
+      {isLoading ? (
+        <span aria-live="polite" className="sr-only" data-testid="tasks-kanban-loading">
+          Loading kanban board
+        </span>
+      ) : null}
       {columns.map(group => (
-        <KanbanColumn
+        <TaskKanbanColumn
           column={group.column}
+          count={group.tasks.length}
           key={group.column.id}
-          onCreate={onCreateInColumn ? () => onCreateInColumn(group.column.id) : undefined}
-          onRetryTask={onRetryTask}
-          onSelectTask={onSelectTask}
-          selectedTaskId={selectedTaskId}
-          tasks={group.tasks}
-        />
+          onAdd={onCreateInColumn ? () => onCreateInColumn(group.column.id) : undefined}
+          tone={COLUMN_HEADER_TONE[group.column.id]}
+        >
+          {isLoading
+            ? KANBAN_SKELETON_KEYS.map(slot => (
+                <KanbanCardSkeleton key={`${group.column.id}-skeleton-${slot}`} />
+              ))
+            : group.tasks.map(task => (
+                <TaskKanbanCard
+                  key={task.id}
+                  onRetry={onRetryTask}
+                  onSelect={onSelectTask}
+                  selected={task.id === selectedTaskId}
+                  task={task}
+                />
+              ))}
+        </TaskKanbanColumn>
       ))}
     </div>
   );
 }
 
-interface KanbanColumnProps {
-  column: KanbanColumnGroup["column"];
-  tasks: TaskListItem[];
-  selectedTaskId: string | null;
-  onSelectTask: (taskId: string) => void;
-  onCreate?: () => void;
-  onRetryTask?: (taskId: string) => void;
-}
-
-function KanbanColumn({
-  column,
-  tasks,
-  selectedTaskId,
-  onSelectTask,
-  onCreate,
-  onRetryTask,
-}: KanbanColumnProps) {
-  const headerTone = COLUMN_HEADER_TONE[column.id];
-
+function KanbanCardSkeleton() {
   return (
-    <Section
-      data-testid={`tasks-kanban-column-${column.id}`}
-      role="listitem"
-      className="min-w-[260px] flex-1"
-      label={
-        <span className="inline-flex items-center gap-2">
-          <Pill.Dot tone={headerTone} />
-          <span>{column.label}</span>
-          <span
-            className="font-mono text-badge font-medium tracking-badge text-(--subtle)"
-            data-testid={`tasks-kanban-column-count-${column.id}`}
-          >
-            {tasks.length}
-          </span>
-        </span>
-      }
-      right={
-        onCreate ? (
-          <Button
-            aria-label={`Add task to ${column.label}`}
-            data-testid={`tasks-kanban-column-add-${column.id}`}
-            onClick={onCreate}
-            size="icon-xs"
-            type="button"
-            variant="ghost"
-          >
-            <Plus />
-          </Button>
-        ) : undefined
-      }
+    <div
+      aria-hidden="true"
+      className="flex w-full min-w-0 animate-pulse flex-col gap-[7px] rounded-md bg-(--canvas-tint) p-[11px] shadow-[inset_0_0_0_1px_var(--line-soft)]"
+      data-testid="tasks-kanban-card-skeleton"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-2 pt-2 pb-4">
-        {tasks.length === 0 ? (
-          <div
-            className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-(--line) px-3 py-8 text-center text-xs text-(--subtle)"
-            data-testid={`tasks-kanban-column-empty-${column.id}`}
-          >
-            No tasks
-          </div>
-        ) : (
-          tasks.map(task => (
-            <KanbanCard
-              isSelected={task.id === selectedTaskId}
-              key={task.id}
-              onRetry={onRetryTask ? () => onRetryTask(task.id) : undefined}
-              onSelect={onSelectTask}
-              task={task}
-            />
-          ))
-        )}
+      <div className="h-3.5 w-4/5 rounded-xs bg-(--line)" />
+      <div className="flex gap-[7px]">
+        <div className="h-[17px] w-12 rounded-(--radius-chip) bg-(--line)" />
       </div>
-    </Section>
-  );
-}
-
-interface KanbanCardProps {
-  task: TaskListItem;
-  isSelected: boolean;
-  onSelect: (taskId: string) => void;
-  onRetry?: () => void;
-}
-
-function KanbanCard({ task, isSelected, onSelect, onRetry }: KanbanCardProps) {
-  const activeRun = task.active_run ?? null;
-  const isLive = task.status === "in_progress" && activeRun !== null;
-  const isBlocked = task.status === "blocked";
-  const failedRunError =
-    task.status === "failed" && task.active_run?.error ? task.active_run.error : null;
-  const canRetry = task.status === "failed" && Boolean(onRetry);
-
-  const footer = (
-    <div className="flex min-w-0 flex-col gap-1 text-eyebrow">
-      {isLive && activeRun ? (
-        <span
-          className="text-badge text-(--accent)"
-          data-testid={`tasks-kanban-card-live-${task.id}`}
-        >
-          ● LIVE · {formatAttemptLabel(activeRun.attempt, activeRun.max_attempts) ?? "running"}
-        </span>
-      ) : null}
-      {isBlocked ? (
-        <span
-          className="text-badge text-(--warning)"
-          data-testid={`tasks-kanban-card-blocked-${task.id}`}
-        >
-          ● Blocked
-        </span>
-      ) : null}
-      {failedRunError ? (
-        <span
-          className="text-badge text-(--danger)"
-          data-testid={`tasks-kanban-card-error-${task.id}`}
-        >
-          {failedRunError}
-        </span>
-      ) : null}
-      <div className="flex items-center justify-between gap-2 text-(--muted)">
-        <span data-testid={`tasks-kanban-card-owner-${task.id}`}>{taskOwnerLabel(task.owner)}</span>
-        {canRetry ? (
-          <Button
-            aria-label={`Retry ${task.title}`}
-            data-testid={`tasks-kanban-card-retry-${task.id}`}
-            onClick={event => {
-              event.stopPropagation();
-              onRetry?.();
-            }}
-            size="xs"
-            type="button"
-            variant="outline"
-          >
-            Retry
-          </Button>
-        ) : null}
+      <div className="flex items-center justify-between gap-2">
+        <div className="h-3 w-24 rounded-xs bg-(--line)" />
+        <div className="h-3 w-8 rounded-xs bg-(--line)" />
       </div>
     </div>
-  );
-
-  return (
-    <TasksListRow
-      className="rounded-lg border border-(--line) bg-(--canvas-soft) px-3.5 py-3"
-      footer={footer}
-      onSelect={onSelect}
-      selected={isSelected}
-      task={task}
-      testId={`tasks-kanban-card-${task.id}`}
-    />
   );
 }

@@ -45,7 +45,7 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
           {target}
         </p>
         <ItemFooter>
-          <Eyebrow weight="medium">opened {opened}</Eyebrow>
+          <Eyebrow>opened {opened}</Eyebrow>
         </ItemFooter>
       </ItemContent>
     </Item>

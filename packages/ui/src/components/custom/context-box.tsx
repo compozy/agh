@@ -20,7 +20,7 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
   return (
     <div data-slot="context-box-root" className={cn("flex flex-col gap-2", className)}>
       {title ? (
-        <Eyebrow data-slot="context-box-title" case="upper" tone="muted">
+        <Eyebrow data-slot="context-box-title" className="text-(--muted)">
           {title}
         </Eyebrow>
       ) : null}
@@ -33,10 +33,7 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
       >
         {entries.map((entry, index) => (
           <React.Fragment key={`${index}-${String(entry.label)}`}>
-            <dt
-              data-slot="context-box-label"
-              className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--muted)"
-            >
+            <dt data-slot="context-box-label" className="eyebrow text-(--muted)">
               {entry.label}
             </dt>
             <dd data-slot="context-box-value" className="text-[12px] text-(--fg)">

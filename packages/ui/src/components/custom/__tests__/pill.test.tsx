@@ -4,7 +4,7 @@ import { MotionConfig } from "motion/react";
 import type { MouseEvent, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { Pill, type PillTone } from "../pill";
+import { Pill, type PillSize, type PillTone } from "../pill";
 
 interface WithMotionProps {
   reducedMotion: "always" | "never";
@@ -21,6 +21,14 @@ interface DotExpectation {
   tone: PillTone;
   color: string;
 }
+
+interface SizeHeightExpectation {
+  size: PillSize;
+  height: string;
+}
+
+const TONES: PillTone[] = ["neutral", "accent", "success", "warning", "danger", "info"];
+const SIZES: PillSize[] = ["xs", "sm", "md"];
 
 function WithMotion({ reducedMotion, children }: WithMotionProps) {
   return <MotionConfig reducedMotion={reducedMotion}>{children}</MotionConfig>;
@@ -69,38 +77,67 @@ describe("Pill", () => {
     const pill = screen.getByText("token");
     expect(pill).toHaveAttribute("data-mono", "true");
     expect(pill.className).toContain("font-mono");
-    expect(pill.className).toContain("normal-case");
     expect(pill.className).not.toMatch(/(^| )uppercase( |$)/);
   });
 
-  it("Should respect uppercase={false} explicit override", () => {
+  it.each<SizeHeightExpectation>([
+    { size: "xs", height: "h-[17px]" },
+    { size: "sm", height: "h-[19px]" },
+    { size: "md", height: "h-[22px]" },
+  ])("Should render the $size pill at the normalized height", ({ size, height }) => {
+    render(<Pill size={size}>label-{size}</Pill>);
+    const pill = screen.getByText(content => content.startsWith("label-"));
+    expect(pill).toHaveAttribute("data-size", size);
+    expect(pill.className).toContain(height);
+  });
+
+  it.each<PillSize>(SIZES)("Should render every size with the flat 4px chip radius", size => {
     render(
-      <Pill mono uppercase={false}>
-        v1.2.3
+      <Pill size={size} data-testid={`pill-${size}`}>
+        x
       </Pill>
     );
-    const pill = screen.getByText("v1.2.3");
-    expect(pill.className).toContain("normal-case");
-    expect(pill.className).not.toMatch(/(^| )uppercase( |$)/);
+    const pill = screen.getByTestId(`pill-${size}`);
+    expect(pill.className).toContain("rounded-(--radius-xs)");
+    expect(pill.className).not.toContain("rounded-(--radius-chip)");
+    expect(pill.className).not.toContain("rounded-(--radius-mono-badge)");
+    expect(pill.className).not.toContain("rounded-(--radius-pill)");
   });
 
-  it("Should default xs size to non-uppercase chip chrome", () => {
-    render(<Pill size="xs">capability-id</Pill>);
-    const pill = screen.getByText("capability-id");
-    expect(pill).toHaveAttribute("data-size", "xs");
-    expect(pill.className).toContain("rounded-(--radius-chip)");
-    expect(pill.className).toContain("normal-case");
+  it.each<PillSize>(SIZES)(
+    "Should emit font-semibold tracking-[0] on mono pills regardless of size (%s)",
+    size => {
+      render(
+        <Pill mono size={size} data-testid={`pill-mono-${size}`}>
+          v1.2.3
+        </Pill>
+      );
+      const pill = screen.getByTestId(`pill-mono-${size}`);
+      expect(pill.className).toContain("font-semibold");
+      expect(pill.className).toContain("tracking-[0]");
+      expect(pill.className).not.toMatch(/font-(medium|normal|light)\b/);
+    }
+  );
+
+  it("Should NOT emit any numeric font-weight inline style on mono pills", () => {
+    render(<Pill mono>token</Pill>);
+    const pill = screen.getByText("token");
+    expect(pill.style.fontWeight).toBe("");
   });
 
-  it("Should apply compact md pill chrome when size='md'", () => {
-    render(<Pill size="md">FILTER</Pill>);
-    const pill = screen.getByText("FILTER");
-    expect(pill).toHaveAttribute("data-size", "md");
-    expect(pill.className).toContain("h-[22px]");
-    expect(pill.className).toContain("rounded-(--radius-pill)");
-    expect(pill.className).toContain("font-medium");
-    expect(pill.className).toContain("normal-case");
-  });
+  it.each<PillTone>(TONES)(
+    "Should NOT emit a `border-` color class on the inactive %s pill",
+    tone => {
+      render(
+        <Pill tone={tone} data-testid={`pill-${tone}`}>
+          chip
+        </Pill>
+      );
+      const pill = screen.getByTestId(`pill-${tone}`);
+      expect(pill.className).not.toMatch(/(^| )border-\(/);
+      expect(pill.className).not.toMatch(/(^| )border-[a-z]/);
+    }
+  );
 
   it("Should render as a button when render={<button />} is provided", async () => {
     const user = userEvent.setup();
@@ -124,7 +161,7 @@ describe("Pill", () => {
     expect(pill.className).toContain("text-(--fg-strong)");
   });
 
-  it("Should apply inactive interactive chrome when active=false", () => {
+  it("Should keep the borderless neutral tint when active=false", () => {
     render(
       <Pill mono active={false} render={<button type="button" />}>
         FILTER
@@ -132,8 +169,9 @@ describe("Pill", () => {
     );
     const pill = screen.getByRole("button", { name: /filter/i });
     expect(pill).toHaveAttribute("data-active", "false");
-    expect(pill.className).toContain("bg-(--canvas-soft)");
+    expect(pill.className).toContain("bg-(--neutral-tint)");
     expect(pill.className).toContain("text-(--muted)");
+    expect(pill.className).not.toMatch(/(^| )border-\(/);
   });
 
   it("Should forward className alongside the variant defaults", () => {
@@ -160,6 +198,34 @@ describe("Pill", () => {
     await user.click(link);
     expect(handle).toHaveBeenCalledTimes(1);
   });
+});
+
+describe("Pill class snapshot matrix", () => {
+  for (const tone of TONES) {
+    for (const size of SIZES) {
+      it(`Should lock the sans ${tone} × ${size} class block`, () => {
+        const testId = `pill-${tone}-${size}-sans`;
+        render(
+          <Pill tone={tone} size={size} data-testid={testId}>
+            x
+          </Pill>
+        );
+        const pill = screen.getByTestId(testId);
+        expect(pill.className).toMatchSnapshot();
+      });
+
+      it(`Should lock the mono ${tone} × ${size} class block`, () => {
+        const testId = `pill-${tone}-${size}-mono`;
+        render(
+          <Pill tone={tone} size={size} mono data-testid={testId}>
+            x
+          </Pill>
+        );
+        const pill = screen.getByTestId(testId);
+        expect(pill.className).toMatchSnapshot();
+      });
+    }
+  }
 });
 
 describe("Pill.Dot", () => {

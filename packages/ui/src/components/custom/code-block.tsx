@@ -67,12 +67,7 @@ function CodeBlock({
       {...props}
     >
       {language ? (
-        <Eyebrow
-          data-slot="code-block-language"
-          case="upper"
-          tone="subtle"
-          className="absolute top-3 left-5"
-        >
+        <Eyebrow data-slot="code-block-language" className="absolute top-3 left-5 text-(--subtle)">
           {language}
         </Eyebrow>
       ) : null}

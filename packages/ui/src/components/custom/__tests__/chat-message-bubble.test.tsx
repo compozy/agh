@@ -22,8 +22,7 @@ describe("ChatMessageBubble", () => {
     expect(body?.textContent).toContain("Find the event mapper.");
     expect(meta?.textContent).toBe("YOU · 12:02");
     expect(meta?.className).toContain("text-right");
-    expect(meta?.className).toContain("font-mono");
-    expect(meta?.className).toContain("uppercase");
+    expect(meta?.className).toContain("eyebrow");
   });
 
   it("Should render role='agent' left-aligned with no bubble wrapper", () => {

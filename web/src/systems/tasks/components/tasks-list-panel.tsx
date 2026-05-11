@@ -5,7 +5,7 @@ import { Button, Empty, PillGroup, SearchInput, Section, Skeleton } from "@agh/u
 import type { TaskListItem, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 
-type TasksListLane = "all" | "mine" | "watched";
+export type TasksListLane = "all" | "mine" | "watched";
 
 const LANE_ITEMS = [
   { value: "all" as const, label: "All", testId: "tasks-list-lane-all" },
@@ -26,14 +26,11 @@ export interface TasksListPanelProps {
   totalCount: number;
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
-  onPublishTask?: (taskId: string) => void;
-  onRetryTask?: (taskId: string) => void;
   searchQuery: string;
   onSearchChange: (next: string) => void;
   isLoading?: boolean;
   errorMessage?: string | null;
   statusFilter?: TaskStatus | null;
-  isPublishPending?: boolean;
   onCreateTask?: () => void;
   /** Optional current mine/watched/all lane selection. Defaults to "all". */
   lane?: TasksListLane;
@@ -69,14 +66,11 @@ export function TasksListPanel({
   totalCount,
   selectedTaskId,
   onSelectTask,
-  onPublishTask,
-  onRetryTask,
   searchQuery,
   onSearchChange,
   isLoading = false,
   errorMessage = null,
   statusFilter = null,
-  isPublishPending = false,
   onCreateTask,
   lane = "all",
   onLaneChange,
@@ -163,10 +157,7 @@ export function TasksListPanel({
           <Section data-testid="tasks-list-rows" className="gap-0">
             {tasks.map(task => (
               <TaskCard
-                isPublishPending={isPublishPending}
                 key={task.id}
-                onPublish={onPublishTask ? () => onPublishTask(task.id) : undefined}
-                onRetry={onRetryTask ? () => onRetryTask(task.id) : undefined}
                 onSelect={() => onSelectTask(task.id)}
                 selected={task.id === selectedTaskId}
                 task={task}

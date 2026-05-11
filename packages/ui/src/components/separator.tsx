@@ -48,7 +48,7 @@ function Separator({
         <span
           data-slot="separator-label"
           className={cn(
-            "shrink-0 font-mono text-eyebrow uppercase tracking-mono",
+            "eyebrow shrink-0",
             tone === "accent" ? "text-(--accent)" : "text-(--subtle)",
             labelClassName
           )}

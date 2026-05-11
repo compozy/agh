@@ -10,19 +10,24 @@ import {
   ItemTitle,
   ListGroup,
   Pill,
+  type PillTone,
   SearchInput,
   Spinner,
+  Time,
 } from "@agh/ui";
 
 import {
-  formatKnowledgeRelativeTime,
   knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
   knowledgeScopeShortLabel,
   memoryScopeTone,
-  memoryTypeTone,
 } from "../lib/knowledge-formatters";
 import { groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
+import {
+  KNOWLEDGE_TYPE_TONE,
+  type KnowledgeTypeTone,
+  knowledgeTypeFor,
+} from "../lib/knowledge-type-tone";
 import type { KnowledgeMemoryItem } from "../types";
 import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
@@ -44,9 +49,15 @@ interface KnowledgeListItemProps {
   onSelect: () => void;
 }
 
+function pillToneFromKnowledgeType(tone: KnowledgeTypeTone): PillTone {
+  return tone === "faint" ? "neutral" : tone;
+}
+
 function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemProps) {
   const memoryKey = knowledgeMemoryKey(memory);
   const scope = memory.scope;
+  const knowledgeType = knowledgeTypeFor(memory.type);
+  const typeTone = pillToneFromKnowledgeType(KNOWLEDGE_TYPE_TONE[knowledgeType]);
   return (
     <Item
       as="button"
@@ -60,8 +71,8 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
     >
       <ItemHeader>
         <ItemTitle className="min-w-0 flex-1 text-small-body text-(--fg)">{memory.name}</ItemTitle>
-        <Eyebrow case="upper" tone="subtle" size="badge" className="shrink-0">
-          {formatKnowledgeRelativeTime(memory.mod_time)}
+        <Eyebrow className="text-(--subtle) shrink-0">
+          <Time iso={memory.mod_time} />
         </Eyebrow>
       </ItemHeader>
       {memory.description ? (
@@ -73,7 +84,8 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         <Pill
           mono
           data-testid={`type-badge-${memory.type}`}
-          tone={pillToneFromKnowledgeTone(memoryTypeTone(memory.type))}
+          data-knowledge-type={knowledgeType}
+          tone={typeTone}
         >
           {memory.type}
         </Pill>
@@ -101,12 +113,12 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         ) : null}
         {memory.staleness_banner ? (
           <Pill mono data-testid="staleness-badge" tone="warning">
-            STALE
+            stale
           </Pill>
         ) : null}
         {memory.system_managed ? (
           <Pill mono data-testid="system-managed-badge" tone="neutral">
-            SYSTEM
+            system
           </Pill>
         ) : null}
       </ItemFooter>
@@ -139,13 +151,7 @@ function KnowledgeListPanel({
           value={searchQuery}
         />
         {searchInfo ? (
-          <Eyebrow
-            case="upper"
-            tone="subtle"
-            size="badge"
-            className="mt-2 block"
-            data-testid="knowledge-search-info"
-          >
+          <Eyebrow className="text-(--subtle) mt-2 block" data-testid="knowledge-search-info">
             {searchInfo}
           </Eyebrow>
         ) : null}

@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { AnimatePresence, m } from "motion/react";
 import { XIcon } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
+import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
@@ -75,7 +75,7 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
-function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+function DialogOverlay({ className, style, ...props }: DialogPrimitive.Backdrop.Props) {
   const overlayRender = React.useMemo(
     () => (
       <m.div
@@ -93,6 +93,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
       data-slot="dialog-overlay"
       render={overlayRender}
       className={cn("fixed inset-0 isolate z-50 bg-(--overlay-scrim)", className)}
+      style={{ backdropFilter: "blur(var(--overlay-blur))", ...style }}
       {...props}
     />
   );
@@ -231,7 +232,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-[15px] leading-none font-[510] tracking-[-0.014em] text-(--fg-strong)",
+        "text-[15px] leading-none font-medium tracking-[-0.014em] text-(--fg-strong)",
         className
       )}
       {...props}
@@ -264,4 +265,4 @@ export {
   DialogTitle,
   DialogTrigger,
 };
-export type { DialogContentProps, DialogFooterProps, DialogHeaderProps, DialogChromeVariant };
+export type { DialogChromeVariant, DialogContentProps, DialogFooterProps, DialogHeaderProps };

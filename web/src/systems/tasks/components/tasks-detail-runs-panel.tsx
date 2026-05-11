@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, Inbox, Radio } from "lucide-react";
 
 import { BlockLoading, Empty, LinkedRecordTable, Pill } from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -79,14 +78,12 @@ export function TasksDetailRunsPanel({
                 <LinkedRecordTable.Title>
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Pill mono>{run.id}</Pill>
-                    <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(run.status))}>
-                      {run.status}
-                    </Pill>
+                    <Pill tone={taskRunStatusTone(run.status)}>{run.status}</Pill>
                     {channelLabel ? (
                       <Pill
                         data-testid={`tasks-detail-runs-channel-${run.id}`}
                         title="Coordination channel is bound to this run. Channel messages support coordination only -- claim, heartbeat, and terminal status stay in the task service."
-                        tone={pillToneFromLegacyTone("violet")}
+                        tone="info"
                       >
                         <span className="inline-flex items-center gap-1">
                           <Radio className="size-3" aria-hidden="true" />

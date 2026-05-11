@@ -10,7 +10,7 @@ const meta: Meta<typeof PriorityBars> = {
     docs: {
       description: {
         component:
-          "Four-bar priority indicator (low / medium / high / urgent). Filled bars adopt the requested signal tone; unfilled bars use `--line` so the rest position stays quiet on the warm canvas.",
+          "Three-bar priority glyph per ADR-006 §4. Heights are always 4 / 8 / 12 px ascending; the `level` prop drives bar color (low → `--faint`, medium → `--fg`, high → `--warning`, urgent → `--danger`) — never bar count. There is no `tone` prop.",
       },
     },
   },
@@ -26,9 +26,7 @@ const meta: Meta<typeof PriorityBars> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * All four levels rendered side by side using the default accent tone.
- */
+/** All four levels rendered side by side; bars are recolored, never recounted. */
 export const Levels: Story = {
   args: {},
   render: () => (
@@ -41,19 +39,7 @@ export const Levels: Story = {
   ),
 };
 
-/**
- * Tone variants — desaturated signal palette only, never raw saturated colors.
- */
-export const Tones: Story = {
-  args: {},
-  render: () => (
-    <>
-      <PriorityBars level="urgent" tone="accent" />
-      <PriorityBars level="urgent" tone="success" />
-      <PriorityBars level="urgent" tone="warning" />
-      <PriorityBars level="urgent" tone="danger" />
-      <PriorityBars level="urgent" tone="info" />
-      <PriorityBars level="urgent" tone="neutral" />
-    </>
-  ),
-};
+export const Low: Story = { args: { level: "low" } };
+export const Medium: Story = { args: { level: "medium" } };
+export const High: Story = { args: { level: "high" } };
+export const Urgent: Story = { args: { level: "urgent" } };

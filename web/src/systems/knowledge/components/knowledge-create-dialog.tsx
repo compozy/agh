@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { BookOpen, ClipboardList, MessageSquare, Plus, Tag } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -11,8 +11,7 @@ import {
   DialogTitle,
   Input,
   Label,
-  NativeSelect,
-  NativeSelectOption,
+  RadioCard,
   Textarea,
 } from "@agh/ui";
 
@@ -34,6 +33,40 @@ interface KnowledgeCreateDialogProps {
   error?: string | null;
   onConfirm: (input: KnowledgeCreateInput) => Promise<void>;
 }
+
+interface TypeOption {
+  value: MemoryType;
+  title: string;
+  description: string;
+  icon: typeof BookOpen;
+}
+
+const TYPE_OPTIONS: ReadonlyArray<TypeOption> = [
+  {
+    value: "user",
+    title: "User",
+    description: "Operator preferences and identity guidance.",
+    icon: ClipboardList,
+  },
+  {
+    value: "feedback",
+    title: "Feedback",
+    description: "Coaching notes captured from prior runs.",
+    icon: MessageSquare,
+  },
+  {
+    value: "project",
+    title: "Project",
+    description: "Long-lived decisions with rationale.",
+    icon: BookOpen,
+  },
+  {
+    value: "reference",
+    title: "Reference",
+    description: "Pointer to docs, code, or external systems.",
+    icon: Tag,
+  },
+];
 
 function KnowledgeCreateDialog({
   open,
@@ -89,47 +122,43 @@ function KnowledgeCreateDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 px-5 py-4">
-          <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className="font-mono text-badge uppercase tracking-mono text-(--muted)"
-                htmlFor="knowledge-create-type"
-              >
-                Type
-              </Label>
-              <NativeSelect
-                data-testid="knowledge-create-type"
-                id="knowledge-create-type"
-                onChange={event => setType(event.target.value as MemoryType)}
-                value={type}
-              >
-                <NativeSelectOption value="user">user</NativeSelectOption>
-                <NativeSelectOption value="feedback">feedback</NativeSelectOption>
-                <NativeSelectOption value="project">project</NativeSelectOption>
-                <NativeSelectOption value="reference">reference</NativeSelectOption>
-              </NativeSelect>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className="font-mono text-badge uppercase tracking-mono text-(--muted)"
-                htmlFor="knowledge-create-name"
-              >
-                Name
-              </Label>
-              <Input
-                data-testid="knowledge-create-name"
-                id="knowledge-create-name"
-                onChange={event => setName(event.target.value)}
-                placeholder="Canonical knowledge name"
-                value={name}
-              />
+          <div className="flex flex-col gap-2">
+            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-name">
+              Type
+            </Label>
+            <div
+              aria-label="Knowledge type"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+              data-testid="knowledge-create-type-grid"
+              role="radiogroup"
+            >
+              {TYPE_OPTIONS.map(option => (
+                <RadioCard
+                  data-testid={`knowledge-create-type-${option.value}`}
+                  description={option.description}
+                  icon={option.icon}
+                  key={option.value}
+                  onSelect={() => setType(option.value)}
+                  selected={type === option.value}
+                  title={option.title}
+                />
+              ))}
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label
-              className="font-mono text-badge uppercase tracking-mono text-(--muted)"
-              htmlFor="knowledge-create-description"
-            >
+            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-name">
+              Name
+            </Label>
+            <Input
+              data-testid="knowledge-create-name"
+              id="knowledge-create-name"
+              onChange={event => setName(event.target.value)}
+              placeholder="Canonical knowledge name"
+              value={name}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-description">
               Description
             </Label>
             <Input
@@ -141,10 +170,7 @@ function KnowledgeCreateDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label
-              className="font-mono text-badge uppercase tracking-mono text-(--muted)"
-              htmlFor="knowledge-create-content"
-            >
+            <Label className="eyebrow text-(--muted)" htmlFor="knowledge-create-content">
               Content
             </Label>
             <Textarea

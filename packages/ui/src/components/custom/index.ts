@@ -35,6 +35,7 @@ export {
 // Topbar — mounted by P4 shell
 export {
   Topbar,
+  TopbarOverflowIcon,
   TopbarSlotContext,
   TopbarSlotProvider,
   useTopbarSlot,
@@ -48,7 +49,7 @@ export {
 } from "./topbar";
 
 // Status / signal vocabulary
-export { Eyebrow, type EyebrowCase, type EyebrowProps, type EyebrowWeight } from "./eyebrow";
+export { Eyebrow, type EyebrowProps } from "./eyebrow";
 export {
   Pill,
   PillDot,
@@ -128,6 +129,7 @@ export {
   type CatalogCardActionsProps,
   type CatalogCardDescriptionProps,
   type CatalogCardLogoProps,
+  type CatalogCardLogoSize,
   type CatalogCardMetaProps,
   type CatalogCardProps,
   type CatalogCardTitleProps,
@@ -190,18 +192,24 @@ export { FieldRow, type FieldRowProps } from "./field-row";
 export { ContextBox, type ContextBoxEntry, type ContextBoxProps } from "./context-box";
 export { JsonViewer, type JsonViewerProps } from "./json-viewer";
 export { EditorFooter, type EditorFooterProps } from "./editor-footer";
-export {
-  DashboardCard,
-  type DashboardCardLabelCase,
-  type DashboardCardProps,
-} from "./dashboard-card";
+export { KpiCard, type KpiCardProps } from "./kpi-card";
 export {
   StatusBreakdown,
   type StatusBreakdownItem,
   type StatusBreakdownProps,
 } from "./status-breakdown";
 export { MetadataTile, type MetadataTileProps } from "./metadata-tile";
-export { DetailHeader, type DetailHeaderProps } from "./detail-header";
+export { DetailHeader, type DetailHeaderCrumb, type DetailHeaderProps } from "./detail-header";
+export { FormSection, type FormSectionProps, type FormSectionSize } from "./form-section";
+export { MonoId, type MonoIdProps, type MonoIdSize } from "./mono-id";
+export { Time, type TimeMode, type TimeProps } from "./time";
+export {
+  StatusDot,
+  type StatusDotProps,
+  type StatusDotSize,
+  type StatusDotTone,
+  type StatusDotVariant,
+} from "./status-dot";
 export { RadioCard, type RadioCardProps } from "./radio-card";
 export {
   ActionResultBanner,
@@ -222,3 +230,50 @@ export {
   type OperationalLink,
   type OperationalLinksRowProps,
 } from "./operational-links-row";
+
+// Redesign-v2 PR-2 content primitives (task_11) — markdown + run/tool/avatar surfaces.
+export {
+  DescriptionCard,
+  STREAMDOWN_SAFE_CONFIG,
+  type DescriptionCardProps,
+} from "./description-card";
+export {
+  RUN_STATUS_LABEL,
+  RUN_STATUS_TONE,
+  RunCard,
+  type RunCardProps,
+  type RunCardStatus,
+  type RunCardWarning,
+  type RunCardWarningTone,
+} from "./run-card";
+export {
+  CHAT_TOOL_OUTPUT_COLLAPSE_LINES,
+  ChatToolCard,
+  TOOL_STATUS_LABEL,
+  TOOL_STATUS_TONE,
+  type ChatToolCardProps,
+  type ChatToolCardSection,
+  type ChatToolStatus,
+} from "./chat-tool-card";
+export { OwnerAvatar, type OwnerAvatarProps, type OwnerAvatarSize } from "./owner-avatar";
+
+// Redesign-v2 PR-2 slot + system primitives (task_12).
+export { RestartBanner, type RestartBannerProps, type RestartBannerTone } from "./restart-banner";
+export { PageActionsTopbarSlot, type PageActionsTopbarSlotProps } from "./page-actions-topbar-slot";
+export {
+  StatusLineTopbarSlot,
+  type StatusLineTopbarSlotItem,
+  type StatusLineTopbarSlotProps,
+} from "./status-line-topbar-slot";
+export {
+  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
+  DETAIL_INSPECTOR_INLINE_WIDTH,
+  DetailInspector,
+  type DetailInspectorProps,
+  type DetailInspectorTab,
+} from "./detail-inspector";
+export {
+  QueueHealthSparkline,
+  type QueueHealthSparklineBucket,
+  type QueueHealthSparklineProps,
+} from "./queue-health-sparkline";

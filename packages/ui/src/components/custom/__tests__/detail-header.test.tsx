@@ -1,23 +1,75 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { DetailHeader } from "../detail-header";
 
 describe("DetailHeader", () => {
-  it("Should render crumbs, title, pills, meta, and actions", () => {
-    render(
+  it("Should render the 6-row stack in order: crumbs → preTitle → title → pills → meta → actions", () => {
+    const { container } = render(
       <DetailHeader
-        crumbs={<span>Tasks / detail</span>}
-        title="Task #42"
+        crumbs="Tasks / detail"
+        preTitle="Run #42"
+        title="Refactor"
         pills={<span data-testid="pill">Active</span>}
-        meta={<span>id-42 · 3m ago</span>}
+        meta={<span>id-42</span>}
         actions={<button type="button">Run</button>}
       />
     );
-    expect(screen.getByText("Tasks / detail")).toBeInTheDocument();
-    expect(screen.getByText("Task #42")).toBeInTheDocument();
-    expect(screen.getByTestId("pill")).toBeInTheDocument();
-    expect(screen.getByText("id-42 · 3m ago")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+    const slots = Array.from(container.querySelectorAll<HTMLElement>("[data-slot]")).map(
+      el => el.dataset.slot
+    );
+    const order = slots.filter(
+      s =>
+        s === "detail-header-crumbs" ||
+        s === "detail-header-pre-title" ||
+        s === "detail-header-title" ||
+        s === "detail-header-pills" ||
+        s === "detail-header-meta" ||
+        s === "detail-header-actions"
+    );
+    expect(order).toEqual([
+      "detail-header-crumbs",
+      "detail-header-pre-title",
+      "detail-header-title",
+      "detail-header-pills",
+      "detail-header-meta",
+      "detail-header-actions",
+    ]);
+  });
+
+  it("Should resolve --text-detail-h1 and --tracking-detail-h1 on the title", () => {
+    const { container } = render(<DetailHeader title="Untitled" />);
+    const title = container.querySelector<HTMLElement>('[data-slot="detail-header-title"]');
+    expect(title?.className).toContain("text-[length:var(--text-detail-h1)]");
+    expect(title?.className).toContain("tracking-(--tracking-detail-h1)");
+    expect(title?.className).toContain("text-(--fg-strong)");
+  });
+
+  it("Should invoke the back callback when the back affordance is clicked", () => {
+    const back = vi.fn();
+    render(<DetailHeader title="Untitled" crumbs="Tasks" back={back} />);
+    const button = screen.getByRole("button", { name: /go back/i });
+    fireEvent.click(button);
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should render structured crumbs with `·` separators", () => {
+    render(
+      <DetailHeader
+        title="Run"
+        crumbs={[{ label: "Workspaces" }, { label: "Sessions" }, { label: "Run #42" }]}
+      />
+    );
+    const crumbList = screen
+      .getByText("Workspaces")
+      .closest('[data-slot="detail-header-crumbs-list"]');
+    expect(crumbList).not.toBeNull();
+    const separators = crumbList?.querySelectorAll('[aria-hidden="true"]');
+    expect(separators?.length).toBe(2);
+  });
+
+  it("Should render crumbs without the back button when `back` is not provided", () => {
+    render(<DetailHeader title="Untitled" crumbs="Tasks" />);
+    expect(screen.queryByRole("button", { name: /go back/i })).toBeNull();
   });
 });

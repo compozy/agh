@@ -72,3 +72,25 @@ export const Disabled: Story = {
     </div>
   ),
 };
+
+/**
+ * Mono variant — `font-mono` + 12 px, for prompt/code-style inputs per
+ * ADR-016 wave-2 / analysis §4.
+ */
+export const MonoVariant: Story = {
+  args: {},
+  render: () => (
+    <div className="w-[26rem]">
+      <Field>
+        <FieldLabel htmlFor="textarea-mono">System prompt</FieldLabel>
+        <Textarea
+          id="textarea-mono"
+          rows={5}
+          variant="mono"
+          defaultValue="You are an AGH operator. Stay terse. Honor SD-007."
+        />
+        <FieldDescription>Sent verbatim as the agent's first user message.</FieldDescription>
+      </Field>
+    </div>
+  ),
+};

@@ -1,4 +1,4 @@
-import { CornerUpLeft, GitFork, MoreHorizontal, Pin, SmilePlus } from "lucide-react";
+import { CornerUpLeft, GitFork, MoreHorizontal, Pin } from "lucide-react";
 
 import { Button } from "@agh/ui";
 
@@ -22,26 +22,16 @@ interface ToolbarButtonProps {
   label: string;
   testId: string;
   onClick?: () => void;
-  disabled?: boolean;
-  disabledTooltip?: string;
 }
 
-function ToolbarButton({
-  icon: Icon,
-  label,
-  testId,
-  onClick,
-  disabled,
-  disabledTooltip,
-}: ToolbarButtonProps) {
+function ToolbarButton({ icon: Icon, label, testId, onClick }: ToolbarButtonProps) {
   return (
     <Button
       aria-label={label}
       data-testid={testId}
-      disabled={disabled}
       onClick={onClick}
       size="icon-sm"
-      title={disabled ? disabledTooltip : label}
+      title={label}
       type="button"
       variant="ghost"
     >
@@ -73,13 +63,6 @@ export function HoverToolbar({
         label="Reply in thread"
         onClick={onReply}
         testId={`network-message-toolbar-reply-${testIdSuffix}`}
-      />
-      <ToolbarButton
-        disabled
-        disabledTooltip="Reactions land post-MVP"
-        icon={SmilePlus}
-        label="Add reaction"
-        testId={`network-message-toolbar-react-${testIdSuffix}`}
       />
       <ToolbarButton
         icon={Pin}

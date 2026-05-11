@@ -270,9 +270,7 @@ function renderAutomationTriggerForm({
                 ) : (
                   <ChevronRight aria-hidden="true" className="size-4 text-(--subtle)" />
                 )}
-                <Eyebrow case="upper" tone="muted" size="badge">
-                  Governance
-                </Eyebrow>
+                <Eyebrow className="text-(--muted)">Governance</Eyebrow>
               </span>
               <span className="text-small-body text-(--muted)">
                 Optional retry and rate limit settings

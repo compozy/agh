@@ -25,8 +25,6 @@ import {
 } from "../lib/task-formatters";
 import type { TaskTimelineItem } from "../types";
 
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
-
 /**
  * Window (in ms) during which an agent is considered "freshly active" -- only
  * then does its StatusDot pulse. Keeps decorative motion off idle rows.
@@ -198,10 +196,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               <Pill mono data-testid={`tasks-multi-agent-agent-id-${task.id}`}>
                 {task.identifier ?? task.id}
               </Pill>
-              <Pill
-                data-testid={`tasks-multi-agent-agent-status-${task.id}`}
-                tone={pillToneFromLegacyTone(statusTone)}
-              >
+              <Pill data-testid={`tasks-multi-agent-agent-status-${task.id}`} tone={statusTone}>
                 {taskStatusLabel(task.status)}
               </Pill>
             </div>

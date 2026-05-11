@@ -109,9 +109,7 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
-          <Eyebrow case="upper" tone="subtle" size="badge">
-            {session.provider}
-          </Eyebrow>
+          <Eyebrow className="text-(--subtle)">{session.provider}</Eyebrow>
         </Link>
       </TableCell>
       <TableCell>

@@ -3,41 +3,33 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-import type { PillTone } from "./pill";
 
 const PRIORITY_LEVELS = ["low", "medium", "high", "urgent"] as const;
 export type PriorityLevel = (typeof PRIORITY_LEVELS)[number];
 
 export interface PriorityBarsProps extends React.ComponentProps<"span"> {
   level: PriorityLevel;
-  tone?: PillTone;
   ariaLabel?: string;
 }
 
-const TONE_FILL: Record<PillTone, string> = {
-  neutral: "bg-(--muted)",
-  accent: "bg-(--accent)",
-  success: "bg-(--success)",
-  warning: "bg-(--warning)",
-  danger: "bg-(--danger)",
-  info: "bg-(--info)",
+/**
+ * Color-from-level mapping per ADR-006 §4. The glyph always renders three
+ * ascending bars (4 / 8 / 12 px); the `level` prop drives the bar fill color,
+ * not the fill count. `medium` and `normal` (alias retained externally) read as
+ * the resting `--fg`; `high` and `urgent` escalate via the warning / danger
+ * signal tokens; `low` recedes into `--faint`.
+ */
+const LEVEL_FILL: Record<PriorityLevel, string> = {
+  low: "bg-(--faint)",
+  medium: "bg-(--fg)",
+  high: "bg-(--warning)",
+  urgent: "bg-(--danger)",
 };
 
-const PRIORITY_FILL_COUNT: Record<PriorityLevel, number> = {
-  low: 1,
-  medium: 2,
-  high: 3,
-  urgent: 4,
-};
+const BAR_HEIGHTS = ["h-1", "h-2", "h-3"] as const;
 
-function PriorityBars({
-  level,
-  tone = "accent",
-  ariaLabel,
-  className,
-  ...props
-}: PriorityBarsProps) {
-  const fillCount = PRIORITY_FILL_COUNT[level];
+function PriorityBars({ level, ariaLabel, className, ...props }: PriorityBarsProps) {
+  const fillClass = LEVEL_FILL[level];
   return (
     <span
       data-slot="priority-bars"
@@ -47,25 +39,14 @@ function PriorityBars({
       className={cn("inline-flex items-end gap-px", className)}
       {...props}
     >
-      {PRIORITY_LEVELS.map((_, index) => {
-        const filled = index < fillCount;
-        return (
-          <span
-            key={index}
-            data-slot="priority-bars-bar"
-            data-filled={filled ? "true" : undefined}
-            aria-hidden="true"
-            className={cn(
-              "w-[2px] rounded-[1px]",
-              filled ? TONE_FILL[tone] : "bg-(--line)",
-              index === 0 && "h-1.5",
-              index === 1 && "h-2.5",
-              index === 2 && "h-3.5",
-              index === 3 && "h-4"
-            )}
-          />
-        );
-      })}
+      {BAR_HEIGHTS.map((heightClass, index) => (
+        <span
+          key={index}
+          data-slot="priority-bars-bar"
+          aria-hidden="true"
+          className={cn("w-[2px] rounded-[1px]", heightClass, fillClass)}
+        />
+      ))}
     </span>
   );
 }

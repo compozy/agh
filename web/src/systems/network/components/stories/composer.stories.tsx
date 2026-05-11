@@ -62,3 +62,20 @@ export const Disabled: Story = {
     </PanelSurface>
   ),
 };
+
+export const Focus: Story = {
+  name: "Focus state (input-fill → canvas + line-strong ring)",
+  parameters: {
+    pseudo: { focusVisible: true },
+  },
+  render: () => (
+    <PanelSurface className="min-h-[180px] p-0">
+      <Composer
+        onSubmit={({ reset }) => reset()}
+        placeholder="Reply..."
+        sendLabel="Send to #ops"
+        testIdSuffix="story-focus"
+      />
+    </PanelSurface>
+  ),
+};

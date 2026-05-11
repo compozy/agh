@@ -58,7 +58,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@/components/app-sidebar", () => ({
+vi.mock("@/systems/runtime", () => ({
   AppSidebar: ({ onAddWorkspace }: { onAddWorkspace: () => void }) => (
     <button data-testid="app-sidebar" onClick={onAddWorkspace} type="button">
       Sidebar

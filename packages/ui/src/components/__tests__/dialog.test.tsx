@@ -104,6 +104,7 @@ describe("Dialog", () => {
     expect(overlay).not.toBeNull();
     expect(overlay?.className).toContain("bg-(--overlay-scrim)");
     expect(overlay?.className).not.toContain("backdrop-blur");
+    expect(overlay?.style.backdropFilter).toBe("blur(var(--overlay-blur))");
     expect(dialog.className).toContain("bg-(--canvas-soft)");
     expect(dialog.className).toContain("shadow-[var(--shadow-overlay)]");
     expect(dialog.className).not.toContain("border ");

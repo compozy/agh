@@ -80,9 +80,7 @@ function NetworkChannelDirectsRoute() {
         className="flex items-center justify-between gap-3 border-b border-(--line) px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <Eyebrow case="upper" tone="subtle" size="badge">
-          {subheaderLabel}
-        </Eyebrow>
+        <Eyebrow className="text-(--subtle)">{subheaderLabel}</Eyebrow>
         <Button
           aria-label="Open new direct room"
           data-testid="network-directs-new-direct"

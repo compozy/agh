@@ -32,7 +32,7 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 }
 
 describe("TaskCard", () => {
-  it("renders enriched task data including identifier, status dot, owner, attempt and counts", () => {
+  it("renders enriched task data inline through the meta slot", () => {
     const { container } = render(<TaskCard task={buildTask()} />);
 
     expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("TaskCard", () => {
     expect(dot).not.toBeNull();
     expect(dot).toHaveAttribute("data-tone", "accent");
     expect(dot).toHaveAttribute("data-pulse", "true");
-    // Priority pill remains textual.
+    // Priority pill stays as a textual pill in the trailing slot.
     expect(screen.getByText("High")).toBeInTheDocument();
   });
 
@@ -61,28 +61,9 @@ describe("TaskCard", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the publish button for draft tasks and forwards the action without selecting", () => {
-    const onPublish = vi.fn();
-    const onSelect = vi.fn();
+  it("renders the failed-run error inline in the meta row (no inline retry button)", () => {
     render(
       <TaskCard
-        onPublish={onPublish}
-        onSelect={onSelect}
-        task={buildTask({ status: "draft", draft: true, active_run: null })}
-      />
-    );
-
-    const publish = screen.getByTestId("task-card-publish-task_001");
-    fireEvent.click(publish);
-    expect(onPublish).toHaveBeenCalledTimes(1);
-    expect(onSelect).not.toHaveBeenCalled();
-  });
-
-  it("surfaces the failed-run error and a retry control for failed tasks", () => {
-    const onRetry = vi.fn();
-    render(
-      <TaskCard
-        onRetry={onRetry}
         task={buildTask({
           status: "failed",
           active_run: {
@@ -101,8 +82,17 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-error-task_001")).toHaveTextContent(
       "rate-limited by upstream"
     );
+    // Retry control lives on the detail panel (tasks-detail-header), not the row.
+    expect(screen.queryByTestId("task-card-retry-task_001")).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByTestId("task-card-retry-task_001"));
-    expect(onRetry).toHaveBeenCalledTimes(1);
+  it("does not render a publish button on draft rows (publish lives on the detail header)", () => {
+    render(<TaskCard task={buildTask({ status: "draft", draft: true, active_run: null })} />);
+    expect(screen.queryByTestId("task-card-publish-task_001")).not.toBeInTheDocument();
+  });
+
+  it("renders a Blocked pill in the trailing slot for blocked tasks", () => {
+    render(<TaskCard task={buildTask({ status: "blocked", active_run: null })} />);
+    expect(screen.getByTestId("task-card-blocked-task_001")).toBeInTheDocument();
   });
 });

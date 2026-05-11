@@ -1,4 +1,4 @@
-import { AlertCircle, Boxes, Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Boxes, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -12,8 +12,12 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  PageShell,
   Pill,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Table,
   TableBody,
   TableCell,
@@ -33,11 +37,9 @@ import type { SettingsSandboxEntry } from "@/systems/settings";
 import {
   SettingsEditorDialog,
   SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSourceBadge,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/sandbox")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -52,26 +54,33 @@ function SandboxPage() {
   useTopbarSlot({
     count: page.envelope ? page.counts.total : undefined,
     tabs: page.envelope ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="sandbox-page-status-line"
         status="connected"
         items={[
-          <span key="total" data-testid="sandbox-page-total">
-            {page.counts.total} profiles
-          </span>,
-          <span key="workspaces" data-testid="sandbox-page-workspaces">
-            {page.counts.totalWorkspaces} workspace references
-          </span>,
+          {
+            key: "total",
+            value: <span data-testid="sandbox-page-total">{page.counts.total} profiles</span>,
+            tone: "neutral",
+          },
+          {
+            key: "workspaces",
+            value: (
+              <span data-testid="sandbox-page-workspaces">
+                {page.counts.totalWorkspaces} workspace references
+              </span>
+            ),
+            tone: "neutral",
+          },
         ]}
       />
     ) : undefined,
-    actions: <SettingsPageActions slug="sandbox" restart={page.restart} />,
   });
 
   if (page.isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-loading">
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -89,72 +98,75 @@ function SandboxPage() {
     );
   }
 
+  const bannerProps = restartBannerPropsFor("sandbox", page.restart);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="sandbox-shell">
-      <SettingsRestartBanner
-        slug="sandbox"
-        restart={page.restart}
-        className="px-6 md:px-8 xl:px-10"
+    <PageShell
+      density="route"
+      data-testid="sandbox-shell"
+      banner={
+        bannerProps ? (
+          <RestartBanner {...bannerProps} className="px-6 md:px-8 xl:px-10" />
+        ) : undefined
+      }
+    >
+      {page.lastAction ? (
+        <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
+      ) : null}
+
+      <Section
+        data-testid="sandbox-page-header-row"
+        label="Profiles"
+        note={`${page.counts.total} defined · used across ${page.counts.totalWorkspaces} workspaces`}
+        right={
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={page.openCreate}
+            data-testid="sandbox-page-create"
+          >
+            <Plus className="size-3.5" />
+            New sandbox profile
+          </Button>
+        }
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10">
-        {page.lastAction ? (
-          <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
-        ) : null}
 
-        <Section
-          data-testid="sandbox-page-header-row"
-          label="Profiles"
-          note={`${page.counts.total} defined · used across ${page.counts.totalWorkspaces} workspaces`}
-          right={
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={page.openCreate}
-              data-testid="sandbox-page-create"
-            >
-              <Plus className="size-3.5" />
-              New sandbox profile
-            </Button>
-          }
+      {page.sandboxes.length === 0 ? (
+        <Empty
+          icon={Boxes}
+          title="No sandbox profiles defined"
+          description='Use "New sandbox profile" to create an overlay profile referenceable by workspaces.'
+          data-testid="sandbox-page-empty"
         />
-
-        {page.sandboxes.length === 0 ? (
-          <Empty
-            icon={Boxes}
-            title="No sandbox profiles defined"
-            description='Use "New sandbox profile" to create an overlay profile referenceable by workspaces.'
-            data-testid="sandbox-page-empty"
-          />
-        ) : (
-          <SandboxTable
-            sandboxes={page.sandboxes}
-            onEdit={page.openEdit}
-            onDelete={page.openDelete}
-          />
-        )}
-
-        <SandboxEditor
-          editor={page.editor}
-          isValid={page.editorIsValid}
-          isSaving={page.editorIsSaving}
-          error={page.editorError}
-          warnings={page.editorWarnings}
-          existingNames={page.sandboxes.map(entry => entry.name)}
-          onChange={page.updateDraft}
-          onClose={page.closeEditor}
-          onSave={page.saveEditor}
+      ) : (
+        <SandboxTable
+          sandboxes={page.sandboxes}
+          onEdit={page.openEdit}
+          onDelete={page.openDelete}
         />
+      )}
 
-        <SandboxDeleteDialog
-          target={page.deleteTarget.mode === "open" ? page.deleteTarget.entry : null}
-          error={page.deleteError}
-          isDeleting={page.deleteIsPending}
-          onClose={page.closeDelete}
-          onConfirm={page.confirmDelete}
-        />
-      </div>
-    </div>
+      <SandboxEditor
+        editor={page.editor}
+        isValid={page.editorIsValid}
+        isSaving={page.editorIsSaving}
+        error={page.editorError}
+        warnings={page.editorWarnings}
+        existingNames={page.sandboxes.map(entry => entry.name)}
+        onChange={page.updateDraft}
+        onClose={page.closeEditor}
+        onSave={page.saveEditor}
+      />
+
+      <SandboxDeleteDialog
+        target={page.deleteTarget.mode === "open" ? page.deleteTarget.entry : null}
+        error={page.deleteError}
+        isDeleting={page.deleteIsPending}
+        onClose={page.closeDelete}
+        onConfirm={page.confirmDelete}
+      />
+    </PageShell>
   );
 }
 
@@ -175,24 +187,12 @@ function SandboxTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-(--elevated)">
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Name
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Backend
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Profile
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--muted)">
-              Source
-            </TableHead>
-            <TableHead className="text-right text-badge uppercase tracking-mono text-(--muted)">
-              Usage
-            </TableHead>
-            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--muted)">
-              Actions
-            </TableHead>
+            <TableHead className="eyebrow text-(--muted)">Name</TableHead>
+            <TableHead className="eyebrow text-(--muted)">Backend</TableHead>
+            <TableHead className="eyebrow text-(--muted)">Profile</TableHead>
+            <TableHead className="eyebrow text-(--muted)">Source</TableHead>
+            <TableHead className="eyebrow text-right text-(--muted)">Usage</TableHead>
+            <TableHead className="eyebrow w-[1%] text-right text-(--muted)">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -293,9 +293,7 @@ function SandboxRow({
 function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
-      <Eyebrow case="upper" tone="muted" size="micro">
-        {label}
-      </Eyebrow>
+      <Eyebrow className="text-(--muted)">{label}</Eyebrow>
       <span className="font-mono text-(--fg)">{value}</span>
     </span>
   );
@@ -363,7 +361,6 @@ function SandboxEditor({
       open={open}
       mode={isCreate ? "create" : "edit"}
       title={title}
-      slug="sandbox"
       description={description}
       metadata={
         entry ? (
@@ -393,6 +390,7 @@ function SandboxEditor({
     >
       <div className="flex flex-col gap-3">
         <SettingsFieldRow
+          variant="modal"
           data-testid="sandbox-editor-name"
           label="Name"
           description={
@@ -413,6 +411,7 @@ function SandboxEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="sandbox-editor-backend"
           label="Backend"
           description="Which execution backend the sandbox uses."
@@ -430,6 +429,7 @@ function SandboxEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="sandbox-editor-sync-mode"
           label="Sync mode"
           description="How files move between host and sandbox."
@@ -447,6 +447,7 @@ function SandboxEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="sandbox-editor-persistence"
           label="Persistence"
           description="Workspace lifecycle between sessions."
@@ -464,6 +465,7 @@ function SandboxEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="sandbox-editor-runtime-root"
           label="Runtime root"
           description="Directory mounted as the working root."
@@ -499,9 +501,7 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
       className="rounded-md border border-(--line) bg-(--elevated) px-3 py-2 text-xs text-(--subtle)"
       data-testid="sandbox-editor-preserved"
     >
-      <Eyebrow case="upper" tone="muted" size="badge">
-        preserved on save
-      </Eyebrow>
+      <Eyebrow className="text-(--muted)">preserved on save</Eyebrow>
       <span className="ml-2">
         {preserved.join(", ")} -- edited outside this dialog and included as-is in the PUT replace.
       </span>

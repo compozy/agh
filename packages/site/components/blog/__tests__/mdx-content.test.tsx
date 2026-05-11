@@ -54,7 +54,7 @@ describe("blog MdxContent", () => {
     const inlineCode = screen.getAllByText("agh daemon start")[0];
 
     expect(heading.className).toContain("border-t");
-    expect(inlineCode.closest("code")?.className).toContain("bg-(--color-surface-elevated)");
+    expect(inlineCode.closest("code")?.className).toContain("bg-(--elevated)");
     expect(screen.getByRole("button", { name: "Copy code" })).toBeDefined();
   });
 

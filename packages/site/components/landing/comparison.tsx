@@ -67,7 +67,7 @@ const DIMENSIONS = [
 
 export function Comparison() {
   return (
-    <SectionFrame background="canvas" padY="lg" className="border-b border-(--color-divider)">
+    <SectionFrame background="canvas" padY="lg" className="border-b border-(--line)">
       <SectionHeader
         align="start"
         eyebrow="Positioning"
@@ -75,45 +75,23 @@ export function Comparison() {
         description="AGH is the only approach here with an implemented cross-runtime protocol. The rest centralize coordination or skip it entirely."
       />
 
-      <div className="mt-10 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)">
+      <div className="mt-10 overflow-hidden rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft)">
         {/* Header row */}
-        <div className="hidden border-b border-(--color-divider) px-5 py-4 md:grid md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:gap-4">
-          <Eyebrow
-            case="upper"
-            tone="muted"
-            size="badge"
-            weight="semibold"
-            className="text-(--color-text-tertiary)"
-          >
-            Approach
-          </Eyebrow>
+        <div className="hidden border-b border-(--line) px-5 py-4 md:grid md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:gap-4">
+          <Eyebrow className="text-(--subtle)">Approach</Eyebrow>
           {DIMENSIONS.map(d => (
-            <Eyebrow
-              key={d.key}
-              case="upper"
-              size="badge"
-              weight="semibold"
-              className="text-(--color-text-tertiary)"
-            >
+            <Eyebrow key={d.key} className="text-(--subtle)">
               {d.label}
             </Eyebrow>
           ))}
-          <Eyebrow
-            case="upper"
-            tone="muted"
-            size="badge"
-            weight="semibold"
-            className="text-right text-(--color-text-tertiary)"
-          >
-            Cross-runtime
-          </Eyebrow>
+          <Eyebrow className="text-right text-(--subtle)">Cross-runtime</Eyebrow>
         </div>
 
         {APPROACHES.map(row => (
           <div
             key={row.approach}
             className={cn(
-              "grid gap-3 border-t border-(--color-divider) p-5 first:border-t-0 md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:items-center md:gap-4",
+              "grid gap-3 border-t border-(--line) p-5 first:border-t-0 md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:items-center md:gap-4",
               row.highlight && "border-l-4 border-l-accent bg-accent-tint/40"
             )}
           >
@@ -121,7 +99,7 @@ export function Comparison() {
               <h3
                 className={cn(
                   "text-sm font-semibold",
-                  row.highlight ? "text-accent" : "text-(--color-text-primary)"
+                  row.highlight ? "text-accent" : "text-(--fg)"
                 )}
               >
                 {row.approach}
@@ -129,20 +107,13 @@ export function Comparison() {
             </div>
             {DIMENSIONS.map(d => (
               <div key={d.key}>
-                <Eyebrow
-                  case="upper"
-                  tone="muted"
-                  size="badge"
-                  className="text-(--color-text-tertiary) md:hidden"
-                >
-                  {d.label}
-                </Eyebrow>
+                <Eyebrow className="text-(--subtle) md:hidden">{d.label}</Eyebrow>
                 <p
                   className={cn(
                     "text-small-body leading-6",
                     row.highlight && d.key === "coordination"
-                      ? "font-medium text-(--color-text-primary)"
-                      : "text-(--color-text-secondary)"
+                      ? "font-medium text-(--fg)"
+                      : "text-(--muted)"
                   )}
                 >
                   {row[d.key]}
@@ -155,8 +126,8 @@ export function Comparison() {
                 className={cn(
                   "inline-flex size-6 items-center justify-center rounded-mono-badge",
                   row.crossRuntime
-                    ? "bg-(--color-success-tint) text-success"
-                    : "bg-(--color-surface-elevated) text-(--color-text-tertiary)"
+                    ? "bg-(--success-tint) text-success"
+                    : "bg-(--elevated) text-(--subtle)"
                 )}
               >
                 {row.crossRuntime ? (

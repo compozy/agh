@@ -19,9 +19,9 @@ function makeSkill(overrides: Partial<SkillPayload> = {}): SkillPayload {
 }
 
 const SKILLS: SkillPayload[] = [
-  makeSkill({ name: "alpha", metadata: { tags: ["TESTING"], downloads: 10 } }),
-  makeSkill({ name: "beta", metadata: { tags: ["DATABASE"] } }),
-  makeSkill({ name: "gamma", metadata: { tags: ["AI"] } }),
+  makeSkill({ name: "alpha", metadata: { tags: ["testing"], downloads: 10 } }),
+  makeSkill({ name: "beta", metadata: { tags: ["database"] } }),
+  makeSkill({ name: "gamma", metadata: { tags: ["ai"] } }),
 ];
 
 function renderView(props: Partial<React.ComponentProps<typeof MarketplaceView>> = {}) {
@@ -51,6 +51,14 @@ describe("MarketplaceView", () => {
     );
     expect(screen.getByTestId("marketplace-row-beta")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-gamma")).toBeInTheDocument();
+  });
+
+  it("Should render the install button as variant=default per ADR-012 §5", () => {
+    renderView();
+    const button = screen.getByTestId("install-btn-alpha");
+    // The button-cva default variant emits the neutral fill, not the primary accent fill.
+    expect(button.className).toContain("bg-(--btn-default-fill)");
+    expect(button.className).not.toContain("bg-(--accent)");
   });
 
   it("Should call onInstall with the skill name when the install button is clicked", async () => {
@@ -110,15 +118,15 @@ describe("MarketplaceView", () => {
     );
   });
 
-  it("Should filter by category (pills) and show Empty when nothing matches", async () => {
+  it("Should filter by category (sentence-case pills) and show Empty when nothing matches", async () => {
     const user = userEvent.setup();
     renderView();
 
-    await user.click(screen.getByTestId("category-chip-DATABASE"));
+    await user.click(screen.getByTestId("category-chip-database"));
     expect(screen.getByTestId("marketplace-row-beta")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-row-alpha")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("category-chip-SECURITY"));
+    await user.click(screen.getByTestId("category-chip-security"));
     expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
   });
 
@@ -129,7 +137,7 @@ describe("MarketplaceView", () => {
     expect(screen.getByTestId("marketplace-row-alpha")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-row-beta")).not.toBeInTheDocument();
 
-    fireEvent.change(input, { target: { value: "AI" } });
+    fireEvent.change(input, { target: { value: "ai" } });
     expect(screen.getByTestId("marketplace-row-gamma")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-row-alpha")).not.toBeInTheDocument();
   });

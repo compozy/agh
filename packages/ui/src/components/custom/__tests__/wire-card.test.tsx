@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 import { WireCard, WireCardBody, WireCardFoot, WireCardHead } from "../wire-card";
 
 describe("WireCard", () => {
-  it("Should render a bordered surface with a 520px max width by default", () => {
+  it("Should render a borderless surface with a 520px max width by default", () => {
     const { container } = render(<WireCard>body</WireCard>);
     const card = container.querySelector<HTMLElement>('[data-slot="wire-card"]');
     expect(card).not.toBeNull();
     expect(card?.className).toContain("max-w-[520px]");
-    expect(card?.className).toContain("border-(--line)");
+    expect(card?.className).not.toContain("border-(--line)");
     expect(card?.className).toContain("bg-(--canvas-soft)");
   });
 

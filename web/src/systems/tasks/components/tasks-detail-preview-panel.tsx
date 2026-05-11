@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, Radio } from "lucide-react";
 
 import { BlockLoading, Button, CodeBlock, Metric, Pill, Section } from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -161,18 +160,16 @@ export function TasksDetailPreviewPanel({
             <Pill mono>{identifier}</Pill>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-small-body text-(--muted)">
-            <Pill tone={pillToneFromLegacyTone(taskStatusTone(record.status))}>
-              {taskStatusLabel(record.status)}
-            </Pill>
+            <Pill tone={taskStatusTone(record.status)}>{taskStatusLabel(record.status)}</Pill>
             <Pill
               data-testid="tasks-detail-preview-lifecycle"
               title={taskLifecyclePhaseDescription(lifecyclePhase)}
-              tone={pillToneFromLegacyTone(taskLifecyclePhaseTone(lifecyclePhase))}
+              tone={taskLifecyclePhaseTone(lifecyclePhase)}
             >
               {taskLifecyclePhaseLabel(lifecyclePhase)}
             </Pill>
             {record.priority ? (
-              <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
+              <Pill tone={taskPriorityTone(record.priority)}>
                 {taskPriorityLabel(record.priority)}
               </Pill>
             ) : null}
@@ -183,7 +180,7 @@ export function TasksDetailPreviewPanel({
               <Pill
                 data-testid="tasks-detail-preview-coordination"
                 title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
-                tone={pillToneFromLegacyTone("violet")}
+                tone="info"
               >
                 <span className="inline-flex items-center gap-1">
                   <Radio className="size-3" aria-hidden="true" />

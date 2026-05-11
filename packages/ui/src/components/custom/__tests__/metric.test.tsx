@@ -11,12 +11,8 @@ describe("Metric", () => {
 
     const label = container.querySelector<HTMLElement>('[data-slot="metric-label"]');
     expect(label?.textContent).toBe("Sessions");
-    expect(label?.dataset.case).toBe("upper");
-    expect(label?.dataset.tone).toBe("subtle");
-    expect(label?.className).toContain("font-mono");
-    expect(label?.className).toContain("text-eyebrow");
-    expect(label?.className).toContain("uppercase");
-    expect(label?.className).toContain("tracking-mono");
+    expect(label?.className).toContain("eyebrow");
+    expect(label?.className).toContain("text-(--subtle)");
 
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
     expect(value?.textContent).toBe("12");
@@ -67,5 +63,12 @@ describe("Metric", () => {
     const { container } = render(<Metric label="Credits" value="0" />);
     expect(container.querySelector('[data-slot="metric-detail"]')).toBeNull();
     expect(container.querySelector('[data-slot="metric-subtext"]')).toBeNull();
+  });
+
+  it("Should render flat — no default border on the card root (ADR-004 §5)", () => {
+    const { container } = render(<Metric label="Sessions" value="12" />);
+    const root = container.querySelector<HTMLElement>('[data-slot="metric"]');
+    expect(root?.className).not.toContain("border-(--line)");
+    expect(root?.className).toContain("bg-(--canvas-soft)");
   });
 });

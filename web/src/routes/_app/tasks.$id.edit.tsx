@@ -1,20 +1,31 @@
+import { useCallback } from "react";
 import { Pencil } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskEditRouteState } from "@/hooks/routes/use-task-edit-route-state";
-import { TaskEditorSurface } from "@/systems/tasks/components/task-editor-surface";
+import { TaskEditorModal } from "@/systems/tasks/components/task-editor-modal";
 
 export const Route = createFileRoute("/_app/tasks/$id/edit")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Edit task ${params.id}`, icon: Pencil },
+    topbar: { title: `Task ${params.id}`, icon: Pencil },
   }),
   component: TaskEditRoute,
 });
 
 function TaskEditRoute() {
   const { id } = Route.useParams();
+  const navigate = useNavigate({ from: "/tasks/$id/edit" });
   const page = useTaskEditRouteState(id);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        void navigate({ to: "/tasks/$id", params: { id } });
+      }
+    },
+    [id, navigate]
+  );
 
   if (page.isLoading) {
     return (
@@ -33,13 +44,15 @@ function TaskEditRoute() {
   }
 
   return (
-    <TaskEditorSurface
+    <TaskEditorModal
       canSubmit={page.draft.title.trim().length > 0}
       draft={page.draft}
       isSubmitting={page.isSubmitting}
       mode="edit"
       onDraftChange={page.setDraft}
+      onOpenChange={handleOpenChange}
       onSubmit={page.handleSubmit}
+      open
       task={page.task}
       workspaceName={page.workspaceName}
     />

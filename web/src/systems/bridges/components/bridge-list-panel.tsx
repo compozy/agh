@@ -8,14 +8,13 @@ import {
   ItemFooter,
   ItemHeader,
   ItemTitle,
+  KindChip,
   ListGroup,
   Pill,
   SearchInput,
-  type PillTone,
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
-import { KindChip } from "@/systems/network";
 
 import {
   bridgeStatusTone,
@@ -42,23 +41,8 @@ interface BridgeListItemProps {
   onSelect: () => void;
 }
 
-function listItemTone(status: BridgeSummary["status"]): PillTone {
-  switch (bridgeStatusTone(status)) {
-    case "green":
-      return "success";
-    case "amber":
-      return "warning";
-    case "danger":
-      return "danger";
-    case "violet":
-      return "info";
-    default:
-      return "neutral";
-  }
-}
-
 function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItemProps) {
-  const tone = listItemTone(bridge.status);
+  const tone = bridgeStatusTone(bridge.status);
   const pulse = bridge.status === "starting";
   const effectiveStatus = health?.status ?? bridge.status;
 
@@ -79,9 +63,7 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
             {bridge.display_name}
           </span>
         </ItemTitle>
-        <Eyebrow className="shrink-0" weight="semibold">
-          {formatBridgeRelativeTime(health?.last_success_at)}
-        </Eyebrow>
+        <Eyebrow className="shrink-0">{formatBridgeRelativeTime(health?.last_success_at)}</Eyebrow>
       </ItemHeader>
 
       <ItemFooter className="flex-wrap justify-start gap-1.5">

@@ -70,17 +70,18 @@ describe("TasksListRow", () => {
     expect(getDot(container)).toHaveAttribute("data-tone", "danger");
   });
 
-  it("renders a MonoBadge showing the identifier when present", () => {
+  it("renders the identifier as bare mono text (proposal `.task-row__id`, not a Pill)", () => {
     render(<TasksListRow task={buildTask({ identifier: "TASK-42" })} />);
-    const badge = screen.getByText("TASK-42");
-    expect(badge).toHaveAttribute("data-slot", "pill");
+    const id = screen.getByText("TASK-42");
+    expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");
+    expect(id).not.toHaveAttribute("data-slot", "pill");
   });
 
   it("falls back to the 7-character short id when the identifier is absent", () => {
     render(<TasksListRow task={buildTask({ identifier: undefined })} />);
     // id = "task_abcdef0_tail" → short id "task_ab"
-    const badge = screen.getByText("task_ab");
-    expect(badge).toHaveAttribute("data-slot", "pill");
+    const id = screen.getByText("task_ab");
+    expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");
   });
 
   it("invokes onSelect(task.id) when the row is clicked", () => {

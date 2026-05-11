@@ -104,7 +104,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
   }, [state.svg]);
 
   return (
-    <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-(--color-divider) bg-(--color-surface) p-4">
+    <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-(--line) bg-(--canvas-soft) p-4">
       {state.svg ? (
         <div
           ref={containerRef}
@@ -114,25 +114,21 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         />
       ) : state.error ? (
         <div>
-          <Eyebrow case="upper" tone="muted" weight="semibold" className="text-accent">
-            Diagram source
-          </Eyebrow>
-          <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
+          <Eyebrow className="text-accent">Diagram source</Eyebrow>
+          <p className="mt-2 text-sm leading-6 text-(--muted)">
             Mermaid could not render this diagram in the current browser session.
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-md border border-(--color-divider) bg-(--color-canvas-deep) p-3 text-xs leading-6 text-(--color-text-secondary)">
+          <pre className="mt-4 overflow-x-auto rounded-md border border-(--line) bg-(--rail) p-3 text-xs leading-6 text-(--muted)">
             <code>{chart}</code>
           </pre>
-          <p className="mt-3 text-sm leading-6 text-(--color-text-tertiary)">{state.error}</p>
+          <p className="mt-3 text-sm leading-6 text-(--subtle)">{state.error}</p>
         </div>
       ) : (
-        <p className="text-sm leading-6 text-(--color-text-secondary)">Rendering diagram…</p>
+        <p className="text-sm leading-6 text-(--muted)">Rendering diagram…</p>
       )}
 
       {caption ? (
-        <figcaption className="mt-3 text-sm leading-6 text-(--color-text-secondary)">
-          {caption}
-        </figcaption>
+        <figcaption className="mt-3 text-sm leading-6 text-(--muted)">{caption}</figcaption>
       ) : null}
     </figure>
   );

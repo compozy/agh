@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 
-import { Pill, type PillTone } from "../pill";
+import { Pill, type PillSize, type PillTone } from "../pill";
 
 const meta: Meta<typeof Pill> = {
   title: "components/custom/Pill",
@@ -11,7 +11,7 @@ const meta: Meta<typeof Pill> = {
     docs: {
       description: {
         component:
-          "Unified semantic pill , replaces legacy `MonoBadge`, `StatusDot`, `KindChip`, `WireChip`, and connection-state label compositions. Compose with `Pill.Dot` for leading status dots.",
+          "Unified semantic pill — flat 4px radius across every size, sentence-case by default (no `uppercase` prop). Mono variants render at 10.5px / 600. Compose with `Pill.Dot` for leading status dots.",
       },
     },
   },
@@ -21,6 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const TONES: PillTone[] = ["neutral", "accent", "success", "warning", "danger", "info"];
+const SIZES: PillSize[] = ["xs", "sm", "md"];
 
 const KIND_DOT_COLORS: Record<string, string> = {
   say: "var(--color-kind-say)",
@@ -86,38 +87,56 @@ export const Sizes: Story = {
   args: {},
   render: () => (
     <div className="flex flex-wrap items-center gap-3">
-      <Pill mono size="xs" tone="neutral">
-        capability-id
-      </Pill>
-      <Pill mono size="sm" tone="accent">
-        v0.2.1
-      </Pill>
-      <Pill mono size="md" tone="success">
-        FILTER
-      </Pill>
+      {SIZES.map(size => (
+        <Pill key={size} mono size={size} tone="neutral">
+          {`size=${size}`}
+        </Pill>
+      ))}
     </div>
   ),
   parameters: {
     docs: {
       description: {
         story:
-          "`xs` = chip (5px radius). `sm` = badge (22px tall, 6px radius). `md` = filter (32px, 20px radius).",
+          "All sizes share the flat `rounded-(--radius-xs)` (4 px) chip radius per ADR-004 §3. Heights: xs = 17 px, sm = 19 px, md = 22 px.",
       },
     },
   },
 };
 
-export const MonoLowercaseIdentifier: Story = {
+export const TonesBySizeMatrix: Story = {
   args: {},
   render: () => (
-    <Pill mono uppercase={false}>
-      agh-network/v0
-    </Pill>
+    <div className="flex flex-col gap-3">
+      {SIZES.map(size => (
+        <div key={size} className="flex flex-wrap items-center gap-2">
+          {TONES.map(tone => (
+            <Pill key={`${size}-${tone}`} tone={tone} size={size} mono>
+              {`${tone}/${size}`}
+            </Pill>
+          ))}
+        </div>
+      ))}
+    </div>
   ),
   parameters: {
     docs: {
       description: {
-        story: "Override the auto-uppercase default for protocol strings.",
+        story:
+          "Every tone × every size — used to lock visual baselines for the redesign-v2 PR-2 primitives.",
+      },
+    },
+  },
+};
+
+export const MonoIdentifier: Story = {
+  args: {},
+  render: () => <Pill mono>agh-network/v0</Pill>,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Mono pills render their content at the casing the caller passes — no `uppercase` prop.",
       },
     },
   },
@@ -169,13 +188,13 @@ export const ToggleInteractive: Story = {
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       <Pill mono active render={<button type="button" />}>
-        ALL
+        all
       </Pill>
       <Pill mono active={false} render={<button type="button" />}>
-        SAY
+        say
       </Pill>
       <Pill mono active={false} render={<button type="button" />}>
-        DIRECT
+        direct
       </Pill>
     </div>
   ),
@@ -207,21 +226,15 @@ export const ConnectionIndicator: Story = {
     <div className="flex flex-col gap-2">
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="success" />
-        <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
-          Connected
-        </span>
+        <span className="eyebrow text-(--subtle)">Connected</span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="warning" pulse />
-        <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
-          Reconnecting
-        </span>
+        <span className="eyebrow text-(--subtle)">Reconnecting</span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
         <Pill.Dot tone="danger" />
-        <span className="font-mono text-eyebrow font-medium uppercase tracking-badge text-(--subtle)">
-          Disconnected
-        </span>
+        <span className="eyebrow text-(--subtle)">Disconnected</span>
       </div>
     </div>
   ),
@@ -229,7 +242,7 @@ export const ConnectionIndicator: Story = {
     docs: {
       description: {
         story:
-          "Replacement composition for the legacy `ConnectionIndicator`, `Pill.Dot` + monospace label inside an `aria-live=polite` region.",
+          "Replacement composition for the legacy `ConnectionIndicator`, `Pill.Dot` + eyebrow label inside an `aria-live=polite` region.",
       },
     },
   },
@@ -242,9 +255,7 @@ export const StandaloneDots: Story = {
       {TONES.map(tone => (
         <div key={tone} className="flex items-center gap-2" data-testid={`pill-dot-${tone}`}>
           <Pill.Dot tone={tone} />
-          <span className="font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
-            {tone}
-          </span>
+          <span className="eyebrow text-(--subtle)">{tone}</span>
         </div>
       ))}
     </div>
@@ -266,22 +277,18 @@ export const DotSizes: Story = {
     <div className="flex items-center gap-6">
       <div className="flex items-center gap-2">
         <Pill.Dot size="sm" tone="success" />
-        <span className="font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
-          sm · 6px
-        </span>
+        <span className="eyebrow text-(--subtle)">sm · 6px</span>
       </div>
       <div className="flex items-center gap-2">
         <Pill.Dot size="md" tone="success" />
-        <span className="font-mono text-eyebrow uppercase tracking-badge text-(--subtle)">
-          md · 8px
-        </span>
+        <span className="eyebrow text-(--subtle)">md · 8px</span>
       </div>
     </div>
   ),
 };
 
 export const PulseAnimation: Story = {
-  args: { tone: "accent", mono: true, children: "RUNNING" },
+  args: { tone: "accent", mono: true, children: "running" },
   render: args => (
     <Pill {...args}>
       <Pill.Dot pulse />

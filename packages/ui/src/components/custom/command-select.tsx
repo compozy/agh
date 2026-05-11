@@ -122,7 +122,7 @@ function CommandSelectChip({
       data-slot="command-select-chip"
       type={type}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-sm border border-(--line) bg-(--canvas-soft) px-1.5 py-0.5 font-mono text-badge uppercase tracking-mono text-(--muted)",
+        "eyebrow inline-flex max-w-full items-center gap-1 rounded-sm border border-(--line) bg-(--canvas-soft) px-1.5 py-0.5 text-(--muted)",
         className
       )}
       onClick={event => {

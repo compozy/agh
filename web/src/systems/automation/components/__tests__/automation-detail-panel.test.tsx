@@ -159,7 +159,10 @@ describe("AutomationDetailPanel", () => {
       "fire_daily_review_001"
     );
     expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
-    expect(screen.getByText("View Session")).toHaveAttribute("href", "/session/sess_001");
+    expect(screen.getByTestId("automation-run-run_001")).toHaveAttribute(
+      "href",
+      "/session/sess_001"
+    );
 
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
@@ -170,6 +173,15 @@ describe("AutomationDetailPanel", () => {
     expect(onEdit).toHaveBeenCalledOnce();
     expect(onTriggerNow).toHaveBeenCalledOnce();
     expect(onDelete).toHaveBeenCalledOnce();
+  });
+
+  it("Should render the 24 px DetailHeader anatomy with the job name as H1", () => {
+    renderPanel();
+
+    const header = screen.getByTestId("automation-detail-header");
+    expect(header).toHaveAttribute("data-slot", "detail-header");
+    const heading = screen.getByRole("heading", { level: 1, name: "daily-review" });
+    expect(heading.className).toContain("text-[length:var(--text-detail-h1)]");
   });
 
   it("renders manual jobs without implying a cron schedule", () => {

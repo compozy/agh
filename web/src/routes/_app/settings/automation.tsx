@@ -1,4 +1,4 @@
-import { AlertCircle, Bot, ExternalLink, Loader2 } from "lucide-react";
+import { AlertCircle, Bot, ExternalLink } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -9,7 +9,10 @@ import {
   Metric,
   MetricGrid,
   PageShell,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Switch,
   useTopbarSlot,
 } from "@agh/ui";
@@ -19,11 +22,9 @@ import type { SettingsAutomationSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/automation")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -53,21 +54,22 @@ function AutomationSettingsPage() {
   const runtime = page.envelope?.runtime;
   useTopbarSlot({
     tabs: runtime ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="settings-page-automation-status-line"
         status={runtime.available ? "connected" : "error"}
         items={[
-          <span key="jobs">
-            {runtime.job_enabled}/{runtime.job_total} jobs active
-          </span>,
-          <span key="triggers">
-            {runtime.trigger_enabled}/{runtime.trigger_total} triggers active
-          </span>,
+          {
+            key: "jobs",
+            value: `${runtime.job_enabled}/${runtime.job_total} jobs active`,
+            tone: "neutral",
+          },
+          {
+            key: "triggers",
+            value: `${runtime.trigger_enabled}/${runtime.trigger_total} triggers active`,
+            tone: "neutral",
+          },
         ]}
       />
-    ) : undefined,
-    actions: page.envelope ? (
-      <SettingsPageActions slug="automation" restart={page.restart} />
     ) : undefined,
   });
 
@@ -77,7 +79,7 @@ function AutomationSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-automation-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -106,10 +108,12 @@ function AutomationSettingsPage() {
   }
   const { draft, setDraft, restart } = page;
 
+  const bannerProps = restartBannerPropsFor("automation", restart);
+
   return (
     <PageShell
       slug="automation"
-      banner={<SettingsRestartBanner slug="automation" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="automation"
@@ -321,9 +325,7 @@ function LimitsSection({
                 })
               }
             />
-            <Eyebrow case="upper" tone="muted" size="badge">
-              fires
-            </Eyebrow>
+            <Eyebrow className="text-(--muted)">fires</Eyebrow>
             <span className="text-xs text-(--subtle)">per</span>
             <Input
               className="w-24 font-mono"

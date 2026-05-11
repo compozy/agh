@@ -266,8 +266,10 @@ describe("GeneralSettingsPage", () => {
   });
 
   it("exposes the restart action button and triggers the restart mutation on click", () => {
+    pageState.restart.isVisible = true;
+    pageState.restart.isRestartRequired = true;
     render(<GeneralSettingsPage />);
-    const button = screen.getByTestId("settings-page-general-restart-action");
+    const button = screen.getByRole("button", { name: "Restart daemon" });
     fireEvent.click(button);
     expect(pageState.restart.trigger).toHaveBeenCalledTimes(1);
   });

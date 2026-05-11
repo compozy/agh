@@ -4,7 +4,7 @@ import { ArchiveRow } from "@/components/blog/archive-row";
 import { CategoryPill } from "@/components/blog/category-pill";
 import { BlogEmptyState } from "@/components/blog/empty-state";
 import { categoryLabel } from "@/components/blog/format";
-import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
+import { Eyebrow } from "@agh/ui";
 import {
   BLOG_CATEGORIES,
   type BlogCategory,
@@ -46,17 +46,17 @@ export default async function CategoryArchivePage({ params }: PageProps) {
 
   return (
     <>
-      <section className="border-b border-(--color-divider) px-4 pt-14 pb-12">
+      <section className="border-b border-(--line) px-4 pt-14 pb-12">
         <div className="mx-auto max-w-(--site-layout-width)">
           <div className="flex items-center gap-3">
-            <MonoEyebrow tone="accent">CATEGORY</MonoEyebrow>
-            <span className="inline-block h-px w-9 bg-(--color-divider)" />
-            <MonoEyebrow>{categoryLabel(category)}</MonoEyebrow>
+            <Eyebrow className="text-accent">CATEGORY</Eyebrow>
+            <span className="inline-block h-px w-9 bg-(--line)" />
+            <Eyebrow className="text-(--muted)">{categoryLabel(category)}</Eyebrow>
           </div>
-          <h1 className="mt-6 font-display text-site-category-title font-normal leading-none tracking-tight text-(--color-text-primary)">
+          <h1 className="mt-6 font-display text-site-category-title font-normal leading-none tracking-tight text-(--fg)">
             {categoryLabel(category)} posts
           </h1>
-          <p className="mt-4 max-w-[58ch] text-base leading-7 text-(--color-text-secondary)">
+          <p className="mt-4 max-w-[58ch] text-base leading-7 text-(--muted)">
             {posts.length === 0
               ? "Nothing filed here yet. Subscribe to the feed to catch the next one."
               : `${posts.length} ${posts.length === 1 ? "post" : "posts"} in this category.`}
@@ -87,7 +87,7 @@ export default async function CategoryArchivePage({ params }: PageProps) {
               secondaryAction={{ href: "/blog/feed.xml", label: "Subscribe via RSS" }}
             />
           ) : (
-            <div className="border-t border-(--color-divider)">
+            <div className="border-t border-(--line)">
               {posts.map(post => (
                 <ArchiveRow key={post.slug} post={post} />
               ))}

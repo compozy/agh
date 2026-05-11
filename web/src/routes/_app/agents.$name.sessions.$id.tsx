@@ -1,23 +1,29 @@
-import { useEffect, useMemo } from "react";
-import { AlertCircle, Loader2, MessageCircle } from "lucide-react";
+import { useEffect } from "react";
+import { AlertCircle, MessageCircle, Trash2 } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Spinner,
+} from "@agh/ui";
+
 import type { TopbarRouteContext } from "@/types/topbar";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
+import { useSessionDetailPage } from "@/hooks/routes/use-session-detail-page";
 import {
-  ChatHeader,
   SessionChatRuntimeProvider,
   SessionInspector,
   SessionResumeFailure,
   useSession,
-  useSessionLedger,
-  type InspectorMemoryState,
   type SessionPayload,
 } from "@/systems/session";
-import { useSessionVaultSecrets } from "@/systems/vault";
-import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
@@ -30,80 +36,111 @@ function SessionPageContent({
   agentName,
   sessionId,
   session,
-  workspaceName,
   onDeleteSuccess,
 }: SessionPageContentProps) {
-  const {
-    canClear,
-    canPrompt,
-    handleCancelPrompt,
-    handleClear,
-    handleDelete,
-    handleDismissResumeFailure,
-    handleResume,
-    handleStop,
-    isClearing,
-    isDeleting,
-    isResuming,
-    isStopping,
-    messages,
-    resumeFailure,
-  } = useSessionPageControls(sessionId, session.state, { onDeleteSuccess });
-  const sessionVault = useSessionVaultSecrets(sessionId);
-  const ledgerEnabled = session.state === "stopped";
-  const sessionLedger = useSessionLedger(sessionId, { enabled: ledgerEnabled });
-  const inspectorMemory = useMemo<InspectorMemoryState>(
-    () => ({
-      ledger: sessionLedger.data ?? null,
-      isLoading: sessionLedger.isLoading,
-      error: sessionLedger.error,
-    }),
-    [sessionLedger.data, sessionLedger.isLoading, sessionLedger.error]
-  );
+  const page = useSessionDetailPage({ sessionId, session, onDeleteSuccess });
+  const { controls, inspectorMemory, sessionVault, deleteDialog } = page;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <ChatHeader
-          session={session}
-          onDelete={handleDelete}
-          onStop={handleStop}
-          onResume={handleResume}
-          isDeleting={isDeleting}
-          isStopping={isStopping}
-          isResuming={isResuming}
-          workspaceName={workspaceName}
-        />
-        {resumeFailure ? (
+        {controls.resumeFailure ? (
           <SessionResumeFailure
-            agentName={resumeFailure.providerUnavailable?.agentName ?? agentName}
-            isRetrying={isResuming}
-            message={resumeFailure.message}
-            missingProvider={resumeFailure.providerUnavailable?.missingProvider ?? null}
-            onDismiss={handleDismissResumeFailure}
-            onRetry={handleResume}
+            agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
+            isRetrying={controls.isResuming}
+            message={controls.resumeFailure.message}
+            missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
+            onDismiss={controls.handleDismissResumeFailure}
+            onRetry={controls.handleResume}
             sessionId={sessionId}
           />
         ) : null}
         <SessionThread
           sessionId={sessionId}
           agentName={agentName}
-          canPrompt={canPrompt}
-          onCancelPrompt={handleCancelPrompt}
-          onClearConversation={handleClear}
-          canClearConversation={canClear}
-          isClearingConversation={isClearing}
+          canPrompt={controls.canPrompt}
+          onCancelPrompt={controls.handleCancelPrompt}
+          onClearConversation={controls.handleClear}
+          canClearConversation={controls.canClear}
+          isClearingConversation={controls.isClearing}
         />
       </div>
       <SessionInspector
-        messages={messages}
+        messages={controls.messages}
         sessionId={sessionId}
         memory={inspectorMemory}
         vaultSecrets={sessionVault.data ?? []}
         vaultIsLoading={sessionVault.isLoading}
         vaultError={sessionVault.error}
       />
+      <SessionDeleteDialog
+        open={deleteDialog.open}
+        onOpenChange={deleteDialog.setOpen}
+        session={session}
+        isDeleting={controls.isDeleting}
+        onConfirm={deleteDialog.confirmDelete}
+      />
     </div>
+  );
+}
+
+interface SessionDeleteDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  session: SessionPayload;
+  isDeleting: boolean;
+  onConfirm: () => void;
+}
+
+function SessionDeleteDialog({
+  open,
+  onOpenChange,
+  session,
+  isDeleting,
+  onConfirm,
+}: SessionDeleteDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={!isDeleting} className="max-w-md" data-testid="delete-dialog">
+        <DialogHeader>
+          <DialogTitle>Delete session</DialogTitle>
+          <DialogDescription>
+            This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
+            including its transcript and history, and removes it from the session list.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isDeleting}
+            data-testid="delete-dialog-cancel"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            data-testid="delete-dialog-confirm"
+          >
+            {isDeleting ? (
+              <>
+                <Spinner className="size-3.5" />
+                Deleting
+              </>
+            ) : (
+              <>
+                <Trash2 className="size-3.5" />
+                Delete session
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -111,7 +148,6 @@ interface SessionPageContentProps {
   agentName: string;
   sessionId: string;
   session: SessionPayload;
-  workspaceName?: string;
   onDeleteSuccess: () => void;
 }
 
@@ -119,7 +155,6 @@ export function SessionPage() {
   const { name, id } = Route.useParams();
   const navigate = useNavigate();
   const { data: session, isLoading, error } = useSession(id);
-  const { data: workspaces } = useWorkspaces();
 
   useEffect(() => {
     if (error?.message?.includes("not found")) {
@@ -131,7 +166,7 @@ export function SessionPage() {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -147,7 +182,6 @@ export function SessionPage() {
     );
   }
 
-  const workspaceName = workspaces?.find(workspace => workspace.id === session.workspace_id)?.name;
   const resolvedAgentName = session.agent_name ?? name;
 
   return (
@@ -156,7 +190,6 @@ export function SessionPage() {
         agentName={resolvedAgentName}
         sessionId={id}
         session={session}
-        workspaceName={workspaceName}
         onDeleteSuccess={() => {
           void navigate({ to: "/agents/$name", params: { name: resolvedAgentName } });
         }}

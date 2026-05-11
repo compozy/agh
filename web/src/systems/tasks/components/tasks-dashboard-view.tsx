@@ -2,7 +2,6 @@ import { AlertCircle } from "lucide-react";
 
 import { BlockLoading, Empty, Eyebrow } from "@agh/ui";
 
-import { formatRelativeTime } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
 import { TasksDashboardCards } from "./tasks-dashboard-cards";
@@ -15,6 +14,12 @@ export interface TasksDashboardViewProps {
   errorMessage?: string | null;
 }
 
+/**
+ * Tasks dashboard composition per ADR-006 §2 + §7 — KPI strip → queue health +
+ * status breakdown → active runs. The live/stale page-head pill is deferred
+ * per ADR-016 §8; the bottom of the view ships a static totals eyebrow only
+ * (no freshness label rendered).
+ */
 export function TasksDashboardView({
   dashboard,
   isLoading = false,
@@ -53,32 +58,24 @@ export function TasksDashboardView({
     );
   }
 
-  const freshness = dashboard.freshness;
-  const freshnessLabel =
-    freshness.stale || !freshness.has_live_work
-      ? `Updated ${formatRelativeTime(freshness.observed_at)} ago`
-      : `Live · updated ${formatRelativeTime(freshness.observed_at)} ago`;
-
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4"
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
       data-testid="tasks-dashboard-view"
     >
       <TasksDashboardCards dashboard={dashboard} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <TasksDashboardQueueHealth dashboard={dashboard} />
-        </div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
+        <TasksDashboardQueueHealth dashboard={dashboard} />
         <TasksDashboardStatusBreakdown dashboard={dashboard} />
       </div>
 
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
-      <div className="flex items-center justify-between gap-2 border-t border-(--line) pt-3">
-        <Eyebrow data-testid="tasks-dashboard-freshness">
-          {freshness.stale ? "Stale" : "Fresh"} · {freshnessLabel}
-        </Eyebrow>
+      <div
+        className="flex items-center justify-end gap-2 border-t border-(--line) pt-3"
+        data-testid="tasks-dashboard-totals"
+      >
         <Eyebrow>
           {dashboard.totals.tasks_total} tasks · {dashboard.totals.runs_total} runs
         </Eyebrow>

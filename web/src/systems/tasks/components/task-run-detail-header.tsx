@@ -13,7 +13,6 @@ import {
   Pill,
 } from "@agh/ui";
 
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatRelativeTime, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
@@ -79,12 +78,7 @@ export function TaskRunDetailHeader({
       className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
       data-testid="task-run-detail-header"
     >
-      <Eyebrow
-        data-slot="page-header-breadcrumb"
-        case="upper"
-        tone="muted"
-        className="min-w-0 block"
-      >
+      <Eyebrow data-slot="page-header-breadcrumb" className="text-(--muted) min-w-0 block">
         <Breadcrumb data-testid="task-run-detail-breadcrumb">
           <BreadcrumbList className="text-(--muted)">
             <BreadcrumbItem>
@@ -123,7 +117,7 @@ export function TaskRunDetailHeader({
           >
             <Play className="size-3.5" />
           </span>
-          <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
+          <h1 className="truncate text-(length:--text-detail-h1) font-medium tracking-(--tracking-detail-h1) text-(--fg-strong)">
             <span className="flex min-w-0 items-center gap-2">
               <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
               <span
@@ -135,9 +129,7 @@ export function TaskRunDetailHeader({
                   {record.id}
                 </Pill>
               </span>
-              <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(record.status))}>
-                {record.status}
-              </Pill>
+              <Pill tone={taskRunStatusTone(record.status)}>{record.status}</Pill>
             </span>
           </h1>
         </div>
@@ -179,9 +171,9 @@ export function TaskRunDetailHeader({
               onClick={onCancelRun}
               size="sm"
               type="button"
-              variant="outline"
+              variant="destructive"
             >
-              Kill run
+              Cancel run
             </Button>
           ) : null}
         </div>

@@ -6,6 +6,7 @@ import { cn } from "../../lib/utils";
 import { Eyebrow } from "./eyebrow";
 
 export type MetricTone = "default" | "accent" | "success" | "warning" | "danger";
+export type MetricSize = "default" | "lg";
 
 export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> {
   label: React.ReactNode;
@@ -20,6 +21,13 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
    */
   subtext?: React.ReactNode;
   tone?: MetricTone;
+  /**
+   * `default` — value at 24 px, generic card density.
+   * `lg` — value at 28 px with tighter tracking, mirrors `.dash__card-value`
+   * from `docs/design/new-proposal/agh-refined-7.html`. Use for top-level
+   * dashboard metrics (Active runs, Success rate, etc.).
+   */
+  size?: MetricSize;
 }
 
 const VALUE_COLOR: Record<MetricTone, string> = {
@@ -30,10 +38,22 @@ const VALUE_COLOR: Record<MetricTone, string> = {
   danger: "var(--danger)",
 };
 
+const SIZE_VALUE_CLASS: Record<MetricSize, string> = {
+  default: "text-[24px] leading-[30px] tracking-[-0.02em]",
+  lg: "text-[28px] leading-[1.05] tracking-[-0.028em]",
+};
+
+const SIZE_CONTAINER_CLASS: Record<MetricSize, string> = {
+  default: "px-5 py-4",
+  lg: "px-[18px] py-4",
+};
+
 /**
- * Metric card , mono eyebrow label + Inter 24px/700 value + optional inline detail
- * or subtext line. Surface container with 12px radius; semantic tone colors the value.
- * Per DESIGN.md §4 "Metric Cards" and mock `docs/design/web-inspiration/src/primitives.jsx`.
+ * Metric card , mono eyebrow label + Inter 24/28px/510 value + optional inline
+ * detail or subtext line. Surface container with 12px radius; semantic tone
+ * colors the value. Per DESIGN.md §4 "Metric Cards" and the proposal at
+ * `docs/design/new-proposal/agh-refined-7.html` (`.dash__card-value` for
+ * `size="lg"`).
  */
 function Metric({
   label,
@@ -41,6 +61,7 @@ function Metric({
   detail,
   subtext,
   tone = "default",
+  size = "default",
   className,
   ...props
 }: MetricProps) {
@@ -48,24 +69,21 @@ function Metric({
     <div
       data-slot="metric"
       data-tone={tone}
+      data-size={size}
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-lg border border-(--line) bg-(--canvas-soft) px-5 py-4",
+        "flex min-w-0 flex-col gap-2 rounded-lg bg-(--canvas-soft)",
+        SIZE_CONTAINER_CLASS[size],
         className
       )}
       {...props}
     >
-      <Eyebrow
-        data-slot="metric-label"
-        case="upper"
-        tone="subtle"
-        className="block truncate leading-4"
-      >
+      <Eyebrow data-slot="metric-label" className="block truncate leading-4 text-(--subtle)">
         {label}
       </Eyebrow>
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"
-          className="min-w-0 truncate text-[24px] font-medium leading-[30px] tracking-[-0.02em]"
+          className={cn("min-w-0 truncate font-medium tabular-nums", SIZE_VALUE_CLASS[size])}
           style={{ color: VALUE_COLOR[tone], fontWeight: 510 }}
         >
           {value}

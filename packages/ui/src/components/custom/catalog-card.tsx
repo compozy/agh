@@ -6,6 +6,13 @@ import { cn } from "../../lib/utils";
 
 type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "danger" | "info";
 
+/**
+ * Logo well size, per ADR-011 §8.
+ * `default` — 24 × 24 (`--size-catalog-logo`); browse/marketplace surfaces.
+ * `lg` — 40 × 40 (`--size-provider-logo-well`); configured/connected provider surfaces.
+ */
+type CatalogCardLogoSize = "default" | "lg";
+
 interface CatalogCardProps extends React.ComponentProps<"article"> {
   selected?: boolean;
   actionable?: boolean;
@@ -13,12 +20,18 @@ interface CatalogCardProps extends React.ComponentProps<"article"> {
 
 interface CatalogCardLogoProps extends React.ComponentProps<"span"> {
   tone?: CatalogCardTone;
+  size?: CatalogCardLogoSize;
 }
 
 type CatalogCardTitleProps = React.ComponentProps<"h3">;
 type CatalogCardDescriptionProps = React.ComponentProps<"p">;
 type CatalogCardMetaProps = React.ComponentProps<"div">;
 type CatalogCardActionsProps = React.ComponentProps<"div">;
+
+const LOGO_SIZE_CLASS: Record<CatalogCardLogoSize, string> = {
+  default: "size-(--size-catalog-logo)",
+  lg: "size-(--size-provider-logo-well)",
+};
 
 function CatalogCard({
   selected = false,
@@ -32,10 +45,9 @@ function CatalogCard({
       data-selected={selected ? "true" : undefined}
       data-actionable={actionable ? "true" : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-lg border border-(--line) bg-(--canvas-soft) p-3 text-(--fg) transition-colors",
-        actionable &&
-          "hover:border-(--line-strong) hover:bg-(--hover) focus-within:border-(--accent)",
-        selected && "border-(--accent) bg-(--accent-tint)",
+        "flex min-w-0 flex-col gap-3 rounded-lg bg-(--canvas-soft) p-4 text-(--fg) transition-colors duration-(--dur) ease-(--ease)",
+        actionable && "hover:bg-(--elevated)",
+        selected && "bg-(--surface-glaze) shadow-[inset_0_0_0_1px_var(--line-strong)]",
         className
       )}
       {...props}
@@ -43,14 +55,21 @@ function CatalogCard({
   );
 }
 
-function CatalogCardLogo({ tone = "accent", className, ...props }: CatalogCardLogoProps) {
+function CatalogCardLogo({
+  tone = "accent",
+  size = "default",
+  className,
+  ...props
+}: CatalogCardLogoProps) {
   return (
     <span
       aria-hidden="true"
       data-slot="catalog-card-logo"
       data-tone={tone}
+      data-size={size}
       className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-(--elevated)",
+        "inline-flex shrink-0 items-center justify-center rounded-(--radius) bg-(--surface-glaze)",
+        LOGO_SIZE_CLASS[size],
         catalogCardLogoToneClass(tone),
         className
       )}
@@ -65,7 +84,10 @@ function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
       role="heading"
       aria-level={3}
       data-slot="catalog-card-title"
-      className={cn("min-w-0 truncate text-small-body font-medium text-(--fg-strong)", className)}
+      className={cn(
+        "min-w-0 truncate text-[13px] font-[510] tracking-[-0.012em] text-(--fg-strong)",
+        className
+      )}
       {...props}
     />
   );
@@ -85,10 +107,7 @@ function CatalogCardMeta({ className, ...props }: CatalogCardMetaProps) {
   return (
     <div
       data-slot="catalog-card-meta"
-      className={cn(
-        "flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-mono text-(--subtle)",
-        className
-      )}
+      className={cn("eyebrow flex flex-wrap items-center gap-2 text-(--subtle)", className)}
       {...props}
     />
   );
@@ -137,6 +156,7 @@ export type {
   CatalogCardActionsProps,
   CatalogCardDescriptionProps,
   CatalogCardLogoProps,
+  CatalogCardLogoSize,
   CatalogCardMetaProps,
   CatalogCardProps,
   CatalogCardTitleProps,

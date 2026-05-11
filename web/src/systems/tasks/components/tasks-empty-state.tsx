@@ -1,19 +1,37 @@
-import { Globe, ListChecks, Plus, RefreshCcw, Sparkles, UserCheck, Zap } from "lucide-react";
+import { Globe, ListChecks, Plus, RefreshCcw, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Eyebrow, Pill, Section } from "@agh/ui";
+import { Button, Empty, Eyebrow } from "@agh/ui";
 import { cn } from "@/lib/utils";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
-import { TASK_TEMPLATES, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
+import { getTaskTemplate, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 
-const TEMPLATE_ICONS: Record<TaskTemplateId, ReactNode> = {
-  one_shot: <Zap className="size-4" />,
-  recurring: <RefreshCcw className="size-4" />,
-  epic: <Sparkles className="size-4" />,
-  remote_peer: <Globe className="size-4" />,
-  human_in_loop: <UserCheck className="size-4" />,
-  blank: <Plus className="size-4" />,
+export type TasksEmptyStateTone = "accent" | "info" | "warning" | "neutral";
+
+interface TemplateSlot {
+  id: TaskTemplateId;
+  tone: TasksEmptyStateTone;
+  icon: ReactNode;
+}
+
+/**
+ * Four-card empty-state grid per ADR-006 §8 + §3 — `accent / info / warning /
+ * neutral` tones only (the prior `violet / amber` palette is gone). Six
+ * template definitions remain available to the editor; the empty state
+ * surfaces a curated four that match the proposal reference.
+ */
+const TEMPLATE_SLOTS: TemplateSlot[] = [
+  { id: "one_shot", tone: "accent", icon: <Zap className="size-4" /> },
+  { id: "recurring", tone: "info", icon: <RefreshCcw className="size-4" /> },
+  { id: "human_in_loop", tone: "warning", icon: <UserCheck className="size-4" /> },
+  { id: "remote_peer", tone: "neutral", icon: <Globe className="size-4" /> },
+];
+
+const TONE_CLASS: Record<TasksEmptyStateTone, string> = {
+  accent: "bg-(--accent-tint) text-(--accent)",
+  info: "bg-(--info-tint) text-(--info)",
+  warning: "bg-(--warning-tint) text-(--warning)",
+  neutral: "bg-(--canvas-tint) text-(--muted)",
 };
 
 export interface TasksEmptyStateProps {
@@ -23,9 +41,9 @@ export interface TasksEmptyStateProps {
 }
 
 /**
- * Empty-state for the Tasks domain -- composes `@agh/ui` `Empty` + `Section` +
- * template-card grid. The `Empty` action slot owns the primary CTA; the Section
- * below lists the six task templates.
+ * Empty-state for the Tasks domain — Empty primitive head + 4-card template
+ * grid with the new tone palette (accent / info / warning / neutral). Eyebrow
+ * head per ADR-002.
  */
 export function TasksEmptyState({
   workspaceName,
@@ -36,11 +54,8 @@ export function TasksEmptyState({
 
   return (
     <div className="flex min-h-0 flex-1 overflow-y-auto px-6 py-8" data-testid="tasks-empty-state">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <Empty
-          icon={ListChecks}
-          title={headline}
-          description="Tasks are durable contracts of work. Each one can spawn runs across agents, respect dependencies, and live in workspace or global scope. Start from a template and keep the operational context visible as the queue grows."
           action={
             <>
               <Button
@@ -65,23 +80,27 @@ export function TasksEmptyState({
               ) : null}
             </>
           }
+          description="Tasks are durable contracts of work. Each one can spawn runs across agents, respect dependencies, and live in workspace or global scope. Start from a template and keep the operational context visible as the queue grows."
+          icon={ListChecks}
+          title={headline}
         />
 
-        <Section
-          data-testid="tasks-empty-templates"
-          label="Start from a template"
-          right={<Eyebrow>{TASK_TEMPLATES.length} templates</Eyebrow>}
-        >
-          <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr]">
-            {TASK_TEMPLATES.map(template => (
+        <section data-testid="tasks-empty-templates" className="flex flex-col gap-4">
+          <header className="flex items-baseline justify-between gap-2">
+            <Eyebrow data-testid="tasks-empty-templates-eyebrow">Start from a template</Eyebrow>
+            <Eyebrow className="text-(--muted)">{TEMPLATE_SLOTS.length} templates</Eyebrow>
+          </header>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {TEMPLATE_SLOTS.map(slot => (
               <TemplateCard
-                key={template.id}
-                onSelect={() => onSelectTemplate(template.id)}
-                template={template}
+                key={slot.id}
+                onSelect={() => onSelectTemplate(slot.id)}
+                slot={slot}
+                template={getTaskTemplate(slot.id)}
               />
             ))}
           </div>
-        </Section>
+        </section>
       </div>
     </div>
   );
@@ -89,40 +108,35 @@ export function TasksEmptyState({
 
 interface TemplateCardProps {
   template: TaskTemplate;
+  slot: TemplateSlot;
   onSelect: () => void;
 }
 
-function TemplateCard({ template, onSelect }: TemplateCardProps) {
-  const isBlank = template.id === "blank";
-
+function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
   return (
     <button
       className={cn(
-        "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border p-5 text-left transition-colors",
-        isBlank
-          ? "border-dashed border-(--line-soft) hover:border-(--muted)"
-          : "border-(--line) bg-(--canvas-soft) hover:border-(--muted)"
+        "flex h-full min-h-[156px] flex-col gap-3 rounded-(--radius-lg) bg-(--canvas-soft) p-5 text-left transition-colors duration-(--dur) ease-(--ease)",
+        "hover:bg-(--elevated) focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)]"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
+      data-tone={slot.tone}
       onClick={onSelect}
       type="button"
     >
-      <div className="flex items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-lg border border-(--line) bg-(--canvas-soft) text-(--muted)">
-          {TEMPLATE_ICONS[template.id]}
-        </span>
-        <span className="text-sm font-medium text-(--fg)">{template.label}</span>
-      </div>
-      <p className="text-sm leading-relaxed text-(--muted)">{template.description}</p>
-      {template.badges.length > 0 ? (
-        <div className="mt-auto flex flex-wrap gap-1.5">
-          {template.badges.map(badge => (
-            <Pill key={badge.label} tone={pillToneFromLegacyTone(badge.tone)}>
-              {badge.label}
-            </Pill>
-          ))}
-        </div>
-      ) : null}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex size-7 items-center justify-center rounded-(--radius-md)",
+          TONE_CLASS[slot.tone]
+        )}
+      >
+        {slot.icon}
+      </span>
+      <span className="text-[13px] font-medium tracking-[-0.012em] text-(--fg-strong)">
+        {template.label}
+      </span>
+      <p className="text-[12px] leading-relaxed text-(--muted)">{template.description}</p>
     </button>
   );
 }

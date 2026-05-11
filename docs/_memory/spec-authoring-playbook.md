@@ -16,7 +16,7 @@ Applies to PRD + TechSpec + Tasks alike. See `docs/_memory/standing_directives.m
 - **Final decisions on the spec.** No "TBD" / "we'll decide later" — every fork is resolved before approval. → codex_sessions §Engineering Principle 3.
 - **Cite competitor refs.** Every spec that draws on `.resources/<repo>` lists the file paths so the implementer reads them too. Use `cy-research-competitors` for the analysis pass. → codex_sessions §Engineering Principle 4.
 - **BR-PT in conversation, EN in artifacts.** → SD-003.
-- **Subagents are read-only.** Use them to research and return findings; the parent agent authors files. → user-memory `feedback_subagents_readonly.md`.
+- **Subagents default to read-only.** Use them to research and return findings; the parent agent authors files. A subagent may write/edit only when the parent's prompt explicitly delegates that action. Skills with hard read-only contracts (`cy-research-competitors`, `cy-spec-peer-review`, `cy-impl-peer-review`) override this default. → user-memory `feedback_subagents_readonly.md`.
 - **Two-touch rule.** Third change to the same area opens a new TechSpec, not a third patch. → user-memory `feedback_two_touch_rule.md`.
 - **Multi-LLM pipeline.** Codex (`gpt-5.4` with `reasoning_effort=xhigh`) authors; Claude Opus pressure-tests; `gpt-5.4-mini` with `reasoning_effort=high` explores breadth when explicitly delegated. → SD-004.
 

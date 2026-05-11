@@ -1,4 +1,4 @@
-import { Button, Pill } from "@agh/ui";
+import { Button } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -6,7 +6,7 @@ import type { NetworkConversationMessage } from "../../types";
 import { formatTimelineClock, formatTimelineIso } from "../../lib/format-timestamp";
 import { WorkChip } from "../work/work-chip";
 import { HoverToolbar, type HoverToolbarHandlers } from "./hover-toolbar";
-import { MessageAvatar } from "./message-avatar";
+import { MessageAvatar, type MessageAvatarRole } from "./message-avatar";
 import { MessageBodyText } from "./message-body";
 
 export type MessageRowDensity = "channel" | "overlay";
@@ -26,7 +26,7 @@ export interface MessageRowProps extends HoverToolbarHandlers, MessageRowOptimis
   className?: string;
 }
 
-function pickRoleLabel(message: NetworkConversationMessage): "agent" | "human" | "system" {
+function pickRoleLabel(message: NetworkConversationMessage): MessageAvatarRole {
   if (message.session_id != null && message.session_id !== "") {
     return "agent";
   }
@@ -96,19 +96,17 @@ export function MessageRow({
       data-testid="network-message-row-full"
       data-variant="full"
     >
-      <MessageAvatar initialFrom={displayName} seed={authorSeed(message)} sizePx={avatarSize} />
+      <MessageAvatar
+        initialFrom={displayName}
+        name={displayName}
+        role={role}
+        seed={authorSeed(message)}
+        sizePx={avatarSize}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate text-sm font-medium text-(--fg)">{displayName}</span>
-          <Pill
-            data-testid="network-message-role-chip"
-            mono
-            size="xs"
-            tone={role === "agent" ? "info" : role === "human" ? "neutral" : "warning"}
-          >
-            {role}
-          </Pill>
           <time
             className="text-xs text-(--subtle)"
             data-testid="network-message-timestamp"

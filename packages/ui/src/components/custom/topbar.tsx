@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
@@ -10,6 +11,12 @@ export interface TopbarRouteContext {
   icon?: LucideIcon;
   subtitle?: string;
   getCount?: () => number | string;
+  /**
+   * Opt-in identifier resolved by the shell via `useNavCounts()` (per ADR-005
+   * §3). When set and the active slot omits `count`, the shell injects the
+   * resolved value into `<Topbar navCount>`.
+   */
+  navCountKey?: string;
 }
 
 export interface TopbarSlotValue {
@@ -18,11 +25,30 @@ export interface TopbarSlotValue {
    * resolve their title from loader data push it as a live React node.
    */
   title?: React.ReactNode;
-  /** Optional override for the route context's count. */
-  count?: React.ReactNode;
+  /**
+   * Numeric / textual count rendered as the topbar chip. Narrowed from
+   * `ReactNode` per ADR-005 §8 — the chip is data, not a render slot. Auto-
+   * resolves from `useNavCounts()` when omitted and the route declares a
+   * `navCountKey`.
+   */
+  count?: number | string;
+  /** Lane / mode tabs rendered between title and trailing slots. */
   tabs?: React.ReactNode;
+  /** Search affordance rendered in the trailing slot. */
   search?: React.ReactNode;
+  /** Action buttons rendered in the trailing slot. */
   actions?: React.ReactNode;
+  /**
+   * Detail-mode back affordance. When present, renders a leading 20x20 ghost
+   * chevron button per ADR-005 §5.
+   */
+  back?: () => void;
+  /** Optional aria-label override for the back button (default "Go back"). */
+  backLabel?: string;
+  /** Detail-mode meta chips rendered after the title and count. */
+  meta?: React.ReactNode;
+  /** Detail-mode overflow menu rendered at the trailing edge. */
+  overflow?: React.ReactNode;
 }
 
 export interface TopbarSlotContextValue {
@@ -65,18 +91,6 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
 
 /**
  * Pushes a topbar slot for the lifetime of the calling component.
- *
- * The slot is re-pushed whenever the value changes so JSX nodes carrying live
- * data (counts, enabled state, mutations) stay current without manual setSlot
- * calls. Cleanup runs `setSlot(null)` on unmount so the slot does not leak
- * after the consumer disappears. Resilient to missing provider — when no
- * `<TopbarSlotProvider>` is in the tree (test fast paths, isolated stories)
- * the hook becomes a no-op instead of throwing.
- *
- * Note on nesting: when both a parent layout and a child route call this
- * hook, React commits child effects before parent effects. Routes that need
- * deepest-match-wins semantics should keep the parent slot stable (or skip
- * pushing one) and let only the deepest route call `useTopbarSlot`.
  */
 function useTopbarSlot(slot: TopbarSlotValue | null): void {
   const ctx = React.useContext(TopbarSlotContext);
@@ -102,29 +116,61 @@ function useTopbarSlotContext(): TopbarSlotContextValue | null {
 
 export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
   route: TopbarRouteContext | null;
+  /**
+   * Count resolved by the shell from `useNavCounts()` when the route declares
+   * a `navCountKey`. Falls back through `slot.count` -> `route.getCount()` ->
+   * `navCount` per ADR-005 §3 / §8.
+   */
+  navCount?: number | string;
   /** Optional ref for the topbar title element so the shell can move focus on route resolve. */
   titleRef?: React.Ref<HTMLHeadingElement>;
 }
 
-function Topbar({ route, className, titleRef, ...props }: TopbarProps) {
+function hasCountValue(value: number | string | undefined | null): value is number | string {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "number") return true;
+  return value !== "";
+}
+
+function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
   const Icon = route?.icon;
   const routeCount = route?.getCount?.();
-  const hasRouteCount = routeCount !== undefined && routeCount !== null && routeCount !== "";
   const slotCount = slot?.count;
-  const hasSlotCount = slotCount !== undefined && slotCount !== null && slotCount !== "";
-  const hasCount = hasSlotCount || hasRouteCount;
+  const resolvedCount: number | string | undefined = hasCountValue(slotCount)
+    ? slotCount
+    : hasCountValue(routeCount)
+      ? routeCount
+      : hasCountValue(navCount)
+        ? navCount
+        : undefined;
+  const hasCount = hasCountValue(resolvedCount);
   const renderedTitle: React.ReactNode = slot?.title ?? route?.title ?? "Untitled";
+  const back = slot?.back;
+  const backLabel = slot?.backLabel ?? "Go back";
 
   return (
     <header
       data-slot="topbar"
+      data-mode={back ? "detail" : "default"}
       className={cn(
         "flex h-12 min-w-0 shrink-0 items-center gap-3 border-b border-(--line) bg-(--canvas) px-4",
         className
       )}
       {...props}
     >
+      {back ? (
+        <button
+          aria-label={backLabel}
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-(--radius-sm) text-(--muted) transition-colors hover:bg-(--hover) hover:text-(--fg) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--line-strong)"
+          data-slot="topbar-back"
+          data-testid="topbar-back"
+          onClick={back}
+          type="button"
+        >
+          <ChevronLeft aria-hidden="true" className="size-3.5" />
+        </button>
+      ) : null}
       <div data-slot="topbar-title" className="flex min-w-0 items-center gap-2">
         {Icon ? (
           <span
@@ -146,10 +192,20 @@ function Topbar({ route, className, titleRef, ...props }: TopbarProps) {
         {hasCount ? (
           <span
             data-slot="topbar-count"
+            data-testid="topbar-count"
             className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-(--radius-mono-badge) bg-(--canvas-soft) px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-(--muted)"
           >
-            {hasSlotCount ? slotCount : routeCount}
+            {resolvedCount}
           </span>
+        ) : null}
+        {slot?.meta ? (
+          <div
+            data-slot="topbar-meta"
+            data-testid="topbar-meta"
+            className="flex min-w-0 items-center gap-2 text-(--muted)"
+          >
+            {slot.meta}
+          </div>
         ) : null}
       </div>
       {slot?.tabs ? (
@@ -160,13 +216,25 @@ function Topbar({ route, className, titleRef, ...props }: TopbarProps) {
       <div data-slot="topbar-trailing" className="ml-auto flex shrink-0 items-center gap-2">
         {slot?.search ? <div data-slot="topbar-search">{slot.search}</div> : null}
         {slot?.actions ? <div data-slot="topbar-actions">{slot.actions}</div> : null}
+        {slot?.overflow ? (
+          <div
+            data-slot="topbar-overflow"
+            data-testid="topbar-overflow"
+            className="inline-flex shrink-0 items-center"
+          >
+            {slot.overflow}
+          </div>
+        ) : null}
       </div>
     </header>
   );
 }
 
+const TopbarOverflowIcon = MoreHorizontal;
+
 export {
   Topbar,
+  TopbarOverflowIcon,
   TopbarSlotContext,
   TopbarSlotProvider,
   useTopbarSlot,

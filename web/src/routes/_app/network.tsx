@@ -1,7 +1,7 @@
-import { Loader2, Network as NetworkIcon } from "lucide-react";
+import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { Empty, useTopbarSlot } from "@agh/ui";
+import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import { DaemonDown, NetworkEmpty, ThreadOverlay, useNetworkRouteView } from "@/systems/network";
@@ -40,7 +40,7 @@ function NetworkRouteShell() {
           data-testid="network-loading"
           role="status"
         >
-          <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
+          <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
         </div>
         {view.networkCreate.dialog}
       </>

@@ -132,6 +132,25 @@ describe("BridgeDetailPanel", () => {
     expect(screen.getByTestId("bridge-detail-empty")).toBeInTheDocument();
   });
 
+  it("Should render the 24 px DetailHeader anatomy and surface the bridge display name as H1", () => {
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth()}
+        state={{ isLoading: false, isRoutesLoading: false }}
+        onOpenTestDelivery={vi.fn()}
+        routes={[]}
+      />
+    );
+
+    const header = screen.getByTestId("bridge-detail-header");
+    expect(header).toHaveAttribute("data-slot", "detail-header");
+    const heading = within(header).getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Support");
+    expect(heading.className).toContain("text-[length:var(--text-detail-h1)]");
+  });
+
   it("renders provider-runtime fallbacks when metadata is absent", () => {
     render(
       <BridgeDetailPanel

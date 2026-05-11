@@ -29,17 +29,15 @@ export function ArchitectureDiagram() {
 
 function renderArchitectureDiagram() {
   return (
-    <section className="bg-(--color-surface) px-4 py-16 md:py-20">
+    <section className="bg-(--canvas-soft) px-4 py-16 md:py-20">
       <div className="mx-auto max-w-(--site-layout-width)">
         <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
           <div className="max-w-[540px]">
-            <Eyebrow case="upper" tone="muted" className="text-(--color-text-tertiary)">
-              CONTROL PLANE
-            </Eyebrow>
-            <h2 className="mt-5 text-site-protocol-title leading-none font-semibold tracking-tight text-(--color-text-primary)">
+            <Eyebrow className="text-(--subtle)">CONTROL PLANE</Eyebrow>
+            <h2 className="mt-5 text-site-protocol-title leading-none font-semibold tracking-tight text-(--fg)">
               One runtime for operator control and open coordination.
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-(--color-text-secondary)">
+            <p className="mt-6 text-lg leading-relaxed text-(--muted)">
               AGH keeps the operator surface, durable runtime behavior, and open network boundary in
               one place so teams can run real agent work without assembling another pile of
               infrastructure.
@@ -47,18 +45,16 @@ function renderArchitectureDiagram() {
           </div>
 
           <div className="w-full lg:max-w-[420px]">
-            <div className="rounded-xl bg-(--color-canvas) p-6 md:p-8">
-              <Eyebrow case="upper" tone="muted" className="text-accent">
-                Reading guide
-              </Eyebrow>
+            <div className="rounded-xl bg-(--canvas) p-6 md:p-8">
+              <Eyebrow className="text-accent">Reading guide</Eyebrow>
               <div className="mt-6 flex flex-col gap-6">
                 {controlNotes.map(note => (
                   <div
                     key={note.label}
-                    className="border-b border-(--color-divider) pb-6 last:border-b-0 last:pb-0"
+                    className="border-b border-(--line) pb-6 last:border-b-0 last:pb-0"
                   >
-                    <p className="text-lg font-medium text-(--color-text-primary)">{note.label}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">
+                    <p className="text-lg font-medium text-(--fg)">{note.label}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-(--muted)">
                       {note.description}
                     </p>
                   </div>
@@ -68,13 +64,11 @@ function renderArchitectureDiagram() {
           </div>
         </div>
 
-        <div className="mt-16 rounded-xl bg-(--color-canvas) p-6 md:p-10">
-          <div className="flex flex-col gap-4 border-b border-(--color-divider) pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-16 rounded-xl bg-(--canvas) p-6 md:p-10">
+          <div className="flex flex-col gap-4 border-b border-(--line) pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <Eyebrow case="upper" tone="muted" className="text-accent">
-                Runtime map
-              </Eyebrow>
-              <p className="mt-2 text-lg font-medium leading-tight text-(--color-text-primary)">
+              <Eyebrow className="text-accent">Runtime map</Eyebrow>
+              <p className="mt-2 text-lg font-medium leading-tight text-(--fg)">
                 Operator surfaces feed one local daemon, which exposes AGH Network at the edge
               </p>
             </div>

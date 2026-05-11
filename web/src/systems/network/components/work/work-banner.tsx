@@ -1,4 +1,5 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef } from "react";
+import { toast } from "sonner";
 
 import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
 
@@ -7,6 +8,16 @@ import { cn } from "@/lib/utils";
 const FADE_OUT_MS = 200;
 const COLLAPSE_MS = 200;
 const TOTAL_HIDE_BUDGET_MS = FADE_OUT_MS + COLLAPSE_MS;
+
+/**
+ * Hard-stop threshold per ADR-013 §4. Crossing this boundary upward fires a
+ * single `<Sonner>` toast — the banner itself stays tint-only across every
+ * severity (info/warning/danger). The debounce guarantee: one toast per
+ * `needs_input > 3` transition, not one per message.
+ */
+export const WORK_BANNER_HARD_STOP_THRESHOLD = 3;
+
+export type WorkBannerTone = "info" | "warning" | "danger";
 
 export interface WorkBannerProps {
   openCount: number;
@@ -37,6 +48,34 @@ function bannerPhaseReducer(phase: BannerPhase, action: BannerAction): BannerPha
   }
 }
 
+function resolveTone(hasNeedsInput: boolean, needsInputCount: number | undefined): WorkBannerTone {
+  if ((needsInputCount ?? 0) > WORK_BANNER_HARD_STOP_THRESHOLD) {
+    return "danger";
+  }
+  if (hasNeedsInput || (needsInputCount ?? 0) > 0) {
+    return "warning";
+  }
+  return "info";
+}
+
+const TONE_BG: Record<WorkBannerTone, string> = {
+  info: "bg-(--info-tint)",
+  warning: "bg-(--warning-tint)",
+  danger: "bg-(--danger-tint)",
+};
+
+const TONE_VIEW_TEXT: Record<WorkBannerTone, string> = {
+  info: "text-(--info) hover:bg-(--info-tint)/40",
+  warning: "text-(--warning) hover:bg-(--warning-tint)/40",
+  danger: "text-(--danger) hover:bg-(--danger-tint)/40",
+};
+
+const TONE_ALERT_VARIANT: Record<WorkBannerTone, "info" | "warning" | "danger"> = {
+  info: "info",
+  warning: "warning",
+  danger: "danger",
+};
+
 export function WorkBanner({
   openCount,
   hasNeedsInput,
@@ -63,11 +102,25 @@ export function WorkBanner({
     return () => clearTimeout(timer);
   }, [openCount]);
 
+  // Hard-stop toast debounce: fires only on the rising edge of
+  // `needsInputCount > WORK_BANNER_HARD_STOP_THRESHOLD`.
+  const wasBeyondHardStop = useRef(false);
+  useEffect(() => {
+    const beyond = (needsInputCount ?? 0) > WORK_BANNER_HARD_STOP_THRESHOLD;
+    if (beyond && !wasBeyondHardStop.current) {
+      toast.warning("Multiple agents are blocked on input.", {
+        id: "network-work-banner-hard-stop",
+        description: `${needsInputCount ?? 0} agents need input.`,
+      });
+    }
+    wasBeyondHardStop.current = beyond;
+  }, [needsInputCount]);
+
   if (phase === "hidden") {
     return null;
   }
 
-  const escalate = hasNeedsInput && openCount > 0;
+  const tone = resolveTone(hasNeedsInput, needsInputCount);
   const message = buildMessage(openCount, hasNeedsInput, needsInputCount, workingCount);
   const fading = phase === "fading";
 
@@ -76,17 +129,15 @@ export function WorkBanner({
       aria-live="polite"
       className={cn(
         "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-(--line) px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
-        escalate
-          ? "bg-(--warning) text-(--canvas) *:data-[slot=alert-description]:text-(--canvas)"
-          : null,
+        TONE_BG[tone],
         fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
         className
       )}
-      data-escalate={escalate ? "true" : "false"}
       data-state={fading ? "fading" : "visible"}
       data-testid="network-work-banner"
+      data-tone={tone}
       role="status"
-      variant="warning"
+      variant={TONE_ALERT_VARIANT[tone]}
     >
       <AlertDescription
         className="truncate text-small-body font-medium"
@@ -98,12 +149,7 @@ export function WorkBanner({
         <AlertActions className="mt-0">
           <Button
             aria-label="View open work"
-            className={cn(
-              "h-7 px-2 text-xs font-medium",
-              escalate
-                ? "text-(--canvas) hover:bg-(--canvas)/10"
-                : "text-(--warning) hover:bg-(--warning-tint)/40"
-            )}
+            className={cn("h-7 px-2 text-xs font-medium", TONE_VIEW_TEXT[tone])}
             data-testid="network-work-banner-view"
             onClick={onView}
             size="sm"

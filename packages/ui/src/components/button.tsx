@@ -4,11 +4,13 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding font-sans text-[12px] font-[510] tracking-[-0.005em] whitespace-nowrap transition-all outline-none select-none focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-(--danger) [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding font-sans text-[12px] font-medium tracking-[-0.005em] whitespace-nowrap transition-all outline-none select-none focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-(--danger) [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
+          "bg-(--accent) text-(--accent-ink) shadow-[var(--highlight)] hover:bg-(--accent-hover) [a]:hover:bg-(--accent-hover)",
+        primary:
           "bg-(--accent) text-(--accent-ink) shadow-[var(--highlight)] hover:bg-(--accent-hover) [a]:hover:bg-(--accent-hover)",
         outline:
           "border-(--line) bg-transparent text-(--fg) hover:bg-(--hover) aria-expanded:bg-(--hover)",
@@ -19,6 +21,7 @@ const buttonVariants = cva(
         destructive: "bg-(--danger-tint) text-(--danger) hover:bg-(--danger-tint) hover:opacity-90",
         success: "bg-(--success-tint) text-(--success) hover:opacity-90",
         link: "text-(--accent) underline-offset-4 hover:underline",
+        neutral: "bg-(--btn-default-fill) text-(--fg-strong) hover:bg-(--btn-default-hover)",
       },
       size: {
         default:

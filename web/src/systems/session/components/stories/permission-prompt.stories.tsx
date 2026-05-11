@@ -19,7 +19,13 @@ type Story = StoryObj<typeof meta>;
 
 type AutoDecision = "allow-once" | "reject-once" | null;
 
-function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision }) {
+function PermissionPromptHarness({
+  autoDecision,
+  permission = permissionRequestFixture,
+}: {
+  autoDecision: AutoDecision;
+  permission?: typeof permissionRequestFixture;
+}) {
   const [resolvedState, setResolvedState] = useState<AutoDecision>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +59,7 @@ function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision 
         {resolvedState ? null : (
           <PermissionPrompt
             onResolved={() => setResolvedState(autoDecision ?? "allow-once")}
-            permission={permissionRequestFixture}
+            permission={permission}
             sessionId={primarySessionFixture.id}
           />
         )}
@@ -62,14 +68,33 @@ function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision 
   );
 }
 
-export const Pending: Story = {
+/** Default high-stakes prompt (Bash) — danger tile + tint per ADR-014 §5. */
+export const HighStakesDanger: Story = {
   render: () => <PermissionPromptHarness autoDecision={null} />,
 };
 
+/** Lower-stakes prompt (TodoWrite) — warning tile + tint. */
+export const StandardWarning: Story = {
+  render: () => (
+    <PermissionPromptHarness
+      autoDecision={null}
+      permission={{
+        ...permissionRequestFixture,
+        toolName: "TodoWrite",
+        action: "update",
+        resource: "agent todo list",
+        toolInput: { items: ["draft prd", "ship change"] },
+      }}
+    />
+  ),
+};
+
+/** Operator allows the prompt (transitions to resolved acknowledgement). */
 export const Accepted: Story = {
   render: () => <PermissionPromptHarness autoDecision="allow-once" />,
 };
 
+/** Operator rejects the prompt (transitions to resolved acknowledgement). */
 export const Rejected: Story = {
   render: () => <PermissionPromptHarness autoDecision="reject-once" />,
 };

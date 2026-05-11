@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, Wrench } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -6,10 +6,9 @@ import {
   AlertDescription,
   AlertTitle,
   Empty,
+  PillGroup,
+  Spinner,
   SplitPane,
-  Tabs,
-  TabsList,
-  TabsTrigger,
   useTopbarSlot,
 } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -42,34 +41,34 @@ export const Route = createFileRoute("/_app/skills")({
   component: SkillsPage,
 });
 
+const TAB_ITEMS = [
+  { value: "installed", label: "Installed", testId: "tab-installed" },
+  { value: "marketplace", label: "Marketplace", testId: "tab-marketplace" },
+] as const;
+
+type SkillsTabValue = (typeof TAB_ITEMS)[number]["value"];
+
 function SkillsPage() {
   const page = useSkillsPage(Route.useSearch());
 
   useTopbarSlot({
     count: page.activeTab === "marketplace" ? page.marketplaceSkillCount : page.skillCount,
     tabs: (
-      <Tabs
+      <PillGroup<SkillsTabValue>
         aria-label="Skills tab"
         data-testid="skills-tabs"
-        onValueChange={value => page.setActiveTab(value as typeof page.activeTab)}
-        value={page.activeTab}
-      >
-        <TabsList className="h-8" variant="default">
-          <TabsTrigger data-testid="tab-installed" value="installed">
-            Installed
-          </TabsTrigger>
-          <TabsTrigger data-testid="tab-marketplace" value="marketplace">
-            Marketplace
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+        items={TAB_ITEMS}
+        onChange={value => page.setActiveTab(value)}
+        size="sm"
+        value={page.activeTab as SkillsTabValue}
+      />
     ),
   });
 
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="skills-loading">
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--subtle)" />
+        <Spinner aria-hidden="true" className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -94,11 +93,7 @@ function SkillsPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="skills-shell">
       {page.backgroundError ? (
         <div className="border-b border-(--line) px-6 py-3">
-          <Alert
-            className="border-(--warning)/40"
-            data-testid="skills-background-error"
-            variant="warning"
-          >
+          <Alert data-testid="skills-background-error" variant="warning">
             <AlertCircle aria-hidden="true" className="size-4" />
             <AlertTitle>Showing cached skills</AlertTitle>
             <AlertDescription>

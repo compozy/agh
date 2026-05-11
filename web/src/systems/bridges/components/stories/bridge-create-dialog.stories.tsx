@@ -49,6 +49,41 @@ export const Default: Story = {
   render: () => <BridgeCreateDialogHarness />,
 };
 
+export const ProviderStep: Story = {
+  tags: ["play-fn"],
+  render: () => <BridgeCreateDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByTestId("bridge-wizard-stepper")).toBeInTheDocument();
+    await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 1 of 3");
+  },
+};
+
+export const RuntimeStep: Story = {
+  tags: ["play-fn"],
+  render: () => <BridgeCreateDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const next = await canvas.findByTestId("bridge-wizard-next");
+    await userEvent.click(next);
+    await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 2 of 3");
+    await expect(canvas.getByTestId("bridge-display-name-input")).toBeInTheDocument();
+  },
+};
+
+export const DeliveryStep: Story = {
+  tags: ["play-fn"],
+  render: () => <BridgeCreateDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const next = await canvas.findByTestId("bridge-wizard-next");
+    await userEvent.click(next);
+    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
+    await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 3 of 3");
+    await expect(canvas.getByTestId("submit-bridge-create")).toBeInTheDocument();
+  },
+};
+
 export const InvalidProviderConfig: Story = {
   render: () => (
     <BridgeCreateDialogHarness
@@ -58,6 +93,14 @@ export const InvalidProviderConfig: Story = {
       }}
     />
   ),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const next = await canvas.findByTestId("bridge-wizard-next");
+    await userEvent.click(next);
+    await expect(canvas.getByTestId("bridge-provider-config-error")).toBeInTheDocument();
+    await expect(canvas.getByTestId("bridge-wizard-next")).toBeDisabled();
+  },
 };
 
 export const SubmitPayload: Story = {
@@ -68,9 +111,10 @@ export const SubmitPayload: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
+    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
     const submit = await canvas.findByTestId("submit-bridge-create");
-    await userEvent.click(submit);
-    // Default draft already has Telegram selected with no provider config errors
     await expect(submit).toBeEnabled();
+    await userEvent.click(submit);
   },
 };

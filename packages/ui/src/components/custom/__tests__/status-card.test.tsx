@@ -51,4 +51,15 @@ describe("StatusCard", () => {
       ).toHaveAttribute("data-tone", tone);
     }
   );
+
+  it("Should render flat — no default border on the card root (ADR-004 §5)", () => {
+    render(
+      <StatusCard data-testid="card" tone="neutral">
+        <StatusCard.Header label="Flat" />
+      </StatusCard>
+    );
+    const card = screen.getByTestId("card");
+    expect(card.className).not.toContain("border-(--line)");
+    expect(card.className).toContain("bg-(--canvas-soft)");
+  });
 });

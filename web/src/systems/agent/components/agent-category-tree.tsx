@@ -148,7 +148,7 @@ function FolderRow({ item, label, segments }: FolderRowProps) {
       <TreeItemLabel
         item={item}
         className={cn(
-          "flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 font-mono text-badge font-medium uppercase tracking-mono text-(--muted)",
+          "eyebrow flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 text-(--muted)",
           "hover:bg-(--hover) hover:text-(--fg)"
         )}
       >

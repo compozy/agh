@@ -3,8 +3,10 @@ import { AlertCircle, Bot, Clock3, Lock, Pencil, Play, Search, Trash2, Zap } fro
 import {
   Button,
   CodeBlock,
+  DetailHeader,
   Empty,
   Eyebrow,
+  KindChip,
   Metric,
   Pill,
   Section,
@@ -12,7 +14,6 @@ import {
   type MetricTone,
 } from "@agh/ui";
 
-import { KindChip } from "@/systems/network";
 import { AutomationRunHistory } from "./automation-run-history";
 import {
   automationScopeLabel,
@@ -147,7 +148,7 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
     <Section
       label="Schedule"
       right={
-        <Pill mono uppercase={false} tone="accent">
+        <Pill mono tone="accent">
           {mode}
         </Pill>
       }
@@ -221,42 +222,32 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
         data-testid="automation-job-scheduler"
       >
         <div>
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Next cursor
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">Next cursor</Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">
             {formatDateTime(scheduler.next_run_at)}
           </p>
         </div>
         <div>
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Last scheduled
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">Last scheduled</Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">
             {formatDateTime(scheduler.last_scheduled_at)}
           </p>
         </div>
         <div>
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Fire ID
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">Fire ID</Eyebrow>
           <p className="mt-1 break-all font-mono text-xs text-(--muted)">
             {scheduler.last_fire_id || "--"}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Eyebrow case="upper" tone="muted" size="badge">
-              Catch-up
-            </Eyebrow>
+            <Eyebrow className="text-(--muted)">Catch-up</Eyebrow>
             <p className="mt-1 font-mono text-xs text-(--muted)">
               {scheduler.catch_up_policy ?? "skip_missed"}
             </p>
           </div>
           <div>
-            <Eyebrow case="upper" tone="muted" size="badge">
-              Misfires
-            </Eyebrow>
+            <Eyebrow className="text-(--muted)">Misfires</Eyebrow>
             <p className="mt-1 font-mono text-xs text-(--muted)">{scheduler.misfire_count ?? 0}</p>
           </div>
         </div>
@@ -272,23 +263,19 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
     <Section label="Hook" right={<KindChip kind={trigger.event} />}>
       <div className="space-y-3 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Event
-          </Eyebrow>
-          <Pill mono uppercase={false} tone="info">
+          <Eyebrow className="text-(--muted)">Event</Eyebrow>
+          <Pill mono tone="info">
             {trigger.event}
           </Pill>
         </div>
         <div className="space-y-1.5">
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Filters
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">Filters</Eyebrow>
           {filters.length === 0 ? (
             <p className="text-xs text-(--subtle)">No filters</p>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {filters.map(([key, value]) => (
-                <Pill mono uppercase={false} key={`${key}=${value}`} tone="neutral">
+                <Pill mono key={`${key}=${value}`} tone="neutral">
                   {`${key}=${value}`}
                 </Pill>
               ))}
@@ -298,17 +285,13 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         {trigger.event === "webhook" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <Eyebrow case="upper" tone="muted" size="badge">
-                Endpoint
-              </Eyebrow>
+              <Eyebrow className="text-(--muted)">Endpoint</Eyebrow>
               <p className="mt-1 font-mono text-small-body text-(--fg)">
                 {trigger.endpoint_slug ?? "--"}
               </p>
             </div>
             <div>
-              <Eyebrow case="upper" tone="muted" size="badge">
-                Webhook id
-              </Eyebrow>
+              <Eyebrow className="text-(--muted)">Webhook id</Eyebrow>
               <p className="mt-1 font-mono text-small-body text-(--fg)">
                 {trigger.webhook_id ?? "--"}
               </p>
@@ -318,7 +301,7 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         <div className="flex flex-wrap items-center gap-2">
           <Bot className="size-3.5 text-(--subtle)" />
           <span className="text-small-body text-(--muted)">Dispatches to</span>
-          <Pill mono uppercase={false} tone="neutral">
+          <Pill mono tone="neutral">
             {trigger.agent_name}
           </Pill>
         </div>
@@ -333,7 +316,7 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
       label={isTrigger ? "Prompt template" : "Prompt"}
       right={
         isTrigger ? (
-          <Pill mono uppercase={false} tone="info">
+          <Pill mono tone="info">
             GO TEMPLATE
           </Pill>
         ) : undefined
@@ -349,15 +332,11 @@ function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }
     <Section label="Governance">
       <div className="grid gap-2 rounded-md border border-(--line) bg-(--canvas-soft) px-4 py-3 md:grid-cols-2">
         <div>
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Retry
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">Retry</Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">{describeRetry(item.retry)}</p>
         </div>
         <div>
-          <Eyebrow case="upper" tone="muted" size="badge">
-            Fire limit
-          </Eyebrow>
+          <Eyebrow className="text-(--muted)">Fire limit</Eyebrow>
           <p className="mt-1 text-small-body text-(--muted)">
             {describeFireLimit(item.fire_limit)}
           </p>
@@ -440,30 +419,9 @@ export function AutomationDetailPanel({
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="automation-detail-panel"
     >
-      <header className="border-b border-(--line) px-6 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Pill.Dot tone={enabledTone} />
-              <h2 className="text-item-title font-medium tracking-tight text-(--fg)">
-                {item.name}
-              </h2>
-              <Pill mono tone={enabledTone}>
-                {item.enabled ? "ENABLED" : "DISABLED"}
-              </Pill>
-              <Pill mono tone={item.source === "dynamic" ? "accent" : "neutral"}>
-                {automationSourceLabel(item.source)}
-              </Pill>
-              {item.source === "config" ? (
-                <Lock aria-hidden="true" className="size-3.5 text-(--subtle)" />
-              ) : null}
-            </div>
-            <p className="text-xs text-(--muted)">
-              {`Agent: ${item.agent_name} / Scope: ${automationScopeLabel(item.scope)} / Updated ${formatDate(item.updated_at)}`}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <DetailHeader
+        actions={
+          <>
             <Button
               data-testid="toggle-automation-btn"
               disabled={isTogglePending}
@@ -511,9 +469,32 @@ export function AutomationDetailPanel({
                 {isDeleting ? "Deleting..." : "Delete"}
               </Button>
             ) : null}
-          </div>
-        </div>
-      </header>
+          </>
+        }
+        data-testid="automation-detail-header"
+        meta={
+          <span data-testid="automation-detail-meta">
+            {`Agent: ${item.agent_name} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+          </span>
+        }
+        pills={
+          <>
+            <span className="flex items-center gap-1.5">
+              <Pill.Dot tone={enabledTone} />
+              <Pill mono tone={enabledTone}>
+                {item.enabled ? "ENABLED" : "DISABLED"}
+              </Pill>
+            </span>
+            <Pill mono tone={item.source === "dynamic" ? "info" : "neutral"}>
+              {automationSourceLabel(item.source)}
+            </Pill>
+            {item.source === "config" ? (
+              <Lock aria-hidden="true" className="size-3.5 text-(--subtle)" />
+            ) : null}
+          </>
+        }
+        title={item.name}
+      />
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {!isDynamic ? (

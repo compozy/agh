@@ -300,6 +300,9 @@ export function useCancelTaskRun() {
   });
 }
 
+/** Canonical task-run cancel hook. Aliased to `useCancelTaskRun` for parity with the broader cancel hook family. */
+export const useCancelRun = useCancelTaskRun;
+
 export function useClaimTaskRun() {
   const queryClient = useQueryClient();
 

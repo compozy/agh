@@ -11,6 +11,11 @@ export interface SectionProps extends React.ComponentProps<"section"> {
   note?: React.ReactNode;
   right?: React.ReactNode;
   divided?: boolean;
+  /**
+   * When `true`, the section head renders a bottom hairline via `border-b border-(--line)`.
+   * Default is `false` per ADR-003 §2 (flat-depth pass) — depth comes from the warm-surface ramp.
+   */
+  bordered?: boolean;
   bodyClassName?: string;
   count?: number | string;
   icon?: IconComponent;
@@ -26,6 +31,7 @@ function Section({
   note,
   right,
   divided = false,
+  bordered = false,
   bodyClassName,
   className,
   children,
@@ -55,7 +61,11 @@ function Section({
       {hasHeader ? (
         <header
           data-slot="section-head"
-          className="flex flex-col gap-3 border-b border-(--line) pb-2 lg:flex-row lg:items-start lg:justify-between"
+          data-bordered={bordered ? "true" : undefined}
+          className={cn(
+            "flex flex-col gap-3 pb-2 lg:flex-row lg:items-start lg:justify-between",
+            bordered && "border-b border-(--line)"
+          )}
         >
           <div className="flex min-w-0 flex-col gap-2">
             {hasLabel ? (
@@ -71,7 +81,7 @@ function Section({
                 ) : null}
                 <h2
                   data-slot="section-label"
-                  className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)"
+                  className="truncate text-(length:--text-section-head) font-[510] tracking-(--tracking-section-head) text-(--fg-strong)"
                 >
                   {label}
                 </h2>

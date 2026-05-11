@@ -1,6 +1,7 @@
-import { AlertCircle, ListChecks, Loader2 } from "lucide-react";
+import { AlertCircle, ListChecks } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 
+import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskDetailRoute } from "@/hooks/routes/use-task-detail-route";
 import {
@@ -38,7 +39,7 @@ function TaskDetailRoute() {
   if (page.detailLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="tasks-detail-loading">
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -64,7 +65,7 @@ function TaskDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-detail-placeholder"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }

@@ -87,27 +87,17 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
 
         <ItemFooter className="items-start">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <Eyebrow data-testid="network-thread-list-row-meta-peers" weight="medium">
+            <Eyebrow data-testid="network-thread-list-row-meta-peers">
               {peerCount} {peerCount === 1 ? "peer" : "peers"}
             </Eyebrow>
-            <Eyebrow aria-hidden="true" weight="medium">
-              /
-            </Eyebrow>
-            <Eyebrow data-testid="network-thread-list-row-meta-replies" weight="medium">
+            <Eyebrow aria-hidden="true">/</Eyebrow>
+            <Eyebrow data-testid="network-thread-list-row-meta-replies">
               {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </Eyebrow>
-            <Eyebrow aria-hidden="true" weight="medium">
-              /
-            </Eyebrow>
-            <Eyebrow data-testid="network-thread-list-row-meta-opener" weight="medium">
-              started by {opener}
-            </Eyebrow>
+            <Eyebrow aria-hidden="true">/</Eyebrow>
+            <Eyebrow data-testid="network-thread-list-row-meta-opener">started by {opener}</Eyebrow>
           </div>
-          <Eyebrow
-            className="shrink-0"
-            data-testid="network-thread-list-row-meta-time"
-            weight="medium"
-          >
+          <Eyebrow className="shrink-0" data-testid="network-thread-list-row-meta-time">
             {lastActivity}
           </Eyebrow>
         </ItemFooter>

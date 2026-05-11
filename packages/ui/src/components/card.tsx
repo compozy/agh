@@ -16,7 +16,7 @@ function Card({ className, size = "default", activeRail = false, ...props }: Car
       data-size={size}
       data-active-rail={activeRail ? "true" : undefined}
       className={cn(
-        "group/card relative flex flex-col gap-4 overflow-hidden rounded-lg bg-(--canvas-soft) py-4 text-[13px] text-(--fg) ring-1 ring-(--line) has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
+        "group/card relative flex flex-col gap-4 overflow-hidden rounded-lg bg-(--canvas-soft) py-4 text-[13px] text-(--fg) has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
         activeRail &&
           "before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-(--accent)",
         className
@@ -44,7 +44,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "text-[15px] leading-snug font-[510] tracking-[-0.014em] text-(--fg-strong) group-data-[size=sm]/card:text-[13px]",
+        "text-[15px] leading-snug font-medium tracking-[-0.014em] text-(--fg-strong) group-data-[size=sm]/card:text-[13px]",
         className
       )}
       {...props}
@@ -95,4 +95,4 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent };
+export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle };

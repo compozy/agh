@@ -76,9 +76,7 @@ function TasksRoute() {
     <TasksListPanel
       errorMessage={page.listError?.message ?? null}
       isLoading={page.listLoading}
-      isPublishPending={page.isPublishPending}
       onCreateTask={openCreateRoute}
-      onPublishTask={page.handlePublishTask}
       onSearchChange={page.setSearchQuery}
       onSelectTask={taskId => {
         page.setSelectedTaskId(taskId);

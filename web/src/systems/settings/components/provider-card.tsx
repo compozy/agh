@@ -6,6 +6,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  CatalogCard,
   Eyebrow,
   MetadataList,
   Pill,
@@ -45,12 +46,14 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
     >
       <CardHeader>
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="flex size-10 items-center justify-center rounded-icon-well bg-(--elevated) ring-1 ring-(--line)"
+          <CatalogCard.Logo
+            size="lg"
+            tone="neutral"
+            data-testid={`${testId}-logo`}
+            className="text-(--fg)"
           >
             <ProviderLogo provider={provider.name} className="size-5" />
-          </span>
+          </CatalogCard.Logo>
           <CardTitle className="font-mono text-sm text-(--fg)">{provider.name}</CardTitle>
         </div>
         {provider.default ? (
@@ -193,9 +196,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             data-testid={`${testId}-status`}
             data-tone={state.label}
           />
-          <Eyebrow case="upper" tone="subtle" size="badge">
-            {STATE_LABELS[state.label] ?? state.label}
-          </Eyebrow>
+          <Eyebrow className="text-(--subtle)">{STATE_LABELS[state.label] ?? state.label}</Eyebrow>
         </span>
         <span className="flex items-center gap-2">
           <Button

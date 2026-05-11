@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ListChecksIcon, NetworkIcon } from "lucide-react";
+import { ChevronDown, ListChecksIcon, NetworkIcon } from "lucide-react";
 import { useEffect } from "react";
 
 import { Button, Pill } from "@agh/ui";
 import { LaneTabs } from "../lane-tabs";
 import { SearchInput } from "../search-input";
-import { Topbar, TopbarSlotProvider, useTopbarSlot } from "../topbar";
+import { Topbar, TopbarOverflowIcon, TopbarSlotProvider, useTopbarSlot } from "../topbar";
 
 const meta: Meta<typeof Topbar> = {
   title: "components/custom/Topbar",
@@ -112,6 +112,71 @@ export const LiveTitle: Story = {
           title: "Static fallback",
           icon: NetworkIcon,
           getCount: () => 0,
+        }}
+      />
+    </TopbarSlotProvider>
+  ),
+};
+
+/**
+ * Auto-resolved count from `useNavCounts()`. The route declares its
+ * `navCountKey` and the shell threads the resolved value via `navCount`.
+ */
+export const AutoResolvedNavCount: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <Topbar
+        navCount={42}
+        route={{
+          title: "Tasks",
+          icon: ListChecksIcon,
+          navCountKey: "tasks",
+        }}
+      />
+    </TopbarSlotProvider>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "When the slot omits `count` and the route declares `navCountKey`, the shell passes the resolved count through `navCount`.",
+      },
+    },
+  },
+};
+
+function DetailModeSetup() {
+  useTopbarSlot({
+    back: () => undefined,
+    meta: (
+      <>
+        <span className="font-mono text-[10.5px] text-(--faint)">task_01H</span>
+        <span className="text-[12px] text-(--muted)">created 2h ago</span>
+      </>
+    ),
+    actions: <Button size="sm">Run</Button>,
+    overflow: (
+      <Button aria-label="More" size="sm" variant="ghost">
+        <TopbarOverflowIcon className="size-3.5" />
+      </Button>
+    ),
+  });
+  return null;
+}
+
+/**
+ * Detail-mode topbar (ADR-005 §5/§8) — back chevron, meta line, overflow menu.
+ */
+export const DetailMode: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <DetailModeSetup />
+      <Topbar
+        route={{
+          title: "Reconcile order ledger",
+          icon: ChevronDown,
         }}
       />
     </TopbarSlotProvider>

@@ -1,18 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Radio } from "lucide-react";
 
-import { MetadataList, Metric, Pill, Section } from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
+import { DescriptionCard, Metric, Pill, RunCard, Section } from "@agh/ui";
 
 import {
-  formatRelativeTime,
+  computeElapsed,
   runCoordinationChannelLabel,
   runIsCoordinated,
   taskLifecyclePhase,
   taskLifecyclePhaseDescription,
   taskOwnerLabel,
-  taskRunStatusTone,
-  taskStatusSignal,
+  toRunCardStatus,
 } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 
@@ -21,9 +19,10 @@ export interface TasksDetailOverviewPanelProps {
 }
 
 /**
- * Overview tab -- three `Metric` cards across the top (children / dependencies /
- * runs), then a `Section` for the active run (when present), then a `Section`
- * for the task description. DESIGN.md §4 Metric + Section composition.
+ * Overview tab — KPI metric grid (3 col / gap-3 ≥ 1100 px, collapses to 1 col),
+ * active-run `<RunCard>`, and `<DescriptionCard>` per ADR-007 §9. No
+ * `border-l-2 border-l-accent` rail, no Stuck pill, no Watch button, no Block
+ * reason placeholder (Out of Scope per ADR-007 §4 / §6 / §8).
  */
 export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelProps) {
   const record = detail.task;
@@ -34,7 +33,6 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
   const dependencyCount = dependencyReferences.length || summary?.dependency_count || 0;
   const runs = detail.runs ?? [];
   const description = record.description?.trim() ?? "";
-  const activeSignal = activeRun ? taskStatusSignal(activeRun.status) : null;
   const activeChannelLabel = runIsCoordinated(activeRun)
     ? runCoordinationChannelLabel(activeRun)
     : null;
@@ -46,8 +44,11 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
   });
 
   return (
-    <section className="flex w-full flex-col gap-6 px-6 py-5" data-testid="tasks-detail-overview">
-      <div className="grid gap-4 md:grid-cols-3" data-testid="tasks-detail-overview-counts">
+    <section className="flex w-full flex-col gap-6 px-9 py-7" data-testid="tasks-detail-overview">
+      <div
+        className="grid grid-cols-1 gap-3 [@media(min-width:1100px)]:grid-cols-3"
+        data-testid="tasks-detail-overview-counts"
+      >
         <Metric
           data-testid="tasks-detail-overview-children"
           label="Children"
@@ -67,10 +68,10 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
         />
       </div>
 
-      {activeRun && activeSignal ? (
+      {activeRun ? (
         <Section
           data-testid="tasks-detail-active-run"
-          label="Active Run"
+          label="Active run"
           right={
             <Pill.Link
               data-testid="tasks-detail-active-run-link"
@@ -82,46 +83,45 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
             </Pill.Link>
           }
         >
-          <div className="flex flex-col gap-2 rounded-xl border border-(--line) bg-(--elevated) px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Pill.Dot tone={activeSignal.tone} pulse={activeSignal.pulse} />
-              <Pill mono>{activeRun.id}</Pill>
-              <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(activeRun.status))}>
-                {activeRun.status}
-              </Pill>
-              {activeChannelLabel ? (
+          <RunCard
+            data-testid="tasks-detail-active-run-card"
+            runId={activeRun.id}
+            status={toRunCardStatus(activeRun.status)}
+            attempt={activeRun.attempt}
+            sessionInfo={
+              activeRun.session_id ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-mono">session {activeRun.session_id}</span>
+                  {activeChannelLabel ? (
+                    <Pill
+                      data-testid="tasks-detail-active-run-channel"
+                      title="Coordination channel is bound to the active run. Channel messages support coordination only -- claim, heartbeat, and terminal status stay in the task service."
+                      tone="info"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <Radio className="size-3" aria-hidden="true" />
+                        Channel: {activeChannelLabel}
+                      </span>
+                    </Pill>
+                  ) : null}
+                </span>
+              ) : activeChannelLabel ? (
                 <Pill
                   data-testid="tasks-detail-active-run-channel"
                   title="Coordination channel is bound to the active run. Channel messages support coordination only -- claim, heartbeat, and terminal status stay in the task service."
-                  tone={pillToneFromLegacyTone("violet")}
+                  tone="info"
                 >
                   <span className="inline-flex items-center gap-1">
                     <Radio className="size-3" aria-hidden="true" />
                     Channel: {activeChannelLabel}
                   </span>
                 </Pill>
-              ) : null}
-            </div>
-            <MetadataList className="gap-y-2">
-              <MetadataList.Row label="Attempt">
-                attempt {activeRun.attempt}
-                {activeRun.max_attempts ? ` of ${activeRun.max_attempts}` : ""}
-              </MetadataList.Row>
-              {activeRun.session_id ? (
-                <MetadataList.Row label="Session">
-                  <span className="font-mono">session {activeRun.session_id}</span>
-                </MetadataList.Row>
-              ) : null}
-              <MetadataList.Row label="Queued">
-                {formatRelativeTime(activeRun.queued_at)}
-              </MetadataList.Row>
-              {activeRun.started_at ? (
-                <MetadataList.Row label="Started">
-                  {formatRelativeTime(activeRun.started_at)}
-                </MetadataList.Row>
-              ) : null}
-            </MetadataList>
-          </div>
+              ) : undefined
+            }
+            queuedAt={activeRun.queued_at ?? undefined}
+            startedAt={activeRun.started_at ?? undefined}
+            elapsed={computeElapsed(activeRun)}
+          />
         </Section>
       ) : (
         <Section data-testid="tasks-detail-active-run-empty" label="Execution">
@@ -136,11 +136,16 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (
-          <p className="max-w-prose whitespace-pre-wrap text-small-body leading-relaxed text-(--fg)">
+          <DescriptionCard data-testid="tasks-detail-description-card">
             {description}
-          </p>
+          </DescriptionCard>
         ) : (
-          <p className="text-small-body italic text-(--subtle)">No description provided.</p>
+          <p
+            data-testid="tasks-detail-description-empty"
+            className="text-small-body italic text-(--subtle)"
+          >
+            No description provided.
+          </p>
         )}
       </Section>
     </section>

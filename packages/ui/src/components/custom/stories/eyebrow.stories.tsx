@@ -1,12 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import {
-  Eyebrow,
-  type EyebrowCase,
-  type EyebrowSize,
-  type EyebrowTone,
-  type EyebrowWeight,
-} from "../eyebrow";
+import { Eyebrow } from "../eyebrow";
 
 const meta: Meta<typeof Eyebrow> = {
   title: "components/custom/Eyebrow",
@@ -16,7 +10,7 @@ const meta: Meta<typeof Eyebrow> = {
     docs: {
       description: {
         component:
-          "Canonical eyebrow primitive. `case='upper'` renders JetBrains Mono with `--text-eyebrow` (11 px) and `--tracking-mono` (0.06em). `case='sentence'` falls back to Inter at 12 px. `size` exposes the three token-aligned scales (`eyebrow`, `badge`, `micro`) and `tone` covers the full signal palette plus subtle/strong neutrals. Every other surface MUST go through this component — see DESIGN.md §3.",
+          "Canonical eyebrow primitive — single Inter UC 11 px / 600 / -0.005em contract. The component is prop-less (children + className only); tone, size, case, and weight have been collapsed (ADR-002 §1 / §11, lesson L-022). Apply text-color utilities through `className` when a tone is needed (`text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, signal palette).",
       },
     },
   },
@@ -25,80 +19,41 @@ const meta: Meta<typeof Eyebrow> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const SIZES: EyebrowSize[] = ["eyebrow", "badge", "micro"];
-const TONES: EyebrowTone[] = [
-  "neutral",
-  "muted",
-  "subtle",
-  "strong",
-  "accent",
-  "success",
-  "warning",
-  "danger",
-  "info",
+const TONES: { label: string; className: string }[] = [
+  { label: "default (inherit)", className: "" },
+  { label: "muted", className: "text-(--muted)" },
+  { label: "subtle", className: "text-(--subtle)" },
+  { label: "strong", className: "text-(--fg-strong)" },
+  { label: "accent", className: "text-(--accent)" },
+  { label: "success", className: "text-(--success)" },
+  { label: "warning", className: "text-(--warning)" },
+  { label: "danger", className: "text-(--danger)" },
+  { label: "info", className: "text-(--info)" },
 ];
-const WEIGHTS: EyebrowWeight[] = ["medium", "semibold"];
-const CASES: EyebrowCase[] = ["upper", "sentence"];
 
 export const Default: Story = {
   args: {
     children: "Active sessions",
-    case: "upper",
   },
 };
 
-export const Matrix: Story = {
+export const Tones: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Full case × size × tone × weight matrix used as a visual contract. Everything below is reachable via the public component API — never inline these classes.",
+          "Tones are now applied through className text-color utilities. The eyebrow utility itself does not bind a default tone — consumers inherit body color unless they pass a text-(--*) class.",
       },
     },
   },
   render: () => (
-    <div className="flex flex-col gap-8">
-      {CASES.map(caseVariant => (
-        <section key={caseVariant} className="flex flex-col gap-4">
-          <h3 className="text-[12px] font-medium tracking-[-0.005em] text-(--fg-strong)">
-            case=&quot;{caseVariant}&quot;
-          </h3>
-          <div className="grid grid-cols-[120px_repeat(3,1fr)] items-baseline gap-x-6 gap-y-3">
-            <span className="text-[11px] text-(--subtle)">tone / size</span>
-            {SIZES.map(size => (
-              <span key={size} className="text-[11px] text-(--subtle)">
-                {size}
-              </span>
-            ))}
-            {TONES.map(tone => (
-              <Row key={tone} caseVariant={caseVariant} tone={tone} />
-            ))}
-          </div>
-        </section>
-      ))}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-[12px] font-medium tracking-[-0.005em] text-(--fg-strong)">Weights</h3>
-        <div className="flex items-baseline gap-6">
-          {WEIGHTS.map(weight => (
-            <Eyebrow key={weight} case="upper" weight={weight} tone="neutral">
-              weight={weight}
-            </Eyebrow>
-          ))}
+    <div className="grid grid-cols-[160px_1fr] items-baseline gap-x-6 gap-y-3">
+      {TONES.map(({ label, className }) => (
+        <div key={label} className="contents">
+          <span className="text-[11px] text-(--subtle)">{label}</span>
+          <Eyebrow className={className}>Active sessions</Eyebrow>
         </div>
-      </section>
+      ))}
     </div>
   ),
 };
-
-function Row({ caseVariant, tone }: { caseVariant: EyebrowCase; tone: EyebrowTone }) {
-  return (
-    <>
-      <span className="text-[11px] text-(--subtle)">{tone}</span>
-      {SIZES.map(size => (
-        <Eyebrow key={size} case={caseVariant} tone={tone} size={size}>
-          {tone}
-        </Eyebrow>
-      ))}
-    </>
-  );
-}

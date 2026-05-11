@@ -56,16 +56,12 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
             )}
           >
             <span className="truncate">{entry.preview}</span>
-            <Eyebrow className="shrink-0" weight="medium">
-              #{entry.channel}
-            </Eyebrow>
+            <Eyebrow className="shrink-0">#{entry.channel}</Eyebrow>
           </ItemTitle>
         </ItemContent>
         {timestampLabel ? (
           <ItemFooter className="basis-auto">
-            <Eyebrow className="shrink-0" weight="medium">
-              {timestampLabel}
-            </Eyebrow>
+            <Eyebrow className="shrink-0">{timestampLabel}</Eyebrow>
           </ItemFooter>
         ) : null}
       </Item>
@@ -97,16 +93,12 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
         >
           <span className="truncate">{entry.preview}</span>
           <span className="text-(--subtle)">in</span>
-          <Eyebrow className="shrink-0" weight="medium">
-            #{entry.channel}
-          </Eyebrow>
+          <Eyebrow className="shrink-0">#{entry.channel}</Eyebrow>
         </ItemTitle>
       </ItemContent>
       {timestampLabel ? (
         <ItemFooter className="basis-auto">
-          <Eyebrow className="shrink-0" weight="medium">
-            {timestampLabel}
-          </Eyebrow>
+          <Eyebrow className="shrink-0">{timestampLabel}</Eyebrow>
         </ItemFooter>
       ) : null}
     </Item>

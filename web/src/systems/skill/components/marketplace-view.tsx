@@ -75,7 +75,6 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
                 data-testid={`marketplace-tag-${skill.name}-${tag}`}
                 key={tag}
                 tone="neutral"
-                uppercase={false}
               >
                 {tag}
               </Pill>
@@ -86,7 +85,7 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
       <CatalogCard.Actions>
         {isInstalled ? (
           <Pill mono data-testid={`installed-pill-${skill.name}`} tone="success">
-            INSTALLED
+            installed
           </Pill>
         ) : onInstall ? (
           <Button
@@ -95,7 +94,7 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
             onClick={() => onInstall()}
             size="sm"
             type="button"
-            variant="outline"
+            variant="neutral"
           >
             Install
           </Button>
@@ -105,7 +104,7 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
             data-testid={`catalog-state-${skill.name}`}
           >
             <Pill mono data-testid={`readonly-pill-${skill.name}`} tone="neutral">
-              READ ONLY
+              read only
             </Pill>
             <span>Metadata only</span>
           </div>
@@ -125,11 +124,11 @@ function MarketplaceView({
   onSearchChange,
 }: MarketplaceViewProps) {
   const [localSearch, setLocalSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("ALL");
+  const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("all");
   const search = searchQuery ?? localSearch;
   const handleSearchChange = onSearchChange ?? setLocalSearch;
   const isBrowseOnly = !onInstall;
-  const hasFilters = search.trim() !== "" || activeCategory !== "ALL";
+  const hasFilters = search.trim() !== "" || activeCategory !== "all";
 
   const filtered = useMemo(() => {
     const byQuery = filterSkillsByQuery(skills, search);

@@ -36,7 +36,7 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
   return (
     <article
       id={release.version}
-      className="grid scroll-mt-24 gap-8 border-t border-(--color-divider) py-12 lg:grid-cols-[160px_minmax(0,1fr)] lg:gap-12"
+      className="grid scroll-mt-24 gap-8 border-t border-(--line) py-12 lg:grid-cols-[160px_minmax(0,1fr)] lg:gap-12"
     >
       <div className="flex flex-col gap-3 lg:sticky lg:top-24 lg:self-start">
         <DateStamp date={release.date} tracking="wide" />
@@ -50,14 +50,14 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
             target="_blank"
             rel="noreferrer noopener"
             aria-label={`Compare ${release.version} on GitHub`}
-            className="inline-flex items-center gap-1.5 text-xs text-(--color-text-secondary) hover:text-(--color-text-primary)"
+            className="inline-flex items-center gap-1.5 text-xs text-(--muted) hover:text-(--fg)"
           >
             Compare on GitHub <ArrowUpRight size={12} aria-hidden />
           </a>
         )}
       </div>
       <div>
-        <h2 className="font-sans text-site-release-title font-semibold leading-tight tracking-tight text-(--color-text-primary)">
+        <h2 className="font-sans text-site-release-title font-semibold leading-tight tracking-tight text-(--fg)">
           {release.summary}
         </h2>
         <div className="mt-8 flex flex-col gap-7">
@@ -68,7 +68,7 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
                 {release[key].map((item, index) => (
                   <li
                     key={`${release.version}-${key}-${index}`}
-                    className="flex items-start gap-3 font-sans text-item-title leading-7 text-(--color-text-secondary)"
+                    className="flex items-start gap-3 font-sans text-item-title leading-7 text-(--muted)"
                   >
                     <span className="mt-2 inline-block size-1 shrink-0 rounded-sm bg-accent" />
                     <span>{item}</span>

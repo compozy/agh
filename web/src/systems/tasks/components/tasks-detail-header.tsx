@@ -1,21 +1,10 @@
-import { Link } from "@tanstack/react-router";
-import { ListChecks, Radio } from "lucide-react";
+import { useCallback } from "react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { Radio } from "lucide-react";
+
+import { Button, DetailHeader, MonoId, Pill, Time } from "@agh/ui";
 
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-  Button,
-  Eyebrow,
-  Pill,
-} from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
-
-import {
-  formatRelativeTime,
   runCoordinationChannelLabel,
   runIsCoordinated,
   taskApprovalStateLabel,
@@ -52,9 +41,11 @@ export interface TasksDetailHeaderProps {
 }
 
 /**
- * Detail page header rendered inside the task body. After P4 the route's
- * shell topbar shows the static title; this header renders the dynamic task
- * identity (title, status pills, breadcrumb, actions, status row).
+ * `/tasks/$id` hero — consumes `<DetailHeader>` so the 6-row anatomy
+ * (crumbs → pre-title → 24px H1 → pills → meta → actions) stays in lockstep
+ * with ADR-007 §9. The H1 is the only inline-status surface; the pre-title
+ * Eyebrow row carries the static "Task" label, pills render under the title,
+ * and meta carries owner / origin / updated-at relative time.
  */
 export function TasksDetailHeader({
   detail,
@@ -64,6 +55,11 @@ export function TasksDetailHeader({
   onCancel,
   onEnqueueRun,
 }: TasksDetailHeaderProps) {
+  const router = useRouter();
+  const handleBack = useCallback(() => {
+    router.history.back();
+  }, [router]);
+
   const isDeletePending = pending?.delete ?? false;
   const isPublishPending = pending?.publish ?? false;
   const isCancelPending = pending?.cancel ?? false;
@@ -86,90 +82,103 @@ export function TasksDetailHeader({
   const channelLabel = runIsCoordinated(activeRun) ? runCoordinationChannelLabel(activeRun) : null;
 
   return (
-    <header
-      data-slot="page-header"
-      className="flex min-h-11 flex-col gap-2 border-b border-(--line) px-4 py-2.5"
+    <DetailHeader
       data-testid="tasks-detail-header"
-    >
-      <Eyebrow
-        data-slot="page-header-breadcrumb"
-        case="upper"
-        tone="muted"
-        className="min-w-0 block"
-      >
-        <Breadcrumb data-testid="tasks-detail-breadcrumb">
-          <BreadcrumbList className="text-(--muted)">
-            <BreadcrumbItem>
-              <BreadcrumbLink
-                data-testid="tasks-detail-breadcrumb-tasks"
-                render={<Link to="/tasks" />}
-              >
-                Tasks
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage className="text-(--muted)">{identifier}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </Eyebrow>
-      <div
-        data-slot="page-header-main"
-        className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
-      >
-        <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
-          <span
-            aria-hidden="true"
-            data-slot="page-header-icon"
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-sm) bg-(--elevated) text-(--accent)"
+      back={handleBack}
+      backLabel="Back to tasks"
+      crumbs={
+        <span data-testid="tasks-detail-breadcrumb" className="inline-flex items-center gap-1.5">
+          <Link
+            data-testid="tasks-detail-breadcrumb-tasks"
+            to="/tasks"
+            className="transition-colors duration-(--dur) ease-(--ease) hover:text-(--fg)"
           >
-            <ListChecks className="size-3.5" />
+            Tasks
+          </Link>
+          <span aria-hidden="true" className="text-(--faint)">
+            ·
           </span>
-          <h1 className="truncate text-[22px] font-medium tracking-[-0.026em] text-(--fg-strong)">
-            <span className="flex min-w-0 items-center gap-2">
-              <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-              <span
-                className="truncate text-item-title font-medium text-(--fg)"
-                data-testid="tasks-detail-title"
-              >
-                {record.title}
+          <span>{identifier}</span>
+        </span>
+      }
+      preTitle="Task"
+      title={
+        <span data-testid="tasks-detail-title" className="inline-flex min-w-0 items-center gap-2">
+          <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+          <span className="truncate">{record.title}</span>
+        </span>
+      }
+      pills={
+        <>
+          <MonoId data-testid="tasks-detail-id" value={identifier} />
+          <Pill data-testid="tasks-detail-status" tone={taskStatusTone(record.status)}>
+            {taskStatusLabel(record.status)}
+          </Pill>
+          <Pill
+            data-testid="tasks-detail-lifecycle"
+            title={taskLifecyclePhaseDescription(lifecyclePhase)}
+            tone={taskLifecyclePhaseTone(lifecyclePhase)}
+          >
+            {taskLifecyclePhaseLabel(lifecyclePhase)}
+          </Pill>
+          {channelLabel ? (
+            <Pill
+              data-testid="tasks-detail-coordination"
+              title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
+              tone="info"
+            >
+              <span className="inline-flex items-center gap-1">
+                <Radio className="size-3" aria-hidden="true" />
+                Channel: {channelLabel}
               </span>
-              <Pill mono data-testid="tasks-detail-id">
-                {identifier}
-              </Pill>
-              <Pill
-                data-testid="tasks-detail-status"
-                tone={pillToneFromLegacyTone(taskStatusTone(record.status))}
-              >
-                {taskStatusLabel(record.status)}
-              </Pill>
-              <Pill
-                data-testid="tasks-detail-lifecycle"
-                title={taskLifecyclePhaseDescription(lifecyclePhase)}
-                tone={pillToneFromLegacyTone(taskLifecyclePhaseTone(lifecyclePhase))}
-              >
-                {taskLifecyclePhaseLabel(lifecyclePhase)}
-              </Pill>
-              {channelLabel ? (
-                <Pill
-                  data-testid="tasks-detail-coordination"
-                  title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
-                  tone={pillToneFromLegacyTone("violet")}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <Radio className="size-3" aria-hidden="true" />
-                    Channel: {channelLabel}
-                  </span>
-                </Pill>
-              ) : null}
-            </span>
-          </h1>
-        </div>
+            </Pill>
+          ) : null}
+          {record.priority ? (
+            <Pill data-testid="tasks-detail-priority" tone={taskPriorityTone(record.priority)}>
+              {taskPriorityLabel(record.priority)}
+            </Pill>
+          ) : null}
+          {taskHasApprovalPending(record) ? (
+            <Pill data-testid="tasks-detail-approval" tone="accent">
+              {taskApprovalStateLabel(record.approval_state)}
+            </Pill>
+          ) : null}
+        </>
+      }
+      meta={
         <div
-          data-slot="page-header-meta"
+          data-testid="tasks-detail-meta"
+          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
+        >
+          <span data-testid="tasks-detail-lifecycle-hint">
+            {taskLifecyclePhaseDescription(lifecyclePhase)}
+          </span>
+          <span aria-hidden="true" className="text-(--faint)">
+            ·
+          </span>
+          <span>Owner {taskOwnerLabel(record.owner)}</span>
+          <span aria-hidden="true" className="text-(--faint)">
+            ·
+          </span>
+          <span>Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
+          <span aria-hidden="true" className="text-(--faint)">
+            ·
+          </span>
+          <span>
+            Created by <span className="text-(--fg)">{record.created_by?.ref ?? "unknown"}</span>
+          </span>
+          <span aria-hidden="true" className="text-(--faint)">
+            ·
+          </span>
+          <span className="inline-flex items-center gap-1">
+            Updated <Time iso={record.updated_at} mode="relative" />
+          </span>
+        </div>
+      }
+      actions={
+        <div
           data-testid="tasks-detail-actions"
-          className="ml-auto flex shrink-0 flex-wrap items-center gap-2 text-[13px] text-(--muted)"
+          className="flex shrink-0 flex-wrap items-center gap-2"
         >
           <Link params={{ id: record.id }} to="/tasks/$id/edit">
             <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="outline">
@@ -225,32 +234,7 @@ export function TasksDetailHeader({
             </Button>
           ) : null}
         </div>
-      </div>
-      <div data-slot="page-header-subtitle" className="max-w-152 text-small-body text-(--muted)">
-        <span data-testid="tasks-detail-lifecycle-hint">
-          {taskLifecyclePhaseDescription(lifecyclePhase)}
-        </span>
-      </div>
-      <div
-        data-slot="page-header-status-row"
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-(--muted)"
-        data-testid="tasks-detail-meta"
-      >
-        {record.priority ? (
-          <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
-            {taskPriorityLabel(record.priority)}
-          </Pill>
-        ) : null}
-        {taskHasApprovalPending(record) ? (
-          <Pill tone="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
-        ) : null}
-        <span>Owner {taskOwnerLabel(record.owner)}</span>
-        <span>Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
-        <span>
-          Created by <span className="text-(--fg)">{record.created_by?.ref ?? "unknown"}</span>
-        </span>
-        <span>Updated {formatRelativeTime(record.updated_at)}</span>
-      </div>
-    </header>
+      }
+    />
   );
 }

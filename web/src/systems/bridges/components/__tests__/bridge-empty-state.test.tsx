@@ -29,7 +29,7 @@ describe("BridgeEmptyState", () => {
     expect(screen.getByTestId("bridge-empty-create-btn")).toBeDisabled();
   });
 
-  it("renders the 'no bridges configured' copy when installed providers exist", async () => {
+  it("renders the 'no bridges configured' copy with a CatalogCard per installed provider", async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn();
 
@@ -37,7 +37,9 @@ describe("BridgeEmptyState", () => {
 
     expect(screen.getByText(/No bridges configured/i)).toBeInTheDocument();
     expect(screen.getByText("Telegram")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-provider-card-ext-telegram::telegram")).toBeInTheDocument();
+    const card = screen.getByTestId("bridge-provider-card-ext-telegram::telegram");
+    expect(card).toHaveAttribute("data-slot", "catalog-card");
+    expect(card.querySelector('[data-slot="catalog-card-logo"][data-size="lg"]')).not.toBeNull();
 
     await user.click(screen.getByTestId("bridge-empty-create-btn"));
     expect(onCreate).toHaveBeenCalledTimes(1);

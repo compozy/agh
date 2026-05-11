@@ -152,7 +152,7 @@ function FilterLabel({ children, count }: { children: React.ReactNode; count?: n
   return (
     <span className="inline-flex items-center gap-1.5">
       <span>{children}</span>
-      {typeof count === "number" && count > 0 ? <Eyebrow weight="medium">{count}</Eyebrow> : null}
+      {typeof count === "number" && count > 0 ? <Eyebrow>{count}</Eyebrow> : null}
     </span>
   );
 }

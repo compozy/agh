@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Database, KeyRound, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -12,7 +12,10 @@ import {
   NativeSelect,
   NativeSelectOption,
   PageShell,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Textarea,
   useTopbarSlot,
 } from "@agh/ui";
@@ -29,11 +32,9 @@ import {
   ProvidersGrid,
   SettingsEditorDialog,
   SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSourceBadge,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/providers")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -47,27 +48,46 @@ function ProvidersSettingsPage() {
   const envelopeForSlot = page.envelope;
   useTopbarSlot({
     tabs: envelopeForSlot ? (
-      <SettingsStatusLine
+      <StatusLineTopbarSlot
         data-testid="settings-page-providers-status-line"
         status="connected"
         items={[
-          <span key="total" data-testid="settings-page-providers-total">
-            {page.counts.total} providers
-          </span>,
-          <span key="installed" data-testid="settings-page-providers-installed">
-            {page.counts.installed} installed
-          </span>,
-          <span key="missing" data-testid="settings-page-providers-missing">
-            {page.counts.binaryMissing} binary missing
-          </span>,
-          <span key="unconfigured" data-testid="settings-page-providers-unconfigured">
-            {page.counts.unconfigured} unconfigured
-          </span>,
+          {
+            key: "total",
+            value: (
+              <span data-testid="settings-page-providers-total">{page.counts.total} providers</span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "installed",
+            value: (
+              <span data-testid="settings-page-providers-installed">
+                {page.counts.installed} installed
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "missing",
+            value: (
+              <span data-testid="settings-page-providers-missing">
+                {page.counts.binaryMissing} binary missing
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "unconfigured",
+            value: (
+              <span data-testid="settings-page-providers-unconfigured">
+                {page.counts.unconfigured} unconfigured
+              </span>
+            ),
+            tone: "neutral",
+          },
         ]}
       />
-    ) : undefined,
-    actions: envelopeForSlot ? (
-      <SettingsPageActions slug="providers" restart={page.restart} />
     ) : undefined,
   });
 
@@ -77,7 +97,7 @@ function ProvidersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-providers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }
@@ -98,11 +118,10 @@ function ProvidersSettingsPage() {
     );
   }
 
+  const bannerProps = restartBannerPropsFor("providers", page.restart);
+
   return (
-    <PageShell
-      slug="providers"
-      banner={<SettingsRestartBanner slug="providers" restart={page.restart} />}
-    >
+    <PageShell slug="providers" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
@@ -250,6 +269,7 @@ function renderProviderEditor({
     >
       <div className="flex flex-col gap-3">
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-name"
           label="Name"
           description={
@@ -270,6 +290,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-command"
           label="Command"
           description="Executable used to launch the ACP subprocess."
@@ -285,6 +306,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-display-name"
           label="Display name"
           description="Operator-facing label shown beside the provider id."
@@ -302,6 +324,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-model"
           label="Default model"
           description="Sent to the provider when an agent does not specify one."
@@ -319,6 +342,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-curated-models"
           label="Curated models"
           description="Provider-scoped model IDs stored under models.curated."
@@ -336,6 +360,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-harness"
           label="Harness"
           description="Runtime adapter used to launch the provider."
@@ -351,6 +376,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-runtime-provider"
           label="Runtime provider"
           description="Downstream provider id used by the selected harness."
@@ -368,6 +394,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-transport"
           label="Transport"
           description="Provider API family or Pi models override transport."
@@ -385,6 +412,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-base-url"
           label="Base URL"
           description="Custom API base URL for Pi-backed model overrides."
@@ -402,6 +430,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-auth-mode"
           label="Auth mode"
           description="Owner of provider authentication at launch."
@@ -430,6 +459,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-env-policy"
           label="Env policy"
           description="Daemon environment inheritance policy for provider subprocesses."
@@ -452,6 +482,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-home-policy"
           label="Home policy"
           description="Provider CLI state location policy."
@@ -474,6 +505,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-auth-status-command"
           label="Status command"
           description="Provider-owned command used for auth diagnostics."
@@ -491,6 +523,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-auth-login-command"
           label="Login command"
           description="Provider-owned command opened by provider auth login."
@@ -508,6 +541,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-api-key"
           label="Target env"
           description="Environment variable injected from the provider credential slot."
@@ -529,6 +563,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-secret-ref"
           label="Secret ref"
           description="Bound credential source injected into the target env var at launch."
@@ -550,6 +585,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-secret-value"
           label="API key"
           description="Write-only value stored when the secret ref uses vault:."
@@ -588,6 +624,7 @@ function AdditionalCredentialSlotsEditor({
 
   return (
     <SettingsFieldRow
+      variant="modal"
       data-testid="settings-providers-editor-credential-slots"
       label="More slots"
       description="Additional credential refs injected into provider subprocess env."

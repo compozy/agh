@@ -1,12 +1,8 @@
-import { AlertCircle, History, Loader2, RotateCcw } from "lucide-react";
+import { AlertCircle, History, RotateCcw } from "lucide-react";
 
-import { Button, Empty, Eyebrow, Pill, Section, Spinner } from "@agh/ui";
+import { Button, Empty, Pill, Section, Spinner, Time, TimelineEvent } from "@agh/ui";
 
-import {
-  decisionOpLabel,
-  decisionSourceLabel,
-  formatKnowledgeDateTime,
-} from "@/systems/knowledge/lib/knowledge-formatters";
+import { decisionOpLabel, decisionSourceLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryDecision } from "@/systems/knowledge/types";
 
 import { pillToneFromDecisionOp, pillToneFromDecisionSource } from "./knowledge-pill-tone";
@@ -64,84 +60,92 @@ function KnowledgeDecisionsSection({
         />
       ) : (
         <ul
-          className="flex flex-col divide-y divide-(--line) rounded-lg border border-(--line) bg-(--canvas-soft)"
+          className="flex flex-col gap-1"
           data-testid="knowledge-decisions-list"
+          aria-label="Controller decisions"
         >
-          {decisions.map(decision => (
-            <li
-              className="flex flex-col gap-1.5 px-4 py-3"
-              data-testid={`knowledge-decision-${decision.id}`}
-              key={decision.id}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Pill
-                  mono
-                  data-testid={`knowledge-decision-op-${decision.id}`}
-                  tone={pillToneFromDecisionOp(decision.op)}
-                >
-                  {decisionOpLabel(decision.op)}
-                </Pill>
-                <Pill
-                  mono
-                  data-testid={`knowledge-decision-source-${decision.id}`}
-                  tone={pillToneFromDecisionSource(decision.source)}
-                >
-                  {decisionSourceLabel(decision.source)}
-                </Pill>
-                <Eyebrow case="upper" tone="subtle" className="ml-auto">
-                  {formatKnowledgeDateTime(decision.decided_at)}
-                </Eyebrow>
-                {onRevertDecision && decision.applied_at ? (
-                  <Button
-                    data-testid={`revert-memory-decision-${decision.id}`}
-                    disabled={revertingDecisionId === decision.id}
-                    onClick={() => void handleRevert(decision)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    {revertingDecisionId === decision.id ? (
-                      <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+          {decisions.map(decision => {
+            const opTone = pillToneFromDecisionOp(decision.op);
+            const sourceTone = pillToneFromDecisionSource(decision.source);
+            const isReverting = revertingDecisionId === decision.id;
+            const showRevert = Boolean(onRevertDecision) && Boolean(decision.applied_at);
+            return (
+              <TimelineEvent
+                data-testid={`knowledge-decision-${decision.id}`}
+                key={decision.id}
+                tone={opTone}
+                title={
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <Pill mono data-testid={`knowledge-decision-op-${decision.id}`} tone={opTone}>
+                      {decisionOpLabel(decision.op)}
+                    </Pill>
+                    <Pill
+                      mono
+                      data-testid={`knowledge-decision-source-${decision.id}`}
+                      tone={sourceTone}
+                    >
+                      {decisionSourceLabel(decision.source)}
+                    </Pill>
+                  </div>
+                }
+                time={
+                  <Time
+                    data-testid={`knowledge-decision-time-${decision.id}`}
+                    iso={decision.decided_at}
+                  />
+                }
+                description={decision.reason ?? undefined}
+                meta={
+                  <>
+                    <span data-testid={`knowledge-decision-confidence-${decision.id}`}>
+                      Confidence {decision.confidence.toFixed(2)}
+                    </span>
+                    {decision.applied_at ? (
+                      <span data-testid={`knowledge-decision-applied-${decision.id}`}>
+                        Applied <Time iso={decision.applied_at} />
+                      </span>
                     ) : (
-                      <RotateCcw className="size-3.5" />
+                      <span data-testid={`knowledge-decision-pending-${decision.id}`}>
+                        Not applied
+                      </span>
                     )}
-                    Revert
-                  </Button>
-                ) : null}
-              </div>
-              {decision.reason ? <p className="text-xs text-(--muted)">{decision.reason}</p> : null}
-              <Eyebrow
-                case="upper"
-                tone="subtle"
-                size="badge"
-                className="flex flex-wrap items-center gap-3"
+                    {decision.target_filename ? (
+                      <span data-testid={`knowledge-decision-target-${decision.id}`}>
+                        Target {decision.target_filename}
+                      </span>
+                    ) : null}
+                    {showRevert ? (
+                      <Button
+                        className="ml-auto"
+                        data-testid={`revert-memory-decision-${decision.id}`}
+                        disabled={isReverting}
+                        onClick={() => void handleRevert(decision)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {isReverting ? (
+                          <Spinner aria-hidden="true" className="size-3.5" />
+                        ) : (
+                          <RotateCcw className="size-3.5" />
+                        )}
+                        Revert
+                      </Button>
+                    ) : null}
+                  </>
+                }
               >
-                <span data-testid={`knowledge-decision-confidence-${decision.id}`}>
-                  Confidence {decision.confidence.toFixed(2)}
-                </span>
-                {decision.applied_at ? (
-                  <span data-testid={`knowledge-decision-applied-${decision.id}`}>
-                    Applied {formatKnowledgeDateTime(decision.applied_at)}
-                  </span>
-                ) : (
-                  <span data-testid={`knowledge-decision-pending-${decision.id}`}>Not applied</span>
-                )}
-                {decision.target_filename ? (
-                  <span data-testid={`knowledge-decision-target-${decision.id}`}>
-                    Target {decision.target_filename}
-                  </span>
+                {revertError && isReverting ? (
+                  <p
+                    className="text-small-body text-(--danger)"
+                    data-testid={`knowledge-decision-revert-error-${decision.id}`}
+                  >
+                    {revertError}
+                  </p>
                 ) : null}
-              </Eyebrow>
-              {revertError && revertingDecisionId === decision.id ? (
-                <p
-                  className="text-small-body text-(--danger)"
-                  data-testid={`knowledge-decision-revert-error-${decision.id}`}
-                >
-                  {revertError}
-                </p>
-              ) : null}
-            </li>
-          ))}
+              </TimelineEvent>
+            );
+          })}
         </ul>
       )}
     </Section>

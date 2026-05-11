@@ -152,14 +152,16 @@ export {
 } from "./lib/query-options";
 
 // Formatters and helpers
-export type { TaskSemanticTone, TaskStatusSignal } from "./lib/task-formatters";
+export type { TaskStatusSignal } from "./lib/task-formatters";
 export {
+  computeElapsed,
   countTasksByStatus,
   formatAttemptLabel,
   formatDurationMs,
   formatPercent,
   formatRelativeTime,
   matchesTaskQuery,
+  ownerAvatarKindFor,
   taskApprovalStateLabel,
   taskHasApprovalPending,
   taskInboxLaneLabel,
@@ -170,11 +172,13 @@ export {
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
+  taskRunStatusLabel,
   taskRunStatusTone,
   taskShortId,
   taskStatusLabel,
   taskStatusSignal,
   taskStatusTone,
+  toRunCardStatus,
 } from "./lib/task-formatters";
 
 // Templates and grouping
@@ -187,13 +191,43 @@ export {
 export type {
   TaskTemplate,
   TaskTemplateBadge,
+  TaskTemplateBadgeTone,
   TaskTemplateDefaults,
   TaskTemplateId,
   TaskTemplatePreview,
 } from "./lib/task-templates";
 
-export { getKanbanColumns, groupTasksForKanban, resolveKanbanColumnId } from "./lib/task-grouping";
-export type { KanbanColumnGroup, TaskKanbanColumn, TaskKanbanColumnId } from "./lib/task-grouping";
+export {
+  getKanbanColumns,
+  getTaskListGroups,
+  groupTasksForKanban,
+  groupTasksForList,
+  resolveKanbanColumnId,
+  resolveTaskListGroupId,
+} from "./lib/task-grouping";
+export type {
+  KanbanColumnGroup,
+  TaskKanbanColumn,
+  TaskKanbanColumnId,
+  TaskListGroupBucket,
+  TaskListGroupDefinition,
+  TaskListGroupId,
+} from "./lib/task-grouping";
+
+export {
+  INBOX_GROUPS,
+  INBOX_UI_LANES,
+  backendLaneToUiLane,
+  inboxGroupDotProps,
+  resolveInboxGroupId,
+} from "./lib/inbox-grouping";
+export type {
+  InboxGroupDefinition,
+  InboxGroupId,
+  InboxLaneDefinition,
+  InboxLaneFilterId,
+  InboxUiLane,
+} from "./lib/inbox-grouping";
 
 // Read hooks
 export { useTask, useTaskRuns, useTasks } from "./hooks/use-tasks";
@@ -220,6 +254,7 @@ export {
   useApproveTask,
   useArchiveTask,
   useAttachTaskRunSession,
+  useCancelRun,
   useCancelTask,
   useCancelTaskRun,
   useClaimTaskRun,
@@ -253,13 +288,17 @@ export type { TaskCardProps } from "./components/task-card";
 export { TasksListRow } from "./components/tasks-list-row";
 export type { TasksListRowProps } from "./components/tasks-list-row";
 export { TasksListPanel } from "./components/tasks-list-panel";
-export type { TasksListPanelProps } from "./components/tasks-list-panel";
+export type { TasksListLane, TasksListPanelProps } from "./components/tasks-list-panel";
+export { TaskGroup } from "./components/task-group";
+export type { TaskGroupProps } from "./components/task-group";
 export { TasksDetailPreviewPanel } from "./components/tasks-detail-preview-panel";
 export type { TasksDetailPreviewPanelProps } from "./components/tasks-detail-preview-panel";
 export { TasksKanbanBoard } from "./components/tasks-kanban-board";
 export type { TasksKanbanBoardProps } from "./components/tasks-kanban-board";
 export { TasksEmptyState } from "./components/tasks-empty-state";
 export type { TasksEmptyStateProps } from "./components/tasks-empty-state";
+export { TaskEditorModal } from "./components/task-editor-modal";
+export type { TaskEditorModalMode, TaskEditorModalProps } from "./components/task-editor-modal";
 
 // Task detail + run detail components
 export { TasksDetailHeader } from "./components/tasks-detail-header";
@@ -279,19 +318,13 @@ export type { TasksDetailDependenciesPanelProps } from "./components/tasks-detai
 
 export { TaskRunDetailHeader } from "./components/task-run-detail-header";
 export type { TaskRunDetailHeaderProps } from "./components/task-run-detail-header";
-export {
-  TaskRunActivityPanel,
-  TaskRunIdentityPanel,
-  TaskRunProgressPanel,
-} from "./components/task-run-detail-panels";
-export type {
-  TaskRunActivityPanelProps,
-  TaskRunIdentityPanelProps,
-  TaskRunProgressPanelProps,
-} from "./components/task-run-detail-panels";
+export { TaskRunTimelinePanel } from "./components/task-run-timeline-panel";
+export type { TaskRunTimelinePanelProps } from "./components/task-run-timeline-panel";
 
 export { TasksMultiAgentPanel } from "./components/tasks-multi-agent-panel";
 export type { TasksMultiAgentPanelProps } from "./components/tasks-multi-agent-panel";
+export { AgentCard } from "./components/agent-card";
+export type { AgentCardProps } from "./components/agent-card";
 
 // Orchestration tab components (execution profile, reviews, bridge notifications, stream resume)
 export { TasksExecutionProfileCard } from "./components/tasks-execution-profile-card";
@@ -317,8 +350,6 @@ export type { TasksDashboardActiveRunsProps } from "./components/tasks-dashboard
 export { TasksDashboardView } from "./components/tasks-dashboard-view";
 export type { TasksDashboardViewProps } from "./components/tasks-dashboard-view";
 
-export { TasksInboxLaneTabs } from "./components/tasks-inbox-lane-tabs";
-export type { TasksInboxLaneTabsProps } from "./components/tasks-inbox-lane-tabs";
 export { TasksInboxItem } from "./components/tasks-inbox-item";
 export type { TasksInboxItemProps } from "./components/tasks-inbox-item";
 export { TasksInboxView } from "./components/tasks-inbox-view";

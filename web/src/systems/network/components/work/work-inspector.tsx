@@ -72,9 +72,7 @@ export function WorkInspector({
     >
       <header className="flex items-baseline justify-between border-b border-(--line) px-4 py-3">
         <h2 className="text-sm font-medium text-(--fg)">Work</h2>
-        <Eyebrow data-testid="network-work-inspector-count" weight="medium">
-          {entries.length} open
-        </Eyebrow>
+        <Eyebrow data-testid="network-work-inspector-count">{entries.length} open</Eyebrow>
       </header>
       {body}
     </section>

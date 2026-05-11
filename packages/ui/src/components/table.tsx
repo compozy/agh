@@ -39,7 +39,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        "border-t border-(--line) bg-(--canvas-tint) text-[13px] text-(--fg) font-[510] [&>tr]:last:border-b-0",
+        "border-t border-(--line) bg-(--canvas-tint) text-[13px] text-(--fg) font-medium [&>tr]:last:border-b-0",
         className
       )}
       {...props}
@@ -65,7 +65,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-9 px-3 text-left align-middle font-mono text-eyebrow font-[510] uppercase tracking-mono whitespace-nowrap text-(--muted) [&:has([role=checkbox])]:pr-0",
+        "eyebrow h-9 px-3 text-left align-middle whitespace-nowrap text-(--muted) [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -96,4 +96,4 @@ function TableCaption({ className, ...props }: React.ComponentProps<"caption">) 
   );
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow };

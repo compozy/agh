@@ -28,24 +28,14 @@ export function SectionHeader({
 
   return (
     <div className={cn(maxWidth, alignClass, className)}>
-      {eyebrow ? (
-        <Eyebrow case="upper" tone="muted" className="text-(--color-text-tertiary)">
-          {eyebrow}
-        </Eyebrow>
-      ) : null}
-      <h2
-        className={cn(
-          "mt-5 text-(--color-text-primary)",
-          titleClass,
-          align === "center" && "mx-auto"
-        )}
-      >
+      {eyebrow ? <Eyebrow className="text-(--subtle)">{eyebrow}</Eyebrow> : null}
+      <h2 className={cn("mt-5 text-(--fg)", titleClass, align === "center" && "mx-auto")}>
         {title}
       </h2>
       {description ? (
         <p
           className={cn(
-            "mt-5 text-base leading-relaxed text-(--color-text-secondary)",
+            "mt-5 text-base leading-relaxed text-(--muted)",
             align === "center" ? "mx-auto max-w-[58ch]" : "max-w-[62ch]"
           )}
         >

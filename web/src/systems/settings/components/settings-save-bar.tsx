@@ -1,6 +1,6 @@
-import { AlertCircle, Check, Loader2, Save, Undo2 } from "lucide-react";
+import { AlertCircle, Check, Save, Undo2 } from "lucide-react";
 
-import { Button, cn } from "@agh/ui";
+import { Button, Spinner, cn } from "@agh/ui";
 
 interface SettingsSaveBarProps {
   slug: string;
@@ -111,7 +111,7 @@ function SettingsSaveBar({
           disabled={disabled}
           data-testid={`settings-page-${slug}-save`}
         >
-          {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+          {isSaving ? <Spinner className="size-3.5" /> : <Save className="size-3.5" />}
           {isSaving ? "Saving..." : "Save changes"}
         </Button>
       </div>

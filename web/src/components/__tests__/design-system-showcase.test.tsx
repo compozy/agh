@@ -63,7 +63,7 @@ const SHADCN_ALIASES: ReadonlySet<string> = new Set([
 ]);
 
 const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
-  "--height-mono-badge",
+  "--height-pill-group-segment-md",
   "--height-pill-group-segment-sm",
   "--size-pill-group-badge",
   "--space-pill-group-track-gap",

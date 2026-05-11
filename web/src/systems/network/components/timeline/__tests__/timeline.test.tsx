@@ -26,7 +26,7 @@ function makeMessage(overrides: Partial<NetworkConversationMessage>): NetworkCon
 }
 
 describe("Timeline", () => {
-  it("Should render a full message row with avatar, name, role chip, and body", () => {
+  it("Should render a full message row with avatar (announcing role + name) and body", () => {
     render(
       <Timeline
         messages={[
@@ -39,12 +39,22 @@ describe("Timeline", () => {
     );
 
     expect(screen.getByTestId("network-message-row-full")).toBeInTheDocument();
-    expect(screen.getByTestId("network-message-avatar")).toBeInTheDocument();
-    expect(screen.getByTestId("network-message-role-chip")).toHaveTextContent("agent");
+    const avatar = screen.getByTestId("network-message-avatar");
+    expect(avatar).toBeInTheDocument();
+    expect(avatar).toHaveAttribute("role", "img");
+    expect(avatar.getAttribute("aria-label")).toMatch(/^Agent /);
+    expect(avatar.getAttribute("data-owner-role")).toBe("agent");
     expect(screen.getByText("Sample body content")).toBeInTheDocument();
   });
 
-  it("Should render a collapsed continuation row that suppresses the role chip", () => {
+  it("Should NOT render the role pill on message rows per ADR-013 §2", () => {
+    render(<Timeline messages={[makeMessage({ message_id: "m1", text: "Sample" })]} />);
+
+    expect(screen.queryByTestId("network-message-role-chip")).toBeNull();
+    expect(screen.queryByText("agent")).toBeNull();
+  });
+
+  it("Should render a collapsed continuation row", () => {
     render(
       <Timeline
         messages={[
@@ -60,9 +70,8 @@ describe("Timeline", () => {
 
     const collapsed = screen.getByTestId("network-message-row-collapsed");
     expect(collapsed).toBeInTheDocument();
-    // Role chip is rendered only on the FIRST row of a group.
-    const roleChips = screen.queryAllByTestId("network-message-role-chip");
-    expect(roleChips).toHaveLength(1);
+    // Role pill is never rendered on any row.
+    expect(screen.queryByTestId("network-message-role-chip")).toBeNull();
   });
 
   it("Should never render a kind chip for kind say", () => {
@@ -136,6 +145,13 @@ describe("Timeline", () => {
     const avatar = screen.getByTestId("network-message-avatar");
     expect(avatar.className).toContain("rounded-chip");
     expect(avatar.className).not.toContain("rounded-full");
+  });
+
+  it("Should NOT render the hover-toolbar reactions button per ADR-013 §5", () => {
+    render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
+
+    expect(screen.queryByRole("button", { name: /add reaction/i })).toBeNull();
+    expect(screen.queryByTestId("network-message-toolbar-react-m1")).toBeNull();
   });
 
   it("Should not declare any box-shadow on the timeline subtree", () => {

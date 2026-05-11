@@ -119,9 +119,7 @@ export function ReasoningCommandSelect({
                   <span className="truncate text-sm text-(--fg)">
                     {option.label || labelFor(option.value)}
                   </span>
-                  <Eyebrow case="upper" tone="muted" size="badge" className="ml-auto">
-                    {option.value}
-                  </Eyebrow>
+                  <Eyebrow className="text-(--muted) ml-auto">{option.value}</Eyebrow>
                 </div>
               </CommandItem>
             ))}

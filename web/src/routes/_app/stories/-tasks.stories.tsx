@@ -85,7 +85,7 @@ export const Inbox: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByTestId("tasks-mode-inbox"));
     await expect(canvas.findByTestId("tasks-inbox-view")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("tasks-inbox-group-approvals")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("tasks-inbox-group-needs_review")).resolves.toBeDefined();
   },
 };
 

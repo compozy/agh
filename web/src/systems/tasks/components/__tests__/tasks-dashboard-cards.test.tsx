@@ -5,12 +5,12 @@ import { TasksDashboardCards } from "../tasks-dashboard-cards";
 import { buildDashboardFixture } from "../test-fixtures";
 
 describe("TasksDashboardCards", () => {
-  it("renders four Metric primitives labeled Active runs, Success rate, Average duration, Queue depth", () => {
+  it("Should render four KpiCard primitives labeled Active runs, Success rate, Average duration, Queue depth", () => {
     render(<TasksDashboardCards dashboard={buildDashboardFixture()} />);
 
     const container = screen.getByTestId("tasks-dashboard-cards");
-    const metrics = container.querySelectorAll("[data-slot=metric]");
-    expect(metrics).toHaveLength(4);
+    const cards = container.querySelectorAll("[data-slot=kpi-card]");
+    expect(cards).toHaveLength(4);
 
     expect(screen.getByTestId("tasks-dashboard-card-active-runs")).toHaveTextContent(
       /Active runs/i
@@ -26,7 +26,27 @@ describe("TasksDashboardCards", () => {
     );
   });
 
-  it("shows the active run count and queue depth from the dashboard payload", () => {
+  it("Should resolve KpiCard value to --fg-strong regardless of tone (no accent recolor)", () => {
+    render(<TasksDashboardCards dashboard={buildDashboardFixture()} />);
+
+    for (const testId of [
+      "tasks-dashboard-card-active-runs",
+      "tasks-dashboard-card-success-rate",
+      "tasks-dashboard-card-average-duration",
+      "tasks-dashboard-card-queue-depth",
+    ]) {
+      const card = screen.getByTestId(testId);
+      const valueNode = card.querySelector("[data-slot=kpi-card-value]");
+      expect(valueNode).not.toBeNull();
+      expect(valueNode!.className).toContain("text-(--fg-strong)");
+      // No accent / tone recolor leak.
+      expect(valueNode!.className).not.toContain("text-(--accent)");
+      expect(valueNode!.className).not.toContain("text-(--warning)");
+      expect(valueNode!.className).not.toContain("text-(--danger)");
+    }
+  });
+
+  it("Should show the active run count and queue depth from the dashboard payload", () => {
     const dashboard = buildDashboardFixture({
       active_runs: {
         claimed: 2,
@@ -54,7 +74,7 @@ describe("TasksDashboardCards", () => {
     expect(within(queue).getByText("7")).toBeInTheDocument();
   });
 
-  it("computes success rate from completed vs. terminal runs", () => {
+  it("Should compute success rate from completed vs. terminal runs", () => {
     const dashboard = buildDashboardFixture({
       totals: buildDashboardFixture().totals,
     });
@@ -69,7 +89,7 @@ describe("TasksDashboardCards", () => {
     expect(successCard).toHaveTextContent(/90%/);
   });
 
-  it("renders an em-dash for success rate when no runs have concluded", () => {
+  it("Should render an em-dash for success rate when no runs have concluded", () => {
     const dashboard = buildDashboardFixture();
     Object.assign(dashboard.totals, {
       completed_runs: 0,

@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { AlertCircle, Loader2, MessageCircle } from "lucide-react";
+import { AlertCircle, MessageCircle } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
+import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useSession } from "@/systems/session";
 
@@ -39,7 +40,7 @@ function SessionPermalinkPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="session-permalink-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--subtle)" />
+        <Spinner className="size-5 text-(--subtle)" />
       </div>
     );
   }

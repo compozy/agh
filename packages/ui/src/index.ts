@@ -173,9 +173,14 @@ export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./component
 export {
   Sidebar,
   SidebarSectionLabel,
+  SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_MD,
+  SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   SIDEBAR_RAIL_WIDTH,
+  useSidebarViewport,
   type SidebarProps,
+  type SidebarViewport,
 } from "./components/sidebar";
 export {
   SplitPane,
@@ -183,14 +188,7 @@ export {
   type SplitPaneProps,
 } from "./components/custom/split-pane";
 export { PageShell, type PageShellProps } from "./components/custom/page-shell";
-export {
-  Eyebrow,
-  type EyebrowCase,
-  type EyebrowProps,
-  type EyebrowSize,
-  type EyebrowTone,
-  type EyebrowWeight,
-} from "./components/custom/eyebrow";
+export { Eyebrow, type EyebrowProps } from "./components/custom/eyebrow";
 export {
   Pill,
   PillDot,
@@ -216,6 +214,7 @@ export { Section, type SectionProps } from "./components/custom/section";
 // Topbar — dormant code in P3; mounted by P4 shell.
 export {
   Topbar,
+  TopbarOverflowIcon,
   TopbarSlotContext,
   TopbarSlotProvider,
   useTopbarSlot,
@@ -248,18 +247,102 @@ export {
 } from "./components/custom/context-box";
 export { JsonViewer, type JsonViewerProps } from "./components/custom/json-viewer";
 export { EditorFooter, type EditorFooterProps } from "./components/custom/editor-footer";
-export {
-  DashboardCard,
-  type DashboardCardLabelCase,
-  type DashboardCardProps,
-} from "./components/custom/dashboard-card";
+export { KpiCard, type KpiCardProps } from "./components/custom/kpi-card";
 export {
   StatusBreakdown,
   type StatusBreakdownItem,
   type StatusBreakdownProps,
 } from "./components/custom/status-breakdown";
 export { MetadataTile, type MetadataTileProps } from "./components/custom/metadata-tile";
-export { DetailHeader, type DetailHeaderProps } from "./components/custom/detail-header";
+export {
+  DetailHeader,
+  type DetailHeaderCrumb,
+  type DetailHeaderProps,
+} from "./components/custom/detail-header";
+export {
+  FormSection,
+  type FormSectionProps,
+  type FormSectionSize,
+} from "./components/custom/form-section";
+export { Icon, type IconProps, type IconSize } from "./components/icon";
+export { MonoId, type MonoIdProps, type MonoIdSize } from "./components/custom/mono-id";
+export { Time, type TimeMode, type TimeProps } from "./components/custom/time";
+export {
+  StatusDot,
+  type StatusDotProps,
+  type StatusDotSize,
+  type StatusDotTone,
+  type StatusDotVariant,
+} from "./components/custom/status-dot";
+export {
+  formatAbsoluteTime,
+  formatDuration,
+  formatRelativeTime,
+  FORMAT_TIME_FALLBACK,
+} from "./lib/format-time";
+export {
+  AGENT_SLOT_COUNT,
+  HUMAN_SLOT_COUNT,
+  SYSTEM_SLOT_COUNT,
+  colorsFor,
+  seed,
+  type OwnerColors,
+  type OwnerKind,
+} from "./lib/owner-palette";
+export {
+  DescriptionCard,
+  STREAMDOWN_SAFE_CONFIG,
+  type DescriptionCardProps,
+} from "./components/custom/description-card";
+export {
+  RUN_STATUS_LABEL,
+  RUN_STATUS_TONE,
+  RunCard,
+  type RunCardProps,
+  type RunCardStatus,
+  type RunCardWarning,
+  type RunCardWarningTone,
+} from "./components/custom/run-card";
+export {
+  CHAT_TOOL_OUTPUT_COLLAPSE_LINES,
+  ChatToolCard,
+  TOOL_STATUS_LABEL,
+  TOOL_STATUS_TONE,
+  type ChatToolCardProps,
+  type ChatToolCardSection,
+  type ChatToolStatus,
+} from "./components/custom/chat-tool-card";
+export {
+  OwnerAvatar,
+  type OwnerAvatarProps,
+  type OwnerAvatarSize,
+} from "./components/custom/owner-avatar";
+export {
+  RestartBanner,
+  type RestartBannerProps,
+  type RestartBannerTone,
+} from "./components/custom/restart-banner";
+export {
+  PageActionsTopbarSlot,
+  type PageActionsTopbarSlotProps,
+} from "./components/custom/page-actions-topbar-slot";
+export {
+  StatusLineTopbarSlot,
+  type StatusLineTopbarSlotItem,
+  type StatusLineTopbarSlotProps,
+} from "./components/custom/status-line-topbar-slot";
+export {
+  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
+  DETAIL_INSPECTOR_INLINE_WIDTH,
+  DetailInspector,
+  type DetailInspectorProps,
+  type DetailInspectorTab,
+} from "./components/custom/detail-inspector";
+export {
+  QueueHealthSparkline,
+  type QueueHealthSparklineBucket,
+  type QueueHealthSparklineProps,
+} from "./components/custom/queue-health-sparkline";
 export { RadioCard, type RadioCardProps } from "./components/custom/radio-card";
 export {
   ActionResultBanner,
@@ -347,6 +430,7 @@ export {
   type CatalogCardActionsProps,
   type CatalogCardDescriptionProps,
   type CatalogCardLogoProps,
+  type CatalogCardLogoSize,
   type CatalogCardMetaProps,
   type CatalogCardProps,
   type CatalogCardTitleProps,
@@ -489,6 +573,6 @@ export type {
   TreeItemLabelProps,
   TreeDragLineProps,
 } from "./components/reui/tree";
-export { Textarea } from "./components/textarea";
+export { Textarea, type TextareaProps, type TextareaVariant } from "./components/textarea";
 export { Toaster, toast, type ToasterProps } from "./components/sonner";
 export { DirectionProvider, useDirection } from "./components/direction";
