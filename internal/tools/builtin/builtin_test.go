@@ -807,13 +807,39 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(memory_admin) error = %v", err)
 		}
-		if !slices.Contains(memoryAdmin, toolspkg.ToolIDMemoryHealth) ||
-			!slices.Contains(memoryAdmin, toolspkg.ToolIDMemoryAdminHistory) ||
-			!slices.Contains(memoryAdmin, toolspkg.ToolIDMemoryReset) ||
-			!slices.Contains(memoryAdmin, toolspkg.ToolIDMemorySessionLedger) ||
-			slices.Contains(memoryAdmin, toolspkg.ToolID("agh__memory_history")) ||
-			slices.Contains(memoryAdmin, toolspkg.ToolIDMemoryPropose) {
-			t.Fatalf("memory admin toolset expansion = %#v, want operational Memory v2 tools only", memoryAdmin)
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDMemoryAdminHistory,
+			toolspkg.ToolIDMemoryDailyList,
+			toolspkg.ToolIDMemoryDecisionsList,
+			toolspkg.ToolIDMemoryDecisionsRevert,
+			toolspkg.ToolIDMemoryDecisionsShow,
+			toolspkg.ToolIDMemoryDreamList,
+			toolspkg.ToolIDMemoryDreamRetry,
+			toolspkg.ToolIDMemoryDreamShow,
+			toolspkg.ToolIDMemoryDreamStatus,
+			toolspkg.ToolIDMemoryDreamTrigger,
+			toolspkg.ToolIDMemoryExtractorDrain,
+			toolspkg.ToolIDMemoryExtractorFailures,
+			toolspkg.ToolIDMemoryExtractorRetry,
+			toolspkg.ToolIDMemoryExtractorStatus,
+			toolspkg.ToolIDMemoryHealth,
+			toolspkg.ToolIDMemoryPromote,
+			toolspkg.ToolIDMemoryProviderDisable,
+			toolspkg.ToolIDMemoryProviderEnable,
+			toolspkg.ToolIDMemoryProviderGet,
+			toolspkg.ToolIDMemoryProviderList,
+			toolspkg.ToolIDMemoryProviderSelect,
+			toolspkg.ToolIDMemoryRecallTrace,
+			toolspkg.ToolIDMemoryReindex,
+			toolspkg.ToolIDMemoryReload,
+			toolspkg.ToolIDMemoryReset,
+			toolspkg.ToolIDMemoryScopeShow,
+			toolspkg.ToolIDMemorySessionLedger,
+			toolspkg.ToolIDMemorySessionReplay,
+			toolspkg.ToolIDMemorySessionsPrune,
+			toolspkg.ToolIDMemorySessionsRepair,
+		}; !slices.Equal(memoryAdmin, want) {
+			t.Fatalf("memory admin toolset expansion = %#v, want %#v", memoryAdmin, want)
 		}
 
 		observe, err := catalog.Expand(toolspkg.ToolsetIDObserve, universe)

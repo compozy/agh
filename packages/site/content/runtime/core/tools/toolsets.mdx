@@ -58,8 +58,8 @@ granted through agent definitions or inspected through `agh toolsets info`.
 | `agh__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                |
 | `agh__automation`      | Automation job, trigger, and run management.                                   |
 
-Toolsets are not aliases for removed tool IDs. For example, `agh__memory_admin` exposes
-`agh__memory_admin_history`; it does not reintroduce `agh__memory_history`.
+Toolsets expose current canonical tool IDs only. For Memory administration, `agh__memory_admin`
+includes `agh__memory_admin_history` for operation-history inspection.
 
 ## How toolsets help operators
 

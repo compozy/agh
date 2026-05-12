@@ -3241,6 +3241,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		cases := []struct {
 			name    string
 			id      toolspkg.ToolID
+			scope   toolspkg.Scope
 			input   func(nativeMemoryAdminFixture) json.RawMessage
 			want    []byte
 			wantErr toolspkg.ErrorCode
@@ -3263,6 +3264,16 @@ func TestDaemonNativeTools(t *testing.T) {
 						`"idempotency_key":"promote-test","dry_run":true}`,
 				),
 				want: []byte(`"decision"`),
+				assert: func(t *testing.T, fixture nativeMemoryAdminFixture) {
+					t.Helper()
+					records, err := fixture.memoryStore.ListDecisionRecords(t.Context(), memorypkg.DecisionListQuery{})
+					if err != nil {
+						t.Fatalf("ListDecisionRecords() error = %v", err)
+					}
+					if len(records) != 2 {
+						t.Fatalf("decision record count = %d, want existing fixture decisions only", len(records))
+					}
+				},
 			},
 			{
 				name:  "reset unconfirmed guard",
@@ -3287,6 +3298,15 @@ func TestDaemonNativeTools(t *testing.T) {
 				want: []byte(`"decision"`),
 			},
 			{
+				name:  "decisions show denies out-of-scope agent decision",
+				id:    toolspkg.ToolIDMemoryDecisionsShow,
+				scope: toolspkg.Scope{SessionID: "sess-reviewer", AgentName: "reviewer"},
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(`{"decision_id":%q}`, fixture.agentDecision.ID))
+				},
+				wantErr: toolspkg.ErrorCodeDenied,
+			},
+			{
 				name: "decisions revert dry run",
 				id:   toolspkg.ToolIDMemoryDecisionsRevert,
 				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
@@ -3296,6 +3316,18 @@ func TestDaemonNativeTools(t *testing.T) {
 					))
 				},
 				want: []byte(`"dry_run":true`),
+			},
+			{
+				name:  "decisions revert dry run denies out-of-scope agent decision",
+				id:    toolspkg.ToolIDMemoryDecisionsRevert,
+				scope: toolspkg.Scope{SessionID: "sess-reviewer", AgentName: "reviewer"},
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(
+						`{"decision_id":%q,"reason":"verify native revert","dry_run":true}`,
+						fixture.agentDecision.ID,
+					))
+				},
+				wantErr: toolspkg.ErrorCodeDenied,
 			},
 			{
 				name:    "recall trace not materialized",
@@ -3328,6 +3360,24 @@ func TestDaemonNativeTools(t *testing.T) {
 				id:    toolspkg.ToolIDMemoryDreamRetry,
 				input: staticNativeInput(`{"failure_id":"dream-failure","force":true}`),
 				want:  []byte(`"retried":true`),
+				assert: func(t *testing.T, fixture nativeMemoryAdminFixture) {
+					t.Helper()
+					if fixture.dream.triggerCalls != 1 || fixture.dream.lastWorkspace != "dream-failure" {
+						t.Fatalf("dream retry trigger = %#v, want one dream-failure call", fixture.dream)
+					}
+				},
+			},
+			{
+				name:    "dream retry rejects missing target",
+				id:      toolspkg.ToolIDMemoryDreamRetry,
+				input:   staticNativeInput(`{"force":true}`),
+				wantErr: toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name:    "dream retry rejects conflicting targets",
+				id:      toolspkg.ToolIDMemoryDreamRetry,
+				input:   staticNativeInput(`{"failure_id":"dream-failure","dream_id":"dream-run","force":true}`),
+				wantErr: toolspkg.ErrorCodeInvalidInput,
 			},
 			{name: "daily list", id: toolspkg.ToolIDMemoryDailyList, want: []byte(`"logs"`)},
 			{name: "extractor status", id: toolspkg.ToolIDMemoryExtractorStatus, want: []byte(`"status":"idle"`)},
@@ -3408,7 +3458,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 				result, err := fixture.registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					tc.scope,
 					toolspkg.CallRequest{ToolID: tc.id, Input: input},
 				)
 				if tc.wantErr != "" {
@@ -3585,6 +3635,78 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should keep task notification subscribe successful when cursor enrichment fails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 12, 11, 30, 0, 0, time.UTC)
+		tasks := &nativeTaskManager{
+			getView: &taskpkg.View{Task: taskpkg.Task{
+				ID:          "task-1",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-1",
+				Title:       "Notify bridge",
+				Status:      taskpkg.TaskStatusInProgress,
+			}},
+		}
+		var putSubscription bridgepkg.BridgeTaskSubscription
+		bridges := apitest.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if id != "bridge-1" {
+					t.Fatalf("GetInstance id = %q, want bridge-1", id)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:          "bridge-1",
+					Scope:       bridgepkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}, nil
+			},
+			PutTaskSubscriptionFn: func(_ context.Context, subscription bridgepkg.BridgeTaskSubscription) error {
+				putSubscription = subscription
+				return nil
+			},
+			GetTaskSubscriptionFn: func(_ context.Context, id string) (bridgepkg.BridgeTaskSubscription, error) {
+				if id != putSubscription.SubscriptionID {
+					t.Fatalf("GetBridgeTaskSubscription id = %q, want %q", id, putSubscription.SubscriptionID)
+				}
+				stored := putSubscription
+				stored.UpdatedAt = now
+				return stored, nil
+			},
+			GetCursorFn: func(context.Context, notifications.CursorKey) (notifications.Cursor, error) {
+				return notifications.Cursor{}, errors.New("cursor backend unavailable")
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks:   tasks,
+			Bridges: bridges,
+		}, nativeApproveAllPolicyInputs())
+
+		subscribeResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
+				Input: json.RawMessage(
+					`{"task_id":"task-1","subscription_id":"sub-native","bridge_instance_id":"bridge-1",` +
+						`"scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","thread_id":"thread-1",` +
+						`"delivery_mode":"reply"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_notification_subscribe) error = %v", err)
+		}
+		requireNativeStructuredContains(t, subscribeResult, []byte(`"subscription_id":"sub-native"`))
+		requireNativeStructuredContains(
+			t,
+			subscribeResult,
+			[]byte(`"consumer_id":"bridge_task_subscription:sub-native"`),
+		)
+		if putSubscription.SubscriptionID != "sub-native" {
+			t.Fatalf("put subscription id = %q, want sub-native", putSubscription.SubscriptionID)
+		}
+	})
 
 	t.Run("Should reject task notification invalid input and bridge service errors", func(t *testing.T) {
 		t.Parallel()
@@ -4295,12 +4417,14 @@ func nativeApproveAllPolicyInputs() toolspkg.PolicyInputs {
 }
 
 type nativeMemoryAdminFixture struct {
-	registry  *toolspkg.RuntimeRegistry
-	decision  memcontract.Decision
-	dream     *nativeDreamTriggerService
-	extractor *nativeMemoryExtractorService
-	providers *nativeMemoryProviderService
-	ledger    *nativeMemorySessionLedgerService
+	registry      *toolspkg.RuntimeRegistry
+	memoryStore   *memorypkg.Store
+	decision      memcontract.Decision
+	agentDecision memcontract.Decision
+	dream         *nativeDreamTriggerService
+	extractor     *nativeMemoryExtractorService
+	providers     *nativeMemoryProviderService
+	ledger        *nativeMemorySessionLedgerService
 }
 
 func staticNativeInput(input string) func(nativeMemoryAdminFixture) json.RawMessage {
@@ -4341,6 +4465,28 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 	})
 	if err != nil {
 		t.Fatalf("ProposeCandidate() error = %v", err)
+	}
+	agentStore := memoryStore.ForAgent("", "coder", memcontract.AgentTierGlobal)
+	if err := agentStore.EnsureDirs(); err != nil {
+		t.Fatalf("EnsureDirs(agent memory) error = %v", err)
+	}
+	agentDecision, err := agentStore.ProposeCandidate(t.Context(), memcontract.Candidate{
+		Scope:     memcontract.ScopeAgent,
+		AgentName: "coder",
+		AgentTier: memcontract.AgentTierGlobal,
+		Origin:    memcontract.OriginTool,
+		Content:   "Native Memory admin agent decisions stay scoped.",
+		Frontmatter: memcontract.Header{
+			Name:      "Native admin agent decision",
+			Type:      memcontract.TypeFeedback,
+			Scope:     memcontract.ScopeAgent,
+			AgentName: "coder",
+			AgentTier: memcontract.AgentTierGlobal,
+		},
+		SubmittedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("ProposeCandidate(agent) error = %v", err)
 	}
 
 	cfg := aghconfig.Config{}
@@ -4402,12 +4548,14 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 		MemorySessionLedger: ledger,
 	}, nativeApproveAllPolicyInputs())
 	return nativeMemoryAdminFixture{
-		registry:  registry,
-		decision:  decision,
-		dream:     dream,
-		extractor: extractor,
-		providers: providers,
-		ledger:    ledger,
+		registry:      registry,
+		memoryStore:   memoryStore,
+		decision:      decision,
+		agentDecision: agentDecision,
+		dream:         dream,
+		extractor:     extractor,
+		providers:     providers,
+		ledger:        ledger,
 	}
 }
 

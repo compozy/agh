@@ -426,33 +426,100 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 		t.Fatalf("create payload cursor = %#v", createPayload.Subscription.Cursor)
 	}
 
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/tasks/task-1/notifications/bridges",
-		[]byte(
-			`{"bridge_instance_id":"brg-1","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-auto","thread_id":"thread-auto","delivery_mode":"reply"}`,
-		),
-	)
-	if resp.Code != http.StatusCreated {
-		t.Fatalf(
-			"create auto-id subscription status = %d, want %d; body=%s",
-			resp.Code,
-			http.StatusCreated,
-			resp.Body.String(),
+	t.Run("Should create subscription with auto-generated ID", func(t *testing.T) {
+		t.Parallel()
+
+		var autoPutSubscription bridgepkg.BridgeTaskSubscription
+		autoTasks := testutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+				if id != "task-1" {
+					t.Fatalf("GetTask id = %q, want task-1", id)
+				}
+				if actor.Origin.Ref != "tasks.create_bridge_notification_subscription" {
+					t.Fatalf("GetTask actor origin = %#v", actor.Origin)
+				}
+				return &taskpkg.View{Task: taskpkg.Task{
+					ID:          "task-1",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}}, nil
+			},
+		}
+		autoBridges := testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if id != "brg-1" {
+					t.Fatalf("GetInstance id = %q, want brg-1", id)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:          "brg-1",
+					Scope:       bridgepkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}, nil
+			},
+			PutTaskSubscriptionFn: func(_ context.Context, item bridgepkg.BridgeTaskSubscription) error {
+				autoPutSubscription = item
+				return nil
+			},
+			GetTaskSubscriptionFn: func(_ context.Context, id string) (bridgepkg.BridgeTaskSubscription, error) {
+				if id != autoPutSubscription.SubscriptionID {
+					t.Fatalf(
+						"GetBridgeTaskSubscription id = %q, want %q",
+						id,
+						autoPutSubscription.SubscriptionID,
+					)
+				}
+				stored := subscription
+				stored.SubscriptionID = autoPutSubscription.SubscriptionID
+				stored.PeerID = autoPutSubscription.PeerID
+				return stored, nil
+			},
+			GetCursorFn: func(_ context.Context, key notifications.CursorKey) (notifications.Cursor, error) {
+				if key.ConsumerID != "bridge_task_subscription:"+autoPutSubscription.SubscriptionID ||
+					key.StreamName != "task_events" ||
+					key.SubjectID != "task-1" {
+					t.Fatalf("GetCursor key = %#v, want auto subscription cursor", key)
+				}
+				return notifications.Cursor{Key: key}, nil
+			},
+		}
+		autoFixture := newHandlerFixtureWithTasksAndBridges(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			autoTasks,
+			autoBridges,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
 		)
-	}
-	var autoCreatePayload contract.TaskBridgeNotificationSubscriptionResponse
-	testutil.DecodeJSONResponse(t, resp, &autoCreatePayload)
-	if autoCreatePayload.Subscription.SubscriptionID == "" ||
-		!strings.HasPrefix(autoCreatePayload.Subscription.SubscriptionID, "bts-") {
-		t.Fatalf("auto subscription id = %q, want bts- prefix", autoCreatePayload.Subscription.SubscriptionID)
-	}
-	if putSubscription.SubscriptionID != autoCreatePayload.Subscription.SubscriptionID ||
-		putSubscription.PeerID != "peer-auto" {
-		t.Fatalf("auto put subscription = %#v", putSubscription)
-	}
+		resp := performRequest(
+			t,
+			autoFixture.Engine,
+			http.MethodPost,
+			"/tasks/task-1/notifications/bridges",
+			[]byte(
+				`{"bridge_instance_id":"brg-1","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-auto","thread_id":"thread-auto","delivery_mode":"reply"}`,
+			),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf(
+				"create auto-id subscription status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusCreated,
+				resp.Body.String(),
+			)
+		}
+		var autoCreatePayload contract.TaskBridgeNotificationSubscriptionResponse
+		testutil.DecodeJSONResponse(t, resp, &autoCreatePayload)
+		if autoCreatePayload.Subscription.SubscriptionID == "" ||
+			!strings.HasPrefix(autoCreatePayload.Subscription.SubscriptionID, "bts-") {
+			t.Fatalf("auto subscription id = %q, want bts- prefix", autoCreatePayload.Subscription.SubscriptionID)
+		}
+		if autoPutSubscription.SubscriptionID != autoCreatePayload.Subscription.SubscriptionID ||
+			autoPutSubscription.PeerID != "peer-auto" {
+			t.Fatalf("auto put subscription = %#v", autoPutSubscription)
+		}
+	})
 
 	resp = performRequest(
 		t,

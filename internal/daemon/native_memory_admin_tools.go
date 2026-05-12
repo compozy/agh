@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/frontmatter"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
 	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memorycontroller "github.com/pedronauck/agh/internal/memory/controller"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
@@ -412,30 +413,37 @@ func (n *daemonNativeTools) memoryAdminPromote(
 	header.Scope = targetLocation.Scope
 	header.AgentName = targetLocation.AgentName
 	header.AgentTier = targetLocation.AgentTier
-	decision, err := targetLocation.Store.ProposeCandidate(
-		ctx,
-		memcontract.Candidate{
-			WorkspaceID: targetLocation.WorkspaceID,
-			Scope:       targetLocation.Scope,
-			AgentName:   targetLocation.AgentName,
-			AgentTier:   targetLocation.AgentTier,
-			Origin:      memcontract.OriginTool,
-			Content:     strings.TrimSpace(body),
-			Frontmatter: header,
-			Metadata: map[string]string{
-				nativeMemoryMetadataIDKey:             strings.TrimSpace(input.IdempotencyKey),
-				nativeMemoryMetadataTargetFilenameKey: sourceLocation.Filename,
-			},
-			SubmittedAt: time.Now().UTC(),
+	candidate := memcontract.Candidate{
+		WorkspaceID: targetLocation.WorkspaceID,
+		Scope:       targetLocation.Scope,
+		AgentName:   targetLocation.AgentName,
+		AgentTier:   targetLocation.AgentTier,
+		Origin:      memcontract.OriginTool,
+		Content:     strings.TrimSpace(body),
+		Frontmatter: header,
+		Metadata: map[string]string{
+			nativeMemoryMetadataIDKey:             strings.TrimSpace(input.IdempotencyKey),
+			nativeMemoryMetadataTargetFilenameKey: sourceLocation.Filename,
 		},
-	)
+		SubmittedAt: time.Now().UTC(),
+	}
+	var decision memcontract.Decision
+	if input.DryRun {
+		decision, err = memorycontroller.New(targetLocation.Store).Decide(ctx, candidate)
+	} else {
+		decision, err = targetLocation.Store.ProposeCandidate(ctx, candidate)
+	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
 	decision = redactNativeMemoryDecision(decision)
+	applied := false
+	if !input.DryRun {
+		applied = nativeMemoryDecisionApplied(decision)
+	}
 	payload := contract.MemoryPromoteResponse{
 		Decision: core.MemoryDecisionPayload(decision, nil),
-		Applied:  nativeMemoryDecisionApplied(decision),
+		Applied:  applied,
 		DryRun:   input.DryRun,
 	}
 	return structuredResult(payload, fmt.Sprintf("memory decision %s", decision.Op.String()))
@@ -556,7 +564,7 @@ func (n *daemonNativeTools) memoryAdminDecisionsList(
 
 func (n *daemonNativeTools) memoryAdminDecisionsShow(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input memoryAdminDecisionIDInput
@@ -569,6 +577,9 @@ func (n *daemonNativeTools) memoryAdminDecisionsShow(
 	}
 	record, err := n.deps.MemoryStore.LoadDecisionRecord(ctx, decisionID)
 	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	if err := nativeMemoryAdminAuthorizeDecisionRecord(scope, req.ToolID, record); err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
 	payload := contract.MemoryDecisionResponse{Decision: core.MemoryDecisionRecordPayload(record)}
@@ -590,6 +601,9 @@ func (n *daemonNativeTools) memoryAdminDecisionsRevert(
 	}
 	record, err := n.deps.MemoryStore.LoadDecisionRecord(ctx, decisionID)
 	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	if err := nativeMemoryAdminAuthorizeDecisionRecord(scope, req.ToolID, record); err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
 	reverted := false
@@ -763,6 +777,9 @@ func (n *daemonNativeTools) memoryAdminDreamRetry(
 		return toolspkg.ToolResult{}, err
 	}
 	runID := firstNonEmpty(input.FailureID, input.DreamID)
+	if err := nativeMemoryAdminDreamRetryTarget(req.ToolID, input); err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
 	if n.deps.DreamTrigger == nil || !n.deps.DreamTrigger.Enabled() {
 		payload := contract.MemoryDreamRetryResponse{
 			Dream: contract.MemoryDreamPayload{
@@ -774,7 +791,7 @@ func (n *daemonNativeTools) memoryAdminDreamRetry(
 		}
 		return structuredResult(payload, "dream retry skipped")
 	}
-	triggered, reason, err := n.deps.DreamTrigger.Trigger(ctx, "")
+	triggered, reason, err := n.deps.DreamTrigger.Trigger(ctx, runID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
@@ -1292,6 +1309,66 @@ func (n *daemonNativeTools) memoryAdminStoreForDecisionRecord(
 	return n.deps.MemoryStore, nil
 }
 
+func nativeMemoryAdminAuthorizeDecisionRecord(
+	callerScope toolspkg.Scope,
+	id toolspkg.ToolID,
+	record memorypkg.DecisionRecord,
+) error {
+	if callerScope.Operator {
+		return nil
+	}
+	decisionScope := record.Decision.Frontmatter.Scope.Normalize()
+	recordWorkspaceID := strings.TrimSpace(record.WorkspaceID)
+	recordAgentName := strings.TrimSpace(firstNonEmpty(record.AgentName, record.Decision.Frontmatter.AgentName))
+	recordAgentTier := record.AgentTier.Normalize()
+	if recordAgentTier == "" {
+		recordAgentTier = record.Decision.Frontmatter.AgentTier.Normalize()
+	}
+	switch decisionScope {
+	case memcontract.ScopeGlobal:
+		return nil
+	case memcontract.ScopeWorkspace:
+		if recordWorkspaceID != "" && recordWorkspaceID == strings.TrimSpace(callerScope.WorkspaceID) {
+			return nil
+		}
+	case memcontract.ScopeAgent:
+		if recordAgentName == "" || recordAgentName != strings.TrimSpace(callerScope.AgentName) {
+			break
+		}
+		if recordAgentTier == memcontract.AgentTierWorkspace {
+			if recordWorkspaceID != "" && recordWorkspaceID == strings.TrimSpace(callerScope.WorkspaceID) {
+				return nil
+			}
+			break
+		}
+		return nil
+	default:
+		return core.NewMemoryValidationError(fmt.Errorf("unsupported decision scope %q", decisionScope))
+	}
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		id,
+		"memory decision is outside caller scope",
+		fmt.Errorf("%w: memory decision %q is outside caller scope", toolspkg.ErrToolDenied, record.Decision.ID),
+		toolspkg.ReasonPolicyDenied,
+	)
+}
+
+func nativeMemoryAdminDreamRetryTarget(id toolspkg.ToolID, input memoryAdminDreamRetryInput) error {
+	failureID := strings.TrimSpace(input.FailureID)
+	dreamID := strings.TrimSpace(input.DreamID)
+	if (failureID == "") == (dreamID == "") {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"exactly one of failure_id or dream_id is required",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return nil
+}
+
 func memoryAdminDreamPayload(record memorypkg.DreamRunRecord) contract.MemoryDreamPayload {
 	return contract.MemoryDreamPayload{
 		ID:             strings.TrimSpace(record.ID),
@@ -1367,7 +1444,23 @@ func nativeMemoryAdminToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonSchemaInvalid,
 		)
+	case errors.Is(err, toolspkg.ErrToolInvalidInput):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
 	case errors.Is(err, core.ErrMemoryRejected):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonPolicyDenied,
+		)
+	case errors.Is(err, toolspkg.ErrToolDenied):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeDenied,
 			id,

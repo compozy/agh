@@ -53,8 +53,8 @@ describe("tool-first canonical surface docs", () => {
       "agh__memory",
       "agh__memory_admin",
       "agh__memory_admin_history",
-      "does not reintroduce `agh__memory_history`",
     ]);
+    expectExcludesAll(toolsets, ["agh__memory_history"]);
     expectIncludesAll(tools, [
       "task bridge notification subscription management",
       "Memory v2 operational/admin actions",

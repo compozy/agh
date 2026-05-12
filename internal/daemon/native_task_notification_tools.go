@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -77,10 +78,7 @@ func (n *daemonNativeTools) taskNotificationSubscribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
-	payload, err := n.taskNotificationPayload(ctx, stored)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
+	payload := n.taskNotificationPayloadBestEffort(ctx, stored)
 	return structuredResult(
 		contract.TaskBridgeNotificationSubscriptionResponse{Subscription: payload},
 		fmt.Sprintf("subscribed %s", payload.SubscriptionID),
@@ -110,7 +108,7 @@ func (n *daemonNativeTools) taskNotificationList(
 	}
 	payloads, err := n.taskNotificationPayloads(ctx, subscriptions)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
 	return structuredResult(
 		contract.TaskBridgeNotificationSubscriptionsResponse{Subscriptions: payloads},
@@ -137,7 +135,7 @@ func (n *daemonNativeTools) taskNotificationShow(
 	}
 	payload, err := n.taskNotificationPayload(ctx, subscription)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
 	return structuredResult(
 		contract.TaskBridgeNotificationSubscriptionResponse{Subscription: payload},
@@ -334,6 +332,25 @@ func (n *daemonNativeTools) taskNotificationPayloads(
 		payloads = append(payloads, payload)
 	}
 	return payloads, nil
+}
+
+func (n *daemonNativeTools) taskNotificationPayloadBestEffort(
+	ctx context.Context,
+	subscription bridgepkg.BridgeTaskSubscription,
+) contract.TaskBridgeNotificationSubscriptionPayload {
+	payload, err := n.taskNotificationPayload(ctx, subscription)
+	if err == nil {
+		return payload
+	}
+	normalized := subscription.Normalize()
+	slog.Default().Warn(
+		"daemon: task notification cursor enrichment failed",
+		"subscription_id",
+		normalized.SubscriptionID,
+		"error",
+		err,
+	)
+	return core.TaskBridgeNotificationSubscriptionPayloadFromSubscription(normalized)
 }
 
 func (n *daemonNativeTools) taskNotificationPayload(
