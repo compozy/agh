@@ -5,10 +5,11 @@ import {
   Item,
   ItemActions,
   ItemContent,
+  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
-  Pill,
+  Time,
 } from "@agh/ui";
 
 import type { VaultSecret } from "../types";
@@ -20,20 +21,12 @@ interface SessionVaultPanelProps {
   sessionId?: string;
 }
 
-function displayVaultName(secret: VaultSecret, sessionId?: string): string {
+function displayVaultRef(secret: VaultSecret, sessionId?: string): string {
   const prefix = sessionId ? `vault:sessions/${sessionId}/` : "";
   if (prefix && secret.ref.startsWith(prefix)) {
     return secret.ref.slice(prefix.length);
   }
   return secret.ref;
-}
-
-function formatUpdated(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export function SessionVaultPanel({
@@ -69,23 +62,34 @@ export function SessionVaultPanel({
           {secrets.map(secret => (
             <Item key={secret.ref} data-testid="session-inspector-vault-row">
               <ItemMedia>
-                <Pill mono tone="success">
-                  {secret.kind?.trim() || "secret"}
-                </Pill>
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-6 items-center justify-center rounded-sm bg-canvas-soft text-muted"
+                >
+                  <KeyRound className="size-3" />
+                </span>
               </ItemMedia>
               <ItemContent>
                 <ItemTitle
-                  className="truncate font-mono text-eyebrow text-(--color-text-primary)"
+                  className="text-small-body text-fg-strong"
+                  data-testid="session-inspector-vault-title"
+                >
+                  Vault secret
+                </ItemTitle>
+                <ItemDescription
+                  className="block min-w-0 truncate font-mono text-eyebrow text-faint"
                   data-testid="session-inspector-vault-ref"
                   title={secret.ref}
                 >
-                  {displayVaultName(secret, sessionId)}
-                </ItemTitle>
+                  {displayVaultRef(secret, sessionId)}
+                </ItemDescription>
               </ItemContent>
               <ItemActions>
-                <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
-                  {formatUpdated(secret.updated_at)}
-                </span>
+                <Time
+                  className="shrink-0 font-mono text-badge text-subtle"
+                  data-testid="session-inspector-vault-updated"
+                  iso={secret.updated_at}
+                />
               </ItemActions>
             </Item>
           ))}

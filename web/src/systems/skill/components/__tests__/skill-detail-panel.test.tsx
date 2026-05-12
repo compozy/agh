@@ -1,5 +1,5 @@
 import { UIProvider } from "@agh/ui";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -56,7 +56,7 @@ describe("SkillDetailPanel", () => {
     expect(screen.getByTestId("skill-detail-empty")).toBeInTheDocument();
   });
 
-  it("Should render title + version + author MonoBadges in PageHeader meta", () => {
+  it("Should render title + meta pills inside the new DetailHeader anatomy", () => {
     renderPanel({
       skill: makeSkill({
         name: "alpha-skill",
@@ -66,10 +66,21 @@ describe("SkillDetailPanel", () => {
       }),
     });
 
-    expect(screen.getByTestId("skill-detail-title")).toHaveTextContent("alpha-skill");
-    expect(screen.getByTestId("detail-version-badge")).toHaveTextContent("v3.1.0");
-    expect(screen.getByTestId("detail-author-badge")).toHaveTextContent("@author");
-    expect(screen.getByTestId("source-badge")).toHaveAttribute("data-tone", "accent");
+    const header = screen.getByTestId("skill-detail-header");
+    expect(header).toHaveAttribute("data-slot", "detail-header");
+    expect(within(header).getByTestId("skill-detail-title")).toHaveTextContent("alpha-skill");
+    expect(within(header).getByTestId("detail-version-badge")).toHaveTextContent("v3.1.0");
+    expect(within(header).getByTestId("detail-author-badge")).toHaveTextContent("@author");
+    expect(within(header).getByTestId("source-badge")).toHaveAttribute("data-tone", "accent");
+  });
+
+  it("Should render the enable/disable Switch inside the DetailHeader actions slot", () => {
+    renderPanel();
+    const header = screen.getByTestId("skill-detail-header");
+    const actions = header.querySelector('[data-slot="detail-header-actions"]');
+    expect(actions).not.toBeNull();
+    expect(actions?.querySelector('[data-testid="skill-enabled-switch"]')).not.toBeNull();
+    expect(actions?.querySelector('[data-testid="skill-enabled-toggle"]')).not.toBeNull();
   });
 
   it("Should fire handleEnable when Switch is toggled on while disabled", async () => {
@@ -117,12 +128,13 @@ describe("SkillDetailPanel", () => {
     expect(screen.getByTestId("skill-capability-git.stage")).toBeInTheDocument();
   });
 
-  it("Should render recent-calls Table when metadata.recent_calls is present", () => {
+  it("Should render recent-calls Table with <Time>-driven When cells", () => {
+    const timestamp = new Date("2026-04-17T17:30:00Z").toISOString();
     renderPanel({
       skill: makeSkill({
         metadata: {
           recent_calls: [
-            { label: "skill.call(x)", status: "success", timestamp: new Date().toISOString() },
+            { label: "skill.call(x)", status: "success", timestamp },
             { label: "skill.call(y)", status: "error" },
           ],
         },
@@ -130,8 +142,11 @@ describe("SkillDetailPanel", () => {
     });
 
     expect(screen.getByTestId("skill-recent-calls-table")).toBeInTheDocument();
-    expect(screen.getByTestId("skill-recent-call-row-0")).toHaveTextContent("skill.call(x)");
-    expect(screen.getByTestId("skill-recent-call-row-1")).toHaveTextContent("skill.call(y)");
+    const firstRow = screen.getByTestId("skill-recent-call-row-0");
+    expect(firstRow).toHaveTextContent("skill.call(x)");
+    const time = firstRow.querySelector("time[datetime]");
+    expect(time).not.toBeNull();
+    expect(time?.getAttribute("datetime")).toBe(timestamp);
   });
 
   it("Should render Empty placeholders for missing capabilities and recent calls", () => {

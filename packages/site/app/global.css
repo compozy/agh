@@ -19,7 +19,9 @@
 @theme inline {
   --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
-  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Courier New", monospace;
+  --font-mono:
+    var(--font-jetbrains-mono), "JetBrains Mono Variable", "JetBrains Mono", "Courier New",
+    monospace;
   --text-eyebrow: 0.6875rem;
   --text-eyebrow--line-height: 1rem;
   --text-display-2xl: 1.75rem;
@@ -121,7 +123,7 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
 
 body {
   background: var(--color-canvas);
-  color: var(--color-text-primary);
+  color: var(--color-fg);
   text-rendering: optimizeLegibility;
 }
 
@@ -131,13 +133,13 @@ a {
 
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 28%, transparent);
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 #nd-sidebar {
-  border-inline-end: 1px solid var(--color-divider);
-  border-color: var(--color-divider);
-  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas)) !important;
+  border-inline-end: 1px solid var(--color-line);
+  border-color: var(--color-line);
+  background: color-mix(in srgb, var(--color-canvas-soft) 92%, var(--color-canvas)) !important;
 }
 
 #nd-sidebar [data-active="true"] {
@@ -167,7 +169,7 @@ a {
 
 #nd-toc {
   width: var(--site-doc-toc-width);
-  border-inline-start: 1px solid var(--color-divider);
+  border-inline-start: 1px solid var(--color-line);
   padding-inline-start: 1rem;
 }
 
@@ -178,7 +180,7 @@ a {
 }
 
 .site-doc-body {
-  color: var(--color-text-secondary);
+  color: var(--color-muted);
   font-size: 1rem;
   line-height: 1.8;
 }
@@ -190,13 +192,13 @@ a {
 .site-doc-body h2 {
   margin-top: 4rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--color-divider);
+  border-top: 1px solid var(--color-line);
   font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(1.7rem, 3vw, 2.45rem);
   line-height: 1.1;
   letter-spacing: -0.02em;
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 .site-doc-body h3 {
@@ -204,7 +206,7 @@ a {
   font-size: 1.25rem;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 .site-doc-body :is(h1, h2, h3, h4, h5, h6) a.peer {
@@ -229,28 +231,28 @@ a {
 }
 
 .site-doc-body strong {
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 .site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  border: 1px solid var(--color-divider);
+  border: 1px solid var(--color-line);
   border-radius: 0.55rem;
-  background: var(--color-surface-elevated);
+  background: var(--color-elevated);
   padding-inline: 0.38rem;
   padding-block: 0.12rem;
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 .site-doc-body hr {
-  border-color: var(--color-divider);
+  border-color: var(--color-line);
 }
 
 .site-doc-body table {
-  border-color: var(--color-divider);
+  border-color: var(--color-line);
 }
 
 .site-doc-body a {
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 .site-doc-body a:hover {
@@ -271,15 +273,15 @@ button span.truncate[class*="transition-"] {
 }
 
 .agh-mermaid {
-  --agh-mermaid-bg: var(--color-surface);
-  --agh-mermaid-node-bg: var(--color-surface-elevated);
+  --agh-mermaid-bg: var(--color-canvas-soft);
+  --agh-mermaid-node-bg: var(--color-elevated);
   --agh-mermaid-node-border: var(--color-accent);
-  --agh-mermaid-node-text: var(--color-text-primary);
-  --agh-mermaid-muted: var(--color-text-secondary);
+  --agh-mermaid-node-text: var(--color-fg);
+  --agh-mermaid-muted: var(--color-muted);
 }
 
 .agh-mermaid .agh-mermaid-svg {
-  color: var(--color-text-primary);
+  color: var(--color-fg);
 }
 
 .agh-mermaid .node rect,
@@ -293,8 +295,8 @@ button span.truncate[class*="transition-"] {
 }
 
 .agh-mermaid .cluster rect {
-  fill: var(--color-surface-panel) !important;
-  stroke: var(--color-divider) !important;
+  fill: var(--color-canvas-soft) !important;
+  stroke: var(--color-line) !important;
 }
 
 .agh-mermaid .edgePath path,
@@ -302,13 +304,13 @@ button span.truncate[class*="transition-"] {
 .agh-mermaid .messageLine0,
 .agh-mermaid .messageLine1,
 .agh-mermaid .transition {
-  stroke: var(--color-text-tertiary) !important;
+  stroke: var(--color-subtle) !important;
 }
 
 .agh-mermaid marker path,
 .agh-mermaid marker polygon {
-  fill: var(--color-text-tertiary) !important;
-  stroke: var(--color-text-tertiary) !important;
+  fill: var(--color-subtle) !important;
+  stroke: var(--color-subtle) !important;
 }
 
 .agh-mermaid text,
@@ -340,14 +342,14 @@ button span.truncate[class*="transition-"] {
 }
 
 .agh-mermaid .actor {
-  fill: var(--color-surface-elevated) !important;
-  stroke: var(--color-divider) !important;
+  fill: var(--color-elevated) !important;
+  stroke: var(--color-line) !important;
 }
 
 .agh-mermaid .note,
 .agh-mermaid .labelBox {
-  fill: var(--color-surface-panel) !important;
-  stroke: var(--color-divider) !important;
+  fill: var(--color-canvas-soft) !important;
+  stroke: var(--color-line) !important;
 }
 
 .site-home h1,
@@ -358,8 +360,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-runtime {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-canvas-deep) 68%, transparent) 0%,
-    color-mix(in srgb, var(--color-canvas-deep) 18%, transparent) 42%,
+    color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
     transparent 68%
   );
 }
@@ -367,8 +369,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-network {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-canvas-deep) 94%, transparent) 0%,
-    color-mix(in srgb, var(--color-canvas-deep) 78%, transparent) 21%,
+    color-mix(in srgb, var(--color-rail) 94%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 78%, transparent) 21%,
     transparent 48%
   );
 }
@@ -376,8 +378,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-bridges {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-canvas-deep) 84%, transparent) 0%,
-    color-mix(in srgb, var(--color-canvas-deep) 40%, transparent) 30%,
+    color-mix(in srgb, var(--color-rail) 84%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 40%, transparent) 30%,
     transparent 64%
   );
 }
@@ -385,8 +387,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-memory {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-canvas-deep) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-canvas-deep) 72%, transparent) 27%,
+    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 72%, transparent) 27%,
     transparent 58%
   );
 }
@@ -394,8 +396,8 @@ button span.truncate[class*="transition-"] {
 .site-bento-overlay-extensibility {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-canvas-deep) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-canvas-deep) 66%, transparent) 26%,
+    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
+    color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
     transparent 58%
   );
 }

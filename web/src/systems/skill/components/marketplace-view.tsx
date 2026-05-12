@@ -75,7 +75,6 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
                 data-testid={`marketplace-tag-${skill.name}-${tag}`}
                 key={tag}
                 tone="neutral"
-                uppercase={false}
               >
                 {tag}
               </Pill>
@@ -86,7 +85,7 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
       <CatalogCard.Actions>
         {isInstalled ? (
           <Pill mono data-testid={`installed-pill-${skill.name}`} tone="success">
-            INSTALLED
+            installed
           </Pill>
         ) : onInstall ? (
           <Button
@@ -95,17 +94,17 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
             onClick={() => onInstall()}
             size="sm"
             type="button"
-            variant="outline"
+            variant="neutral"
           >
             Install
           </Button>
         ) : (
           <div
-            className="flex items-center gap-2 text-eyebrow text-(--color-text-secondary)"
+            className="flex items-center gap-2 text-eyebrow text-muted"
             data-testid={`catalog-state-${skill.name}`}
           >
             <Pill mono data-testid={`readonly-pill-${skill.name}`} tone="neutral">
-              READ ONLY
+              read only
             </Pill>
             <span>Metadata only</span>
           </div>
@@ -125,11 +124,11 @@ function MarketplaceView({
   onSearchChange,
 }: MarketplaceViewProps) {
   const [localSearch, setLocalSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("ALL");
+  const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("all");
   const search = searchQuery ?? localSearch;
   const handleSearchChange = onSearchChange ?? setLocalSearch;
   const isBrowseOnly = !onInstall;
-  const hasFilters = search.trim() !== "" || activeCategory !== "ALL";
+  const hasFilters = search.trim() !== "" || activeCategory !== "all";
 
   const filtered = useMemo(() => {
     const byQuery = filterSkillsByQuery(skills, search);
@@ -138,7 +137,7 @@ function MarketplaceView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="marketplace-view">
-      <div className="flex flex-col gap-3 border-b border-(--color-divider) px-4 py-3">
+      <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
         {isBrowseOnly && installUnavailableReason ? (
           <Alert data-testid="marketplace-readonly-notice" variant="warning">
             <AlertCircle aria-hidden="true" className="size-4" />
@@ -175,7 +174,7 @@ function MarketplaceView({
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {filtered.length === 0 ? (
           <div
-            className="flex min-h-[240px] items-center justify-center"
+            className="flex min-h-60 items-center justify-center"
             data-testid="marketplace-empty"
           >
             <Empty

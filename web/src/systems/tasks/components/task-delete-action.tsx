@@ -1,5 +1,5 @@
-import { useCallback, useState, type ComponentProps } from "react";
 import { Trash2 } from "lucide-react";
+import { useCallback, useState, type ComponentProps } from "react";
 
 import { Button, ConfirmDialog, DialogTrigger, Spinner } from "@agh/ui";
 
@@ -27,7 +27,7 @@ export function TaskDeleteAction({
   isPending = false,
   size = "sm",
   triggerLabel = "Delete",
-  triggerVariant = "outline",
+  triggerVariant = "ghost",
   triggerTestId = "task-delete-trigger",
   dialogTestId = "task-delete-dialog",
   cancelTestId = "task-delete-cancel",
@@ -72,7 +72,7 @@ export function TaskDeleteAction({
           />
         }
       >
-        {isPending ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+        {isPending ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
         {triggerLabel}
       </DialogTrigger>
     </ConfirmDialog>

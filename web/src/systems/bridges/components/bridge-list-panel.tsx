@@ -8,14 +8,13 @@ import {
   ItemFooter,
   ItemHeader,
   ItemTitle,
+  KindChip,
   ListGroup,
   Pill,
   SearchInput,
-  type PillTone,
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
-import { KindChip } from "@/systems/network";
 
 import {
   bridgeStatusTone,
@@ -42,32 +41,15 @@ interface BridgeListItemProps {
   onSelect: () => void;
 }
 
-function listItemTone(status: BridgeSummary["status"]): PillTone {
-  switch (bridgeStatusTone(status)) {
-    case "green":
-      return "success";
-    case "amber":
-      return "warning";
-    case "danger":
-      return "danger";
-    case "violet":
-      return "info";
-    default:
-      return "neutral";
-  }
-}
-
 function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItemProps) {
-  const tone = listItemTone(bridge.status);
+  const tone = bridgeStatusTone(bridge.status);
   const pulse = bridge.status === "starting";
   const effectiveStatus = health?.status ?? bridge.status;
 
   return (
     <Item
       as="button"
-      className={cn(
-        "rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-4 py-3"
-      )}
+      className={cn("rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3")}
       data-testid={`bridge-item-${bridge.id}`}
       indicator={isSelected ? "rail" : "none"}
       onClick={onSelect}
@@ -77,13 +59,11 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
       <ItemHeader>
         <ItemTitle>
           <Pill.Dot pulse={pulse} tone={tone} />
-          <span className="truncate text-small-body font-medium text-(--color-text-primary)">
+          <span className="truncate text-small-body font-medium text-fg">
             {bridge.display_name}
           </span>
         </ItemTitle>
-        <Eyebrow className="shrink-0" weight="semibold">
-          {formatBridgeRelativeTime(health?.last_success_at)}
-        </Eyebrow>
+        <Eyebrow className="shrink-0">{formatBridgeRelativeTime(health?.last_success_at)}</Eyebrow>
       </ItemHeader>
 
       <ItemFooter className="flex-wrap justify-start gap-1.5">
@@ -92,7 +72,7 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
           {effectiveStatus}
         </Pill>
         {health?.route_count !== undefined ? (
-          <span className="ml-auto font-mono text-badge text-(--color-text-tertiary)">
+          <span className="ml-auto font-mono text-badge text-subtle">
             {health.route_count} routes
           </span>
         ) : null}
@@ -145,14 +125,14 @@ export function BridgeListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="bridge-list-panel">
-      <div className="space-y-2 border-b border-(--color-divider) p-3">
+      <div className="space-y-2 border-b border-line p-3">
         <SearchInput
           data-testid="bridge-search-input"
           onChange={onSearchChange}
           placeholder="Search bridges..."
           value={searchQuery}
         />
-        <p className="text-xs text-(--color-text-secondary)" data-testid="bridge-list-summary">
+        <p className="text-xs text-muted" data-testid="bridge-list-summary">
           {summary}
         </p>
       </div>

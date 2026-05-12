@@ -287,7 +287,7 @@ Always build mobile-first and add breakpoints for larger screens:
 
 ```tsx
 // BAD
-<div className="!text-red-500">
+<div className="text-red-500!">
 
 // GOOD - Fix the specificity issue properly
 <div className="text-destructive">

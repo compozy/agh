@@ -1,7 +1,17 @@
-import { AlertCircle, ExternalLink, Loader2, Wrench } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AlertCircle, ExternalLink, Wrench } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 
+import {
+  useSettingsSkillsPage,
+  type SkillsScopeSelection,
+} from "@/hooks/routes/use-settings-skills-page";
+import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
+import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
+import { SettingsFieldRow } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { WorkspacePayload } from "@/systems/workspace";
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
   Empty,
@@ -10,7 +20,10 @@ import {
   NativeSelectOption,
   PageShell,
   PillGroup,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Switch,
   Table,
   TableBody,
@@ -18,22 +31,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useTopbarSlot,
+  type StatusLineTopbarSlotItem,
 } from "@agh/ui";
-import {
-  useSettingsSkillsPage,
-  type SkillsScopeSelection,
-} from "@/hooks/routes/use-settings-skills-page";
-import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
-import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
-import {
-  SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
-  SettingsStatusLine,
-} from "@/systems/settings/components";
-import type { WorkspacePayload } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/settings/skills")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Skills settings", icon: Wrench },
+  }),
   component: SkillsSettingsPage,
 });
 
@@ -41,6 +46,53 @@ type SkillsConfig = SettingsSkillsSection["config"];
 
 function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
+  const envelopeForSlot = page.envelope;
+  const statusItems: StatusLineTopbarSlotItem[] = envelopeForSlot
+    ? [
+        {
+          key: "discovered",
+          value: `${envelopeForSlot.discovered_count} discovered`,
+          tone: "neutral",
+        },
+        {
+          key: "disabled",
+          value: `${envelopeForSlot.disabled_count} disabled`,
+          tone: "neutral",
+        },
+        {
+          key: "scope",
+          value: (
+            <span data-testid="settings-page-skills-scope-label">
+              scope:{" "}
+              {page.selection.scope === "global"
+                ? "global"
+                : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`}
+            </span>
+          ),
+          tone: "neutral",
+        },
+      ]
+    : [];
+  if (envelopeForSlot && page.selection.scope === "agent" && page.selectedWorkspaceContext) {
+    statusItems.push({
+      key: "context",
+      value: (
+        <span data-testid="settings-page-skills-workspace-context-summary">
+          context: {page.selectedWorkspaceContext.name}
+        </span>
+      ),
+      tone: "neutral",
+    });
+  }
+  useTopbarSlot({
+    tabs: envelopeForSlot ? (
+      <StatusLineTopbarSlot
+        data-testid="settings-page-skills-status-line"
+        status={envelopeForSlot.runtime_available ? "connected" : "error"}
+        items={statusItems}
+      />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -48,7 +100,7 @@ function SkillsSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-skills-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -60,8 +112,8 @@ function SkillsSettingsPage() {
         data-testid="settings-page-skills-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load skills settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -73,35 +125,10 @@ function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
+  const bannerProps = restartBannerPropsFor("skills", restart);
 
   return (
-    <PageShell
-      slug="skills"
-      title="Skills"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-skills-status-line"
-          status={envelope.runtime_available ? "connected" : "error"}
-          items={[
-            <span key="discovered">{envelope.discovered_count} discovered</span>,
-            <span key="disabled">{envelope.disabled_count} disabled</span>,
-            <span key="scope" data-testid="settings-page-skills-scope-label">
-              scope:{" "}
-              {page.selection.scope === "global"
-                ? "global"
-                : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`}
-            </span>,
-            page.selection.scope === "agent" && page.selectedWorkspaceContext ? (
-              <span key="context" data-testid="settings-page-skills-workspace-context-summary">
-                context: {page.selectedWorkspaceContext.name}
-              </span>
-            ) : null,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="skills" restart={restart} />}
-      banner={<SettingsRestartBanner slug="skills" restart={restart} />}
-    >
+    <PageShell slug="skills" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       <ScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}
@@ -262,10 +289,10 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
         <Link
           to="/skills"
-          className="inline-flex items-center gap-1.5 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-1.5 text-xs font-medium text-(--color-text-primary) hover:bg-(--color-hover)"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-skills-link-skills"
         >
-          <ExternalLink className="size-3.5 text-(--color-text-tertiary)" />
+          <ExternalLink className="size-3 text-subtle" />
           Open Skills
         </Link>
       </div>
@@ -344,21 +371,15 @@ function DisabledSkillsSection({
         />
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--color-divider)"
+          className="overflow-hidden rounded-lg border border-line"
           data-testid="settings-page-skills-disabled-list"
         >
           <Table>
             <TableHeader>
-              <TableRow className="bg-(--color-surface-elevated)">
-                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
-                  Skill
-                </TableHead>
-                <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
-                  Identifier
-                </TableHead>
-                <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
-                  Disabled
-                </TableHead>
+              <TableRow className="bg-elevated">
+                <TableHead className="eyebrow text-muted">Skill</TableHead>
+                <TableHead className="eyebrow text-muted">Identifier</TableHead>
+                <TableHead className="eyebrow w-[1%] text-right text-muted">Disabled</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -366,13 +387,11 @@ function DisabledSkillsSection({
                 <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
-                      <Wrench className="size-3.5 text-(--color-text-tertiary)" />
-                      <span className="truncate text-sm text-(--color-text-primary)">{name}</span>
+                      <Wrench className="size-3 text-subtle" />
+                      <span className="truncate text-sm text-fg">{name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-(--color-text-secondary)">
-                    {name}
-                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted">{name}</TableCell>
                   <TableCell className="text-right">
                     <Switch
                       data-testid={`settings-page-skills-disabled-toggle-${name}`}
@@ -399,7 +418,7 @@ function AgentScopePolicyNotice() {
       note="read-only in agent scope"
       data-testid="settings-page-skills-agent-policy-note"
     >
-      <p className="text-sm text-(--color-text-secondary)">
+      <p className="text-sm text-muted">
         Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
         poll interval, and marketplace allowlists remain global settings.
       </p>
@@ -632,29 +651,23 @@ function SaveControls({
     >
       <div className="min-w-0" role="status" aria-live={liveRegion}>
         {error ? (
-          <span
-            className="text-xs text-(--color-danger)"
-            data-testid={`settings-page-skills-${slug}-error`}
-          >
+          <span className="text-xs text-danger" data-testid={`settings-page-skills-${slug}-error`}>
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
           <span
-            className="text-xs text-(--color-warning)"
+            className="text-xs text-warning"
             data-testid={`settings-page-skills-${slug}-warning`}
           >
             {warnings.join(" · ")}
           </span>
         ) : isDirty ? (
-          <span
-            className="text-xs text-(--color-text-tertiary)"
-            data-testid={`settings-page-skills-${slug}-dirty`}
-          >
+          <span className="text-xs text-subtle" data-testid={`settings-page-skills-${slug}-dirty`}>
             Unsaved changes
           </span>
         ) : lastAppliedLabel ? (
           <span
-            className="text-xs text-(--color-text-tertiary)"
+            className="text-xs text-subtle"
             data-testid={`settings-page-skills-${slug}-applied`}
           >
             {lastAppliedLabel}
@@ -679,7 +692,7 @@ function SaveControls({
         disabled={disabled}
         data-testid={`settings-page-skills-${slug}-save`}
       >
-        {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+        {isSaving ? <Spinner className="size-3" /> : null}
         {isSaving ? "Saving..." : saveLabel}
       </Button>
     </div>

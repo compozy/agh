@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { AnimatePresence, m, type Variants } from "motion/react";
 import { XIcon } from "lucide-react";
+import { AnimatePresence, m, type Variants } from "motion/react";
+import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
@@ -86,10 +86,10 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+          transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
         />
       }
-      className={cn("fixed inset-0 z-50 bg-black/50", className)}
+      className={cn("fixed inset-0 z-50 bg-overlay-scrim", className)}
       {...props}
     />
   );
@@ -115,10 +115,10 @@ const SIDE_VARIANTS: Record<SheetSide, Variants> = {
 };
 
 const SIDE_CLASSES: Record<SheetSide, string> = {
-  top: "inset-x-0 top-0 h-auto border-b",
-  bottom: "inset-x-0 bottom-0 h-auto border-t",
-  left: "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
-  right: "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
+  top: "inset-x-0 top-0 h-auto rounded-b-xl",
+  bottom: "inset-x-0 bottom-0 h-auto rounded-t-xl",
+  left: "inset-y-0 left-0 h-full w-3/4 rounded-r-xl sm:max-w-sm",
+  right: "inset-y-0 right-0 h-full w-3/4 rounded-l-xl sm:max-w-sm",
 };
 
 interface SheetContentProps extends SheetPrimitive.Popup.Props {
@@ -153,11 +153,11 @@ function SheetContent({
                 initial="hidden"
                 animate="visible"
                 exit="hidden"
-                transition={{ duration: 0.2, ease: "easeInOut" }}
+                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               />
             }
             className={cn(
-              "fixed z-50 flex flex-col gap-4 border border-border bg-card bg-clip-padding text-sm text-card-foreground outline-none",
+              "fixed z-50 flex flex-col gap-4 bg-canvas-soft bg-clip-padding text-small-body text-fg shadow-overlay outline-none",
               SIDE_CLASSES[side],
               className
             )}
@@ -206,7 +206,7 @@ function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-base font-medium text-foreground", className)}
+      className={cn("text-item-title font-medium tracking-tight text-fg-strong", className)}
       {...props}
     />
   );
@@ -216,7 +216,7 @@ function SheetDescription({ className, ...props }: SheetPrimitive.Description.Pr
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-small-body text-muted", className)}
       {...props}
     />
   );
@@ -224,11 +224,11 @@ function SheetDescription({ className, ...props }: SheetPrimitive.Description.Pr
 
 export {
   Sheet,
-  SheetTrigger,
   SheetClose,
   SheetContent,
-  SheetHeader,
-  SheetFooter,
-  SheetTitle,
   SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
 };

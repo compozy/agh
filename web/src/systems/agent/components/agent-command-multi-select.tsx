@@ -55,11 +55,9 @@ export function AgentCommandMultiSelect({
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
           {value.length === 0 ? (
-            <span className="truncate text-(--color-text-secondary)">{placeholder}</span>
+            <span className="truncate text-muted">{placeholder}</span>
           ) : (
-            <span className="truncate text-sm text-(--color-text-primary)">
-              {value.length} selected
-            </span>
+            <span className="truncate text-sm text-fg">{value.length} selected</span>
           )}
         </span>
         <Pill mono data-testid={countTestId}>

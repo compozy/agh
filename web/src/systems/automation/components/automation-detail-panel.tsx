@@ -1,9 +1,19 @@
 import { AlertCircle, Bot, Clock3, Lock, Pencil, Play, Search, Trash2, Zap } from "lucide-react";
 
-import { Button, CodeBlock, Empty, Metric, Pill, Section, Spinner, type MetricTone } from "@agh/ui";
+import {
+  Button,
+  CodeBlock,
+  DetailHeader,
+  Empty,
+  Eyebrow,
+  KindChip,
+  Metric,
+  Pill,
+  Section,
+  Spinner,
+  type MetricTone,
+} from "@agh/ui";
 
-import { KindChip } from "@/systems/network";
-import { AutomationRunHistory } from "./automation-run-history";
 import {
   automationScopeLabel,
   automationSourceLabel,
@@ -21,6 +31,7 @@ import type {
   AutomationRunStatus,
   AutomationTrigger,
 } from "../types";
+import { AutomationRunHistory } from "./automation-run-history";
 
 export interface AutomationDetailEmptyState {
   actionLabel?: string;
@@ -137,17 +148,15 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
     <Section
       label="Schedule"
       right={
-        <Pill mono uppercase={false} tone="accent">
+        <Pill mono tone="accent">
           {mode}
         </Pill>
       }
     >
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-canvas-soft px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-item-title text-(--color-text-primary)">{expression}</p>
-          <p className="mt-1 text-xs text-(--color-text-secondary)">
-            {describeSchedule(job.schedule)}
-          </p>
+          <p className="font-mono text-item-title text-fg">{expression}</p>
+          <p className="mt-1 text-xs text-muted">{describeSchedule(job.schedule)}</p>
         </div>
       </div>
     </Section>
@@ -209,49 +218,35 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
       }
     >
       <div
-        className="grid gap-2 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 md:grid-cols-2"
+        className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2"
         data-testid="automation-job-scheduler"
       >
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Next cursor
-          </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
-            {formatDateTime(scheduler.next_run_at)}
-          </p>
+          <Eyebrow className="text-muted">Next cursor</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">{formatDateTime(scheduler.next_run_at)}</p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Last scheduled
-          </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
+          <Eyebrow className="text-muted">Last scheduled</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">
             {formatDateTime(scheduler.last_scheduled_at)}
           </p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Fire ID
-          </span>
-          <p className="mt-1 break-all font-mono text-xs text-(--color-text-secondary)">
+          <Eyebrow className="text-muted">Fire ID</Eyebrow>
+          <p className="mt-1 break-all font-mono text-xs text-muted">
             {scheduler.last_fire_id || "--"}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-              Catch-up
-            </span>
-            <p className="mt-1 font-mono text-xs text-(--color-text-secondary)">
+            <Eyebrow className="text-muted">Catch-up</Eyebrow>
+            <p className="mt-1 font-mono text-xs text-muted">
               {scheduler.catch_up_policy ?? "skip_missed"}
             </p>
           </div>
           <div>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-              Misfires
-            </span>
-            <p className="mt-1 font-mono text-xs text-(--color-text-secondary)">
-              {scheduler.misfire_count ?? 0}
-            </p>
+            <Eyebrow className="text-muted">Misfires</Eyebrow>
+            <p className="mt-1 font-mono text-xs text-muted">{scheduler.misfire_count ?? 0}</p>
           </div>
         </div>
       </div>
@@ -264,25 +259,21 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
 
   return (
     <Section label="Hook" right={<KindChip kind={trigger.event} />}>
-      <div className="space-y-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3">
+      <div className="space-y-3 rounded-md border border-line bg-canvas-soft px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Event
-          </span>
-          <Pill mono uppercase={false} tone="info">
+          <Eyebrow className="text-muted">Event</Eyebrow>
+          <Pill mono tone="info">
             {trigger.event}
           </Pill>
         </div>
         <div className="space-y-1.5">
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Filters
-          </span>
+          <Eyebrow className="text-muted">Filters</Eyebrow>
           {filters.length === 0 ? (
-            <p className="text-xs text-(--color-text-tertiary)">No filters</p>
+            <p className="text-xs text-subtle">No filters</p>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {filters.map(([key, value]) => (
-                <Pill mono uppercase={false} key={`${key}=${value}`} tone="neutral">
+                <Pill mono key={`${key}=${value}`} tone="neutral">
                   {`${key}=${value}`}
                 </Pill>
               ))}
@@ -292,27 +283,21 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
         {trigger.event === "webhook" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Endpoint
-              </span>
-              <p className="mt-1 font-mono text-small-body text-(--color-text-primary)">
+              <Eyebrow className="text-muted">Endpoint</Eyebrow>
+              <p className="mt-1 font-mono text-small-body text-fg">
                 {trigger.endpoint_slug ?? "--"}
               </p>
             </div>
             <div>
-              <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-                Webhook id
-              </span>
-              <p className="mt-1 font-mono text-small-body text-(--color-text-primary)">
-                {trigger.webhook_id ?? "--"}
-              </p>
+              <Eyebrow className="text-muted">Webhook id</Eyebrow>
+              <p className="mt-1 font-mono text-small-body text-fg">{trigger.webhook_id ?? "--"}</p>
             </div>
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <Bot className="size-3.5 text-(--color-text-tertiary)" />
-          <span className="text-small-body text-(--color-text-secondary)">Dispatches to</span>
-          <Pill mono uppercase={false} tone="neutral">
+          <Bot className="size-3 text-subtle" />
+          <span className="text-small-body text-muted">Dispatches to</span>
+          <Pill mono tone="neutral">
             {trigger.agent_name}
           </Pill>
         </div>
@@ -327,7 +312,7 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
       label={isTrigger ? "Prompt template" : "Prompt"}
       right={
         isTrigger ? (
-          <Pill mono uppercase={false} tone="info">
+          <Pill mono tone="info">
             GO TEMPLATE
           </Pill>
         ) : undefined
@@ -341,22 +326,14 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
 function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }) {
   return (
     <Section label="Governance">
-      <div className="grid gap-2 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 md:grid-cols-2">
+      <div className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2">
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Retry
-          </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
-            {describeRetry(item.retry)}
-          </p>
+          <Eyebrow className="text-muted">Retry</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">{describeRetry(item.retry)}</p>
         </div>
         <div>
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            Fire limit
-          </span>
-          <p className="mt-1 text-small-body text-(--color-text-secondary)">
-            {describeFireLimit(item.fire_limit)}
-          </p>
+          <Eyebrow className="text-muted">Fire limit</Eyebrow>
+          <p className="mt-1 text-small-body text-muted">{describeFireLimit(item.fire_limit)}</p>
         </div>
       </div>
     </Section>
@@ -384,7 +361,7 @@ export function AutomationDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="automation-detail-loading"
       >
-        <Spinner className="size-5 text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -436,30 +413,9 @@ export function AutomationDetailPanel({
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="automation-detail-panel"
     >
-      <header className="border-b border-(--color-divider) px-6 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Pill.Dot tone={enabledTone} />
-              <h2 className="text-item-title font-semibold tracking-tight text-(--color-text-primary)">
-                {item.name}
-              </h2>
-              <Pill mono tone={enabledTone}>
-                {item.enabled ? "ENABLED" : "DISABLED"}
-              </Pill>
-              <Pill mono tone={item.source === "dynamic" ? "accent" : "neutral"}>
-                {automationSourceLabel(item.source)}
-              </Pill>
-              {item.source === "config" ? (
-                <Lock aria-hidden="true" className="size-3.5 text-(--color-text-tertiary)" />
-              ) : null}
-            </div>
-            <p className="text-xs text-(--color-text-secondary)">
-              {`Agent: ${item.agent_name} / Scope: ${automationScopeLabel(item.scope)} / Updated ${formatDate(item.updated_at)}`}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <DetailHeader
+        actions={
+          <>
             <Button
               data-testid="toggle-automation-btn"
               disabled={isTogglePending}
@@ -478,7 +434,7 @@ export function AutomationDetailPanel({
                 size="sm"
                 type="button"
               >
-                <Play className="size-3.5" />
+                <Play className="size-3" />
                 {isTriggerPending ? "Queuing..." : "Run now"}
               </Button>
             ) : null}
@@ -490,7 +446,7 @@ export function AutomationDetailPanel({
                 type="button"
                 variant="outline"
               >
-                <Pencil className="size-3.5" />
+                <Pencil className="size-3" />
                 Edit
               </Button>
             ) : null}
@@ -503,21 +459,41 @@ export function AutomationDetailPanel({
                 type="button"
                 variant="destructive"
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
                 {isDeleting ? "Deleting..." : "Delete"}
               </Button>
             ) : null}
-          </div>
-        </div>
-      </header>
+          </>
+        }
+        data-testid="automation-detail-header"
+        meta={
+          <span data-testid="automation-detail-meta">
+            {`Agent: ${item.agent_name} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+          </span>
+        }
+        pills={
+          <>
+            <span className="flex items-center gap-1.5">
+              <Pill.Dot tone={enabledTone} />
+              <Pill mono tone={enabledTone}>
+                {item.enabled ? "ENABLED" : "DISABLED"}
+              </Pill>
+            </span>
+            <Pill mono tone={item.source === "dynamic" ? "info" : "neutral"}>
+              {automationSourceLabel(item.source)}
+            </Pill>
+            {item.source === "config" ? (
+              <Lock aria-hidden="true" className="size-3 text-subtle" />
+            ) : null}
+          </>
+        }
+        title={item.name}
+      />
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {!isDynamic ? (
-          <div className="flex items-start gap-2 rounded-md border border-dashed border-(--color-divider) px-4 py-3 text-xs text-(--color-text-secondary)">
-            <Lock
-              aria-hidden="true"
-              className="mt-0.5 size-3.5 shrink-0 text-(--color-text-tertiary)"
-            />
+          <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
+            <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-subtle" />
             <p>
               This automation is defined in configuration files. Only the enabled state can be
               toggled from the UI.

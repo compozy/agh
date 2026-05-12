@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { Button, PillGroup } from "@agh/ui";
-
 import type { MultiAgentAgent } from "@/hooks/routes/use-task-detail-page";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
@@ -29,10 +27,9 @@ import { TasksDetailDependenciesPanel } from "../tasks-detail-dependencies-panel
 import { TasksDetailRunsPanel } from "../tasks-detail-runs-panel";
 import { TasksExecutionProfileCard } from "../tasks-execution-profile-card";
 import { TasksInboxItem } from "../tasks-inbox-item";
-import { TasksInboxLaneTabs } from "../tasks-inbox-lane-tabs";
+import { resolveInboxGroupId } from "../../lib/inbox-grouping";
 import { TasksMultiAgentPanel } from "../tasks-multi-agent-panel";
 import { TasksDetailOrchestrationPanel } from "../tasks-detail-orchestration-panel";
-import { TasksPageShell } from "../tasks-page-shell";
 import { TasksReviewsCard } from "../tasks-reviews-card";
 import { TasksStreamResumeCard } from "../tasks-stream-resume-card";
 import { TasksTimelinePanel } from "../tasks-timeline-panel";
@@ -85,7 +82,7 @@ export const Cards: Story = {
     <div className="grid max-w-2xl gap-3">
       <TaskCard task={TASK_FIXTURES[0]!} selected onSelect={fn()} />
       <TaskCard task={TASK_FIXTURES[4]!} onSelect={fn()} />
-      <TaskCard task={TASK_FIXTURES[3]!} onSelect={fn()} onRetry={fn()} />
+      <TaskCard task={TASK_FIXTURES[3]!} onSelect={fn()} />
     </div>
   ),
 };
@@ -122,24 +119,24 @@ export const DetailTables: Story = {
 };
 
 /**
- * Inbox tabs and rows show lane counts, unread state, and row actions.
+ * Inbox rows show the 3-col rail / body / meta anatomy with group tones.
  */
 export const Inbox: Story = {
   args: {},
   render: () => (
-    <div className="grid max-w-3xl gap-4">
-      <TasksInboxLaneTabs inbox={inbox} value="all" onChange={fn()} />
+    <div className="grid max-w-3xl gap-2">
       {inboxItems.slice(0, 3).map(item => (
         <TasksInboxItem
-          key={item.task.id}
+          group={resolveInboxGroupId(item)}
           item={item}
+          key={item.task.id}
           onApprove={fn()}
-          onReject={fn()}
-          onRetry={fn()}
           onArchive={fn()}
           onDismiss={fn()}
           onMarkRead={fn()}
           onOpen={fn()}
+          onReject={fn()}
+          onRetry={fn()}
         />
       ))}
     </div>
@@ -190,40 +187,6 @@ export const OperationalCards: Story = {
         onDeleteProfile={async () => undefined}
       />
     </div>
-  ),
-};
-
-/**
- * TasksPageShell slots controls and action metadata above arbitrary task views.
- */
-export const PageShell: Story = {
-  args: {},
-  render: () => (
-    <TasksPageShell
-      count={TASK_FIXTURES.length}
-      controls={
-        <PillGroup
-          aria-label="Task view"
-          items={[
-            { value: "list", label: "List" },
-            { value: "dashboard", label: "Dashboard" },
-          ]}
-          value="list"
-          onChange={fn()}
-        />
-      }
-      meta={
-        <Button type="button" variant="outline" size="sm">
-          New task
-        </Button>
-      }
-    >
-      <div className="grid gap-3 p-5">
-        {TASK_FIXTURES.slice(0, 3).map(task => (
-          <TaskCard key={task.id} task={task} onSelect={fn()} />
-        ))}
-      </div>
-    </TasksPageShell>
   ),
 };
 

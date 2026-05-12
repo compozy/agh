@@ -6,10 +6,12 @@ import { cn } from "../../lib/utils";
 import { Pill, type PillDotProps, type PillTone } from "./pill";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
+type ConnectionVariant = "footer" | "rail-dot" | "inline";
 
 interface ConnectionIndicatorProps extends React.ComponentProps<"div"> {
   status: ConnectionStatus;
   label?: React.ReactNode;
+  variant?: ConnectionVariant;
 }
 
 interface ConnectionIndicatorDotProps extends Omit<PillDotProps, "tone" | "pulse"> {
@@ -33,41 +35,56 @@ const STATUS_CONFIG: Record<ConnectionStatus, StatusConfig> = {
   error: { tone: "danger", label: "Connection error", pulse: false },
 };
 
-const ConnectionIndicatorContext = React.createContext<{
+interface ConnectionIndicatorContextValue {
   label?: React.ReactNode;
   status: ConnectionStatus;
-} | null>(null);
+  variant: ConnectionVariant;
+}
 
-function useConnectionIndicatorContext(status?: ConnectionStatus) {
+const ConnectionIndicatorContext = React.createContext<ConnectionIndicatorContextValue | null>(
+  null
+);
+
+function useConnectionIndicatorContext(status?: ConnectionStatus): ConnectionIndicatorContextValue {
   const context = React.use(ConnectionIndicatorContext);
-  if (status !== undefined) return { label: undefined, status };
+  if (status !== undefined) return { label: undefined, status, variant: "footer" };
   if (context) return context;
-  return { label: undefined, status: "disconnected" as const };
+  return { label: undefined, status: "disconnected", variant: "footer" };
 }
 
 function ConnectionIndicator({
   status,
   label,
+  variant = "footer",
   className,
   children,
   ...props
 }: ConnectionIndicatorProps) {
+  const value = React.useMemo<ConnectionIndicatorContextValue>(
+    () => ({ label, status, variant }),
+    [label, status, variant]
+  );
+
   return (
-    <ConnectionIndicatorContext.Provider value={{ label, status }}>
+    <ConnectionIndicatorContext.Provider value={value}>
       <div
         aria-live="polite"
         className={cn("inline-flex items-center gap-2", className)}
         data-slot="connection-indicator"
         data-status={status}
+        data-variant={variant}
         role="status"
         {...props}
       >
-        {children ?? (
-          <>
+        {children ??
+          (variant === "rail-dot" ? (
             <ConnectionIndicatorDot />
-            <ConnectionIndicatorLabel />
-          </>
-        )}
+          ) : (
+            <>
+              <ConnectionIndicatorDot />
+              <ConnectionIndicatorLabel />
+            </>
+          ))}
       </div>
     </ConnectionIndicatorContext.Provider>
   );
@@ -83,6 +100,7 @@ function ConnectionIndicatorDot({ status, className, ...props }: ConnectionIndic
       className={className}
       data-slot="connection-indicator-dot"
       data-status={context.status}
+      data-variant={context.variant}
       pulse={config.pulse}
       tone={config.tone}
       {...props}
@@ -102,11 +120,14 @@ function ConnectionIndicatorLabel({
   return (
     <span
       className={cn(
-        "font-mono text-eyebrow font-medium uppercase tracking-badge text-(--color-text-label)",
+        context.variant === "inline"
+          ? "font-sans text-form-label tracking-eyebrow text-muted"
+          : "eyebrow text-muted",
         className
       )}
       data-slot="connection-indicator-label"
       data-status={context.status}
+      data-variant={context.variant}
       {...props}
     >
       {children ?? context.label ?? config.label}
@@ -125,4 +146,5 @@ export type {
   ConnectionIndicatorLabelProps,
   ConnectionIndicatorProps,
   ConnectionStatus,
+  ConnectionVariant,
 };

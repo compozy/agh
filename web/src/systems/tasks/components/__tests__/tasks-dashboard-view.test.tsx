@@ -36,7 +36,10 @@ describe("TasksDashboardView", () => {
     expect(screen.getByTestId("tasks-dashboard-queue-health")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-status-breakdown")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-active-runs")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-dashboard-freshness")).toHaveTextContent(/fresh/i);
+    // Live/stale pill is deferred — only the static totals
+    // eyebrow renders at the bottom of the dashboard.
+    expect(screen.queryByTestId("tasks-dashboard-freshness")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-dashboard-totals")).toHaveTextContent(/runs/i);
   });
 
   it("surfaces the queue warning when backlog_warning is true", () => {
@@ -59,7 +62,9 @@ describe("TasksDashboardView", () => {
 
     render(<TasksDashboardView dashboard={dashboard} />);
     expect(screen.getByTestId("tasks-dashboard-warning")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-dashboard-queue-total")).toHaveTextContent("5");
+    // 6-cell Metric sub-grid was deleted; queue total is exposed
+    // through the KPI strip (`tasks-dashboard-card-queue-depth`) instead.
+    expect(screen.getByTestId("tasks-dashboard-card-queue-depth")).toHaveTextContent("5");
   });
 
   it("renders active runs with identifier, link, and stuck badge", () => {

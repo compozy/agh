@@ -1,6 +1,8 @@
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, ListChecks } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 
+import { Spinner } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskDetailRoute } from "@/hooks/routes/use-task-detail-route";
 import {
   TasksDetailChildrenPanel,
@@ -16,6 +18,9 @@ import {
 import type { TasksDetailTabItem } from "@/systems/tasks/components/tasks-detail-tabs";
 
 export const Route = createFileRoute("/_app/tasks/$id")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `Task ${params.id}`, icon: ListChecks },
+  }),
   component: TaskDetailRoute,
 });
 
@@ -34,7 +39,7 @@ function TaskDetailRoute() {
   if (page.detailLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="tasks-detail-loading">
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -45,10 +50,8 @@ function TaskDetailRoute() {
         className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
         data-testid="tasks-detail-not-found"
       >
-        <AlertCircle className="size-6 text-(--color-danger)" />
-        <p className="text-sm text-(--color-text-secondary)">
-          {page.fatalError?.message ?? `Task ${id} not found.`}
-        </p>
+        <AlertCircle className="size-6 text-danger" />
+        <p className="text-sm text-muted">{page.fatalError?.message ?? `Task ${id} not found.`}</p>
       </div>
     );
   }
@@ -60,7 +63,7 @@ function TaskDetailRoute() {
         className="flex flex-1 items-center justify-center"
         data-testid="tasks-detail-placeholder"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }

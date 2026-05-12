@@ -1,8 +1,8 @@
 # L-019 — Diagnostic data must outlive its primary record when audit/replay matters
 
 **Class:** Architecture / Persistence
-**Date discovered:** 2026-05-05 (orch-improvs task 25 / ADR-003)
-**Evidence sources:** ADR-003 + bridge subscription store tests + workflow memory
+**Date discovered:** 2026-05-05
+**Evidence sources:** Bridge subscription store tests and workflow memory.
 
 ## Context
 
@@ -57,8 +57,8 @@ they can recreate.
 - Pick a key for the diagnostic that is stable across primary recreation. Cursor identity
   `(consumer_id, stream_name, subject_id)` survives a `bridge_task_subscriptions` delete by
   construction.
-- Make the primary's delete path remove only the primary. Document in the ADR that diagnostic
-  rows survive and can be inspected through the cursor read model.
+  - Make the primary's delete path remove only the primary. Document that diagnostic rows survive
+    and can be inspected through the cursor read model.
 - Surface the cursor zero-state (no delivery yet) and the post-delete stale-cursor state through
   the same diagnostic projection. UI must handle both branches truthfully (see
   `web/src/systems/tasks/components/tasks-bridge-notifications-card.tsx`).
@@ -76,12 +76,10 @@ they can recreate.
 
 ## Source
 
-- `.compozy/tasks/orch-improvs/adrs/adr-003-shared-durable-notification-cursors.md`
 - `internal/store/globaldb/global_db_bridge.go:985-1014` (`DeleteBridgeTaskSubscription`)
 - `internal/store/globaldb/global_db_bridge_task_subscription_test.go:147-210` (Should remove
   active subscriptions while preserving stale cursor diagnostics)
 - `internal/notifications/` (cursor primitive: identity, monotonic advance, idempotent replay,
   reset semantics)
-- `.compozy/tasks/orch-improvs/memory/task_25.md` (cursor diagnostics + lifecycle decisions)
 - `web/src/systems/tasks/components/tasks-bridge-notifications-card.tsx` (zero-state /
   populated-cursor branches)

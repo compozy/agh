@@ -23,7 +23,7 @@ export function ThreadOverlay({ channel, threadId, fullPage = false }: ThreadOve
   return (
     <section
       aria-label={fullPage ? "Thread" : "Thread overlay"}
-      className="flex min-h-0 flex-1 flex-col bg-(--color-canvas-deep)"
+      className="flex min-h-0 flex-1 flex-col bg-canvas"
       data-fullpage={fullPage ? "true" : "false"}
       data-testid="network-thread-overlay"
     >

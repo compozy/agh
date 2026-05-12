@@ -22,9 +22,7 @@ type Story = StoryObj<typeof meta>;
 function CopyButtonFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="rounded-full border border-(--color-divider) bg-(--color-surface) p-2">
-        {children}
-      </div>
+      <div className="rounded-full border border-line bg-canvas-soft p-2">{children}</div>
     </CenteredSurface>
   );
 }

@@ -46,4 +46,20 @@ describe("ConnectionIndicator", () => {
     expect(screen.getByTestId("dot")).toHaveAttribute("data-tone", "success");
     expect(screen.getByTestId("label")).toHaveTextContent("Daemon ready");
   });
+
+  it("Should default the variant to 'footer' rendering both dot and label", () => {
+    render(<ConnectionIndicator data-testid="indicator" status="connected" />);
+    const indicator = screen.getByTestId("indicator");
+    expect(indicator).toHaveAttribute("data-variant", "footer");
+    expect(indicator.querySelector('[data-slot="connection-indicator-dot"]')).not.toBeNull();
+    expect(indicator.querySelector('[data-slot="connection-indicator-label"]')).not.toBeNull();
+  });
+
+  it("Should render only the dot when variant='rail-dot'", () => {
+    render(<ConnectionIndicator data-testid="indicator" status="connected" variant="rail-dot" />);
+    const indicator = screen.getByTestId("indicator");
+    expect(indicator).toHaveAttribute("data-variant", "rail-dot");
+    expect(indicator.querySelector('[data-slot="connection-indicator-dot"]')).not.toBeNull();
+    expect(indicator.querySelector('[data-slot="connection-indicator-label"]')).toBeNull();
+  });
 });

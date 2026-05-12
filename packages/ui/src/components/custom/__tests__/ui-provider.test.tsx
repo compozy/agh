@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { useReducedMotionConfig } from "motion/react";
+import { m, useReducedMotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +10,17 @@ function Probe() {
   return <span data-testid="probe">{String(reduced ?? "pending")}</span>;
 }
 
+function MotionProbe() {
+  return (
+    <m.div
+      data-testid="motion-probe"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0 }}
+    />
+  );
+}
+
 function renderWithProvider(props?: Partial<UIProviderProps>, child: ReactNode = <Probe />) {
   return render(<UIProvider {...props}>{child}</UIProvider>);
 }
@@ -18,6 +29,12 @@ describe("UIProvider", () => {
   it("Should render children without crashing under the default config", () => {
     renderWithProvider({}, <span data-testid="child">content</span>);
     expect(screen.getByTestId("child")).toHaveTextContent("content");
+  });
+
+  it("Should load LazyMotion features for m.* animation primitives", async () => {
+    renderWithProvider({ reducedMotion: "never" }, <MotionProbe />);
+
+    await waitFor(() => expect(screen.getByTestId("motion-probe")).toHaveStyle({ opacity: "1" }));
   });
 
   it("Should forward reducedMotion='always' to MotionConfig consumers", async () => {

@@ -138,11 +138,21 @@ export type {
   UseNetworkRailViewArgs,
   UseNetworkRailViewResult,
 } from "./hooks/use-network-rail-view";
-export { useNetworkListFilters } from "./hooks/use-network-list-filters";
+export {
+  createNetworkChipFilter,
+  NETWORK_FILTER_KEYS,
+  useNetworkListFilters,
+} from "./hooks/use-network-list-filters";
 export type {
+  NetworkChipFilter,
+  NetworkFilterKey,
+  NetworkListFilterCounts,
+  NetworkListSort,
   UseNetworkListFiltersArgs,
   UseNetworkListFiltersResult,
 } from "./hooks/use-network-list-filters";
+export { NetworkListFiltersProvider } from "./contexts/network-list-filters-context";
+export { useNetworkListFiltersContext } from "./hooks/use-network-list-filters-context";
 export { useNetworkChannels } from "./hooks/use-channels";
 export { useLastRead, buildLastReadStorageKey } from "./hooks/use-last-read";
 export type { NetworkLastReadKey, UseLastReadResult } from "./hooks/use-last-read";
@@ -243,9 +253,11 @@ export {
   isWithinSeconds,
 } from "./lib/format-timestamp";
 
-// Components
-export { KindChip } from "./components/kind-chip";
-export type { KindChipProps } from "./components/kind-chip";
+// Components — re-export from @agh/ui after kit promotion. Network surface
+// continues to export KindChip from its barrel as a convenience for callers
+// reaching for the network grammar; the canonical home is the shared kit.
+export { KindChip } from "@agh/ui";
+export type { KindChipProps } from "@agh/ui";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
 
 // Components — timeline subtree

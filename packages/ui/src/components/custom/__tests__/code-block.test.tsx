@@ -32,27 +32,20 @@ describe("CodeBlock", () => {
     vi.useRealTimers();
   });
 
-  it("Should render the provided code inside a <pre><code> wrapper using JetBrains Mono", () => {
+  it("Should render the provided code inside a <pre><code> wrapper", () => {
     const { container } = render(<CodeBlock code="agh start" />);
-    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     const code = container.querySelector<HTMLElement>('[data-slot="code-block-code"]');
-    expect(root?.className).toContain("bg-[color:var(--color-canvas-deep)]");
-    expect(root?.className).toContain("rounded-[var(--radius-diagram)]");
     expect(pre?.tagName).toBe("PRE");
     expect(code?.tagName).toBe("CODE");
-    expect(pre?.className).toContain("font-mono");
-    expect(pre?.className).toContain("text-[14px]");
-    expect(pre?.className).toContain("leading-[1.6]");
     expect(code?.textContent).toContain("agh start");
   });
 
-  it("Should color the `$ ` prompt in accent when showPrompt is true", () => {
+  it("Should render the `$ ` prompt when showPrompt is true", () => {
     const { container } = render(<CodeBlock code="agh start" />);
     const prompt = container.querySelector<HTMLElement>('[data-slot="code-block-prompt"]');
     expect(prompt).not.toBeNull();
     expect(prompt?.textContent).toBe("$ ");
-    expect(prompt?.className).toContain("text-[color:var(--color-accent)]");
     expect(prompt?.getAttribute("aria-hidden")).toBe("true");
   });
 
@@ -73,12 +66,67 @@ describe("CodeBlock", () => {
   it("Should render the language eyebrow only when the language prop is provided", () => {
     const { container, rerender } = render(<CodeBlock code="agh start" />);
     expect(container.querySelector('[data-slot="code-block-language"]')).toBeNull();
-    rerender(<CodeBlock code="agh start" language="shell" />);
+    rerender(<CodeBlock code="agh start" language="not-a-language" />);
     const eyebrow = container.querySelector<HTMLElement>('[data-slot="code-block-language"]');
-    expect(eyebrow?.textContent).toBe("shell");
-    expect(eyebrow?.className).toContain("uppercase");
-    expect(eyebrow?.className).toContain("font-mono");
-    expect(eyebrow?.className).toContain("tracking-[0.06em]");
+    expect(eyebrow?.textContent).toBe("not-a-language");
+  });
+
+  it("Should render a caption when it differs from the syntax language", () => {
+    const { container } = render(
+      <CodeBlock code="agh start" language="not-a-language" caption="agh shell" />
+    );
+    const eyebrow = container.querySelector<HTMLElement>('[data-slot="code-block-language"]');
+    expect(eyebrow?.textContent).toBe("agh shell");
+  });
+
+  it("Should highlight supported languages with the Vitesse dark theme", async () => {
+    const { container } = render(
+      <CodeBlock
+        code="const value: number = 1;"
+        language="typescript"
+        showPrompt={false}
+        themeMode="dark"
+      />
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
+    expect(root).toHaveAttribute("data-highlight-state", "loading");
+    await waitFor(
+      () => {
+        expect(root).toHaveAttribute("data-highlight-state", "highlighted");
+      },
+      { timeout: 5_000 }
+    );
+    expect(root).toHaveAttribute("data-language", "typescript");
+    expect(root).toHaveAttribute("data-theme", "vitesse-dark");
+    expect(container.querySelectorAll('[data-slot="code-block-token"]').length).toBeGreaterThan(0);
+  });
+
+  it("Should normalize language aliases before highlighting", async () => {
+    const { container } = render(
+      <CodeBlock code="const value = 1;" language="ts" showPrompt={false} themeMode="light" />
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
+    await waitFor(
+      () => {
+        expect(root).toHaveAttribute("data-highlight-state", "highlighted");
+      },
+      { timeout: 5_000 }
+    );
+    expect(root).toHaveAttribute("data-language", "typescript");
+    expect(root).toHaveAttribute("data-theme", "vitesse-light");
+  });
+
+  it("Should render unsupported languages as escaped plain text", () => {
+    const code = '<img src=x onerror="alert(1)">';
+    const { container } = render(
+      <CodeBlock code={code} language="not-a-language" showPrompt={false} />
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
+    const codeNode = container.querySelector<HTMLElement>('[data-slot="code-block-code"]');
+    expect(root).toHaveAttribute("data-highlight-state", "plain");
+    expect(codeNode?.textContent).toContain(code);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('[data-slot="code-block-token"]')).toBeNull();
   });
 
   it("Should hide the copy button when copyable is false", () => {
@@ -93,6 +141,18 @@ describe("CodeBlock", () => {
     await waitFor(() => {
       expect(clipboard.writeText).toHaveBeenCalledWith("agh network status");
     });
+  });
+
+  it("Should expose copy failure state when clipboard access fails", async () => {
+    clipboard.writeText.mockRejectedValueOnce(new Error("blocked"));
+    const { container } = render(<CodeBlock code="agh start" />);
+    const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
+    fireEvent.click(button);
+    await waitFor(() => {
+      expect(button).toHaveAttribute("data-copy-state", "failed");
+    });
+    expect(button.getAttribute("aria-label")).toBe("Copy failed");
+    expect(button.querySelector("svg.lucide-triangle-alert")).not.toBeNull();
   });
 
   it("Should swap to the check icon for 1.5s on copy success, then revert", async () => {
@@ -161,9 +221,17 @@ describe("CodeBlock", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     expect(root).toHaveAttribute("data-tone", "warning");
-    expect(root?.className).toContain("ring-[color:var(--color-warning)]/35");
-    expect(pre?.className).toContain("max-h-[calc(var(--code-block-lines)*1.6em+2rem)]");
     expect(pre?.style.getPropertyValue("--code-block-lines")).toBe("2");
+  });
+
+  it("Should render optional line numbers and highlighted lines", () => {
+    const { container } = render(
+      <CodeBlock code={"one\ntwo\nthree"} showPrompt={false} showLineNumbers highlightLines={[2]} />
+    );
+    const lineNumbers = container.querySelectorAll('[data-slot="code-block-line-number"]');
+    const highlightedLine = container.querySelector<HTMLElement>('[data-line-number="2"]');
+    expect(lineNumbers).toHaveLength(3);
+    expect(highlightedLine).toHaveAttribute("data-highlighted", "true");
   });
 
   it("Should export CopyIconButton as a standalone copy primitive", async () => {

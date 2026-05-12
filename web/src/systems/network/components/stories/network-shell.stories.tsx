@@ -7,7 +7,13 @@ import {
   networkThreadsFixture,
 } from "@/systems/network/mocks";
 import { NetworkShell, type ChannelTab } from "@/systems/network/components/shell";
-import type { NetworkChannelSummary, NetworkRecentEntry, NetworkSurface } from "@/systems/network";
+import {
+  NetworkListFiltersProvider,
+  useNetworkListFilters,
+  type NetworkChannelSummary,
+  type NetworkRecentEntry,
+  type NetworkSurface,
+} from "@/systems/network";
 
 const recents: NetworkRecentEntry[] = [
   {
@@ -68,35 +74,42 @@ function NetworkShellHarness({
   const pinnedSet = new Set(channels.slice(0, 1).map(channel => channel.channel));
   const pinned = channels.filter(channel => pinnedSet.has(channel.channel));
   const unpinned = channels.filter(channel => !pinnedSet.has(channel.channel));
+  const filters = useNetworkListFilters({
+    channel: channels[0]?.channel ?? "",
+    threads: networkThreadsFixture,
+    directs: networkDirectRoomsFixture,
+  });
 
   return (
     <PanelSurface className="min-h-[760px]">
-      <NetworkShell
-        activeChannel={channels[0] ?? null}
-        activeChannelDetail={null}
-        activeDirectId={null}
-        activeTab={activeTab}
-        directCount={networkDirectRoomsFixture.length}
-        directs={networkDirectRoomsFixture}
-        hasUnread={() => true}
-        inspectorOpen={false}
-        loading={{ channels: false, directs: false, recents: false }}
-        isPinned={(channel: string) => pinnedSet.has(channel)}
-        onInspectorToggle={() => undefined}
-        onTogglePinned={() => undefined}
-        openWorkCount={2}
-        pinnedChannels={pinned}
-        recents={recentsList}
-        rightRailMode="thread"
-        rightRailOpen={rightRailOpen}
-        selfPeerId={null}
-        threadCount={networkThreadsFixture.length}
-        unpinnedChannels={unpinned}
-      >
-        <div className="px-6 py-4 text-small-body text-(--color-text-secondary)">
-          Tab content placeholder - message rows land in task_14.
-        </div>
-      </NetworkShell>
+      <NetworkListFiltersProvider value={filters}>
+        <NetworkShell
+          activeChannel={channels[0] ?? null}
+          activeChannelDetail={null}
+          activeDirectId={null}
+          activeTab={activeTab}
+          directCount={networkDirectRoomsFixture.length}
+          directs={networkDirectRoomsFixture}
+          hasUnread={() => true}
+          inspectorOpen={false}
+          loading={{ channels: false, directs: false, recents: false }}
+          isPinned={(channel: string) => pinnedSet.has(channel)}
+          onInspectorToggle={() => undefined}
+          onTogglePinned={() => undefined}
+          openWorkCount={2}
+          pinnedChannels={pinned}
+          recents={recentsList}
+          rightRailMode="thread"
+          rightRailOpen={rightRailOpen}
+          selfPeerId={null}
+          threadCount={networkThreadsFixture.length}
+          unpinnedChannels={unpinned}
+        >
+          <div className="px-6 py-4 text-small-body text-muted">
+            Tab content placeholder for message rows.
+          </div>
+        </NetworkShell>
+      </NetworkListFiltersProvider>
     </PanelSurface>
   );
 }
@@ -123,7 +136,7 @@ export const EmptyChannels: Story = {
 };
 
 /**
- * Right-rail open state - overlay slot reserved for thread overlay (task_14) and inspectors (task_15).
+ * Right-rail open state - overlay slot reserved for thread overlay and inspectors.
  */
 export const RightRailOpen: Story = {
   render: () => <NetworkShellHarness rightRailOpen />,

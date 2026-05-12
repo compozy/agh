@@ -2,6 +2,7 @@ import { AlertCircle, BookOpen } from "lucide-react";
 
 import {
   Empty,
+  Eyebrow,
   Item,
   ItemDescription,
   ItemFooter,
@@ -9,19 +10,24 @@ import {
   ItemTitle,
   ListGroup,
   Pill,
+  type PillTone,
   SearchInput,
   Spinner,
+  Time,
 } from "@agh/ui";
 
 import {
-  formatKnowledgeRelativeTime,
   knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
   knowledgeScopeShortLabel,
   memoryScopeTone,
-  memoryTypeTone,
 } from "../lib/knowledge-formatters";
 import { groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
+import {
+  KNOWLEDGE_TYPE_TONE,
+  type KnowledgeTypeTone,
+  knowledgeTypeFor,
+} from "../lib/knowledge-type-tone";
 import type { KnowledgeMemoryItem } from "../types";
 import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
@@ -43,13 +49,19 @@ interface KnowledgeListItemProps {
   onSelect: () => void;
 }
 
+function pillToneFromKnowledgeType(tone: KnowledgeTypeTone): PillTone {
+  return tone === "faint" ? "neutral" : tone;
+}
+
 function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemProps) {
   const memoryKey = knowledgeMemoryKey(memory);
   const scope = memory.scope;
+  const knowledgeType = knowledgeTypeFor(memory.type);
+  const typeTone = pillToneFromKnowledgeType(KNOWLEDGE_TYPE_TONE[knowledgeType]);
   return (
     <Item
       as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+      className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
       data-state={isSelected ? "selected" : undefined}
       data-testid={`memory-item-${memoryKey}`}
       indicator={isSelected ? "rail" : "none"}
@@ -58,15 +70,13 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
       selected={isSelected}
     >
       <ItemHeader>
-        <ItemTitle className="min-w-0 flex-1 text-small-body text-(--color-text-primary)">
-          {memory.name}
-        </ItemTitle>
-        <span className="shrink-0 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
-          {formatKnowledgeRelativeTime(memory.mod_time)}
-        </span>
+        <ItemTitle className="min-w-0 flex-1 text-small-body text-fg">{memory.name}</ItemTitle>
+        <Eyebrow className="text-subtle shrink-0">
+          <Time iso={memory.mod_time} />
+        </Eyebrow>
       </ItemHeader>
       {memory.description ? (
-        <ItemDescription className="basis-full truncate text-xs text-(--color-text-secondary)">
+        <ItemDescription className="basis-full truncate text-xs text-muted">
           {memory.description}
         </ItemDescription>
       ) : null}
@@ -74,7 +84,8 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         <Pill
           mono
           data-testid={`type-badge-${memory.type}`}
-          tone={pillToneFromKnowledgeTone(memoryTypeTone(memory.type))}
+          data-knowledge-type={knowledgeType}
+          tone={typeTone}
         >
           {memory.type}
         </Pill>
@@ -102,12 +113,12 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         ) : null}
         {memory.staleness_banner ? (
           <Pill mono data-testid="staleness-badge" tone="warning">
-            STALE
+            stale
           </Pill>
         ) : null}
         {memory.system_managed ? (
           <Pill mono data-testid="system-managed-badge" tone="neutral">
-            SYSTEM
+            system
           </Pill>
         ) : null}
       </ItemFooter>
@@ -131,7 +142,7 @@ function KnowledgeListPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
-      <div className="border-b border-(--color-divider) p-3">
+      <div className="border-b border-line p-3">
         <SearchInput
           aria-label="Search knowledge"
           data-testid="knowledge-search-input"
@@ -140,12 +151,9 @@ function KnowledgeListPanel({
           value={searchQuery}
         />
         {searchInfo ? (
-          <p
-            className="mt-2 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)"
-            data-testid="knowledge-search-info"
-          >
+          <Eyebrow className="text-subtle mt-2 block" data-testid="knowledge-search-info">
             {searchInfo}
-          </p>
+          </Eyebrow>
         ) : null}
       </div>
 
@@ -155,7 +163,7 @@ function KnowledgeListPanel({
             className="flex min-h-full items-center justify-center px-6 py-10"
             data-testid="knowledge-list-loading"
           >
-            <Spinner className="size-5 text-(--color-text-tertiary)" />
+            <Spinner className="size-5 text-subtle" />
           </div>
         ) : errorMessage && isEmpty ? (
           <div

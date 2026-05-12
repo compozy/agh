@@ -14,21 +14,21 @@ import {
   FieldTitle,
   Input,
   MetadataList,
-  Pill,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   Section,
   Spinner,
   Switch,
   Textarea,
 } from "@agh/ui";
 
+import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import {
   describeBridgeDmPolicy,
   describeBridgeProviderConfigSchema,
   describeBridgeRoutingPolicy,
 } from "../lib/bridge-formatters";
-import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import type { BridgeProvider, BridgeUpdateDraft } from "../types";
 
 interface BridgeEditDialogProps {
@@ -63,12 +63,11 @@ function renderBridgeEditDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent
-        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-3xl"
-        showCloseButton={false}
-        unframed
-      >
-        <div className="flex max-h-[min(80vh,900px)] flex-col" data-testid="bridge-edit-dialog">
+      <DialogContent className="gap-0 p-0 text-fg sm:max-w-3xl" showCloseButton={false} unframed>
+        <div
+          className="flex max-h-[min(80vh,var(--height-modal-tall))] flex-col"
+          data-testid="bridge-edit-dialog"
+        >
           <DialogHeader variant="ruled">
             <DialogTitle>Edit Bridge</DialogTitle>
             <DialogDescription>
@@ -128,23 +127,23 @@ function renderBridgeEditDialog({
               </FieldGroup>
 
               <Section label="Provider runtime">
-                <p className="text-small-body text-(--color-text-secondary)">
+                <p className="text-small-body text-muted">
                   Provider-owned runtime settings remain separate from generic delivery defaults.
                 </p>
 
                 <MetadataList className="mt-3">
                   <MetadataList.Row
-                    className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3"
+                    className="rounded-md border border-line bg-canvas-soft px-4 py-3"
                     label="Config schema"
-                    termProps={{ className: "mb-2 text-(--color-text-label)" }}
-                    valueProps={{ className: "text-small-body text-(--color-text-primary)" }}
+                    termProps={{ className: "mb-2 text-muted" }}
+                    valueProps={{ className: "text-small-body text-fg" }}
                   >
                     {describeBridgeProviderConfigSchema(provider?.config_schema)}
                   </MetadataList.Row>
                   {provider?.secret_slots?.length ? (
                     <div className="mt-3 flex items-center gap-2">
                       <Pill mono>{provider.secret_slots.length}</Pill>
-                      <p className="text-xs text-(--color-text-secondary)">
+                      <p className="text-xs text-muted">
                         Secret slots are managed inline from the detail panel.
                       </p>
                     </div>
@@ -175,7 +174,7 @@ function renderBridgeEditDialog({
                   />
                   {providerConfigError ? (
                     <p
-                      className="text-small-body text-(--color-danger)"
+                      className="text-small-body text-danger"
                       data-testid="bridge-edit-provider-config-error"
                     >
                       {providerConfigError}
@@ -185,7 +184,7 @@ function renderBridgeEditDialog({
               </Section>
 
               <Section label="Routing policy">
-                <p className="text-small-body text-(--color-text-secondary)">
+                <p className="text-small-body text-muted">
                   {describeBridgeRoutingPolicy(draft.routingPolicy)}
                 </p>
                 <FieldGroup className="mt-3 gap-3">
@@ -256,7 +255,7 @@ function renderBridgeEditDialog({
               </Section>
 
               <Section label="Delivery defaults">
-                <p className="text-small-body text-(--color-text-secondary)">
+                <p className="text-small-body text-muted">
                   These defaults are applied when resolving outbound delivery targets.
                 </p>
                 <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -362,7 +361,7 @@ function renderBridgeEditDialog({
             >
               {isPending ? (
                 <>
-                  <Spinner className="size-3.5" />
+                  <Spinner className="size-3" />
                   Saving…
                 </>
               ) : (

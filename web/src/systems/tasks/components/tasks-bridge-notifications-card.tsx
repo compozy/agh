@@ -1,9 +1,9 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
 import { AlertCircle, Plus, Radio, Trash2, TriangleAlert } from "lucide-react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import {
-  Button,
   BlockLoading,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
   Empty,
+  Eyebrow,
   Input,
   Label,
+  MonoId,
   Pill,
   Section,
   Select,
@@ -198,7 +200,9 @@ function renderTasksBridgeNotificationsCard({
     <Section
       aria-label="Bridge notification subscriptions"
       className="w-full gap-4"
+      count={subscriptions.length > 0 ? subscriptions.length : undefined}
       data-testid="tasks-bridge-notifications-card"
+      icon={Radio}
       label="Bridge notifications"
       right={
         <Button
@@ -207,17 +211,14 @@ function renderTasksBridgeNotificationsCard({
           onClick={() => handleCreateOpenChange(true)}
           size="sm"
           type="button"
-          variant="outline"
+          variant="neutral"
         >
-          <Plus className="size-3.5" />
+          <Plus className="size-3" />
           New subscription
         </Button>
       }
     >
-      <p
-        className="text-xs text-(--color-text-tertiary)"
-        data-testid="tasks-bridge-notifications-disclaimer"
-      >
+      <p className="text-xs text-subtle" data-testid="tasks-bridge-notifications-disclaimer">
         Cursor diagnostics are read-only delivery progress. Zero-state cursors render as no sequence
         and no delivery id; advancement happens only after a confirmed bridge delivery.
       </p>
@@ -269,92 +270,81 @@ function renderTasksBridgeNotificationsCard({
                   data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}`}
                   key={sub.subscription_id}
                 >
-                  <TableCell className="max-w-[280px]">
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <Pill mono>{sub.subscription_id}</Pill>
-                      <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
+                  <TableCell className="max-w-70">
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <MonoId value={sub.subscription_id} />
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <Pill tone="info">{sub.scope}</Pill>
                         <Pill tone="neutral">{sub.delivery_mode}</Pill>
                       </div>
-                      <span className="text-badge text-(--color-text-tertiary)">
+                      <span className="text-mono-id text-faint">
                         Created {formatRelativeTime(sub.created_at)}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1 text-xs">
-                      <span className="font-mono text-xs text-(--color-text-primary)">
-                        bridge {sub.bridge_instance_id}
-                      </span>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <BridgeTargetRow label="bridge" value={sub.bridge_instance_id} primary />
                       {sub.workspace_id ? (
-                        <span className="font-mono text-eyebrow text-(--color-text-secondary)">
-                          workspace {sub.workspace_id}
-                        </span>
+                        <BridgeTargetRow label="workspace" value={sub.workspace_id} />
                       ) : null}
-                      {sub.peer_id ? (
-                        <span className="font-mono text-eyebrow text-(--color-text-secondary)">
-                          peer {sub.peer_id}
-                        </span>
-                      ) : null}
-                      {sub.group_id ? (
-                        <span className="font-mono text-eyebrow text-(--color-text-secondary)">
-                          group {sub.group_id}
-                        </span>
-                      ) : null}
+                      {sub.peer_id ? <BridgeTargetRow label="peer" value={sub.peer_id} /> : null}
+                      {sub.group_id ? <BridgeTargetRow label="group" value={sub.group_id} /> : null}
                       {sub.thread_id ? (
-                        <span className="font-mono text-eyebrow text-(--color-text-secondary)">
-                          thread {sub.thread_id}
-                        </span>
+                        <BridgeTargetRow label="thread" value={sub.thread_id} />
                       ) : null}
                     </div>
                   </TableCell>
                   <TableCell>
                     {isZeroCursor ? (
                       <span
-                        className="inline-flex items-center gap-1 text-eyebrow text-(--color-text-tertiary)"
+                        className="inline-flex items-center gap-2"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-zero`}
                       >
                         <Pill tone="neutral">zero state</Pill>
-                        seq 0
+                        <span className="font-mono text-mono-id text-faint">seq 0</span>
                       </span>
                     ) : (
-                      <div className="flex flex-col gap-0.5 font-mono text-eyebrow text-(--color-text-primary)">
+                      <div className="flex flex-col gap-1">
                         <span
+                          className="font-mono text-mono-id text-fg tabular-nums"
                           data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-seq`}
                         >
                           seq {formatLastSequence(cursor?.last_sequence)}
                         </span>
                         {cursor?.last_delivery_id ? (
-                          <span className="text-badge text-(--color-text-tertiary)">
+                          <span className="font-mono text-badge text-faint">
                             delivery {cursor.last_delivery_id}
                           </span>
                         ) : null}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                    {cursor?.last_delivered_at
-                      ? formatRelativeTime(cursor.last_delivered_at)
-                      : "--"}
-                    {cursor?.updated_at ? (
-                      <span className="block text-badge">
-                        updated {formatRelativeTime(cursor.updated_at)}
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-form-label text-fg">
+                        {cursor?.last_delivered_at
+                          ? formatRelativeTime(cursor.last_delivered_at)
+                          : "--"}
                       </span>
-                    ) : null}
+                      {cursor?.updated_at ? (
+                        <span className="text-mono-id text-faint">
+                          updated {formatRelativeTime(cursor.updated_at)}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
-                  <TableCell className="max-w-[220px] text-xs">
+                  <TableCell className="max-w-56">
                     {cursor?.last_error ? (
                       <span
-                        className="inline-flex items-center gap-1 text-(--color-warning)"
+                        className="inline-flex items-start gap-1.5 text-form-label text-warning"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-error`}
                       >
-                        <TriangleAlert className="size-3.5" />
-                        {cursor.last_error}
+                        <TriangleAlert className="mt-0.5 size-3 shrink-0" />
+                        <span className="min-w-0 truncate">{cursor.last_error}</span>
                       </span>
                     ) : (
-                      <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                        --
-                      </span>
+                      <span className="text-form-label text-faint">--</span>
                     )}
                   </TableCell>
                   <TableCell className="w-8 pr-4">
@@ -367,7 +357,7 @@ function renderTasksBridgeNotificationsCard({
                       type="button"
                       variant="ghost"
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash2 className="size-3" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -517,7 +507,7 @@ function renderTasksBridgeNotificationsCard({
             </div>
             {createError ? (
               <p
-                className="text-xs text-(--color-danger)"
+                className="text-xs text-danger"
                 data-testid="tasks-bridge-notifications-create-error"
               >
                 {createError}
@@ -541,7 +531,7 @@ function renderTasksBridgeNotificationsCard({
               type="button"
               variant="default"
             >
-              {isCreatePending ? <Spinner className="size-3.5" /> : null}
+              {isCreatePending ? <Spinner className="size-3" /> : null}
               Create subscription
             </Button>
           </DialogFooter>
@@ -569,9 +559,10 @@ function renderTasksBridgeNotificationsCard({
             </DialogDescription>
           </DialogHeader>
           {deleteTarget ? (
-            <p className="font-mono text-xs text-(--color-text-secondary)">
-              {deleteTarget.subscription_id}
-            </p>
+            <div className="flex items-center gap-2">
+              <Eyebrow className="text-faint">Subscription</Eyebrow>
+              <MonoId value={deleteTarget.subscription_id} />
+            </div>
           ) : null}
           <DialogFooter className="gap-2">
             <Button
@@ -590,12 +581,29 @@ function renderTasksBridgeNotificationsCard({
               type="button"
               variant="destructive"
             >
-              {isDeletePending ? <Spinner className="size-3.5" /> : null}
+              {isDeletePending ? <Spinner className="size-3" /> : null}
               Delete subscription
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </Section>
+  );
+}
+
+interface BridgeTargetRowProps {
+  label: string;
+  value: string;
+  primary?: boolean;
+}
+
+function BridgeTargetRow({ label, value, primary = false }: BridgeTargetRowProps) {
+  return (
+    <span className="inline-flex min-w-0 items-baseline gap-1.5 font-mono text-eyebrow tabular-nums">
+      <span className="text-faint">{label}</span>
+      <span className={primary ? "min-w-0 truncate text-fg-strong" : "min-w-0 truncate text-muted"}>
+        {value}
+      </span>
+    </span>
   );
 }

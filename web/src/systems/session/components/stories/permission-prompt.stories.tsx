@@ -19,7 +19,13 @@ type Story = StoryObj<typeof meta>;
 
 type AutoDecision = "allow-once" | "reject-once" | null;
 
-function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision }) {
+function PermissionPromptHarness({
+  autoDecision,
+  permission = permissionRequestFixture,
+}: {
+  autoDecision: AutoDecision;
+  permission?: typeof permissionRequestFixture;
+}) {
   const [resolvedState, setResolvedState] = useState<AutoDecision>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +49,7 @@ function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision 
   return (
     <CenteredSurface className="flex-col gap-4">
       {resolvedState ? (
-        <div className="w-full max-w-xl rounded-xl border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-sm text-(--color-text-primary)">
+        <div className="w-full max-w-xl rounded-xl border border-line bg-canvas-soft px-4 py-3 text-sm text-fg">
           {resolvedState === "allow-once"
             ? "Permission approved for this turn."
             : "Permission rejected for this turn."}
@@ -53,7 +59,7 @@ function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision 
         {resolvedState ? null : (
           <PermissionPrompt
             onResolved={() => setResolvedState(autoDecision ?? "allow-once")}
-            permission={permissionRequestFixture}
+            permission={permission}
             sessionId={primarySessionFixture.id}
           />
         )}
@@ -62,14 +68,33 @@ function PermissionPromptHarness({ autoDecision }: { autoDecision: AutoDecision 
   );
 }
 
-export const Pending: Story = {
+/** Default high-stakes prompt (Bash) — danger tile + tint */
+export const HighStakesDanger: Story = {
   render: () => <PermissionPromptHarness autoDecision={null} />,
 };
 
+/** Lower-stakes prompt (TodoWrite) — warning tile + tint. */
+export const StandardWarning: Story = {
+  render: () => (
+    <PermissionPromptHarness
+      autoDecision={null}
+      permission={{
+        ...permissionRequestFixture,
+        toolName: "TodoWrite",
+        action: "update",
+        resource: "agent todo list",
+        toolInput: { items: ["draft prd", "ship change"] },
+      }}
+    />
+  ),
+};
+
+/** Operator allows the prompt (transitions to resolved acknowledgement). */
 export const Accepted: Story = {
   render: () => <PermissionPromptHarness autoDecision="allow-once" />,
 };
 
+/** Operator rejects the prompt (transitions to resolved acknowledgement). */
 export const Rejected: Story = {
   render: () => <PermissionPromptHarness autoDecision="reject-once" />,
 };

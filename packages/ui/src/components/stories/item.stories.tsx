@@ -2,8 +2,8 @@ import { Fragment } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CpuIcon, DatabaseIcon, EyeIcon, MoreHorizontalIcon, ZapIcon } from "lucide-react";
 
-import { Badge } from "../badge";
 import { Button } from "../button";
+import { Pill } from "../custom/pill";
 import {
   Item,
   ItemActions,
@@ -60,7 +60,7 @@ const agents = [
 export const InGroup: Story = {
   args: {},
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <ItemGroup>
         {agents.map((agent, index) => (
           <Fragment key={agent.id}>
@@ -72,7 +72,7 @@ export const InGroup: Story = {
               <ItemContent>
                 <ItemTitle>
                   {agent.title}
-                  <Badge variant="secondary">{agent.badge}</Badge>
+                  <Pill tone="neutral">{agent.badge}</Pill>
                 </ItemTitle>
                 <ItemDescription>{agent.description}</ItemDescription>
               </ItemContent>
@@ -95,7 +95,7 @@ export const InGroup: Story = {
 export const Muted: Story = {
   args: {},
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <Item variant="muted">
         <ItemMedia variant="icon">
           <CpuIcon />
@@ -112,7 +112,7 @@ export const Muted: Story = {
 export const Compact: Story = {
   args: {},
   render: () => (
-    <div className="w-[28rem]">
+    <div className="w-md">
       <ItemGroup>
         {agents.slice(0, 2).map(agent => (
           <Item key={agent.id} size="xs" variant="outline">
@@ -132,7 +132,7 @@ export const Compact: Story = {
 export const SelectableRail: Story = {
   args: {},
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <ItemGroup>
         {agents.slice(0, 2).map((agent, index) => (
           <Item
@@ -141,7 +141,7 @@ export const SelectableRail: Story = {
             selectable
             selected={index === 0}
             indicator={index === 0 ? "rail" : "none"}
-            className="rounded-none border-x-0 border-t-0 border-b border-[color:var(--color-divider)] px-4 py-3"
+            className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
           >
             <ItemMedia variant="icon">
               <agent.icon />
@@ -151,7 +151,7 @@ export const SelectableRail: Story = {
               <ItemDescription>{agent.description}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <Badge variant="secondary">{agent.badge}</Badge>
+              <Pill tone="neutral">{agent.badge}</Pill>
             </ItemActions>
           </Item>
         ))}
@@ -163,14 +163,14 @@ export const SelectableRail: Story = {
 export const SelectableDot: Story = {
   args: {},
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <Item as="button" selectable selected indicator="dot" variant="outline">
         <ItemContent>
           <ItemTitle>Queued review</ItemTitle>
           <ItemDescription>Dot indicator keeps the selection signal inline.</ItemDescription>
         </ItemContent>
         <ItemActions>
-          <Badge variant="secondary">selected</Badge>
+          <Pill tone="neutral">selected</Pill>
         </ItemActions>
       </Item>
     </div>
@@ -180,7 +180,7 @@ export const SelectableDot: Story = {
 export const SelectedActive: Story = {
   args: {},
   render: () => (
-    <div className="w-[32rem]">
+    <div className="w-lg">
       <Item as="button" selectable selected variant="outline">
         <ItemSelectionIndicator kind="rail" />
         <ItemMedia variant="icon">

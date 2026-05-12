@@ -24,23 +24,23 @@ export function compareKnowledgeScope(left: KnowledgeScope, right: KnowledgeScop
 }
 
 export function knowledgeScopeLabel(scope: KnowledgeScope): string {
-  if (scope === "workspace") return "WORKSPACE";
-  if (scope === "agent") return "AGENT";
-  return "GLOBAL";
+  if (scope === "workspace") return "Workspace";
+  if (scope === "agent") return "Agent";
+  return "Global";
 }
 
 export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
-  if (scope === "workspace") return "WS";
-  if (scope === "agent") return "AGENT";
-  return "GLOBAL";
+  if (scope === "workspace") return "ws";
+  if (scope === "agent") return "agent";
+  return "global";
 }
 
 export function knowledgeAgentTierLabel(tier: KnowledgeAgentTier): string {
-  return tier === "global" ? "AGENT-GLOBAL" : "AGENT-WORKSPACE";
+  return tier === "global" ? "Agent · global" : "Agent · workspace";
 }
 
 export function knowledgeAgentTierShortLabel(tier: KnowledgeAgentTier): string {
-  return tier === "global" ? "AG-GLOBAL" : "AG-WS";
+  return tier === "global" ? "ag-global" : "ag-ws";
 }
 
 export type KnowledgeTone = MemoryType | KnowledgeScope;
@@ -54,47 +54,17 @@ export function memoryScopeTone(scope: KnowledgeScope): KnowledgeTone {
 }
 
 const DECISION_OP_LABEL: Record<MemoryDecisionOp, string> = {
-  noop: "NOOP",
-  add: "ADD",
-  update: "UPDATE",
-  delete: "DELETE",
-  reject: "REJECT",
+  noop: "noop",
+  add: "add",
+  update: "update",
+  delete: "delete",
+  reject: "reject",
 };
 
 export function decisionOpLabel(op: MemoryDecisionOp): string {
-  return DECISION_OP_LABEL[op] ?? op.toUpperCase();
+  return DECISION_OP_LABEL[op] ?? op.toLowerCase();
 }
 
 export function decisionSourceLabel(source: MemoryDecisionSource): string {
-  return source === "rule" ? "RULE" : "LLM";
-}
-
-function safeDate(value: string): Date | null {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
-}
-
-export function formatKnowledgeRelativeTime(value: string): string {
-  const date = safeDate(value);
-  if (!date) return value;
-  const diffMs = Date.now() - date.getTime();
-  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
-  if (diffH < 1) return "just now";
-  if (diffH < 24) return `${diffH}h ago`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) return `${diffD}d ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-export function formatKnowledgeDateTime(value: string): string {
-  const date = safeDate(value);
-  if (!date) return value;
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return source === "rule" ? "rule" : "llm";
 }

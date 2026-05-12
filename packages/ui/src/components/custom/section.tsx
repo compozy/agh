@@ -4,76 +4,110 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
+type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
+
 export interface SectionProps extends React.ComponentProps<"section"> {
   label?: React.ReactNode;
   note?: React.ReactNode;
   right?: React.ReactNode;
   divided?: boolean;
+  /**
+   * When `true`, the section head renders a bottom hairline via `border-b border-line`.
+   * Default is `false` (flat-depth pass) — depth comes from the warm-surface ramp.
+   */
+  bordered?: boolean;
   bodyClassName?: string;
+  count?: number | string;
+  icon?: IconComponent;
+  tabs?: React.ReactNode;
 }
 
 function hasSectionContent(content: React.ReactNode): boolean {
   return content !== undefined && content !== null && content !== false;
 }
 
-/**
- * Section shell: mono eyebrow + optional right-aligned slot + children.
- * Mirrors `Section` in `docs/design/web-inspiration/src/primitives.jsx`.
- */
 function Section({
   label,
   note,
   right,
   divided = false,
+  bordered = false,
   bodyClassName,
   className,
   children,
+  count,
+  icon: Icon,
+  tabs,
   ...props
 }: SectionProps) {
   const hasLabel = hasSectionContent(label);
   const hasNote = hasSectionContent(note);
   const hasRight = hasSectionContent(right);
   const hasChildren = hasSectionContent(children);
+  const hasTabs = hasSectionContent(tabs);
+  const hasCount = count !== undefined && count !== null && count !== "";
+  const hasHeader = hasLabel || hasNote || hasRight || hasTabs;
 
   return (
     <section
       data-slot="section"
       className={cn(
         "flex min-w-0 flex-col gap-3",
-        divided && "border-t border-[color:var(--color-divider)] pt-5 first:border-t-0 first:pt-0",
+        divided && "border-t border-line pt-5 first:border-t-0 first:pt-0",
         className
       )}
       {...props}
     >
-      {hasLabel || hasNote || hasRight ? (
+      {hasHeader ? (
         <header
           data-slot="section-head"
-          className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] pb-2 lg:flex-row lg:items-start lg:justify-between"
+          data-bordered={bordered ? "true" : undefined}
+          className={cn(
+            "flex flex-col gap-3 pb-2 lg:flex-row lg:items-start lg:justify-between",
+            bordered && "border-b border-line"
+          )}
         >
           <div className="flex min-w-0 flex-col gap-2">
             {hasLabel ? (
-              <h2
-                data-slot="section-label"
-                className="font-mono text-[11px] font-semibold uppercase tracking-mono text-[color:var(--color-text-label)]"
-              >
-                {label}
-              </h2>
+              <div className="flex min-w-0 items-center gap-2">
+                {Icon ? (
+                  <span
+                    aria-hidden="true"
+                    data-slot="section-icon"
+                    className="inline-flex size-5 shrink-0 items-center justify-center text-accent"
+                  >
+                    <Icon className="size-3" />
+                  </span>
+                ) : null}
+                <h2
+                  data-slot="section-label"
+                  className="truncate text-section-head font-semibold tracking-section-head text-subtle uppercase"
+                >
+                  {label}
+                </h2>
+                {hasCount ? (
+                  <span
+                    data-slot="section-count"
+                    className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted"
+                  >
+                    {count}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
             {hasNote ? (
-              <div
-                data-slot="section-note"
-                className="max-w-152 text-small-body text-[color:var(--color-text-secondary)]"
-              >
+              <div data-slot="section-note" className="max-w-152 text-small-body text-muted">
                 {note}
               </div>
             ) : null}
           </div>
-          {hasRight ? (
+          {hasRight || hasTabs ? (
             <div
               data-slot="section-right"
               className="flex w-full items-center gap-2 self-start lg:w-auto lg:shrink-0"
             >
-              {right}
+              {hasTabs ? <div data-slot="section-tabs">{tabs}</div> : null}
+              {hasRight ? right : null}
             </div>
           ) : null}
         </header>

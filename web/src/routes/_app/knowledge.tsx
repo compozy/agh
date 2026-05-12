@@ -1,15 +1,19 @@
-import { AlertCircle, BookOpen, Loader2, Plus } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, BookOpen, Plus } from "lucide-react";
 
-import { Button, Empty, Input, PageHeader, PillGroup, SplitPane } from "@agh/ui";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import {
   KnowledgeCreateDialog,
   KnowledgeDetailPanel,
   KnowledgeListPanel,
 } from "@/systems/knowledge";
+import type { TopbarRouteContext } from "@/types/topbar";
+import { Button, Empty, Input, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
 
 export const Route = createFileRoute("/_app/knowledge")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Knowledge", icon: BookOpen },
+  }),
   component: KnowledgePage,
 });
 
@@ -21,9 +25,9 @@ export function KnowledgePage() {
       aria-label="Knowledge scope"
       data-testid="tab-pills"
       items={[
-        { value: "global", label: "GLOBAL", testId: "tab-global" },
-        { value: "workspace", label: "WORKSPACE", testId: "tab-workspace" },
-        { value: "agent", label: "AGENT", testId: "tab-agent" },
+        { value: "global", label: "Global", testId: "tab-global" },
+        { value: "workspace", label: "Workspace", testId: "tab-workspace" },
+        { value: "agent", label: "Agent", testId: "tab-agent" },
       ]}
       onChange={value => page.setActiveScope(value as typeof page.activeScope)}
       value={page.activeScope}
@@ -45,8 +49,8 @@ export function KnowledgePage() {
           aria-label="Agent tier"
           data-testid="agent-tier-pills"
           items={[
-            { value: "workspace", label: "WORKSPACE", testId: "tier-workspace" },
-            { value: "global", label: "GLOBAL", testId: "tier-global" },
+            { value: "workspace", label: "Workspace", testId: "tier-workspace" },
+            { value: "global", label: "Global", testId: "tier-global" },
           ]}
           onChange={value => page.setAgentTier(value as typeof page.agentTier)}
           value={page.agentTier}
@@ -54,32 +58,30 @@ export function KnowledgePage() {
       </div>
     ) : null;
 
-  const controls = (
-    <div className="flex flex-wrap items-center gap-3">
-      {scopePills}
-      {agentControls}
-      <Button
-        data-testid="create-memory-btn"
-        disabled={!page.canCreateMemory}
-        onClick={() => page.setCreateOpen(true)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <Plus className="size-3.5" />
-        Create
-      </Button>
-    </div>
+  const createBtn = (
+    <Button
+      data-testid="create-memory-btn"
+      disabled={!page.canCreateMemory}
+      onClick={() => page.setCreateOpen(true)}
+      size="sm"
+      type="button"
+      variant="outline"
+    >
+      <Plus className="size-3" />
+      Create
+    </Button>
   );
+
+  useTopbarSlot({
+    count: page.guardMessage || page.isLoading || page.error ? undefined : page.memoryCount,
+    tabs: scopePills,
+    search: agentControls,
+    actions: createBtn,
+  });
 
   if (page.guardMessage) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <PageHeader
-          controls={controls}
-          icon={() => <BookOpen className="size-3.5" data-testid="knowledge-shell-icon" />}
-          title={<span data-testid="knowledge-shell-title">Knowledge</span>}
-        />
         <div
           className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
           data-testid="knowledge-guard"
@@ -98,19 +100,11 @@ export function KnowledgePage() {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <PageHeader
-          controls={controls}
-          icon={() => <BookOpen className="size-3.5" data-testid="knowledge-shell-icon" />}
-          title={<span data-testid="knowledge-shell-title">Knowledge</span>}
-        />
         <div
           className="flex min-h-0 flex-1 items-center justify-center"
           data-testid="knowledge-loading"
         >
-          <Loader2
-            aria-hidden="true"
-            className="size-5 animate-spin text-(--color-text-tertiary)"
-          />
+          <Spinner aria-hidden="true" className="size-5 text-subtle" />
         </div>
       </div>
     );
@@ -119,11 +113,6 @@ export function KnowledgePage() {
   if (page.error) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <PageHeader
-          controls={controls}
-          icon={() => <BookOpen className="size-3.5" data-testid="knowledge-shell-icon" />}
-          title={<span data-testid="knowledge-shell-title">Knowledge</span>}
-        />
         <div
           className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
           data-testid="knowledge-error"
@@ -141,12 +130,6 @@ export function KnowledgePage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-      <PageHeader
-        count={page.memoryCount}
-        controls={controls}
-        icon={() => <BookOpen className="size-3.5" data-testid="knowledge-shell-icon" />}
-        title={<span data-testid="knowledge-shell-title">Knowledge</span>}
-      />
       <SplitPane
         data-testid="knowledge-split-pane"
         detail={

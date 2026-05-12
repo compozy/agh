@@ -29,7 +29,7 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
         <DropdownMenuItem
           render={
             <a href={githubUrl} rel="noreferrer noopener" target="_blank">
-              <GithubLogo aria-hidden className="size-3.5" />
+              <GithubLogo aria-hidden className="size-3" />
               Open on GitHub
               <ExternalLink aria-hidden className="ms-auto size-3!" />
             </a>

@@ -1,3 +1,4 @@
+import { Eyebrow } from "@agh/ui";
 import {
   BlackboxLogo,
   ClaudeLogo,
@@ -32,7 +33,7 @@ import { SectionFrame } from "./primitives/section-frame";
 
 type Provider = { id: string; name: string; logo: ReactNode };
 
-const logoClassName = "size-6 text-(--color-text-primary)";
+const logoClassName = "size-6 text-fg";
 
 export const PROVIDERS: Provider[] = [
   { id: "claude", name: "Claude Code", logo: <ClaudeLogo aria-hidden className="size-6" /> },
@@ -106,19 +107,17 @@ export const PROVIDERS: Provider[] = [
  */
 export function SupportedAgents() {
   return (
-    <SectionFrame background="canvas" padY="md" className="border-b border-(--color-divider)">
+    <SectionFrame background="canvas" padY="md" className="border-b border-line">
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         <div className="max-w-[40ch]">
-          <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
-            Your CLI on the network
-          </p>
-          <p className="mt-2 text-base leading-snug text-(--color-text-primary)">
+          <Eyebrow className="text-accent">Your CLI on the network</Eyebrow>
+          <p className="mt-2 text-base leading-snug text-fg">
             AGH runs the CLIs you already use as durable sessions and joins them to the workplace as
             peers. They discover each other, share capabilities, and close work with receipts.
           </p>
           <Link
             href="/runtime/core/agents/providers"
-            className="mt-3 inline-flex items-center gap-1.5 font-mono text-eyebrow uppercase tracking-mono text-(--color-text-secondary) transition-colors hover:text-accent"
+            className="eyebrow mt-3 inline-flex items-center gap-1.5 text-muted transition-colors hover:text-accent"
           >
             Read more about providers
             <ArrowUpRight aria-hidden className="size-3" />
@@ -129,15 +128,13 @@ export function SupportedAgents() {
           {PROVIDERS.map(provider => (
             <li key={provider.id}>
               <div
-                className="flex h-16 w-full min-w-[76px] flex-col items-center justify-center gap-1 rounded-icon-well border border-(--color-divider) bg-(--color-surface) px-2 transition-colors hover:border-accent/35"
+                className="flex h-16 w-full min-w-19 flex-col items-center justify-center gap-1 rounded-icon-well border border-line bg-canvas-soft px-2 transition-colors hover:border-accent/35"
                 title={provider.name}
               >
                 <span aria-hidden="true" className="flex size-6 items-center justify-center">
                   {provider.logo}
                 </span>
-                <span className="font-mono text-micro uppercase tracking-mono text-(--color-text-tertiary)">
-                  {provider.id}
-                </span>
+                <Eyebrow className="text-subtle">{provider.id}</Eyebrow>
               </div>
             </li>
           ))}

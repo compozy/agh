@@ -1,10 +1,13 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
+
+import { Button } from "@agh/ui";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import type { VaultSecret } from "@/systems/vault/types";
 
-import { SessionInspector, SessionInspectorDrawer } from "../session-inspector";
+import { SessionInspector, type SessionInspectorProps } from "../session-inspector";
 
 const vaultSecrets: VaultSecret[] = [
   {
@@ -17,7 +20,7 @@ const vaultSecrets: VaultSecret[] = [
   },
 ];
 
-const baseArgs = {
+const baseArgs: SessionInspectorProps = {
   messages: [],
   sessionId: "session_launch_coordination",
   usage: {
@@ -44,7 +47,8 @@ const meta: Meta<typeof SessionInspector> = {
     layout: "fullscreen",
     docs: {
       description: {
-        component: "Right-side session inspector plus compact drawer variant.",
+        component:
+          "Right-side session inspector consuming <DetailInspector>: inline at >= 1440 px viewport, drawer below.",
       },
     },
   },
@@ -61,18 +65,33 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Inline inspector exposes trace, usage, memory, vault, and file tabs.
+ * Inline inspector at >= 1440 px viewport renders 5 flat tabs
+ * (Trace, Usage, Memory, Files, Vault) inside the DetailInspector chrome.
  */
 export const Inline: Story = {
   args: baseArgs,
+  parameters: {
+    viewport: { defaultViewport: "responsive" },
+  },
 };
 
 /**
- * Drawer variant exposes the same inspector body on compact viewports.
+ * Drawer variant exposes the same body inside the sheet drawer when the
+ * viewport is < 1440 px. Caller owns the open state.
  */
 export const Drawer: Story = {
-  args: {},
-  render: () => <SessionInspectorDrawer {...baseArgs} />,
+  args: baseArgs,
+  render: function DrawerStory(args) {
+    const [open, setOpen] = useState(false);
+    return (
+      <div className="flex h-full w-full items-start justify-end gap-2 p-4">
+        <Button type="button" variant="neutral" size="sm" onClick={() => setOpen(true)}>
+          Open inspector
+        </Button>
+        <SessionInspector {...args} drawerOpen={open} onDrawerOpenChange={setOpen} />
+      </div>
+    );
+  },
 };
 
 /**

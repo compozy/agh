@@ -35,7 +35,7 @@ type Story = StoryObj<typeof meta>;
 export const Header: Story = {
   render: () => (
     <PanelSurface className="min-h-[160px] p-0">
-      <div className="flex w-[420px] flex-col bg-(--color-canvas-deep)">
+      <div className="flex w-[420px] flex-col bg-canvas">
         <ThreadOverlayHeader
           channel="ops"
           detail={networkThreadDetailFixture}
@@ -49,7 +49,7 @@ export const Header: Story = {
 export const Root: Story = {
   render: () => (
     <PanelSurface className="min-h-[200px] p-0">
-      <div className="flex w-[420px] flex-col bg-(--color-canvas-deep)">
+      <div className="flex w-[420px] flex-col bg-canvas">
         <ThreadOverlayRoot isLoading={false} rootMessage={root ?? null} />
       </div>
     </PanelSurface>
@@ -59,7 +59,7 @@ export const Root: Story = {
 export const RepliesPopulated: Story = {
   render: () => (
     <PanelSurface className="min-h-[480px] p-0">
-      <div className="flex h-[480px] w-[420px] flex-col bg-(--color-canvas-deep)">
+      <div className="flex h-[480px] w-[420px] flex-col bg-canvas">
         <ThreadOverlayReplies isLoading={false} messages={replies} replyCount={replies.length} />
       </div>
     </PanelSurface>
@@ -69,7 +69,7 @@ export const RepliesPopulated: Story = {
 export const RepliesLoading: Story = {
   render: () => (
     <PanelSurface className="min-h-[300px] p-0">
-      <div className="flex h-[300px] w-[420px] flex-col bg-(--color-canvas-deep)">
+      <div className="flex h-[300px] w-[420px] flex-col bg-canvas">
         <ThreadOverlayReplies isLoading messages={[]} replyCount={0} />
       </div>
     </PanelSurface>
@@ -79,7 +79,7 @@ export const RepliesLoading: Story = {
 export const RepliesEmpty: Story = {
   render: () => (
     <PanelSurface className="min-h-[260px] p-0">
-      <div className="flex h-[260px] w-[420px] flex-col bg-(--color-canvas-deep)">
+      <div className="flex h-[260px] w-[420px] flex-col bg-canvas">
         <ThreadOverlayReplies isLoading={false} messages={[]} replyCount={0} />
       </div>
     </PanelSurface>

@@ -1,4 +1,4 @@
-import { Eyebrow, PageHeader } from "@agh/ui";
+import { DetailHeader, Eyebrow } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -64,19 +64,29 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-direct-room"
     >
-      <PageHeader
-        className="px-5 py-2.5"
-        data-testid="network-direct-identity-row"
-        meta={
-          <>
-            <Eyebrow weight="medium">agent</Eyebrow>
+      <DetailHeader
+        actions={
+          <div
+            data-slot="direct-room-meta"
+            data-testid="network-direct-identity-row-meta"
+            className="flex items-center gap-2 text-small-body text-muted"
+          >
+            <Eyebrow>agent</Eyebrow>
             <PresenceDot state={room.presence.state} />
-          </>
+          </div>
         }
+        className="px-5 py-3"
+        data-testid="network-direct-identity-row"
         title={
           <span className="flex min-w-0 items-center gap-3">
             {otherPeerId ? (
-              <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={32} />
+              <MessageAvatar
+                initialFrom={otherPeerId}
+                name={otherPeerId}
+                role="agent"
+                seed={otherPeerId}
+                sizePx={32}
+              />
             ) : null}
             <span className="truncate">{otherPeerId ? `@${otherPeerId}` : "Direct room"}</span>
           </span>

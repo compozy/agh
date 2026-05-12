@@ -14,6 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
     component: opts.component,
     useParams: () => routeParams,
   }),
+  useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
@@ -130,10 +131,12 @@ describe("TaskRunDetailRoute", () => {
   it("renders the run header, identity, progress, and activity", async () => {
     renderRoute();
     await waitFor(() => expect(screen.getByTestId("tasks-run-detail-content")).toBeInTheDocument());
-    expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run run_001");
-    expect(screen.getByTestId("task-run-detail-identity-run")).toHaveTextContent("run_001");
-    expect(screen.getByTestId("task-run-detail-progress-input-tokens")).toHaveTextContent("14,281");
-    expect(screen.getByTestId("task-run-detail-activity")).toBeInTheDocument();
+    expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run");
+    expect(screen.getByTestId("task-run-detail-run-id")).toHaveTextContent("run_001");
+    expect(screen.getByTestId("tasks-run-detail-timeline")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("run_001");
+    expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("session sess_jf8d21");
+    expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("attempt 2");
   });
 
   it("renders a not-found state when the run cannot be fetched", async () => {

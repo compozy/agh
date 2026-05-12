@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head><script data-od-sandbox-shim>(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+})();</script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AGH · Task overview — Operational cards</title>
+<link rel="preconnect" href="https://rsms.me/" />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+<style>
+:root{
+  color-scheme: dark;
+  --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a;
+  --elevated:#232220; --hover:#1f1e1d;
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03); --line-strong:rgba(255,255,255,0.09);
+  --accent:#e8572a; --accent-ink:#17110f; --accent-hover:#d14e25;
+  --accent-tint:rgba(232,87,42,0.10); --accent-tint-strong:rgba(232,87,42,0.16);
+  --success:#5fbf85; --warning:#d6a647; --danger:#e0635a; --info:#8e8eb5; --neutral:#7a7a80;
+  --success-tint:rgba(95,191,133,0.08); --warning-tint:rgba(214,166,71,0.08);
+  --danger-tint:rgba(224,99,90,0.09); --info-tint:rgba(142,142,181,0.10); --neutral-tint:rgba(150,150,155,0.06);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px;
+  --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+  --highlight: inset 0 1px 0 rgba(255,255,255,0.035);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-0.006em;font-feature-settings:"cv01","ss03","cv11";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--accent-tint);color:var(--fg-strong)}
+.font-mono,code,kbd{font-family:var(--font-mono);font-feature-settings:normal;-webkit-font-smoothing:subpixel-antialiased}
+
+/* Page shell */
+.page{max-width:1180px;margin:0 auto;padding:36px 32px 96px}
+.page__head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--line-soft)}
+.page__head h1{font-size:22px;font-weight:510;color:var(--fg-strong);letter-spacing:-0.024em;margin:0}
+.page__head p{margin:6px 0 0;font-size:12.5px;color:var(--subtle);letter-spacing:-0.005em}
+.page__head-meta{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.page__head-meta .dot{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 0 2px rgba(95,191,133,0.18)}
+
+/* Section panel */
+.section{display:flex;flex-direction:column;gap:14px;margin-bottom:28px}
+.section__head{display:flex;align-items:center;gap:10px}
+.section__title{font-size:12.5px;font-weight:600;color:var(--fg-strong);letter-spacing:0.04em;text-transform:uppercase}
+.section__count{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--faint);padding:0 5px;border-radius:3px;background:rgba(255,255,255,0.04);font-variant-numeric:tabular-nums}
+.section__rule{flex:1;height:1px;background:var(--line-soft)}
+.section__right{display:inline-flex;align-items:center;gap:8px}
+.section__desc{font-size:12px;color:var(--subtle);letter-spacing:-0.005em;line-height:1.55;max-width:78ch;margin:-4px 0 2px}
+.section__live{display:inline-flex;align-items:center;gap:6px;color:var(--info);font-size:10.5px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase}
+
+/* Card surface */
+.surface{background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:var(--radius-lg)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius);font-size:11.5px;font-weight:510;letter-spacing:-0.005em;border:1px solid transparent;background:rgba(255,255,255,0.04);color:var(--fg);transition:background var(--dur) var(--ease),color var(--dur) var(--ease);white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,0.07);color:var(--fg-strong)}
+.btn--ghost{background:transparent;color:var(--muted)}
+.btn--ghost:hover{background:var(--hover);color:var(--fg)}
+.btn--accent{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight),0 1px 0 rgba(0,0,0,0.25)}
+.btn--accent:hover{background:var(--accent-hover);color:var(--accent-ink)}
+.btn--sm{height:22px;padding:0 8px;font-size:11px}
+.btn--danger{color:var(--danger)}
+.btn--danger:hover{background:var(--danger-tint);color:var(--danger)}
+.btn .icon{width:13px;height:13px;stroke-width:1.75;flex-shrink:0}
+
+/* Pills */
+.pill{display:inline-flex;align-items:center;gap:5px;height:19px;padding:0 7px;border-radius:4px;font-size:11px;font-weight:510;letter-spacing:-0.005em;background:var(--neutral-tint);color:var(--muted);white-space:nowrap}
+.pill--success{background:var(--success-tint);color:var(--success)}
+.pill--warning{background:var(--warning-tint);color:var(--warning)}
+.pill--danger{background:var(--danger-tint);color:var(--danger)}
+.pill--info{background:var(--info-tint);color:var(--info)}
+.pill--accent{background:var(--accent-tint);color:var(--accent)}
+.pill--mono{font-family:var(--font-mono);font-size:10.5px;font-weight:500;letter-spacing:0;background:rgba(255,255,255,0.04);color:var(--muted)}
+.pill__dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.pill__dot--pulse{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}50%{box-shadow:0 0 0 4px transparent;opacity:.55}}
+
+/* Mono ID */
+.mono-id{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--fg);background:rgba(255,255,255,0.045);padding:2px 6px;border-radius:4px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.mono-id--sm{font-size:10px;padding:1px 5px}
+
+/* Eyebrow */
+.eyebrow{font-size:10.5px;font-weight:600;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase}
+.eyebrow--faint{color:var(--faint)}
+
+/* Timeline (panel) */
+.timeline-card{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.timeline-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+.timeline-item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+.timeline-item__rail{position:relative;width:18px;display:flex;justify-content:center;padding-top:3px}
+.timeline-item__dot{width:9px;height:9px;border-radius:50%;background:currentColor;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,0.025);position:relative;z-index:1}
+.timeline-item__dot--neutral{color:var(--neutral)}
+.timeline-item__dot--info{color:var(--info)}
+.timeline-item__dot--success{color:var(--success)}
+.timeline-item__dot--warning{color:var(--warning)}
+.timeline-item__dot--danger{color:var(--danger)}
+.timeline-item__line{position:absolute;top:14px;bottom:-16px;left:50%;width:1.5px;background:var(--line);transform:translateX(-50%)}
+.timeline-item:last-child .timeline-item__line{display:none}
+.timeline-item__body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.timeline-item__head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.timeline-item__type{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong);font-weight:500;letter-spacing:0}
+.timeline-item__type--danger{color:var(--danger)}
+.timeline-item__desc{font-size:12.5px;color:var(--muted);letter-spacing:-0.005em}
+.timeline-item__desc--danger{color:var(--danger)}
+.timeline-item__time{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);text-align:right;white-space:nowrap;padding-top:3px}
+
+/* Table */
+.table{display:flex;flex-direction:column;overflow:hidden;border-radius:var(--radius-lg)}
+.table__head{display:grid;gap:14px;padding:11px 18px;background:rgba(255,255,255,0.012);border-bottom:1px solid var(--line-soft);font-size:10px;font-weight:600;color:var(--faint);letter-spacing:0.06em;text-transform:uppercase}
+.table__row{display:grid;gap:14px;padding:13px 18px;border-top:1px solid var(--line-soft);align-items:flex-start;transition:background var(--dur) var(--ease)}
+.table__row:first-of-type{border-top:0}
+.table__row:hover{background:rgba(255,255,255,0.018)}
+.table__cell{font-size:12px;color:var(--fg);letter-spacing:-0.005em;min-width:0;display:flex;flex-direction:column;gap:6px}
+.table__cell--faint{color:var(--subtle);font-size:11.5px}
+.table__cell--mono{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:0}
+.table__cell--strong{color:var(--fg-strong);font-weight:510}
+
+/* Reviews-specific */
+.table--reviews .table__head, .table--reviews .table__row{grid-template-columns:minmax(0,2.4fr) 100px 110px minmax(0,1.4fr) 110px 80px 80px}
+.review-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.review-meta__id{display:flex;align-items:baseline;gap:6px}
+.review-meta__sub{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:0}
+.review-reason{font-size:11.5px;color:var(--muted);line-height:1.5}
+.review-guidance{font-size:11px;color:var(--muted);line-height:1.55;padding:7px 9px;border-radius:5px;background:rgba(255,255,255,0.025);border-left:2px solid var(--warning)}
+.review-reviewer{display:flex;flex-direction:column;gap:3px}
+.review-reviewer__name{font-size:11.5px;color:var(--fg);font-weight:510}
+.review-reviewer__sess{font-family:var(--font-mono);font-size:10px;color:var(--faint);letter-spacing:0}
+.review-round{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:0}
+
+/* Stream resume */
+.stream-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.metric{background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:14px 16px}
+.metric__label{font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:0.05em;text-transform:uppercase}
+.metric__value{margin-top:8px;font-size:22px;font-weight:510;color:var(--fg-strong);letter-spacing:-0.024em;line-height:1.1;font-variant-numeric:tabular-nums;font-family:var(--font-mono)}
+.metric--status .metric__value{font-family:var(--font-sans);font-size:14.5px;font-weight:510;letter-spacing:-0.012em;display:inline-flex;align-items:center;gap:8px;color:var(--success)}
+
+/* Bridge notifications */
+.table--bridge .table__head, .table--bridge .table__row{grid-template-columns:minmax(0,1.6fr) minmax(0,1.8fr) 130px 120px minmax(0,1.4fr) 32px}
+.sub-meta{display:flex;flex-direction:column;gap:6px}
+.sub-meta__pills{display:flex;gap:4px}
+.sub-meta__created{font-size:10.5px;color:var(--faint);letter-spacing:-0.005em}
+.target-line{font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;display:flex;gap:6px;letter-spacing:0}
+.target-line__label{color:var(--faint)}
+.target-line__value{color:var(--muted)}
+.target-line--primary .target-line__value{color:var(--fg-strong)}
+.cursor-line{display:flex;flex-direction:column;gap:3px}
+.cursor-line__seq{font-family:var(--font-mono);font-size:11px;color:var(--fg);font-variant-numeric:tabular-nums}
+.cursor-line__delivery{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.delivery-cell{display:flex;flex-direction:column;gap:3px}
+.delivery-cell__time{font-size:11.5px;color:var(--fg)}
+.delivery-cell__updated{font-size:10.5px;color:var(--faint)}
+.btn--icon-only{width:24px;height:24px;padding:0;justify-content:center}
+
+/* Execution profile */
+.profile-card{padding:20px}
+.profile-summary{display:flex;flex-wrap:wrap;gap:14px;padding-bottom:18px;border-bottom:1px solid var(--line-soft);margin-bottom:18px}
+.profile-summary__row{display:inline-flex;align-items:center;gap:7px}
+.profile-summary__label{font-size:10px;font-weight:600;color:var(--faint);letter-spacing:0.05em;text-transform:uppercase}
+.profile-panes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 32px}
+.pane{display:flex;flex-direction:column;gap:10px}
+.pane__title{font-size:10.5px;font-weight:600;color:var(--fg);letter-spacing:0.05em;text-transform:uppercase}
+.pane__body{display:flex;flex-direction:column;gap:8px}
+.pane__row{display:inline-flex;align-items:baseline;gap:7px;font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:0}
+.pane__row .label{color:var(--faint)}
+.pane__row .value{color:var(--muted)}
+.pane__row--primary .value{color:var(--fg-strong)}
+.pane__guidance{font-size:12px;color:var(--muted);line-height:1.55;padding:9px 11px;border-radius:6px;background:rgba(255,255,255,0.025)}
+.pane__list{display:flex;flex-direction:column;gap:6px}
+.pane__list-label{font-size:10px;font-weight:600;color:var(--faint);letter-spacing:0.05em;text-transform:uppercase}
+.pane__list-pills{display:flex;flex-wrap:wrap;gap:5px}
+.profile-meta{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding-top:16px;margin-top:18px;border-top:1px solid var(--line-soft);font-size:10px;font-weight:600;color:var(--faint);letter-spacing:0.05em;text-transform:uppercase}
+
+/* Responsive */
+@media (max-width: 880px){
+  .stream-grid{grid-template-columns:1fr}
+  .profile-panes{grid-template-columns:1fr}
+  .table--reviews .table__head, .table--reviews .table__row,
+  .table--bridge .table__head, .table--bridge .table__row{grid-template-columns:1fr;gap:8px}
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page__head">
+    <div>
+      <h1>Task overview · operational</h1>
+      <p>task-1 · Lock launch blockers for the 18:30 UTC cutover · workspace ws_launch_hq</p>
+    </div>
+    <div class="page__head-meta">
+      <span class="dot" aria-hidden="true"></span>
+      <span>live · attempt 2 · seq 14</span>
+    </div>
+  </header>
+
+  <!-- TIMELINE -->
+  <section class="section" aria-label="Task events">
+    <div class="section__head">
+      <span class="section__title">Events</span>
+      <span class="section__count">4</span>
+      <span class="section__rule"></span>
+      <span class="section__live"><span class="pill__dot pill__dot--pulse" style="color:var(--info);width:5px;height:5px;border-radius:50%;background:currentColor"></span>Live</span>
+    </div>
+    <article class="surface timeline-card">
+      <ul class="timeline-list">
+        <li class="timeline-item">
+          <span class="timeline-item__rail"><span class="timeline-item__dot timeline-item__dot--info"></span><span class="timeline-item__line"></span></span>
+          <div class="timeline-item__body">
+            <div class="timeline-item__head">
+              <span class="timeline-item__type">task.run_started</span>
+              <span class="pill pill--mono">seq 100</span>
+              <span class="pill pill--info"><span class="pill__dot"></span>Running</span>
+              <span style="font-size:11px;color:var(--faint)">· attempt 2 · product-manager-agent</span>
+            </div>
+            <p class="timeline-item__desc">Run started for the launch command checkpoint.</p>
+          </div>
+          <time class="timeline-item__time">2d ago</time>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-item__rail"><span class="timeline-item__dot timeline-item__dot--info"></span><span class="timeline-item__line"></span></span>
+          <div class="timeline-item__body">
+            <div class="timeline-item__head">
+              <span class="timeline-item__type">task.run_progress</span>
+              <span class="pill pill--mono">seq 101</span>
+              <span class="pill pill--info"><span class="pill__dot"></span>Running</span>
+              <span style="font-size:11px;color:var(--faint)">· attempt 2 · product-manager-agent</span>
+            </div>
+            <p class="timeline-item__desc">Tracking the last blockers across copy, canary status, and partner-bank replay.</p>
+          </div>
+          <time class="timeline-item__time">2d ago</time>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-item__rail"><span class="timeline-item__dot timeline-item__dot--neutral"></span><span class="timeline-item__line"></span></span>
+          <div class="timeline-item__body">
+            <div class="timeline-item__head">
+              <span class="timeline-item__type">task.dependency_added</span>
+              <span class="pill pill--mono">seq 102</span>
+              <span style="font-size:11px;color:var(--faint)">· product-manager-agent</span>
+            </div>
+            <p class="timeline-item__desc">Linked compliance sign-off on public timeout copy as a dependency.</p>
+          </div>
+          <time class="timeline-item__time">2d ago</time>
+        </li>
+        <li class="timeline-item">
+          <span class="timeline-item__rail"><span class="timeline-item__dot timeline-item__dot--danger"></span></span>
+          <div class="timeline-item__body">
+            <div class="timeline-item__head">
+              <span class="timeline-item__type timeline-item__type--danger">task.run_failed</span>
+              <span class="pill pill--mono">seq 103</span>
+              <span class="pill pill--danger"><span class="pill__dot"></span>Failed</span>
+              <span style="font-size:11px;color:var(--faint)">· attempt 3 · product-manager-agent</span>
+            </div>
+            <p class="timeline-item__desc timeline-item__desc--danger">Checkpoint failed after partner-bank replay detail went stale.</p>
+          </div>
+          <time class="timeline-item__time">2d ago</time>
+        </li>
+      </ul>
+    </article>
+  </section>
+
+  <!-- REVIEWS -->
+  <section class="section" aria-label="Reviews">
+    <div class="section__head">
+      <span class="section__title">Reviews</span>
+      <span class="section__count">2</span>
+      <span class="section__rule"></span>
+    </div>
+    <p class="section__desc">Status reflects the persisted review row. Outcomes appear once a bound reviewer session submits through <span style="font-family:var(--font-mono);color:var(--muted)">submit_run_review</span>. This view is read-only — operator sessions cannot bind a verdict.</p>
+    <article class="surface table table--reviews">
+      <div class="table__head">
+        <span>Review</span><span>Status</span><span>Outcome</span><span>Reviewer</span><span>Round</span><span>Requested</span><span>Reviewed</span>
+      </div>
+      <div class="table__row">
+        <div class="table__cell">
+          <div class="review-meta">
+            <div class="review-meta__id"><span class="mono-id">review_001</span></div>
+            <span class="review-meta__sub">run run_001</span>
+          </div>
+        </div>
+        <div class="table__cell"><span class="pill pill--accent">in_review</span></div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">pending</span></div>
+        <div class="table__cell">
+          <div class="review-reviewer">
+            <span class="review-reviewer__name">compliance-review-agent</span>
+            <span class="review-reviewer__sess">session sess_product_brief</span>
+          </div>
+        </div>
+        <div class="table__cell"><span class="review-round">round 1 · attempt 1</span></div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">2d ago</span></div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">—</span></div>
+      </div>
+      <div class="table__row">
+        <div class="table__cell">
+          <div class="review-meta">
+            <div class="review-meta__id"><span class="mono-id">review_002</span></div>
+            <span class="review-meta__sub">run run_001</span>
+            <p class="review-reason">missing partner-bank reconciliation evidence</p>
+            <p class="review-guidance">Attach the partner-bank reconciliation artifacts before the next round.</p>
+          </div>
+        </div>
+        <div class="table__cell"><span class="pill">recorded</span></div>
+        <div class="table__cell"><span class="pill pill--danger">rejected</span></div>
+        <div class="table__cell">
+          <div class="review-reviewer">
+            <span class="review-reviewer__name">compliance-review-agent</span>
+            <span class="review-reviewer__sess">session sess_product_brief</span>
+          </div>
+        </div>
+        <div class="table__cell"><span class="review-round">round 2 · attempt 1</span></div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">2d ago</span></div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">2d ago</span></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- STREAM RESUME -->
+  <section class="section" aria-label="Stream resume">
+    <div class="section__head">
+      <span class="section__title">Stream resume</span>
+      <span class="section__rule"></span>
+    </div>
+    <p class="section__desc">The web client seeds task SSE through Last-Event-ID derived from the task's <span style="font-family:var(--font-mono);color:var(--muted)">latest_event_seq</span> projection. Reconnects resume from the seeded sequence; named SSE frames invalidate read queries without inferring authority.</p>
+    <div class="stream-grid">
+      <div class="metric">
+        <div class="metric__label">Latest event seq</div>
+        <div class="metric__value">14</div>
+      </div>
+      <div class="metric">
+        <div class="metric__label">SSE resume seed</div>
+        <div class="metric__value">15</div>
+      </div>
+      <div class="metric metric--status">
+        <div class="metric__label">Connection</div>
+        <div class="metric__value">
+          <span class="pill__dot pill__dot--pulse" style="width:8px;height:8px;border-radius:50%;background:var(--success);color:var(--success)"></span>
+          connected
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BRIDGE NOTIFICATIONS -->
+  <section class="section" aria-label="Bridge notifications">
+    <div class="section__head">
+      <span class="section__title">Bridge notifications</span>
+      <span class="section__count">2</span>
+      <span class="section__rule"></span>
+      <div class="section__right">
+        <button class="btn btn--sm" type="button">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          New subscription
+        </button>
+      </div>
+    </div>
+    <p class="section__desc">Cursor diagnostics are read-only delivery progress. Zero-state cursors render as no sequence and no delivery id; advancement happens only after a confirmed bridge delivery.</p>
+    <article class="surface table table--bridge">
+      <div class="table__head">
+        <span>Subscription</span><span>Bridge target</span><span>Cursor</span><span>Last delivery</span><span>Last error</span><span></span>
+      </div>
+      <div class="table__row">
+        <div class="table__cell">
+          <div class="sub-meta">
+            <span class="mono-id">bsub_001</span>
+            <div class="sub-meta__pills">
+              <span class="pill pill--info">workspace</span>
+              <span class="pill">direct-send</span>
+            </div>
+            <span class="sub-meta__created">Created 2d ago</span>
+          </div>
+        </div>
+        <div class="table__cell">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span class="target-line target-line--primary"><span class="target-line__label">bridge</span><span class="target-line__value">bridge_instance_alpha</span></span>
+            <span class="target-line"><span class="target-line__label">workspace</span><span class="target-line__value">ws_launch_hq</span></span>
+            <span class="target-line"><span class="target-line__label">peer</span><span class="target-line__value">peer_launch_observer</span></span>
+          </div>
+        </div>
+        <div class="table__cell">
+          <div class="cursor-line">
+            <span class="cursor-line__seq">seq 14</span>
+            <span class="cursor-line__delivery">delivery delivery_evt_014</span>
+          </div>
+        </div>
+        <div class="table__cell">
+          <div class="delivery-cell">
+            <span class="delivery-cell__time">2d ago</span>
+            <span class="delivery-cell__updated">updated 2d ago</span>
+          </div>
+        </div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">—</span></div>
+        <div class="table__cell" style="align-items:center">
+          <button class="btn btn--ghost btn--icon-only" aria-label="Delete subscription bsub_001" type="button">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="table__row">
+        <div class="table__cell">
+          <div class="sub-meta">
+            <span class="mono-id">bsub_002</span>
+            <div class="sub-meta__pills">
+              <span class="pill pill--info">global</span>
+              <span class="pill">reply</span>
+            </div>
+            <span class="sub-meta__created">Created 2d ago</span>
+          </div>
+        </div>
+        <div class="table__cell">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span class="target-line target-line--primary"><span class="target-line__label">bridge</span><span class="target-line__value">bridge_instance_beta</span></span>
+            <span class="target-line"><span class="target-line__label">peer</span><span class="target-line__value">peer_partner_observer</span></span>
+            <span class="target-line"><span class="target-line__label">group</span><span class="target-line__value">launch_observers</span></span>
+            <span class="target-line"><span class="target-line__label">thread</span><span class="target-line__value">thread_launch_partner</span></span>
+          </div>
+        </div>
+        <div class="table__cell">
+          <div style="display:inline-flex;align-items:center;gap:8px">
+            <span class="pill">zero state</span>
+            <span class="cursor-line__delivery" style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint)">seq 0</span>
+          </div>
+        </div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">—</span></div>
+        <div class="table__cell"><span class="table__cell--faint" style="color:var(--faint);font-size:11.5px">—</span></div>
+        <div class="table__cell" style="align-items:center">
+          <button class="btn btn--ghost btn--icon-only" aria-label="Delete subscription bsub_002" type="button">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- EXECUTION PROFILE -->
+  <section class="section" aria-label="Execution profile">
+    <div class="section__head">
+      <span class="section__title">Execution profile</span>
+      <span class="section__rule"></span>
+      <div class="section__right">
+        <button class="btn btn--sm" type="button">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+        <button class="btn btn--ghost btn--sm btn--danger" type="button">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>
+    <article class="surface profile-card">
+      <div class="profile-summary">
+        <div class="profile-summary__row">
+          <span class="profile-summary__label">Worker mode</span>
+          <span class="pill">select</span>
+        </div>
+        <div class="profile-summary__row">
+          <span class="profile-summary__label">Coordinator mode</span>
+          <span class="pill">guided</span>
+        </div>
+        <div class="profile-summary__row">
+          <span class="profile-summary__label">Sandbox mode</span>
+          <span class="pill">ref</span>
+        </div>
+      </div>
+      <div class="profile-panes">
+        <div class="pane">
+          <h3 class="pane__title">Worker</h3>
+          <div class="pane__body">
+            <span class="pane__row"><span class="label">provider</span><span class="value">anthropic</span></span>
+            <span class="pane__row"><span class="label">model</span><span class="value">claude-opus-4-7</span></span>
+            <div class="pane__list">
+              <span class="pane__list-label">Allowed agents</span>
+              <div class="pane__list-pills">
+                <span class="pill pill--mono">product-manager-agent</span>
+                <span class="pill pill--mono">platform-engineer-agent</span>
+              </div>
+            </div>
+            <div class="pane__list">
+              <span class="pane__list-label">Preferred agents</span>
+              <div class="pane__list-pills">
+                <span class="pill pill--mono">product-manager-agent</span>
+              </div>
+            </div>
+            <div class="pane__list">
+              <span class="pane__list-label">Required capabilities</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">task.execute</span></div>
+            </div>
+            <div class="pane__list">
+              <span class="pane__list-label">Preferred capabilities</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">task.execute</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <h3 class="pane__title">Coordinator</h3>
+          <div class="pane__body">
+            <span class="pane__row pane__row--primary"><span class="label">agent</span><span class="value">launch-coordinator-agent</span></span>
+            <span class="pane__row"><span class="label">provider</span><span class="value">anthropic</span></span>
+            <span class="pane__row"><span class="label">model</span><span class="value">claude-opus-4-7</span></span>
+            <p class="pane__guidance">Lead the launch room through the 18:30 UTC cutover decisions.</p>
+          </div>
+        </div>
+        <div class="pane">
+          <h3 class="pane__title">Review selectors</h3>
+          <div class="pane__body">
+            <div class="pane__list">
+              <span class="pane__list-label">Allowed agents</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">compliance-review-agent</span></div>
+            </div>
+            <div class="pane__list">
+              <span class="pane__list-label">Preferred agents</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">compliance-review-agent</span></div>
+            </div>
+            <div class="pane__list">
+              <span class="pane__list-label">Required capabilities</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">review.run</span></div>
+            </div>
+            <div class="pane__list">
+              <span class="pane__list-label">Preferred capabilities</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">review.run</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <h3 class="pane__title">Sandbox + participants</h3>
+          <div class="pane__body">
+            <span class="pane__row pane__row--primary"><span class="label">sandbox</span><span class="value">fintech-launch</span></span>
+            <div class="pane__list">
+              <span class="pane__list-label">Preferred agents</span>
+              <div class="pane__list-pills"><span class="pill pill--mono">copywriter-agent</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="profile-meta">
+        <span>created 24d ago</span>
+        <span>updated 24d ago</span>
+      </div>
+    </article>
+  </section>
+</main>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import type { Preview } from "@storybook/react-vite";
 import { withThemeByClassName } from "@storybook/addon-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider, UIProvider } from "@agh/ui";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -212,6 +213,9 @@ export const themeDecorator = withThemeByClassName({
 export const queryClientDecorator = (Story: StoryRenderer) =>
   createElement(StorybookQueryClientBoundary, null, createElement(Story));
 
+export const uiProviderDecorator = (Story: StoryRenderer) =>
+  createElement(UIProvider, null, createElement(TooltipProvider, null, createElement(Story)));
+
 export const routerDecorator = (
   Story: StoryRenderer,
   context?: { parameters?: { router?: StorybookRouterOptions } }
@@ -221,7 +225,7 @@ export const routerDecorator = (
     routerOptions: context?.parameters?.router,
   });
 
-export const storybookDecorators = [themeDecorator, routerDecorator];
+export const storybookDecorators = [themeDecorator, uiProviderDecorator, routerDecorator];
 export const storybookLoaders = [mswLoader];
 export { storybookSystemHandlerGroups, storybookSystemHandlers };
 

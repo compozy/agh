@@ -28,11 +28,17 @@
             "cache": false,
             "persistent": true
         },
+        "transit": {
+            "dependsOn": ["^transit"],
+            "outputs": []
+        },
         "typecheck": {
-            "dependsOn": ["^typecheck"]
+            "dependsOn": ["transit"],
+            "outputs": []
         },
         "test": {
-            "cache": false
+            "dependsOn": ["transit"],
+            "outputs": []
         }
     }
 }

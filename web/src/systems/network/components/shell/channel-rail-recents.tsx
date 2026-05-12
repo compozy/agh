@@ -1,6 +1,7 @@
-import { AtSign, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { AtSign, MessagesSquare } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import {
   Eyebrow,
   Item,
@@ -12,7 +13,6 @@ import {
   Skeleton,
   SkeletonRows,
 } from "@agh/ui";
-import { cn } from "@/lib/utils";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkRecentEntry } from "../../types";
@@ -46,28 +46,22 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
         size="xs"
       >
         <ItemMedia>
-          <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
+          <Icon aria-label={ariaLabel} className="size-3 shrink-0 text-subtle" />
         </ItemMedia>
         <ItemContent className="min-w-0">
           <ItemTitle
             className={cn(
               "min-w-0 text-xs",
-              entry.hasUnread
-                ? "font-semibold text-(--color-text-primary)"
-                : "text-(--color-text-secondary)"
+              entry.hasUnread ? "font-medium text-fg" : "text-muted"
             )}
           >
             <span className="truncate">{entry.preview}</span>
-            <Eyebrow className="shrink-0" weight="medium">
-              #{entry.channel}
-            </Eyebrow>
+            <Eyebrow className="shrink-0">#{entry.channel}</Eyebrow>
           </ItemTitle>
         </ItemContent>
         {timestampLabel ? (
           <ItemFooter className="basis-auto">
-            <Eyebrow className="shrink-0" weight="medium">
-              {timestampLabel}
-            </Eyebrow>
+            <Eyebrow className="shrink-0">{timestampLabel}</Eyebrow>
           </ItemFooter>
         ) : null}
       </Item>
@@ -88,29 +82,20 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
       size="xs"
     >
       <ItemMedia>
-        <Icon aria-label={ariaLabel} className="size-3.5 shrink-0 text-(--color-text-tertiary)" />
+        <Icon aria-label={ariaLabel} className="size-3 shrink-0 text-subtle" />
       </ItemMedia>
       <ItemContent className="min-w-0">
         <ItemTitle
-          className={cn(
-            "min-w-0 text-xs",
-            entry.hasUnread
-              ? "font-semibold text-(--color-text-primary)"
-              : "text-(--color-text-secondary)"
-          )}
+          className={cn("min-w-0 text-xs", entry.hasUnread ? "font-medium text-fg" : "text-muted")}
         >
           <span className="truncate">{entry.preview}</span>
-          <span className="text-(--color-text-tertiary)">in</span>
-          <Eyebrow className="shrink-0" weight="medium">
-            #{entry.channel}
-          </Eyebrow>
+          <span className="text-subtle">in</span>
+          <Eyebrow className="shrink-0">#{entry.channel}</Eyebrow>
         </ItemTitle>
       </ItemContent>
       {timestampLabel ? (
         <ItemFooter className="basis-auto">
-          <Eyebrow className="shrink-0" weight="medium">
-            {timestampLabel}
-          </Eyebrow>
+          <Eyebrow className="shrink-0">{timestampLabel}</Eyebrow>
         </ItemFooter>
       ) : null}
     </Item>
@@ -131,10 +116,7 @@ export function ChannelRailRecents({ recents, isLoading }: ChannelRailRecentsPro
             <Skeleton className="h-3 w-full" />
           </SkeletonRows>
         ) : recents.length === 0 ? (
-          <p
-            className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
-            data-testid="network-recents-empty"
-          >
+          <p className="px-2 py-1 text-eyebrow text-subtle" data-testid="network-recents-empty">
             Recent threads and direct rooms appear here.
           </p>
         ) : (

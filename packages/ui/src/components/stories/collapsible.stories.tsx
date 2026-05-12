@@ -30,7 +30,7 @@ const details = [
 
 export const Default: Story = {
   render: () => (
-    <Card className="w-[28rem]">
+    <Card className="w-md">
       <CardHeader>
         <CardTitle>Session boot report</CardTitle>
       </CardHeader>
@@ -39,14 +39,14 @@ export const Default: Story = {
           <CollapsibleTrigger
             render={
               <Button variant="ghost" size="sm" className="gap-1.5">
-                <span className="group-data-[panel-open]/collapsible-trigger:hidden">
+                <span className="group-data-panel-open/collapsible-trigger:hidden">
                   View timeline
                 </span>
-                <span className="hidden group-data-[panel-open]/collapsible-trigger:inline">
+                <span className="hidden group-data-panel-open/collapsible-trigger:inline">
                   Hide timeline
                 </span>
-                <ChevronDownIcon className="size-4 group-data-[panel-open]/collapsible-trigger:hidden" />
-                <ChevronUpIcon className="hidden size-4 group-data-[panel-open]/collapsible-trigger:inline" />
+                <ChevronDownIcon className="size-4 group-data-panel-open/collapsible-trigger:hidden" />
+                <ChevronUpIcon className="hidden size-4 group-data-panel-open/collapsible-trigger:inline" />
               </Button>
             }
             className="group/collapsible-trigger"
@@ -66,7 +66,7 @@ export const Default: Story = {
 
 export const OpenByDefault: Story = {
   render: () => (
-    <Card className="w-[28rem]">
+    <Card className="w-md">
       <CardHeader>
         <CardTitle>Session boot report</CardTitle>
       </CardHeader>
@@ -77,7 +77,7 @@ export const OpenByDefault: Story = {
             render={
               <Button variant="ghost" size="sm" className="gap-1.5">
                 Hide timeline
-                <ChevronDownIcon className="size-4 transition-transform group-data-[panel-open]/collapsible-trigger:rotate-180" />
+                <ChevronDownIcon className="size-4 transition-transform group-data-panel-open/collapsible-trigger:rotate-180" />
               </Button>
             }
           />

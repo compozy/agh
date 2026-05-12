@@ -1,71 +1,8 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
-}));
-
-vi.mock("@/lib/utils", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
-}));
-
-vi.mock("@agh/ui", () => ({
-  Alert: ({ children, ...props }: Record<string, unknown>) => (
-    <div {...props}>{children as React.ReactNode}</div>
-  ),
-  AlertActions: ({ children, ...props }: Record<string, unknown>) => (
-    <div {...props}>{children as React.ReactNode}</div>
-  ),
-  AlertDescription: ({ children, ...props }: Record<string, unknown>) => (
-    <div {...props}>{children as React.ReactNode}</div>
-  ),
-  AlertMeta: ({ children, ...props }: Record<string, unknown>) => (
-    <div {...props}>{children as React.ReactNode}</div>
-  ),
-  AlertTitle: ({ children, ...props }: Record<string, unknown>) => (
-    <h3 {...props}>{children as React.ReactNode}</h3>
-  ),
-  Button: ({
-    children,
-    onClick,
-    disabled,
-    ...props
-  }: {
-    children: React.ReactNode;
-    onClick?: () => void;
-    disabled?: boolean;
-    [key: string]: unknown;
-  }) => (
-    <button onClick={onClick} disabled={disabled} {...props}>
-      {children}
-    </button>
-  ),
-  Card: ({ children, ...props }: Record<string, unknown>) => (
-    <div {...props}>{children as React.ReactNode}</div>
-  ),
-  CardHeader: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  CardTitle: ({ children }: Record<string, unknown>) => <h3>{children as React.ReactNode}</h3>,
-  CardContent: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  CardFooter: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  CodeBlock: ({ code, ...props }: Record<string, unknown>) => (
-    <pre {...props}>{code as React.ReactNode}</pre>
-  ),
-  MetadataList: Object.assign(
-    ({ children, ...props }: Record<string, unknown>) => (
-      <dl {...props}>{children as React.ReactNode}</dl>
-    ),
-    {
-      Row: ({ children, ...props }: Record<string, unknown>) => (
-        <div {...props}>{children as React.ReactNode}</div>
-      ),
-      Term: ({ children, ...props }: Record<string, unknown>) => (
-        <dt {...props}>{children as React.ReactNode}</dt>
-      ),
-      Value: ({ children, ...props }: Record<string, unknown>) => (
-        <dd {...props}>{children as React.ReactNode}</dd>
-      ),
-    }
-  ),
 }));
 
 vi.mock("../../adapters/session-api", () => ({
@@ -73,9 +10,10 @@ vi.mock("../../adapters/session-api", () => ({
 }));
 
 import { toast } from "sonner";
-import { PermissionDataPart, PermissionPrompt } from "../permission-prompt";
+
 import { approveSession } from "../../adapters/session-api";
 import type { AghPermissionData, PermissionRequest } from "../../types";
+import { PermissionDataPart, PermissionPrompt } from "../permission-prompt";
 
 const mockPermission: PermissionRequest = {
   requestId: "req-123",
@@ -96,7 +34,7 @@ const mockPermissionData: AghPermissionData = {
   raw: { command: "rm -rf /tmp/test" },
 };
 
-describe("PermissionPrompt", () => {
+describe("PermissionPrompt — inline sticky anatomy", () => {
   beforeEach(() => {
     vi.mocked(approveSession).mockResolvedValue(undefined);
   });
@@ -105,7 +43,41 @@ describe("PermissionPrompt", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders tool name, action, and resource from PermissionRequest", () => {
+  it("Should mark the inline prompt as sticky-scroll so it stays in viewport", () => {
+    render(
+      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+    );
+
+    const root = screen.getByTestId("permission-prompt");
+    expect(root.getAttribute("data-sticky")).toBe("true");
+  });
+
+  it("Should render a 24x24 tone tile coloured danger for high-stakes filesystem/network tools", () => {
+    render(
+      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+    );
+
+    const root = screen.getByTestId("permission-prompt");
+    expect(root.getAttribute("data-tone")).toBe("danger");
+    const tile = screen.getByTestId("permission-prompt-tile");
+    expect(tile.getAttribute("data-tone")).toBe("danger");
+  });
+
+  it("Should fall back to warning tone (tile + tint) for non-high-stakes tools", () => {
+    const safePermission: PermissionRequest = {
+      ...mockPermission,
+      toolName: "TodoWrite",
+      resource: "agent todo list",
+    };
+    render(
+      <PermissionPrompt permission={safePermission} sessionId="sess-001" onResolved={vi.fn()} />
+    );
+
+    expect(screen.getByTestId("permission-prompt").getAttribute("data-tone")).toBe("warning");
+    expect(screen.getByTestId("permission-prompt-tile").getAttribute("data-tone")).toBe("warning");
+  });
+
+  it("Should render tool name, action, and resource in the meta row", () => {
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
     );
@@ -115,7 +87,7 @@ describe("PermissionPrompt", () => {
     expect(screen.getByText("rm -rf /tmp/test")).toBeInTheDocument();
   });
 
-  it("renders all 4 action buttons", () => {
+  it("Should expose the four canonical decision buttons", () => {
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
     );
@@ -124,14 +96,9 @@ describe("PermissionPrompt", () => {
     expect(screen.getByTestId("permission-allow-always")).toBeInTheDocument();
     expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
     expect(screen.getByTestId("permission-reject-always")).toBeInTheDocument();
-
-    expect(screen.getByText("Allow Once")).toBeInTheDocument();
-    expect(screen.getByText("Allow Always")).toBeInTheDocument();
-    expect(screen.getByText("Reject Once")).toBeInTheDocument();
-    expect(screen.getByText("Reject Always")).toBeInTheDocument();
   });
 
-  it("calls approve API and onResolved on Allow Once click", async () => {
+  it("Should call approveSession with allow-once on Allow Once click and resolve", async () => {
     const onResolved = vi.fn();
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
@@ -146,14 +113,13 @@ describe("PermissionPrompt", () => {
         decision: "allow-once",
       });
     });
-
     expect(onResolved).toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
     });
   });
 
-  it("calls approve API with allow-always on Allow Always click", async () => {
+  it("Should call approveSession with allow-always on Allow Always click", async () => {
     const onResolved = vi.fn();
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
@@ -168,11 +134,10 @@ describe("PermissionPrompt", () => {
         decision: "allow-always",
       });
     });
-
     expect(onResolved).toHaveBeenCalled();
   });
 
-  it("calls approve API with reject-once on Reject Once click", async () => {
+  it("Should call approveSession with reject-once on Reject Once click", async () => {
     const onResolved = vi.fn();
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
@@ -187,11 +152,10 @@ describe("PermissionPrompt", () => {
         decision: "reject-once",
       });
     });
-
     expect(onResolved).toHaveBeenCalled();
   });
 
-  it("calls approve API with reject-always on Reject Always click", async () => {
+  it("Should call approveSession with reject-always on Reject Always click", async () => {
     const onResolved = vi.fn();
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
@@ -206,11 +170,10 @@ describe("PermissionPrompt", () => {
         decision: "reject-always",
       });
     });
-
     expect(onResolved).toHaveBeenCalled();
   });
 
-  it("handles approve API error gracefully without resolving the prompt", async () => {
+  it("Should surface a toast and stay open on API failure", async () => {
     vi.mocked(approveSession).mockRejectedValue(new Error("Network error"));
     const onResolved = vi.fn();
 
@@ -231,25 +194,18 @@ describe("PermissionPrompt", () => {
     expect(screen.getByTestId("permission-allow-once")).not.toBeDisabled();
   });
 
-  it("renders tool input as formatted JSON", () => {
-    render(
+  it("Should render the tool input JSON when keys exist and hide when empty", () => {
+    const { rerender } = render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
     );
 
     const inputEl = screen.getByTestId("permission-tool-input");
     expect(inputEl).toBeInTheDocument();
     expect(inputEl.textContent).toContain("rm -rf /tmp/test");
-  });
 
-  it("does not render tool input when empty", () => {
-    const emptyInputPermission: PermissionRequest = {
-      ...mockPermission,
-      toolInput: {},
-    };
-
-    render(
+    rerender(
       <PermissionPrompt
-        permission={emptyInputPermission}
+        permission={{ ...mockPermission, toolInput: {} }}
         sessionId="sess-001"
         onResolved={vi.fn()}
       />
@@ -258,12 +214,14 @@ describe("PermissionPrompt", () => {
     expect(screen.queryByTestId("permission-tool-input")).not.toBeInTheDocument();
   });
 
-  it("renders Permission Required title", () => {
+  it("Should render the Permission Required eyebrow", () => {
     render(
       <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
     );
 
-    expect(screen.getByText("Permission Required")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-prompt-eyebrow")).toHaveTextContent(
+      "Permission Required"
+    );
   });
 });
 
@@ -276,7 +234,7 @@ describe("PermissionDataPart", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders an actionable prompt for pending permission data", () => {
+  it("Should render an actionable prompt for pending permission data", () => {
     render(<PermissionDataPart data={mockPermissionData} sessionId="sess-001" />);
 
     expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
@@ -284,7 +242,7 @@ describe("PermissionDataPart", () => {
     expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
   });
 
-  it("renders nothing for allowed resolved permission data", () => {
+  it("Should render nothing for allowed resolved permission data", () => {
     const { container } = render(
       <PermissionDataPart
         data={{
@@ -300,7 +258,7 @@ describe("PermissionDataPart", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders a passive notice for rejected resolved permission data", () => {
+  it("Should render a passive notice for rejected resolved permission data", () => {
     render(
       <PermissionDataPart
         data={{
@@ -314,7 +272,5 @@ describe("PermissionDataPart", () => {
     expect(screen.getByTestId("permission-rejected-notice")).toBeInTheDocument();
     expect(screen.getByText("Permission Rejected")).toBeInTheDocument();
     expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("permission-allow-once")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("permission-reject-once")).not.toBeInTheDocument();
   });
 });

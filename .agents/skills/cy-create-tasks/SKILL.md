@@ -43,7 +43,7 @@ Decompose requirements into detailed, actionable task files with codebase-inform
      - `high`: 5+ files, new subsystem or significant refactor, multiple integration points, concurrency involved.
      - `critical`: Cross-cutting change affecting many packages, high risk of regression, requires coordination with other tasks.
    - When a task directly implements or is constrained by a specific ADR, include the ADR reference in the task's "Related ADRs" section under Implementation Details.
-   - Embed test requirements in every task. Never create separate tasks dedicated solely to testing.
+   - Embed a test placement decision in every task. Do not prescribe new unit, integration, snapshot, or regression tests unless a named invariant, owning layer, and canonical suite justify them. Never create separate tasks dedicated solely to testing.
    - Follow the structure defined in `references/task-template.md`.
    - Refer to `references/task-context-schema.md` for metadata field definitions.
 
@@ -75,16 +75,16 @@ Decompose requirements into detailed, actionable task files with codebase-inform
    - Spawn an Agent tool call to discover relevant files, dependent files, integration points, and project rules for this specific task.
    - Fill ALL template sections from `references/task-template.md`. Every task file MUST contain each of the following sections — omitting any is a failure:
      - `## Overview`: what the task accomplishes and why, in 2-3 sentences.
-     - `<critical>` block: the standard critical reminders block (read PRD/TechSpec, reference TechSpec, focus on WHAT, minimize code, tests required).
+     - `<critical>` block: the standard critical reminders block (read PRD/TechSpec, reference TechSpec, focus on WHAT, minimize code, test decision required).
      - `<requirements>` block: specific, numbered technical requirements using MUST/SHOULD language.
      - `## Subtasks`: 3-7 checklist items describing WHAT, not HOW.
      - `## Implementation Details`: file paths to create or modify, integration points. Reference TechSpec for patterns.
      - `### Relevant Files`: discovered paths from codebase exploration with brief reasons.
      - `### Dependent Files`: files that will be affected by this task with brief reasons.
      - `### Related ADRs`: links to relevant ADRs if any exist, or omit subsection if no ADRs apply.
-     - `## Deliverables`: concrete outputs with mandatory test items and at least 80% coverage target.
-     - `## Tests`: specific test cases as checklists, split into unit tests and integration tests categories.
-     - `## Success Criteria`: measurable outcomes including "All tests passing" and "Test coverage >=80%".
+     - `## Deliverables`: concrete outputs with a mandatory test placement decision, including invariant, owning layer, canonical suite, and verification command.
+     - `## Tests`: specific test cases only when justified; otherwise record the existing gate or no-new-test rationale.
+     - `## Success Criteria`: measurable outcomes including the relevant verification gate and any justified coverage target. Do not include blanket "Test coverage >=80%" for non-Go or non-behavioral tasks.
    - Reassess complexity based on exploration findings and update if changed.
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.
@@ -101,6 +101,7 @@ Do NOT produce tasks with these defects:
 - **Mega-tasks.** If a task touches more than 7 files or has more than 7 subtasks, it is too broad. Split it into smaller tasks with explicit dependencies between them.
 - **TechSpec duplication.** Do NOT copy interface definitions, code snippets, or architectural diagrams from the TechSpec into task files. Reference the TechSpec section by name (e.g., "See TechSpec 'Core Interfaces' section") instead of reproducing its content.
 - **Vague test cases.** Do NOT write test descriptions like "test the happy path" or "verify error handling." Each test case must name the specific input, condition, or behavior being verified (e.g., "POST /job/done with unknown job ID returns 404").
+- **Checklist-driven tests.** Do NOT add "unit tests" and "integration tests" to every task by default. First name the invariant, owning layer, and canonical suite; if no invariant exists, require a no-new-test rationale instead.
 
 ## Error Handling
 

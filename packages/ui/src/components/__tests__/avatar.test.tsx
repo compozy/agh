@@ -83,4 +83,24 @@ describe("Avatar", () => {
     expect(group).not.toBeNull();
     expect(group?.querySelectorAll('[data-slot="avatar"]').length).toBe(2);
   });
+
+  it("Should default to circle shape", () => {
+    const { container } = render(
+      <Avatar>
+        <AvatarFallback>PN</AvatarFallback>
+      </Avatar>
+    );
+    const root = container.querySelector('[data-slot="avatar"]');
+    expect(root?.getAttribute("data-shape")).toBe("circle");
+  });
+
+  it("Should reflect data-shape=square when shape is square", () => {
+    const { container } = render(
+      <Avatar shape="square">
+        <AvatarFallback>AG</AvatarFallback>
+      </Avatar>
+    );
+    const root = container.querySelector('[data-slot="avatar"]');
+    expect(root?.getAttribute("data-shape")).toBe("square");
+  });
 });

@@ -1,22 +1,33 @@
-import { AlertCircle, Search } from "lucide-react";
+import { AlertCircle, ListFilter, Search } from "lucide-react";
 
-import { BlockLoading, Empty, Eyebrow, SearchInput, Switch } from "@agh/ui";
+import { BlockLoading, Button, Empty, Eyebrow, SearchInput, StatusDot, Switch } from "@agh/ui";
+import { Filters } from "@agh/ui/components/reui/filters";
 
-import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
-
-import { taskInboxLaneLabel } from "../lib/task-formatters";
-import type { TaskInboxView } from "../types";
+import {
+  INBOX_GROUPS,
+  type InboxGroupDefinition,
+  type InboxLaneFilterId,
+} from "../lib/inbox-grouping";
+import { useTasksInboxView } from "../hooks/use-tasks-inbox-view";
+import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
 import { TasksInboxItem, type TasksInboxItemProps } from "./tasks-inbox-item";
-import { TasksInboxLaneTabs } from "./tasks-inbox-lane-tabs";
+import { TasksInboxPageHead } from "./tasks-inbox-page-head";
 
 export interface TasksInboxViewProps {
   inbox: TaskInboxView | null;
-  laneFilter: InboxLaneFilter;
-  onLaneChange: (lane: InboxLaneFilter) => void;
+  laneFilter: InboxLaneFilterId;
+  onLaneChange: (lane: InboxLaneFilterId) => void;
+  statusFilter: TaskStatus | null;
+  onStatusChange: (next: TaskStatus | null) => void;
+  priorityFilter: TaskPriority | null;
+  onPriorityChange: (next: TaskPriority | null) => void;
   unreadOnly: boolean;
   onToggleUnread: (next: boolean) => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  workspaceName?: string | null;
+  /** Epoch ms of the last successful inbox fetch (TanStack `dataUpdatedAt`). */
+  inboxUpdatedAt?: number;
   isLoading?: boolean;
   errorMessage?: string | null;
   onApprove?: TasksInboxItemProps["onApprove"];
@@ -38,10 +49,16 @@ export function TasksInboxView({
   inbox,
   laneFilter,
   onLaneChange,
+  statusFilter,
+  onStatusChange,
+  priorityFilter,
+  onPriorityChange,
   unreadOnly,
   onToggleUnread,
   searchQuery,
   onSearchChange,
+  workspaceName,
+  inboxUpdatedAt,
   isLoading = false,
   errorMessage = null,
   onApprove,
@@ -58,9 +75,28 @@ export function TasksInboxView({
   pendingDismissId,
   pendingMarkReadId,
 }: TasksInboxViewProps) {
-  const groups = inbox?.groups ?? [];
-  const hasInboxItems = groups.some(group => (group.items ?? []).length > 0);
-  const itemActionProps: Omit<TasksInboxItemProps, "item"> = {
+  const {
+    archivedTotal,
+    filterChips,
+    filterFields,
+    groups,
+    handleFiltersChange,
+    hasItems,
+    totalCount,
+    unreadTotal,
+    visibleCount,
+  } = useTasksInboxView({
+    inbox,
+    laneFilter,
+    onLaneChange,
+    statusFilter,
+    onStatusChange,
+    priorityFilter,
+    onPriorityChange,
+    unreadOnly,
+  });
+
+  const itemActionProps: Omit<TasksInboxItemProps, "item" | "group"> = {
     onApprove,
     onReject,
     onRetry,
@@ -77,84 +113,140 @@ export function TasksInboxView({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-inbox-view">
-      <TasksInboxLaneTabs inbox={inbox} onChange={onLaneChange} value={laneFilter} />
-
-      <div className="flex flex-wrap items-center gap-3 border-b border-(--color-divider) px-4 py-3">
-        <SearchInput
-          className="h-9 min-w-[220px] flex-1"
-          data-testid="tasks-inbox-search"
-          onChange={next => onSearchChange(next)}
-          placeholder="Search inbox..."
-          value={searchQuery}
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-canvas"
+      data-testid="tasks-inbox-view"
+    >
+      <div className="mx-auto w-full max-w-content-max px-9 pt-7 pb-20">
+        <TasksInboxPageHead
+          archivedCount={archivedTotal}
+          inboxUpdatedAt={inboxUpdatedAt}
+          totalCount={totalCount}
+          unreadCount={unreadTotal}
+          visibleCount={visibleCount}
+          workspaceName={workspaceName}
         />
-        <label
-          className="inline-flex items-center gap-2"
-          data-testid="tasks-inbox-unread-toggle"
-          htmlFor="tasks-inbox-unread-only"
-        >
-          <Switch
-            checked={unreadOnly}
-            id="tasks-inbox-unread-only"
-            onCheckedChange={onToggleUnread}
-          />
-          <Eyebrow tone="neutral" className="text-(--color-text-secondary)">
-            Unread only
-          </Eyebrow>
-        </label>
-        <Eyebrow data-testid="tasks-inbox-totals">
-          {inbox?.unread_total ?? 0} unread · {inbox?.archived_total ?? 0} archived
-        </Eyebrow>
-      </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {isLoading && !inbox ? (
-          <BlockLoading
-            label="Loading inbox"
-            size="md"
-            surface="bare"
-            data-testid="tasks-inbox-loading"
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
+          data-testid="tasks-inbox-toolbar"
+        >
+          <SearchInput
+            className="h-8 w-64 max-w-full"
+            data-testid="tasks-inbox-search"
+            onChange={next => onSearchChange(next)}
+            placeholder="Search inbox..."
+            value={searchQuery}
           />
-        ) : errorMessage && !inbox ? (
-          <Empty
-            icon={AlertCircle}
-            title="Unable to load inbox"
-            description={errorMessage}
-            data-testid="tasks-inbox-error"
-          />
-        ) : groups.length === 0 || !hasInboxItems ? (
-          <Empty
-            className="mx-auto max-w-xl"
-            description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
-            icon={Search}
-            title="Nothing is waiting in the inbox"
-            data-testid="tasks-inbox-empty"
-          />
-        ) : (
-          <div className="flex flex-col gap-6">
-            {groups.map(group => (
-              <section
-                className="flex flex-col gap-2"
-                data-testid={`tasks-inbox-group-${group.lane}`}
-                key={group.lane}
+          <Filters<string>
+            allowMultiple={false}
+            fields={filterFields}
+            filters={filterChips}
+            onChange={handleFiltersChange}
+            size="sm"
+            trigger={
+              <Button
+                aria-label="Filter inbox"
+                data-testid="tasks-inbox-filter-trigger"
+                size="sm"
+                type="button"
+                variant="ghost"
               >
-                <header className="flex items-baseline gap-2">
-                  <Eyebrow>{taskInboxLaneLabel(group.lane)}</Eyebrow>
-                  <span aria-hidden="true">·</span>
-                  <Eyebrow data-testid={`tasks-inbox-group-count-${group.lane}`}>
-                    ({group.count})
-                  </Eyebrow>
-                </header>
-                <div className="flex flex-col gap-2">
-                  {(group.items ?? []).map(item => (
-                    <TasksInboxItem {...itemActionProps} item={item} key={item.task.id} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
+                <ListFilter aria-hidden="true" className="size-3" />
+                Filter
+              </Button>
+            }
+          />
+          <label
+            className="ml-auto inline-flex items-center gap-2"
+            data-testid="tasks-inbox-unread-toggle"
+            htmlFor="tasks-inbox-unread-only"
+          >
+            <Switch
+              checked={unreadOnly}
+              id="tasks-inbox-unread-only"
+              onCheckedChange={onToggleUnread}
+            />
+            <Eyebrow className="text-muted">Unread only</Eyebrow>
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-6" data-testid="tasks-inbox-body">
+          {isLoading && !inbox ? (
+            <BlockLoading
+              label="Loading inbox"
+              size="md"
+              surface="bare"
+              data-testid="tasks-inbox-loading"
+            />
+          ) : errorMessage && !inbox ? (
+            <Empty
+              data-testid="tasks-inbox-error"
+              description={errorMessage}
+              icon={AlertCircle}
+              title="Unable to load inbox"
+            />
+          ) : !hasItems ? (
+            <Empty
+              className="mx-auto max-w-xl"
+              data-testid="tasks-inbox-empty"
+              description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
+              icon={Search}
+              title="Nothing is waiting in the inbox"
+            />
+          ) : (
+            <div className="flex flex-col gap-6" data-testid="tasks-inbox-groups">
+              {INBOX_GROUPS.map(group => {
+                const bucket = groups.get(group.id) ?? [];
+                if (bucket.length === 0) {
+                  return null;
+                }
+                return (
+                  <GroupSection
+                    group={group}
+                    items={bucket}
+                    itemActionProps={itemActionProps}
+                    key={group.id}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+interface GroupSectionProps {
+  group: InboxGroupDefinition;
+  items: TaskInboxItem[];
+  itemActionProps: Omit<TasksInboxItemProps, "item" | "group">;
+}
+
+function GroupSection({ group, items, itemActionProps }: GroupSectionProps) {
+  return (
+    <section className="flex flex-col gap-2" data-testid={`tasks-inbox-group-${group.id}`}>
+      <header className="flex items-center gap-2">
+        <StatusDot
+          data-testid={`tasks-inbox-group-dot-${group.id}`}
+          label={group.label}
+          tone={group.dotTone}
+          variant={group.dotVariant}
+        />
+        <Eyebrow>{group.label}</Eyebrow>
+        <span
+          className="font-mono text-badge tabular-nums text-faint"
+          data-testid={`tasks-inbox-group-count-${group.id}`}
+        >
+          {items.length}
+        </span>
+      </header>
+      <div className="flex flex-col">
+        {items.map(item => (
+          <TasksInboxItem {...itemActionProps} group={group.id} item={item} key={item.task.id} />
+        ))}
+      </div>
+    </section>
   );
 }

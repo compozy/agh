@@ -41,14 +41,12 @@ describe("PillGroup", () => {
     expect(list).toHaveAttribute("data-active", "false");
   });
 
-  it("Should render the badge count next to the item label when badge > 0", () => {
+  it("Should render the badge text for items with badge prop", () => {
     render(<PillGroup value="list" onChange={() => {}} items={items} />);
     const inbox = screen.getByRole("button", { name: /inbox/i });
-    const badge = inbox.querySelector('[data-slot="pill-group-badge"]');
+    const badge = inbox.querySelector('[data-slot="pill-group-badge"]') as HTMLElement | null;
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("3");
-    expect(badge?.className).toContain("bg-(--color-accent)");
-    expect(badge?.className).toContain("text-(--color-accent-ink)");
   });
 
   it("Should not fire onChange for a disabled item", async () => {
@@ -84,17 +82,5 @@ describe("PillGroup", () => {
       "data-testid",
       "mode-list"
     );
-  });
-
-  it("Should render the larger md segments by default and switch to sm when requested", () => {
-    const { container, rerender } = render(
-      <PillGroup value="list" onChange={() => {}} items={items} />
-    );
-    let segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
-    expect(segments[0]?.className).toContain("h-(--height-mono-badge)");
-
-    rerender(<PillGroup value="list" onChange={() => {}} items={items} size="sm" />);
-    segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
-    expect(segments[0]?.className).toContain("h-(--height-pill-group-segment-sm)");
   });
 });

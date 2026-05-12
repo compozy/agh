@@ -58,7 +58,7 @@ describe("Item", () => {
     expect(item?.getAttribute("data-size")).toBe("xs");
   });
 
-  it("Should expose selected state and render the rail indicator", () => {
+  it("Should expose selected state and render the rail indicator by default", () => {
     render(
       <Item selected indicator="rail" data-testid="selectable-item">
         <ItemContent>
@@ -70,11 +70,23 @@ describe("Item", () => {
     const item = screen.getByTestId("selectable-item");
     const indicator = item.querySelector('[data-slot="item-selection-indicator"]');
     expect(item.dataset.selected).toBe("true");
-    expect(item.className).toContain("bg-[color:var(--color-surface)]");
     expect(indicator).not.toBeNull();
     expect(indicator?.getAttribute("data-indicator")).toBe("rail");
-    expect(indicator?.className).toContain("w-[3px]");
-    expect(indicator?.className).toContain("bg-[color:var(--color-accent)]");
+    expect(indicator?.getAttribute("data-tone")).toBe("white");
+  });
+
+  it("Should expose data-tone=accent when indicatorTone='accent'", () => {
+    render(
+      <Item indicator="rail" indicatorTone="accent" data-testid="unread-item">
+        <ItemContent>
+          <ItemTitle>Unread row</ItemTitle>
+        </ItemContent>
+      </Item>
+    );
+
+    const item = screen.getByTestId("unread-item");
+    const indicator = item.querySelector('[data-slot="item-selection-indicator"]');
+    expect(indicator?.getAttribute("data-tone")).toBe("accent");
   });
 
   it("Should render as a pressed button when as=button and selected", () => {
@@ -114,7 +126,6 @@ describe("Item", () => {
 
     const indicator = screen.getByTestId("item-dot-indicator");
     expect(indicator.dataset.indicator).toBe("dot");
-    expect(indicator.className).toContain("size-1.5");
   });
 
   it("Should render ItemSeparator as a horizontal separator between rows", () => {

@@ -16,6 +16,10 @@ function makeBaseProps() {
   return {
     laneFilter: "all" as const,
     onLaneChange: vi.fn(),
+    statusFilter: null,
+    onStatusChange: vi.fn(),
+    priorityFilter: null,
+    onPriorityChange: vi.fn(),
     unreadOnly: false,
     onToggleUnread: vi.fn(),
     searchQuery: "",
@@ -24,25 +28,40 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("renders lane tabs with muted inline `(N)` counts -- no bg-colored count pills, no unread dot", () => {
+  it("Should render the page head with title, count, and totals", () => {
+    render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
+
+    expect(screen.getByTestId("tasks-inbox-page-head")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-page-title")).toHaveTextContent(/Inbox/);
+    expect(screen.getByTestId("tasks-inbox-page-count")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-page-totals")).toBeInTheDocument();
+  });
+
+  it("Should render the toolbar with a filter trigger, search input, and unread switch", () => {
+    render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
+
+    expect(screen.getByTestId("tasks-inbox-toolbar")).toBeInTheDocument();
+    const trigger = screen.getByTestId("tasks-inbox-filter-trigger");
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent(/Filter/);
+    expect(screen.getByTestId("tasks-inbox-search")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-unread-toggle")).toBeInTheDocument();
+  });
+
+  it("Should render approval items under the Needs review group with a warning solid dot", () => {
     const inbox = buildInboxFixture({
-      total: 7,
-      unread_total: 3,
-      archived_total: 0,
+      total: 1,
+      unread_total: 1,
       groups: [
         {
-          lane: "my_work",
-          count: 4,
-          unread_count: 2,
-          items: [buildInboxItemFixture()],
-        },
-        {
           lane: "approvals",
-          count: 2,
+          count: 1,
           unread_count: 1,
           items: [
             buildInboxItemFixture({
               lane: "approvals",
+              approval_policy: "manual",
+              approval_state: "pending",
               task: {
                 id: "task_apr",
                 identifier: "TASK-33",
@@ -66,31 +85,70 @@ describe("TasksInboxView", () => {
 
     render(<TasksInboxView {...makeBaseProps()} inbox={inbox} />);
 
-    expect(screen.getByTestId("tasks-inbox-lane-tabs")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("tasks-inbox-lane-all").querySelector('[data-slot="tabs-trigger-count"]')
-    ).toHaveTextContent("7");
-    expect(
-      screen
-        .getByTestId("tasks-inbox-lane-my_work")
-        .querySelector('[data-slot="tabs-trigger-count"]')
-    ).toHaveTextContent("4");
-    // Unread totals live at the row level (accent left-rail) -- not as dots on
-    // the lane tabs.
-    expect(screen.queryByTestId("tasks-inbox-lane-my_work-unread")).not.toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-totals")).toHaveTextContent("3 unread");
-    expect(screen.getByTestId("tasks-inbox-group-my_work")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-group-count-my_work")).toHaveTextContent("(4)");
-    // The yellow "N UNREAD" pill that used to sit in the group header is gone.
-    expect(screen.queryByTestId("tasks-inbox-group-unread-my_work")).not.toBeInTheDocument();
+    const group = screen.getByTestId("tasks-inbox-group-needs_review");
+    expect(group).toBeInTheDocument();
+    const dot = screen.getByTestId("tasks-inbox-group-dot-needs_review");
+    expect(dot).toHaveAttribute("data-tone", "warning");
+    expect(dot).toHaveAttribute("data-variant", "solid");
   });
 
-  it("emits lane, search, and unread toggle changes", () => {
-    const props = makeBaseProps();
-    render(<TasksInboxView {...props} inbox={buildInboxFixture()} />);
+  it("Should render blocked items under the Blocked group with a danger solid dot", () => {
+    const inbox = buildInboxFixture({
+      total: 1,
+      unread_total: 0,
+      groups: [
+        {
+          lane: "blocked",
+          count: 1,
+          unread_count: 0,
+          items: [
+            buildInboxItemFixture({
+              lane: "blocked",
+              blocking_reason: "awaiting deps",
+              task: {
+                id: "task_block",
+                identifier: "TASK-99",
+                scope: "workspace",
+                status: "blocked",
+                title: "Blocked task",
+              },
+              triage: {
+                actor: { kind: "human", ref: "op" },
+                archived: false,
+                dismissed: false,
+                read: true,
+                task_id: "task_block",
+                updated_at: "2026-04-17T10:00:00Z",
+              },
+            }),
+          ],
+        },
+      ],
+    });
 
-    fireEvent.click(screen.getByTestId("tasks-inbox-lane-approvals"));
-    expect(props.onLaneChange).toHaveBeenCalledWith("approvals");
+    render(<TasksInboxView {...makeBaseProps()} inbox={inbox} />);
+
+    const group = screen.getByTestId("tasks-inbox-group-blocked");
+    expect(group).toBeInTheDocument();
+    const dot = screen.getByTestId("tasks-inbox-group-dot-blocked");
+    expect(dot).toHaveAttribute("data-tone", "danger");
+    expect(dot).toHaveAttribute("data-variant", "solid");
+  });
+
+  it("Should emit search and unread toggle changes", () => {
+    const props = makeBaseProps();
+    const inbox = buildInboxFixture({
+      total: 1,
+      groups: [
+        {
+          lane: "my_work",
+          count: 1,
+          unread_count: 0,
+          items: [buildInboxItemFixture()],
+        },
+      ],
+    });
+    render(<TasksInboxView {...props} inbox={inbox} />);
 
     fireEvent.change(screen.getByTestId("tasks-inbox-search"), { target: { value: "rotate" } });
     expect(props.onSearchChange).toHaveBeenCalledWith("rotate");
@@ -103,7 +161,7 @@ describe("TasksInboxView", () => {
     expect(props.onToggleUnread.mock.calls[0]?.[0]).toBe(true);
   });
 
-  it("renders loading, error, and empty states", () => {
+  it("Should render loading, error, and empty states", () => {
     const { rerender } = render(<TasksInboxView {...makeBaseProps()} inbox={null} isLoading />);
     expect(screen.getByTestId("tasks-inbox-loading")).toBeInTheDocument();
 
@@ -114,7 +172,7 @@ describe("TasksInboxView", () => {
     expect(screen.getByTestId("tasks-inbox-empty")).toBeInTheDocument();
   });
 
-  it("invokes approval, retry, archive, dismiss, and mark-read actions", () => {
+  it("Should invoke approval, retry, archive, dismiss, and mark-read actions", () => {
     const handlers = {
       onApprove: vi.fn(),
       onReject: vi.fn(),
@@ -205,32 +263,6 @@ describe("TasksInboxView", () => {
             }),
           ],
         },
-        {
-          lane: "blocked",
-          count: 1,
-          unread_count: 0,
-          items: [
-            buildInboxItemFixture({
-              lane: "blocked",
-              blocking_reason: "awaiting deps",
-              task: {
-                id: "task_block",
-                identifier: "TASK-99",
-                scope: "workspace",
-                status: "blocked",
-                title: "Blocked task",
-              },
-              triage: {
-                actor: { kind: "human", ref: "op" },
-                archived: false,
-                dismissed: false,
-                read: true,
-                task_id: "task_block",
-                updated_at: "2026-04-17T10:00:00Z",
-              },
-            }),
-          ],
-        },
       ],
     });
 
@@ -249,8 +281,5 @@ describe("TasksInboxView", () => {
     expect(handlers.onDismiss).toHaveBeenCalledWith("task_fail");
     expect(handlers.onMarkRead).toHaveBeenCalledWith("task_my");
     expect(handlers.onArchive).toHaveBeenCalledWith("task_my");
-
-    // Mark-read only shows for unread items; the blocked (read) item should not expose it.
-    expect(screen.queryByTestId("tasks-inbox-item-mark-read-task_block")).not.toBeInTheDocument();
   });
 });

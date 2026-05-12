@@ -1,11 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   compareKnowledgeScope,
   decisionOpLabel,
   decisionSourceLabel,
-  formatKnowledgeDateTime,
-  formatKnowledgeRelativeTime,
   knowledgeAgentTierLabel,
   knowledgeAgentTierShortLabel,
   knowledgeMemoryKey,
@@ -32,85 +30,42 @@ describe("knowledge-formatters", () => {
     expect(compareKnowledgeScope("global", "global")).toBe(0);
   });
 
-  it("Should expose full and short scope labels for every Memory v2 scope", () => {
-    expect(knowledgeScopeLabel("global")).toBe("GLOBAL");
-    expect(knowledgeScopeLabel("workspace")).toBe("WORKSPACE");
-    expect(knowledgeScopeLabel("agent")).toBe("AGENT");
-    expect(knowledgeScopeShortLabel("global")).toBe("GLOBAL");
-    expect(knowledgeScopeShortLabel("workspace")).toBe("WS");
-    expect(knowledgeScopeShortLabel("agent")).toBe("AGENT");
+  it("Should expose sentence-case scope labels", () => {
+    expect(knowledgeScopeLabel("global")).toBe("Global");
+    expect(knowledgeScopeLabel("workspace")).toBe("Workspace");
+    expect(knowledgeScopeLabel("agent")).toBe("Agent");
+    expect(knowledgeScopeShortLabel("global")).toBe("global");
+    expect(knowledgeScopeShortLabel("workspace")).toBe("ws");
+    expect(knowledgeScopeShortLabel("agent")).toBe("agent");
   });
 
-  it("Should expose agent tier labels", () => {
-    expect(knowledgeAgentTierLabel("global")).toBe("AGENT-GLOBAL");
-    expect(knowledgeAgentTierLabel("workspace")).toBe("AGENT-WORKSPACE");
-    expect(knowledgeAgentTierShortLabel("global")).toBe("AG-GLOBAL");
-    expect(knowledgeAgentTierShortLabel("workspace")).toBe("AG-WS");
+  it("Should expose sentence-case agent tier labels", () => {
+    expect(knowledgeAgentTierLabel("global")).toBe("Agent · global");
+    expect(knowledgeAgentTierLabel("workspace")).toBe("Agent · workspace");
+    expect(knowledgeAgentTierShortLabel("global")).toBe("ag-global");
+    expect(knowledgeAgentTierShortLabel("workspace")).toBe("ag-ws");
   });
 
-  it("Should map memory type to semantic knowledge tones", () => {
+  it("Should pass memory type tone through unchanged", () => {
     expect(memoryTypeTone("user")).toBe("user");
     expect(memoryTypeTone("feedback")).toBe("feedback");
     expect(memoryTypeTone("project")).toBe("project");
     expect(memoryTypeTone("reference")).toBe("reference");
   });
 
-  it("Should map memory scope to semantic knowledge tones", () => {
+  it("Should pass memory scope tone through unchanged", () => {
     expect(memoryScopeTone("global")).toBe("global");
     expect(memoryScopeTone("workspace")).toBe("workspace");
     expect(memoryScopeTone("agent")).toBe("agent");
   });
 
-  it("Should expose decision op and source labels", () => {
-    expect(decisionOpLabel("noop")).toBe("NOOP");
-    expect(decisionOpLabel("add")).toBe("ADD");
-    expect(decisionOpLabel("update")).toBe("UPDATE");
-    expect(decisionOpLabel("delete")).toBe("DELETE");
-    expect(decisionOpLabel("reject")).toBe("REJECT");
-    expect(decisionSourceLabel("rule")).toBe("RULE");
-    expect(decisionSourceLabel("llm")).toBe("LLM");
-  });
-
-  describe("formatKnowledgeRelativeTime", () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date("2026-04-18T12:00:00Z"));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("Should return 'just now' within the hour", () => {
-      expect(formatKnowledgeRelativeTime("2026-04-18T11:45:00Z")).toBe("just now");
-    });
-
-    it("Should return hour-granular label within the day", () => {
-      expect(formatKnowledgeRelativeTime("2026-04-18T08:00:00Z")).toBe("4h ago");
-    });
-
-    it("Should return day-granular label within the week", () => {
-      expect(formatKnowledgeRelativeTime("2026-04-15T12:00:00Z")).toBe("3d ago");
-    });
-
-    it("Should fall back to an absolute month/day label for older dates", () => {
-      const label = formatKnowledgeRelativeTime("2026-04-01T12:00:00Z");
-      expect(label).toMatch(/Apr 1/);
-    });
-
-    it("Should pass invalid input through unchanged", () => {
-      expect(formatKnowledgeRelativeTime("not-a-date")).toBe("not-a-date");
-    });
-  });
-
-  describe("formatKnowledgeDateTime", () => {
-    it("Should format a valid ISO string with month/day/year/time", () => {
-      const label = formatKnowledgeDateTime("2026-04-09T10:00:00Z");
-      expect(label).toMatch(/Apr 9, 2026/);
-    });
-
-    it("Should fall back to the original string for invalid input", () => {
-      expect(formatKnowledgeDateTime("not-a-date")).toBe("not-a-date");
-    });
+  it("Should expose sentence-case decision op and source labels", () => {
+    expect(decisionOpLabel("noop")).toBe("noop");
+    expect(decisionOpLabel("add")).toBe("add");
+    expect(decisionOpLabel("update")).toBe("update");
+    expect(decisionOpLabel("delete")).toBe("delete");
+    expect(decisionOpLabel("reject")).toBe("reject");
+    expect(decisionSourceLabel("rule")).toBe("rule");
+    expect(decisionSourceLabel("llm")).toBe("llm");
   });
 });

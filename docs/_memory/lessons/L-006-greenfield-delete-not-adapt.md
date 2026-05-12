@@ -2,7 +2,7 @@
 
 **Class:** Project posture
 **Date discovered:** 2026-04-17 (harness TechSpec review, Portuguese-language reviewer)
-**Evidence sources:** Harness review + `remove-legacy-alpha.md` standing directive + multiple ADRs
+**Evidence sources:** Harness review + `remove-legacy-alpha.md` standing directive + repeated architecture reviews.
 
 ## Context
 
@@ -47,6 +47,5 @@ Reference: `session-driver-override/adrs/adr-005.md`.
 
 - `.codex/plans/remove-legacy-alpha.md` (standing directive)
 - `.codex/sessions/2026/04/17/.../exec-20260417-232547-929722000/turns/0001/response.txt` (harness review, Portuguese)
-- `.compozy/tasks/autonomous/adrs/adr-001.md`
 - Multiple `network-rename`, `assistant-ui-hard-cut`, `workspace-menu-hardcut` plans in `.codex/plans/`
 - `../analysis/analysis_local_runs.md` lesson LL-1

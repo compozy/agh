@@ -35,9 +35,17 @@ export { useAgentSessions } from "./hooks/use-agent-sessions";
 
 // Components
 export { AgentIcon, providerIconMap } from "./components/agent-icon";
-export { AgentPageHeader, type AgentPageHeaderProps } from "./components/agent-page-header";
+export {
+  AgentPageActions,
+  AgentPageStatusPill,
+  type AgentPageActionsProps,
+  type AgentPageStatusPillProps,
+} from "./components/agent-page-header";
 export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
-export { AgentInfoPanel, type AgentInfoPanelProps } from "./components/agent-info-panel";
+export {
+  AgentInfoInspector,
+  type AgentInfoInspectorProps,
+} from "./components/agent-info-inspector";
 export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
 export { AgentCategoryTree, type AgentCategoryTreeProps } from "./components/agent-category-tree";
 export {

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
+import { Eyebrow } from "@agh/ui";
 
 const MEMORY_CODE = `agh memory write \\
   --name "Conversation language" \\
@@ -36,7 +37,7 @@ const STEPS = [
 export function MemoryDreamSection() {
   return (
     <SectionFrame
-      className="relative border-b border-(--color-divider)"
+      className="relative border-b border-line"
       background="canvas"
       padY="lg"
       ariaLabel="Memory and dream consolidation"
@@ -44,15 +45,13 @@ export function MemoryDreamSection() {
       <div className="grid min-w-0 gap-12 lg:grid-cols-[minmax(0,400px)_1fr] lg:items-start lg:gap-16">
         <div className="flex h-full min-w-0 flex-col justify-between lg:sticky lg:top-24">
           <div>
-            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-accent">
-              Memory
-            </p>
-            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-(--color-text-primary)">
+            <Eyebrow className="text-accent">Memory</Eyebrow>
+            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-fg">
               Memory that compounds
               <br />
-              <span className="italic text-(--color-text-tertiary)">while you sleep.</span>
+              <span className="italic text-subtle">while you sleep.</span>
             </h2>
-            <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-(--color-text-secondary)">
+            <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-muted">
               Memory is not a vector database. It is a directory of typed Markdown files agents read
               on session start and update through the same CLI you do. When the consolidation
               cascade fires, AGH spawns an ephemeral session that synthesizes recent activity into
@@ -60,7 +59,7 @@ export function MemoryDreamSection() {
             </p>
             <Link
               href="/runtime"
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-(--color-accent-hover)"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
             >
               Read the memory and dream guide
               <ArrowUpRight aria-hidden className="size-4" />
@@ -75,32 +74,25 @@ export function MemoryDreamSection() {
               decoding="async"
               sizes="400px"
               unoptimized
-              className="block w-full max-w-[400px] select-none object-contain opacity-95"
+              className="block w-full max-w-100 select-none object-contain opacity-95"
             />
           </div>
         </div>
 
         <div className="flex min-w-0 flex-col gap-0">
-          <ol className="flex flex-col divide-y divide-(--color-divider)">
+          <ol className="flex flex-col divide-y divide-line">
             {STEPS.map((step, index) => (
               <li
                 key={step.eyebrow}
                 className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 py-7 first:pt-0"
               >
-                <span
-                  aria-hidden="true"
-                  className="font-mono text-xs font-semibold uppercase tracking-mono text-accent tabular-nums"
-                >
+                <Eyebrow aria-hidden="true" className="text-accent tabular-nums">
                   {String(index + 1).padStart(2, "0")}
-                </span>
+                </Eyebrow>
                 <div className="min-w-0">
-                  <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
-                    {step.eyebrow}
-                  </p>
-                  <h3 className="mt-2 text-base font-medium leading-snug text-(--color-text-primary)">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-(--color-text-secondary)">
+                  <Eyebrow className="text-accent">{step.eyebrow}</Eyebrow>
+                  <h3 className="mt-2 text-base font-medium leading-snug text-fg">{step.title}</h3>
+                  <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted">
                     {step.description}
                   </p>
                 </div>

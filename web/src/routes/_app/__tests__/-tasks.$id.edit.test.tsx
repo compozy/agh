@@ -39,13 +39,21 @@ vi.mock("@/systems/tasks", () => ({
   }),
 }));
 
-vi.mock("@/systems/tasks/components/task-editor-surface", () => ({
-  TaskEditorSurface: (props: Record<string, unknown>) => (
-    <div data-testid="task-editor-surface">
+vi.mock("@/systems/tasks/components/task-editor-modal", () => ({
+  TaskEditorModal: (props: Record<string, unknown>) => (
+    <div data-testid="task-editor-modal">
       <span data-testid="task-editor-mode">{String(props.mode)}</span>
+      <span data-testid="task-editor-open">{String(props.open)}</span>
       <span data-testid="task-editor-task-title">
         {String((props.task as { title: string }).title)}
       </span>
+      <button
+        data-testid="task-editor-close-trigger"
+        onClick={() => (props.onOpenChange as (open: boolean) => void)(false)}
+        type="button"
+      >
+        close
+      </button>
       <button
         data-testid="task-editor-submit-trigger"
         onClick={() => void (props.onSubmit as (draft: unknown) => Promise<unknown>)(props.draft)}
@@ -74,13 +82,20 @@ describe("TaskEditRoute", () => {
     updateMutateAsync.mockResolvedValue({ id: "task_abc" });
   });
 
-  it("renders the editor in edit mode with the resolved task", async () => {
+  it("renders the editor modal in edit mode with the resolved task", async () => {
     render(<TaskEditRoute />);
-    await waitFor(() => expect(screen.getByTestId("task-editor-surface")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("task-editor-modal")).toBeInTheDocument());
     expect(screen.getByTestId("task-editor-mode")).toHaveTextContent("edit");
+    expect(screen.getByTestId("task-editor-open")).toHaveTextContent("true");
     expect(screen.getByTestId("task-editor-task-title")).toHaveTextContent(
       "Summarize review feedback"
     );
+  });
+
+  it("navigates back to the detail page when the modal closes", () => {
+    render(<TaskEditRoute />);
+    fireEvent.click(screen.getByTestId("task-editor-close-trigger"));
+    expect(navigateMock).toHaveBeenCalledWith({ params: { id: "task_abc" }, to: "/tasks/$id" });
   });
 
   it("updates the task and navigates back to detail after submit", async () => {

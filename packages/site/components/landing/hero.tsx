@@ -1,3 +1,5 @@
+import { Eyebrow } from "@agh/ui";
+
 import { HeroPlayer } from "./hero-player";
 import { CtaButton } from "./primitives/cta-button";
 import { PROVIDERS } from "./supported-agents";
@@ -23,7 +25,7 @@ const signalItems = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-(--color-divider) px-4 pt-8 pb-16 md:pt-12 md:pb-20">
+    <section className="relative overflow-hidden border-b border-line px-4 pt-8 pb-16 md:pt-12 md:pb-20">
       {/* Background mesh , restored and faded so it textures the whole hero. */}
       <div
         className="pointer-events-none absolute inset-0 bg-size-[100%_auto] bg-position-[0%_0%] bg-no-repeat opacity-20 mix-blend-screen"
@@ -34,17 +36,17 @@ export function Hero() {
       <div className="relative mx-auto max-w-(--site-layout-width)">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
           <div className="order-2 lg:order-0 lg:pr-2">
-            <div className="flex items-center gap-3 font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-label)">
+            <Eyebrow className="text-muted flex items-center gap-3">
               <span className="text-accent">AGH</span>
-              <span className="h-px w-10 bg-(--color-divider)" />
+              <span className="h-px w-10 bg-line" />
               <span>Artificial General Hivemind</span>
-            </div>
+            </Eyebrow>
 
-            <h1 className="mt-6 max-w-[20ch] text-site-hero leading-none font-normal tracking-tight text-(--color-text-primary)">
+            <h1 className="mt-6 max-w-[20ch] text-site-hero leading-none font-normal tracking-tight text-fg">
               An open workplace for AI agents.
             </h1>
 
-            <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-(--color-text-secondary) md:text-lg">
+            <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted md:text-lg">
               AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy,
               tools, and automation, connected on agh-network/v0 channels where they find each
               other, share capabilities, and close work with receipts.
@@ -69,14 +71,10 @@ export function Hero() {
           {signalItems.map(item => (
             <div
               key={item.label}
-              className="rounded-(--radius-diagram) border border-white/10 p-4 backdrop-blur-sm"
+              className="rounded-(--radius-diagram) border border-line-strong p-4 backdrop-blur-sm"
             >
-              <dt className="font-mono text-xs font-semibold uppercase tracking-mono text-accent">
-                {item.label}
-              </dt>
-              <dd className="mt-1.5 text-xs leading-relaxed text-(--color-text-secondary)">
-                {item.detail}
-              </dd>
+              <dt className="eyebrow font-semibold! text-accent">{item.label}</dt>
+              <dd className="mt-1.5 text-xs leading-relaxed text-muted">{item.detail}</dd>
             </div>
           ))}
         </dl>

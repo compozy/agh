@@ -81,7 +81,7 @@ Skip this step if the project has no Web UI surface.
 
 1. Reproduce each failure consistently before proposing a fix.
 2. Activate companion debugging and test-hygiene skills when available, especially root-cause debugging and anti-workaround guidance.
-3. Add or update the narrowest regression test that proves the bug when the repository supports automated coverage for that surface.
+3. Add or update the narrowest regression test that proves the bug when the repository supports automated coverage for that surface, after naming the invariant, owning layer, and canonical suite.
 4. Fix production code or real configuration at the source of the failure. Do not weaken tests to match broken behavior.
 5. Re-run the narrow reproduction, the impacted behavioral journey, and the baseline gate after each fix.
 6. For Web UI regressions, reproduce the visual failure with browser-use first or the approved agent-browser fallback, capture before/after screenshots under `<qa-output-path>/qa/screenshots/`, and verify the fix through the same browser flow.

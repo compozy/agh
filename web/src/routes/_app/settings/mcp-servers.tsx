@@ -1,28 +1,7 @@
-import { AlertCircle, Check, Loader2, Plus, Server, Trash2, X } from "lucide-react";
-import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Check, Plus, Server, Trash2, X } from "lucide-react";
+import { useMemo } from "react";
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  Button,
-  ConfirmDialog,
-  Empty,
-  Input,
-  Pill,
-  NativeSelect,
-  NativeSelectOption,
-  PageShell,
-  PillGroup,
-  Section,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@agh/ui";
 import {
   useSettingsMCPServersPage,
   type MCPDraft,
@@ -40,19 +19,86 @@ import type {
 import {
   SettingsEditorDialog,
   SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSourceBadge,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { WorkspacePayload } from "@/systems/workspace";
+import type { TopbarRouteContext } from "@/types/topbar";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  ConfirmDialog,
+  Empty,
+  Eyebrow,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  PageShell,
+  Pill,
+  PillGroup,
+  RestartBanner,
+  Section,
+  Spinner,
+  StatusLineTopbarSlot,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  useTopbarSlot,
+} from "@agh/ui";
 
 export const Route = createFileRoute("/_app/settings/mcp-servers")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "MCP servers", icon: Server },
+  }),
   component: MCPServersSettingsPage,
 });
 
 function MCPServersSettingsPage() {
   const page = useSettingsMCPServersPage();
+  const envelopeForSlot = page.envelope;
+  useTopbarSlot({
+    tabs: envelopeForSlot ? (
+      <StatusLineTopbarSlot
+        data-testid="settings-page-mcp-servers-status-line"
+        status="connected"
+        items={[
+          {
+            key: "total",
+            value: (
+              <span data-testid="settings-page-mcp-servers-total">{page.counts.total} servers</span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "scope",
+            value: (
+              <span data-testid="settings-page-mcp-servers-scope-label">
+                scope:{" "}
+                {page.selection.scope === "global"
+                  ? "global"
+                  : (page.selectedWorkspace?.name ?? page.selection.workspaceId)}
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "shadowed",
+            value: (
+              <span data-testid="settings-page-mcp-servers-shadowed-total">
+                {page.counts.shadowed} shadowed sources
+              </span>
+            ),
+            tone: "neutral",
+          },
+        ]}
+      />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -60,7 +106,7 @@ function MCPServersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-mcp-servers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -72,8 +118,8 @@ function MCPServersSettingsPage() {
         data-testid="settings-page-mcp-servers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load MCP servers"}
           </p>
         </div>
@@ -87,33 +133,10 @@ function MCPServersSettingsPage() {
       ? `${page.counts.total} defined · injected into every agent`
       : `${page.counts.total} overrides · scoped to ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`;
 
+  const bannerProps = restartBannerPropsFor("mcp-servers", page.restart);
+
   return (
-    <PageShell
-      slug="mcp-servers"
-      title="MCP Servers"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-mcp-servers-status-line"
-          status="connected"
-          items={[
-            <span key="total" data-testid="settings-page-mcp-servers-total">
-              {page.counts.total} servers
-            </span>,
-            <span key="scope" data-testid="settings-page-mcp-servers-scope-label">
-              scope:{" "}
-              {page.selection.scope === "global"
-                ? "global"
-                : (page.selectedWorkspace?.name ?? page.selection.workspaceId)}
-            </span>,
-            <span key="shadowed" data-testid="settings-page-mcp-servers-shadowed-total">
-              {page.counts.shadowed} shadowed sources
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="mcp-servers" restart={page.restart} />}
-      banner={<SettingsRestartBanner slug="mcp-servers" restart={page.restart} />}
-    >
+    <PageShell slug="mcp-servers" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
@@ -139,7 +162,7 @@ function MCPServersSettingsPage() {
             onClick={page.openCreate}
             data-testid="settings-page-mcp-servers-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add server
           </Button>
         }
@@ -248,12 +271,12 @@ function ScopeSelector({
         }}
       />
       {workspaceScopeAvailable && workspaces.length === 0 && !isLoadingWorkspaces ? (
-        <span
-          className="font-mono text-badge uppercase tracking-mono text-(--color-text-tertiary)"
+        <Eyebrow
+          className="text-subtle"
           data-testid="settings-page-mcp-servers-scope-workspace-empty"
         >
           no workspaces yet
-        </span>
+        </Eyebrow>
       ) : null}
     </div>
   );
@@ -263,9 +286,7 @@ function ScopeLabel({ primary, mono }: { primary: string; mono: string }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span className="font-medium">{primary}</span>
-      <span className="font-mono text-badge normal-case tracking-mono text-(--color-text-tertiary)">
-        {mono}
-      </span>
+      <span className="font-mono text-badge normal-case tracking-mono text-subtle">{mono}</span>
     </span>
   );
 }
@@ -281,30 +302,18 @@ function MCPServersTable({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-(--color-divider)"
+      className="overflow-hidden rounded-lg border border-line"
       data-testid="settings-page-mcp-servers-list"
     >
       <Table>
         <TableHeader>
-          <TableRow className="bg-(--color-surface-elevated)">
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
-              Name
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
-              Endpoint
-            </TableHead>
-            <TableHead className="text-badge uppercase tracking-mono text-(--color-text-label)">
-              Source
-            </TableHead>
-            <TableHead className="text-right text-badge uppercase tracking-mono text-(--color-text-label)">
-              Env
-            </TableHead>
-            <TableHead className="text-right text-badge uppercase tracking-mono text-(--color-text-label)">
-              Args
-            </TableHead>
-            <TableHead className="w-[1%] text-right text-badge uppercase tracking-mono text-(--color-text-label)">
-              Actions
-            </TableHead>
+          <TableRow className="bg-elevated">
+            <TableHead className="eyebrow text-muted">Name</TableHead>
+            <TableHead className="eyebrow text-muted">Endpoint</TableHead>
+            <TableHead className="eyebrow text-muted">Source</TableHead>
+            <TableHead className="eyebrow text-right text-muted">Env</TableHead>
+            <TableHead className="eyebrow text-right text-muted">Args</TableHead>
+            <TableHead className="eyebrow w-[1%] text-right text-muted">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -348,11 +357,11 @@ function MCPServerRow({
             data-testid={`settings-page-mcp-servers-row-${server.name}-status`}
             data-tone="configured"
           />
-          <span className="font-mono text-sm text-(--color-text-primary)">{server.name}</span>
+          <span className="font-mono text-sm text-fg">{server.name}</span>
         </div>
       </TableCell>
       <TableCell
-        className="font-mono text-xs text-(--color-text-secondary)"
+        className="font-mono text-xs text-muted"
         data-testid={`settings-page-mcp-servers-row-${server.name}-command`}
       >
         {endpoint ?? "-"}
@@ -365,13 +374,13 @@ function MCPServerRow({
         />
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-(--color-text-secondary)"
+        className="text-right font-mono text-xs text-muted"
         data-testid={`settings-page-mcp-servers-row-${server.name}-env`}
       >
         {envCount}
       </TableCell>
       <TableCell
-        className="text-right font-mono text-xs text-(--color-text-secondary)"
+        className="text-right font-mono text-xs text-muted"
         data-testid={`settings-page-mcp-servers-row-${server.name}-args`}
       >
         {argsCount}
@@ -484,6 +493,7 @@ function MCPServerEditor({
     >
       <div className="flex flex-col gap-3">
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-mcp-servers-editor-name"
           label="Name"
           description={
@@ -504,6 +514,7 @@ function MCPServerEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-mcp-servers-editor-command"
           label="Command"
           description="Executable that speaks MCP over stdio (command + args)."
@@ -595,7 +606,7 @@ function TargetSelector({
           </NativeSelect>
           {entry ? (
             <div
-              className="flex flex-wrap items-center gap-1 text-badge uppercase tracking-mono text-(--color-text-label)"
+              className="eyebrow flex flex-wrap items-center gap-1 text-muted"
               data-testid="settings-mcp-servers-editor-available-targets"
             >
               <span>allowed:</span>
@@ -660,7 +671,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
                 aria-label={`Remove arg ${index}`}
                 data-testid={`settings-mcp-servers-editor-args-remove-${index}`}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
               </Button>
             </div>
           ))}
@@ -671,7 +682,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
             onClick={() => onChange([...args, ""])}
             data-testid="settings-mcp-servers-editor-args-add"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add arg
           </Button>
         </div>
@@ -730,7 +741,7 @@ function EnvEditor({
                 aria-label={`Remove env ${index}`}
                 data-testid={`settings-mcp-servers-editor-env-remove-${index}`}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-3" />
               </Button>
             </div>
           ))}
@@ -741,7 +752,7 @@ function EnvEditor({
             onClick={() => onChange([...env, { key: "", value: "" }])}
             data-testid="settings-mcp-servers-editor-env-add"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add variable
           </Button>
         </div>
@@ -824,7 +835,7 @@ function MCPServerDeleteDialog({
             >
               <label
                 htmlFor="settings-mcp-servers-delete-target-input"
-                className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)"
+                className="eyebrow text-muted"
               >
                 target
               </label>
@@ -896,7 +907,7 @@ function ActionResultBanner({
       data-testid="settings-page-mcp-servers-action-result"
       data-kind={action.kind}
     >
-      <Check className="size-3.5" />
+      <Check className="size-3" />
       <AlertDescription className="text-xs">{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -906,7 +917,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-mcp-servers-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

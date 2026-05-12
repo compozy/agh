@@ -449,17 +449,21 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 
 		source := newBlockingProviderSource("provider_live:codex", "codex")
 		service := newTestService(t, newMemoryStore(), []Source{source})
+		waiterReached := make(chan struct{}, 1)
+		service.onFlightWait = func(string) {
+			select {
+			case waiterReached <- struct{}{}:
+			default:
+			}
+		}
 		ctx := testutil.Context(t)
 		var wg sync.WaitGroup
 		results := make([][]SourceStatus, 2)
 		errs := make([]error, 2)
-		startRefresh := func(index int, started chan<- struct{}) {
+		startRefresh := func(index int) {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				if started != nil {
-					close(started)
-				}
 				statuses, err := service.Refresh(ctx, RefreshOptions{
 					ProviderID: "codex",
 					Force:      true,
@@ -469,11 +473,14 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 				errs[i] = err
 			}(index)
 		}
-		startRefresh(0, nil)
+		startRefresh(0)
 		waitForBlockingProviderSourceStart(t, source.started, "first provider refresh")
-		secondRefreshStarted := make(chan struct{})
-		startRefresh(1, secondRefreshStarted)
-		waitForBlockingProviderSourceStart(t, secondRefreshStarted, "second provider refresh launch")
+		startRefresh(1)
+		select {
+		case <-waiterReached:
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for second refresh to register as flight waiter")
+		}
 		source.release()
 		wg.Wait()
 

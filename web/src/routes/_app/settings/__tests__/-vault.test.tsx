@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -181,5 +182,66 @@ describe("VaultSettingsPage", () => {
     );
     fireEvent.click(screen.getByTestId("settings-vault-delete-confirm"));
     expect(confirmDelete).toHaveBeenCalled();
+  });
+
+  it("session-scoped delete uses a single Confirm button without confirmTyping", () => {
+    mockUseSettingsVaultPage.mockReturnValue(
+      makeState({
+        deleteTarget: { mode: "open", secret: sessionSecret },
+      })
+    );
+
+    render(<VaultSettingsPage />);
+
+    const dialog = screen.getByTestId("settings-vault-delete");
+    expect(dialog).toHaveAttribute("data-scope", "session");
+    expect(screen.queryByTestId("settings-vault-delete-confirm-typing")).toBeNull();
+    expect(screen.getByTestId("settings-vault-delete-confirm")).toBeEnabled();
+  });
+
+  it("cross-scope delete gates the Confirm button behind confirmTyping", () => {
+    const providerSecret: VaultSecret = {
+      ref: "vault:providers/codex/api_key",
+      namespace: "providers",
+      kind: "api_key",
+      present: true,
+      created_at: "2026-05-02T10:00:00Z",
+      updated_at: "2026-05-02T10:00:00Z",
+    };
+    mockUseSettingsVaultPage.mockReturnValue(
+      makeState({
+        deleteTarget: { mode: "open", secret: providerSecret },
+        secrets: [providerSecret],
+      })
+    );
+
+    render(<VaultSettingsPage />);
+
+    const dialog = screen.getByTestId("settings-vault-delete");
+    expect(dialog).toHaveAttribute("data-scope", "cross");
+    const typingInput = screen.getByTestId("settings-vault-delete-confirm-typing");
+    expect(typingInput).toBeInTheDocument();
+    expect(screen.getByTestId("settings-vault-delete-confirm")).toBeDisabled();
+    fireEvent.change(typingInput, { target: { value: providerSecret.ref } });
+    expect(screen.getByTestId("settings-vault-delete-confirm")).toBeEnabled();
+  });
+
+  it("renders an Empty action retry button when the vault table fails to load", () => {
+    const refetch = vi.fn();
+    mockUseSettingsVaultPage.mockReturnValue(
+      makeState({
+        queryError: "vault offline",
+        secrets: [],
+        refetch,
+      })
+    );
+
+    render(<VaultSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-vault-error")).toHaveTextContent("vault offline");
+    const retry = screen.getByTestId("settings-page-vault-error-retry");
+    expect(retry).toBeInTheDocument();
+    fireEvent.click(retry);
+    expect(refetch).toHaveBeenCalled();
   });
 });

@@ -1,12 +1,18 @@
+// Identity palette for `MessageAvatar`. The 8 slots map onto the canonical
+// `--color-avatar-{agent,human,system}-*-{bg,fg}` tokens declared in
+// `packages/ui/src/tokens.css` (the same tokens consumed by `<OwnerAvatar>`
+// via `colorsFor()` from `@agh/ui`). Network avatars do not have a known
+// kind at every callsite, so we keep the seed-indexed table here; retunes
+// still flow through tokens.css.
 export const NETWORK_IDENTITY_PALETTE: ReadonlyArray<readonly [string, string]> = [
-  ["var(--color-accent-tint)", "var(--color-accent)"],
-  ["var(--color-info-tint)", "var(--color-info)"],
-  ["var(--color-success-tint)", "var(--color-success)"],
-  ["var(--color-warning-tint)", "var(--color-warning)"],
-  ["var(--color-danger-tint)", "var(--color-danger)"],
-  ["var(--color-neutral-tint)", "var(--color-text-label)"],
-  ["var(--color-surface-elevated)", "var(--color-text-primary)"],
-  ["var(--color-surface-panel)", "var(--color-text-secondary)"],
+  ["var(--color-avatar-agent-0-bg)", "var(--color-avatar-agent-0-fg)"],
+  ["var(--color-avatar-agent-1-bg)", "var(--color-avatar-agent-1-fg)"],
+  ["var(--color-avatar-agent-2-bg)", "var(--color-avatar-agent-2-fg)"],
+  ["var(--color-avatar-agent-3-bg)", "var(--color-avatar-agent-3-fg)"],
+  ["var(--color-avatar-human-0-bg)", "var(--color-avatar-human-0-fg)"],
+  ["var(--color-avatar-human-1-bg)", "var(--color-avatar-human-1-fg)"],
+  ["var(--color-avatar-human-2-bg)", "var(--color-avatar-human-2-fg)"],
+  ["var(--color-avatar-system-bg)", "var(--color-avatar-system-fg)"],
 ];
 
 export function pickIdentityPaletteIndex(seed: string): number {

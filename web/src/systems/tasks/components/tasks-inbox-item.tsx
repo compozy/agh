@@ -2,22 +2,25 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, Eyebrow, Pill } from "@agh/ui";
+import { Button, Eyebrow, MonoId, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
+
+import type { InboxGroupId } from "../lib/inbox-grouping";
 import {
   formatAttemptLabel,
   formatRelativeTime,
   taskApprovalStateLabel,
+  taskShortId,
   taskStatusLabel,
   taskStatusTone,
 } from "../lib/task-formatters";
-import type { TaskInboxItem, TaskListItem } from "../types";
-import { TasksListRow } from "./tasks-list-row";
+import type { TaskInboxItem } from "../types";
+import { TasksInboxRow } from "./tasks-inbox-row";
 
 export interface TasksInboxItemProps {
   item: TaskInboxItem;
+  group: InboxGroupId;
   onApprove?: (taskId: string) => void;
   onReject?: (taskId: string) => void;
   onRetry?: (taskId: string) => void;
@@ -35,6 +38,7 @@ export interface TasksInboxItemProps {
 
 export function TasksInboxItem({
   item,
+  group,
   onApprove,
   onReject,
   onRetry,
@@ -56,37 +60,78 @@ export function TasksInboxItem({
   const isFailedRun = lane === "failed_runs";
   const isArchived = lane === "archived" || triage.archived;
   const failedError = run?.error ?? null;
+  const identifier = taskShortId(task);
+  const ownerLabel = task.owner?.ref ?? "--";
+  const lastActivity = formatRelativeTime(item.latest_activity_at);
 
-  const handleSelect = () => onOpen?.(taskId);
+  const handleSelect = onOpen ? () => onOpen(taskId) : undefined;
 
-  // Unread state reads as a 2px accent left-rail + weight shift on the title;
-  // the old StatusDot + accent combination stacked too much color per row.
-  const trailing = (
+  const top = (
     <>
-      <Pill size="sm" tone={pillToneFromLegacyTone(taskStatusTone(task.status))}>
+      <h3
+        className={cn(
+          "min-w-0 max-w-full truncate text-small-body text-fg-strong",
+          unread ? "font-medium" : "font-normal"
+        )}
+        data-slot="tasks-inbox-row-title"
+      >
+        {task.title}
+      </h3>
+      <MonoId value={identifier} size="sm" data-slot="tasks-inbox-row-id" />
+      <Pill size="xs" tone={taskStatusTone(task.status)}>
         {taskStatusLabel(task.status)}
       </Pill>
       {run ? (
-        <Eyebrow data-testid={`tasks-inbox-item-run-${taskId}`}>
-          run {run.id}
-          {typeof run.attempt === "number"
-            ? ` · ${formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}`
-            : ""}
-        </Eyebrow>
+        <span
+          className="inline-flex items-center gap-1.5 text-small-body text-muted"
+          data-testid={`tasks-inbox-item-run-${taskId}`}
+        >
+          <MonoId value={run.id} size="sm" />
+          {typeof run.attempt === "number" ? (
+            <Eyebrow>{formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}</Eyebrow>
+          ) : null}
+        </span>
       ) : null}
     </>
   );
 
-  const footer = (
-    <InboxItemFooter
-      approval_policy={item.approval_policy}
-      approval_state={item.approval_state}
-      blocking_reason={item.blocking_reason}
-      failedError={failedError}
+  const detail = (
+    <>
+      {item.blocking_reason ? (
+        <p data-testid={`tasks-inbox-item-blocking-${taskId}`}>{item.blocking_reason}</p>
+      ) : null}
+
+      {failedError ? (
+        <p
+          className="flex items-start gap-1 text-danger"
+          data-testid={`tasks-inbox-item-error-${taskId}`}
+        >
+          <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          <span className="min-w-0 truncate">{failedError}</span>
+        </p>
+      ) : null}
+
+      {item.approval_policy === "manual" && item.approval_state ? (
+        <p data-testid={`tasks-inbox-item-approval-${taskId}`}>
+          Approval state: {taskApprovalStateLabel(item.approval_state)}
+        </p>
+      ) : null}
+
+      <p className="flex flex-wrap items-center gap-1.5 text-subtle">
+        <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
+        <span aria-hidden="true" className="text-faint opacity-60">
+          ·
+        </span>
+        <span>{lastActivity} ago</span>
+      </p>
+    </>
+  );
+
+  const actions = (
+    <InboxItemActions
       isApprovalItem={isApprovalItem}
       isArchived={isArchived}
       isFailedRun={isFailedRun}
-      item={item}
       onApprove={onApprove}
       onArchive={onArchive}
       onDismiss={onDismiss}
@@ -105,35 +150,25 @@ export function TasksInboxItem({
   );
 
   return (
-    <TasksListRow
-      className={cn(
-        "rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) py-3 pr-4",
-        unread && '**:data-[slot="tasks-list-row-title"]:font-semibold'
-      )}
+    <TasksInboxRow
+      actions={actions}
       data-lane={lane}
-      data-unread={unread ? "true" : "false"}
-      footer={footer}
-      lane={lane}
-      onSelect={onOpen ? handleSelect : undefined}
-      rail={unread}
-      task={task as unknown as TaskListItem}
-      testId={`tasks-inbox-item-${taskId}`}
-      trailing={trailing}
+      detail={detail}
+      group={group}
+      onSelect={handleSelect}
+      taskId={taskId}
+      top={top}
+      unread={unread}
     />
   );
 }
 
-interface InboxItemFooterProps {
-  item: TaskInboxItem;
+interface InboxItemActionsProps {
   taskId: string;
   unread: boolean;
   isApprovalItem: boolean;
   isFailedRun: boolean;
   isArchived: boolean;
-  failedError: string | null;
-  approval_policy?: TaskInboxItem["approval_policy"];
-  approval_state?: TaskInboxItem["approval_state"];
-  blocking_reason?: TaskInboxItem["blocking_reason"];
   onApprove?: (taskId: string) => void;
   onReject?: (taskId: string) => void;
   onRetry?: (taskId: string) => void;
@@ -148,17 +183,12 @@ interface InboxItemFooterProps {
   pendingMarkReadId?: string | null;
 }
 
-function InboxItemFooter({
-  item,
+function InboxItemActions({
   taskId,
   unread,
   isApprovalItem,
   isFailedRun,
   isArchived,
-  failedError,
-  approval_policy,
-  approval_state,
-  blocking_reason,
   onApprove,
   onReject,
   onRetry,
@@ -171,126 +201,78 @@ function InboxItemFooter({
   pendingArchiveId,
   pendingDismissId,
   pendingMarkReadId,
-}: InboxItemFooterProps) {
-  const ownerLabel = item.task.owner?.ref ?? "--";
-
+}: InboxItemActionsProps) {
   return (
     <>
-      {blocking_reason ? (
-        <p
-          className="text-xs text-(--color-text-secondary)"
-          data-testid={`tasks-inbox-item-blocking-${taskId}`}
-        >
-          {blocking_reason}
-        </p>
+      {isApprovalItem && onReject ? (
+        <ActionButton
+          icon={<X />}
+          label="Reject"
+          onClick={() => onReject(taskId)}
+          pending={pendingRejectId === taskId}
+          testId={`tasks-inbox-item-reject-${taskId}`}
+          variant="destructive-ghost"
+        />
       ) : null}
-
-      {failedError ? (
-        <p
-          className="flex items-start gap-1 text-xs text-(--color-danger)"
-          data-testid={`tasks-inbox-item-error-${taskId}`}
-        >
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <span className="truncate">{failedError}</span>
-        </p>
+      {isApprovalItem && onApprove ? (
+        <ActionButton
+          icon={<Check />}
+          label="Approve"
+          onClick={() => onApprove(taskId)}
+          pending={pendingApproveId === taskId}
+          testId={`tasks-inbox-item-approve-${taskId}`}
+          variant="primary"
+        />
       ) : null}
-
-      {approval_policy === "manual" && approval_state ? (
-        <p
-          className="text-xs text-(--color-text-secondary)"
-          data-testid={`tasks-inbox-item-approval-${taskId}`}
-        >
-          Approval state: {taskApprovalStateLabel(approval_state)}
-        </p>
+      {isFailedRun && onDismiss ? (
+        <ActionButton
+          icon={<ArchiveX />}
+          label="Dismiss"
+          onClick={() => onDismiss(taskId)}
+          pending={pendingDismissId === taskId}
+          testId={`tasks-inbox-item-dismiss-${taskId}`}
+          variant="ghost"
+        />
       ) : null}
-
-      <div
-        className="mt-1 flex flex-wrap items-center justify-between gap-2 text-eyebrow"
-        data-testid={`tasks-inbox-item-actions-${taskId}`}
+      {isFailedRun && onRetry ? (
+        <ActionButton
+          icon={<RotateCcw />}
+          label="Retry"
+          onClick={() => onRetry(taskId)}
+          pending={pendingRetryId === taskId}
+          testId={`tasks-inbox-item-retry-${taskId}`}
+          variant="ghost"
+        />
+      ) : null}
+      {!isApprovalItem && !isFailedRun && onMarkRead && unread ? (
+        <ActionButton
+          icon={<Eye />}
+          label="Mark read"
+          onClick={() => onMarkRead(taskId)}
+          pending={pendingMarkReadId === taskId}
+          testId={`tasks-inbox-item-mark-read-${taskId}`}
+          variant="ghost"
+        />
+      ) : null}
+      {!isArchived && onArchive ? (
+        <ActionButton
+          icon={<Archive />}
+          label="Archive"
+          onClick={() => onArchive(taskId)}
+          pending={pendingArchiveId === taskId}
+          testId={`tasks-inbox-item-archive-${taskId}`}
+          variant="ghost"
+        />
+      ) : null}
+      <Button
+        data-testid={`tasks-inbox-item-open-${taskId}`}
+        nativeButton={false}
+        render={<Link params={{ id: taskId }} to="/tasks/$id" />}
+        size="xs"
+        variant="ghost"
       >
-        <span className="flex items-center gap-2 text-(--color-text-tertiary)">
-          <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
-          <span>·</span>
-          <span>{formatRelativeTime(item.latest_activity_at)} ago</span>
-        </span>
-
-        <div
-          className="flex flex-wrap items-center gap-1.5"
-          onClick={stopPropagation}
-          onKeyDown={stopPropagation}
-          role="presentation"
-        >
-          {isApprovalItem && onReject ? (
-            <ActionButton
-              icon={<X />}
-              label="Reject"
-              onClick={() => onReject(taskId)}
-              pending={pendingRejectId === taskId}
-              testId={`tasks-inbox-item-reject-${taskId}`}
-              variant="destructive-ghost"
-            />
-          ) : null}
-          {isApprovalItem && onApprove ? (
-            <ActionButton
-              icon={<Check />}
-              label="Approve"
-              onClick={() => onApprove(taskId)}
-              pending={pendingApproveId === taskId}
-              testId={`tasks-inbox-item-approve-${taskId}`}
-              variant="primary"
-            />
-          ) : null}
-          {isFailedRun && onDismiss ? (
-            <ActionButton
-              icon={<ArchiveX />}
-              label="Dismiss"
-              onClick={() => onDismiss(taskId)}
-              pending={pendingDismissId === taskId}
-              testId={`tasks-inbox-item-dismiss-${taskId}`}
-              variant="ghost"
-            />
-          ) : null}
-          {isFailedRun && onRetry ? (
-            <ActionButton
-              icon={<RotateCcw />}
-              label="Retry"
-              onClick={() => onRetry(taskId)}
-              pending={pendingRetryId === taskId}
-              testId={`tasks-inbox-item-retry-${taskId}`}
-              variant="ghost"
-            />
-          ) : null}
-          {!isApprovalItem && !isFailedRun && onMarkRead && unread ? (
-            <ActionButton
-              icon={<Eye />}
-              label="Mark read"
-              onClick={() => onMarkRead(taskId)}
-              pending={pendingMarkReadId === taskId}
-              testId={`tasks-inbox-item-mark-read-${taskId}`}
-              variant="ghost"
-            />
-          ) : null}
-          {!isArchived && onArchive ? (
-            <ActionButton
-              icon={<Archive />}
-              label="Archive"
-              onClick={() => onArchive(taskId)}
-              pending={pendingArchiveId === taskId}
-              testId={`tasks-inbox-item-archive-${taskId}`}
-              variant="ghost"
-            />
-          ) : null}
-          <Button
-            data-testid={`tasks-inbox-item-open-${taskId}`}
-            nativeButton={false}
-            render={<Link params={{ id: taskId }} to="/tasks/$id" />}
-            size="xs"
-            variant="ghost"
-          >
-            Open
-          </Button>
-        </div>
-      </div>
+        Open
+      </Button>
     </>
   );
 }
@@ -322,16 +304,10 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       size="xs"
       type="button"
       variant={buttonVariant}
-      className={cn(
-        variant === "destructive-ghost" && "text-(--color-danger) hover:text-(--color-danger)"
-      )}
+      className={cn(variant === "destructive-ghost" && "text-danger hover:text-danger")}
     >
       {icon}
       {label}
     </Button>
   );
-}
-
-function stopPropagation(event: { stopPropagation: () => void }) {
-  event.stopPropagation();
 }

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -29,8 +29,44 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-import { ChannelRail } from "../channel-rail";
+import {
+  CHANNEL_RAIL_COLLAPSE_BREAKPOINT,
+  CHANNEL_RAIL_MD_BREAKPOINT,
+  CHANNEL_RAIL_WIDTH_DEFAULT,
+  CHANNEL_RAIL_WIDTH_MD,
+  ChannelRail,
+} from "../channel-rail";
 import type { NetworkChannelSummary, NetworkRecentEntry } from "@/systems/network";
+
+interface InstallMatchMediaArgs {
+  matches: (query: string) => boolean;
+}
+
+function installMatchMedia({ matches }: InstallMatchMediaArgs) {
+  const listenersByQuery = new Map<string, Set<EventListenerOrEventListenerObject>>();
+  const original = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => {
+    const listeners = listenersByQuery.get(query) ?? new Set();
+    listenersByQuery.set(query, listeners);
+    return {
+      matches: matches(query),
+      media: query,
+      addEventListener: (_event: string, handler: EventListenerOrEventListenerObject) => {
+        listeners.add(handler);
+      },
+      removeEventListener: (_event: string, handler: EventListenerOrEventListenerObject) => {
+        listeners.delete(handler);
+      },
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+      onchange: null,
+    } satisfies MediaQueryList;
+  });
+  return () => {
+    window.matchMedia = original;
+  };
+}
 
 const channels: NetworkChannelSummary[] = [
   {
@@ -107,6 +143,15 @@ function renderRail(props: HarnessProps = {}) {
 }
 
 describe("ChannelRail", () => {
+  let restoreMatchMedia: (() => void) | null = null;
+
+  beforeEach(() => {
+    restoreMatchMedia = installMatchMedia({ matches: () => false });
+  });
+  afterEach(() => {
+    restoreMatchMedia?.();
+  });
+
   it("renders pinned channels above unpinned, alphabetical thereafter", () => {
     renderRail({ pinnedIds: ["alpha"] });
 
@@ -153,5 +198,48 @@ describe("ChannelRail", () => {
       />
     );
     expect(screen.getByTestId("network-channels-empty")).toHaveTextContent("No channels yet.");
+  });
+
+  it("pins the rail width to 244 px at the default viewport", () => {
+    expect(CHANNEL_RAIL_WIDTH_DEFAULT).toBe(244);
+    renderRail();
+    const rail = screen.getByTestId("network-channel-rail");
+    expect(rail).toHaveAttribute("data-viewport", "default");
+    expect(rail.style.width).toBe("244px");
+  });
+
+  it("collapses the rail width to 220 px below 1100 px (matching the sidebar md tier)", async () => {
+    restoreMatchMedia?.();
+    restoreMatchMedia = installMatchMedia({
+      matches: query => query.includes(`max-width: ${CHANNEL_RAIL_MD_BREAKPOINT - 1}`),
+    });
+    expect(CHANNEL_RAIL_WIDTH_MD).toBe(220);
+    renderRail();
+    await waitFor(() => {
+      const rail = screen.getByTestId("network-channel-rail");
+      expect(rail).toHaveAttribute("data-viewport", "md");
+      expect(rail.style.width).toBe("220px");
+    });
+  });
+
+  it("hides the rail below 880 px (drawer tier)", async () => {
+    restoreMatchMedia?.();
+    restoreMatchMedia = installMatchMedia({
+      matches: query =>
+        query.includes(`max-width: ${CHANNEL_RAIL_COLLAPSE_BREAKPOINT - 1}`) ||
+        query.includes(`max-width: ${CHANNEL_RAIL_MD_BREAKPOINT - 1}`),
+    });
+    renderRail();
+    await waitFor(() => {
+      expect(screen.queryByTestId("network-channel-rail")).toBeNull();
+    });
+  });
+
+  it('paints active channel rows via <Item indicator="rail"> (--fg-strong via the primitive)', () => {
+    renderRail();
+    const activeRow = screen.getByTestId("network-channel-link-ops");
+    // ItemSelectionIndicator data-indicator is added by the primitive when indicator="rail".
+    const indicator = activeRow.querySelector('[data-indicator="rail"]');
+    expect(indicator).not.toBeNull();
   });
 });

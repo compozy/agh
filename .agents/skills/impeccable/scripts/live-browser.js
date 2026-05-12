@@ -3894,7 +3894,7 @@ void main() {
         border-radius: 10px;
         font-size: 11.5px; color: ${DP.ink2};
       }
-      .stale-dot { width: 8px; height: 8px; border-radius: 50%; background: ${DP.amber}; flex-shrink: 0; }
+      .stale-dot { width: 8px; height: 8px; border-radius: 50%; background: ${DP.amber}; shrink: 0; }
       .stale-text { flex: 1; min-width: 0; }
       .stale-text strong { color: ${DP.ink}; font-weight: 600; }
 
@@ -4003,7 +4003,7 @@ void main() {
       }
       .coll-head:hover { background: ${DP.tileAlt}; }
       .coll-chev {
-        width: 12px; height: 12px; flex-shrink: 0;
+        width: 12px; height: 12px; shrink: 0;
         color: ${DP.meta};
         transition: transform 0.2s ${EASE};
       }

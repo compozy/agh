@@ -1,14 +1,14 @@
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Hash, MoreHorizontal, PanelRight, RefreshCw, Search } from "lucide-react";
+import { Hash, MoreHorizontal, PanelRight, RefreshCw } from "lucide-react";
+import { useState } from "react";
 
 import {
   Button,
+  DetailHeader,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  PageHeader,
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
@@ -16,14 +16,10 @@ import { cn } from "@/lib/utils";
 import { useChannelMembers } from "../../hooks/use-channel-members";
 import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
-import { ChannelTabs, type ChannelTab } from "./channel-tabs";
 
 export interface ChannelHeaderProps {
   channel: NetworkChannelSummary;
   detail: NetworkChannel | null;
-  activeTab: ChannelTab;
-  threadCount: number | null;
-  directCount: number | null;
   openWorkCount: number;
   inspectorOpen: boolean;
   onInspectorToggle: () => void;
@@ -80,9 +76,6 @@ function buildMetaSegments({
 export function ChannelHeader({
   channel,
   detail,
-  activeTab,
-  threadCount,
-  directCount,
   openWorkCount,
   inspectorOpen,
   onInspectorToggle,
@@ -103,98 +96,87 @@ export function ChannelHeader({
     setOverflowOpen(false);
   };
 
+  const meta = (
+    <span className="truncate" data-testid="network-channel-meta">
+      {metaSegments.map((segment, index) => (
+        <span key={segment}>
+          {index > 0 ? (
+            <span aria-hidden="true" className="mx-2 text-subtle">
+              /
+            </span>
+          ) : null}
+          <span data-testid={`network-channel-meta-${segment}`}>{segment}</span>
+        </span>
+      ))}
+    </span>
+  );
+
+  const actions = (
+    <>
+      <Button
+        aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
+        aria-pressed={inspectorOpen}
+        className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+        data-state={inspectorOpen ? "open" : "closed"}
+        data-testid="network-channel-inspector-toggle"
+        onClick={onInspectorToggle}
+        size="icon-sm"
+        type="button"
+        variant="ghost"
+      >
+        <PanelRight aria-hidden="true" className="size-4" />
+      </Button>
+
+      <DropdownMenu onOpenChange={setOverflowOpen} open={overflowOpen}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label="Channel actions"
+              data-testid="network-channel-kebab"
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            />
+          }
+        >
+          <MoreHorizontal aria-hidden="true" className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            data-testid="network-channel-refresh"
+            onSelect={event => {
+              event.preventDefault();
+              handleRefresh();
+            }}
+          >
+            <RefreshCw aria-hidden="true" className="size-3" />
+            Refresh data
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
   return (
-    <header className="flex flex-col" data-testid="network-channel-header">
-      <PageHeader
+    <header data-testid="network-channel-header">
+      <DetailHeader
+        actions={actions}
         className="px-5 py-3"
-        icon={Hash}
-        subtitle={
-          <span className="truncate" data-testid="network-channel-meta">
-            {metaSegments.map(segment => (
-              <span key={segment}>
-                {segment !== metaSegments[0] ? (
-                  <span aria-hidden="true" className="mx-2 text-(--color-text-tertiary)">
-                    /
-                  </span>
-                ) : null}
-                <span data-testid={`network-channel-meta-${segment}`}>{segment}</span>
-              </span>
-            ))}
-          </span>
-        }
+        meta={meta}
         title={
-          <span className="truncate" data-testid="network-channel-title">
-            {channel.channel}
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              aria-hidden="true"
+              data-slot="page-header-icon"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
+            >
+              <Hash className="size-3" />
+            </span>
+            <span className="truncate" data-testid="network-channel-title">
+              {channel.channel}
+            </span>
           </span>
         }
-        controls={
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <Button
-              aria-disabled="true"
-              aria-label="Search channel - coming soon"
-              data-testid="network-channel-search"
-              onClick={event => event.preventDefault()}
-              size="icon-sm"
-              tabIndex={-1}
-              title="Search · Coming soon"
-              type="button"
-              variant="ghost"
-            >
-              <Search aria-hidden="true" className="size-4" />
-            </Button>
-
-            <Button
-              aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
-              aria-pressed={inspectorOpen}
-              className={cn(
-                inspectorOpen ? "bg-(--color-surface-elevated) text-(--color-text-primary)" : null
-              )}
-              data-state={inspectorOpen ? "open" : "closed"}
-              data-testid="network-channel-inspector-toggle"
-              onClick={onInspectorToggle}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <PanelRight aria-hidden="true" className="size-4" />
-            </Button>
-
-            <DropdownMenu onOpenChange={setOverflowOpen} open={overflowOpen}>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    aria-label="Channel actions"
-                    data-testid="network-channel-kebab"
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  />
-                }
-              >
-                <MoreHorizontal aria-hidden="true" className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  data-testid="network-channel-refresh"
-                  onSelect={event => {
-                    event.preventDefault();
-                    handleRefresh();
-                  }}
-                >
-                  <RefreshCw aria-hidden="true" className="size-3.5" />
-                  Refresh data
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        }
-      />
-
-      <ChannelTabs
-        activeTab={activeTab}
-        channel={channel.channel}
-        directCount={directCount}
-        threadCount={threadCount}
       />
     </header>
   );

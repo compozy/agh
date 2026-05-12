@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { ChevronLeftIcon } from "lucide-react";
+import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
+import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
@@ -70,8 +70,8 @@ function SplitPane({
         <div
           data-slot="split-pane-list"
           className={cn(
-            "flex min-h-0 shrink-0 flex-col bg-[color:var(--color-canvas)]",
-            stackNarrowDetail ? "border-b border-border" : "border-r border-border"
+            "flex min-h-0 shrink-0 flex-col bg-canvas",
+            stackNarrowDetail ? "border-b border-line" : "border-r border-line"
           )}
           style={{ width: narrow ? "100%" : listWidth }}
         >
@@ -81,20 +81,20 @@ function SplitPane({
       {showDetail ? (
         <div
           data-slot="split-pane-detail"
-          className="flex min-h-0 min-w-0 flex-1 flex-col bg-[color:var(--color-canvas)]"
+          className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas"
         >
           {narrow && hasDetail && !stackNarrowDetail ? (
             <div
               data-slot="split-pane-detail-bar"
-              className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2"
+              className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2"
             >
               <button
                 type="button"
                 data-slot="split-pane-back"
                 onClick={onDetailClose}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:var(--color-hover)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:outline-none"
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
               >
-                <ChevronLeftIcon aria-hidden="true" className="size-3.5" />
+                <ChevronLeftIcon aria-hidden="true" className="size-3" />
                 <span>{backLabel}</span>
               </button>
             </div>
@@ -118,4 +118,4 @@ function SplitPane({
   );
 }
 
-export { SplitPane, SPLIT_LIST_WIDTH_DEFAULT };
+export { SPLIT_LIST_WIDTH_DEFAULT, SplitPane };

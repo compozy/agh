@@ -13,7 +13,7 @@ export function HomeMainContainer({
       id={id}
       {...props}
       className={cn(
-        "site-home flex flex-1 flex-col bg-(--color-canvas) [--fd-layout-width:1400px]",
+        "site-home flex flex-1 flex-col bg-canvas [--fd-layout-width:1400px]",
         className
       )}
     />

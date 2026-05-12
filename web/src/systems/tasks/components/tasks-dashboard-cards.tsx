@@ -1,4 +1,4 @@
-import { Metric, type MetricTone } from "@agh/ui";
+import { KpiCard } from "@agh/ui";
 
 import { formatDurationMs, formatPercent } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -8,9 +8,9 @@ export interface TasksDashboardCardsProps {
 }
 
 /**
- * Top-row metric set per task 18 spec: Active runs, Success rate, Average duration, Queue depth.
- * Values are derived from the dashboard payload; no computed 24h windowing since the API
- * does not yet expose a time-bucketed histogram -- we surface the freshest totals we have.
+ * Dashboard KPI strip — four flat `<KpiCard>` neutrals. KpiCard owns its own
+ * label / value typography contract; the value stays `--fg-strong`, never tone
+ * recolored. The freshness pill lives in the page-head, not here.
  */
 export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const { active_runs, totals, cards, queue } = dashboard;
@@ -25,21 +25,11 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       .join(" · ") || "idle";
 
   const successRate = computeSuccessRate(totals);
-  const successTone: MetricTone =
-    successRate === null
-      ? "default"
-      : successRate >= 90
-        ? "success"
-        : successRate >= 70
-          ? "default"
-          : "warning";
-
   const avgDurationMs = cards.latency.claim_latency_ms.average_ms;
   const avgDurationSamples = cards.latency.claim_latency_ms.samples;
   const avgDurationDetail = avgDurationSamples > 0 ? `n=${avgDurationSamples}` : "no data";
 
   const queueDepth = queue.total;
-  const queueTone: MetricTone = queue.backlog_warning ? "warning" : "default";
   const queueDetail = queue.backlog_warning
     ? `oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
     : queueDepth > 0
@@ -51,32 +41,28 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       data-testid="tasks-dashboard-cards"
     >
-      <Metric
+      <KpiCard
         data-testid="tasks-dashboard-card-active-runs"
         detail={activeDetail}
         label="Active runs"
-        tone={activeRuns > 0 ? "accent" : "default"}
         value={activeRuns}
       />
-      <Metric
+      <KpiCard
         data-testid="tasks-dashboard-card-success-rate"
-        detail="24h"
+        detail="last 24h"
         label="Success rate"
-        tone={successTone}
         value={successRate === null ? "--" : formatPercent(successRate)}
       />
-      <Metric
+      <KpiCard
         data-testid="tasks-dashboard-card-average-duration"
         detail={avgDurationDetail}
         label="Average duration"
-        tone="default"
         value={formatDurationMs(avgDurationMs)}
       />
-      <Metric
+      <KpiCard
         data-testid="tasks-dashboard-card-queue-depth"
         detail={queueDetail}
         label="Queue depth"
-        tone={queueTone}
         value={queueDepth}
       />
     </div>

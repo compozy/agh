@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomePageView } from "@/hooks/routes/use-home-page";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 
 let mockHome: HomePageView;
 
@@ -24,6 +25,10 @@ vi.mock("@/hooks/routes/use-home-page", async () => {
 import { Route } from "../index";
 
 const HomePage = (Route as unknown as { component: () => React.ReactNode }).component;
+
+function renderHome() {
+  return renderWithTopbar(<HomePage />, { title: "Home" });
+}
 
 function makeHome(overrides: Partial<HomePageView> = {}): HomePageView {
   return {
@@ -55,17 +60,14 @@ describe("AppHomePage", () => {
     mockHome = makeHome();
   });
 
-  it("renders the page header with title 'Home' and the connection indicator", () => {
-    render(<HomePage />);
-
-    expect(screen.getByTestId("home-page-header")).toBeInTheDocument();
-    expect(screen.getByTestId("home-page-title")).toHaveTextContent("Home");
+  it("pushes the connection indicator into the shell topbar slot", () => {
+    renderHome();
     const indicator = screen.getByTestId("home-connection-indicator");
     expect(indicator).toHaveAttribute("data-status", "connected");
   });
 
   it("renders the daemon status card with the matching StatusDot tone for healthy", () => {
-    render(<HomePage />);
+    renderHome();
 
     const card = screen.getByTestId("home-daemon-card");
     expect(card).toHaveAttribute("data-status", "healthy");
@@ -90,14 +92,14 @@ describe("AppHomePage", () => {
       },
     });
 
-    render(<HomePage />);
+    renderHome();
 
     const dot = screen.getByTestId("home-daemon-status-dot");
     expect(dot).toHaveAttribute("data-tone", tone);
   });
 
   it("renders all four metrics in the overview grid", () => {
-    render(<HomePage />);
+    renderHome();
 
     const grid = screen.getByTestId("home-metric-grid");
     expect(within(grid).getByTestId("home-metric-active-sessions")).toHaveTextContent("3");
@@ -107,20 +109,20 @@ describe("AppHomePage", () => {
   });
 
   it("renders the daemon version badge in the daemon section header", () => {
-    render(<HomePage />);
+    renderHome();
     expect(screen.getByTestId("home-daemon-version")).toHaveTextContent("v0.1.0-test");
   });
 
   it("hides the daemon version badge when the daemon has not reported a version", () => {
     mockHome = makeHome({ daemonVersion: null });
-    render(<HomePage />);
+    renderHome();
     expect(screen.queryByTestId("home-daemon-version")).not.toBeInTheDocument();
   });
 
   it("renders skeletons for each metric while loading", () => {
     mockHome = makeHome({ isLoading: true });
 
-    render(<HomePage />);
+    renderHome();
 
     expect(screen.getByTestId("home-loading")).toBeInTheDocument();
     expect(screen.getByTestId("home-metric-skeleton")).toBeInTheDocument();
@@ -137,7 +139,7 @@ describe("AppHomePage", () => {
       errorMessage: "Workspaces could not be loaded",
     });
 
-    render(<HomePage />);
+    renderHome();
 
     const errorRegion = screen.getByTestId("home-error");
     expect(errorRegion).toBeInTheDocument();
@@ -149,7 +151,7 @@ describe("AppHomePage", () => {
   it("renders a fallback error message when none is provided", () => {
     mockHome = makeHome({ hasFatalError: true, errorMessage: null });
 
-    render(<HomePage />);
+    renderHome();
 
     expect(screen.getByTestId("home-error")).toHaveTextContent(
       "Unable to load workspace data from the daemon."
@@ -167,7 +169,7 @@ describe("AppHomePage", () => {
       },
     });
 
-    render(<HomePage />);
+    renderHome();
 
     const disconnected = screen.getByTestId("home-daemon-disconnected");
     expect(disconnected).toBeInTheDocument();
@@ -182,7 +184,7 @@ describe("AppHomePage", () => {
       connectionStatus: "disconnected",
     });
 
-    render(<HomePage />);
+    renderHome();
 
     expect(screen.getByTestId("home-connection-indicator")).toHaveAttribute(
       "data-status",

@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, Wrench } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -6,12 +6,12 @@ import {
   AlertDescription,
   AlertTitle,
   Empty,
-  PageHeader,
+  PillGroup,
+  Spinner,
   SplitPane,
-  Tabs,
-  TabsList,
-  TabsTrigger,
+  useTopbarSlot,
 } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { type SkillsRouteSearch, useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { MarketplaceView, SkillDetailPanel, SkillListPanel } from "@/systems/skill";
 
@@ -34,17 +34,41 @@ function validateSkillsSearch(search: Record<string, unknown>): SkillsRouteSearc
 }
 
 export const Route = createFileRoute("/_app/skills")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Skills", icon: Wrench },
+  }),
   validateSearch: validateSkillsSearch,
   component: SkillsPage,
 });
 
+const TAB_ITEMS = [
+  { value: "installed", label: "Installed", testId: "tab-installed" },
+  { value: "marketplace", label: "Marketplace", testId: "tab-marketplace" },
+] as const;
+
+type SkillsTabValue = (typeof TAB_ITEMS)[number]["value"];
+
 function SkillsPage() {
   const page = useSkillsPage(Route.useSearch());
+
+  useTopbarSlot({
+    count: page.activeTab === "marketplace" ? page.marketplaceSkillCount : page.skillCount,
+    tabs: (
+      <PillGroup<SkillsTabValue>
+        aria-label="Skills tab"
+        data-testid="skills-tabs"
+        items={TAB_ITEMS}
+        onChange={value => page.setActiveTab(value)}
+        size="sm"
+        value={page.activeTab as SkillsTabValue}
+      />
+    ),
+  });
 
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="skills-loading">
-        <Loader2 aria-hidden="true" className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }
@@ -65,39 +89,11 @@ function SkillsPage() {
     );
   }
 
-  const controls = (
-    <Tabs
-      aria-label="Skills tab"
-      data-testid="skills-tabs"
-      onValueChange={value => page.setActiveTab(value as typeof page.activeTab)}
-      value={page.activeTab}
-    >
-      <TabsList className="h-8" variant="default">
-        <TabsTrigger data-testid="tab-installed" value="installed">
-          Installed
-        </TabsTrigger>
-        <TabsTrigger data-testid="tab-marketplace" value="marketplace">
-          Marketplace
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
-  );
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="skills-shell">
-      <PageHeader
-        count={page.activeTab === "marketplace" ? page.marketplaceSkillCount : page.skillCount}
-        controls={controls}
-        icon={() => <Wrench className="size-3.5" data-testid="skills-shell-icon" />}
-        title={<span data-testid="skills-shell-title">Skills</span>}
-      />
       {page.backgroundError ? (
-        <div className="border-b border-(--color-divider) px-6 py-3">
-          <Alert
-            className="border-(--color-warning)/40"
-            data-testid="skills-background-error"
-            variant="warning"
-          >
+        <div className="border-b border-line px-6 py-3">
+          <Alert data-testid="skills-background-error" variant="warning">
             <AlertCircle aria-hidden="true" className="size-4" />
             <AlertTitle>Showing cached skills</AlertTitle>
             <AlertDescription>

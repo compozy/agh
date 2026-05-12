@@ -26,36 +26,205 @@ function renderShowcase() {
 
 /**
  * Tokens that the showcase intentionally surfaces as discrete swatches. Shadcn
- * theme aliases (`--background`, `--primary`, ...) re-map to these AGH tokens
- * and are covered by the primitives themselves rather than the swatch wall.
+ * theme aliases (`--color-background`, `--color-primary`, ...) re-map to AGH
+ * tokens and are covered by the primitives themselves rather than the swatch
+ * wall.
  */
+const SHADCN_ALIASES: ReadonlySet<string> = new Set([
+  "--color-background",
+  "--color-foreground",
+  "--color-card",
+  "--color-card-foreground",
+  "--color-popover",
+  "--color-popover-foreground",
+  "--color-primary",
+  "--color-primary-foreground",
+  "--color-secondary",
+  "--color-secondary-foreground",
+  "--color-muted-foreground",
+  "--color-accent-foreground",
+  "--color-destructive",
+  "--color-destructive-foreground",
+  "--color-border",
+  "--color-input",
+  "--color-ring",
+  "--color-chart-1",
+  "--color-chart-2",
+  "--color-chart-3",
+  "--color-chart-4",
+  "--color-chart-5",
+  "--color-sidebar",
+  "--color-sidebar-foreground",
+  "--color-sidebar-primary",
+  "--color-sidebar-primary-foreground",
+  "--color-sidebar-accent",
+  "--color-sidebar-accent-foreground",
+  "--color-sidebar-border",
+  "--color-sidebar-ring",
+  // Tailwind v4 default scale / weight ladder, not AGH-specific
+  "--font-sans",
+  "--font-mono",
+  "--font-display",
+  "--font-weight-normal",
+  "--font-weight-medium",
+  "--font-weight-semibold",
+  "--font-weight-bold",
+  // Type ladder is exercised by typography stories, not by swatches
+  "--text-item-title",
+  "--text-small-body",
+  "--text-badge",
+  "--text-eyebrow",
+  "--text-display-2xl",
+  "--text-site-lead",
+  "--text-micro",
+  "--text-inline-code",
+  "--text-accent-glyph",
+  "--text-ui-title-lg",
+  "--text-detail-h1",
+  "--text-empty-h1",
+  "--text-modal-title",
+  "--text-section-head",
+  "--text-form-input",
+  "--text-form-label",
+  "--text-form-hint",
+  "--text-form-required",
+  "--text-metric-value",
+  "--text-kpi-value",
+  "--text-agent-metric",
+  "--text-rail-avatar",
+  "--text-ws-name",
+  "--text-mono-id",
+  "--text-card-title",
+  // Tracking ladder
+  "--tracking-detail-h1",
+  "--tracking-empty-h1",
+  "--tracking-modal-title",
+  "--tracking-section-head",
+  "--tracking-tight",
+  "--tracking-eyebrow",
+  "--tracking-mono-id",
+  "--tracking-body",
+  "--leading-small-body",
+  "--leading-prose",
+  // CSS-only companion properties for --text-* tokens
+  "--text-item-title--line-height",
+  "--text-small-body--line-height",
+  "--text-badge--line-height",
+  "--text-eyebrow--line-height",
+  "--text-display-2xl--line-height",
+  "--text-site-lead--line-height",
+  "--text-micro--line-height",
+  "--text-detail-h1--line-height",
+  "--text-kpi-value--line-height",
+  "--text-card-title--line-height",
+  // Shadow utilities exercised through component primitives, not swatches
+  "--shadow-highlight",
+  "--shadow-focus-ring",
+  "--shadow-focus-ring-soft",
+  "--shadow-focus-ring-inset",
+  "--shadow-focus-ring-inset-soft",
+]);
+
+const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
+  "--height-pill-group-segment-md",
+  "--height-pill-group-segment-sm",
+  "--size-pill-group-badge",
+  "--space-pill-group-track-gap",
+  "--space-pill-group-track-padding",
+  "--space-pill-group-segment-sm-x",
+  "--space-pill-group-segment-md-x",
+  "--space-pill-group-badge-x",
+  "--text-pill-group-badge",
+  "--shadow-overlay",
+  "--highlight",
+  "--radius-chip",
+  "--radius-xxs",
+  "--radius-mono-badge",
+  "--radius-icon-well",
+  "--duration-fast",
+  "--duration-base",
+  "--duration-slow",
+  "--ease-out",
+  "--ease-in-out",
+  // Button / switch / pill / tabs / count-chip / empty / menu / form / dialog /
+  // table / layout / modal geometry — exercised through the owning primitive
+  // (button.tsx, switch.tsx, pill.tsx, tabs.tsx, section.tsx, topbar.tsx,
+  // dropdown-menu.tsx, search-input.tsx, dialog.tsx, etc.) rather than the
+  // swatch wall.
+  "--height-button-xs",
+  "--height-button-sm",
+  "--height-button-default",
+  "--height-button-lg",
+  "--size-button-icon-xs",
+  "--size-button-icon-sm",
+  "--size-button-icon-default",
+  "--size-button-icon-lg",
+  "--height-switch-default",
+  "--width-switch-default",
+  "--height-switch-sm",
+  "--width-switch-sm",
+  "--space-switch-thumb-inset",
+  "--height-pill-xs",
+  "--height-pill-sm",
+  "--height-pill-md",
+  "--height-tabs-list",
+  "--size-tab-underline",
+  "--size-count-chip",
+  "--size-count-chip-sm",
+  "--size-empty-icon",
+  "--width-menu-sub-min",
+  "--height-form-textarea",
+  "--height-editor-footer",
+  "--width-detail-inspector-inline",
+  "--width-table-cell-sm",
+  "--width-table-cell-md",
+  "--width-table-cell-lg",
+  "--width-content-max",
+  "--width-message-bubble-max",
+  "--width-wire-card-max",
+  "--width-search-input-min",
+  "--width-filters-menu-default",
+  "--width-filters-menu-stack",
+  "--height-modal-md",
+  "--height-modal-tall",
+  "--height-modal-wizard",
+]);
+
+function extractDeclBlocks(source: string): string[] {
+  const blocks: string[] = [];
+  const themeMatch = source.match(/@theme\s*\{([\s\S]*?)\n\}/);
+  if (themeMatch) blocks.push(themeMatch[1]);
+  const rootMatch = source.match(/:root\s*\{([\s\S]*?)\}/);
+  if (rootMatch) blocks.push(rootMatch[1]);
+  return blocks;
+}
+
 function extractAghTokens(source: string): string[] {
   const tokens = new Set<string>();
-  const rootMatch = source.match(/:root\s*{([\s\S]*?)}/);
-  if (!rootMatch) return [];
-  const body = rootMatch[1];
-  for (const line of body.split("\n")) {
-    const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
-    if (!match) continue;
-    const [, name, rawValue] = match;
-    const value = rawValue.trim();
-    if (value.startsWith("var(")) continue;
-    if (!/^--(?:color|radius|duration|ease|tracking)-/.test(name)) continue;
-    tokens.add(name);
+  for (const body of extractDeclBlocks(source)) {
+    for (const line of body.split("\n")) {
+      const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
+      if (!match) continue;
+      const [, name, rawValue] = match;
+      const value = rawValue.trim();
+      if (value.startsWith("var(")) continue;
+      if (SHADCN_ALIASES.has(name)) continue;
+      if (COMPONENT_GEOMETRY_TOKENS.has(name)) continue;
+      tokens.add(name);
+    }
   }
   return [...tokens];
 }
 
 function extractTokenValueMap(source: string): Map<string, string> {
   const values = new Map<string, string>();
-  const rootMatch = source.match(/:root\s*{([\s\S]*?)}/);
-  if (!rootMatch) return values;
-  const body = rootMatch[1];
-  for (const line of body.split("\n")) {
-    const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
-    if (!match) continue;
-    const [, name, rawValue] = match;
-    values.set(name, rawValue.trim());
+  for (const body of extractDeclBlocks(source)) {
+    for (const line of body.split("\n")) {
+      const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
+      if (!match) continue;
+      const [, name, rawValue] = match;
+      values.set(name, rawValue.trim());
+    }
   }
   return values;
 }
@@ -105,7 +274,7 @@ describe("DesignSystemShowcase", () => {
       expect(within(buttons).getByRole("button", { name: "Primary" })).toBeInTheDocument();
       expect(within(buttons).getByRole("button", { name: "Secondary" })).toBeInTheDocument();
       expect(within(buttons).getByRole("button", { name: "Destructive" })).toBeInTheDocument();
-      expect(within(buttons).getAllByText("Outline").length).toBeGreaterThanOrEqual(2);
+      expect(within(buttons).getByRole("button", { name: "Outline" })).toBeInTheDocument();
       expect(within(buttons).getByText("Action")).toBeInTheDocument();
       expect(within(buttons).getByText("Stable")).toBeInTheDocument();
     });

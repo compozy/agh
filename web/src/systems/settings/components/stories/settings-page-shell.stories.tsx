@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
 
 import { Button, Input, Metric, MetricGrid, PageShell, Section } from "@agh/ui";
 
@@ -7,25 +6,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import { settingsProvidersCollectionFixture } from "@/systems/settings/mocks";
 
 import { SettingsFieldRow } from "../settings-field-row";
-import { SettingsPageActions } from "../settings-page-actions";
 import { SettingsSourceBadge } from "../settings-source-badge";
-import { SettingsStatusLine } from "../settings-status-line";
-import type { RestartBannerState } from "../settings-restart-banner";
-
-const restart: RestartBannerState = {
-  isVisible: true,
-  isRestartRequired: true,
-  isPolling: false,
-  isSuccessful: false,
-  isFailed: false,
-  operationId: null,
-  status: null,
-  activeSessionCount: 2,
-  trigger: fn(),
-  isTriggerPending: false,
-  triggerError: null,
-  dismiss: fn(),
-};
 
 const meta: Meta<typeof PageShell> = {
   title: "systems/settings/PageShell",
@@ -59,17 +40,8 @@ export const Default: Story = {
   render: () => (
     <PageShell
       slug="providers"
-      title="Providers"
-      statusLine={
-        <SettingsStatusLine
-          status="connected"
-          items={["3 configured", "1 workspace override"]}
-          data-testid="settings-story-status"
-        />
-      }
-      actions={<SettingsPageActions slug="providers" restart={restart} />}
       footer={
-        <div className="px-6 py-3 text-small-body text-(--color-text-secondary)">
+        <div className="px-6 py-3 text-small-body text-muted">
           Restart required after provider command changes.
         </div>
       }
@@ -127,13 +99,7 @@ export const Default: Story = {
 export const DaemonUnavailable: Story = {
   args: {},
   render: () => (
-    <PageShell
-      slug="observability"
-      title="Observability"
-      statusLine={
-        <SettingsStatusLine items={["last check failed", "retry from the daemon"]} status="error" />
-      }
-    >
+    <PageShell slug="observability">
       <Section
         divided
         label="Runtime state"

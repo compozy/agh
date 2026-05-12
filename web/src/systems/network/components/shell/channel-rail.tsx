@@ -1,6 +1,14 @@
 import { Link } from "@tanstack/react-router";
 
-import { SidebarSectionLabel, Skeleton } from "@agh/ui";
+import {
+  SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_MD,
+  SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+  SidebarSectionLabel,
+  Skeleton,
+  useSidebarViewport,
+} from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +29,17 @@ import { ChannelRailRow } from "./channel-rail-row";
 
 const CHANNELS_HEADING = "Channels";
 const DIRECT_ROOMS_HEADING = "Direct Rooms";
+
+export const CHANNEL_RAIL_WIDTH_DEFAULT = SIDEBAR_PANEL_WIDTH_DEFAULT;
+export const CHANNEL_RAIL_WIDTH_MD = SIDEBAR_PANEL_WIDTH_MD;
+export const CHANNEL_RAIL_COLLAPSE_BREAKPOINT = SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT;
+export const CHANNEL_RAIL_MD_BREAKPOINT = SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT;
+
+function resolveChannelRailWidth(viewport: "default" | "md" | "drawer"): number {
+  if (viewport === "drawer") return 0;
+  if (viewport === "md") return CHANNEL_RAIL_WIDTH_MD;
+  return CHANNEL_RAIL_WIDTH_DEFAULT;
+}
 
 export interface ChannelRailProps {
   pinnedChannels: ReadonlyArray<NetworkChannelSummary>;
@@ -75,12 +94,16 @@ function DirectRoomRailRow({ channel, direct, active, selfPeerId }: DirectRoomRa
       to="/network/$channel/directs/$directId"
     >
       {active ? <span aria-hidden="true" className={ACTIVE_NAV_INDICATOR_CLASS} /> : null}
-      <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={20} />
+      <MessageAvatar
+        initialFrom={otherPeerId}
+        name={otherPeerId}
+        role="agent"
+        seed={otherPeerId}
+        sizePx={20}
+      />
       <span className="min-w-0 flex-1 truncate">@{otherPeerId}</span>
       {lastActivity ? (
-        <span className="shrink-0 font-mono text-badge text-(--color-text-tertiary)">
-          {lastActivity}
-        </span>
+        <span className="shrink-0 font-mono text-badge text-subtle">{lastActivity}</span>
       ) : null}
     </Link>
   );
@@ -106,12 +129,23 @@ export function ChannelRail({
   } = loading;
   const hasAnyChannel = pinnedChannels.length + unpinnedChannels.length > 0;
   const hasAnyDirect = directs.length > 0;
+  const viewport = useSidebarViewport({
+    drawer: SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+    md: SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+  });
+  const panelWidth = resolveChannelRailWidth(viewport);
+
+  if (viewport === "drawer") {
+    return null;
+  }
 
   return (
     <aside
       aria-label="Network channels"
-      className="flex min-h-0 w-[260px] shrink-0 flex-col border-r border-(--color-divider) bg-(--color-canvas-deep)"
+      className={cn("flex min-h-0 shrink-0 flex-col border-r border-line bg-canvas")}
       data-testid="network-channel-rail"
+      data-viewport={viewport}
+      style={{ width: panelWidth }}
     >
       <div className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         <section aria-label="Channels" className="space-y-1">
@@ -126,10 +160,7 @@ export function ChannelRail({
               <Skeleton className="h-4 w-3/5" />
             </div>
           ) : !hasAnyChannel ? (
-            <p
-              className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
-              data-testid="network-channels-empty"
-            >
+            <p className="px-2 py-1 text-eyebrow text-subtle" data-testid="network-channels-empty">
               No channels yet.
             </p>
           ) : (
@@ -162,7 +193,7 @@ export function ChannelRail({
           <SidebarSectionLabel>{DIRECT_ROOMS_HEADING}</SidebarSectionLabel>
           {!activeChannel ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
+              className="px-2 py-1 text-eyebrow text-subtle"
               data-testid="network-rail-directs-empty"
             >
               Select a channel to see direct rooms.
@@ -175,7 +206,7 @@ export function ChannelRail({
             </div>
           ) : !hasAnyDirect ? (
             <p
-              className="px-2 py-1 text-eyebrow text-(--color-text-tertiary)"
+              className="px-2 py-1 text-eyebrow text-subtle"
               data-testid="network-rail-directs-empty"
             >
               No direct rooms yet.

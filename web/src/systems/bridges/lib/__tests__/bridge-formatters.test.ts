@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  bridgeScopeTone,
+  bridgeStatusTone,
   compactBridgeDeliveryDefaults,
   describeBridgeDeliveryDefaults,
   describeBridgeDmPolicy,
@@ -108,6 +110,17 @@ describe("bridge-formatters", () => {
       })
     ).toBe("reply · peer:peer_123 · group:group_123 · thread:thread_123");
     expect(describeBridgeTestTarget({})).toBe("Bridge defaults");
+  });
+
+  it("Should map every bridge status to a PillTone with no violet emitters", () => {
+    expect(bridgeStatusTone("ready")).toBe("success");
+    expect(bridgeStatusTone("auth_required")).toBe("info");
+    expect(bridgeStatusTone("error")).toBe("danger");
+    expect(bridgeStatusTone("starting")).toBe("info");
+    expect(bridgeStatusTone("degraded")).toBe("warning");
+    expect(bridgeStatusTone("disabled")).toBe("neutral");
+    expect(bridgeScopeTone("workspace")).toBe("info");
+    expect(bridgeScopeTone("global")).toBe("neutral");
   });
 
   it("formats absolute and relative times", () => {

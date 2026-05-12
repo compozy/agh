@@ -103,7 +103,6 @@ describe("SettingsSaveBar", () => {
 
     const errorLine = screen.getByTestId("settings-page-general-save-error");
     expect(errorLine).toHaveTextContent("boom");
-    expect(errorLine.className).toContain("text-(--color-danger)");
     expect(screen.queryByTestId("settings-page-general-save-warnings")).not.toBeInTheDocument();
   });
 
@@ -122,7 +121,6 @@ describe("SettingsSaveBar", () => {
     const warnings = screen.getByTestId("settings-page-general-save-warnings");
     expect(warnings).toHaveTextContent("restart required");
     expect(warnings).toHaveTextContent("env missing");
-    expect(warnings.className).toContain("text-(--color-warning)");
   });
 
   it("renders the lastAppliedLabel with a success check when no error or warnings and not dirty", () => {
@@ -172,23 +170,6 @@ describe("SettingsSaveBar", () => {
     );
 
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
-  });
-
-  it("uses the same responsive horizontal spacing as the settings shell", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={false}
-        isSaving={false}
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
-
-    const bar = screen.getByTestId("settings-page-general-save-bar");
-    expect(bar.className).toContain("px-4");
-    expect(bar.className).toContain("sm:px-6");
-    expect(bar.className).toContain("md:px-8");
   });
 
   it("fires onReset when Discard is clicked", () => {

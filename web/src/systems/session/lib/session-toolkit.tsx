@@ -1,13 +1,15 @@
-import type { Toolkit, ToolCallMessagePartProps } from "@assistant-ui/react";
+import type { ToolCallMessagePartProps, Toolkit } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+
+import { Eyebrow, Spinner } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
 import { ToolCallCard } from "../components/tool-call-card";
-import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
 import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
+import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
 
@@ -33,12 +35,12 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2",
-          "border-(--color-divider) bg-(--color-canvas-deep)",
-          "text-xs text-(--color-text-tertiary)"
+          "border-line bg-canvas",
+          "text-xs text-subtle"
         )}
       >
-        <Loader2 className="size-3.5 animate-spin" />
-        <span className="font-mono uppercase tracking-badge">{part.toolName}</span>
+        <Spinner className="size-3" />
+        <Eyebrow className="text-subtle">{part.toolName}</Eyebrow>
         <span>preparing input</span>
       </div>
     );
@@ -49,11 +51,11 @@ function BackendToolPart({ part }: { part: SessionToolPartProps }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2",
-          "border-(--color-danger)/30 bg-(--color-danger)/8",
-          "text-xs text-(--color-danger)"
+          "border-danger/30 bg-danger/8",
+          "text-xs text-danger"
         )}
       >
-        <AlertCircle className="size-3.5" />
+        <AlertCircle className="size-3" />
         <span className="font-medium">{part.toolName}</span>
       </div>
     );

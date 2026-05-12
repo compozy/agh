@@ -395,7 +395,7 @@ export function useCreateNetworkThread(): UseCreateNetworkThreadResult {
       try {
         return await attemptCreateThread(queryClient, { ...input, threadId: firstAttemptThreadId });
       } catch (firstError) {
-        // _techspec.md:1127 — exactly one silent retry, then surface the toast.
+        // Exactly one silent retry, then surface the toast.
         const secondAttemptThreadId = `thread_${generateClientMessageId().replace(/-/g, "")}`;
         try {
           return await attemptCreateThread(queryClient, {

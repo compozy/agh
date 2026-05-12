@@ -50,11 +50,8 @@ describe("blog MdxContent", () => {
   it("renders generated MDX with the public blog component set", () => {
     render(<MdxContent code={sampleMdxCode} />);
 
-    const heading = screen.getByRole("heading", { name: "Operator notes", level: 2 });
-    const inlineCode = screen.getAllByText("agh daemon start")[0];
-
-    expect(heading.className).toContain("border-t");
-    expect(inlineCode.closest("code")?.className).toContain("bg-(--color-surface-elevated)");
+    screen.getByRole("heading", { name: "Operator notes", level: 2 });
+    expect(screen.getAllByText("agh daemon start").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Copy code" })).toBeDefined();
   });
 

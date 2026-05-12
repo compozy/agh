@@ -7,7 +7,7 @@ import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 /**
- * ADR-010 (manual operator control) and ADR-012 (task-run coordination
+ * (manual operator control) and (task-run coordination
  * channels) bookends for the Tasks UI. These cases verify:
  *
  *   1. Creating a task is saved intent only, no run is queued, the lifecycle
@@ -35,7 +35,7 @@ const browserLifecycleFixture = path.resolve(
 const handoffAgentName = "browser-lifecycle-agent";
 const draftTitle = "Draft handoff smoke task";
 const draftDescription =
-  "Saved intent for ADR-010 bookend coverage. No run should be queued until publish.";
+  "Saved intent for bookend coverage. No run should be queued until publish.";
 
 function handoffAgentSessionPath(sessionId: string): string {
   return `/agents/${handoffAgentName}/sessions/${sessionId}`;
@@ -128,7 +128,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   await tasksUI.createPriority("high").click();
   const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
   await tasksUI.createTitle.fill(publishedTitle);
-  await tasksUI.createDescription.fill("ADR-012 channel binding bookend.");
+  await tasksUI.createDescription.fill(" channel binding bookend.");
   await tasksUI.createSaveDraft.click();
   await expect(tasksUI.createEditorSurface).toBeHidden();
 

@@ -1,8 +1,8 @@
 # L-005 — Authoritative primitives are exclusive
 
 **Class:** Architecture
-**Date discovered:** 2026-04-25 (autonomy ADR-004); reinforced 2026-04-26 (autonomy task_11)
-**Evidence sources:** ADR-004 + task_11 memory + global_runs analysis
+**Date discovered:** 2026-04-25; reinforced 2026-04-26
+**Evidence sources:** Implementation review and global runs analysis.
 
 ## Context
 
@@ -40,7 +40,4 @@ When two components can perform the same authoritative state transition (claim, 
 
 ## Source
 
-- `.compozy/tasks/autonomous/adrs/adr-004.md` — Split Semantic vs Mechanical Scheduling
-- `.compozy/tasks/autonomous/adrs/adr-009.md` — Hooks First-Class (forbids hook-as-claim)
-- `.compozy/tasks/autonomous/memory/task_11.md` — scheduler scope-creep avoided
-- `../analysis/analysis_global_runs.md` lesson L4
+Analysis corpus: docs/\_memory/analysis/analysis_global_runs.md lesson L4.

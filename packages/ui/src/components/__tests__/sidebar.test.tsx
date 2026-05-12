@@ -1,8 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { renderHook, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Sidebar } from "../sidebar";
+import {
+  SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_MD,
+  SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+  SIDEBAR_RAIL_WIDTH,
+  Sidebar,
+  useSidebarViewport,
+} from "../sidebar";
 import { UIProvider } from "../custom/ui-provider";
 
 interface MediaMock {
@@ -88,14 +96,37 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("footer-content")).toBeInTheDocument();
   });
 
-  it("Should expose the rail at 44px regardless of collapsed state", () => {
+  it("Should expose the rail at 56px regardless of collapsed state", () => {
     const { container, rerender } = render(<Sidebar nav={<span>nav</span>} collapsed={false} />);
     const rail = container.querySelector<HTMLElement>("[data-slot=sidebar-rail]");
     expect(rail).not.toBeNull();
-    expect(rail?.style.width).toBe("44px");
+    expect(rail?.style.width).toBe("56px");
 
     rerender(<Sidebar nav={<span>nav</span>} collapsed={true} />);
-    expect(rail?.style.width).toBe("44px");
+    expect(rail?.style.width).toBe("56px");
+  });
+
+  it("Should export the viewport ladder constants", () => {
+    expect(SIDEBAR_RAIL_WIDTH).toBe(56);
+    expect(SIDEBAR_PANEL_WIDTH_DEFAULT).toBe(244);
+    expect(SIDEBAR_PANEL_WIDTH_MD).toBe(220);
+    expect(SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT).toBe(1100);
+    expect(SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT).toBe(880);
+  });
+
+  it("Should render a narrow scrim that closes the sidebar when activated", async () => {
+    const user = userEvent.setup();
+    installMatchMedia(q => q.includes("max-width"));
+    const { container } = render(
+      <UIProvider reducedMotion="always">
+        <Sidebar nav={<button type="button">nav</button>} />
+      </UIProvider>
+    );
+    await user.click(screen.getByRole("button", { name: "Open sidebar navigation" }));
+    const scrim = container.querySelector<HTMLElement>(
+      "aside button[aria-label='Close sidebar navigation']"
+    );
+    expect(scrim).not.toBeNull();
   });
 
   it("Should call onCollapse(true) when the collapse control is activated from expanded", async () => {
@@ -136,14 +167,10 @@ describe("Sidebar", () => {
     const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
     expect(panel).toHaveAttribute("aria-hidden", "false");
     expect(panel).not.toHaveAttribute("inert");
-    expect(panel?.className).toContain("visible");
-    expect(panel?.className).toContain("pointer-events-auto");
 
     rerender(<Sidebar nav={<span>nav</span>} collapsed={true} />);
     expect(panel).toHaveAttribute("aria-hidden", "true");
     expect(panel).toHaveAttribute("inert");
-    expect(panel?.className).toContain("invisible");
-    expect(panel?.className).toContain("pointer-events-none");
   });
 
   it("Should drive the motion panel width from the collapsed prop", async () => {
@@ -166,7 +193,7 @@ describe("Sidebar", () => {
     await waitFor(() => expect(panel?.style.width).toBe("0px"));
   });
 
-  it("Should auto-collapse the panel when the viewport drops below the breakpoint", () => {
+  it("Should auto-collapse the panel when the viewport drops below the drawer breakpoint", () => {
     installMatchMedia(q => q.includes("max-width"));
     const { container } = render(
       <Sidebar nav={<span>nav</span>} collapsed={false} collapseBreakpoint={800} />
@@ -174,6 +201,63 @@ describe("Sidebar", () => {
     const sidebar = container.querySelector<HTMLElement>("[data-slot=sidebar]");
     expect(sidebar).toHaveAttribute("data-state", "collapsed");
     expect(sidebar).toHaveAttribute("data-narrow", "true");
+    expect(sidebar).toHaveAttribute("data-viewport", "drawer");
+  });
+
+  it("Should render the 220 px panel width when only the md breakpoint matches", async () => {
+    installMatchMedia(query => {
+      const match = query.match(/max-width:\s*(\d+)px/);
+      if (!match) return false;
+      const px = Number(match[1]);
+      return px === SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT - 1;
+    });
+    const { container } = render(
+      <UIProvider reducedMotion="always">
+        <Sidebar nav={<span>nav</span>} collapsed={false} />
+      </UIProvider>
+    );
+    const sidebar = container.querySelector<HTMLElement>("[data-slot=sidebar]");
+    const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
+    expect(sidebar).toHaveAttribute("data-viewport", "md");
+    await waitFor(() => expect(panel?.style.width).toBe(`${SIDEBAR_PANEL_WIDTH_MD}px`));
+  });
+
+  it("Should expose useSidebarViewport returning 'default' when no query matches", () => {
+    installMatchMedia(() => false);
+    const { result } = renderHook(() =>
+      useSidebarViewport({
+        drawer: SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+        md: SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+      })
+    );
+    expect(result.current).toBe("default");
+  });
+
+  it("Should expose useSidebarViewport returning 'md' when only the md query matches", () => {
+    installMatchMedia(query => {
+      const match = query.match(/max-width:\s*(\d+)px/);
+      if (!match) return false;
+      const px = Number(match[1]);
+      return px === SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT - 1;
+    });
+    const { result } = renderHook(() =>
+      useSidebarViewport({
+        drawer: SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+        md: SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+      })
+    );
+    expect(result.current).toBe("md");
+  });
+
+  it("Should expose useSidebarViewport returning 'drawer' when the drawer query matches", () => {
+    installMatchMedia(() => true);
+    const { result } = renderHook(() =>
+      useSidebarViewport({
+        drawer: SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+        md: SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+      })
+    );
+    expect(result.current).toBe("drawer");
   });
 
   it("Should open a narrow-viewport panel without mutating desktop collapse state", async () => {
@@ -200,7 +284,7 @@ describe("Sidebar", () => {
       "expanded"
     );
     expect(panel).toHaveAttribute("aria-hidden", "false");
-    await waitFor(() => expect(panel?.style.width).toBe("240px"));
+    await waitFor(() => expect(panel?.style.width).toBe("244px"));
     expect(onCollapse).not.toHaveBeenCalled();
   });
 });

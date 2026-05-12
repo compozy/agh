@@ -40,9 +40,8 @@ export function ChannelThreadComposer({
         params: { channel, threadId: result.threadId },
       });
     } catch {
-      // The hook surfaces a Sonner toast on the second collision per
-      // `_design.md` §5.7.1 and `_techspec.md:1127`. Keep the textarea contents
-      // so the user can adjust + retry.
+      // The hook surfaces a Sonner toast on the second collision. Keep the
+      // textarea contents so the user can adjust + retry.
     }
   };
 

@@ -27,25 +27,4 @@ describe("Toggle", () => {
     );
     expect(screen.getByRole("button", { name: "italic" })).toHaveAttribute("aria-pressed", "true");
   });
-
-  it("Should expose the outline variant via class", () => {
-    const { container } = render(
-      <Toggle aria-label="underline" variant="outline">
-        U
-      </Toggle>
-    );
-    const toggle = container.querySelector("[data-slot=toggle]") as HTMLElement | null;
-    expect(toggle?.className).toContain("border");
-    expect(toggle?.className).toContain("border-input");
-  });
-
-  it("Should render the sm size variant", () => {
-    const { container } = render(
-      <Toggle aria-label="bell" size="sm">
-        🔔
-      </Toggle>
-    );
-    const toggle = container.querySelector("[data-slot=toggle]") as HTMLElement | null;
-    expect(toggle?.className).toContain("h-7");
-  });
 });

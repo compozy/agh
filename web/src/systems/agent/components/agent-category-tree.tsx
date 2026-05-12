@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import type { ItemInstance } from "@headless-tree/core";
+import { Link } from "@tanstack/react-router";
 import { Bot, TriangleAlert } from "lucide-react";
 
 import { cn, Empty, Pill, Spinner, Tree, TreeItem, TreeItemLabel } from "@agh/ui";
@@ -11,13 +11,15 @@ import {
 } from "@/components/sidebar-nav-classes";
 import type { SessionPayload } from "@/systems/session";
 
-import { joinAgentCategorySegments } from "../lib/agent-category";
 import {
   useAgentCategoryTreeModel,
   type AgentCategoryTreeItemData,
 } from "../hooks/use-agent-category-tree-model";
-import { AgentIcon } from "./agent-icon";
+import { joinAgentCategorySegments } from "../lib/agent-category";
 import type { AgentPayload } from "../types";
+import { AgentIcon } from "./agent-icon";
+
+const AGENT_TREE_INDENT = 12;
 
 export interface AgentCategoryTreeProps {
   agents: AgentPayload[] | undefined;
@@ -42,7 +44,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-loading"
-        className="items-start gap-2 px-3 py-2 text-left"
+        className="items-start gap-2 p-2 text-left"
       />
     );
   }
@@ -59,7 +61,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-error"
-        className="items-start gap-2 px-3 py-2 text-left"
+        className="items-start gap-2 p-2 text-left text-sm"
       />
     );
   }
@@ -72,7 +74,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-empty"
-        className="items-start gap-2 px-3 py-2 text-left"
+        className="items-start gap-2 p-2 text-left"
       />
     );
   }
@@ -91,7 +93,7 @@ function AgentCategoryTreeContent({ agents, sessions }: AgentCategoryTreeContent
   return (
     <Tree
       tree={tree}
-      indent={12}
+      indent={AGENT_TREE_INDENT}
       data-testid="agent-category-tree"
       aria-label="Agents"
       className="gap-0.5"
@@ -143,13 +145,13 @@ function FolderRow({ item, label, segments }: FolderRowProps) {
       item={item}
       data-testid={`agent-category-${joined}`}
       data-expanded={expanded}
-      className="text-(--color-text-secondary)"
+      className="text-muted"
     >
       <TreeItemLabel
         item={item}
         className={cn(
-          "flex items-center gap-1 rounded-mono-badge bg-transparent px-1.5 py-1 font-mono text-badge font-medium uppercase tracking-mono text-(--color-text-label)",
-          "hover:bg-(--color-hover) hover:text-(--color-text-primary)"
+          "eyebrow flex items-center gap-1 rounded-mono-badge bg-transparent px-2 py-1 text-muted",
+          "hover:bg-hover hover:text-fg"
         )}
       >
         <span className="truncate">{label}</span>
@@ -166,6 +168,7 @@ interface LeafRowProps {
 }
 
 function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
+  const level = item.getItemMeta().level;
   return (
     <TreeItem
       item={item}
@@ -173,6 +176,7 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
       data-testid={`agent-row-${agent.name}`}
       data-active={isActive}
       className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
+      style={{ paddingInlineStart: `${level * AGENT_TREE_INDENT + 8}px` }}
     >
       {isActive ? (
         <span
@@ -181,10 +185,7 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
           className={ACTIVE_NAV_INDICATOR_CLASS}
         />
       ) : null}
-      <AgentIcon
-        provider={agent.provider}
-        className="size-3.5 shrink-0 text-(--color-text-tertiary)"
-      />
+      <AgentIcon provider={agent.provider} className="size-3 shrink-0 text-subtle" />
       <span className="truncate">{agent.name}</span>
       {hasActiveSession ? (
         <Pill.Dot

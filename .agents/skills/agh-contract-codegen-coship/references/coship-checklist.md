@@ -48,4 +48,4 @@ Confirm every item before committing the bundle.
 
 - [ ] One commit message summarizes both the source and the generated/web/site changes.
 - [ ] Commit prefix is `feat:` or `refactor:` per `CLAUDE.md` commit style.
-- [ ] PR description references ADR-011 and lists the co-shipped artifacts.
+- [ ] PR description lists the co-shipped artifacts.

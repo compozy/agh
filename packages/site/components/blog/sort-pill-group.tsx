@@ -26,7 +26,7 @@ export function SortPillGroup({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full border border-(--color-divider) bg-(--color-surface-elevated) p-0.5",
+        "inline-flex items-center gap-0.5 rounded-full border border-line bg-elevated p-0.5",
         className
       )}
     >
@@ -41,9 +41,7 @@ export function SortPillGroup({
           }}
           className={cn(
             "h-5 rounded-full px-2 font-mono text-badge font-semibold tracking-badge transition-colors",
-            active === key
-              ? "bg-accent text-(--color-accent-ink)"
-              : "text-(--color-text-label) hover:text-(--color-text-primary)"
+            active === key ? "bg-accent text-accent-ink" : "text-muted hover:text-fg"
           )}
         >
           {labels[key]}

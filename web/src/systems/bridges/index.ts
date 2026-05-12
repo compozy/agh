@@ -63,8 +63,6 @@ export {
   parseBridgeProviderConfig,
 } from "./lib/bridge-drafts";
 export {
-  bridgeProviderHealthTone,
-  bridgeProviderStateTone,
   bridgeScopeTone,
   bridgeStatusLabel,
   bridgeStatusTone,
@@ -115,5 +113,4 @@ export { BridgeDetailPanel } from "./components/bridge-detail-panel";
 export { BridgeEditDialog } from "./components/bridge-edit-dialog";
 export { BridgeEmptyState } from "./components/bridge-empty-state";
 export { BridgeListPanel } from "./components/bridge-list-panel";
-export { BridgeProviderCard } from "./components/bridge-provider-card";
 export { BridgeTestDeliveryDialog } from "./components/bridge-test-delivery-dialog";

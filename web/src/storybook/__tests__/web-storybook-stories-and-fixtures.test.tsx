@@ -39,7 +39,7 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
       import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
       import("@/routes/_app/stories/-agents.$name.stories"),
-      agentStoryModules.then(module => module.agentInfoPanelStories),
+      agentStoryModules.then(module => module.agentInfoInspectorStories),
       agentStoryModules.then(module => module.agentSessionsListStories),
       agentStoryModules.then(module => module.agentStatsGridStories),
     ]);
@@ -105,7 +105,7 @@ describe("storybook story and fixture regressions", () => {
       workspaceFixturesSource,
     ] = sources;
 
-    expect(collapsibleStory).toContain("group-data-[panel-open]/collapsible-trigger:rotate-180");
+    expect(collapsibleStory).toContain("group-data-panel-open/collapsible-trigger:rotate-180");
     expect(collapsibleStory).not.toContain("data-panel-open:rotate-180");
     expect(knowledgeDetailStory).toContain(
       'import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";'

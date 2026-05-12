@@ -11,6 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   },
+  useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
 import { TaskRunDetailHeader } from "../task-run-detail-header";
@@ -48,14 +49,16 @@ describe("TaskRunDetailHeader", () => {
   it("renders breadcrumb, title, and run meta", () => {
     render(<TaskRunDetailHeader run={buildRun()} />);
     expect(screen.getByTestId("task-run-detail-breadcrumb")).toHaveTextContent("TASK-42");
-    expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run run_7k2m9x");
-    expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("attempt 2");
-    expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("session sess_jf8d21");
+    expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run");
+    expect(screen.getByTestId("task-run-detail-run-id")).toHaveTextContent("run_7k2m9x");
+    expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("Attempt 2");
+    expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("Session sess_jf8d21");
   });
 
   it("links to the session permalink when the run lacks hydrated agent metadata", () => {
     render(<TaskRunDetailHeader run={buildRun()} />);
-    const link = screen.getByTestId("task-run-detail-open-session");
+    const link = screen.getByTestId("task-run-detail-open-session").closest("a");
+    expect(link).not.toBeNull();
     expect(link).toHaveAttribute("data-to", "/session/$id");
     expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "sess_jf8d21" }));
   });
@@ -74,7 +77,8 @@ describe("TaskRunDetailHeader", () => {
         }
       />
     );
-    const link = screen.getByTestId("task-run-detail-open-session");
+    const link = screen.getByTestId("task-run-detail-open-session").closest("a");
+    expect(link).not.toBeNull();
     expect(link).toHaveAttribute("data-to", "/agents/$name/sessions/$id");
     expect(link).toHaveAttribute(
       "data-params",
@@ -82,10 +86,12 @@ describe("TaskRunDetailHeader", () => {
     );
   });
 
-  it("fires cancel callback when the Kill run button is clicked", () => {
+  it("fires cancel callback when the Cancel run button is clicked", () => {
     const onCancelRun = vi.fn();
     render(<TaskRunDetailHeader onCancelRun={onCancelRun} run={buildRun()} />);
-    fireEvent.click(screen.getByTestId("task-run-detail-cancel"));
+    const button = screen.getByTestId("task-run-detail-cancel");
+    expect(button).toHaveTextContent("Cancel run");
+    fireEvent.click(button);
     expect(onCancelRun).toHaveBeenCalledTimes(1);
   });
 

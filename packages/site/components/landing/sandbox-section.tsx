@@ -1,6 +1,7 @@
 import { Cloud, RefreshCcw, Terminal } from "lucide-react";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
+import { Eyebrow } from "@agh/ui";
 
 const CARDS = [
   {
@@ -29,21 +30,16 @@ const CARDS = [
 function SandboxDiagram() {
   return (
     <div
-      className="relative min-h-[360px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5"
+      className="relative min-h-90 overflow-hidden rounded-(--radius-diagram) border border-line bg-canvas-soft p-5"
       aria-label="AGH sandbox lifecycle diagram"
       role="img"
     >
-      <div className="absolute inset-x-5 top-5 h-px bg-(--color-divider)" />
-      <div className="grid h-full min-h-[320px] grid-rows-[auto_1fr_auto] gap-5">
+      <div className="absolute inset-x-5 top-5 h-px bg-line" />
+      <div className="grid h-full min-h-80 grid-rows-[auto_1fr_auto] gap-5">
         <div className="grid grid-cols-3 gap-3">
           {["workspace", "agh daemon", "sandbox provider"].map(label => (
-            <div
-              key={label}
-              className="rounded-md border border-(--color-divider) bg-(--color-canvas) px-3 py-2"
-            >
-              <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-label)">
-                {label}
-              </p>
+            <div key={label} className="rounded-md border border-line bg-canvas px-3 py-2">
+              <Eyebrow className="text-muted">{label}</Eyebrow>
             </div>
           ))}
         </div>
@@ -60,7 +56,7 @@ function SandboxDiagram() {
           {["sandbox_id", "sandbox_ref", "sandbox.exec"].map(label => (
             <code
               key={label}
-              className="rounded-mono-badge border border-(--color-divider) bg-(--color-canvas-deep) px-3 py-2 text-center font-mono text-eyebrow text-(--color-text-secondary)"
+              className="rounded-mono-badge border border-line bg-rail px-3 py-2 text-center font-mono text-eyebrow text-muted"
             >
               {label}
             </code>
@@ -83,13 +79,13 @@ function DiagramNode({
   return (
     <div
       className={`rounded-md border p-4 ${
-        active ? "border-accent bg-accent/8" : "border-(--color-divider) bg-(--color-canvas)"
+        active ? "border-accent bg-accent/8" : "border-line bg-canvas"
       }`}
     >
-      <p className="text-sm font-medium text-(--color-text-primary)">{title}</p>
+      <p className="text-sm font-medium text-fg">{title}</p>
       <ul className="mt-3 space-y-1">
         {lines.map(line => (
-          <li key={line} className="font-mono text-eyebrow text-(--color-text-tertiary)">
+          <li key={line} className="font-mono text-eyebrow text-subtle">
             {line}
           </li>
         ))}
@@ -113,22 +109,16 @@ export function SandboxSection() {
           {CARDS.map(card => (
             <article
               key={card.eyebrow}
-              className="rounded-(--radius-card) border border-(--color-divider) bg-(--color-canvas) p-5"
+              className="rounded-(--radius-card) border border-line bg-canvas p-5"
             >
               <div className="flex items-center gap-3">
-                <span className="inline-flex size-8 items-center justify-center rounded-mono-badge border border-(--color-divider) text-accent">
+                <span className="inline-flex size-8 items-center justify-center rounded-mono-badge border border-line text-accent">
                   {card.icon}
                 </span>
-                <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
-                  {card.eyebrow}
-                </p>
+                <Eyebrow className="text-accent">{card.eyebrow}</Eyebrow>
               </div>
-              <h3 className="mt-4 text-base font-medium leading-snug text-(--color-text-primary)">
-                {card.title}
-              </h3>
-              <p className="mt-3 text-sm leading-relaxed text-(--color-text-secondary)">
-                {card.description}
-              </p>
+              <h3 className="mt-4 text-base font-medium leading-snug text-fg">{card.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted">{card.description}</p>
             </article>
           ))}
         </div>

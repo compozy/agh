@@ -14,9 +14,10 @@ import {
   SquareTerminalIcon,
   WaypointsIcon,
 } from "lucide-react";
-import { useState } from "react";
 import type { ComponentType } from "react";
+import { useState } from "react";
 
+import { KindChip } from "@/systems/network";
 import {
   Accordion,
   AccordionContent,
@@ -27,7 +28,6 @@ import {
   AlertTitle,
   Avatar,
   AvatarFallback,
-  Badge,
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -60,6 +60,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Empty,
+  Eyebrow,
   Field,
   FieldDescription,
   FieldLabel,
@@ -77,10 +78,9 @@ import {
   KbdGroup,
   Label,
   Metric,
-  Pill,
   NativeSelect,
   NativeSelectOption,
-  PageHeader,
+  Pill,
   PillGroup,
   Popover,
   PopoverContent,
@@ -110,8 +110,8 @@ import {
   SheetTrigger,
   Sidebar,
   Skeleton,
-  SplitPane,
   Spinner,
+  SplitPane,
   Switch,
   Table,
   TableBody,
@@ -125,17 +125,15 @@ import {
   TabsTrigger,
   Textarea,
   Toaster,
-  toast,
   ToggleGroup,
   ToggleGroupItem,
-  Toolbar,
   ToolCallCard,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  toast,
 } from "@agh/ui";
-import { KindChip } from "@/systems/network";
 
 const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
 
@@ -158,46 +156,60 @@ interface TokenGroup {
 const TOKEN_GROUPS: TokenGroup[] = [
   {
     id: "backgrounds",
-    label: "Backgrounds",
-    caption: "Flat depth steps: canvas → surface → elevated, never shadows.",
+    label: "Surface ramp",
+    caption: "Warm-dark layered backgrounds: rail → canvas → soft → tint → elevated.",
     swatches: [
-      { token: "--color-canvas", value: "#141312", role: "App background", kind: "color" },
+      { token: "--color-rail", value: "#0c0b0b", role: "Workspace rail bg", kind: "color" },
+      { token: "--color-canvas", value: "#131211", role: "Page bg", kind: "color" },
       {
-        token: "--color-canvas-deep",
-        value: "#0E0E0F",
-        role: "Code blocks, deep panels",
+        token: "--color-canvas-soft",
+        value: "#1a1918",
+        role: "Card / group / sidebar bg",
         kind: "color",
       },
       {
-        token: "--color-surface",
-        value: "#1E1C1B",
-        role: "Cards, sidebar, modals",
+        token: "--color-canvas-tint",
+        value: "#1c1b1a",
+        role: "Kanban card baseline",
+        kind: "color",
+      },
+      { token: "--color-sidebar", value: "#1a1918", role: "Sidebar panel", kind: "color" },
+      {
+        token: "--color-elevated",
+        value: "#232220",
+        role: "Active rows, segment-active",
         kind: "color",
       },
       {
-        token: "--color-surface-panel",
-        value: "#181716",
-        role: "Alt panel fill",
+        token: "--color-hover",
+        value: "var(--color-row-hover)",
+        role: "Generic hover (alias of --row-hover)",
+        kind: "color",
+      },
+      { token: "--color-disabled", value: "#4a4847", role: "Disabled fill", kind: "color" },
+    ],
+  },
+  {
+    id: "hairlines",
+    label: "Hairlines",
+    caption: "Translucent rails derived from white. Soft → strong scales focus + dividers.",
+    swatches: [
+      {
+        token: "--color-line",
+        value: "rgba(255, 255, 255, 0.055)",
+        role: "Generic 1 px hairline",
         kind: "color",
       },
       {
-        token: "--color-surface-elevated",
-        value: "#2E2C2B",
-        role: "Popovers, icon wells, inputs",
+        token: "--color-line-soft",
+        value: "rgba(255, 255, 255, 0.03)",
+        role: "Group bottoms, popover ring",
         kind: "color",
       },
       {
-        token: "--color-divider",
-        value: "#3C3A39",
-        role: "1px hairline dividers",
-        kind: "color",
-      },
-      { token: "--color-line", value: "#3C3A39", role: "Diagram lines", kind: "color" },
-      { token: "--color-hover", value: "#353332", role: "Neutral hover fill", kind: "color" },
-      {
-        token: "--color-disabled",
-        value: "#4A4847",
-        role: "Disabled background",
+        token: "--color-line-strong",
+        value: "rgba(255, 255, 255, 0.09)",
+        role: "Focus ring, scrollbar thumb hover",
         kind: "color",
       },
     ],
@@ -205,91 +217,318 @@ const TOKEN_GROUPS: TokenGroup[] = [
   {
     id: "text",
     label: "Text",
-    caption: "Apple-derived neutral scale with explicit label/eyebrow role.",
+    caption: "Five-step neutral text scale with explicit label/eyebrow roles.",
     swatches: [
-      { token: "--color-text-primary", value: "#E5E5E7", role: "Titles", kind: "color" },
-      { token: "--color-text-secondary", value: "#8E8E93", role: "Body", kind: "color" },
+      { token: "--color-fg", value: "#ececef", role: "Body", kind: "color" },
       {
-        token: "--color-text-tertiary",
-        value: "#636366",
-        role: "Placeholders",
+        token: "--color-fg-strong",
+        value: "#f6f6f8",
+        role: "Titles, active labels",
         kind: "color",
       },
-      { token: "--color-text-label", value: "#98989D", role: "Eyebrows", kind: "color" },
+      { token: "--color-muted", value: "#9a9a9f", role: "Secondary copy", kind: "color" },
+      { token: "--color-subtle", value: "#76767c", role: "Placeholders", kind: "color" },
+      { token: "--color-faint", value: "#545458", role: "Mono ids, separators", kind: "color" },
     ],
   },
   {
     id: "accent",
-    label: "Accent & Semantic",
-    caption: "Warm orange is the only non-neutral hue. Semantic = signal, never decoration.",
+    label: "Accent",
+    caption: "Warm orange is the only non-neutral hue. Tints replace solid banners.",
     swatches: [
-      {
-        token: "--color-accent",
-        value: "#E8572A",
-        role: "Action / Primary",
-        kind: "color",
-      },
-      { token: "--color-accent-ink", value: "#17110F", role: "Text on accent", kind: "color" },
-      {
-        token: "--color-accent-hover",
-        value: "#D14E25",
-        role: "Accent pressed",
-        kind: "color",
-      },
+      { token: "--color-accent", value: "#e8572a", role: "Action / Primary", kind: "color" },
+      { token: "--color-accent-hover", value: "#d14e25", role: "Accent pressed", kind: "color" },
       {
         token: "--color-accent-strong",
-        value: "#F6874F",
+        value: "#f6874f",
         role: "Highlight accent",
         kind: "color",
       },
-      { token: "--color-accent-dim", value: "#E8572A59", role: "~35% alpha", kind: "color" },
+      { token: "--color-accent-ink", value: "#17110f", role: "Text on accent fill", kind: "color" },
+      {
+        token: "--color-accent-tint",
+        value: "rgba(232, 87, 42, 0.1)",
+        role: "Chip / pill tint",
+        kind: "color",
+      },
       {
         token: "--color-accent-tint-strong",
-        value: "#E8572A3D",
-        role: "~24% alpha hover",
+        value: "rgba(232, 87, 42, 0.16)",
+        role: "Bar fill",
         kind: "color",
       },
       {
-        token: "--color-success",
-        value: "#30D158",
-        role: "Stable / Live",
+        token: "--color-accent-dim",
+        value: "rgba(232, 87, 42, 0.24)",
+        role: "Legacy focus ring",
         kind: "color",
       },
-      { token: "--color-danger", value: "#FF453A", role: "Destructive", kind: "color" },
-      { token: "--color-warning", value: "#FFD60A", role: "Pending", kind: "color" },
-      { token: "--color-info", value: "#BF5AF2", role: "Informational", kind: "color" },
+      {
+        token: "--color-accent-glow",
+        value: "rgba(232, 87, 42, 0.05)",
+        role: "Pulse keyframe base",
+        kind: "color",
+      },
+    ],
+  },
+  {
+    id: "signal",
+    label: "Signal palette",
+    caption:
+      "Desaturated signals. Tint backgrounds at 6–10% alpha; full-color text on tint surfaces.",
+    swatches: [
+      { token: "--color-success", value: "#5fbf85", role: "Stable / Live", kind: "color" },
+      { token: "--color-warning", value: "#d6a647", role: "Caution / Pending", kind: "color" },
+      { token: "--color-danger", value: "#e0635a", role: "Error / Destructive", kind: "color" },
+      { token: "--color-info", value: "#8e8eb5", role: "Informational", kind: "color" },
+      { token: "--color-neutral", value: "#7a7a80", role: "Idle / Cancelled", kind: "color" },
     ],
   },
   {
     id: "tints",
-    label: "15% Tints",
-    caption: "Badges and kind chips use 15% opacity of the semantic color.",
+    label: "Signal tints",
+    caption: "Background tints (6–10% alpha) for chips, pills, and kind dots.",
     swatches: [
-      { token: "--color-accent-tint", value: "#E8572A26", role: "Accent chip", kind: "color" },
       {
         token: "--color-success-tint",
-        value: "#30D15826",
-        role: "Success chip",
-        kind: "color",
-      },
-      {
-        token: "--color-danger-tint",
-        value: "#FF453A26",
-        role: "Danger chip",
+        value: "rgba(95, 191, 133, 0.08)",
+        role: "Success chip bg",
         kind: "color",
       },
       {
         token: "--color-warning-tint",
-        value: "#FFD60A26",
-        role: "Warning chip",
+        value: "rgba(214, 166, 71, 0.08)",
+        role: "Warning chip bg",
         kind: "color",
       },
-      { token: "--color-info-tint", value: "#BF5AF226", role: "Info chip", kind: "color" },
+      {
+        token: "--color-danger-tint",
+        value: "rgba(224, 99, 90, 0.09)",
+        role: "Danger chip bg",
+        kind: "color",
+      },
+      {
+        token: "--color-info-tint",
+        value: "rgba(142, 142, 181, 0.12)",
+        role: "Info chip bg / Settings observability",
+        kind: "color",
+      },
       {
         token: "--color-neutral-tint",
-        value: "#63636626",
-        role: "Neutral chip",
+        value: "rgba(150, 150, 155, 0.06)",
+        role: "Neutral chip bg (warmed for ramp parity)",
         kind: "color",
+      },
+    ],
+  },
+  {
+    id: "overlays",
+    label: "Overlays",
+    caption: "Modal scrim, ghost hover, text selection — all token-driven.",
+    swatches: [
+      {
+        token: "--color-overlay-scrim",
+        value: "rgba(0, 0, 0, 0.55)",
+        role: "Modal / dialog backdrop",
+        kind: "color",
+      },
+      {
+        token: "--overlay-blur",
+        value: "3px",
+        role: "Dialog / sheet backdrop blur ONLY",
+        kind: "radius",
+      },
+      {
+        token: "--color-overlay-ghost-hover",
+        value: "rgba(255, 255, 255, 0.06)",
+        role: "Ghost hover on dark",
+        kind: "color",
+      },
+    ],
+  },
+  {
+    id: "glaze",
+    label: "Surface glaze ladder",
+    caption:
+      "Translucent white tints layered on the warm ramp. Inline rgba literals are forbidden.",
+    swatches: [
+      {
+        token: "--color-row-hover",
+        value: "rgba(255, 255, 255, 0.022)",
+        role: "List / nav hover (aliased as --hover)",
+        kind: "color",
+      },
+      {
+        token: "--color-row-selected",
+        value: "rgba(255, 255, 255, 0.03)",
+        role: "List / nav selected baseline",
+        kind: "color",
+      },
+      {
+        token: "--color-surface-glaze",
+        value: "rgba(255, 255, 255, 0.04)",
+        role: "RadioCard / panel head selected",
+        kind: "color",
+      },
+      {
+        token: "--color-bar-fill",
+        value: "rgba(255, 255, 255, 0.085)",
+        role: "Priority / progress / usage bars",
+        kind: "color",
+      },
+      {
+        token: "--color-input-fill",
+        value: "rgba(255, 255, 255, 0.025)",
+        role: "Composer / textarea / search input",
+        kind: "color",
+      },
+      {
+        token: "--color-btn-default-fill",
+        value: "rgba(255, 255, 255, 0.04)",
+        role: "Neutral Button default fill",
+        kind: "color",
+      },
+      {
+        token: "--color-btn-default-hover",
+        value: "rgba(255, 255, 255, 0.07)",
+        role: "Neutral Button hover fill",
+        kind: "color",
+      },
+      {
+        token: "--color-badge-fill",
+        value: "rgba(255, 255, 255, 0.05)",
+        role: "PillGroup count badge bg",
+        kind: "color",
+      },
+    ],
+  },
+  {
+    id: "avatars",
+    label: "Owner avatar palette",
+    caption:
+      "Tokenised owner palette resolved via web/src/lib/owner-palette.ts colorsFor(). Storybook + design ref tools read from the same source.",
+    swatches: [
+      {
+        token: "--color-avatar-agent-0-bg",
+        value: "rgba(232, 144, 99, 0.18)",
+        role: "Agent slot 0 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-0-fg",
+        value: "#f2b895",
+        role: "Agent slot 0 — fg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-1-bg",
+        value: "rgba(168, 178, 220, 0.16)",
+        role: "Agent slot 1 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-1-fg",
+        value: "#c5cce7",
+        role: "Agent slot 1 — fg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-2-bg",
+        value: "rgba(143, 196, 178, 0.18)",
+        role: "Agent slot 2 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-2-fg",
+        value: "#a9d9c7",
+        role: "Agent slot 2 — fg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-3-bg",
+        value: "rgba(214, 168, 192, 0.18)",
+        role: "Agent slot 3 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-agent-3-fg",
+        value: "#e0bcd0",
+        role: "Agent slot 3 — fg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-human-0-bg",
+        value: "rgba(220, 192, 134, 0.2)",
+        role: "Human slot 0 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-human-0-fg",
+        value: "#e5cc9a",
+        role: "Human slot 0 — fg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-human-1-bg",
+        value: "rgba(195, 178, 156, 0.2)",
+        role: "Human slot 1 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-human-1-fg",
+        value: "#d6c5aa",
+        role: "Human slot 1 — fg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-human-2-bg",
+        value: "rgba(192, 173, 178, 0.2)",
+        role: "Human slot 2 — bg",
+        kind: "color",
+      },
+      {
+        token: "--color-avatar-human-2-fg",
+        value: "#d2bfc5",
+        role: "Human slot 2 — fg",
+        kind: "color",
+      },
+    ],
+  },
+  {
+    id: "layout-grammar",
+    label: "Layout grammar",
+    caption:
+      "Modal width ladder + logo well sizes. Inline arbitrary widths are forbidden in modal / catalog surfaces.",
+    swatches: [
+      {
+        token: "--width-modal-sm",
+        value: "560px",
+        role: "Confirm / single-field editor",
+        kind: "radius",
+      },
+      {
+        token: "--width-modal-md",
+        value: "720px",
+        role: "Task editor / settings field editor",
+        kind: "radius",
+      },
+      {
+        token: "--width-modal-lg",
+        value: "880px",
+        role: "Bridges wizard / knowledge create dialog",
+        kind: "radius",
+      },
+      {
+        token: "--size-catalog-logo",
+        value: "1.5rem",
+        role: "CatalogCard logoSize='default' (24 px)",
+        kind: "radius",
+      },
+      {
+        token: "--size-provider-logo-well",
+        value: "2.5rem",
+        role: "CatalogCard logoSize='lg' (40 px) / settings provider card",
+        kind: "radius",
       },
     ],
   },
@@ -297,10 +536,10 @@ const TOKEN_GROUPS: TokenGroup[] = [
     id: "protocol-kinds",
     label: "Protocol Kind Colors",
     caption:
-      "Kind-dot colors for `say`, `greet`, `direct`, `receipt`, `capability`, `trace`, and `whois`.",
+      "Kind-dot colors map onto the new palette: say/whois → neutral, greet/trace → info, direct → accent, receipt → success, capability → warning.",
     swatches: [
-      { token: "--color-kind-say", value: "#8E8E93", role: "say", kind: "color" },
-      { token: "--color-kind-greet", value: "#5BA6FF", role: "greet", kind: "color" },
+      { token: "--color-kind-say", value: "var(--color-neutral)", role: "say", kind: "color" },
+      { token: "--color-kind-greet", value: "var(--color-info)", role: "greet", kind: "color" },
       {
         token: "--color-kind-direct",
         value: "var(--color-accent)",
@@ -319,53 +558,40 @@ const TOKEN_GROUPS: TokenGroup[] = [
         role: "capability",
         kind: "color",
       },
-      { token: "--color-kind-trace", value: "#B892FF", role: "trace", kind: "color" },
-      { token: "--color-kind-whois", value: "#4FD1C5", role: "whois", kind: "color" },
+      { token: "--color-kind-trace", value: "var(--color-info)", role: "trace", kind: "color" },
+      { token: "--color-kind-whois", value: "var(--color-neutral)", role: "whois", kind: "color" },
     ],
   },
   {
     id: "radii",
     label: "Radii",
-    caption: "Small chips at 5/6px, inputs at 8px, cards/code at 12px.",
+    caption: "Ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill.",
     swatches: [
-      { token: "--radius-diagram", value: "12px", role: "Cards + code", kind: "radius" },
-      { token: "--radius-chip", value: "5px", role: "Kind chips", kind: "radius" },
-      {
-        token: "--radius-mono-badge",
-        value: "6px",
-        role: "Status / mono badges",
-        kind: "radius",
-      },
+      { token: "--radius-xs", value: "4px", role: "Tightest chip", kind: "radius" },
+      { token: "--radius-sm", value: "5px", role: "Kind chip", kind: "radius" },
+      { token: "--radius", value: "6px", role: "Default", kind: "radius" },
+      { token: "--radius-md", value: "8px", role: "Inputs / buttons", kind: "radius" },
+      { token: "--radius-lg", value: "10px", role: "Cards / panels", kind: "radius" },
+      { token: "--radius-xl", value: "14px", role: "Sheet / hero card", kind: "radius" },
+      { token: "--radius-pill", value: "9999px", role: "Pill / search", kind: "radius" },
     ],
   },
   {
     id: "motion",
     label: "Motion",
-    caption: "Three durations, two easings. Reduced motion zeroes them globally.",
+    caption: "One fast tier (--dur 140ms) + one slow tier; reduced-motion zeroes everything.",
     swatches: [
-      {
-        token: "--duration-fast",
-        value: "100ms",
-        role: "Tooltip / fast hover",
-        kind: "duration",
-      },
-      { token: "--duration-base", value: "150ms", role: "Default", kind: "duration" },
+      { token: "--duration-base", value: "140ms", role: "Default", kind: "duration" },
       {
         token: "--duration-slow",
         value: "200ms",
-        role: "Panel / modal / sidebar",
+        role: "Panel / modal",
         kind: "duration",
       },
       {
         token: "--ease-out",
         value: "cubic-bezier(0.2, 0, 0, 1)",
         role: "Default easing",
-        kind: "easing",
-      },
-      {
-        token: "--ease-in-out",
-        value: "cubic-bezier(0.4, 0, 0.2, 1)",
-        role: "Symmetric",
         kind: "easing",
       },
     ],
@@ -379,12 +605,6 @@ const TOKEN_GROUPS: TokenGroup[] = [
         token: "--tracking-mono",
         value: "0.06em",
         role: "Mono eyebrow tracking",
-        kind: "tracking",
-      },
-      {
-        token: "--tracking-badge",
-        value: "0.08em",
-        role: "Badge uppercase tracking",
         kind: "tracking",
       },
     ],
@@ -433,10 +653,10 @@ function SectionLink({ section, children }: { section: ShowcaseSection; children
       href={`${DESIGN_MD_BASE}${section.anchor}`}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 text-(--color-text-label) transition-colors hover:text-accent"
+      className="inline-flex items-center gap-1.5 text-muted transition-colors hover:text-accent"
     >
       <span>{children ?? section.label}</span>
-      <span aria-hidden="true" className="font-mono text-badge tracking-badge">
+      <span aria-hidden="true" className="font-mono text-badge tracking-mono">
         {"↗"}
       </span>
     </a>
@@ -451,31 +671,61 @@ function DesignSystemShowcase() {
     <TooltipProvider>
       <main
         data-testid="design-system-showcase"
-        className="flex min-h-dvh flex-col bg-(--color-canvas) text-(--color-text-primary)"
+        className="flex min-h-dvh flex-col bg-canvas text-fg"
       >
-        <PageHeader
-          title="AGH design system"
-          icon={SparklesIcon}
-          count="v1"
-          meta={
-            <Button
-              size="sm"
-              variant="outline"
-              render={
-                <a
-                  data-testid="showcase-open-design-md"
-                  href={DESIGN_MD_BASE}
-                  target="_blank"
-                  rel="noreferrer"
-                />
-              }
+        <header
+          data-slot="page-header"
+          className="flex min-h-11 flex-col gap-2 border-b border-line px-4 py-2.5"
+        >
+          <div
+            data-slot="page-header-main"
+            className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3"
+          >
+            <div data-slot="page-header-title" className="flex min-w-0 items-center gap-2">
+              <span
+                aria-hidden="true"
+                data-slot="page-header-icon"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
+              >
+                <SparklesIcon className="size-3" />
+              </span>
+              <h1 className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
+                AGH design system
+              </h1>
+              <span
+                data-slot="page-header-count"
+                className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
+              >
+                v1
+              </span>
+            </div>
+            <div
+              data-slot="page-header-meta"
+              className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-muted"
             >
-              Open DESIGN.md
-            </Button>
-          }
-        />
+              <Button
+                size="sm"
+                variant="outline"
+                render={
+                  <a
+                    data-testid="showcase-open-design-md"
+                    href={DESIGN_MD_BASE}
+                    target="_blank"
+                    rel="noreferrer"
+                  />
+                }
+              >
+                Open DESIGN.md
+              </Button>
+            </div>
+          </div>
+        </header>
 
-        <Toolbar aria-label="Showcase filters" className="gap-3">
+        <div
+          role="toolbar"
+          aria-label="Showcase filters"
+          className="flex min-h-11 flex-wrap items-center gap-3 border-b border-line bg-canvas-soft px-4 py-2"
+        >
           <PillGroup
             value={filter}
             onChange={(next: FilterValue) => setFilter(next)}
@@ -494,7 +744,7 @@ function DesignSystemShowcase() {
               </KbdGroup>
             }
           />
-        </Toolbar>
+        </div>
 
         <div className="flex flex-col gap-10 px-6 py-8">
           <FoundationsTokenSection />
@@ -532,16 +782,10 @@ function FoundationsTokenSection() {
           >
             <header className="flex items-end justify-between gap-4">
               <div>
-                <h3 className="text-item-title font-semibold text-(--color-text-primary)">
-                  {group.label}
-                </h3>
-                <p className="mt-0.5 text-small-body text-(--color-text-secondary)">
-                  {group.caption}
-                </p>
+                <h3 className="text-item-title font-medium text-fg">{group.label}</h3>
+                <p className="mt-0.5 text-small-body text-muted">{group.caption}</p>
               </div>
-              <span className="font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)">
-                {group.swatches.length} tokens
-              </span>
+              <Eyebrow className="text-subtle">{group.swatches.length} tokens</Eyebrow>
             </header>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
               {group.swatches.map(swatch => (
@@ -561,17 +805,13 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       data-testid={`token-${swatch.token}`}
       data-token={swatch.token}
       data-kind={swatch.kind}
-      className="flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-3"
+      className="flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft p-3"
     >
       <TokenPreview swatch={swatch} />
       <div className="flex flex-col gap-0.5">
-        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
-          {swatch.token}
-        </span>
-        <span className="font-mono text-eyebrow text-(--color-text-label)">{swatch.value}</span>
-        {swatch.role ? (
-          <span className="text-xs text-(--color-text-secondary)">{swatch.role}</span>
-        ) : null}
+        <Eyebrow className="text-subtle">{swatch.token}</Eyebrow>
+        <span className="font-mono text-eyebrow text-muted">{swatch.value}</span>
+        {swatch.role ? <span className="text-xs text-muted">{swatch.role}</span> : null}
       </div>
     </article>
   );
@@ -582,7 +822,7 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
     return (
       <div
         aria-hidden="true"
-        className="h-14 w-full rounded-md border border-(--color-divider)"
+        className="h-14 w-full rounded-md border border-line"
         style={{ backgroundColor: `var(${swatch.token})` }}
       />
     );
@@ -591,21 +831,19 @@ function TokenPreview({ swatch }: { swatch: TokenSwatch }) {
     return (
       <div
         aria-hidden="true"
-        className="flex h-14 w-full items-center justify-center bg-(--color-surface-elevated)"
+        className="flex h-14 w-full items-center justify-center bg-elevated"
         style={{ borderRadius: `var(${swatch.token})` }}
       >
-        <span className="font-mono text-eyebrow text-(--color-text-label)">{swatch.value}</span>
+        <span className="font-mono text-eyebrow text-muted">{swatch.value}</span>
       </div>
     );
   }
   return (
     <div
       aria-hidden="true"
-      className="flex h-14 w-full items-center justify-center rounded-md bg-(--color-surface-elevated)"
+      className="flex h-14 w-full items-center justify-center rounded-md bg-elevated"
     >
-      <span className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)">
-        {swatch.value}
-      </span>
+      <Eyebrow className="text-muted">{swatch.value}</Eyebrow>
     </div>
   );
 }
@@ -624,12 +862,14 @@ function TypographySection() {
             <CardTitle>Page title · Inter 20/700</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="text-xl font-bold leading-7 tracking-tight">Runtime sessions overview</p>
-            <p className="text-base leading-7 text-(--color-text-secondary)">
+            <p className="text-xl font-medium leading-7 tracking-tight" style={{ fontWeight: 510 }}>
+              Runtime sessions overview
+            </p>
+            <p className="text-base leading-7 text-muted">
               Body · Inter 16px regular, the default reading text for operator UI. Line-height
               1.5–1.7 keeps dense dashboards breathable without resorting to oversized padding.
             </p>
-            <p className="text-small-body leading-small-body text-(--color-text-tertiary)">
+            <p className="text-small-body leading-small-body text-subtle">
               Small body · Inter 13px, helper text, captions, meta rows.
             </p>
           </CardContent>
@@ -639,17 +879,13 @@ function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
-              Eyebrow · JetBrains Mono 11/600 0.06em
-            </p>
-            <p className="font-mono text-sm leading-7 text-(--color-text-primary)">
-              agh-network/v0 · run_id_01hq8…
-            </p>
+            <Eyebrow className="text-muted">Eyebrow · JetBrains Mono 11/600 0.06em</Eyebrow>
+            <p className="font-mono text-sm leading-7 text-fg">agh-network/v0 · run_id_01hq8…</p>
             <div className="flex items-center gap-3">
-              <span className="font-wordmark text-display-2xl leading-none tracking-tight text-(--color-text-primary)">
+              <span className="font-wordmark text-display-2xl leading-none tracking-tight text-fg">
                 agh
               </span>
-              <Pill tone="neutral" size="sm" className="border-(--color-divider)">
+              <Pill tone="neutral" size="sm" className="border-line">
                 Alpha
               </Pill>
             </div>
@@ -701,10 +937,6 @@ function ButtonsAndPillsSection() {
             <Kbd>⌘</Kbd>
             <Kbd>K</Kbd>
           </KbdGroup>
-          <Badge>Default badge</Badge>
-          <Badge variant="secondary">Secondary</Badge>
-          <Badge variant="destructive">Destructive</Badge>
-          <Badge variant="outline">Outline</Badge>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone="neutral">Neutral</Pill>
@@ -779,7 +1011,7 @@ function InputsAndSearchSection() {
         </Field>
         <InputGroup>
           <InputGroupAddon align="inline-start">
-            <SearchIcon className="size-3.5" />
+            <SearchIcon className="size-3" />
           </InputGroupAddon>
           <InputGroupInput placeholder="Filter sessions…" />
           <InputGroupAddon align="inline-end">
@@ -846,15 +1078,15 @@ function StatusAndMetricSection() {
       <div className="flex flex-wrap items-center gap-4 pt-4">
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="success" />
-          <span className="text-sm text-(--color-text-secondary)">Connected</span>
+          <span className="text-sm text-muted">Connected</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="warning" pulse />
-          <span className="text-sm text-(--color-text-secondary)">Connecting</span>
+          <span className="text-sm text-muted">Connecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="danger" />
-          <span className="text-sm text-(--color-text-secondary)">Disconnected</span>
+          <span className="text-sm text-muted">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
         <ConnectionIndicator status="connecting" />
@@ -893,9 +1125,7 @@ function StatusAndMetricSection() {
           <Spinner className="size-4 text-accent" />
           <Skeleton className="h-4 w-40" />
           <Separator orientation="vertical" className="h-6" />
-          <span className="font-mono text-eyebrow uppercase tracking-mono text-(--color-text-tertiary)">
-            spinners · skeletons · separators
-          </span>
+          <Eyebrow className="text-subtle">spinners · skeletons · separators</Eyebrow>
         </div>
         <Progress value={64} data-testid="showcase-progress">
           <ProgressLabel>Skill index rebuild</ProgressLabel>
@@ -926,7 +1156,7 @@ function FeedbackSection() {
             Runtime will reload at 04:00 UTC to pick up skill index updates.
           </AlertDescription>
         </Alert>
-        <Alert variant="destructive">
+        <Alert variant="danger">
           <InfoIcon />
           <AlertTitle>Connection lost</AlertTitle>
           <AlertDescription>
@@ -1046,13 +1276,13 @@ function OverlaysSection() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem>
-              <PlayIcon className="size-3.5" /> Start run
+              <PlayIcon className="size-3" /> Start run
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <GitBranchIcon className="size-3.5" /> Fork session
+              <GitBranchIcon className="size-3" /> Fork session
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <BellIcon className="size-3.5" /> Notify on completion
+              <BellIcon className="size-3" /> Notify on completion
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
@@ -1067,19 +1297,17 @@ function OverlaysSection() {
             <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
-            <p className="text-sm text-(--color-text-secondary)">
+            <p className="text-sm text-muted">
               Tabs host section switches: Base UI driven, motion-free.
             </p>
           </TabsContent>
           <TabsContent value="events">
-            <p className="text-sm text-(--color-text-secondary)">
+            <p className="text-sm text-muted">
               Replayable event timeline lives under this tab in production.
             </p>
           </TabsContent>
           <TabsContent value="artifacts">
-            <p className="text-sm text-(--color-text-secondary)">
-              Generated files with their provenance chain.
-            </p>
+            <p className="text-sm text-muted">Generated files with their provenance chain.</p>
           </TabsContent>
         </Tabs>
         <Accordion defaultValue={["item-1"]}>
@@ -1103,9 +1331,7 @@ function OverlaysSection() {
             Toggle diagnostics
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <p className="text-sm text-(--color-text-secondary)">
-              Collapsed content reveals with a CSS animation.
-            </p>
+            <p className="text-sm text-muted">Collapsed content reveals with a CSS animation.</p>
           </CollapsibleContent>
         </Collapsible>
       </div>
@@ -1149,7 +1375,7 @@ agh session list --active`;
             <ToolCallCard
               toolName="read_file"
               filePath="internal/daemon/daemon.go"
-              status="running"
+              status="in_progress"
             />
           </ChatMessageBubble>
           <ChatMessageBubble role="system">Session idle · 2m</ChatMessageBubble>
@@ -1168,7 +1394,7 @@ function LayoutSection() {
       right={<Pill mono>layout</Pill>}
     >
       <div className="grid gap-4 pt-4 lg:grid-cols-2">
-        <div className="h-[340px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider)">
+        <div className="h-[340px] overflow-hidden rounded-lg border border-line">
           <Sidebar
             defaultCollapsed={false}
             rail={
@@ -1176,14 +1402,14 @@ function LayoutSection() {
                 <button
                   type="button"
                   aria-label="Workspace agh-core"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-accent bg-(--color-surface-elevated) font-mono text-eyebrow text-accent"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-accent bg-elevated font-mono text-eyebrow text-accent"
                 >
                   A
                 </button>
                 <button
                   type="button"
                   aria-label="Workspace research"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-(--color-divider) bg-(--color-surface) font-mono text-eyebrow text-(--color-text-secondary)"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-line bg-canvas-soft font-mono text-eyebrow text-muted"
                 >
                   R
                 </button>
@@ -1191,7 +1417,7 @@ function LayoutSection() {
             }
             header={
               <>
-                <FolderIcon className="size-3.5 text-(--color-text-tertiary)" />
+                <FolderIcon className="size-3 text-subtle" />
                 <span className="text-small-body font-medium">agh-core</span>
               </>
             }
@@ -1205,20 +1431,20 @@ function LayoutSection() {
               </div>
             }
             footer={
-              <div className="flex items-center justify-between gap-2 text-xs text-(--color-text-tertiary)">
+              <div className="flex items-center justify-between gap-2 text-xs text-subtle">
                 <ConnectionIndicator status="connected" />
                 <Button variant="ghost" size="icon-sm" aria-label="Settings">
-                  <SettingsIcon className="size-3.5" />
+                  <SettingsIcon className="size-3" />
                 </Button>
               </div>
             }
           />
         </div>
-        <div className="h-[340px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider)">
+        <div className="h-[340px] overflow-hidden rounded-lg border border-line">
           <SplitPane
             list={
               <ScrollArea className="h-full">
-                <ul className="flex flex-col divide-y divide-(--color-divider)">
+                <ul className="flex flex-col divide-y divide-line">
                   {[
                     "Skill: repo-refactor",
                     "Skill: ship-review",
@@ -1299,13 +1525,13 @@ function SidebarRow({
     <button
       type="button"
       data-active={active ? "true" : undefined}
-      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-(--color-text-secondary) transition-colors hover:bg-(--color-hover) hover:text-(--color-text-primary) data-[active=true]:bg-(--color-surface-elevated) data-[active=true]:text-(--color-text-primary)"
+      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted transition-colors hover:bg-hover hover:text-fg data-[active=true]:bg-elevated data-[active=true]:text-fg"
     >
-      <Icon className="size-3.5 text-(--color-text-tertiary) group-data-[active=true]:text-accent" />
+      <Icon className="size-3 text-subtle group-data-[active=true]:text-accent" />
       <span>{label}</span>
     </button>
   );
 }
 
 export { DesignSystemShowcase, SECTIONS, TOKEN_GROUPS };
-export type { TokenSwatch, TokenGroup, ShowcaseSection };
+export type { ShowcaseSection, TokenGroup, TokenSwatch };

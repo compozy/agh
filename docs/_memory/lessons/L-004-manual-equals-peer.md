@@ -1,8 +1,8 @@
 # L-004 — Manual operator paths converge with autonomous on the same primitives
 
 **Class:** Architecture / Autonomy
-**Date discovered:** 2026-04-25 (autonomy techspec, ADR-010 — most-repeated rule)
-**Evidence sources:** ADR-010 referenced 7+ times across `_techspec.md`
+**Date discovered:** 2026-04-25
+**Evidence sources:** Repeated spec and implementation review findings.
 
 ## Context
 
@@ -28,8 +28,4 @@ Splitting manual and autonomous into "user mode" and "agent mode" creates two im
 
 ## Source
 
-- `.compozy/tasks/autonomous/adrs/adr-010.md` — most load-bearing autonomy ADR
-- `.compozy/tasks/autonomous/adrs/adr-005.md` — coordinator triggers (publish/start/approval)
-- `.compozy/tasks/autonomous/adrs/adr-002.md` — agent-facing CLI before MCP
-- `.compozy/tasks/autonomous/_techspec.md` (Manual Control Contract section)
-- `../analysis/analysis_compozy_tasks.md`, `../analysis/analysis_existing_surfaces.md`
+Analysis corpus: docs/\_memory/analysis/analysis_compozy_tasks.md and docs/\_memory/analysis/analysis_existing_surfaces.md.

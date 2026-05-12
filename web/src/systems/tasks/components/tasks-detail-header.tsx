@@ -1,21 +1,10 @@
-import { Link } from "@tanstack/react-router";
-import { ListChecks, Radio } from "lucide-react";
+import { useCallback } from "react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { Radio } from "lucide-react";
+
+import { Button, DetailHeader, MonoId, Pill, Time } from "@agh/ui";
 
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-  Button,
-  PageHeader,
-  Pill,
-} from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
-
-import {
-  formatRelativeTime,
   runCoordinationChannelLabel,
   runIsCoordinated,
   taskApprovalStateLabel,
@@ -52,10 +41,11 @@ export interface TasksDetailHeaderProps {
 }
 
 /**
- * Detail page header -- `PageHeader` with task title, `Pill.Dot`, short id `Pill`,
- * status pills, and action buttons (edit, cancel, publish, enqueue) in the meta
- * slot. The eyebrow row below surfaces secondary metadata (owner, origin,
- * created-by, last update, priority + approval pills).
+ * `/tasks/$id` hero — consumes `<DetailHeader>` so the 6-row anatomy
+ * (crumbs → pre-title → 24px H1 → pills → meta → actions) stays in lockstep
+ * with the task detail route. The H1 is the only inline-status surface; the
+ * pre-title Eyebrow row carries the static "Task" label, pills render under
+ * the title, and meta carries owner / origin / updated-at relative time.
  */
 export function TasksDetailHeader({
   detail,
@@ -65,6 +55,11 @@ export function TasksDetailHeader({
   onCancel,
   onEnqueueRun,
 }: TasksDetailHeaderProps) {
+  const router = useRouter();
+  const handleBack = useCallback(() => {
+    router.history.back();
+  }, [router]);
+
   const isDeletePending = pending?.delete ?? false;
   const isPublishPending = pending?.publish ?? false;
   const isCancelPending = pending?.cancel ?? false;
@@ -87,161 +82,153 @@ export function TasksDetailHeader({
   const channelLabel = runIsCoordinated(activeRun) ? runCoordinationChannelLabel(activeRun) : null;
 
   return (
-    <header
-      className="flex flex-col gap-3 border-b border-(--color-divider)"
+    <DetailHeader
       data-testid="tasks-detail-header"
-    >
-      <PageHeader
-        icon={() => <ListChecks className="size-3.5" />}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-            <span
-              className="truncate text-item-title font-semibold text-(--color-text-primary)"
-              data-testid="tasks-detail-title"
-            >
-              {record.title}
-            </span>
-            <Pill mono data-testid="tasks-detail-id">
-              {identifier}
-            </Pill>
-            <Pill
-              data-testid="tasks-detail-status"
-              tone={pillToneFromLegacyTone(taskStatusTone(record.status))}
-            >
-              {taskStatusLabel(record.status)}
-            </Pill>
-            <Pill
-              data-testid="tasks-detail-lifecycle"
-              title={taskLifecyclePhaseDescription(lifecyclePhase)}
-              tone={pillToneFromLegacyTone(taskLifecyclePhaseTone(lifecyclePhase))}
-            >
-              {taskLifecyclePhaseLabel(lifecyclePhase)}
-            </Pill>
-            {channelLabel ? (
-              <Pill
-                data-testid="tasks-detail-coordination"
-                title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
-                tone={pillToneFromLegacyTone("violet")}
-              >
-                <span className="inline-flex items-center gap-1">
-                  <Radio className="size-3" aria-hidden="true" />
-                  Channel: {channelLabel}
-                </span>
-              </Pill>
-            ) : null}
+      back={handleBack}
+      backLabel="Back to tasks"
+      crumbs={
+        <span data-testid="tasks-detail-breadcrumb" className="inline-flex items-center gap-1.5">
+          <Link
+            data-testid="tasks-detail-breadcrumb-tasks"
+            to="/tasks"
+            className="transition-colors duration-base ease-out hover:text-fg"
+          >
+            Tasks
+          </Link>
+          <span aria-hidden="true" className="text-faint">
+            ·
           </span>
-        }
-        breadcrumb={
-          <Breadcrumb data-testid="tasks-detail-breadcrumb">
-            <BreadcrumbList className="text-(--color-text-label)">
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  data-testid="tasks-detail-breadcrumb-tasks"
-                  render={<Link to="/tasks" />}
-                >
-                  Tasks
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage className="text-(--color-text-secondary)">
-                  {identifier}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        }
-        meta={
-          <div
-            data-testid="tasks-detail-actions"
-            className="flex shrink-0 flex-wrap items-center gap-2"
+          <span>{identifier}</span>
+        </span>
+      }
+      preTitle="Task"
+      title={
+        <span data-testid="tasks-detail-title" className="inline-flex min-w-0 items-center gap-2">
+          <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+          <span className="truncate">{record.title}</span>
+        </span>
+      }
+      pills={
+        <>
+          <MonoId data-testid="tasks-detail-id" value={identifier} />
+          <Pill data-testid="tasks-detail-status" tone={taskStatusTone(record.status)}>
+            {taskStatusLabel(record.status)}
+          </Pill>
+          <Pill
+            data-testid="tasks-detail-lifecycle"
+            title={taskLifecyclePhaseDescription(lifecyclePhase)}
+            tone={lifecyclePhase === "running" ? "info" : taskLifecyclePhaseTone(lifecyclePhase)}
           >
-            <Link params={{ id: record.id }} to="/tasks/$id/edit">
-              <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="outline">
-                Edit
-              </Button>
-            </Link>
-            {onDelete ? (
-              <TaskDeleteAction
-                taskId={record.id}
-                taskTitle={record.title}
-                onDelete={onDelete}
-                isPending={isDeletePending}
-                triggerTestId="tasks-detail-delete"
-                dialogTestId="tasks-detail-delete-dialog"
-                cancelTestId="tasks-detail-delete-cancel"
-                confirmTestId="tasks-detail-delete-confirm"
-              />
-            ) : null}
-            {canCancel && onCancel ? (
-              <Button
-                data-testid="tasks-detail-cancel"
-                disabled={isCancelPending}
-                onClick={onCancel}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            ) : null}
-            {isDraft && onPublish ? (
-              <Button
-                data-testid="tasks-detail-publish"
-                disabled={isPublishPending}
-                onClick={onPublish}
-                size="sm"
-                title={publishCopy.tooltip}
-                type="button"
-              >
-                {publishCopy.label}
-              </Button>
-            ) : null}
-            {!isDraft && onEnqueueRun ? (
-              <Button
-                data-testid="tasks-detail-enqueue"
-                disabled={isEnqueuePending}
-                onClick={onEnqueueRun}
-                size="sm"
-                title={startCopy.tooltip}
-                type="button"
-              >
-                {startCopy.label}
-              </Button>
-            ) : null}
-          </div>
-        }
-        statusRow={
-          <div
-            className="flex flex-wrap items-center gap-2 text-small-body text-(--color-text-secondary)"
-            data-testid="tasks-detail-meta"
-          >
-            {record.priority ? (
-              <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
-                {taskPriorityLabel(record.priority)}
-              </Pill>
-            ) : null}
-            {taskHasApprovalPending(record) ? (
-              <Pill tone="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
-            ) : null}
-            <span>Owner {taskOwnerLabel(record.owner)}</span>
-            <span>Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
-            <span>
-              Created by{" "}
-              <span className="text-(--color-text-primary)">
-                {record.created_by?.ref ?? "unknown"}
+            {taskLifecyclePhaseLabel(lifecyclePhase)}
+          </Pill>
+          {channelLabel ? (
+            <Pill
+              data-testid="tasks-detail-coordination"
+              title="Coordination channel is bound to the active run. Channel messages support coordination only -- task ownership stays in the task service."
+              tone="info"
+            >
+              <span className="inline-flex items-center gap-1">
+                <Radio className="size-3" aria-hidden="true" />
+                Channel: {channelLabel}
               </span>
-            </span>
-            <span>Updated {formatRelativeTime(record.updated_at)}</span>
-          </div>
-        }
-        subtitle={
-          <span data-testid="tasks-detail-lifecycle-hint">
-            {taskLifecyclePhaseDescription(lifecyclePhase)}
+            </Pill>
+          ) : null}
+          {record.priority ? (
+            <Pill data-testid="tasks-detail-priority" tone={taskPriorityTone(record.priority)}>
+              {taskPriorityLabel(record.priority)}
+            </Pill>
+          ) : null}
+          {taskHasApprovalPending(record) ? (
+            <Pill data-testid="tasks-detail-approval" tone="warning">
+              {taskApprovalStateLabel(record.approval_state)}
+            </Pill>
+          ) : null}
+        </>
+      }
+      meta={
+        <div
+          data-testid="tasks-detail-meta"
+          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
+        >
+          <span>Owner {taskOwnerLabel(record.owner)}</span>
+          <span aria-hidden="true" className="text-faint">
+            ·
           </span>
-        }
-      />
-    </header>
+          <span>Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
+          <span aria-hidden="true" className="text-faint">
+            ·
+          </span>
+          <span>
+            Created by <span className="text-fg">{record.created_by?.ref ?? "unknown"}</span>
+          </span>
+          <span aria-hidden="true" className="text-faint">
+            ·
+          </span>
+          <span className="inline-flex items-center gap-1">
+            Updated <Time iso={record.updated_at} mode="relative" />
+          </span>
+        </div>
+      }
+      actions={
+        <div
+          data-testid="tasks-detail-actions"
+          className="flex shrink-0 flex-wrap items-center gap-2"
+        >
+          <Link params={{ id: record.id }} to="/tasks/$id/edit">
+            <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="neutral">
+              Edit
+            </Button>
+          </Link>
+          {canCancel && onCancel ? (
+            <Button
+              data-testid="tasks-detail-cancel"
+              disabled={isCancelPending}
+              onClick={onCancel}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              Cancel
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <TaskDeleteAction
+              taskId={record.id}
+              taskTitle={record.title}
+              onDelete={onDelete}
+              isPending={isDeletePending}
+              triggerTestId="tasks-detail-delete"
+              dialogTestId="tasks-detail-delete-dialog"
+              cancelTestId="tasks-detail-delete-cancel"
+              confirmTestId="tasks-detail-delete-confirm"
+            />
+          ) : null}
+          {isDraft && onPublish ? (
+            <Button
+              data-testid="tasks-detail-publish"
+              disabled={isPublishPending}
+              onClick={onPublish}
+              size="sm"
+              title={publishCopy.tooltip}
+              type="button"
+            >
+              {publishCopy.label}
+            </Button>
+          ) : null}
+          {!isDraft && onEnqueueRun ? (
+            <Button
+              data-testid="tasks-detail-enqueue"
+              disabled={isEnqueuePending}
+              onClick={onEnqueueRun}
+              size="sm"
+              title={startCopy.tooltip}
+              type="button"
+            >
+              {startCopy.label}
+            </Button>
+          ) : null}
+        </div>
+      }
+    />
   );
 }

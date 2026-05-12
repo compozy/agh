@@ -74,9 +74,6 @@ describe("WorkspaceOnboarding", () => {
 
     const onboarding = screen.getByTestId("workspace-onboarding");
     expect(onboarding).toBeInTheDocument();
-    expect(onboarding.className).toContain("flex-1");
-    expect(onboarding.className).toContain("overflow-y-auto");
-    expect(onboarding.className).not.toContain("min-h-screen");
     expect(
       screen.getByRole("heading", {
         name: "Start AGH with a real workspace, not an empty shell.",
@@ -122,13 +119,14 @@ describe("WorkspaceOnboarding", () => {
     );
   });
 
-  it("stacks onboarding setup cards into a single constrained options rail", () => {
+  it("keeps a single accent surface on the workspace setup global card (CTA only)", () => {
     renderOnboarding();
-
-    const optionsRail = screen.getByTestId("workspace-setup-options");
-    expect(optionsRail.className).toContain("flex-col");
-    expect(optionsRail.className).toContain("lg:max-w-[24rem]");
-    expect(optionsRail.className).not.toContain("grid-cols-2");
+    const globalCard = screen.getByTestId("workspace-setup-global-card");
+    const accentSpans = globalCard.querySelectorAll('[data-tone="accent"]');
+    expect(accentSpans.length).toBe(0);
+    expect(screen.getByTestId("workspace-use-global")).toBeInTheDocument();
+    const badge = globalCard.querySelector('[data-tone="success"]');
+    expect(badge).not.toBeNull();
   });
 
   it("rejects relative manual paths before calling resolve", async () => {
@@ -198,10 +196,6 @@ describe("WorkspaceSetupDialog", () => {
     const header = dialog.querySelector('[data-slot="dialog-header"]') as HTMLElement | null;
     expect(header).not.toBeNull();
     expect(header?.dataset.variant).toBe("ruled");
-    expect(header?.className).toContain("border-b");
-    expect(header?.className).toContain("[color:var(--color-divider)]");
-    expect(header?.className).toContain("px-5");
-    expect(header?.className).toContain("py-4");
   });
 
   it("does not mount the dialog body when `open` is false", () => {

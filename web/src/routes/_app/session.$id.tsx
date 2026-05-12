@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, MessageCircle } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
+import { Spinner } from "@agh/ui";
+import type { TopbarRouteContext } from "@/types/topbar";
 import { useSession } from "@/systems/session";
 
 /**
@@ -11,6 +13,9 @@ import { useSession } from "@/systems/session";
  * without the originating agent in scope.
  */
 export const Route = createFileRoute("/_app/session/$id")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Session", icon: MessageCircle },
+  }),
   component: SessionPermalinkPage,
 });
 
@@ -35,7 +40,7 @@ function SessionPermalinkPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="session-permalink-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -46,10 +51,8 @@ function SessionPermalinkPage() {
       data-testid="session-permalink-not-found"
     >
       <div className="flex flex-col items-center gap-2 text-center">
-        <AlertCircle className="size-6 text-(--color-danger)" />
-        <p className="text-sm text-(--color-text-tertiary)">
-          {error?.message ?? "Session not found"}
-        </p>
+        <AlertCircle className="size-6 text-danger" />
+        <p className="text-sm text-subtle">{error?.message ?? "Session not found"}</p>
       </div>
     </div>
   );

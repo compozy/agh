@@ -6,16 +6,16 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 const pillGroupSegmentVariants = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-chip) font-mono text-badge font-semibold uppercase tracking-(--tracking-badge) transition-colors duration-(--duration-base) ease-(--ease-out) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--color-accent) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-xs text-form-label font-medium tracking-eyebrow transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "bg-(--color-surface-elevated) text-(--color-text-primary)",
-        false: "bg-transparent text-(--color-text-tertiary) hover:text-(--color-text-secondary)",
+        true: "bg-elevated text-fg-strong shadow-highlight",
+        false: "bg-transparent text-subtle hover:text-muted",
       },
       size: {
-        sm: "h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x)",
-        md: "h-(--height-mono-badge) px-(--space-pill-group-segment-md-x)",
+        sm: "min-h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x)",
+        md: "min-h-(--height-pill-group-segment-md) px-(--space-pill-group-segment-md-x)",
       },
     },
     defaultVariants: {
@@ -59,7 +59,7 @@ function PillGroup<V extends string = string>({
       data-slot="pill-group"
       role="group"
       className={cn(
-        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-(--radius) border border-(--color-divider) bg-(--color-surface-panel) p-(--space-pill-group-track-padding)",
+        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-md bg-canvas-soft p-(--space-pill-group-track-padding)",
         className
       )}
       {...props}
@@ -86,7 +86,7 @@ function PillGroup<V extends string = string>({
             {typeof item.badge === "number" && item.badge > 0 ? (
               <span
                 data-slot="pill-group-badge"
-                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-full bg-(--color-accent) px-(--space-pill-group-badge-x) font-mono text-[var(--text-pill-group-badge)] font-bold tabular-nums text-(--color-accent-ink)"
+                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-mono-badge bg-badge-fill px-(--space-pill-group-badge-x) text-pill-group-badge font-medium tabular-nums text-muted"
               >
                 {item.badge}
               </span>

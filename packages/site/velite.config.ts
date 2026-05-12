@@ -1,3 +1,4 @@
+import { AGH_CODE_THEMES } from "@agh/ui/lib/code-theme";
 import { defineConfig, s } from "velite";
 import rehypePrettyCode, { type Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
 
@@ -8,7 +9,7 @@ const blogCategories = ["protocol", "runtime", "engineering", "network"] as cons
 const releaseStatuses = ["stable", "beta", "alpha", "breaking"] as const;
 
 const prettyCodeOptions: Partial<RehypePrettyCodeOptions> = {
-  theme: "vitesse-dark",
+  theme: AGH_CODE_THEMES.dark,
   keepBackground: false,
 };
 

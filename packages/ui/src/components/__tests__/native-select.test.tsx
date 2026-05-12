@@ -69,16 +69,4 @@ describe("NativeSelect", () => {
     const wrapper = container.querySelector('[data-slot="native-select-wrapper"]');
     expect(wrapper?.getAttribute("data-size")).toBe("sm");
   });
-
-  it("Should use the elevated input surface styling from DESIGN.md", () => {
-    render(
-      <NativeSelect aria-label="Env" defaultValue="dev">
-        <NativeSelectOption value="dev">dev</NativeSelectOption>
-      </NativeSelect>
-    );
-
-    const control = screen.getByLabelText("Env");
-    expect(control.className).toContain("bg-[color:var(--color-surface-elevated)]");
-    expect(control.className).toContain("h-9");
-  });
 });

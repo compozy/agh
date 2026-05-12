@@ -23,7 +23,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative aspect-3/4 w-full max-w-[260px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep)",
+        "relative aspect-3/4 w-full max-w-65 overflow-hidden rounded-(--radius-diagram) border border-line bg-rail",
         className
       )}
       aria-hidden="true"
@@ -58,7 +58,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           textAnchor="middle"
           fontFamily="var(--font-mono)"
           fontSize="9"
-          fill="var(--color-text-secondary)"
+          fill="var(--color-muted)"
         >
           pid 42871 · sqlite
         </text>
@@ -73,7 +73,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 y1={y - 10}
                 x2={120}
                 y2={y + 2}
-                stroke="var(--color-divider)"
+                stroke="var(--color-line)"
                 strokeWidth={1}
               />
               <rect
@@ -91,8 +91,8 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 width={176}
                 height={30}
                 rx={6}
-                fill="var(--color-surface)"
-                stroke="var(--color-divider)"
+                fill="var(--color-canvas-soft)"
+                stroke="var(--color-line)"
                 strokeWidth={1}
               />
               <text
@@ -101,7 +101,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 fontFamily="var(--font-sans)"
                 fontSize="12"
                 fontWeight={500}
-                fill="var(--color-text-primary)"
+                fill="var(--color-fg)"
               >
                 {sub.label}
               </text>
@@ -111,7 +111,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 textAnchor="end"
                 fontFamily="var(--font-mono)"
                 fontSize="9.5"
-                fill="var(--color-text-tertiary)"
+                fill="var(--color-subtle)"
               >
                 {sub.note}
               </text>
@@ -125,7 +125,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           .agh-subsystem {
             animation-name: agh-subsystem-pulse;
             animation-iteration-count: infinite;
-            animation-timing-function: ease-in-out;
+            animation-timing-function: var(--ease-in-out);
           }
           @media (prefers-reduced-motion: reduce) {
             .agh-subsystem {
@@ -134,8 +134,8 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           }
           @keyframes agh-subsystem-pulse {
             0%, 100% {
-              fill: var(--color-surface);
-              stroke: var(--color-divider);
+              fill: var(--color-canvas-soft);
+              stroke: var(--color-line);
             }
             10%, 30% {
               fill: var(--color-accent-tint);

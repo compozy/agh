@@ -42,11 +42,11 @@ export function SessionResumeFailure({
       aria-live="assertive"
       className="mx-4 mt-3 px-4 py-3"
       data-testid="session-resume-failure"
-      variant="destructive"
+      variant="danger"
     >
       <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
       <AlertTitle
-        className="flex items-center gap-2 text-sm font-semibold"
+        className="flex items-center gap-2 text-sm font-medium"
         data-testid="session-resume-failure-title"
       >
         {title}
@@ -83,7 +83,7 @@ export function SessionResumeFailure({
           type="button"
           variant="ghost"
         >
-          <X aria-hidden="true" className="size-3.5" />
+          <X aria-hidden="true" className="size-3" />
           Dismiss
         </Button>
         <Button
@@ -95,9 +95,9 @@ export function SessionResumeFailure({
           variant="outline"
         >
           {isRetrying ? (
-            <Spinner className="size-3.5" />
+            <Spinner className="size-3" />
           ) : (
-            <RefreshCw aria-hidden="true" className="size-3.5" />
+            <RefreshCw aria-hidden="true" className="size-3" />
           )}
           Retry resume
         </Button>

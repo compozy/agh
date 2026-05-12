@@ -48,7 +48,7 @@ function ComposerView({
     <form
       aria-label={sendLabel}
       className={cn(
-        "relative flex flex-col gap-2 border-t border-(--color-divider) bg-(--color-canvas) px-4 py-3",
+        "relative flex flex-col gap-2 border-t border-line bg-canvas px-4 py-3",
         className
       )}
       data-testid={`network-composer-${testIdSuffix}`}
@@ -57,7 +57,8 @@ function ComposerView({
       <Textarea
         aria-label={placeholder}
         className={cn(
-          "min-h-[64px] resize-none border-0 bg-transparent px-1 py-1 text-sm focus-visible:ring-0",
+          "min-h-16 resize-none rounded border-0 bg-input-fill px-3 py-2 text-sm focus-visible:ring-0",
+          "focus:bg-canvas focus-visible:bg-canvas focus-visible:shadow-focus-ring",
           disabled && "cursor-not-allowed opacity-60"
         )}
         data-testid={`network-composer-textarea-${testIdSuffix}`}

@@ -31,7 +31,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field>
         <FieldLabel htmlFor="field-default">Workspace name</FieldLabel>
         <Input id="field-default" defaultValue="Latency triage" />
@@ -43,7 +43,7 @@ export const Default: Story = {
 export const WithHelperText: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field>
         <FieldLabel htmlFor="field-helper">Agent slug</FieldLabel>
         <Input id="field-helper" defaultValue="claude-orchestrator" />
@@ -56,7 +56,7 @@ export const WithHelperText: Story = {
 export const ErrorState: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field data-invalid>
         <FieldLabel htmlFor="field-error">API token</FieldLabel>
         <Input
@@ -74,7 +74,7 @@ export const ErrorState: Story = {
 export const GroupedFieldset: Story = {
   args: {},
   render: () => (
-    <FieldSet className="w-[22rem]">
+    <FieldSet className="w-88">
       <FieldLegend>Session metadata</FieldLegend>
       <FieldGroup>
         <Field>

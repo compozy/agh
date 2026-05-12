@@ -89,7 +89,7 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
       className="my-2 max-w-3xl px-3 py-2"
       variant={isWarning ? "warning" : "accent"}
     >
-      <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
       <AlertTitle>{title}</AlertTitle>
       {meta ? <AlertMeta data-testid="runtime-activity-meta">{meta}</AlertMeta> : null}
       <AlertDescription className="truncate" data-testid="runtime-activity-detail">
@@ -111,15 +111,15 @@ export function SessionActivityInline({ activity }: { activity?: RuntimeActivity
     <span
       data-testid="session-activity-inline"
       className={cn(
-        "hidden min-w-0 max-w-[20rem] items-center gap-1.5 rounded-sm border px-2 py-1 md:flex",
-        "border-(--color-divider) bg-(--color-canvas-deep)",
-        "text-eyebrow text-(--color-text-secondary)"
+        "hidden min-w-0 max-w-80 items-center gap-1.5 rounded-sm border px-2 py-1 md:flex",
+        "border-line bg-canvas",
+        "text-eyebrow text-muted"
       )}
     >
       {activity.current_tool ? (
         <Wrench aria-hidden="true" className="size-3 shrink-0 text-accent" />
       ) : (
-        <Clock aria-hidden="true" className="size-3 shrink-0 text-(--color-text-tertiary)" />
+        <Clock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
       )}
       <span className="truncate" title={detail}>
         {detail}

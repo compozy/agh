@@ -1,20 +1,35 @@
-import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { Activity, AlertCircle, ExternalLink } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Metric, MetricGrid, PageShell, Pill, Section, Switch } from "@agh/ui";
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
+import {
+  Button,
+  Eyebrow,
+  Metric,
+  MetricGrid,
+  PageShell,
+  Pill,
+  RestartBanner,
+  Section,
+  Spinner,
+  StatusLineTopbarSlot,
+  Switch,
+  useTopbarSlot,
+} from "@agh/ui";
 
 export const Route = createFileRoute("/_app/settings/observability")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Observability", icon: Activity },
+  }),
   component: ObservabilitySettingsPage,
 });
 
@@ -48,6 +63,37 @@ function ObservabilitySettingsPage() {
     () => Object.values(validationErrors).some(message => message !== null),
     [validationErrors]
   );
+  const runtimeForSlot = page.envelope?.runtime;
+  const draftForSlot = page.draft;
+  const totalStorageForSlot = runtimeForSlot
+    ? runtimeForSlot.global_db_size_bytes + runtimeForSlot.session_db_size_bytes
+    : 0;
+  const capForSlot = draftForSlot?.max_global_bytes ?? 0;
+  useTopbarSlot({
+    tabs:
+      runtimeForSlot && draftForSlot ? (
+        <StatusLineTopbarSlot
+          data-testid="settings-page-observability-status-line"
+          status={runtimeForSlot.available ? "connected" : "error"}
+          items={[
+            {
+              key: "sessions",
+              value: `${runtimeForSlot.active_sessions} active sessions`,
+              tone: "neutral",
+            },
+            {
+              key: "storage",
+              value: (
+                <span data-testid="settings-page-observability-storage-summary">
+                  storage {formatBytes(totalStorageForSlot)} / {formatBytes(capForSlot)}
+                </span>
+              ),
+              tone: "neutral",
+            },
+          ]}
+        />
+      ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -55,7 +101,7 @@ function ObservabilitySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-observability-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -67,8 +113,8 @@ function ObservabilitySettingsPage() {
         data-testid="settings-page-observability-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load observability settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -86,24 +132,12 @@ function ObservabilitySettingsPage() {
   const cap = draft.max_global_bytes;
   const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
 
+  const bannerProps = restartBannerPropsFor("observability", restart);
+
   return (
     <PageShell
       slug="observability"
-      title="Observability"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-observability-status-line"
-          status={runtime.available ? "connected" : "error"}
-          items={[
-            <span key="sessions">{runtime.active_sessions} active sessions</span>,
-            <span key="storage" data-testid="settings-page-observability-storage-summary">
-              storage {formatBytes(totalStorage)} / {formatBytes(cap)}
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="observability" restart={restart} />}
-      banner={<SettingsRestartBanner slug="observability" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="observability"
@@ -359,20 +393,20 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
   return (
     <Section divided label="Log tail" note="daemon log stream">
       <div
-        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-4 py-3"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-elevated px-4 py-3"
         data-testid="settings-page-observability-log-tail"
         data-available={logTail.available ? "true" : "false"}
       >
         <div className="flex flex-col gap-1">
-          <span className="text-sm text-(--color-text-primary)">
+          <span className="text-sm text-fg">
             {logTail.available ? "Live log tail available" : "Log tail unavailable"}
           </span>
-          <span
-            className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)"
+          <Eyebrow
+            className="text-muted"
             data-testid="settings-page-observability-log-tail-transport"
           >
             transport: {logTail.transport ?? "none"}
-          </span>
+          </Eyebrow>
         </div>
         {logTail.available && logTail.stream_url ? (
           <a
@@ -382,7 +416,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
             rel="noreferrer"
             target="_blank"
           >
-            <ExternalLink className="size-3.5" />
+            <ExternalLink className="size-3" />
             Open stream
           </a>
         ) : null}
@@ -412,9 +446,7 @@ function NumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-        {label}
-      </span>
+      <Eyebrow className="text-muted">{label}</Eyebrow>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           className="w-full"
@@ -424,13 +456,9 @@ function NumberField({
           onValidityChange={onValidityChange}
           onValueChange={onChange}
         />
-        {suffix ? (
-          <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-label)">
-            {suffix}
-          </span>
-        ) : null}
+        {suffix ? <Eyebrow className="text-muted">{suffix}</Eyebrow> : null}
       </div>
-      {errorMessage ? <span className="text-xs text-(--color-danger)">{errorMessage}</span> : null}
+      {errorMessage ? <span className="text-xs text-danger">{errorMessage}</span> : null}
     </div>
   );
 }
@@ -448,30 +476,28 @@ function UsageBreakdown({ globalBytes, sessionBytes, cap }: UsageBreakdownProps)
 
   return (
     <div className="flex flex-col gap-2" data-testid="settings-page-observability-usage-breakdown">
-      <div className="flex items-center justify-between text-xs text-(--color-text-tertiary)">
-        <span className="font-mono uppercase tracking-mono text-(--color-text-label)">
-          Usage breakdown
-        </span>
+      <div className="flex items-center justify-between text-xs text-subtle">
+        <Eyebrow className="text-muted">Usage breakdown</Eyebrow>
       </div>
-      <div className="relative h-2 w-full overflow-hidden rounded-full bg-(--color-surface-panel)">
+      <div className="relative h-2 w-full overflow-hidden rounded-full bg-canvas-soft">
         <div
-          className="absolute inset-y-0 left-0 bg-accent"
+          className="absolute inset-y-0 left-0 bg-accent-tint-strong"
           style={{ width: `${globalPct}%` }}
           data-testid="settings-page-observability-usage-bar-global"
         />
         <div
-          className="absolute inset-y-0 bg-(--color-info)"
+          className="absolute inset-y-0 bg-info-tint"
           style={{ left: `${globalPct}%`, width: `${sessionPct}%` }}
           data-testid="settings-page-observability-usage-bar-sessions"
         />
       </div>
-      <div className="flex flex-wrap gap-4 text-xs text-(--color-text-secondary)">
+      <div className="flex flex-wrap gap-4 text-xs text-muted">
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-accent-tint-strong" />
           global DB {formatBytes(globalBytes)}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="size-2 rounded-full bg-(--color-info)" />
+          <span aria-hidden="true" className="size-2 rounded-full bg-info-tint" />
           session DB {formatBytes(sessionBytes)}
         </span>
       </div>

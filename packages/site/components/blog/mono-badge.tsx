@@ -4,12 +4,12 @@ import type { ComponentProps } from "react";
 export type MonoBadgeTone = "neutral" | "accent" | "success" | "danger" | "warning" | "info";
 
 const toneClass: Record<MonoBadgeTone, string> = {
-  neutral: "border-(--color-divider) text-(--color-text-label)",
-  accent: "border-transparent bg-(--color-accent-tint) text-accent",
-  success: "border-transparent bg-(--color-success-tint) text-success",
-  danger: "border-transparent bg-(--color-danger-tint) text-(--color-danger)",
-  warning: "border-transparent bg-(--color-warning-tint) text-(--color-warning)",
-  info: "border-transparent bg-(--color-info-tint) text-(--color-info)",
+  neutral: "border-line text-muted",
+  accent: "border-transparent bg-accent-tint text-accent",
+  success: "border-transparent bg-success-tint text-success",
+  danger: "border-transparent bg-danger-tint text-danger",
+  warning: "border-transparent bg-warning-tint text-warning",
+  info: "border-transparent bg-info-tint text-info",
 };
 
 export interface MonoBadgeProps extends ComponentProps<"span"> {

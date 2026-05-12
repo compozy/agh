@@ -50,7 +50,7 @@ export const WithAction: Story = {
         description="Approval requests, failed runs, and blockers appear here."
         action={
           <Button size="sm" type="button">
-            <PlusIcon className="size-3.5" />
+            <PlusIcon className="size-3" />
             New task
           </Button>
         }

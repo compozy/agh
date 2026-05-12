@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Eyebrow } from "@agh/ui";
 
 interface RouteRowProps {
   href: string;
@@ -33,19 +34,17 @@ export function OperatorNote({
   return (
     <aside
       role="note"
-      className="not-prose rounded-xl border border-(--color-divider) bg-(--color-surface) p-5 md:px-6"
+      className="not-prose rounded-xl border border-line bg-canvas-soft p-5 md:px-6"
     >
-      <p className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
-        {label}
-      </p>
-      <div className="mt-3 text-base leading-7 text-(--color-text-secondary)">{children}</div>
+      <Eyebrow className="text-accent">{label}</Eyebrow>
+      <div className="mt-3 text-base leading-7 text-muted">{children}</div>
     </aside>
   );
 }
 
 export function RouteList({ children }: { children: ReactNode }) {
   return (
-    <div className="not-prose overflow-hidden rounded-xl border border-(--color-divider) bg-(--color-surface)">
+    <div className="not-prose overflow-hidden rounded-xl border border-line bg-canvas-soft">
       {children}
     </div>
   );
@@ -55,18 +54,16 @@ export function RouteRow({ href, label, title, description, meta }: RouteRowProp
   return (
     <Link
       href={href}
-      className="group grid gap-3 border-t border-(--color-divider) p-5 transition-colors first:border-t-0 hover:bg-(--color-hover) md:grid-cols-[132px_minmax(0,1fr)_150px] md:items-center md:px-6"
+      className="group grid gap-3 border-t border-line p-5 transition-colors first:border-t-0 hover:bg-hover md:grid-cols-[132px_minmax(0,1fr)_150px] md:items-center md:px-6"
     >
-      <p className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
-        {label}
-      </p>
+      <Eyebrow className="text-subtle">{label}</Eyebrow>
 
       <div className="min-w-0">
-        <p className="text-lg font-semibold tracking-tight text-(--color-text-primary)">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-(--color-text-secondary)">{description}</p>
+        <p className="text-lg font-semibold tracking-tight text-fg">{title}</p>
+        <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-(--color-text-secondary) md:justify-end">
+      <div className="flex items-center gap-2 text-sm text-muted md:justify-end">
         {meta ? (
           <span className="hidden md:inline">{meta}</span>
         ) : (
@@ -89,27 +86,23 @@ export function GuideCard({ href, label, title, description, meta }: GuideCardPr
   return (
     <Link
       href={href}
-      className="group flex min-h-[220px] flex-col justify-between rounded-xl border border-(--color-divider) bg-(--color-surface) p-5 transition-colors hover:border-accent/40 md:p-6"
+      className="group flex min-h-55 flex-col justify-between rounded-xl border border-line bg-canvas-soft p-5 transition-colors hover:border-accent/40 md:p-6"
     >
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-badge font-semibold uppercase tracking-mono text-accent">
-            {label}
-          </span>
+          <Eyebrow className="text-accent">{label}</Eyebrow>
           {meta ? (
-            <span className="rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-2 py-1 font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
+            <Eyebrow className="rounded-md border border-line bg-elevated px-2 py-1 text-subtle">
               {meta}
-            </span>
+            </Eyebrow>
           ) : null}
         </div>
 
-        <p className="mt-4 text-xl leading-7 font-semibold tracking-tight text-(--color-text-primary)">
-          {title}
-        </p>
-        <p className="mt-3 text-sm leading-6 text-(--color-text-secondary)">{description}</p>
+        <p className="mt-4 text-xl leading-7 font-semibold tracking-tight text-fg">{title}</p>
+        <p className="mt-3 text-sm leading-6 text-muted">{description}</p>
       </div>
 
-      <div className="mt-6 flex items-center gap-2 text-sm text-(--color-text-secondary)">
+      <div className="mt-6 flex items-center gap-2 text-sm text-muted">
         <span>Open guide</span>
         <ArrowRight
           aria-hidden
@@ -122,7 +115,7 @@ export function GuideCard({ href, label, title, description, meta }: GuideCardPr
 
 export function Workflow({ children }: { children: ReactNode }) {
   return (
-    <div className="not-prose my-8 overflow-hidden rounded-xl border border-(--color-divider) bg-(--color-surface)">
+    <div className="not-prose my-8 overflow-hidden rounded-xl border border-line bg-canvas-soft">
       {children}
     </div>
   );
@@ -130,15 +123,13 @@ export function Workflow({ children }: { children: ReactNode }) {
 
 export function WorkflowStep({ title, children }: WorkflowStepProps) {
   return (
-    <section className="grid min-w-0 gap-4 border-t border-(--color-divider) p-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
-      <div className="flex size-10 items-center justify-center rounded-lg border border-(--color-divider) bg-(--color-surface-elevated)">
+    <section className="grid min-w-0 gap-4 border-t border-line p-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
+      <div className="flex size-10 items-center justify-center rounded-lg border border-line bg-elevated">
         <CheckCircle2 className="size-4 text-accent" />
       </div>
       <div className="min-w-0">
-        <p className="text-lg leading-7 font-semibold tracking-tight text-(--color-text-primary)">
-          {title}
-        </p>
-        <div className="mt-2 text-sm leading-7 text-(--color-text-secondary)">{children}</div>
+        <p className="text-lg leading-7 font-semibold tracking-tight text-fg">{title}</p>
+        <div className="mt-2 text-sm leading-7 text-muted">{children}</div>
       </div>
     </section>
   );

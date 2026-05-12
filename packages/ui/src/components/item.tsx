@@ -1,7 +1,7 @@
-import * as React from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Separator } from "./separator";
@@ -32,20 +32,20 @@ function ItemSeparator({ className, ...props }: React.ComponentProps<typeof Sepa
 }
 
 const itemVariants = cva(
-  "group/item flex w-full flex-wrap items-center rounded-lg border text-sm transition-colors duration-100 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [a]:transition-colors [a]:hover:bg-muted",
+  "group/item flex w-full flex-wrap items-center rounded-lg border text-small-body text-fg transition-colors duration-base outline-none focus-visible:outline-none focus-visible:shadow-focus-ring [a]:transition-colors [a]:hover:bg-hover",
   {
     variants: {
       variant: {
         default: "border-transparent",
-        outline: "border-border",
-        muted: "border-transparent bg-muted/50",
+        outline: "border-line",
+        muted: "border-transparent bg-canvas-tint",
       },
       selectable: {
-        true: "relative text-left hover:bg-[color:var(--color-hover)] focus-visible:border-[color:var(--color-accent)] focus-visible:ring-[color:var(--color-accent)]/40",
+        true: "relative text-left hover:bg-hover",
         false: "",
       },
       selected: {
-        true: "bg-[color:var(--color-surface)]",
+        true: "bg-elevated text-fg-strong",
         false: "",
       },
       size: {
@@ -64,12 +64,14 @@ const itemVariants = cva(
 );
 
 type ItemIndicator = "rail" | "dot" | "none";
+type ItemIndicatorTone = "white" | "accent";
 type ItemAs = "div" | "button";
 
 interface ItemOwnProps extends VariantProps<typeof itemVariants> {
   as?: ItemAs;
   disabled?: boolean;
   indicator?: ItemIndicator;
+  indicatorTone?: ItemIndicatorTone;
 }
 
 type ItemDivProps = ItemOwnProps & Omit<useRender.ComponentProps<"div">, keyof ItemOwnProps>;
@@ -110,10 +112,14 @@ function getItemClassName({
   );
 }
 
-function getItemChildren(children: React.ReactNode, indicator: ItemIndicator) {
+function getItemChildren(
+  children: React.ReactNode,
+  indicator: ItemIndicator,
+  tone: ItemIndicatorTone
+) {
   return (
     <>
-      {indicator !== "none" ? <ItemSelectionIndicator kind={indicator} /> : null}
+      {indicator !== "none" ? <ItemSelectionIndicator kind={indicator} tone={tone} /> : null}
       {children}
     </>
   );
@@ -122,61 +128,76 @@ function getItemChildren(children: React.ReactNode, indicator: ItemIndicator) {
 function Item(props: ItemButtonProps): React.ReactElement;
 function Item(props: ItemDivProps): React.ReactElement;
 function Item(props: ItemButtonProps | ItemDivProps) {
-  const indicator = props.indicator ?? "none";
-  const selectedState = Boolean(props.selected);
-  const selectableState = Boolean(props.selectable || selectedState || indicator !== "none");
-  const itemChildren = getItemChildren(props.children, indicator);
-
   if (isButtonItemProps(props)) {
-    const buttonItemProps = props;
-    const {
-      as: _as,
-      className,
-      indicator: _indicator,
-      variant = "default",
-      size = "default",
-      selected: _selected = false,
-      selectable: _selectable = false,
-      render,
-      children: _children,
-      disabled,
-      ...buttonProps
-    } = buttonItemProps;
-
-    const mergedButtonProps: useRender.ComponentProps<"button"> & ItemDataProps = {
-      className: getItemClassName({
-        className,
-        variant,
-        size,
-        selectable: selectableState,
-        selected: selectedState,
-      }),
-      children: itemChildren,
-      "aria-pressed": selectableState ? selectedState : undefined,
-      "data-selected": selectedState ? "true" : undefined,
-      disabled,
-      type: "button",
-    };
-
-    return useRender({
-      defaultTagName: "button",
-      props: mergeProps<"button">(mergedButtonProps, buttonProps),
-      render,
-      state: {
-        slot: "item",
-        variant,
-        size,
-        selected: selectedState,
-        selectable: selectableState,
-      },
-    });
+    return <ButtonItem {...props} />;
   }
 
-  const divItemProps = props;
+  return <DivItem {...props} />;
+}
+
+function ButtonItem(props: ItemButtonProps) {
+  const indicator = props.indicator ?? "none";
+  const indicatorTone: ItemIndicatorTone = props.indicatorTone ?? "white";
+  const selectedState = Boolean(props.selected);
+  const selectableState = Boolean(props.selectable || selectedState || indicator !== "none");
+  const itemChildren = getItemChildren(props.children, indicator, indicatorTone);
+
   const {
     as: _as,
     className,
     indicator: _indicator,
+    indicatorTone: _indicatorTone,
+    variant = "default",
+    size = "default",
+    selected: _selected = false,
+    selectable: _selectable = false,
+    render,
+    children: _children,
+    disabled,
+    ...buttonProps
+  } = props;
+
+  const mergedButtonProps: useRender.ComponentProps<"button"> & ItemDataProps = {
+    className: getItemClassName({
+      className,
+      variant,
+      size,
+      selectable: selectableState,
+      selected: selectedState,
+    }),
+    children: itemChildren,
+    "aria-pressed": selectableState ? selectedState : undefined,
+    "data-selected": selectedState ? "true" : undefined,
+    disabled,
+    type: "button",
+  };
+
+  return useRender({
+    defaultTagName: "button",
+    props: mergeProps<"button">(mergedButtonProps, buttonProps),
+    render,
+    state: {
+      slot: "item",
+      variant,
+      size,
+      selected: selectedState,
+      selectable: selectableState,
+    },
+  });
+}
+
+function DivItem(props: ItemDivProps) {
+  const indicator = props.indicator ?? "none";
+  const indicatorTone: ItemIndicatorTone = props.indicatorTone ?? "white";
+  const selectedState = Boolean(props.selected);
+  const selectableState = Boolean(props.selectable || selectedState || indicator !== "none");
+  const itemChildren = getItemChildren(props.children, indicator, indicatorTone);
+
+  const {
+    as: _as,
+    className,
+    indicator: _indicator,
+    indicatorTone: _indicatorTone,
     variant = "default",
     size = "default",
     selected: _selected = false,
@@ -185,7 +206,7 @@ function Item(props: ItemButtonProps | ItemDivProps) {
     children: _children,
     disabled: _disabled,
     ...divProps
-  } = divItemProps;
+  } = props;
 
   const mergedDivProps: useRender.ComponentProps<"div"> & ItemDataProps = {
     className: getItemClassName({
@@ -215,24 +236,30 @@ function Item(props: ItemButtonProps | ItemDivProps) {
 
 interface ItemSelectionIndicatorProps extends React.ComponentProps<"span"> {
   kind?: ItemIndicator;
+  tone?: ItemIndicatorTone;
 }
 
 function ItemSelectionIndicator({
   className,
   kind = "rail",
+  tone = "white",
   ...props
 }: ItemSelectionIndicatorProps) {
   if (kind === "none") return null;
+
+  const toneClass = tone === "accent" ? "bg-accent" : "bg-fg-strong";
 
   return (
     <span
       aria-hidden="true"
       data-slot="item-selection-indicator"
       data-indicator={kind}
+      data-tone={tone}
       className={cn(
         kind === "rail"
-          ? "absolute top-2 bottom-2 left-0 w-[3px] rounded-r bg-[color:var(--color-accent)]"
-          : "size-1.5 shrink-0 rounded-full bg-[color:var(--color-accent)]",
+          ? "absolute top-2 bottom-2 left-0 w-0.5 rounded-r"
+          : "size-1.5 shrink-0 rounded-full",
+        toneClass,
         className
       )}
       {...props}
@@ -248,7 +275,7 @@ const itemMediaVariants = cva(
         default: "bg-transparent",
         icon: "[&_svg:not([class*='size-'])]:size-4",
         image:
-          "size-10 overflow-hidden rounded-sm group-data-[size=sm]/item:size-8 group-data-[size=xs]/item:size-6 [&_img]:size-full [&_img]:object-cover",
+          "size-10 overflow-hidden rounded-md group-data-[size=sm]/item:size-8 group-data-[size=xs]/item:size-6 [&_img]:size-full [&_img]:object-cover",
       },
     },
     defaultVariants: {
@@ -290,7 +317,7 @@ function ItemTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="item-title"
       className={cn(
-        "line-clamp-1 flex w-fit items-center gap-2 text-sm leading-snug font-medium underline-offset-4",
+        "line-clamp-1 flex w-fit items-center gap-2 text-card-title leading-snug font-medium text-fg-strong underline-offset-4",
         className
       )}
       {...props}
@@ -303,7 +330,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="item-description"
       className={cn(
-        "line-clamp-2 text-left text-sm leading-normal font-normal text-muted-foreground group-data-[size=xs]/item:text-xs [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
+        "line-clamp-2 text-left text-small-body leading-normal font-normal text-muted group-data-[size=xs]/item:text-form-label [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-accent",
         className
       )}
       {...props}
@@ -339,15 +366,15 @@ function ItemFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
   Item,
-  ItemSelectionIndicator,
-  ItemMedia,
-  ItemContent,
   ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
   ItemGroup,
+  ItemHeader,
+  ItemMedia,
+  ItemSelectionIndicator,
   ItemSeparator,
   ItemTitle,
-  ItemDescription,
-  ItemHeader,
-  ItemFooter,
 };
-export type { ItemAs, ItemIndicator, ItemProps, ItemSelectionIndicatorProps };
+export type { ItemAs, ItemIndicator, ItemIndicatorTone, ItemProps, ItemSelectionIndicatorProps };

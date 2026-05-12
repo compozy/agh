@@ -1,12 +1,12 @@
 ---
 name: agh-contract-codegen-coship
-description: Detects edits to internal/api/contract, internal/api/spec, openapi or web/src/generated and forces same-PR regeneration of openapi/agh.json plus web/src/generated/agh-openapi.d.ts and verification via make codegen, make codegen-check, make web-typecheck, and make web-test. Enforces ADR-011 co-ship rule. Updates affected web systems types, MSW fixtures, and Storybook stories. Use whenever a change touches a contract DTO, an OpenAPI spec, a JSON-RPC extension shape, or any handler whose request and response cross the wire. Do not use for purely internal Go-only refactors or test-only changes.
+description: Detects edits to internal/api/contract, internal/api/spec, openapi or web/src/generated and forces same-PR regeneration of openapi/agh.json plus web/src/generated/agh-openapi.d.ts and verification via make codegen, make codegen-check, make web-typecheck, and make web-test. Enforces the contract co-ship rule. Updates affected web systems types, MSW fixtures, and Storybook stories. Use whenever a change touches a contract DTO, an OpenAPI spec, a JSON-RPC extension shape, or any handler whose request and response cross the wire. Do not use for purely internal Go-only refactors or test-only changes.
 trigger: implicit
 ---
 
 # Contract Codegen Co-Ship
 
-Autonomy ADR-011 is explicit: any change to `internal/api/contract` co-ships in the same PR with regenerated OpenAPI + web types + updated `web/src/systems/*/types.ts` + Storybook/MSW fixtures + green `make codegen-check`, `make web-typecheck`, `make web-test`. Splitting these across PRs guarantees an integration break.
+The contract co-ship rule is explicit: any change to `internal/api/contract` co-ships in the same PR with regenerated OpenAPI + web types + updated `web/src/systems/*/types.ts` + Storybook/MSW fixtures + green `make codegen-check`, `make web-typecheck`, `make web-test`. Splitting these across PRs guarantees an integration break.
 
 ## Procedures
 

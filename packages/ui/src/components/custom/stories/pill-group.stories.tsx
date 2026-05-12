@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { PillGroup } from "../pill-group";
+import { PillGroup, type PillGroupItem } from "../pill-group";
 
 const meta: Meta<typeof PillGroup> = {
   title: "components/custom/PillGroup",
@@ -12,7 +12,7 @@ const meta: Meta<typeof PillGroup> = {
     docs: {
       description: {
         component:
-          "Segmented toggle track. Controlled via `items` + `value` + `onChange`. Replaces the legacy segmented pills toggle.",
+          "Canonical segmented control. Rewritten — borderless `--canvas-soft` track at `--radius-md`, Inter sentence-case 12/510/-0.005em segments (no mono-uppercase), active state lifts to `--elevated` plus the `--highlight` inset shadow. Count badges render at 3px corners on the neutral `--badge-fill`.",
       },
     },
   },
@@ -21,21 +21,18 @@ const meta: Meta<typeof PillGroup> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function PillGroupHarness() {
-  const [value, setValue] = useState<"list" | "kanban" | "dashboard" | "inbox">("list");
-  return (
-    <PillGroup
-      value={value}
-      onChange={setValue}
-      items={[
-        { value: "list", label: "List", testId: "mode-list" },
-        { value: "kanban", label: "Kanban", testId: "mode-kanban" },
-        { value: "dashboard", label: "Dashboard", testId: "mode-dashboard" },
-        { value: "inbox", label: "Inbox", badge: 3, testId: "mode-inbox" },
-      ]}
-      aria-label="Task views"
-    />
-  );
+type ViewMode = "list" | "kanban" | "dashboard" | "inbox";
+
+const VIEW_ITEMS: ReadonlyArray<PillGroupItem<ViewMode>> = [
+  { value: "list", label: "List", testId: "mode-list" },
+  { value: "kanban", label: "Kanban", testId: "mode-kanban" },
+  { value: "dashboard", label: "Dashboard", testId: "mode-dashboard" },
+  { value: "inbox", label: "Inbox", badge: 3, testId: "mode-inbox" },
+];
+
+function PillGroupHarness({ initial = "list" as ViewMode }: { initial?: ViewMode }) {
+  const [value, setValue] = useState<ViewMode>(initial);
+  return <PillGroup value={value} onChange={setValue} items={VIEW_ITEMS} aria-label="Task views" />;
 }
 
 function SmallPillGroupHarness() {
@@ -55,7 +52,39 @@ function SmallPillGroupHarness() {
 }
 
 export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Default `md` size with the first segment active. Renders the new sentence-case Inter label and the lifted `--elevated` + `--highlight` active surface.",
+      },
+    },
+  },
   render: () => <PillGroupHarness />,
+};
+
+export const ActiveSecond: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Active state on the middle segment — confirms the `--highlight` inset shadow lifts the chip evenly regardless of position.",
+      },
+    },
+  },
+  render: () => <PillGroupHarness initial="kanban" />,
+};
+
+export const WithCounts: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Segments with count badges. Badges render as 3px-radius neutral chips on `--badge-fill` with `--muted` text and tabular-nums (replaces the prior solid-accent treatment).",
+      },
+    },
+  },
+  render: () => <PillGroupHarness initial="inbox" />,
 };
 
 export const Selection: Story = {
@@ -75,10 +104,25 @@ export const Selection: Story = {
 };
 
 export const SizeSm: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`size='sm'` shrinks the segment height to `--height-pill-group-segment-sm` (20px) while keeping the same Inter type ramp.",
+      },
+    },
+  },
   render: () => <SmallPillGroupHarness />,
 };
 
 export const DisabledItem: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story: "A disabled segment is non-interactive and dimmed; `onChange` will not fire.",
+      },
+    },
+  },
   render: () => (
     <PillGroup
       value="list"

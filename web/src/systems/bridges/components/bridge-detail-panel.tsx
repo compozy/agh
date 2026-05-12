@@ -13,6 +13,7 @@ import {
   CodeBlock,
   ConfirmDialog,
   DataSurface,
+  DetailHeader,
   DialogTrigger,
   Empty,
   Eyebrow,
@@ -23,7 +24,6 @@ import {
   Input,
   MetadataList,
   Metric,
-  PageHeader,
   Pill,
   type PillTone,
   Section,
@@ -38,14 +38,14 @@ import {
 
 import {
   bridgeStatusTone,
-  describeBridgeDmPolicy,
   describeBridgeDeliveryDefaults,
+  describeBridgeDmPolicy,
   describeBridgeProviderConfigSchema,
   describeBridgeRouteTarget,
   describeBridgeRoutingPolicy,
   describeBridgeSecretSlot,
-  formatBridgeProviderConfig,
   formatBridgeDateTime,
+  formatBridgeProviderConfig,
   formatBridgeRelativeTime,
 } from "../lib/bridge-formatters";
 import type {
@@ -93,27 +93,15 @@ interface BridgeMetrics {
   successTone: "default" | "accent" | "success" | "warning" | "danger";
 }
 
-const METADATA_TILE_CLASS =
-  "rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3";
-const METADATA_TERM_CLASS = "mb-2 text-(--color-text-label)";
-const METADATA_VALUE_CLASS = "text-small-body text-(--color-text-primary)";
+const METADATA_TILE_CLASS = "rounded-md border border-line bg-canvas-soft px-4 py-3";
+const METADATA_TERM_CLASS = "mb-2 text-muted";
+const METADATA_VALUE_CLASS = "text-small-body text-fg";
 const EMPTY_SECRET_BINDINGS: BridgeSecretBinding[] = [];
 const EMPTY_SECRET_INPUT_VALUES: Record<string, string> = {};
 
 function statusToPillTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
-  switch (bridgeStatusTone(status)) {
-    case "green":
-      return "success";
-    case "amber":
-      return "warning";
-    case "danger":
-      return "danger";
-    case "violet":
-      return "info";
-    default:
-      return "neutral";
-  }
+  return bridgeStatusTone(status);
 }
 
 function computeBridgeMetrics(
@@ -165,11 +153,11 @@ function SecretSlotCard({
 }: SecretSlotCardProps) {
   return (
     <article
-      className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3"
+      className="rounded-md border border-line bg-canvas-soft px-4 py-3"
       data-testid={`bridge-secret-binding-${slot.name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Eyebrow tone="accent">{slot.name}</Eyebrow>
+        <Eyebrow className="text-accent">{slot.name}</Eyebrow>
         <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
           {slot.required === false ? "OPTIONAL" : "REQUIRED"}
         </Pill>
@@ -177,9 +165,7 @@ function SecretSlotCard({
           {binding ? "BOUND" : "UNBOUND"}
         </Pill>
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-(--color-text-secondary)">
-        {describeBridgeSecretSlot(slot)}
-      </p>
+      <p className="mt-2 text-xs leading-relaxed text-muted">{describeBridgeSecretSlot(slot)}</p>
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <Field>
           <FieldContent>
@@ -197,11 +183,11 @@ function SecretSlotCard({
             value={inputValue}
           />
           {binding ? (
-            <p className="text-xs text-(--color-text-secondary)">
+            <p className="text-xs text-muted">
               Current ref: <span className="font-mono">{binding.secret_ref}</span>
             </p>
           ) : (
-            <p className="text-xs text-(--color-text-tertiary)">No secret binding stored.</p>
+            <p className="text-xs text-subtle">No secret binding stored.</p>
           )}
         </Field>
         <div className="flex flex-wrap items-center gap-2">
@@ -330,7 +316,7 @@ function BridgeEventStreamSection({
   return (
     <Section label="Event stream" right={<Pill mono>{routes.length}</Pill>}>
       <div
-        className="overflow-hidden rounded-md border border-(--color-divider) bg-(--color-surface)"
+        className="overflow-hidden rounded-md border border-line bg-canvas-soft"
         data-testid="bridge-routes-table"
       >
         <Table>
@@ -369,18 +355,14 @@ function BridgeEventStreamSection({
                 </TableCell>
                 <TableCell>
                   <div className="min-w-0">
-                    <div className="text-small-body text-(--color-text-primary)">
-                      {route.agent_name}
-                    </div>
-                    <div className="mt-1 break-all font-mono text-eyebrow text-(--color-text-tertiary)">
-                      <Eyebrow className="mr-1" weight="semibold">
-                        Session
-                      </Eyebrow>
+                    <div className="text-small-body text-fg">{route.agent_name}</div>
+                    <div className="mt-1 break-all font-mono text-eyebrow text-subtle">
+                      <Eyebrow className="mr-1">Session</Eyebrow>
                       <span>{route.session_id}</span>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-(--color-text-secondary)">
+                <TableCell className="font-mono text-xs text-muted">
                   {describeBridgeRouteTarget(route)}
                 </TableCell>
                 <TableCell>
@@ -388,7 +370,7 @@ function BridgeEventStreamSection({
                     {route.scope}
                   </Pill>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-(--color-text-tertiary)">
+                <TableCell className="font-mono text-xs text-subtle">
                   {formatBridgeRelativeTime(route.last_activity_at)}
                 </TableCell>
               </TableRow>
@@ -518,7 +500,7 @@ function BridgeProviderRuntimeSection({
       </MetadataList>
 
       {provider?.description ? (
-        <p className="mt-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body leading-relaxed text-(--color-text-secondary)">
+        <p className="mt-3 rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">
           {provider.description}
         </p>
       ) : null}
@@ -539,16 +521,14 @@ function BridgeProviderRuntimeSection({
           ))}
         </div>
       ) : isSecretBindingsLoading ? (
-        <div className="mt-3 flex items-center gap-2 text-small-body text-(--color-text-tertiary)">
+        <div className="mt-3 flex items-center gap-2 text-small-body text-subtle">
           <Spinner aria-label="Loading secret bindings" className="size-4" />
           <span>Loading secret bindings…</span>
         </div>
       ) : null}
 
       <div className="mt-3">
-        <Eyebrow className="mb-2 block" tone="neutral">
-          Provider config
-        </Eyebrow>
+        <Eyebrow className="text-muted mb-2 block">Provider config</Eyebrow>
         {providerConfig ? (
           <CodeBlock
             code={providerConfig}
@@ -557,7 +537,7 @@ function BridgeProviderRuntimeSection({
             showPrompt={false}
           />
         ) : (
-          <p className="rounded-md border border-(--color-divider) bg-(--color-surface) px-4 py-3 text-small-body leading-relaxed text-(--color-text-secondary)">
+          <p className="rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">
             No provider runtime config stored for this bridge.
           </p>
         )}
@@ -588,74 +568,83 @@ function BridgeDetailHeader({
   const statusTone = statusToPillTone(effectiveStatus);
   const pulse = effectiveStatus === "starting";
 
+  const pills = (
+    <>
+      <span className="flex items-center gap-2">
+        <Pill.Dot pulse={pulse} tone={statusTone} />
+        <Pill mono tone={statusTone}>
+          {effectiveStatus}
+        </Pill>
+      </span>
+      <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
+        {bridge.scope}
+      </Pill>
+    </>
+  );
+
+  const meta = (
+    <span data-testid="bridge-detail-meta-platform">
+      {bridge.platform} / {bridge.extension_name}
+    </span>
+  );
+
+  const actions = (
+    <>
+      <Button
+        data-testid="edit-bridge-btn"
+        disabled={isLifecyclePending}
+        onClick={onOpenEdit}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <Pencil className="size-3" />
+        Edit
+      </Button>
+      <Button
+        data-testid="restart-bridge-btn"
+        disabled={isLifecyclePending}
+        onClick={onRestartBridge}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <RotateCw className="size-3" />
+        Restart
+      </Button>
+      {bridge.enabled ? (
+        <Button
+          data-testid="disable-bridge-btn"
+          disabled={isLifecyclePending}
+          onClick={onDisableBridge}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <Power className="size-3" />
+          Disable
+        </Button>
+      ) : (
+        <Button
+          data-testid="enable-bridge-btn"
+          disabled={isLifecyclePending}
+          onClick={onEnableBridge}
+          size="sm"
+          type="button"
+        >
+          <Power className="size-3" />
+          Enable
+        </Button>
+      )}
+    </>
+  );
+
   return (
-    <PageHeader
-      className="px-6 py-4"
-      controls={
-        <>
-          <Button
-            data-testid="edit-bridge-btn"
-            disabled={isLifecyclePending}
-            onClick={onOpenEdit}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Pencil className="size-3.5" />
-            Edit
-          </Button>
-          <Button
-            data-testid="restart-bridge-btn"
-            disabled={isLifecyclePending}
-            onClick={onRestartBridge}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <RotateCw className="size-3.5" />
-            Restart
-          </Button>
-          {bridge.enabled ? (
-            <Button
-              data-testid="disable-bridge-btn"
-              disabled={isLifecyclePending}
-              onClick={onDisableBridge}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Power className="size-3.5" />
-              Disable
-            </Button>
-          ) : (
-            <Button
-              data-testid="enable-bridge-btn"
-              disabled={isLifecyclePending}
-              onClick={onEnableBridge}
-              size="sm"
-              type="button"
-            >
-              <Power className="size-3.5" />
-              Enable
-            </Button>
-          )}
-        </>
-      }
-      icon={Waypoints}
-      statusRow={
-        <>
-          <span className="flex items-center gap-2">
-            <Pill.Dot pulse={pulse} tone={statusTone} />
-            <Pill mono tone={statusTone}>
-              {effectiveStatus}
-            </Pill>
-          </span>
-          <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
-            {bridge.scope}
-          </Pill>
-        </>
-      }
-      subtitle={`${bridge.platform} / ${bridge.extension_name}`}
+    <DetailHeader
+      actions={actions}
+      data-testid="bridge-detail-header"
+      meta={meta}
+      pills={pills}
       title={bridge.display_name}
     />
   );
@@ -739,7 +728,7 @@ export function BridgeDetailPanel({
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
         {restartRequired ? (
           <div
-            className="rounded-md border border-(--color-warning)/40 bg-(--color-warning-tint) px-4 py-3 text-small-body text-(--color-warning)"
+            className="rounded-md border border-warning/40 bg-warning-tint px-4 py-3 text-small-body text-warning"
             data-testid="bridge-restart-required"
           >
             Pending runtime changes require a restart or enable action before the provider picks
@@ -765,12 +754,10 @@ export function BridgeDetailPanel({
 
         <BridgeEventStreamSection isRoutesLoading={isRoutesLoading} routes={routes} />
 
-        <div className="flex items-center justify-between gap-3 rounded-md border border-(--color-divider) bg-(--color-surface) px-5 py-4">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-canvas-soft px-5 py-4">
           <div className="space-y-1">
-            <Eyebrow className="block" tone="neutral">
-              Test delivery
-            </Eyebrow>
-            <p className="text-small-body text-(--color-text-secondary)">
+            <Eyebrow className="text-muted block">Test delivery</Eyebrow>
+            <p className="text-small-body text-muted">
               Resolve the outbound target using bridge defaults plus any explicit target override.
             </p>
           </div>
@@ -782,7 +769,7 @@ export function BridgeDetailPanel({
             type="button"
             variant="outline"
           >
-            <SendHorizontal className="size-3.5" />
+            <SendHorizontal className="size-3" />
             Send Test
           </Button>
         </div>

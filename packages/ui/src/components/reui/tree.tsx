@@ -1,10 +1,12 @@
-import { createContext, use } from "react";
+"use client";
+
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
+import { createContext, use } from "react";
 
 import { cn } from "@agh/ui/lib/utils";
-import { MinusIcon, PlusIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, MinusIcon, PlusIcon } from "lucide-react";
 
 type ToggleIconType = "chevron" | "plus-minus";
 
@@ -114,7 +116,7 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
     type: "button" as const,
     style: mergedStyle,
     className: cn(
-      "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",
       className
     ),
     "data-focus": focused,
@@ -158,11 +160,11 @@ function TreeItemLabel<T>({
     <span
       data-slot="tree-item-label"
       className={cn(
-        "in-focus-visible:ring-ring/50 bg-background hover:bg-accent in-data-[selected=true]:bg-accent in-data-[selected=true]:text-accent-foreground in-data-[drag-target=true]:bg-accent flex items-center gap-1 transition-colors not-in-data-[folder=true]:ps-7 in-focus-visible:ring-[3px] in-data-[search-match=true]:bg-blue-50! [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex items-center gap-1 transition-colors not-in-data-[folder=true]:ps-7 bg-transparent text-fg hover:bg-hover in-data-[selected=true]:bg-elevated in-data-[selected=true]:text-fg-strong in-data-[drag-target=true]:bg-accent-tint in-data-[search-match=true]:bg-info-tint in-focus-visible:outline-none in-focus-visible:shadow-focus-ring [&_svg]:pointer-events-none [&_svg]:shrink-0",
         "rounded-sm",
         "py-1.5",
         "px-2",
-        "text-sm",
+        "text-small-body",
         className
       )}
       {...props}
@@ -170,20 +172,12 @@ function TreeItemLabel<T>({
       {isFolder &&
         (toggleIconType === "plus-minus" ? (
           isExpanded ? (
-            <MinusIcon
-              className="text-muted-foreground size-3.5"
-              stroke="currentColor"
-              strokeWidth="1"
-            />
+            <MinusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
           ) : (
-            <PlusIcon
-              className="text-muted-foreground size-3.5"
-              stroke="currentColor"
-              strokeWidth="1"
-            />
+            <PlusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
           )
         ) : (
-          <ChevronDownIcon className="text-muted-foreground size-4 in-aria-[expanded=false]:-rotate-90" />
+          <ChevronDownIcon className="text-muted size-4 in-aria-[expanded=false]:-rotate-90" />
         ))}
       {children ?? item.getItemName()}
     </span>
@@ -211,7 +205,7 @@ function TreeDragLine<T>({ className, tree: propTree, ...props }: TreeDragLinePr
     <div
       style={dragLine}
       className={cn(
-        "bg-primary before:bg-background before:border-primary absolute z-30 -mt-px h-0.5 w-[unset] before:absolute before:-top-[3px] before:left-0 before:size-2 before:border-2",
+        "bg-accent before:bg-canvas before:border-accent absolute z-30 -mt-px h-0.5 w-[unset] before:absolute before:-top-0.75 before:left-0 before:size-2 before:border-2",
         "before:rounded-full",
         className
       )}
@@ -220,5 +214,5 @@ function TreeDragLine<T>({ className, tree: propTree, ...props }: TreeDragLinePr
   );
 }
 
-export { Tree, TreeItem, TreeItemLabel, TreeDragLine };
-export type { TreeProps, TreeItemProps, TreeItemLabelProps, TreeDragLineProps };
+export { Tree, TreeDragLine, TreeItem, TreeItemLabel };
+export type { TreeDragLineProps, TreeItemLabelProps, TreeItemProps, TreeProps };

@@ -1,64 +1,92 @@
-import { Eyebrow, Item, ItemActions, ItemContent, ItemGroup, Pill, Section } from "@agh/ui";
+import { cn, Eyebrow, type PillTone, Pill } from "@agh/ui";
 
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
+import { TasksDashboardPanel } from "./tasks-dashboard-panel";
 
 export interface TasksDashboardStatusBreakdownProps {
   dashboard: TaskDashboardView;
 }
+
+const TONE_FILL_CLASS: Record<PillTone, string> = {
+  neutral: "bg-neutral",
+  accent: "bg-accent",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
+};
 
 export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatusBreakdownProps) {
   const entries = dashboard.status_breakdown ?? [];
   const total = entries.reduce((sum, entry) => sum + entry.count, 0);
 
   return (
-    <Section
+    <TasksDashboardPanel
       data-testid="tasks-dashboard-status-breakdown"
-      label="Status breakdown"
       right={
         total > 0 ? (
-          <Eyebrow data-testid="tasks-dashboard-status-breakdown-total">total {total}</Eyebrow>
+          <Eyebrow className="text-muted" data-testid="tasks-dashboard-status-breakdown-total">
+            total {total}
+          </Eyebrow>
         ) : undefined
       }
+      title="Status breakdown"
     >
       {entries.length === 0 ? (
         <p
-          className="px-1 py-6 text-sm text-(--color-text-secondary)"
+          className="text-form-label text-muted"
           data-testid="tasks-dashboard-status-breakdown-empty"
         >
           No task activity yet.
         </p>
       ) : (
-        <ItemGroup className="gap-2 pt-2">
-          {entries.map(entry => (
-            <Item
-              className="justify-between gap-3 p-0"
-              data-testid={`tasks-dashboard-status-row-${entry.status}`}
-              key={entry.status}
-            >
-              <ItemContent className="flex-row">
-                <Pill
-                  data-testid={`tasks-dashboard-status-pill-${entry.status}`}
-                  size="sm"
-                  tone={pillToneFromLegacyTone(taskStatusTone(entry.status))}
-                >
-                  {taskStatusLabel(entry.status)}
+        <ul className="flex flex-col gap-3">
+          {entries.map(entry => {
+            const tone = taskStatusTone(entry.status);
+            const sharePct = Math.max(0, Math.min(100, entry.share_percent ?? 0));
+            return (
+              <li
+                className="flex flex-col gap-1.5"
+                data-testid={`tasks-dashboard-status-row-${entry.status}`}
+                key={entry.status}
+              >
+                <div className="flex min-w-0 items-center gap-2 text-form-label">
+                  <Pill.Dot tone={tone} size="sm" />
                   <span
-                    className="ml-1 opacity-80"
+                    className="min-w-0 flex-1 truncate font-medium text-fg"
+                    data-testid={`tasks-dashboard-status-label-${entry.status}`}
+                  >
+                    {taskStatusLabel(entry.status)}
+                  </span>
+                  <span
+                    className="shrink-0 font-mono text-mono-id tabular-nums text-faint"
                     data-testid={`tasks-dashboard-status-count-${entry.status}`}
                   >
                     {entry.count}
                   </span>
-                </Pill>
-              </ItemContent>
-              <ItemActions className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                {formatPercent(entry.share_percent)}
-              </ItemActions>
-            </Item>
-          ))}
-        </ItemGroup>
+                  <span
+                    className="w-12 shrink-0 text-right font-mono text-eyebrow font-medium tabular-nums text-muted"
+                    data-testid={`tasks-dashboard-status-share-${entry.status}`}
+                  >
+                    {formatPercent(sharePct)}
+                  </span>
+                </div>
+                <div
+                  aria-hidden="true"
+                  className="ml-4 h-1 overflow-hidden rounded-xs bg-surface-glaze"
+                >
+                  <div
+                    className={cn("h-full rounded-xs", TONE_FILL_CLASS[tone])}
+                    data-testid={`tasks-dashboard-status-bar-${entry.status}`}
+                    style={{ width: `${sharePct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </Section>
+    </TasksDashboardPanel>
   );
 }

@@ -51,8 +51,8 @@ export const ChipStates: Story = {
   ),
 };
 
-export const Banner: Story = {
-  name: "Banner - default tint",
+export const BannerInfoTint: Story = {
+  name: "Banner - info tint",
   render: () => (
     <PanelSurface className="min-h-[80px] p-0">
       <WorkBanner hasNeedsInput={false} openCount={2} />
@@ -60,11 +60,20 @@ export const Banner: Story = {
   ),
 };
 
-export const BannerEscalation: Story = {
-  name: "Banner - needs_input escalation",
+export const BannerWarningTint: Story = {
+  name: "Banner - warning tint (needs_input)",
   render: () => (
     <PanelSurface className="min-h-[80px] p-0">
-      <WorkBanner hasNeedsInput openCount={3} />
+      <WorkBanner hasNeedsInput needsInputCount={2} openCount={3} workingCount={1} />
+    </PanelSurface>
+  ),
+};
+
+export const BannerDangerTint: Story = {
+  name: "Banner - danger tint (hard-stop threshold)",
+  render: () => (
+    <PanelSurface className="min-h-[80px] p-0">
+      <WorkBanner hasNeedsInput needsInputCount={5} openCount={6} workingCount={1} />
     </PanelSurface>
   ),
 };

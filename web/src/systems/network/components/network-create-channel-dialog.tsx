@@ -59,10 +59,10 @@ export function NetworkCreateChannelDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-120"
+        className="gap-0 p-0 text-fg sm:max-w-120"
         data-testid="network-create-channel-dialog"
       >
-        <DialogHeader className="border-b border-(--color-divider) px-5 py-4">
+        <DialogHeader className="border-b border-line px-5 py-4">
           <DialogTitle>Create channel</DialogTitle>
           <DialogDescription>
             {workspaceName
@@ -95,7 +95,7 @@ export function NetworkCreateChannelDialog({
               </FieldDescription>
               <Textarea
                 aria-required="true"
-                className="min-h-24 border-(--color-divider) bg-(--color-surface-panel) p-3 text-small-body leading-6"
+                className="min-h-24 border-line bg-canvas-soft p-3 text-small-body leading-6"
                 data-testid="network-channel-purpose-input"
                 id="network-channel-purpose"
                 onChange={event => onPurposeChange(event.target.value)}
@@ -131,14 +131,14 @@ export function NetworkCreateChannelDialog({
               )}
 
               {!workspaceName ? (
-                <p className="mt-2 text-xs leading-relaxed text-(--color-warning)">
+                <p className="mt-2 text-xs leading-relaxed text-warning">
                   Select an active workspace before creating a channel.
                 </p>
               ) : null}
             </Section>
           </div>
 
-          <DialogFooter className="border-t border-(--color-divider) bg-(--color-surface-panel) px-5 py-3">
+          <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">
             <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel
             </Button>

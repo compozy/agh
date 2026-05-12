@@ -1,8 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, GitBranch } from "lucide-react";
 
-import { Empty, LinkedRecordTable, Pill } from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
+import { Empty, LinkedRecordTable, MonoId, Pill } from "@agh/ui";
 
 import {
   taskOwnerLabel,
@@ -64,22 +63,18 @@ export function TasksDetailDependenciesPanel({
               <LinkedRecordTable.Cell className="w-8 pl-4">
                 <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="max-w-[360px]">
+              <LinkedRecordTable.Cell className="max-w-90">
                 <LinkedRecordTable.Title>
-                  <span className="truncate text-small-body text-(--color-text-primary)">
-                    {target.title}
-                  </span>
-                  <div className="flex flex-wrap items-center gap-1.5 text-eyebrow">
-                    <Pill mono>
-                      {taskShortId({ id: target.id, identifier: target.identifier })}
-                    </Pill>
-                    <Pill tone={pillToneFromLegacyTone(taskStatusTone(target.status))}>
+                  <span className="truncate text-small-body text-fg">{target.title}</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <MonoId value={taskShortId({ id: target.id, identifier: target.identifier })} />
+                    <Pill tone={taskStatusTone(target.status)}>
                       {taskStatusLabel(target.status)}
                     </Pill>
                   </div>
                 </LinkedRecordTable.Title>
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="text-xs text-(--color-text-secondary)">
+              <LinkedRecordTable.Cell className="text-small-body text-muted">
                 {taskOwnerLabel(target.owner)}
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.OpenCell>

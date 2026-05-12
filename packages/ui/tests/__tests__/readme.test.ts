@@ -129,6 +129,7 @@ describe("packages/ui README", () => {
         "## Motion vs. CSS decision rules",
         "## Story contribution rules",
         "## Anti-patterns",
+        "### Recent Primitive Additions",
         "## Quick reference",
       ]
     `);

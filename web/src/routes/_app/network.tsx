@@ -1,37 +1,27 @@
-import { type ReactNode } from "react";
-import { Loader2, Network as NetworkIcon } from "lucide-react";
+import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { Empty, PageHeader } from "@agh/ui";
+import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
-import { DaemonDown, NetworkEmpty, ThreadOverlay, useNetworkRouteView } from "@/systems/network";
+import type { TopbarRouteContext } from "@/types/topbar";
+import {
+  DaemonDown,
+  NetworkEmpty,
+  ThreadOverlay,
+  useNetworkDirects,
+  useNetworkListFilters,
+  useNetworkRouteView,
+  useNetworkThreads,
+} from "@/systems/network";
+import { NetworkListFiltersProvider } from "@/systems/network/contexts/network-list-filters-context";
 import { NetworkInspector, NetworkShell } from "@/systems/network/components/shell";
 
 export const Route = createFileRoute("/_app/network")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Network", icon: NetworkIcon },
+  }),
   component: NetworkRouteShell,
 });
-
-function NetworkPageShell({
-  count,
-  meta,
-  children,
-}: {
-  count: number | undefined;
-  meta?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="network-page-shell">
-      <PageHeader
-        count={count}
-        icon={() => <NetworkIcon className="size-3.5" data-testid="network-page-icon" />}
-        meta={meta}
-        title={<span data-testid="network-page-title">Network</span>}
-      />
-      <div className="flex min-h-0 flex-1">{children}</div>
-    </div>
-  );
-}
 
 function NetworkRouteShell() {
   const view = useNetworkRouteView();
@@ -44,22 +34,32 @@ function NetworkRouteShell() {
   } = view.inspectorView;
   const showInspectorInRightRail = !view.showOverlayInRightRail && inspector.open;
 
+  const totalChannelCount = page.status ? page.channels.length : undefined;
+  useTopbarSlot({
+    count: totalChannelCount,
+    actions: page.status ? view.networkCreate.action : undefined,
+  });
+
+  const activeChannelKey = activeChannel?.channel ?? null;
+  const toolbarThreads = useNetworkThreads(activeChannelKey);
+  const toolbarDirects = useNetworkDirects(activeChannelKey);
+  const filters = useNetworkListFilters({
+    channel: activeChannelKey ?? "",
+    threads: toolbarThreads.threads,
+    directs: toolbarDirects.directs,
+  });
+
   if (page.isStatusLoading) {
     return (
       <>
-        <NetworkPageShell count={undefined}>
-          <div
-            aria-label="Loading network workspace"
-            className="flex min-h-0 flex-1 items-center justify-center"
-            data-testid="network-loading"
-            role="status"
-          >
-            <Loader2
-              aria-hidden="true"
-              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-            />
-          </div>
-        </NetworkPageShell>
+        <div
+          aria-label="Loading network workspace"
+          className="flex min-h-0 flex-1 items-center justify-center"
+          data-testid="network-loading"
+          role="status"
+        >
+          <Spinner aria-hidden="true" className="size-5 text-subtle" />
+        </div>
         {view.networkCreate.dialog}
       </>
     );
@@ -68,14 +68,12 @@ function NetworkRouteShell() {
   if (page.statusError || !page.status) {
     return (
       <>
-        <NetworkPageShell count={undefined}>
-          <div
-            className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-            data-testid="network-error"
-          >
-            <DaemonDown />
-          </div>
-        </NetworkPageShell>
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid="network-error"
+        >
+          <DaemonDown />
+        </div>
         {view.networkCreate.dialog}
       </>
     );
@@ -84,14 +82,12 @@ function NetworkRouteShell() {
   if (page.isNetworkDisabled) {
     return (
       <>
-        <NetworkPageShell count={undefined}>
-          <div
-            className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-            data-testid="network-disabled-state"
-          >
-            <NetworkEmpty onOpenSettings={view.networkCreate.openNetworkSettings} />
-          </div>
-        </NetworkPageShell>
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid="network-disabled-state"
+        >
+          <NetworkEmpty onOpenSettings={view.networkCreate.openNetworkSettings} />
+        </div>
         {view.networkCreate.dialog}
       </>
     );
@@ -100,7 +96,7 @@ function NetworkRouteShell() {
   if (page.channels.length === 0 && !page.isChannelsLoading) {
     return (
       <>
-        <NetworkPageShell count={0} meta={view.networkCreate.action}>
+        <NetworkListFiltersProvider value={filters}>
           <NetworkShell
             activeChannel={null}
             activeChannelDetail={null}
@@ -135,7 +131,7 @@ function NetworkRouteShell() {
               />
             </div>
           </NetworkShell>
-        </NetworkPageShell>
+        </NetworkListFiltersProvider>
         {view.networkCreate.dialog}
       </>
     );
@@ -161,15 +157,18 @@ function NetworkRouteShell() {
       />
     ) : null;
 
+  const threadCount = activeChannelKey ? toolbarThreads.threads.length : null;
+  const directCount = activeChannelKey ? toolbarDirects.directs.length : null;
+
   return (
     <>
-      <NetworkPageShell count={page.channels.length} meta={view.networkCreate.action}>
+      <NetworkListFiltersProvider value={filters}>
         <NetworkShell
           activeChannel={activeChannel}
           activeChannelDetail={null}
           activeDirectId={activeDirectId}
           activeTab={activeTab}
-          directCount={null}
+          directCount={directCount}
           directs={view.railView.directs.directs}
           hasUnread={hasUnread}
           inspectorOpen={inspector.open}
@@ -188,12 +187,12 @@ function NetworkRouteShell() {
           rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
           rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
           selfPeerId={view.railView.session.session?.peerId ?? null}
-          threadCount={null}
+          threadCount={threadCount}
           unpinnedChannels={page.unpinnedChannels}
         >
           <Outlet />
         </NetworkShell>
-      </NetworkPageShell>
+      </NetworkListFiltersProvider>
       {view.networkCreate.dialog}
     </>
   );

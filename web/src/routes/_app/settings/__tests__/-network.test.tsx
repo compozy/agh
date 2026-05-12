@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -216,11 +217,10 @@ describe("NetworkSettingsPage", () => {
     expect(screen.getByTestId("settings-page-network-restart-banner")).toBeInTheDocument();
   });
 
-  it("does not render unsupported network conversation controls (post-MVP per techspec)", () => {
+  it("does not render unsupported network conversation controls", () => {
     render(<NetworkSettingsPage />);
-    // Thread retention, unread sync, and notification controls are explicitly post-MVP per
-    // _techspec.md:25 and _design.md §10 row A8. Settings must surface only existing aggregate
-    // metrics and listener/delivery primitives, never new conversation lifecycle controls.
+    // Settings must surface only existing aggregate metrics and listener/delivery
+    // primitives, never unsupported conversation lifecycle controls.
     expect(screen.queryByLabelText(/thread retention/i)).toBeNull();
     expect(screen.queryByLabelText(/retention policy/i)).toBeNull();
     expect(screen.queryByLabelText(/unread sync/i)).toBeNull();

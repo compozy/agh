@@ -24,7 +24,7 @@ const secrets: VaultSecret[] = [
 ];
 
 describe("VaultSecretsTable", () => {
-  it("Should render ready rows with namespace tones and ASCII fallbacks", () => {
+  it("Should render ready rows with namespace tones", () => {
     render(<VaultSecretsTable secrets={secrets} />);
 
     expect(screen.getByTestId("vault-secrets-table")).toHaveAttribute(
@@ -33,7 +33,24 @@ describe("VaultSecretsTable", () => {
     );
     expect(screen.getByText("sessions")).toHaveAttribute("data-tone", "info");
     expect(screen.getByText("providers")).toHaveAttribute("data-tone", "neutral");
-    expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("Should render the secret kind as a neutral pill (— no tone until enum lands)", () => {
+    render(<VaultSecretsTable secrets={secrets} />);
+    const kindPill = screen.getByTestId(`vault-secrets-kind-${secrets[0].ref}`);
+    expect(kindPill).toHaveAttribute("data-tone", "neutral");
+    expect(kindPill).toHaveTextContent("api_key");
+    // Empty kind falls back to "--" instead of a pill so absent kinds don't render colour.
+    expect(screen.getByTestId(`vault-secrets-kind-empty-${secrets[1].ref}`)).toHaveTextContent(
+      "--"
+    );
+  });
+
+  it("Should render updated timestamps via <Time>", () => {
+    render(<VaultSecretsTable secrets={secrets} />);
+    const time = screen.getByTestId(`vault-secrets-updated-${secrets[0].ref}`);
+    expect(time.tagName.toLowerCase()).toBe("time");
+    expect(time.getAttribute("datetime")).toBe(secrets[0].updated_at);
   });
 
   it("Should route loading, error, and empty through DataSurface slots", () => {

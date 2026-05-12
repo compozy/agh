@@ -1,6 +1,6 @@
-import { AlertCircle, Check, Loader2, Save, Undo2 } from "lucide-react";
+import { AlertCircle, Check, Save, Undo2 } from "lucide-react";
 
-import { Button, cn } from "@agh/ui";
+import { Button, Spinner, cn } from "@agh/ui";
 
 interface SettingsSaveBarProps {
   slug: string;
@@ -33,7 +33,7 @@ function SettingsSaveBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 bg-(--color-surface) px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 xl:px-10",
+        "flex flex-col gap-4 bg-canvas-soft px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 xl:px-10",
         className
       )}
       data-testid={`settings-page-${slug}-save-bar`}
@@ -47,52 +47,46 @@ function SettingsSaveBar({
       >
         {error ? (
           <span
-            className="flex items-center gap-1.5 text-(--color-danger)"
+            className="flex items-center gap-1.5 text-danger"
             data-testid={`settings-page-${slug}-save-error`}
           >
-            <AlertCircle className="size-3.5" />
+            <AlertCircle className="size-3" />
             {error}
           </span>
         ) : warnings && warnings.length > 0 ? (
           <ul
-            className="flex flex-col gap-0.5 text-(--color-warning)"
+            className="flex flex-col gap-0.5 text-warning"
             data-testid={`settings-page-${slug}-save-warnings`}
           >
             {warnings.map(warning => (
               <li key={warning} className="flex items-start gap-1.5">
-                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                <AlertCircle className="mt-0.5 size-3 shrink-0" />
                 <span>{warning}</span>
               </li>
             ))}
           </ul>
         ) : isInvalid ? (
           <span
-            className="flex items-center gap-1.5 text-(--color-warning)"
+            className="flex items-center gap-1.5 text-warning"
             data-testid={`settings-page-${slug}-save-invalid`}
           >
-            <AlertCircle className="size-3.5" />
+            <AlertCircle className="size-3" />
             Resolve validation errors before saving
           </span>
         ) : isDirty ? (
-          <span
-            className="text-(--color-text-tertiary)"
-            data-testid={`settings-page-${slug}-save-dirty`}
-          >
+          <span className="text-subtle" data-testid={`settings-page-${slug}-save-dirty`}>
             Unsaved changes
           </span>
         ) : lastAppliedLabel ? (
           <span
-            className="flex items-center gap-1.5 text-(--color-text-tertiary)"
+            className="flex items-center gap-1.5 text-subtle"
             data-testid={`settings-page-${slug}-save-applied`}
           >
-            <Check className="size-3.5 text-success" />
+            <Check className="size-3 text-success" />
             {lastAppliedLabel}
           </span>
         ) : (
-          <span
-            className="text-(--color-text-tertiary)"
-            data-testid={`settings-page-${slug}-save-clean`}
-          >
+          <span className="text-subtle" data-testid={`settings-page-${slug}-save-clean`}>
             No unsaved changes
           </span>
         )}
@@ -106,7 +100,7 @@ function SettingsSaveBar({
           disabled={!isDirty || isSaving}
           data-testid={`settings-page-${slug}-reset`}
         >
-          <Undo2 className="size-3.5" />
+          <Undo2 className="size-3" />
           Discard
         </Button>
         <Button
@@ -117,7 +111,7 @@ function SettingsSaveBar({
           disabled={disabled}
           data-testid={`settings-page-${slug}-save`}
         >
-          {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+          {isSaving ? <Spinner className="size-3" /> : <Save className="size-3" />}
           {isSaving ? "Saving..." : "Save changes"}
         </Button>
       </div>

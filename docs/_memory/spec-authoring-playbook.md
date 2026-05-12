@@ -16,7 +16,7 @@ Applies to PRD + TechSpec + Tasks alike. See `docs/_memory/standing_directives.m
 - **Final decisions on the spec.** No "TBD" / "we'll decide later" — every fork is resolved before approval. → codex_sessions §Engineering Principle 3.
 - **Cite competitor refs.** Every spec that draws on `.resources/<repo>` lists the file paths so the implementer reads them too. Use `cy-research-competitors` for the analysis pass. → codex_sessions §Engineering Principle 4.
 - **BR-PT in conversation, EN in artifacts.** → SD-003.
-- **Subagents are read-only.** Use them to research and return findings; the parent agent authors files. → user-memory `feedback_subagents_readonly.md`.
+- **Subagents default to read-only.** Use them to research and return findings; the parent agent authors files. A subagent may write/edit only when the parent's prompt explicitly delegates that action. Skills with hard read-only contracts (`cy-research-competitors`, `cy-spec-peer-review`, `cy-impl-peer-review`) override this default. → user-memory `feedback_subagents_readonly.md`.
 - **Two-touch rule.** Third change to the same area opens a new TechSpec, not a third patch. → user-memory `feedback_two_touch_rule.md`.
 - **Multi-LLM pipeline.** Codex (`gpt-5.4` with `reasoning_effort=xhigh`) authors; Claude Opus pressure-tests; `gpt-5.4-mini` with `reasoning_effort=high` explores breadth when explicitly delegated. → SD-004.
 
@@ -75,13 +75,13 @@ The autonomy `_techspec.md` is the high-water mark. Six markers correlate with *
 - **Agent Manageability Plan** section enumerating CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature. UI-only control is incomplete. → SD-011.
 - **Config Lifecycle** section enumerating `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected. → SD-011.
 - **Assumptions/Defaults** section closing the spec, pre-empting "what if" questions. → Pattern 6.
-- **Web/Docs Impact** for any contract change (`internal/api/contract`, OpenAPI, CLI verb). Activate `cy-web-docs-impact`. → ADR-011.
+- **Web/Docs Impact** for any contract change (`internal/api/contract`, OpenAPI, CLI verb). Activate `cy-web-docs-impact`.
 
 ### MUST refuse
 
 - Generic event bus, NATS, reflection-based routing. → CLAUDE.md Architecture, `lessons/L-005`.
 - Parallel queue alongside `task_runs`. Add columns + side-tables instead. → `lessons/L-003`.
-- Hooks that tail event tables. Hooks dispatch at the call site. → CLAUDE.md, autonomy ADR-009.
+- Hooks that tail event tables. Hooks dispatch at the call site. → CLAUDE.md.
 - Duplicate ownership state in JSON metadata. → `lessons/L-003`.
 - Compat shims, `@deprecated` stubs, dual-naming, schema fallback paths. → `lessons/L-006`, SD-002.
 - Manual paths and autonomous paths as separate code. They converge on same primitives. → `lessons/L-004`.
@@ -139,7 +139,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 
 ### Header
 
-- `<critical>ALWAYS READ _techspec.md, every ADR, and every per-task memory file before editing.</critical>` block at the top.
+- `<critical>ALWAYS READ _techspec.md, every per-task ADR file if present, and every per-task memory file before editing.</critical>` block at the top.
 - `<critical>MINIMIZE CODE, TESTS REQUIRED, NO WORKAROUNDS</critical>` block.
 - Reference to the `_techspec.md` section being implemented.
 
@@ -202,8 +202,7 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 | Lessons (incident → rule)                   | `docs/_memory/lessons/README.md` (L-001..L-013)                        |
 | Vocabulary                                  | `docs/_memory/glossary.md`                                             |
 | Cross-source synthesis                      | `docs/_memory/_synthesis.md` and `docs/_memory/analysis/analysis_*.md` |
-| Active TechSpec                             | `.compozy/tasks/autonomous/_techspec.md`                               |
-| Architectural ADRs                          | `.compozy/tasks/autonomous/adrs/adr-001..012.md`                       |
+| Spec quality evidence                       | `docs/_memory/lessons/L-012-techspec-prose-only-rework.md`             |
 | Skill: peer review                          | `.agents/skills/cy-spec-peer-review/`                                  |
 | Skill: competitor research                  | `.agents/skills/cy-research-competitors/`                              |
 | Skill: tasks tail QA pair                   | `.agents/skills/cy-tasks-tail-qa-pair/`                                |

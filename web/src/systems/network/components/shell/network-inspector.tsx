@@ -1,4 +1,4 @@
-import { Activity, ListTodo, MoreHorizontal, Users, X, type LucideIcon } from "lucide-react";
+import { Activity, ListTodo, Users, X, type LucideIcon } from "lucide-react";
 
 import { Button, Eyebrow, Tabs, TabsList, TabsTrigger } from "@agh/ui";
 
@@ -69,7 +69,7 @@ function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInsp
   return (
     <Tabs
       aria-label="Inspector sections"
-      className="gap-0 border-b border-(--color-divider)"
+      className="gap-0 border-b border-line"
       data-testid="network-inspector-tabs"
       onValueChange={value => {
         if (value === "members" || value === "work" || value === "activity") {
@@ -78,7 +78,7 @@ function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInsp
       }}
       value={activeTab}
     >
-      <TabsList variant="line" className="h-10 w-full bg-transparent p-0">
+      <TabsList className="h-10 w-full bg-transparent p-0">
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
@@ -89,7 +89,7 @@ function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInsp
               key={tab.id}
               value={tab.id}
             >
-              <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              <Icon aria-hidden="true" className="size-3 shrink-0" />
               <span>{tab.label}</span>
             </TabsTrigger>
           );
@@ -121,22 +121,9 @@ export function NetworkInspector({
       className={cn("flex min-h-0 flex-1 flex-col", className)}
       data-testid="network-inspector"
     >
-      <header className="flex items-center gap-2 border-b border-(--color-divider) px-4 py-2.5">
+      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
         <Eyebrow>Inspector</Eyebrow>
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            aria-disabled="true"
-            aria-label="Inspector actions - coming soon"
-            data-testid="network-inspector-overflow"
-            onClick={event => event.preventDefault()}
-            size="icon-sm"
-            tabIndex={-1}
-            title="More actions · Coming soon"
-            type="button"
-            variant="ghost"
-          >
-            <MoreHorizontal aria-hidden="true" className="size-4" />
-          </Button>
           <Button
             aria-label="Close inspector"
             data-testid="network-inspector-close"

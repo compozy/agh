@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from "react";
 
-import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup } from "@agh/ui";
+import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@agh/ui";
 
+import { AgentIcon } from "./agent-icon";
 import {
   buildAgentCategoryTree,
   formatCategoryLabel,
@@ -85,20 +86,26 @@ export function AgentCommandList({
                 data-testid={itemTestId ? itemTestId(agent) : `agent-command-item-${agent.name}`}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-sm text-(--color-text-primary)">{agent.name}</span>
-                  <span
-                    className="font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)"
+                  <AgentIcon
+                    className="shrink-0"
+                    provider={agent.provider}
+                    size="xs"
+                    tone="muted"
+                  />
+                  <span className="truncate text-sm text-fg">{agent.name}</span>
+                  <Eyebrow
+                    className="text-muted"
                     data-testid={`agent-command-provider-${agent.name}`}
                   >
                     {agent.provider}
-                  </span>
+                  </Eyebrow>
                   {categoryLabel ? (
-                    <span
-                      className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)"
+                    <Eyebrow
+                      className="text-muted ml-auto truncate"
                       data-testid={`agent-command-category-${agent.name}`}
                     >
                       {categoryLabel}
-                    </span>
+                    </Eyebrow>
                   ) : null}
                 </div>
               </CommandItem>

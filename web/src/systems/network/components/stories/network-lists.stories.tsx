@@ -14,7 +14,6 @@ import { ActivityFeed } from "../activity/activity-feed";
 import { DirectsList } from "../directs/directs-list";
 import { InspectorActivityFeed } from "../shell/inspector-activity-feed";
 import { InspectorMembersList } from "../shell/inspector-members-list";
-import { ListFilterBar } from "../shell/list-filter-bar";
 import { NetworkInspector } from "../shell/network-inspector";
 import { ThreadsList } from "../threads/threads-list";
 import { WorkInspectorRow } from "../work/work-inspector-row";
@@ -146,23 +145,6 @@ export const Inspector: StoryObj<typeof NetworkInspector> = {
         />
       </div>
     </div>
-  ),
-};
-
-/**
- * Filter bar shows list filter counts, sort menu trigger, and mark-read state.
- */
-export const Filters: StoryObj<typeof ListFilterBar> = {
-  args: {},
-  render: () => (
-    <ListFilterBar
-      filter="all"
-      sort="recent_activity"
-      counts={{ all: 18, hasWork: 3, me: 5, pinned: 2, unread: 7 }}
-      onFilterChange={fn()}
-      onSortChange={fn()}
-      onMarkAllRead={fn()}
-    />
   ),
 };
 

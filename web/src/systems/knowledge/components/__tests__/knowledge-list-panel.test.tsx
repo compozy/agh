@@ -87,14 +87,21 @@ describe("KnowledgeListPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("Should render type, scope, and agent tier badges per row", () => {
+  it("Should retune memory-type pills via KNOWLEDGE_TYPE_TONE (no accent leak)", () => {
     renderPanel();
     const userBadges = screen.getAllByTestId("type-badge-user");
     expect(userBadges.length).toBeGreaterThanOrEqual(2);
-    userBadges.forEach(badge => {
-      expect(badge).toHaveAttribute("data-tone", "accent");
-    });
-    expect(screen.getByTestId("type-badge-project")).toHaveAttribute("data-tone", "success");
+    for (const badge of userBadges) {
+      expect(badge).toHaveAttribute("data-tone", "neutral");
+      expect(badge).toHaveAttribute("data-knowledge-type", "notes");
+    }
+    const projectBadge = screen.getByTestId("type-badge-project");
+    expect(projectBadge).toHaveAttribute("data-tone", "info");
+    expect(projectBadge).toHaveAttribute("data-knowledge-type", "decisions");
+  });
+
+  it("Should keep scope + agent-tier pills untouched and surface staleness", () => {
+    renderPanel();
     expect(screen.getByTestId("scope-badge-global")).toHaveAttribute("data-tone", "neutral");
     expect(screen.getByTestId("scope-badge-workspace")).toHaveAttribute("data-tone", "info");
     expect(screen.getByTestId("scope-badge-agent")).toHaveAttribute("data-tone", "warning");
@@ -176,5 +183,13 @@ describe("KnowledgeListPanel", () => {
     expect(
       unselected.querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
     ).toBeNull();
+  });
+
+  it("Should render row timestamps through the shared <Time> primitive", () => {
+    renderPanel();
+    const row = screen.getByTestId("memory-item-global:user-role.md");
+    const timeEl = row.querySelector("time[datetime]");
+    expect(timeEl).not.toBeNull();
+    expect(timeEl?.getAttribute("datetime")).toBe(GLOBAL.mod_time);
   });
 });

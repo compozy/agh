@@ -4,8 +4,8 @@ import { Button, Eyebrow, Item, ItemActions, ItemContent, ItemFooter, ItemHeader
 
 import { cn } from "@/lib/utils";
 
-import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { OpenWorkEntry } from "../../hooks/use-work";
+import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import { WorkChip } from "./work-chip";
 
 export interface WorkInspectorRowProps {
@@ -20,10 +20,7 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
 
   return (
     <Item
-      className={cn(
-        "rounded-none border-b border-(--color-divider) px-4 py-3 last:border-b-0",
-        className
-      )}
+      className={cn("rounded-none border-b border-line px-4 py-3 last:border-b-0", className)}
       data-testid={`network-work-inspector-row-${entry.workId}`}
       role="listitem"
     >
@@ -39,16 +36,16 @@ export function WorkInspectorRow({ entry, onJump, className }: WorkInspectorRowP
               type="button"
               variant="ghost"
             >
-              <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              <ArrowUpRight aria-hidden="true" className="size-3" />
             </Button>
           </ItemActions>
         </ItemHeader>
-        <p className="font-mono text-eyebrow text-(--color-text-secondary)">
-          <span className="text-(--color-text-tertiary)">target </span>
+        <p className="font-mono text-eyebrow text-muted">
+          <span className="text-subtle">target </span>
           {target}
         </p>
         <ItemFooter>
-          <Eyebrow weight="medium">opened {opened}</Eyebrow>
+          <Eyebrow>opened {opened}</Eyebrow>
         </ItemFooter>
       </ItemContent>
     </Item>

@@ -37,7 +37,7 @@ function AgentMeta() {
     <>
       <Pill.Dot tone="accent" size="sm" />
       <span>claude</span>
-      <span className="text-[color:var(--color-text-tertiary)]">· 12:03</span>
+      <span className="text-subtle">· 12:03</span>
     </>
   );
 }
@@ -71,8 +71,8 @@ export const ToolRole: Story = {
   args: {
     role: "tool",
     children: (
-      <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="done">
-        <pre className="font-mono text-[12px] leading-[1.6] text-[color:var(--color-text-secondary)]">
+      <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed">
+        <pre className="font-mono text-[12px] leading-[1.6] text-muted">
           $ rg &quot;onToolCall&quot; packages/runtime -l
         </pre>
       </ToolCallCard>
@@ -84,13 +84,9 @@ export const DiffRole: Story = {
   args: {
     role: "diff",
     children: (
-      <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] p-4 font-mono text-[12px] leading-[1.65]">
-        <div className="text-[color:var(--color-success)]">
-          + const groups = groupToolCallsByTurn(tool.events);
-        </div>
-        <div className="text-[color:var(--color-danger)]">
-          - for (const ev of tool.events) {"{"}
-        </div>
+      <div className="rounded-md border border-line bg-rail p-4 font-mono text-[12px] leading-[1.65]">
+        <div className="text-success">+ const groups = groupToolCallsByTurn(tool.events);</div>
+        <div className="text-danger">- for (const ev of tool.events) {"{"}</div>
       </div>
     ),
   },
@@ -113,10 +109,10 @@ export const AllRoles: Story = {
         Two candidates, I&apos;ll extract the grouping into `groupToolCallsByTurn`.
       </ChatMessageBubble>
       <ChatMessageBubble role="tool" data-role-key="tool">
-        <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="done" />
+        <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed" />
       </ChatMessageBubble>
       <ChatMessageBubble role="diff" data-role-key="diff">
-        <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] p-3 font-mono text-[12px]">
+        <div className="rounded-md border border-line bg-rail p-3 font-mono text-[12px]">
           + apply diff to stream.ts
         </div>
       </ChatMessageBubble>
@@ -139,7 +135,7 @@ export const RoleAlignmentInteraction: Story = {
           data-role-key={role}
         >
           {role === "tool" ? (
-            <ToolCallCard toolName="shell.run" status="running" />
+            <ToolCallCard toolName="shell.run" status="in_progress" />
           ) : (
             `message for role ${role}`
           )}
@@ -157,13 +153,13 @@ export const RoleAlignmentInteraction: Story = {
       await expect(node?.getAttribute("data-align")).toBe(ROLE_ALIGN[role]);
       if (role === "user") {
         const body = node?.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
-        await expect(body?.className).toContain("bg-[color:var(--color-surface-elevated)]");
+        await expect(body?.className).toContain("bg-elevated");
         await expect(node?.className).toContain("justify-end");
       }
       if (role === "agent") {
         const body = node?.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
-        await expect(body?.className).not.toContain("bg-[color:var(--color-surface-elevated)]");
-        await expect(body?.className).toContain("text-[color:var(--color-text-secondary)]");
+        await expect(body?.className).not.toContain("bg-elevated");
+        await expect(body?.className).toContain("text-muted");
       }
       if (role === "system") {
         const dividers = node?.querySelectorAll('span[aria-hidden="true"]') ?? [];
@@ -180,7 +176,7 @@ export const StatusBadgeCycleInteraction: Story = {
       data-testid="tool-statuses"
       style={{ maxWidth: 820, margin: "0 auto" }}
     >
-      {(["running", "done", "error"] as ToolCallStatus[]).map(status => (
+      {(["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]).map(status => (
         <ChatMessageBubble key={status} role="tool">
           <ToolCallCard
             toolName="file.read"
@@ -196,11 +192,12 @@ export const StatusBadgeCycleInteraction: Story = {
     const canvas = within(canvasElement);
     const wrapper = await canvas.findByTestId("tool-statuses");
     const expected: Record<ToolCallStatus, { tone: string; label: string }> = {
-      running: { tone: "accent", label: "RUNNING" },
-      done: { tone: "success", label: "DONE" },
-      error: { tone: "danger", label: "ERROR" },
+      pending: { tone: "neutral", label: "Pending" },
+      in_progress: { tone: "info", label: "Running" },
+      completed: { tone: "success", label: "Done" },
+      failed: { tone: "danger", label: "Error" },
     };
-    for (const status of ["running", "done", "error"] as ToolCallStatus[]) {
+    for (const status of ["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]) {
       const card = wrapper.querySelector<HTMLElement>(`[data-status-key="${status}"]`);
       await expect(card).not.toBeNull();
       const badge = card?.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');

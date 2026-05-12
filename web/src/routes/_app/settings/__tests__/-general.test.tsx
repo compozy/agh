@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -197,7 +198,6 @@ describe("GeneralSettingsPage", () => {
   it("renders runtime, defaults, permissions, and config path from the section envelope", () => {
     render(<GeneralSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-general-header")).toHaveTextContent("General");
     expect(screen.getByTestId("settings-page-general-status-line")).toHaveTextContent(
       "config: ~/.agh/config.toml"
     );
@@ -266,8 +266,10 @@ describe("GeneralSettingsPage", () => {
   });
 
   it("exposes the restart action button and triggers the restart mutation on click", () => {
+    pageState.restart.isVisible = true;
+    pageState.restart.isRestartRequired = true;
     render(<GeneralSettingsPage />);
-    const button = screen.getByTestId("settings-page-general-restart-action");
+    const button = screen.getByRole("button", { name: "Restart daemon" });
     fireEvent.click(button);
     expect(pageState.restart.trigger).toHaveBeenCalledTimes(1);
   });

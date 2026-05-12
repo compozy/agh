@@ -17,9 +17,8 @@ export interface SearchInputProps extends Omit<
 }
 
 /**
- * Search field , mirrors `.search-input` in
- * `docs/design/web-inspiration/styles/app.css`. Compact 28px row, panel-tone
- * surface, soft tertiary focus border (no accent ring), bordered kbd hint.
+ * Compact search field — 26 px row, 220 px min-width, panel-tone surface.
+ * Focus draws a 1 px ring on `--line-strong`; no accent ring.
  */
 function SearchInput({
   value,
@@ -38,15 +37,12 @@ function SearchInput({
       data-slot="search-input"
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex h-[28px] min-w-0 items-center gap-2 rounded-[7px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-2 text-[13px] text-[color:var(--color-text-primary)] transition-colors focus-within:border-[color:var(--color-text-tertiary)]",
+        "flex h-button-default min-w-search-input-min items-center gap-2 rounded border border-line bg-canvas-soft px-2 text-small-body text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60",
         containerClassName
       )}
     >
-      <SearchIcon
-        aria-hidden="true"
-        className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
-      />
+      <SearchIcon aria-hidden="true" className="size-3 shrink-0 text-subtle" />
       <input
         type="search"
         data-slot="search-input-control"
@@ -55,7 +51,7 @@ function SearchInput({
         onChange={event => onChange?.(event.target.value)}
         disabled={disabled}
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-[13px] text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)] disabled:cursor-not-allowed",
+          "min-w-0 flex-1 bg-transparent text-small-body text-fg outline-none placeholder:text-subtle disabled:cursor-not-allowed",
           className
         )}
         {...props}
@@ -64,7 +60,7 @@ function SearchInput({
         <span
           data-slot="search-input-kbd"
           aria-hidden="true"
-          className="hidden items-center rounded-[4px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-1 py-px font-mono text-[9px] uppercase text-[color:var(--color-text-tertiary)] sm:inline-flex"
+          className="eyebrow hidden items-center rounded-xs border border-line bg-canvas-soft px-1 py-px text-subtle sm:inline-flex"
         >
           {kbd}
         </span>

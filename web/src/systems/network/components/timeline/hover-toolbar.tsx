@@ -1,4 +1,4 @@
-import { CornerUpLeft, GitFork, MoreHorizontal, Pin, SmilePlus } from "lucide-react";
+import { CornerUpLeft, GitFork, MoreHorizontal, Pin } from "lucide-react";
 
 import { Button } from "@agh/ui";
 
@@ -22,30 +22,20 @@ interface ToolbarButtonProps {
   label: string;
   testId: string;
   onClick?: () => void;
-  disabled?: boolean;
-  disabledTooltip?: string;
 }
 
-function ToolbarButton({
-  icon: Icon,
-  label,
-  testId,
-  onClick,
-  disabled,
-  disabledTooltip,
-}: ToolbarButtonProps) {
+function ToolbarButton({ icon: Icon, label, testId, onClick }: ToolbarButtonProps) {
   return (
     <Button
       aria-label={label}
       data-testid={testId}
-      disabled={disabled}
       onClick={onClick}
       size="icon-sm"
-      title={disabled ? disabledTooltip : label}
+      title={label}
       type="button"
       variant="ghost"
     >
-      <Icon aria-hidden="true" className="size-3.5" />
+      <Icon aria-hidden="true" className="size-3" />
     </Button>
   );
 }
@@ -62,7 +52,7 @@ export function HoverToolbar({
     <div
       aria-label="Message actions"
       className={cn(
-        "absolute -top-3 right-4 z-10 flex items-center gap-0.5 rounded-mono-badge border border-(--color-divider) bg-(--color-canvas) p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+        "absolute -top-3 right-4 z-10 flex items-center gap-0.5 rounded-mono-badge border border-line bg-canvas p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
         className
       )}
       data-testid={`network-message-toolbar-${testIdSuffix}`}
@@ -73,13 +63,6 @@ export function HoverToolbar({
         label="Reply in thread"
         onClick={onReply}
         testId={`network-message-toolbar-reply-${testIdSuffix}`}
-      />
-      <ToolbarButton
-        disabled
-        disabledTooltip="Reactions land post-MVP"
-        icon={SmilePlus}
-        label="Add reaction"
-        testId={`network-message-toolbar-react-${testIdSuffix}`}
       />
       <ToolbarButton
         icon={Pin}

@@ -1,5 +1,5 @@
 import { UIProvider } from "@agh/ui";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -23,11 +23,28 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
 }
 
 describe("KnowledgeCreateDialog", () => {
-  it("Should render empty fields with the default type", () => {
+  it("Should render a 2-col RadioCard grid for the Type picker", () => {
     renderDialog();
-    expect(screen.getByTestId("knowledge-create-type")).toHaveValue("project");
-    expect(screen.getByTestId("knowledge-create-name")).toHaveValue("");
-    expect(screen.getByTestId("knowledge-create-content")).toHaveValue("");
+    const grid = screen.getByTestId("knowledge-create-type-grid");
+    expect(grid).toHaveAttribute("role", "radiogroup");
+    expect(grid.className).toMatch(/grid-cols-1/);
+    expect(grid.className).toMatch(/sm:grid-cols-2/);
+    const cards = within(grid).getAllByRole("radio");
+    expect(cards).toHaveLength(4);
+    expect(screen.getByTestId("knowledge-create-type-user")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-create-type-feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-create-type-project")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-create-type-reference")).toBeInTheDocument();
+  });
+
+  it("Should pre-select the defaultType card", () => {
+    renderDialog();
+    const projectCard = screen.getByTestId("knowledge-create-type-project");
+    expect(projectCard).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("knowledge-create-type-user")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
   });
 
   it("Should disable the confirm button until name and content are present", async () => {
@@ -41,12 +58,16 @@ describe("KnowledgeCreateDialog", () => {
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeEnabled();
   });
 
-  it("Should call onConfirm with trimmed structured input", async () => {
+  it("Should call onConfirm with the RadioCard-selected type and trimmed input", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     renderDialog({ onConfirm });
 
-    await user.selectOptions(screen.getByTestId("knowledge-create-type"), "reference");
+    await user.click(screen.getByTestId("knowledge-create-type-reference"));
+    expect(screen.getByTestId("knowledge-create-type-reference")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
     await user.type(screen.getByTestId("knowledge-create-name"), "  Launch Memory  ");
     await user.type(screen.getByTestId("knowledge-create-description"), "  contract  ");
     await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
@@ -58,34 +79,6 @@ describe("KnowledgeCreateDialog", () => {
       description: "contract",
       content: "Use the launch playbook.",
     });
-  });
-
-  it("Should preserve in-progress draft input when defaultType changes while open", async () => {
-    const user = userEvent.setup();
-    const view = renderDialog();
-
-    await user.selectOptions(screen.getByTestId("knowledge-create-type"), "feedback");
-    await user.type(screen.getByTestId("knowledge-create-name"), "Launch Memory");
-    await user.type(screen.getByTestId("knowledge-create-description"), "workspace contract");
-    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
-
-    view.rerender(
-      <UIProvider reducedMotion="always">
-        <KnowledgeCreateDialog
-          open
-          onOpenChange={vi.fn()}
-          scope="workspace"
-          defaultType="reference"
-          isPending={false}
-          onConfirm={vi.fn()}
-        />
-      </UIProvider>
-    );
-
-    expect(screen.getByTestId("knowledge-create-type")).toHaveValue("feedback");
-    expect(screen.getByTestId("knowledge-create-name")).toHaveValue("Launch Memory");
-    expect(screen.getByTestId("knowledge-create-description")).toHaveValue("workspace contract");
-    expect(screen.getByTestId("knowledge-create-content")).toHaveValue("Use the launch playbook.");
   });
 
   it("Should surface the dialog error", () => {

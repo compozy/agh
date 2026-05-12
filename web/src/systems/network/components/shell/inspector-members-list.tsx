@@ -28,7 +28,7 @@ function MembersSkeleton() {
       aria-hidden="true"
       count={3}
       data-testid="network-inspector-members-skeleton"
-      rowClassName="flex-row items-center gap-3 border-b border-(--color-divider) px-4 py-3"
+      rowClassName="flex-row items-center gap-3 border-b border-line px-4 py-3"
     >
       <Skeleton className="size-8 rounded-md" />
       <div className="flex flex-col gap-1.5">
@@ -71,7 +71,7 @@ export function InspectorMembersList({
     >
       {members.map(member => (
         <Item
-          className="rounded-none border-b border-(--color-divider) px-4 py-3 last:border-b-0"
+          className="rounded-none border-b border-line px-4 py-3 last:border-b-0"
           data-testid={`network-inspector-member-${member.peerId}`}
           key={member.peerId}
           role="listitem"
@@ -87,7 +87,7 @@ export function InspectorMembersList({
             <ItemTitle className="min-w-0 text-small-body">
               {member.displayName || `@${member.peerId}`}
             </ItemTitle>
-            <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`} weight="medium">
+            <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`}>
               {member.role === "agent" ? "AGENT" : "HUMAN"}
             </Eyebrow>
           </ItemContent>

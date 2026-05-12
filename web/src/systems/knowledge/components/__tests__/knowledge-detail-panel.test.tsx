@@ -108,35 +108,56 @@ describe("KnowledgeDetailPanel", () => {
     expect(preview).toHaveAttribute("data-slot", "code-block");
   });
 
-  it("Should render type and scope chips with the correct tone", () => {
+  it("Should render only scope + age pills in the detail header (no type/tier/staleness)", () => {
     renderDetail();
-    expect(screen.getByTestId("detail-type-badge")).toHaveAttribute("data-tone", "accent");
-    expect(screen.getByTestId("detail-type-badge")).toHaveTextContent("user");
-    expect(screen.getByTestId("detail-scope-badge")).toHaveAttribute("data-tone", "neutral");
-    expect(screen.getByTestId("detail-scope-badge")).toHaveTextContent("GLOBAL");
+    const header = screen.getByTestId("knowledge-detail-header");
+    expect(header).toHaveAttribute("data-slot", "detail-header");
+    expect(within(header).getByTestId("detail-scope-badge")).toHaveTextContent("Global");
+    expect(within(header).getByTestId("detail-age-badge")).toBeInTheDocument();
+    // The header must NOT carry type/tier/staleness pills.
+    expect(within(header).queryByTestId("detail-type-badge")).toBeNull();
+    expect(within(header).queryByTestId("detail-agent-tier-badge")).toBeNull();
+    expect(within(header).queryByTestId("detail-staleness-badge")).toBeNull();
   });
 
-  it("Should render Memory v2 metadata rows when present", () => {
+  it("Should surface filename via the DetailHeader preTitle slot", () => {
+    renderDetail();
+    expect(screen.getByTestId("knowledge-detail-filename")).toHaveTextContent("user-role.md");
+  });
+
+  it("Should embed an Overview ContextBox carrying type/tier/staleness", () => {
     renderDetail({
       memory: AGENT_MEMORY,
       content: "agent body",
       scope: "agent",
     });
-    expect(screen.getByTestId("metadata-row-Type")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Scope")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Agent tier")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Agent")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Workspace")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Recalls")).toHaveTextContent(/6/);
-    expect(screen.getByTestId("metadata-row-Staleness")).toBeInTheDocument();
-    expect(screen.getByTestId("metadata-row-Superseded by")).toBeInTheDocument();
-    expect(screen.getByTestId("detail-superseded-badge")).toBeInTheDocument();
-    expect(screen.getByTestId("detail-agent-tier-badge")).toBeInTheDocument();
+    const context = screen.getByTestId("knowledge-detail-context");
+    expect(context).toBeInTheDocument();
+    expect(screen.getByTestId("context-type-value")).toHaveTextContent("user");
+    expect(screen.getByTestId("context-tier-value")).toHaveTextContent("notes");
+    expect(screen.getByTestId("context-staleness-value")).toHaveTextContent(
+      "Updated >7 days after last recall"
+    );
+    expect(screen.getByTestId("context-agent-tier-value")).toHaveTextContent("Agent · workspace");
+    expect(screen.getByTestId("context-agent-value")).toHaveTextContent("cto");
+    expect(screen.getByTestId("context-workspace-value")).toHaveTextContent("ws_launch");
+    expect(screen.getByTestId("context-superseded-value")).toHaveTextContent("cto-tone-v2.md");
+    expect(screen.getByTestId("context-recalls-value")).toHaveTextContent("6");
   });
 
-  it("Should hide the agent metadata row when agent_name is absent", () => {
+  it("Should resolve modified + last-recalled via the <Time> primitive", () => {
     renderDetail();
-    expect(screen.queryByTestId("metadata-row-Agent")).not.toBeInTheDocument();
+    const modified = screen.getByTestId("context-modified-value");
+    expect(modified.tagName.toLowerCase()).toBe("time");
+    expect(modified.getAttribute("datetime")).toBe(MEMORY.mod_time);
+    const lastRecalled = screen.getByTestId("context-last-recalled-value");
+    expect(lastRecalled.tagName.toLowerCase()).toBe("time");
+    expect(lastRecalled.getAttribute("datetime")).toBe(MEMORY.last_recalled_at);
+  });
+
+  it("Should default staleness to Active when the banner is absent", () => {
+    renderDetail();
+    expect(screen.getByTestId("context-staleness-value")).toHaveTextContent("Active");
   });
 
   it("Should open the delete dialog and emit onDelete when confirmed", async () => {

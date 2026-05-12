@@ -33,7 +33,7 @@ type Story = StoryObj<typeof meta>;
 export const WithLabelAndHelper: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field>
         <FieldLabel htmlFor="input-group-email">Email</FieldLabel>
         <InputGroup>
@@ -51,7 +51,7 @@ export const WithLabelAndHelper: Story = {
 export const ErrorState: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Field data-invalid>
         <FieldLabel htmlFor="input-group-invalid">Email</FieldLabel>
         <InputGroup>
@@ -75,7 +75,7 @@ export const ErrorState: Story = {
 export const WithTrailingShortcut: Story = {
   args: {},
   render: () => (
-    <div className="w-[22rem]">
+    <div className="w-88">
       <Label htmlFor="input-group-search" className="sr-only">
         Search sessions
       </Label>
@@ -97,7 +97,7 @@ export const WithTrailingShortcut: Story = {
 export const TextareaWithActions: Story = {
   args: {},
   render: () => (
-    <div className="w-[28rem]">
+    <div className="w-md">
       <Field>
         <FieldLabel htmlFor="input-group-prompt">Prompt</FieldLabel>
         <InputGroup>

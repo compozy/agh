@@ -17,7 +17,7 @@ export function ThreadOverlayRoot({ rootMessage, isLoading }: ThreadOverlayRootP
         data-testid="network-thread-overlay-root-loading"
         role="status"
       >
-        <Eyebrow weight="medium">Loading root</Eyebrow>
+        <Eyebrow>Loading root</Eyebrow>
       </div>
     );
   }
@@ -27,8 +27,8 @@ export function ThreadOverlayRoot({ rootMessage, isLoading }: ThreadOverlayRootP
   }
 
   return (
-    <div className="flex flex-col gap-1 border-b border-(--color-divider) py-2">
-      <Eyebrow className="px-4" data-testid="network-thread-overlay-root-badge" weight="medium">
+    <div className="flex flex-col gap-1 border-b border-line py-2">
+      <Eyebrow className="px-4" data-testid="network-thread-overlay-root-badge">
         ROOT
       </Eyebrow>
       <MessageRow density="overlay" message={rootMessage} />

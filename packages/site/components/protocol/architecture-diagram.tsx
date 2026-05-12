@@ -1,3 +1,4 @@
+import { Eyebrow } from "@agh/ui";
 const controlNotes = [
   {
     label: "Operator surfaces",
@@ -28,38 +29,32 @@ export function ArchitectureDiagram() {
 
 function renderArchitectureDiagram() {
   return (
-    <section className="bg-(--color-surface) px-4 py-16 md:py-20">
+    <section className="bg-canvas-soft px-4 py-16 md:py-20">
       <div className="mx-auto max-w-(--site-layout-width)">
         <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
-          <div className="max-w-[540px]">
-            <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-(--color-text-tertiary)">
-              CONTROL PLANE
-            </p>
-            <h2 className="mt-5 text-site-protocol-title leading-none font-semibold tracking-tight text-(--color-text-primary)">
+          <div className="max-w-135">
+            <Eyebrow className="text-subtle">CONTROL PLANE</Eyebrow>
+            <h2 className="mt-5 text-site-protocol-title leading-none font-semibold tracking-tight text-fg">
               One runtime for operator control and open coordination.
             </h2>
-            <p className="mt-6 text-lg leading-relaxed text-(--color-text-secondary)">
+            <p className="mt-6 text-lg leading-relaxed text-muted">
               AGH keeps the operator surface, durable runtime behavior, and open network boundary in
               one place so teams can run real agent work without assembling another pile of
               infrastructure.
             </p>
           </div>
 
-          <div className="w-full lg:max-w-[420px]">
-            <div className="rounded-xl bg-(--color-canvas) p-6 md:p-8">
-              <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-accent">
-                Reading guide
-              </p>
+          <div className="w-full lg:max-w-105">
+            <div className="rounded-xl bg-canvas p-6 md:p-8">
+              <Eyebrow className="text-accent">Reading guide</Eyebrow>
               <div className="mt-6 flex flex-col gap-6">
                 {controlNotes.map(note => (
                   <div
                     key={note.label}
-                    className="border-b border-(--color-divider) pb-6 last:border-b-0 last:pb-0"
+                    className="border-b border-line pb-6 last:border-b-0 last:pb-0"
                   >
-                    <p className="text-lg font-medium text-(--color-text-primary)">{note.label}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">
-                      {note.description}
-                    </p>
+                    <p className="text-lg font-medium text-fg">{note.label}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted">{note.description}</p>
                   </div>
                 ))}
               </div>
@@ -67,13 +62,11 @@ function renderArchitectureDiagram() {
           </div>
         </div>
 
-        <div className="mt-16 rounded-xl bg-(--color-canvas) p-6 md:p-10">
-          <div className="flex flex-col gap-4 border-b border-(--color-divider) pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-16 rounded-xl bg-canvas p-6 md:p-10">
+          <div className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-eyebrow font-medium uppercase tracking-mono text-accent">
-                Runtime map
-              </p>
-              <p className="mt-2 text-lg font-medium leading-tight text-(--color-text-primary)">
+              <Eyebrow className="text-accent">Runtime map</Eyebrow>
+              <p className="mt-2 text-lg font-medium leading-tight text-fg">
                 Operator surfaces feed one local daemon, which exposes AGH Network at the edge
               </p>
             </div>
@@ -96,7 +89,7 @@ function renderArchitectureDiagram() {
                   refY="3"
                   orient="auto"
                 >
-                  <path d="M0,0 L8,3 L0,6" fill="#3C3A39" />
+                  <path d="M0,0 L8,3 L0,6" fill="var(--color-line)" />
                 </marker>
               </defs>
 
@@ -106,9 +99,9 @@ function renderArchitectureDiagram() {
                   x="400"
                   y="24"
                   textAnchor="middle"
-                  fill="#636366"
+                  fill="var(--color-subtle)"
                   fontSize="10"
-                  fontFamily="JetBrains Mono, monospace"
+                  fontFamily="var(--font-mono)"
                   letterSpacing="0.08em"
                 >
                   OPERATOR SURFACES
@@ -119,14 +112,21 @@ function renderArchitectureDiagram() {
                   { label: "Automations", x: 640 },
                 ].map(client => (
                   <g key={client.label}>
-                    <rect x={client.x - 60} y={36} width={120} height={36} rx={8} fill="#2E2C2B" />
+                    <rect
+                      x={client.x - 60}
+                      y={36}
+                      width={120}
+                      height={36}
+                      rx={8}
+                      fill="var(--color-canvas-soft)"
+                    />
                     <text
                       x={client.x}
                       y={58}
                       textAnchor="middle"
-                      fill="#E5E5E7"
+                      fill="var(--color-fg)"
                       fontSize="13"
-                      fontFamily="Inter, sans-serif"
+                      fontFamily="var(--font-sans)"
                       fontWeight="500"
                     >
                       {client.label}
@@ -143,7 +143,7 @@ function renderArchitectureDiagram() {
                   y1={72}
                   x2={x}
                   y2={108}
-                  stroke="#3C3A39"
+                  stroke="var(--color-line)"
                   strokeWidth={1}
                   markerEnd="url(#arrowhead)"
                 />
@@ -153,9 +153,9 @@ function renderArchitectureDiagram() {
                 x={160}
                 y={96}
                 textAnchor="middle"
-                fill="#636366"
+                fill="var(--color-subtle)"
                 fontSize="9"
-                fontFamily="JetBrains Mono, monospace"
+                fontFamily="var(--font-mono)"
                 letterSpacing="0.06em"
               >
                 operators
@@ -164,9 +164,9 @@ function renderArchitectureDiagram() {
                 x={400}
                 y={96}
                 textAnchor="middle"
-                fill="#636366"
+                fill="var(--color-subtle)"
                 fontSize="9"
-                fontFamily="JetBrains Mono, monospace"
+                fontFamily="var(--font-mono)"
                 letterSpacing="0.06em"
               >
                 live state
@@ -175,9 +175,9 @@ function renderArchitectureDiagram() {
                 x={640}
                 y={96}
                 textAnchor="middle"
-                fill="#636366"
+                fill="var(--color-subtle)"
                 fontSize="9"
-                fontFamily="JetBrains Mono, monospace"
+                fontFamily="var(--font-mono)"
                 letterSpacing="0.06em"
               >
                 scheduled work
@@ -191,15 +191,15 @@ function renderArchitectureDiagram() {
                 height={240}
                 rx={12}
                 fill="none"
-                stroke="#3C3A39"
+                stroke="var(--color-line)"
                 strokeWidth={1}
               />
               <text
                 x={80}
                 y={134}
-                fill="#E8572A"
+                fill="var(--color-accent)"
                 fontSize="11"
-                fontFamily="JetBrains Mono, monospace"
+                fontFamily="var(--font-mono)"
                 fontWeight="600"
                 letterSpacing="0.06em"
               >
@@ -207,27 +207,34 @@ function renderArchitectureDiagram() {
               </text>
 
               {/* API Layer */}
-              <rect x={80} y={148} width={300} height={36} rx={8} fill="#2E2C2B" />
+              <rect x={80} y={148} width={300} height={36} rx={8} fill="var(--color-canvas-soft)" />
               <text
                 x={230}
                 y={170}
                 textAnchor="middle"
-                fill="#E5E5E7"
+                fill="var(--color-fg)"
                 fontSize="12"
-                fontFamily="Inter, sans-serif"
+                fontFamily="var(--font-sans)"
                 fontWeight="500"
               >
                 Operator Surfaces
               </text>
 
-              <rect x={420} y={148} width={300} height={36} rx={8} fill="#2E2C2B" />
+              <rect
+                x={420}
+                y={148}
+                width={300}
+                height={36}
+                rx={8}
+                fill="var(--color-canvas-soft)"
+              />
               <text
                 x={570}
                 y={170}
                 textAnchor="middle"
-                fill="#E5E5E7"
+                fill="var(--color-fg)"
                 fontSize="12"
-                fontFamily="Inter, sans-serif"
+                fontFamily="var(--font-sans)"
                 fontWeight="500"
               >
                 Managed Agent Execution
@@ -239,7 +246,7 @@ function renderArchitectureDiagram() {
                 y1={184}
                 x2={230}
                 y2={210}
-                stroke="#3C3A39"
+                stroke="var(--color-line)"
                 strokeWidth={1}
                 markerEnd="url(#arrowhead)"
               />
@@ -248,7 +255,7 @@ function renderArchitectureDiagram() {
                 y1={184}
                 x2={570}
                 y2={210}
-                stroke="#3C3A39"
+                stroke="var(--color-line)"
                 strokeWidth={1}
                 markerEnd="url(#arrowhead)"
               />
@@ -260,17 +267,17 @@ function renderArchitectureDiagram() {
                 width={640}
                 height={40}
                 rx={8}
-                fill="#1E1C1B"
-                stroke="#3C3A39"
+                fill="var(--color-canvas-soft)"
+                stroke="var(--color-line)"
                 strokeWidth={1}
               />
               <text
                 x={400}
                 y={236}
                 textAnchor="middle"
-                fill="#E5E5E7"
+                fill="var(--color-fg)"
                 fontSize="13"
-                fontFamily="Inter, sans-serif"
+                fontFamily="var(--font-sans)"
                 fontWeight="600"
               >
                 Session Manager
@@ -290,18 +297,25 @@ function renderArchitectureDiagram() {
                     y1={252}
                     x2={mod.x}
                     y2={276}
-                    stroke="#3C3A39"
+                    stroke="var(--color-line)"
                     strokeWidth={1}
                     markerEnd="url(#arrowhead)"
                   />
-                  <rect x={mod.x - 56} y={278} width={112} height={32} rx={6} fill="#2E2C2B" />
+                  <rect
+                    x={mod.x - 56}
+                    y={278}
+                    width={112}
+                    height={32}
+                    rx={6}
+                    fill="var(--color-canvas-soft)"
+                  />
                   <text
                     x={mod.x}
                     y={298}
                     textAnchor="middle"
-                    fill="#8E8E93"
+                    fill="var(--color-muted)"
                     fontSize="12"
-                    fontFamily="Inter, sans-serif"
+                    fontFamily="var(--font-sans)"
                     fontWeight="500"
                   >
                     {mod.label}
@@ -314,9 +328,9 @@ function renderArchitectureDiagram() {
                 x="400"
                 y={370}
                 textAnchor="middle"
-                fill="#636366"
+                fill="var(--color-subtle)"
                 fontSize="10"
-                fontFamily="JetBrains Mono, monospace"
+                fontFamily="var(--font-mono)"
                 letterSpacing="0.08em"
               >
                 AGH NETWORK
@@ -328,7 +342,7 @@ function renderArchitectureDiagram() {
                 y1={350}
                 x2={400}
                 y2={362}
-                stroke="#3C3A39"
+                stroke="var(--color-line)"
                 strokeWidth={1}
                 markerEnd="url(#arrowhead)"
               />
@@ -341,7 +355,7 @@ function renderArchitectureDiagram() {
                 height={44}
                 rx={8}
                 fill="none"
-                stroke="#E8572A"
+                stroke="var(--color-accent)"
                 strokeWidth={1}
                 strokeDasharray="4 3"
               />
@@ -349,9 +363,9 @@ function renderArchitectureDiagram() {
                 x={400}
                 y={406}
                 textAnchor="middle"
-                fill="#E8572A"
+                fill="var(--color-accent)"
                 fontSize="13"
-                fontFamily="Inter, sans-serif"
+                fontFamily="var(--font-sans)"
                 fontWeight="600"
               >
                 Open coordination layer for discovery, delegation, and updates
@@ -369,18 +383,25 @@ function renderArchitectureDiagram() {
                     y1={424}
                     x2={peer.x}
                     y2={444}
-                    stroke="#3C3A39"
+                    stroke="var(--color-line)"
                     strokeWidth={1}
                     markerEnd="url(#arrowhead)"
                   />
-                  <rect x={peer.x - 48} y={446} width={96} height={28} rx={6} fill="#2E2C2B" />
+                  <rect
+                    x={peer.x - 48}
+                    y={446}
+                    width={96}
+                    height={28}
+                    rx={6}
+                    fill="var(--color-canvas-soft)"
+                  />
                   <text
                     x={peer.x}
                     y={464}
                     textAnchor="middle"
-                    fill="#8E8E93"
+                    fill="var(--color-muted)"
                     fontSize="11"
-                    fontFamily="Inter, sans-serif"
+                    fontFamily="var(--font-sans)"
                     fontWeight="500"
                   >
                     {peer.label}

@@ -3,11 +3,20 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkBanner } from "../work-banner";
+const toastWarningMock = vi.fn();
 
-describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
+vi.mock("sonner", () => ({
+  toast: {
+    warning: (...args: unknown[]) => toastWarningMock(...args),
+  },
+}));
+
+import { WorkBanner, WORK_BANNER_HARD_STOP_THRESHOLD } from "../work-banner";
+
+describe("WorkBanner auto-hide, tone, and hard-stop", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    toastWarningMock.mockReset();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -18,21 +27,71 @@ describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
     expect(screen.queryByTestId("network-work-banner")).toBeNull();
   });
 
-  it("Should render the default tint for working state", () => {
+  it("Should render the info tint for working-only state (no needs_input)", () => {
     render(<WorkBanner hasNeedsInput={false} openCount={2} />);
     const banner = screen.getByTestId("network-work-banner");
-    expect(banner).toHaveAttribute("data-escalate", "false");
+    expect(banner).toHaveAttribute("data-tone", "info");
     expect(banner).toHaveTextContent("2 active work in flight");
-    expect(banner.className).toContain("color-warning-tint");
   });
 
-  it("Should escalate to solid warning when any work needs input", () => {
+  it("Should render the warning tint when work needs input (no solid signal fill)", () => {
     render(<WorkBanner hasNeedsInput openCount={3} />);
     const banner = screen.getByTestId("network-work-banner");
-    expect(banner).toHaveAttribute("data-escalate", "true");
+    expect(banner).toHaveAttribute("data-tone", "warning");
     expect(banner).toHaveTextContent("1 needs input · 2 working");
-    // Solid warning bg-color, not the tint.
-    expect(banner.className).toContain("bg-(--color-warning)");
+  });
+
+  it("Should render the danger tint when `needsInputCount` crosses the hard-stop threshold", () => {
+    render(
+      <WorkBanner
+        hasNeedsInput
+        needsInputCount={WORK_BANNER_HARD_STOP_THRESHOLD + 1}
+        openCount={WORK_BANNER_HARD_STOP_THRESHOLD + 2}
+        workingCount={1}
+      />
+    );
+    const banner = screen.getByTestId("network-work-banner");
+    expect(banner).toHaveAttribute("data-tone", "danger");
+  });
+
+  it("Should fire a single <Sonner> toast when `needsInputCount` crosses the hard-stop threshold", () => {
+    const { rerender } = render(
+      <WorkBanner hasNeedsInput needsInputCount={2} openCount={3} workingCount={1} />
+    );
+    expect(toastWarningMock).not.toHaveBeenCalled();
+
+    rerender(
+      <WorkBanner
+        hasNeedsInput
+        needsInputCount={WORK_BANNER_HARD_STOP_THRESHOLD + 1}
+        openCount={WORK_BANNER_HARD_STOP_THRESHOLD + 2}
+        workingCount={1}
+      />
+    );
+    expect(toastWarningMock).toHaveBeenCalledTimes(1);
+
+    // Subsequent rerenders that stay beyond the threshold must NOT re-fire the toast.
+    rerender(
+      <WorkBanner
+        hasNeedsInput
+        needsInputCount={WORK_BANNER_HARD_STOP_THRESHOLD + 2}
+        openCount={WORK_BANNER_HARD_STOP_THRESHOLD + 3}
+        workingCount={1}
+      />
+    );
+    expect(toastWarningMock).toHaveBeenCalledTimes(1);
+
+    // Falling below the threshold rearms the trigger.
+    rerender(<WorkBanner hasNeedsInput needsInputCount={1} openCount={2} workingCount={1} />);
+    rerender(
+      <WorkBanner
+        hasNeedsInput
+        needsInputCount={WORK_BANNER_HARD_STOP_THRESHOLD + 1}
+        openCount={WORK_BANNER_HARD_STOP_THRESHOLD + 2}
+        workingCount={1}
+      />
+    );
+    expect(toastWarningMock).toHaveBeenCalledTimes(2);
   });
 
   it("Should auto-hide within 400ms when openCount returns to 0", () => {
@@ -52,7 +111,6 @@ describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
   it("Should render the explicit breakdown when needsInputCount + workingCount are provided", () => {
     render(<WorkBanner hasNeedsInput needsInputCount={2} openCount={3} workingCount={1} />);
     const banner = screen.getByTestId("network-work-banner");
-    expect(banner).toHaveAttribute("data-escalate", "true");
     expect(banner).toHaveTextContent("2 needs input · 1 working");
   });
 

@@ -43,16 +43,25 @@ vi.mock("@/systems/tasks", () => ({
   }),
 }));
 
-vi.mock("@/systems/tasks/components/task-editor-surface", () => ({
-  TaskEditorSurface: (props: Record<string, unknown>) => (
-    <div data-testid="task-editor-surface">
+vi.mock("@/systems/tasks/components/task-editor-modal", () => ({
+  TaskEditorModal: (props: Record<string, unknown>) => (
+    <div data-testid="task-editor-modal">
+      <span data-testid="task-editor-mode">{String(props.mode)}</span>
       <span data-testid="task-editor-template-prop">{String(props.templateId)}</span>
+      <span data-testid="task-editor-open">{String(props.open)}</span>
       <button
         data-testid="task-editor-template-change"
         onClick={() => (props.onTemplateChange as (templateId: string) => void)("recurring")}
         type="button"
       >
         template
+      </button>
+      <button
+        data-testid="task-editor-close-trigger"
+        onClick={() => (props.onOpenChange as (open: boolean) => void)(false)}
+        type="button"
+      >
+        close
       </button>
       <button
         data-testid="task-editor-submit-trigger"
@@ -108,10 +117,18 @@ describe("TaskCreateRoute", () => {
     enqueueMutateAsync.mockResolvedValue({ id: "run_001" });
   });
 
-  it("passes the selected template from search into the editor surface", () => {
+  it("mounts the editor modal in new mode and forwards the selected template", () => {
     searchParams = { template: "recurring" };
     render(<TaskCreateRoute />);
+    expect(screen.getByTestId("task-editor-mode")).toHaveTextContent("new");
+    expect(screen.getByTestId("task-editor-open")).toHaveTextContent("true");
     expect(screen.getByTestId("task-editor-template-prop")).toHaveTextContent("recurring");
+  });
+
+  it("navigates back to /tasks when the modal closes", () => {
+    render(<TaskCreateRoute />);
+    fireEvent.click(screen.getByTestId("task-editor-close-trigger"));
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/tasks" });
   });
 
   it("updates the route search when the editor switches template", () => {

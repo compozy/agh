@@ -6,10 +6,12 @@ import type {
   NetworkDirectRoomSummary,
   NetworkRecentEntry,
 } from "../../types";
+import { RightRail, type RightRailMode } from "@agh/ui";
+
 import { ChannelHeader } from "./channel-header";
 import { ChannelRail } from "./channel-rail";
-import { RightRail, type RightRailMode } from "./right-rail";
-import type { ChannelTab } from "./channel-tabs";
+import type { ChannelTab } from "./channel-tabs-types";
+import { ChannelToolbar } from "./channel-toolbar";
 
 export interface NetworkShellProps {
   pinnedChannels: ReadonlyArray<NetworkChannelSummary>;
@@ -65,7 +67,7 @@ export function NetworkShell({
   children,
 }: NetworkShellProps) {
   return (
-    <div className="flex min-h-0 flex-1 bg-(--color-canvas)" data-testid="network-shell">
+    <div className="flex min-h-0 flex-1 bg-canvas" data-testid="network-shell">
       <ChannelRail
         activeChannel={activeChannel?.channel ?? null}
         activeDirectId={activeDirectId}
@@ -82,16 +84,21 @@ export function NetworkShell({
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="network-main-pane">
         {activeChannel ? (
-          <ChannelHeader
-            activeTab={activeTab}
-            channel={activeChannel}
-            detail={activeChannelDetail}
-            directCount={directCount}
-            inspectorOpen={inspectorOpen}
-            onInspectorToggle={onInspectorToggle}
-            openWorkCount={openWorkCount}
-            threadCount={threadCount}
-          />
+          <>
+            <ChannelHeader
+              channel={activeChannel}
+              detail={activeChannelDetail}
+              inspectorOpen={inspectorOpen}
+              onInspectorToggle={onInspectorToggle}
+              openWorkCount={openWorkCount}
+            />
+            <ChannelToolbar
+              activeTab={activeTab}
+              channel={activeChannel.channel}
+              directCount={directCount}
+              threadCount={threadCount}
+            />
+          </>
         ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col" data-testid="network-tab-panel">

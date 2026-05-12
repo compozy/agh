@@ -83,7 +83,7 @@ function ActivitySkeleton() {
       aria-hidden="true"
       count={3}
       data-testid="network-inspector-activity-skeleton"
-      rowClassName="border-b border-(--color-divider) px-4 py-3"
+      rowClassName="border-b border-line px-4 py-3"
     >
       <Skeleton className="h-3 w-24" />
       <Skeleton className="size-3/4" />
@@ -128,7 +128,7 @@ export function InspectorActivityFeed({
     >
       {entries.map(({ entry, href }) => (
         <Item
-          className="rounded-none border-b border-(--color-divider) px-4 py-3 last:border-b-0"
+          className="rounded-none border-b border-line px-4 py-3 last:border-b-0"
           data-testid={`network-inspector-activity-${entry.id}`}
           key={entry.id}
           render={
@@ -146,9 +146,9 @@ export function InspectorActivityFeed({
               <ItemTitle className="min-w-0 text-xs">
                 <span className="truncate">{entry.title}</span>
               </ItemTitle>
-              <Eyebrow weight="medium">{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
+              <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
             </ItemFooter>
-            <p className="line-clamp-2 text-xs text-(--color-text-secondary)">{entry.preview}</p>
+            <p className="line-clamp-2 text-xs text-muted">{entry.preview}</p>
           </ItemContent>
         </Item>
       ))}

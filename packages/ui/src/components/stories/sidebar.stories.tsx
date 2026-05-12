@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import {
   BookOpenIcon,
   NetworkIcon,
@@ -11,10 +10,11 @@ import {
   WrenchIcon,
   ZapIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { Sidebar } from "../sidebar";
 import { UIProvider } from "../custom/ui-provider";
+import { Sidebar } from "../sidebar";
 
 const meta: Meta<typeof Sidebar> = {
   title: "components/ui/Sidebar",
@@ -35,10 +35,7 @@ type Story = StoryObj<typeof meta>;
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="flex min-h-[520px] bg-[color:var(--color-canvas)] text-[color:var(--color-text-primary)]"
-      style={{ width: 960 }}
-    >
+    <div className="flex min-h-[520px] bg-canvas text-fg" style={{ width: 960 }}>
       {children}
       <div className="flex min-h-0 flex-1 items-center justify-center px-10 text-sm text-muted-foreground">
         Main content area
@@ -58,7 +55,7 @@ function RailContent({ active = "A" }: { active?: string }) {
     <>
       <div
         aria-hidden
-        className="flex size-7 items-center justify-center rounded-md bg-[color:var(--color-accent)] font-mono text-[10px] font-semibold text-[color:var(--color-accent-ink)]"
+        className="flex size-7 items-center justify-center rounded-md bg-accent font-mono text-badge font-medium text-accent-ink"
       >
         a
       </div>
@@ -68,7 +65,7 @@ function RailContent({ active = "A" }: { active?: string }) {
           type="button"
           title={ws.name}
           data-active={ws.id === active}
-          className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-[color:var(--color-surface)] font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-[color:var(--color-accent)] data-[active=true]:bg-[color:var(--color-surface-elevated)] data-[active=true]:text-foreground"
+          className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-canvas-soft font-mono text-eyebrow text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-accent data-[active=true]:bg-elevated data-[active=true]:text-foreground"
         >
           {ws.id}
         </button>
@@ -87,13 +84,13 @@ function RailContent({ active = "A" }: { active?: string }) {
 function HeaderContent() {
   return (
     <>
-      <span className="flex-1 truncate text-sm font-semibold tracking-tight">agh-core</span>
+      <span className="flex-1 truncate text-sm font-medium tracking-tight">agh-core</span>
       <button
         type="button"
         aria-label="Search"
-        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-[color:var(--color-hover)] hover:text-foreground"
+        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground"
       >
-        <SearchIcon className="size-3.5" />
+        <SearchIcon className="size-3" />
       </button>
     </>
   );
@@ -111,17 +108,15 @@ const NAV_ITEMS = [
 function NavContent() {
   return (
     <div className="flex flex-col gap-1 px-2 py-3">
-      <span className="px-2 pb-1 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-        Workspace
-      </span>
+      <span className="eyebrow px-2 pb-1 text-subtle">Workspace</span>
       {NAV_ITEMS.map(item => (
         <button
           key={item.label}
           type="button"
           data-active={item.active}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-[color:var(--color-hover)] hover:text-foreground data-[active=true]:bg-[color:var(--color-surface-elevated)] data-[active=true]:text-foreground"
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-hover hover:text-foreground data-[active=true]:bg-elevated data-[active=true]:text-foreground"
         >
-          <item.icon className="size-3.5" aria-hidden="true" />
+          <item.icon className="size-3" aria-hidden="true" />
           <span className="flex-1 truncate">{item.label}</span>
         </button>
       ))}
@@ -133,17 +128,15 @@ function FooterContent() {
   return (
     <div className="flex flex-col gap-2 text-[12px] text-muted-foreground">
       <div className="flex items-center gap-2">
-        <span aria-hidden className="size-1.5 rounded-full bg-[color:var(--color-success)]" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.08em]">connected</span>
-        <span className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
-          v0.4.1
-        </span>
+        <span aria-hidden className="size-1.5 rounded-full bg-success" />
+        <span className="font-mono text-badge uppercase tracking-badge">connected</span>
+        <span className="ml-auto font-mono text-badge text-subtle">v0.4.1</span>
       </div>
       <button
         type="button"
-        className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] text-muted-foreground hover:bg-[color:var(--color-hover)] hover:text-foreground"
+        className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] text-muted-foreground hover:bg-hover hover:text-foreground"
       >
-        <SettingsIcon className="size-3.5" />
+        <SettingsIcon className="size-3" />
         <span>Settings</span>
       </button>
     </div>

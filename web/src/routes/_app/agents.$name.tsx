@@ -1,17 +1,22 @@
-import { AlertCircle, Compass, Loader2 } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
+import { AlertCircle, Compass, User2 } from "lucide-react";
 
-import { Empty } from "@agh/ui";
+import { Button, Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
+import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
 import {
-  AgentInfoPanel,
-  AgentPageHeader,
+  AgentInfoInspector,
+  AgentPageActions,
+  AgentPageStatusPill,
   AgentSessionsList,
   AgentStatsGrid,
 } from "@/systems/agent";
-import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/agents/$name")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: params.name, icon: User2 },
+  }),
   component: AgentDetailPage,
 });
 
@@ -33,11 +38,28 @@ interface AgentDetailContentProps {
 
 function AgentDetailContent({ name }: AgentDetailContentProps) {
   const page = useAgentDetailPage(name);
+  const sessions = page.sessions;
+
+  useTopbarSlot({
+    count: sessions.length,
+    tabs: page.agent ? <AgentPageStatusPill sessions={sessions} /> : undefined,
+    actions: page.agent ? (
+      <AgentPageActions
+        agent={page.agent}
+        isRefreshing={page.isRefreshing}
+        onRefresh={page.onRefresh}
+        onConfigure={page.onConfigure}
+        onNewSession={page.onNewSession}
+        isCreatingSession={page.isCreatingForAgent}
+        newSessionDisabled={page.newSessionDisabled}
+      />
+    ) : undefined,
+  });
 
   if (page.agentLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="agent-detail-loading">
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -52,15 +74,16 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
             page.agentError?.message ?? `No agent named "${name}" was found in this workspace.`
           }
           action={
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={page.onGoHome}
-              className="inline-flex items-center gap-2 rounded-md border border-(--color-divider) px-3 py-1.5 text-xs text-(--color-text-secondary) transition-colors hover:border-accent hover:text-(--color-text-primary)"
               data-testid="agent-detail-go-home"
             >
-              <Compass className="size-3.5" />
+              <Compass className="size-3" />
               Go home
-            </button>
+            </Button>
           }
           data-testid="agent-detail-not-found"
         />
@@ -73,30 +96,20 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="agent-detail-page">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <AgentPageHeader
-          agent={page.agent}
-          sessions={page.sessions}
-          isRefreshing={page.isRefreshing}
-          onRefresh={page.onRefresh}
-          onConfigure={page.onConfigure}
-          onNewSession={page.onNewSession}
-          isCreatingSession={page.isCreatingForAgent}
-          newSessionDisabled={page.newSessionDisabled}
-        />
         <div
           className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
           data-testid="agent-detail-body"
         >
-          {hasResolvedSessions ? <AgentStatsGrid sessions={page.sessions} /> : null}
+          {hasResolvedSessions ? <AgentStatsGrid sessions={sessions} /> : null}
           <AgentSessionsList
             agentName={name}
-            sessions={page.sessions}
+            sessions={sessions}
             isLoading={page.sessionsLoading}
             isError={page.sessionsError}
           />
         </div>
       </div>
-      <AgentInfoPanel agent={page.agent} />
+      <AgentInfoInspector agent={page.agent} />
     </div>
   );
 }

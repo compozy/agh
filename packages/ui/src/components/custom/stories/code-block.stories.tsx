@@ -11,7 +11,7 @@ const meta: Meta<typeof CodeBlock> = {
     docs: {
       description: {
         component:
-          "Terminal-style code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at 14px/1.6, optional accent `$ ` prompt, optional language eyebrow, and a ghost copy button that swaps to a checkmark for 1.5s on copy success.",
+          "Terminal-style code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at 14px/1.6, optional accent `$ ` prompt, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback.",
       },
     },
   },
@@ -36,6 +36,8 @@ export const ShellCommand: Story = {
 export const MultilineWithoutPrompt: Story = {
   args: {
     showPrompt: false,
+    language: "typescript",
+    themeMode: "dark",
     code: `export function greet(name: string) {
   return \`Hello, \${name}\`;
 }`,
@@ -51,7 +53,8 @@ export const MultilineWithoutPrompt: Story = {
 
 export const LanguageLabel: Story = {
   args: {
-    language: "agh network",
+    caption: "agh network",
+    language: "bash",
     code: `# discover peers, send one task
 agh network status
 agh network peers
@@ -65,6 +68,57 @@ agh network send reviewer --kind direct \\
           "Language eyebrow in the top-left. Comment (`#`) and indented continuation lines skip the prompt.",
       },
     },
+  },
+};
+
+export const UnknownLanguageFallback: Story = {
+  args: {
+    showPrompt: false,
+    language: "not-a-language",
+    code: ['<unsafe-tag data-value="render as text">', "  escaped: true", "</unsafe-tag>"].join(
+      "\n"
+    ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Unsupported language labels remain visible, but the body falls back to escaped plain text.",
+      },
+    },
+  },
+};
+
+export const LineNumbersAndHighlights: Story = {
+  args: {
+    showPrompt: false,
+    showLineNumbers: true,
+    highlightLines: [2, 4],
+    language: "typescript",
+    code: [
+      "type AgentState = 'idle' | 'running' | 'blocked';",
+      "const state: AgentState = 'running';",
+      "const canResume = state !== 'blocked';",
+      "console.log({ state, canResume });",
+    ].join("\n"),
+  },
+};
+
+export const WrappedLongLine: Story = {
+  args: {
+    showPrompt: false,
+    wrapLines: true,
+    language: "json",
+    code: JSON.stringify(
+      {
+        event: "receipt",
+        channel: "agh-network/v0",
+        summary:
+          "This deliberately long value wraps inside the block without forcing a horizontal scroll.",
+      },
+      null,
+      2
+    ),
   },
 };
 
@@ -152,15 +206,45 @@ export const WarningToneTruncated: Story = {
   },
 };
 
+export const CopyFailure: Story = {
+  args: {
+    code: "agh network status",
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: fn(async (_value: string) => {
+          throw new Error("blocked");
+        }),
+      },
+    });
+    try {
+      await step("Clicking copy exposes failure feedback", async () => {
+        const button = await canvas.findByRole("button", { name: "Copy to clipboard" });
+        await userEvent.click(button);
+        const failed = await canvas.findByRole("button", { name: "Copy failed" });
+        await expect(failed.getAttribute("data-copy-state")).toBe("failed");
+      });
+    } finally {
+      if (original) {
+        Object.defineProperty(navigator, "clipboard", original);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
+  },
+};
+
 export const StandaloneCopyButton: Story = {
   args: {
     code: "agh network status",
   },
   render: args => (
-    <div className="flex items-center gap-3 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3">
-      <span className="font-mono text-small-body text-[color:var(--color-text-secondary)]">
-        {args.code}
-      </span>
+    <div className="flex items-center gap-3 rounded-md border border-line bg-canvas-soft p-3">
+      <span className="font-mono text-small-body text-muted">{args.code}</span>
       <CopyIconButton value={args.code} />
     </div>
   ),

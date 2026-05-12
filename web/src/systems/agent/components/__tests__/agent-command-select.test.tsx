@@ -138,13 +138,7 @@ describe("AgentCommandSelect", () => {
       </UIProvider>
     );
     await user.click(screen.getByTestId("trigger"));
-    expect(screen.getByTestId("agent-command-provider-deals")).toHaveClass(
-      "text-xs",
-      "tracking-wide"
-    );
-    expect(screen.getByTestId("agent-command-category-deals")).toHaveClass(
-      "text-xs",
-      "tracking-wide"
-    );
+    expect(screen.getByTestId("agent-command-provider-deals")).toHaveClass("eyebrow");
+    expect(screen.getByTestId("agent-command-category-deals")).toHaveClass("eyebrow");
   });
 });

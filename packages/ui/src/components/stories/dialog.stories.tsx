@@ -120,7 +120,7 @@ export const RuledHeader: Story = {
     docs: {
       description: {
         story:
-          '`DialogHeader variant="ruled"` adds the panel-tone background and `border-b border-(--color-divider)` rule with the canonical `px-5 py-4` rhythm. Pair with `DialogContent unframed` so the dialog body owns its own padding.',
+          '`DialogHeader variant="ruled"` adds the panel-tone background and `border-b border-line` rule with the canonical `px-5 py-4` rhythm. Pair with `DialogContent unframed` so the dialog body owns its own padding.',
       },
     },
   },
@@ -133,9 +133,7 @@ export const RuledHeader: Story = {
             Pick the global home directory or register a manual workspace path.
           </DialogDescription>
         </DialogHeader>
-        <div className="p-5 text-sm text-[color:var(--color-text-secondary)]">
-          Body content lives below the rule.
-        </div>
+        <div className="p-5 text-sm text-muted">Body content lives below the rule.</div>
       </DialogContent>
     </Dialog>
   ),
@@ -147,7 +145,7 @@ export const RuledFooter: Story = {
     docs: {
       description: {
         story:
-          '`DialogFooter variant="ruled"` matches the header rule with `border-t border-(--color-divider)` and `px-5 py-3` rhythm so callers can compose flush primary/secondary actions inside `DialogContent unframed`.',
+          '`DialogFooter variant="ruled"` matches the header rule with `border-t border-line` and `px-5 py-3` rhythm so callers can compose flush primary/secondary actions inside `DialogContent unframed`.',
       },
     },
   },
@@ -182,13 +180,8 @@ export const Unframed: Story = {
   render: () => (
     <Dialog defaultOpen>
       <DialogContent unframed className="max-w-md" data-testid="unframed-dialog">
-        <div
-          data-testid="unframed-body"
-          className="flex flex-col gap-3 p-5 text-sm text-[color:var(--color-text-secondary)]"
-        >
-          <DialogTitle className="text-base font-medium text-[color:var(--color-text-primary)]">
-            Composed body
-          </DialogTitle>
+        <div data-testid="unframed-body" className="flex flex-col gap-3 p-5 text-sm text-muted">
+          <DialogTitle className="text-base font-medium text-fg">Composed body</DialogTitle>
           <p>The host owns gutters and rhythm -- the dialog ships only the canvas + border.</p>
         </div>
       </DialogContent>

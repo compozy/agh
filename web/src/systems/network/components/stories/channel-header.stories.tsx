@@ -23,52 +23,29 @@ if (!heroChannel) {
   throw new Error("networkChannelsFixture must include at least one channel for stories");
 }
 
-export const ThreadsTabActive: Story = {
+export const Default: Story = {
   render: () => (
-    <PanelSurface className="min-h-[160px]">
+    <PanelSurface className="min-h-[120px]">
       <ChannelHeader
-        activeTab="threads"
         channel={heroChannel}
         detail={networkChannelFixture}
-        directCount={4}
         inspectorOpen={false}
         onInspectorToggle={() => undefined}
         openWorkCount={2}
-        threadCount={12}
       />
     </PanelSurface>
   ),
 };
 
-export const DirectsTabActive: Story = {
+export const NoPeers: Story = {
   render: () => (
-    <PanelSurface className="min-h-[160px]">
+    <PanelSurface className="min-h-[120px]">
       <ChannelHeader
-        activeTab="directs"
-        channel={heroChannel}
-        detail={networkChannelFixture}
-        directCount={4}
-        inspectorOpen={false}
-        onInspectorToggle={() => undefined}
-        openWorkCount={0}
-        threadCount={12}
-      />
-    </PanelSurface>
-  ),
-};
-
-export const ActivityTabActive: Story = {
-  render: () => (
-    <PanelSurface className="min-h-[160px]">
-      <ChannelHeader
-        activeTab="activity"
         channel={heroChannel}
         detail={null}
-        directCount={null}
         inspectorOpen={false}
         onInspectorToggle={() => undefined}
         openWorkCount={0}
-        threadCount={null}
       />
     </PanelSurface>
   ),
@@ -76,16 +53,13 @@ export const ActivityTabActive: Story = {
 
 export const InspectorOpen: Story = {
   render: () => (
-    <PanelSurface className="min-h-[160px]">
+    <PanelSurface className="min-h-[120px]">
       <ChannelHeader
-        activeTab="threads"
         channel={heroChannel}
         detail={networkChannelFixture}
-        directCount={4}
         inspectorOpen
         onInspectorToggle={() => undefined}
         openWorkCount={2}
-        threadCount={12}
       />
     </PanelSurface>
   ),

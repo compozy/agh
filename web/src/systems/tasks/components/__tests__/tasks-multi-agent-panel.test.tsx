@@ -208,7 +208,7 @@ describe("TasksMultiAgentPanel", () => {
     expect(screen.queryByTestId("tasks-multi-agent-live-count")).not.toBeInTheDocument();
   });
 
-  it("flags live agents with a 2px accent left-rail (no perimeter border)", () => {
+  it("renders flat agent cards with live state data but no accent rail", () => {
     const root = buildAgent();
     const child = buildAgent({
       isRoot: false,
@@ -243,12 +243,12 @@ describe("TasksMultiAgentPanel", () => {
 
     const liveCard = screen.getByTestId("tasks-multi-agent-agent-task_001");
     expect(liveCard).toHaveAttribute("data-is-live", "true");
-    expect(liveCard.className).toContain("border-l-2");
-    expect(liveCard.className).toContain("border-l-accent");
+    expect(liveCard.className).not.toContain("border-l-2");
+    expect(liveCard.className).not.toContain("border-l-accent");
 
     const idleCard = screen.getByTestId("tasks-multi-agent-agent-task_002");
     expect(idleCard).toHaveAttribute("data-is-live", "false");
-    expect(idleCard.className).toContain("border-l-transparent");
+    expect(idleCard.className).not.toContain("border-l-transparent");
   });
 
   it("renders the per-agent event strip when timeline data is available", () => {
@@ -310,14 +310,13 @@ describe("TasksMultiAgentPanel", () => {
       />
     );
 
-    const sessionLink = screen.getByTestId("tasks-multi-agent-agent-session-task_002");
-    expect(sessionLink).toHaveTextContent("Open session");
-
-    const runLink = screen.getByTestId("tasks-multi-agent-agent-run-task_002");
-    expect(runLink).toHaveTextContent("Open run");
-
-    const taskLink = screen.getByTestId("tasks-multi-agent-agent-task-task_002");
-    expect(taskLink).toHaveTextContent("Open task");
+    expect(
+      screen.queryByTestId("tasks-multi-agent-agent-session-task_002")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-multi-agent-agent-run-task_002")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-multi-agent-agent-link-task_002")).toHaveTextContent(
+      "Open agent"
+    );
   });
 
   it("does not render a session link for agents without an active run", () => {
@@ -357,7 +356,7 @@ describe("TasksMultiAgentPanel", () => {
       screen.queryByTestId("tasks-multi-agent-agent-session-task_003")
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("tasks-multi-agent-agent-run-task_003")).not.toBeInTheDocument();
-    expect(screen.getByTestId("tasks-multi-agent-agent-task-task_003")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-multi-agent-agent-link-task_003")).toBeInTheDocument();
   });
 
   it("renders a failure summary for agents with a run error", () => {

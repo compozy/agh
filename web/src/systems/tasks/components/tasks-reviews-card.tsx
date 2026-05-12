@@ -3,6 +3,7 @@ import { AlertCircle, Gavel } from "lucide-react";
 import {
   BlockLoading,
   Empty,
+  MonoId,
   Pill,
   Section,
   Table,
@@ -124,8 +125,15 @@ export function TasksReviewsCard({
   }
 
   return (
-    <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
-      <p className="text-xs text-(--color-text-tertiary)" data-testid={`${testId}-disclaimer`}>
+    <Section
+      aria-label={label}
+      className="w-full gap-4"
+      count={reviews.length}
+      data-testid={testId}
+      icon={Gavel}
+      label={label}
+    >
+      <p className="text-xs text-subtle" data-testid={`${testId}-disclaimer`}>
         Status reflects the persisted review row. Outcomes appear once a bound reviewer session
         submits through submit_run_review. This view is read-only -- operator sessions cannot bind a
         verdict.
@@ -149,15 +157,13 @@ export function TasksReviewsCard({
             const missingWorkCount = formatMissingWorkCount(review.missing_work);
             return (
               <TableRow data-testid={`${testIdPrefix}-${review.review_id}`} key={review.review_id}>
-                <TableCell className="max-w-[320px]">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <Pill mono>{review.review_id}</Pill>
-                    <span className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                      run {review.run_id}
-                    </span>
+                <TableCell className="max-w-80">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <MonoId value={review.review_id} />
+                    <span className="font-mono text-mono-id text-faint">run {review.run_id}</span>
                     {review.reason ? (
                       <p
-                        className="line-clamp-2 text-xs text-(--color-text-secondary)"
+                        className="line-clamp-2 text-form-label leading-relaxed text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-reason`}
                       >
                         {review.reason}
@@ -165,7 +171,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {review.next_round_guidance ? (
                       <p
-                        className="line-clamp-3 rounded border border-(--color-divider) bg-(--color-surface) px-2 py-1 text-eyebrow text-(--color-text-secondary)"
+                        className="line-clamp-3 rounded-md bg-input-fill px-2 py-1.5 text-form-hint leading-relaxed text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-guidance`}
                       >
                         {review.next_round_guidance}
@@ -173,7 +179,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {missingWorkCount > 0 ? (
                       <span
-                        className="text-badge text-(--color-warning)"
+                        className="text-eyebrow text-warning"
                         data-testid={`${testIdPrefix}-${review.review_id}-missing-work`}
                       >
                         Missing work · {missingWorkCount}
@@ -190,7 +196,7 @@ export function TasksReviewsCard({
                       {status}
                     </Pill>
                   ) : (
-                    <span className="font-mono text-eyebrow text-(--color-text-tertiary)">--</span>
+                    <span className="text-form-label text-faint">--</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -203,29 +209,39 @@ export function TasksReviewsCard({
                     </Pill>
                   ) : (
                     <span
-                      className="font-mono text-eyebrow text-(--color-text-tertiary)"
+                      className="text-form-label text-faint"
                       data-testid={`${testIdPrefix}-${review.review_id}-outcome-pending`}
                     >
                       pending
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--color-text-secondary)">
-                  {review.reviewer_agent_name ?? "--"}
-                  {review.reviewer_session_id ? (
-                    <span className="ml-2 text-badge text-(--color-text-tertiary)">
-                      session {review.reviewer_session_id}
+                <TableCell>
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-form-label text-fg">
+                      {review.reviewer_agent_name ?? "--"}
                     </span>
-                  ) : null}
+                    {review.reviewer_session_id ? (
+                      <span className="font-mono text-mono-id text-faint">
+                        session {review.reviewer_session_id}
+                      </span>
+                    ) : null}
+                  </div>
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--color-text-secondary)">
-                  round {review.review_round} · attempt {review.attempt}
+                <TableCell>
+                  <span className="font-mono text-eyebrow tabular-nums text-muted">
+                    round {review.review_round} · attempt {review.attempt}
+                  </span>
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                  {formatRelativeTime(review.requested_at)}
+                <TableCell>
+                  <span className="text-form-label text-faint">
+                    {formatRelativeTime(review.requested_at)}
+                  </span>
                 </TableCell>
-                <TableCell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                  {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
+                <TableCell>
+                  <span className="text-form-label text-faint">
+                    {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
+                  </span>
                 </TableCell>
               </TableRow>
             );

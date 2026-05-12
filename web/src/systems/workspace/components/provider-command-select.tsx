@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
-import { Cpu } from "lucide-react";
 
-import { CommandSelect, CommandSelectShell, CommandSelectTrigger } from "@agh/ui";
+import {
+  CommandSelect,
+  CommandSelectShell,
+  CommandSelectTrigger,
+  Eyebrow,
+  KindIcon,
+} from "@agh/ui";
 
 import { ProviderCommandList } from "./provider-command-list";
 import type { SessionProviderOption } from "../types";
@@ -51,16 +56,19 @@ export function ProviderCommandSelect({
       >
         {selected ? (
           <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <Cpu aria-hidden="true" className="size-3.5 shrink-0 text-(--color-text-secondary)" />
-            <span className="truncate text-sm text-(--color-text-primary)">
+            <KindIcon
+              className="shrink-0"
+              kind={selected.runtime_provider ?? selected.name}
+              size="xs"
+              tone="muted"
+            />
+            <span className="truncate text-sm text-fg">
               {selected.display_name?.trim() || selected.name}
             </span>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-secondary)">
-              {selected.harness ?? "acp"}
-            </span>
+            <Eyebrow className="text-muted">{selected.harness ?? "acp"}</Eyebrow>
           </span>
         ) : (
-          <span className="truncate text-(--color-text-secondary)">{placeholder}</span>
+          <span className="truncate text-muted">{placeholder}</span>
         )}
       </CommandSelectTrigger>
       <CommandSelectShell

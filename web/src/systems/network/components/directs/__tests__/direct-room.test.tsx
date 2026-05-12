@@ -88,7 +88,16 @@ describe("DirectRoom headerless layout", () => {
     expect(screen.getByText("@peer-remote")).toBeInTheDocument();
   });
 
-  it("Should render the role chip as agent (mono, no chromatic fill)", () => {
+  it("Should render the identity header via <DetailHeader> (24 px H1)", () => {
+    renderRoom();
+    const header = screen.getByTestId("network-direct-identity-row");
+    expect(header).toHaveAttribute("data-slot", "detail-header");
+    const title = header.querySelector('[data-slot="detail-header-title"]');
+    expect(title).not.toBeNull();
+    expect(title?.textContent).toContain("@peer-remote");
+  });
+
+  it("Should render the role indicator as agent (eyebrow in actions slot)", () => {
     renderRoom();
     expect(screen.getByText("agent")).toBeInTheDocument();
   });

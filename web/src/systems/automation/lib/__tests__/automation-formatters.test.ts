@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   automationScopeTone,
-  automationSemanticTone,
   automationSourceLabel,
   automationSourceTone,
   automationStatusTone,
@@ -109,16 +108,17 @@ describe("automation formatter helpers", () => {
     expect(
       formatPromptPreview("Review the session transcript and summarize follow-up actions.", 20)
     ).toBe("Review the session...");
-    expect(automationStatusTone("running")).toBe("accent");
+    expect(automationStatusTone("running")).toBe("info");
     expect(automationStatusTone("completed")).toBe("success");
     expect(automationStatusTone("enabled")).toBe("success");
     expect(automationStatusTone("scheduled")).toBe("warning");
     expect(automationStatusTone("failed")).toBe("danger");
     expect(automationStatusTone("canceled")).toBe("neutral");
     expect(automationStatusTone("disabled")).toBe("neutral");
-    expect(automationSemanticTone("running")).toBe("amber");
-    expect(automationScopeTone("workspace")).toBe("violet");
-    expect(automationSourceTone("dynamic")).toBe("amber");
+    expect(automationScopeTone("workspace")).toBe("info");
+    expect(automationScopeTone("global")).toBe("neutral");
+    expect(automationSourceTone("dynamic")).toBe("info");
+    expect(automationSourceTone("config")).toBe("neutral");
     expect(automationSourceLabel("config")).toBe("CONFIG");
     expect(automationSourceLabel("dynamic")).toBe("DYNAMIC");
   });

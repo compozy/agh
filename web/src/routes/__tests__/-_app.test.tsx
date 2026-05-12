@@ -58,11 +58,17 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@/components/app-sidebar", () => ({
+vi.mock("@/systems/runtime", () => ({
   AppSidebar: ({ onAddWorkspace }: { onAddWorkspace: () => void }) => (
     <button data-testid="app-sidebar" onClick={onAddWorkspace} type="button">
       Sidebar
     </button>
+  ),
+}));
+
+vi.mock("@/components/topbar-shell", () => ({
+  TopbarShell: ({ children }: { children: ReactNode }) => (
+    <div data-testid="topbar-shell">{children}</div>
   ),
 }));
 
@@ -202,10 +208,14 @@ describe("AppLayout", () => {
     mockCreateSessionMutateAsync.mockReset();
   });
 
-  it("renders sidebar and outlet directly inside the content column without a motion shell", () => {
+  it("renders sidebar, topbar shell, and outlet inside a CSS grid (56px 244px 1fr)", () => {
     render(<AppLayout />);
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-shell")).toBeInTheDocument();
+    const grid = screen.getByTestId("app-grid");
+    expect(grid.className).toContain("grid-cols-[56px_244px_1fr]");
     const content = screen.getByTestId("app-content");
+    expect(content.id).toBe("app-content");
     expect(content).toContainElement(screen.getByTestId("outlet"));
     expect(screen.queryByTestId("animate-presence")).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-route-motion")).not.toBeInTheDocument();

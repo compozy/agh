@@ -1,6 +1,7 @@
-import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Check, Database, KeyRound, Plus, Trash2, X } from "lucide-react";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Alert,
   AlertAction,
@@ -12,8 +13,12 @@ import {
   NativeSelect,
   NativeSelectOption,
   PageShell,
+  RestartBanner,
   Section,
+  Spinner,
+  StatusLineTopbarSlot,
   Textarea,
+  useTopbarSlot,
 } from "@agh/ui";
 
 import {
@@ -27,18 +32,64 @@ import {
   ProvidersGrid,
   SettingsEditorDialog,
   SettingsFieldRow,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSourceBadge,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 
 export const Route = createFileRoute("/_app/settings/providers")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Providers", icon: Database },
+  }),
   component: ProvidersSettingsPage,
 });
 
 function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
+  const envelopeForSlot = page.envelope;
+  useTopbarSlot({
+    tabs: envelopeForSlot ? (
+      <StatusLineTopbarSlot
+        data-testid="settings-page-providers-status-line"
+        status="connected"
+        items={[
+          {
+            key: "total",
+            value: (
+              <span data-testid="settings-page-providers-total">{page.counts.total} providers</span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "installed",
+            value: (
+              <span data-testid="settings-page-providers-installed">
+                {page.counts.installed} installed
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "missing",
+            value: (
+              <span data-testid="settings-page-providers-missing">
+                {page.counts.binaryMissing} binary missing
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "unconfigured",
+            value: (
+              <span data-testid="settings-page-providers-unconfigured">
+                {page.counts.unconfigured} unconfigured
+              </span>
+            ),
+            tone: "neutral",
+          },
+        ]}
+      />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -46,7 +97,7 @@ function ProvidersSettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-providers-loading"
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -58,42 +109,17 @@ function ProvidersSettingsPage() {
         data-testid="settings-page-providers-error"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
-            {page.error?.message ?? "Failed to load providers"}
-          </p>
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">{page.error?.message ?? "Failed to load providers"}</p>
         </div>
       </div>
     );
   }
 
+  const bannerProps = restartBannerPropsFor("providers", page.restart);
+
   return (
-    <PageShell
-      slug="providers"
-      title="Providers"
-      statusLine={
-        <SettingsStatusLine
-          data-testid="settings-page-providers-status-line"
-          status="connected"
-          items={[
-            <span key="total" data-testid="settings-page-providers-total">
-              {page.counts.total} providers
-            </span>,
-            <span key="installed" data-testid="settings-page-providers-installed">
-              {page.counts.installed} installed
-            </span>,
-            <span key="missing" data-testid="settings-page-providers-missing">
-              {page.counts.binaryMissing} binary missing
-            </span>,
-            <span key="unconfigured" data-testid="settings-page-providers-unconfigured">
-              {page.counts.unconfigured} unconfigured
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="providers" restart={page.restart} />}
-      banner={<SettingsRestartBanner slug="providers" restart={page.restart} />}
-    >
+    <PageShell slug="providers" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
@@ -112,7 +138,7 @@ function ProvidersSettingsPage() {
             onClick={page.openCreate}
             data-testid="settings-page-providers-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             New provider
           </Button>
         }
@@ -241,6 +267,7 @@ function renderProviderEditor({
     >
       <div className="flex flex-col gap-3">
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-name"
           label="Name"
           description={
@@ -261,6 +288,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-command"
           label="Command"
           description="Executable used to launch the ACP subprocess."
@@ -276,6 +304,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-display-name"
           label="Display name"
           description="Operator-facing label shown beside the provider id."
@@ -293,6 +322,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-model"
           label="Default model"
           description="Sent to the provider when an agent does not specify one."
@@ -310,6 +340,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-curated-models"
           label="Curated models"
           description="Provider-scoped model IDs stored under models.curated."
@@ -327,6 +358,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-harness"
           label="Harness"
           description="Runtime adapter used to launch the provider."
@@ -342,6 +374,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-runtime-provider"
           label="Runtime provider"
           description="Downstream provider id used by the selected harness."
@@ -359,6 +392,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-transport"
           label="Transport"
           description="Provider API family or Pi models override transport."
@@ -376,6 +410,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-base-url"
           label="Base URL"
           description="Custom API base URL for Pi-backed model overrides."
@@ -393,6 +428,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-auth-mode"
           label="Auth mode"
           description="Owner of provider authentication at launch."
@@ -421,6 +457,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-env-policy"
           label="Env policy"
           description="Daemon environment inheritance policy for provider subprocesses."
@@ -443,6 +480,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-home-policy"
           label="Home policy"
           description="Provider CLI state location policy."
@@ -465,6 +503,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-auth-status-command"
           label="Status command"
           description="Provider-owned command used for auth diagnostics."
@@ -482,6 +521,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-auth-login-command"
           label="Login command"
           description="Provider-owned command opened by provider auth login."
@@ -499,13 +539,14 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-api-key"
           label="Target env"
           description="Environment variable injected from the provider credential slot."
           hint="OPTIONAL"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-(--color-text-tertiary)" />
+              <KeyRound className="size-3 text-subtle" />
               <Input
                 className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
@@ -520,13 +561,14 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-secret-ref"
           label="Secret ref"
           description="Bound credential source injected into the target env var at launch."
           hint="BOUND"
           control={
             <div className="flex items-center gap-2">
-              <KeyRound className="size-3.5 text-(--color-text-tertiary)" />
+              <KeyRound className="size-3 text-subtle" />
               <Input
                 className="w-72 font-mono"
                 data-testid="settings-providers-editor-secret-ref-input"
@@ -541,6 +583,7 @@ function renderProviderEditor({
           }
         />
         <SettingsFieldRow
+          variant="modal"
           data-testid="settings-providers-editor-secret-value"
           label="API key"
           description="Write-only value stored when the secret ref uses vault:."
@@ -579,6 +622,7 @@ function AdditionalCredentialSlotsEditor({
 
   return (
     <SettingsFieldRow
+      variant="modal"
       data-testid="settings-providers-editor-credential-slots"
       label="More slots"
       description="Additional credential refs injected into provider subprocess env."
@@ -587,7 +631,7 @@ function AdditionalCredentialSlotsEditor({
         <div className="flex w-full max-w-176 flex-col gap-2">
           {additionalSlots.length === 0 ? (
             <span
-              className="font-mono text-xs text-(--color-text-tertiary)"
+              className="font-mono text-xs text-subtle"
               data-testid="settings-providers-editor-credential-slots-empty"
             >
               No additional credential slots
@@ -597,7 +641,7 @@ function AdditionalCredentialSlotsEditor({
               const index = offset + 1;
               return (
                 <div
-                  className="grid gap-2 rounded-md border border-(--color-divider) p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
+                  className="grid gap-2 rounded-md border border-line p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
                   data-testid={`settings-providers-editor-credential-slot-${index}`}
                   key={slot.name || slot.target_env || slot.secret_ref || slot.kind}
                 >
@@ -658,7 +702,7 @@ function AdditionalCredentialSlotsEditor({
                     disabled={disabled}
                     onClick={() => onChange(current => removeCredentialSlot(current, index))}
                   >
-                    <X className="size-3.5" />
+                    <X className="size-3" />
                   </Button>
                 </div>
               );
@@ -673,7 +717,7 @@ function AdditionalCredentialSlotsEditor({
             onClick={() => onChange(addCredentialSlot)}
             data-testid="settings-providers-editor-add-credential-slot"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             Add slot
           </Button>
         </div>
@@ -824,7 +868,7 @@ function ActionResultBanner({
       data-testid="settings-page-providers-action-result"
       data-kind={action.kind}
     >
-      <Check className="size-3.5" />
+      <Check className="size-3" />
       <AlertDescription className="text-xs">{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -834,7 +878,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-providers-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

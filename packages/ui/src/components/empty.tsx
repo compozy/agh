@@ -14,19 +14,12 @@ export interface EmptyProps extends Omit<React.ComponentProps<"div">, "title"> {
   titleAs?: EmptyTitleTag;
   description?: React.ReactNode;
   action?: React.ReactNode;
-  /**
-   * When `true` (default), the empty state stretches to fill its flex parent
-   * and centers vertically. Set to `false` for small card/popover contexts
-   * where the empty state should sit at its natural content height.
-   */
   fill?: boolean;
 }
 
 function isComponentType(value: unknown): value is IconComponent {
   if (typeof value === "function") return true;
   if (typeof value === "object" && value !== null && "render" in value) {
-    // Lucide icons (and other forwardRef memoized components) expose a `render` fn
-    // and can be rendered as JSX elements.
     return true;
   }
   return false;
@@ -36,11 +29,6 @@ function resolveTitleTag(title: React.ReactNode): EmptyTitleTag {
   return typeof title === "string" || typeof title === "number" ? "h3" : "div";
 }
 
-/**
- * Empty state primitive , centered icon well + title + description + optional action.
- * Mirrors `Empty` in `docs/design/web-inspiration/src/primitives.jsx` and DESIGN.md §4 "Empty State".
- * `icon` accepts either a Lucide-style component reference or a pre-rendered ReactNode.
- */
 function Empty({
   icon,
   title,
@@ -53,10 +41,10 @@ function Empty({
 }: EmptyProps) {
   let iconContent: React.ReactNode;
   if (icon === undefined) {
-    iconContent = <BoxIcon className="size-5" />;
+    iconContent = <BoxIcon className="size-4" />;
   } else if (isComponentType(icon)) {
     const IconComp = icon;
-    iconContent = <IconComp className="size-5" />;
+    iconContent = <IconComp className="size-4" />;
   } else {
     iconContent = icon;
   }
@@ -68,7 +56,7 @@ function Empty({
       data-slot="empty"
       data-fill={fill ? "true" : "false"}
       className={cn(
-        "flex w-full flex-col items-center justify-center gap-3 rounded-xl text-center",
+        "flex w-full flex-col items-center justify-center gap-3 rounded-lg text-center",
         fill && "h-full min-h-0 flex-1",
         className
       )}
@@ -77,20 +65,20 @@ function Empty({
       <span
         aria-hidden="true"
         data-slot="empty-icon"
-        className="inline-flex size-12 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-text-tertiary)]"
+        className="inline-flex size-empty-icon items-center justify-center rounded-lg bg-canvas-soft text-subtle"
       >
         {iconContent}
       </span>
       <TitleTag
         data-slot="empty-title"
-        className="text-[15px] font-medium text-[color:var(--color-text-secondary)]"
+        className="text-lg font-medium leading-snug tracking-empty-h1 text-fg-strong"
       >
         {title}
       </TitleTag>
       {description ? (
         <p
           data-slot="empty-description"
-          className="max-w-md text-[13px] leading-relaxed text-[color:var(--color-text-tertiary)]"
+          className="max-w-md text-small-body leading-relaxed text-muted"
         >
           {description}
         </p>

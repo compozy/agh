@@ -73,6 +73,6 @@ describe("AgentIcon", () => {
     render(<AgentIcon provider="claude" tone="accent" data-testid="icon" className="size-8" />);
     const icon = screen.getByTestId("icon");
     expect(icon.getAttribute("class")).toContain("size-8");
-    expect(icon.getAttribute("class")).toContain("--color-accent");
+    expect(icon.getAttribute("class")).toContain("text-accent");
   });
 });

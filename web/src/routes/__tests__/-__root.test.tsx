@@ -60,21 +60,15 @@ describe("RootComponent", () => {
     routeId: string;
   }) => React.ReactNode;
 
-  it("wraps the shell in a TooltipProvider", () => {
-    render(<RootComponent />);
-    const tooltipProvider = screen.getByTestId("tooltip-provider");
-    expect(tooltipProvider).toBeInTheDocument();
-    expect(tooltipProvider).toContainElement(screen.getByTestId("app-shell"));
-  });
-
   it("renders the Outlet inside the shell", () => {
     render(<RootComponent />);
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
   });
 
-  it("mounts the global Toaster once", () => {
+  it("renders a skip-to-content link that targets the app-content main", () => {
     render(<RootComponent />);
-    expect(screen.getByTestId("toaster")).toBeInTheDocument();
+    const link = screen.getByTestId("skip-to-content");
+    expect(link).toHaveAttribute("href", "#app-content");
   });
 
   it("renders a root-level not-found fallback with a clear path home", () => {

@@ -25,6 +25,7 @@ type CatalogService struct {
 	sourceByID     map[string]Source
 	lockMu         sync.Mutex
 	refreshFlights map[string]*refreshFlight
+	onFlightWait   func(providerID string)
 }
 
 type refreshFlight struct {
@@ -421,6 +422,9 @@ func (s *CatalogService) withRefreshFlight(
 			return cloneSourceStatuses(flight.statuses), flight.err
 		}
 		s.lockMu.Unlock()
+		if hook := s.onFlightWait; hook != nil {
+			hook(providerID)
+		}
 		select {
 		case <-flight.done:
 		case <-ctx.Done():

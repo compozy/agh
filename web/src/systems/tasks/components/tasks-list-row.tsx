@@ -1,8 +1,7 @@
 import * as React from "react";
 
-import { Item, ItemContent, ItemFooter, ItemHeader, ItemTitle, Pill } from "@agh/ui";
+import { MonoId, Pill, StatusDot, type StatusDotTone } from "@agh/ui";
 import { cn } from "@/lib/utils";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -19,10 +18,14 @@ export interface TasksListRowProps extends Omit<React.ComponentProps<"div">, "on
   onSelect?: (taskId: string) => void;
   /** Optional lane badge -- used by the Inbox (task 18) to tag rows by lane. */
   lane?: TaskInboxLane | null;
-  /** Optional slot rendered after the metadata row (e.g. action buttons). */
+  /** Optional slot rendered as the right column (auto-width). */
   trailing?: React.ReactNode;
-  /** Optional slot rendered under the metadata row (e.g. failure reason). */
-  footer?: React.ReactNode;
+  /**
+   * Optional inline meta line rendered under the title row. Each child should
+   * be a span; the row inserts `·` separators between adjacent children.
+   * Mirrors `.task-row__meta` from the proposal.
+   */
+  meta?: React.ReactNode;
   /** Optional test-id override. Defaults to `task-card-${task.id}` for back-compat. */
   testId?: string;
 }
@@ -35,12 +38,49 @@ const LANE_LABELS: Record<TaskInboxLane, string> = {
   archived: "Archived",
 };
 
+function MetaSeparator() {
+  return (
+    <span aria-hidden="true" className="text-faint opacity-60" data-slot="tasks-list-row-meta-sep">
+      ·
+    </span>
+  );
+}
+
+function joinMeta(children: React.ReactNode): React.ReactNode[] {
+  const items = React.Children.toArray(children);
+  return items.flatMap((child, index) => {
+    if (index === 0) return [child];
+    const childKey = React.isValidElement(child) && child.key !== null ? child.key : String(child);
+    return [<MetaSeparator key={`sep-${childKey}`} />, child];
+  });
+}
+
 /**
- * Shared list row primitive -- `StatusDot` tone + title + `MonoBadge` id + timestamp
- * + optional lane `Pills` badge. Consumed by `tasks-list-panel`, `task-card`, the
- * Kanban cards (task 18), and Inbox rows (task 18). DESIGN.md §4 list-row
- * composition; visual shape mirrors the mock at
- * `docs/design/web-inspiration/src/pages-core.jsx`.
+ * Maps the `taskStatusSignal` tone to a `<StatusDot>` tone. Returns `null`
+ * when no dot should render so the row keeps a uniform 14 px leading column
+ * width across all statuses while neutral/normal states stay decoration-free
+ * (DESIGN.md §2.7 "color is signal, never decoration").
+ */
+function rowStatusDotTone(tone: ReturnType<typeof taskStatusSignal>["tone"]): StatusDotTone | null {
+  switch (tone) {
+    case "warning":
+      return "warning";
+    case "danger":
+      return "danger";
+    case "accent":
+      return "accent";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Shared list-row primitive built on the proposal's `.task-row` grammar
+ * (`docs/design/new-proposal/agh-refined-7.html` lines 260-269). 3-column grid:
+ * `[ status-dot ] [ main (title + meta) ] [ trailing ]`. Identifier renders
+ * via `<MonoId>` per the row-context contract. Optional `meta` slot accepts
+ * ReactNodes joined by `·` separators inline. The Kanban and Inbox build
+ * dedicated row primitives instead of reusing this one.
  */
 function TasksListRow({
   task,
@@ -49,12 +89,13 @@ function TasksListRow({
   onSelect,
   lane = null,
   trailing,
-  footer,
+  meta,
   testId,
   className,
   ...props
 }: TasksListRowProps) {
   const signal = taskStatusSignal(task.status);
+  const dotTone = rowStatusDotTone(signal.tone);
   const identifier = taskShortId(task);
   const lastActivity = task.last_activity_at ?? task.updated_at;
   const timestamp = formatRelativeTime(lastActivity);
@@ -71,74 +112,93 @@ function TasksListRow({
       }
     : undefined;
 
+  const showRail = rail || selected;
+
   return (
-    <Item
-      as="div"
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
+    <div
       aria-pressed={selected}
-      indicator={rail || selected ? "rail" : "none"}
-      selectable={clickable || selected}
-      selected={selected}
       data-slot="tasks-list-row"
+      data-selected={selected ? "true" : undefined}
+      data-status={task.status}
       data-testid={resolvedTestId}
       onClick={clickable ? () => onSelect?.(task.id) : undefined}
       onKeyDown={handleKeyDown}
+      role="button"
+      aria-disabled={!clickable}
+      tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "group relative flex-col gap-2 rounded-none border-x-0 border-t-0 border-b border-(--color-divider) px-4 py-3.5 text-left",
+        "relative grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line-soft py-2.5 pr-3 pl-3.5 text-left transition-colors duration-base ease-out",
         clickable &&
-          "cursor-pointer hover:bg-(--color-surface) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        className,
-        rail || selected ? "border-l-2 border-l-accent" : "border-l-2 border-l-transparent"
+          "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
+        selected && "bg-row-selected",
+        className
       )}
       {...props}
     >
-      <ItemHeader className="justify-start">
-        <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-        <ItemTitle
-          data-slot="tasks-list-row-title"
-          className="min-w-0 flex-1 truncate text-small-body font-medium text-(--color-text-primary)"
-        >
-          {task.title}
-        </ItemTitle>
-        {lane ? (
-          <Pill
-            data-slot="tasks-list-row-lane"
-            size="sm"
-            tone={pillToneFromLegacyTone(taskLaneTone(lane))}
-          >
-            {LANE_LABELS[lane] ?? lane}
-          </Pill>
-        ) : null}
-      </ItemHeader>
-
-      <ItemContent className="flex-row items-center gap-2 text-eyebrow">
-        <Pill mono>{identifier}</Pill>
+      {showRail ? (
         <span
-          data-slot="tasks-list-row-timestamp"
-          className="font-mono text-badge text-(--color-text-tertiary)"
-        >
-          {timestamp}
-        </span>
-        {trailing !== undefined ? (
-          <div
-            data-slot="tasks-list-row-trailing"
-            className="ml-auto flex shrink-0 items-center gap-1.5"
-          >
-            {trailing}
-          </div>
-        ) : null}
-      </ItemContent>
-
-      {footer !== undefined ? (
-        <ItemFooter
-          data-slot="tasks-list-row-footer"
-          className="flex min-w-0 flex-col items-stretch gap-1"
-        >
-          {footer}
-        </ItemFooter>
+          aria-hidden="true"
+          className="absolute top-2 bottom-2 left-0 w-0.5 rounded-tr-xs rounded-br-xs bg-fg-strong"
+        />
       ) : null}
-    </Item>
+
+      <span
+        aria-hidden={dotTone === null ? "true" : undefined}
+        className="flex shrink-0 items-center justify-center"
+        data-slot="tasks-list-row-dot"
+      >
+        {dotTone === null ? null : (
+          <StatusDot
+            tone={dotTone}
+            variant={signal.pulse ? "ring" : "solid"}
+            size="default"
+            label={signal.pulse ? "Running" : undefined}
+          />
+        )}
+      </span>
+
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3
+            className="min-w-0 max-w-full truncate text-small-body font-medium text-fg-strong"
+            data-slot="tasks-list-row-title"
+          >
+            {task.title}
+          </h3>
+          {lane ? (
+            <Pill data-slot="tasks-list-row-lane" size="xs" tone={taskLaneTone(lane)}>
+              {LANE_LABELS[lane] ?? lane}
+            </Pill>
+          ) : null}
+        </div>
+
+        <div
+          className="flex min-w-0 flex-wrap items-center gap-2 text-small-body text-faint"
+          data-slot="tasks-list-row-meta"
+        >
+          <MonoId value={identifier} size="sm" data-slot="tasks-list-row-id" />
+          <MetaSeparator />
+          <span
+            className="font-mono text-badge tabular-nums text-faint"
+            data-slot="tasks-list-row-timestamp"
+          >
+            {timestamp}
+          </span>
+          {meta !== undefined ? (
+            <>
+              <MetaSeparator />
+              {joinMeta(meta)}
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {trailing !== undefined ? (
+        <div className="flex shrink-0 items-center gap-2" data-slot="tasks-list-row-trailing">
+          {trailing}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

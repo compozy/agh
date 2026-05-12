@@ -1,5 +1,12 @@
-import type { PillTone } from "@agh/ui";
+import { formatDuration, type OwnerAvatarProps, type PillTone, type RunCardStatus } from "@agh/ui";
 
+import {
+  RUN_STATUS_TONE,
+  TASK_LANE_TONE,
+  TASK_STATUS_TONE,
+  type TaskLane,
+  type TaskStatus as UiTaskStatus,
+} from "@/lib/status-tone";
 import type {
   TaskApprovalState,
   TaskInboxLane,
@@ -11,8 +18,6 @@ import type {
   TaskRunStatus,
   TaskStatus,
 } from "../types";
-
-export type TaskSemanticTone = "accent" | "amber" | "danger" | "green" | "neutral" | "violet";
 
 export interface TaskStatusSignal {
   tone: PillTone;
@@ -117,70 +122,116 @@ export function taskApprovalStateLabel(state?: TaskApprovalState | null): string
 }
 
 /**
- * Terminal + normal statuses (`completed`, `ready`, `draft`, `pending`, `idle`,
- * non-live `in_progress`) resolve to `neutral`. Attention-demanding statuses
- * keep their semantic tone. Priority never colorizes — hierarchy is driven by
- * weight and position, not hue (see `taskPriorityTone`).
+ * Maps a task status to its `PillTone` via the central `TASK_STATUS_TONE`
+ * dictionary. The dictionary keys cover the seven UI-renderable
+ * statuses; `canceled` and unknown values fall back to `neutral` per
+ * `web/src/lib/status-tone.ts` documentation.
  */
-export function taskStatusTone(status?: TaskStatus | null): TaskSemanticTone {
-  switch (status) {
-    case "failed":
-    case "canceled":
-      return "danger";
-    case "blocked":
-      return "amber";
-    case "in_progress":
-      // In-flight work is only accent when its run is genuinely live; the list/
-      // table surfaces cannot check the active run from the status alone, so
-      // the default neutral keeps the row calm. The Agents panel and detail
-      // header override this locally when `liveCount > 0`.
-      return "neutral";
-    case "completed":
-    case "ready":
-    case "draft":
-    case "pending":
-    default:
-      return "neutral";
+export function taskStatusTone(status?: TaskStatus | null): PillTone {
+  if (!status) return "neutral";
+  if (status in TASK_STATUS_TONE) {
+    return TASK_STATUS_TONE[status as UiTaskStatus];
   }
-}
-
-export function taskPriorityTone(_priority?: TaskPriority | null): TaskSemanticTone {
-  // Priority is always neutral. Hierarchy is expressed via weight and position,
-  // not color — stacking amber/violet/danger per row is decoration, not signal.
   return "neutral";
 }
 
-export function taskRunStatusTone(status?: TaskRunStatus | null): TaskSemanticTone {
+export function taskPriorityTone(_priority?: TaskPriority | null): PillTone {
+  // Priority never colorizes — hierarchy is expressed via weight and position,
+  // not hue. Stacking signal tones per row is decoration, not signal.
+  return "neutral";
+}
+
+/**
+ * Maps a backend run status to its `PillTone` via `RUN_STATUS_TONE`
+ *. The wire enum carries seven values (queued / claimed /
+ * starting / running / completed / failed / canceled); `toRunCardStatus`
+ * collapses them to the five-value frontend run-card enum, which is the key
+ * shape of `RUN_STATUS_TONE`.
+ */
+export function taskRunStatusTone(status?: TaskRunStatus | null): PillTone {
+  if (!status) return "neutral";
+  return RUN_STATUS_TONE[toRunCardStatus(status)];
+}
+
+const TASK_RUN_STATUS_LABELS: Record<TaskRunStatus, string> = {
+  queued: "Queued",
+  claimed: "Claimed",
+  starting: "Starting",
+  running: "Running",
+  completed: "Completed",
+  failed: "Failed",
+  canceled: "Canceled",
+};
+
+export function taskRunStatusLabel(status?: TaskRunStatus | null): string {
+  if (!status) {
+    return "Unknown";
+  }
+  return TASK_RUN_STATUS_LABELS[status] ?? status;
+}
+
+/**
+ * Maps the wire `TaskRunStatus` enum (queued/claimed/starting/running/completed/
+ * failed/canceled) to the `<RunCard>` `RunCardStatus` enum
+ * (pending/in_progress/completed/failed/canceled) active-run
+ * anatomy.
+ */
+export function toRunCardStatus(status: TaskRunStatus): RunCardStatus {
   switch (status) {
-    case "failed":
-    case "canceled":
-      return "danger";
-    case "running":
-      return "accent";
     case "queued":
-      return "amber";
-    case "completed":
-    case "starting":
+      return "pending";
     case "claimed":
+    case "starting":
+    case "running":
+      return "in_progress";
+    case "completed":
+      return "completed";
+    case "failed":
+      return "failed";
+    case "canceled":
+      return "canceled";
     default:
-      return "neutral";
+      return "pending";
   }
 }
 
-export function taskLaneTone(lane: TaskInboxLane): TaskSemanticTone {
-  switch (lane) {
-    case "approvals":
-      return "violet";
-    case "failed_runs":
-      return "danger";
-    case "blocked":
-      return "amber";
-    case "archived":
-      return "neutral";
-    case "my_work":
-    default:
-      return "green";
-  }
+interface ElapsedRunInput {
+  started_at?: string | null;
+  ended_at?: string | null;
+}
+
+/**
+ * Computes a pre-formatted elapsed string for a run via `started_at - ended_at`.
+ * For live runs without `ended_at`, falls back to `Date.now()`. Returns
+ * `undefined` when the input lacks a parseable `started_at`.
+ */
+export function computeElapsed(run: ElapsedRunInput): string | undefined {
+  if (!run.started_at) return undefined;
+  const startedAt = Date.parse(run.started_at);
+  if (Number.isNaN(startedAt)) return undefined;
+  const endedAt = run.ended_at ? Date.parse(run.ended_at) : Date.now();
+  if (Number.isNaN(endedAt)) return undefined;
+  const delta = Math.max(0, endedAt - startedAt);
+  return formatDuration(delta);
+}
+
+const TASK_INBOX_LANE_TONE_KEY: Record<TaskInboxLane, TaskLane | null> = {
+  my_work: "my_work",
+  approvals: "approvals",
+  failed_runs: "failed_runs",
+  blocked: "blocked",
+  // `archived` is a backend-only lane with no UI tone counterpart per N-004.
+  archived: null,
+};
+
+/**
+ * Maps a backend inbox lane to its `PillTone` via the central `TASK_LANE_TONE`
+ * dictionary (§5). `approvals` resolves to `info`;
+ * `archived` has no UI lane counterpart and collapses to `neutral`.
+ */
+export function taskLaneTone(lane: TaskInboxLane): PillTone {
+  const key = TASK_INBOX_LANE_TONE_KEY[lane];
+  return key ? TASK_LANE_TONE[key] : "neutral";
 }
 
 export function taskHasApprovalPending(task: Pick<TaskListItem, "approval_state">): boolean {
@@ -208,6 +259,27 @@ export function matchesTaskQuery(
   const identifier = task.identifier?.toLowerCase() ?? "";
 
   return title.includes(normalized) || identifier.includes(normalized);
+}
+
+/**
+ * Maps the backend owner kind onto the `<OwnerAvatar>` palette tier
+ * §3.5 /. Agent sessions, automation runs, extensions, network peers,
+ * and worker pools all read as `agent` for color selection; humans get the
+ * `human` slot ladder; unassigned tasks fall back to the system palette.
+ */
+export function ownerAvatarKindFor(kind?: TaskOwnerKind | null): OwnerAvatarProps["ownerKind"] {
+  switch (kind) {
+    case "human":
+      return "human";
+    case "agent_session":
+    case "automation":
+    case "extension":
+    case "network_peer":
+    case "pool":
+      return "agent";
+    default:
+      return "system";
+  }
 }
 
 const TASK_OWNER_KIND_LABELS: Record<TaskOwnerKind, string> = {
@@ -441,19 +513,19 @@ export function taskLifecyclePhaseDescription(phase: TaskLifecyclePhase): string
   return TASK_LIFECYCLE_PHASE_DESCRIPTIONS[phase];
 }
 
-const TASK_LIFECYCLE_PHASE_TONES: Record<TaskLifecyclePhase, TaskSemanticTone> = {
+const TASK_LIFECYCLE_PHASE_TONES: Record<TaskLifecyclePhase, PillTone> = {
   saved_intent: "neutral",
-  awaiting_approval: "violet",
+  awaiting_approval: "info",
   ready_to_start: "neutral",
-  queued: "amber",
+  queued: "neutral",
   running: "accent",
   completed: "neutral",
   failed: "danger",
   canceled: "danger",
-  blocked: "amber",
+  blocked: "danger",
 };
 
-export function taskLifecyclePhaseTone(phase: TaskLifecyclePhase): TaskSemanticTone {
+export function taskLifecyclePhaseTone(phase: TaskLifecyclePhase): PillTone {
   return TASK_LIFECYCLE_PHASE_TONES[phase];
 }
 

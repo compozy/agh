@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -221,11 +222,18 @@ describe("SandboxPage", () => {
       },
     });
     render(<SandboxPage />);
-    expect(screen.getByTestId("settings-sandbox-editor-title")).toHaveTextContent(
+    expect(screen.getByTestId("settings-modal-editor-title")).toHaveTextContent(
       "New sandbox profile"
     );
+    expect(screen.queryByTestId("settings-sandbox-editor-title")).toBeNull();
     expect(screen.getByTestId("sandbox-editor-name-input")).not.toBeDisabled();
     expect(screen.getByTestId("sandbox-editor-backend-input")).toHaveValue("local");
+  });
+
+  it("mounts the sandbox shell under PageShell with density route", () => {
+    render(<SandboxPage />);
+    const shell = screen.getByTestId("sandbox-shell");
+    expect(shell).toHaveAttribute("data-density", "route");
   });
 
   it("renders preserved-fields notice when nested profile keys exist", () => {

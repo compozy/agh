@@ -22,10 +22,10 @@ export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-wo
 // Components
 export { OptionCard } from "./components/option-card";
 export type {
-  OptionCardDensity,
   OptionCardHeaderProps,
   OptionCardIconProps,
   OptionCardProps,
+  OptionCardSize,
   OptionCardTone,
 } from "./components/option-card";
 export { ProviderCommandList } from "./components/provider-command-list";

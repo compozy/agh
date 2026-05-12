@@ -58,12 +58,17 @@ describe("KnowledgeDecisionsSection", () => {
     expect(screen.getByTestId("knowledge-decisions-empty")).toBeInTheDocument();
   });
 
-  it("Should render decisions with op, source, confidence and applied chips", () => {
+  it("Should render decisions as <TimelineEvent> rows with sentence-case op/source labels", () => {
     renderSection({ decisions: [SAMPLE] });
-    expect(screen.getByTestId("knowledge-decisions-list")).toBeInTheDocument();
-    expect(screen.getByTestId(`knowledge-decision-${SAMPLE.id}`)).toBeInTheDocument();
-    expect(screen.getByTestId(`knowledge-decision-op-${SAMPLE.id}`)).toHaveTextContent("UPDATE");
-    expect(screen.getByTestId(`knowledge-decision-source-${SAMPLE.id}`)).toHaveTextContent("RULE");
+    const list = screen.getByTestId("knowledge-decisions-list");
+    expect(list).toBeInTheDocument();
+    // Dense table rows are represented as TimelineEvent rows; no <table>.
+    expect(list.tagName.toLowerCase()).toBe("ul");
+    expect(list.querySelector("table")).toBeNull();
+    const row = screen.getByTestId(`knowledge-decision-${SAMPLE.id}`);
+    expect(row).toHaveAttribute("data-slot", "timeline-event");
+    expect(screen.getByTestId(`knowledge-decision-op-${SAMPLE.id}`)).toHaveTextContent("update");
+    expect(screen.getByTestId(`knowledge-decision-source-${SAMPLE.id}`)).toHaveTextContent("rule");
     expect(screen.getByTestId(`knowledge-decision-confidence-${SAMPLE.id}`)).toHaveTextContent(
       /Confidence 0\.91/
     );
@@ -71,6 +76,13 @@ describe("KnowledgeDecisionsSection", () => {
     expect(screen.getByTestId(`knowledge-decision-target-${SAMPLE.id}`)).toHaveTextContent(
       /user\.md/
     );
+  });
+
+  it("Should render decided_at via <Time>", () => {
+    renderSection({ decisions: [SAMPLE] });
+    const time = screen.getByTestId(`knowledge-decision-time-${SAMPLE.id}`);
+    expect(time.tagName.toLowerCase()).toBe("time");
+    expect(time.getAttribute("datetime")).toBe(SAMPLE.decided_at);
   });
 
   it("Should render a not-applied chip when applied_at is missing", () => {

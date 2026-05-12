@@ -27,9 +27,6 @@ describe("Section", () => {
     expect(container.querySelector('[data-slot="section-note"]')).toHaveTextContent(
       "Read-only daemon state"
     );
-    const root = container.querySelector('[data-slot="section"]');
-    expect(root?.className).toContain("border-t");
-    expect(root?.className).toContain("first:border-t-0");
   });
 
   it("Should omit the header when neither label nor right are provided", () => {
@@ -58,5 +55,21 @@ describe("Section", () => {
       </Section>
     );
     expect(container.querySelector('[data-slot="section-label"]')?.textContent).toBe("0");
+  });
+
+  it("Should expose data-bordered=null when bordered is not set", () => {
+    const { container } = render(<Section label="Members">body</Section>);
+    const head = container.querySelector('[data-slot="section-head"]');
+    expect(head?.getAttribute("data-bordered")).toBeNull();
+  });
+
+  it("Should expose data-bordered=true when bordered is true", () => {
+    const { container } = render(
+      <Section label="Members" bordered>
+        body
+      </Section>
+    );
+    const head = container.querySelector('[data-slot="section-head"]');
+    expect(head?.getAttribute("data-bordered")).toBe("true");
   });
 });

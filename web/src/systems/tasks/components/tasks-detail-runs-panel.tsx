@@ -1,13 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, Inbox, Radio } from "lucide-react";
 
-import { BlockLoading, Empty, LinkedRecordTable, Pill } from "@agh/ui";
-import { pillToneFromLegacyTone } from "@/lib/pill-variant";
+import { BlockLoading, Empty, LinkedRecordTable, MonoId, Pill, Time } from "@agh/ui";
 
 import {
-  formatRelativeTime,
   runCoordinationChannelLabel,
   runIsCoordinated,
+  taskRunStatusLabel,
   taskRunStatusTone,
   taskStatusSignal,
 } from "../lib/task-formatters";
@@ -75,34 +74,35 @@ export function TasksDetailRunsPanel({
               <LinkedRecordTable.Cell className="w-8 pl-4">
                 <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="max-w-[360px]">
+              <LinkedRecordTable.Cell className="max-w-90">
                 <LinkedRecordTable.Title>
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <Pill mono>{run.id}</Pill>
-                    <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(run.status))}>
-                      {run.status}
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <MonoId value={run.id} />
+                    <Pill tone={taskRunStatusTone(run.status)}>
+                      {taskRunStatusLabel(run.status)}
                     </Pill>
                     {channelLabel ? (
                       <Pill
                         data-testid={`tasks-detail-runs-channel-${run.id}`}
                         title="Coordination channel is bound to this run. Channel messages support coordination only -- claim, heartbeat, and terminal status stay in the task service."
-                        tone={pillToneFromLegacyTone("violet")}
+                        tone="info"
                       >
                         <span className="inline-flex items-center gap-1">
-                          <Radio className="size-3" aria-hidden="true" />
+                          <Radio className="size-3" aria-hidden="true" strokeWidth={1.75} />
                           Channel: {channelLabel}
                         </span>
                       </Pill>
                     ) : null}
                     {run.session_id ? (
-                      <span className="font-mono text-eyebrow text-(--color-text-secondary)">
-                        session {run.session_id}
+                      <span className="inline-flex items-center gap-1 text-small-body text-muted">
+                        <span>session</span>
+                        <MonoId size="sm" value={run.session_id} />
                       </span>
                     ) : null}
                   </div>
                   {run.error ? (
                     <p
-                      className="text-eyebrow text-(--color-danger)"
+                      className="text-small-body text-danger"
                       data-testid={`tasks-detail-runs-error-${run.id}`}
                     >
                       {run.error}
@@ -110,14 +110,14 @@ export function TasksDetailRunsPanel({
                   ) : null}
                 </LinkedRecordTable.Title>
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-secondary)">
+              <LinkedRecordTable.Cell className="text-small-body text-muted tabular-nums">
                 attempt {run.attempt}
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                {formatRelativeTime(run.queued_at)}
+              <LinkedRecordTable.Cell className="text-small-body text-subtle tabular-nums">
+                {run.queued_at ? <Time iso={run.queued_at} mode="relative" /> : "--"}
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="font-mono text-eyebrow text-(--color-text-tertiary)">
-                {run.ended_at ? formatRelativeTime(run.ended_at) : "--"}
+              <LinkedRecordTable.Cell className="text-small-body text-subtle tabular-nums">
+                {run.ended_at ? <Time iso={run.ended_at} mode="relative" /> : "--"}
               </LinkedRecordTable.Cell>
               <LinkedRecordTable.OpenCell>
                 <Pill.Link

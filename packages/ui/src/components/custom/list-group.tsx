@@ -54,15 +54,12 @@ function ListGroupHeader({ label, count, actions, className, ...props }: ListGro
     <div
       data-slot="list-group-header"
       className={cn(
-        "flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-2",
+        "flex items-center justify-between gap-2 border-b border-line bg-canvas-soft px-4 py-2",
         className
       )}
       {...props}
     >
-      <span
-        data-slot="list-group-label"
-        className="font-mono text-badge uppercase tracking-badge text-[color:var(--color-text-label)]"
-      >
+      <span data-slot="list-group-label" className="eyebrow text-muted">
         {label}
       </span>
       <div data-slot="list-group-header-actions" className="flex shrink-0 items-center gap-2">

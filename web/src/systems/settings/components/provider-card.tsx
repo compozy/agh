@@ -6,6 +6,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  CatalogCard,
+  Eyebrow,
   MetadataList,
   Pill,
   PillGroup,
@@ -38,21 +40,18 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
   const testId = `settings-page-providers-card-${provider.name}`;
 
   return (
-    <Card
-      data-testid={testId}
-      className="transition-colors duration-150 ease-out hover:ring-accent/40"
-    >
+    <Card data-testid={testId} className="transition-colors duration-base ease-out hover:bg-hover">
       <CardHeader>
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="flex size-10 items-center justify-center rounded-icon-well bg-(--color-surface-elevated) ring-1 ring-(--color-divider)"
+          <CatalogCard.Logo
+            size="lg"
+            tone="neutral"
+            data-testid={`${testId}-logo`}
+            className="text-fg"
           >
             <ProviderLogo provider={provider.name} className="size-5" />
-          </span>
-          <CardTitle className="font-mono text-sm text-(--color-text-primary)">
-            {provider.name}
-          </CardTitle>
+          </CatalogCard.Logo>
+          <CardTitle className="font-mono text-sm text-fg">{provider.name}</CardTitle>
         </div>
         {provider.default ? (
           <CardAction>
@@ -61,7 +60,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
         ) : null}
       </CardHeader>
 
-      <CardContent className="flex flex-col flex-1 gap-2 border-t border-(--color-divider) pt-4">
+      <CardContent className="flex flex-col flex-1 gap-2 border-t border-line pt-4">
         <MetadataList className="gap-y-2">
           <MetadataList.Row
             label="Command"
@@ -194,9 +193,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             data-testid={`${testId}-status`}
             data-tone={state.label}
           />
-          <span className="font-mono text-badge font-semibold uppercase tracking-badge text-(--color-text-tertiary)">
-            {STATE_LABELS[state.label] ?? state.label}
-          </span>
+          <Eyebrow className="text-subtle">{STATE_LABELS[state.label] ?? state.label}</Eyebrow>
         </span>
         <span className="flex items-center gap-2">
           <Button
@@ -230,7 +227,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
 }
 
 function EmptyValue() {
-  return <span className="text-(--color-text-label)">--</span>;
+  return <span className="text-muted">--</span>;
 }
 
 function ProviderAuthStatus({ provider }: { provider: SettingsProviderEntry }) {

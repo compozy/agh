@@ -12,382 +12,589 @@ The canonical token source is [`packages/ui/src/tokens.css`](packages/ui/src/tok
 
 ## 1. Visual Theme & Atmosphere
 
-AGH is a control surface for running real agent work. The aesthetic is **warm dark operator** — a near-black canvas (#141312) with a slight warm tint away from pure black, broken by a single operator-orange accent (#E8572A). Depth is layered surfaces, not shadows. Type does the heavy lifting: Inter for UI, Playfair Display as an editorial display serif for the marketing hero, JetBrains Mono for all metadata, NuixyberNext for the brand wordmark.
+AGH is a control surface for running real agent work. The aesthetic is **warm dark operator** — a near-black canvas (#131211) with a slight warm tint away from pure black, broken by a single operator-orange accent (#E8572A). Depth is layered surfaces, not shadows. Type does the heavy lifting: Inter Variable for UI, JetBrains Mono for all metadata, with Playfair Display reserved for the marketing site hero (`packages/site` only) and NuixyberNext reserved for the `agh` wordmark only.
 
-This is a **flat depth model**. No gradients on content, no glassmorphism outside the sticky header, no decorative texture. Depth comes from three background steps (canvas → surface → elevated) and 1px hairline dividers. Color is signal, never decoration — accent means _act_, green means _stable_, red means _stop_, yellow means _caution_, purple means _informational_.
+This is a **flat depth model**. No gradients on content, no glassmorphism, no decorative texture. Depth comes from a layered surface ramp (rail → canvas → soft → tint → elevated) and translucent 1 px hairlines. Color is signal, never decoration — accent means _act_, green means _stable_, red means _stop_, yellow means _caution_, purple means _informational_.
 
 **Key qualities:**
 
-- **Warm, not neutral** — the whole gray ramp is tinted warm (`#141312`, `#1E1C1B`, `#2E2C2B`), not pure iOS gray. Never cool or bluish.
+- **Warm, not neutral** — the whole gray ramp is tinted warm (`#0c0b0b`, `#131211`, `#1a1918`, `#232220`), not pure iOS gray. Never cool or bluish.
 - **Dark mode only** — `color-scheme: dark` is hardcoded. There is no light mode. Assets must never render on a white background.
-- **Monochromatic + accent** — a single warm orange (#E8572A) is the only color that breaks the neutral ramp. Semantic colors only appear as 15%-tinted chips, never as solid banners.
-- **Editorial calm, operator density** — marketing surfaces use generous Playfair Display headings; operator UI stays dense with Inter + mono metadata. Same tokens, two rhythms.
+- **Monochromatic + accent** — a single warm orange (#E8572A) is the only hue that breaks the neutral ramp. Signal colors are desaturated (`#5fbf85`, `#d6a647`, `#e0635a`, `#8e8eb5`) and only appear as low-alpha tints, never as solid banners.
+- **Two-token shadow vocabulary** — only `--shadow-overlay` (modals) and `--highlight` (active rim) carry shadow. Cards, popovers, dropdowns, sticky headers, list rows stay flat with a 1 px ring on `--line-soft`.
+- **Editorial calm, operator density** — the marketing site uses generous Playfair Display headings via its own font stack; the runtime kit is dense Inter + mono metadata. Different surfaces, different rhythms, same token contract for color and motion.
 - **Operational, not decorative** — every color, every chip, every icon carries meaning. No ornament without function.
 
 ## 2. Color Palette & Roles
 
-All colors are hex. No OKLCH, no color-mix at the token level (only in component hover states).
+All colors are hex or rgba. No OKLCH, no `color-mix()` at the token level. Hairlines and tints use rgba so transparency layers correctly across the warm ramp.
 
-### Backgrounds
+### Surface ramp
 
-| Token                                           | Value     | Role                                                            |
-| ----------------------------------------------- | --------- | --------------------------------------------------------------- |
-| **Canvas** `--color-canvas`                     | `#141312` | Primary app + site background — warm near-black                 |
-| **Canvas Deep** `--color-canvas-deep`           | `#0E0E0F` | Code blocks, deep sections (marketing `background="deep"`)      |
-| **Surface** `--color-surface`                   | `#1E1C1B` | Cards, sidebar, panels, modals                                  |
-| **Surface Panel** `--color-surface-panel`       | `#181716` | Alternate panel fill (docs sidebar, subtle separators)          |
-| **Surface Elevated** `--color-surface-elevated` | `#2E2C2B` | Popovers, icon wells inside cards, search inputs, hover targets |
-| **Divider** `--color-divider` / `--color-line`  | `#3C3A39` | 1px borders, separators, input outlines — the universal line    |
-| **Hover** `--color-hover`                       | `#353332` | Hover state for neutral interactive surfaces                    |
-| **Disabled** `--color-disabled`                 | `#4A4847` | Disabled backgrounds and elements                               |
+| Token                           | Value     | Role                                                      |
+| ------------------------------- | --------- | --------------------------------------------------------- |
+| **Rail** `--rail`               | `#0c0b0b` | Workspace rail (the 56 px left strip)                     |
+| **Canvas** `--canvas`           | `#131211` | Page bg — warm near-black                                 |
+| **Canvas Soft** `--canvas-soft` | `#1a1918` | Card / group / sidebar / popover bg                       |
+| **Canvas Tint** `--canvas-tint` | `#1c1b1a` | Kanban card baseline; subtle elevation step inside groups |
+| **Sidebar** `--sidebar`         | `#1a1918` | Sidebar panel (semantic alias of `--canvas-soft`)         |
+| **Elevated** `--elevated`       | `#232220` | Active row, segment-active, selected state                |
+| **Hover** `--hover`             | `#1f1e1d` | Generic neutral hover                                     |
+| **Disabled** `--disabled`       | `#4a4847` | Disabled fill                                             |
+
+### Hairlines
+
+The new token contract uses translucent white rails so dividers layer correctly across every ramp step. No solid `#3C3A39` divider.
+
+| Token           | Value                        | Role                              |
+| --------------- | ---------------------------- | --------------------------------- |
+| `--line`        | `rgba(255, 255, 255, 0.055)` | Generic 1 px hairline             |
+| `--line-soft`   | `rgba(255, 255, 255, 0.03)`  | Group bottoms, popover ring       |
+| `--line-strong` | `rgba(255, 255, 255, 0.09)`  | Focus ring, scrollbar thumb hover |
 
 ### Text
 
-| Token                                  | Value     | Role                                      |
-| -------------------------------------- | --------- | ----------------------------------------- |
-| **Primary** `--color-text-primary`     | `#E5E5E7` | Headings, titles, high-emphasis content   |
-| **Secondary** `--color-text-secondary` | `#8E8E93` | Body copy, descriptions, helper text      |
-| **Tertiary** `--color-text-tertiary`   | `#636366` | Placeholders, disabled text, low-emphasis |
-| **Label** `--color-text-label`         | `#98989D` | Meta labels, mono eyebrows on dark fills  |
+Five-step neutral text scale. Body lands on `--fg`; titles step up to `--fg-strong`; placeholders, separators, and mono ids step down through `--muted` → `--subtle` → `--faint`.
 
-### Accent & Semantic
+| Token         | Value     | Role                                |
+| ------------- | --------- | ----------------------------------- |
+| `--fg`        | `#ececef` | Body                                |
+| `--fg-strong` | `#f6f6f8` | Titles, active labels               |
+| `--muted`     | `#9a9a9f` | Secondary copy, helper text         |
+| `--subtle`    | `#76767c` | Placeholders, low-emphasis labels   |
+| `--faint`     | `#545458` | Mono ids, separators, disabled text |
 
-Color is signal. Each accent has exactly one meaning.
+### Accent
 
-| Token                                     | Value       | Signal               | Usage                                                                 |
-| ----------------------------------------- | ----------- | -------------------- | --------------------------------------------------------------------- |
-| **Accent** `--color-accent`               | `#E8572A`   | **Action / Primary** | CTAs, primary buttons, active pills, focus rings, links, `$ ` prompts |
-| **Accent Ink** `--color-accent-ink`       | `#17110F`   | Text on accent fill  | Used when text sits on a solid accent background                      |
-| **Accent Hover** `--color-accent-hover`   | `#D14E25`   | Action pressed       | Hover / pressed state for accent fills                                |
-| **Accent Strong** `--color-accent-strong` | `#F6874F`   | Highlight accent     | Rare high-emphasis accent, e.g. inline code on dark panels            |
-| **Accent Dim** `--color-accent-dim`       | `#E8572A59` | Muted accent outline | ~35% alpha — focus rings, subtle active borders                       |
-| **Success** `--color-success`             | `#30D158`   | Stable / Live        | Connected status, running agents, online indicator                    |
-| **Danger** `--color-danger`               | `#FF453A`   | Error / Destructive  | Errors, disconnected, destructive buttons, kill switches              |
-| **Warning** `--color-warning`             | `#FFD60A`   | Caution / Pending    | Pending states, degraded status                                       |
-| **Info** `--color-info`                   | `#BF5AF2`   | Informational        | Info chips, secondary categorization                                  |
+Color is signal. The accent has exactly one meaning: action.
 
-### Tint Formula
+| Token                  | Value                     | Role                                                       |
+| ---------------------- | ------------------------- | ---------------------------------------------------------- |
+| `--accent`             | `#e8572a`                 | CTAs, primary buttons, active pills, links, `$ ` prompts   |
+| `--accent-hover`       | `#d14e25`                 | Hover / pressed state for accent fills                     |
+| `--accent-strong`      | `#f6874f`                 | Rare high-emphasis accent (inline code on dark panels)     |
+| `--accent-ink`         | `#17110f`                 | Text on accent fill                                        |
+| `--accent-tint`        | `rgba(232, 87, 42, 0.10)` | Chip / pill tint                                           |
+| `--accent-tint-strong` | `rgba(232, 87, 42, 0.16)` | Bar fill, sticky highlight                                 |
+| `--accent-dim`         | `rgba(232, 87, 42, 0.24)` | Legacy focus ring (deprecated; focus uses `--line-strong`) |
+| `--accent-glow`        | `rgba(232, 87, 42, 0.05)` | Pulse keyframe base                                        |
 
-Status badges and kind chips use 15% opacity of the semantic color as background with the full-color text.
+### Signal palette (desaturated)
 
-| Semantic Color | Tint Token             | Value       | Text      |
-| -------------- | ---------------------- | ----------- | --------- |
-| Accent         | `--color-accent-tint`  | `#E8572A26` | `#E8572A` |
-| Success        | `--color-success-tint` | `#30D15826` | `#30D158` |
-| Danger         | `--color-danger-tint`  | `#FF453A26` | `#FF453A` |
-| Warning        | `--color-warning-tint` | `#FFD60A26` | `#FFD60A` |
-| Info           | `--color-info-tint`    | `#BF5AF226` | `#BF5AF2` |
-| Neutral        | `--color-neutral-tint` | `#63636626` | `#636366` |
+The proposal mock's saturated iOS signals (`#30D158`, `#FFD60A`, `#FF453A`, `#BF5AF2`) are replaced with desaturated variants that compose against the warm ramp without screaming. Tints sit at 6–10 % alpha — chips are quiet by default; full-color text rides on the tint surface.
+
+| Role    | Token       | Value     | Tint token       | Tint value                  | Tint α |
+| ------- | ----------- | --------- | ---------------- | --------------------------- | ------ |
+| Success | `--success` | `#5fbf85` | `--success-tint` | `rgba(95, 191, 133, 0.08)`  | 8 %    |
+| Warning | `--warning` | `#d6a647` | `--warning-tint` | `rgba(214, 166, 71, 0.08)`  | 8 %    |
+| Danger  | `--danger`  | `#e0635a` | `--danger-tint`  | `rgba(224, 99, 90, 0.09)`   | 9 %    |
+| Info    | `--info`    | `#8e8eb5` | `--info-tint`    | `rgba(142, 142, 181, 0.12)` | 12 %   |
+| Neutral | `--neutral` | `#7a7a80` | `--neutral-tint` | `rgba(150, 150, 155, 0.06)` | 6 %    |
+
+`--info-tint` is the canonical Settings / observability tint (UsageBreakdown session bar, observability dashboards). `--neutral-tint` warms toward `rgba(150, 150, 155, …)` to match the rest of the warm-dark ramp.
+
+### WCAG AA pairs
+
+Required minimum: 4.5:1 for body text and labels, 3:1 for non-text indicators (signal dots, icon-only badges). Pairs pinned in `web/src/__tests__/styles.test.ts`; a hex retune fails the gate.
+
+| Foreground / use            | Background      | Required | Target hex   | Action if below               |
+| --------------------------- | --------------- | -------- | ------------ | ----------------------------- |
+| `--fg` body text            | `--canvas`      | ≥ 4.5:1  | `#ececef`    | retune toward `#f6f6f8`       |
+| `--fg-strong` titles        | `--canvas-soft` | ≥ 4.5:1  | `#f6f6f8`    | retune toward `#ffffff`       |
+| `--muted` secondary text    | `--canvas-soft` | ≥ 4.5:1  | `#9a9a9f`    | retune toward `#a8a8ad`       |
+| `--subtle` placeholder      | `--canvas-soft` | ≥ 4.5:1  | `#76767c`    | retune toward `#86868c`       |
+| `--accent` text on tint     | `--canvas-soft` | ≥ 4.5:1  | `#e8572a`    | retune brand-anchored variant |
+| Success text on tint        | `--canvas-soft` | ≥ 4.5:1  | `#5fbf85`    | retune toward `#73d199`       |
+| Warning text on tint        | `--canvas-soft` | ≥ 4.5:1  | `#d6a647`    | retune toward `#e2b85b`       |
+| Danger text on tint         | `--canvas-soft` | ≥ 4.5:1  | `#e0635a`    | retune toward `#ed7670`       |
+| Info text on tint           | `--canvas-soft` | ≥ 4.5:1  | `#8e8eb5`    | retune toward `#9c9cc4`       |
+| Signal dot fills (non-text) | `--canvas-soft` | ≥ 3:1    | (each above) | retune as above               |
 
 ### Overlays
 
-| Purpose           | Value                                             | Notes                               |
-| ----------------- | ------------------------------------------------- | ----------------------------------- |
-| **Modal scrim**   | `rgba(0, 0, 0, 0.5)`                              | Dialog backdrop                     |
-| **Ghost hover**   | `rgba(255, 255, 255, 0.06)`                       | Ghost button hover on dark surfaces |
-| **Selection**     | `rgba(232, 87, 42, 0.28)`                         | Text selection — warm accent tint   |
-| **Sticky header** | `rgba(20, 19, 18, 0.92)` + `backdrop-blur-xl`     | The only place blur is allowed      |
-| **Hero mesh**     | `/hero-bg.png` @ 20% opacity + `mix-blend-screen` | Warm mesh, never a gradient         |
+| Purpose         | Token                         | Value                       | Notes                                                                                                                                                                               |
+| --------------- | ----------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Modal scrim** | `--overlay-scrim`             | `rgba(0, 0, 0, 0.55)`       | Dialog / sheet backdrop (retuned for stronger detach)                                                                                                                               |
+| **Modal blur**  | `--overlay-blur`              | `3px`                       | Carve-out — `backdrop-filter: blur(var(--overlay-blur))` ONLY on `.dialog-scrim` / `.sheet-scrim`. Forbidden elsewhere                                                              |
+| **Ghost hover** | `--overlay-ghost-hover`       | `rgba(255, 255, 255, 0.06)` | Ghost button hover on dark                                                                                                                                                          |
+| **Selection**   | (none — uses `--accent-tint`) | `rgba(232, 87, 42, 0.10)`   | `::selection { background: var(--accent-tint); color: var(--fg-strong); }` shipped in `packages/ui/src/tokens.css`. The legacy `--overlay-selection` token is intentionally absent. |
+
+The runtime kit's blur is bounded to dialog / sheet scrims only. Every other surface stays blur-free (DESIGN.md §10). The marketing site's sticky header (`packages/site`) keeps its own blur via its own stack.
+
+## 2.5 Surface glaze ladder
+
+Translucent white tints layered on top of the warm surface ramp. They compose consistently across `bg-canvas`, `bg-canvas-soft`, `bg-canvas-tint`, and `bg-elevated` — that's the whole reason they exist. Inline `rgba(255, 255, 255, 0.0XX)` literals are forbidden under `web/src/**` and `packages/ui/src/**`; the lint plugin enforces this through `no-design-glaze-rgba`. Consume each layer through its canonical Tailwind utility (`bg-row-hover`, `bg-row-selected`, etc.) — every entry below is exported via `@theme { --color-* }`.
+
+| Token                       | Utility                | Value                        | Role                                                                |
+| --------------------------- | ---------------------- | ---------------------------- | ------------------------------------------------------------------- |
+| `--color-row-hover`         | `bg-row-hover`         | `rgba(255, 255, 255, 0.022)` | List row / nav item hover; aliased as `--color-hover` (`bg-hover`)  |
+| `--color-row-selected`      | `bg-row-selected`      | `rgba(255, 255, 255, 0.030)` | List row / nav item selected baseline                               |
+| `--color-surface-glaze`     | `bg-surface-glaze`     | `rgba(255, 255, 255, 0.040)` | Selected card surface (RadioCard, kanban card selected, panel head) |
+| `--color-bar-fill`          | `bg-bar-fill`          | `rgba(255, 255, 255, 0.085)` | Bar fills (priority bars, progress strips, usage bars)              |
+| `--color-input-fill`        | `bg-input-fill`        | `rgba(255, 255, 255, 0.025)` | Composer / textarea / sentinel input surface                        |
+| `--color-btn-default-fill`  | `bg-btn-default-fill`  | `rgba(255, 255, 255, 0.040)` | Neutral `<Button>` default fill                                     |
+| `--color-btn-default-hover` | `bg-btn-default-hover` | `rgba(255, 255, 255, 0.070)` | Neutral `<Button>` hover fill                                       |
+| `--color-badge-fill`        | `bg-badge-fill`        | `rgba(255, 255, 255, 0.050)` | `<PillGroup>` count badge background                                |
+
+`--hover` is declared as `var(--row-hover)` so `hover:bg-(--hover)` resolves the canonical row-hover tint (fixes the live N-45 bug where the alias was referenced but undefined). Surfaces that want a stronger lift (`--row-selected`) or selection emphasis (`--surface-glaze`) consume the explicit token, not `--hover`.
+
+## 2.6 Owner avatar palettes
+
+Owner avatars resolve through `web/src/lib/owner-palette.ts → colorsFor(ownerKind, ownerId)`. The palette is tokenised so Storybook, design ref tools, and the runtime consume the same source. Hash on the owner id selects a slot; agents and humans get distinct families; system owners land on a single neutral slot.
+
+| Family | Slot | Background                                        | Foreground                           |
+| ------ | ---- | ------------------------------------------------- | ------------------------------------ |
+| Agent  | 0    | `--avatar-agent-0-bg` `rgba(232, 144, 99, 0.18)`  | `--avatar-agent-0-fg` `#F2B895`      |
+| Agent  | 1    | `--avatar-agent-1-bg` `rgba(168, 178, 220, 0.16)` | `--avatar-agent-1-fg` `#C5CCE7`      |
+| Agent  | 2    | `--avatar-agent-2-bg` `rgba(143, 196, 178, 0.18)` | `--avatar-agent-2-fg` `#A9D9C7`      |
+| Agent  | 3    | `--avatar-agent-3-bg` `rgba(214, 168, 192, 0.18)` | `--avatar-agent-3-fg` `#E0BCD0`      |
+| Human  | 0    | `--avatar-human-0-bg` `rgba(220, 192, 134, 0.20)` | `--avatar-human-0-fg` `#E5CC9A`      |
+| Human  | 1    | `--avatar-human-1-bg` `rgba(195, 178, 156, 0.20)` | `--avatar-human-1-fg` `#D6C5AA`      |
+| Human  | 2    | `--avatar-human-2-bg` `rgba(192, 173, 178, 0.20)` | `--avatar-human-2-fg` `#D2BFC5`      |
+| System | —    | `--avatar-system-bg` `var(--elevated)`            | `--avatar-system-fg` `var(--subtle)` |
+
+The `<OwnerAvatar>` primitive (`packages/ui/src/components/custom/owner-avatar.tsx`) is the only consumer. Sizes: `sm` (20 × 20), `default` (24 × 24), `lg` (32 × 32). Two-character monogram default, optional `glyph` / `icon` slot for system owners.
+
+## 2.7 Status tone vocabulary
+
+The runtime palette has six tones. `violet` is not a token; the proposal's `violet` mapping for approvals collapses to `info`.
+
+| Tone      | Resolves to                    | Used for                                                       |
+| --------- | ------------------------------ | -------------------------------------------------------------- |
+| `neutral` | `--neutral` / `--neutral-tint` | Idle, draft, pending, cancelled lanes; default chrome          |
+| `accent`  | `--accent` / `--accent-tint`   | Primary CTAs, mention lane, brand identity surfaces (RailLogo) |
+| `success` | `--success` / `--success-tint` | Completed, healthy, stable peaks                               |
+| `warning` | `--warning` / `--warning-tint` | Partial, degraded, stuck peaks                                 |
+| `danger`  | `--danger` / `--danger-tint`   | Blocked, failed, halted lanes; destructive actions             |
+| `info`    | `--info` / `--info-tint`       | In-progress, approvals lane, informational chrome              |
+
+`task_status_tone`, `task_run_status_tone`, and `task_lane_tone` resolve through these six tones via the exhaustive `STATUS_TONE` / `RUN_STATUS_TONE` / `TASK_LANE_TONE` dictionaries in `web/src/lib/status-tone.ts`. The dictionaries are typed `satisfies Record<…, PillTone>` against the backend `Task.Status` / `TaskRunStatus` Go enums — drift caught at `make codegen-check`. Adding a new tone requires updating the design-system contract.
 
 ## 3. Typography Rules
 
 ### Font Families
 
-| Role                | Typeface             | Fallback                                             | Usage                                                                                       |
-| ------------------- | -------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Primary (Sans)**  | **Inter Variable**   | Inter, -apple-system, BlinkMacSystemFont, sans-serif | Body, UI, docs headings, buttons, everything readable                                       |
-| **Display (Serif)** | **Playfair Display** | Inter Variable, serif                                | **Marketing only** — home `h1`/`h2` (`.site-home` scope)                                    |
-| **Mono**            | **JetBrains Mono**   | 'Courier New', monospace                             | Labels, badges, eyebrows, code, counters, protocol strings — always uppercase when non-code |
-| **Wordmark**        | **NuixyberNext**     | var(--font-sans)                                     | The literal string `agh` in the header Logo — nothing else                                  |
+The runtime kit ships two faces — Inter for everything readable, JetBrains Mono for every metadata surface. Playfair Display and NuixyberNext are NOT in the kit's `tokens.css`; the marketing site loads them through its own font stack.
 
-### Type Scale
+| Role                | Typeface             | Surface                             | Notes                                                               |
+| ------------------- | -------------------- | ----------------------------------- | ------------------------------------------------------------------- |
+| **Primary (Sans)**  | **Inter Variable**   | runtime kit + site                  | Body, UI, docs headings, buttons — every readable surface           |
+| **Mono**            | **JetBrains Mono**   | runtime kit + site                  | Labels, badges, eyebrows, code, counters, protocol strings          |
+| **Display (Serif)** | **Playfair Display** | `packages/site` only (`.site-home`) | Marketing hero + section H2. Loaded via the site's Next.js font set |
+| **Wordmark**        | **NuixyberNext**     | `packages/site` only (header logo)  | The literal string `agh` only — nowhere else                        |
 
-Marketing uses a fluid `clamp()` ramp; docs and UI use fixed sizes.
+The kit's `tokens.css` declares only `--font-sans` and `--font-mono`. `--font-display` and `--font-wordmark` are deleted from the kit; the site re-declares them inside its own `@theme inline` block.
 
-| Role                     | Font             | Size                           | Weight | Line Height | Letter Spacing | Notes                                             |
-| ------------------------ | ---------------- | ------------------------------ | ------ | ----------- | -------------- | ------------------------------------------------- |
-| **Hero H1 (site-home)**  | Playfair Display | `clamp(2.8rem, 6.5vw, 5.4rem)` | 400    | 0.96        | -0.035em       | Editorial display — marketing only                |
-| **Marketing H2**         | Playfair Display | `clamp(2.2rem, 4.6vw, 3.6rem)` | 400    | 1.02        | -0.03em        | Section headers on landing                        |
-| **Docs H1**              | Inter            | `clamp(2.55rem, 4.7vw, 4rem)`  | 600    | 0.94        | -0.05em        | Doc masthead — distinct from marketing hero       |
-| **Docs H2**              | Inter            | `clamp(1.7rem, 3vw, 2.45rem)`  | 600    | 1.05        | -0.035em       | Has `border-top 1px divider` + `padding-top 1rem` |
-| **H3**                   | Inter            | 20px (`1.25rem`)               | 500    | 1.2         | -0.02em        | Card titles, subsection headers                   |
-| **Page Title (UI)**      | Inter            | 20px                           | 700    | 28px        | -0.01em        | Operator UI top-level page titles                 |
-| **Card Title**           | Inter            | 16px                           | 600    | 24px        | -0.01em        | Panel and card headings in UI                     |
-| **Item Title**           | Inter            | 15px                           | 500    | 22px        | —              | List item titles, session names                   |
-| **Lead**                 | Inter            | 18px (`1.125rem`)              | 400    | 1.6         | —              | Hero sub-lead, section leads — max-width 58ch     |
-| **Body**                 | Inter            | 16px (`1rem`)                  | 400    | 1.5–1.7     | —              | Default reading text                              |
-| **Body (Docs)**          | Inter            | 16px                           | 400    | 1.8         | —              | Long-form docs — max-width 72ch                   |
-| **Small Body**           | Inter            | 13px (`0.8125rem`)             | 400    | 18px        | —              | Helper text, captions, meta                       |
-| **Metric Value**         | Inter            | 24px                           | 700    | 30px        | -0.02em        | Large dashboard numbers                           |
-| **Button Text**          | Inter            | 14px                           | 500    | 18px        | —              | Primary/secondary button labels                   |
-| **Ghost Button**         | Inter            | 13px                           | 500    | 16px        | —              | Ghost/compact button labels                       |
-| **Eyebrow**              | JetBrains Mono   | 11px                           | 600    | 16px        | 0.06em         | Uppercase — section headers, meta labels          |
-| **Doc Masthead Eyebrow** | JetBrains Mono   | 12px                           | 600    | 16px        | 0.16em         | Wider tracking for the `/runtime/*` doc masthead  |
-| **Badge Text**           | JetBrains Mono   | 10px                           | 600    | 12px        | 0.08em         | Status badges, kind chips — uppercase             |
-| **Mono Badge**           | JetBrains Mono   | 11px                           | 500    | 14px        | 0.06em         | Inline mono pills (agent IDs, protocol names)     |
-| **Inline Code**          | JetBrains Mono   | 0.9em                          | 400    | inherit     | —              | In-flow code tokens                               |
-| **Brand Wordmark**       | NuixyberNext     | ~24px @ header                 | 400    | 1           | —              | Lowercase `agh` + neighboring `ALPHA` chip (mono) |
+### Type Ladder (Inter-510 runtime kit)
+
+The runtime kit and `@agh/ui` settle on **Inter-510** for almost every UI weight — a custom value between Medium (500) and SemiBold (600) that Inter Variable supports natively. Body text steps down to weight 400 only for the small body size. Pill `--mono` is the one JetBrains Mono row inside the operator UI ladder.
+
+| Role                   | Family         | Size    | Weight | Tracking  | Notes                                                                                                                                                                                                    |
+| ---------------------- | -------------- | ------- | ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Body                   | Inter          | 13.5 px | 400    | -0.006em  | Default reading text                                                                                                                                                                                     |
+| Page H1                | Inter          | 22 px   | 510    | -0.026em  | Top-level route title                                                                                                                                                                                    |
+| Detail H1              | Inter          | 24 px   | 510    | -0.028em  | Detail-page hero title                                                                                                                                                                                   |
+| Topbar title           | Inter          | 14 px   | 510    | -0.014em  | Shell topbar route title                                                                                                                                                                                 |
+| Empty title            | Inter          | 18 px   | 510    | -0.022em  | RouteState empty / loading title                                                                                                                                                                         |
+| Eyebrow `case="upper"` | JetBrains Mono | 11 px   | 510    | 0.06em UC | UPPERCASE eyebrow scope — sidebar label, table head, run-cell, dashboard label, breadcrumb. Always rendered through `<Eyebrow>` (`@agh/ui`); never inlined. Tokens: `--text-eyebrow` + `--tracking-mono` |
+| Eyebrow `size="badge"` | JetBrains Mono | 10 px   | 510    | 0.06em UC | Denser eyebrow variant for chips and metadata badges. Tokens: `--text-badge` + `--tracking-mono`                                                                                                         |
+| Eyebrow `size="micro"` | JetBrains Mono | 9 px    | 510    | 0.06em UC | Tightest mono uppercase tier (live-tab counters, kbd hints). Tokens: `--text-micro` + `--tracking-mono`                                                                                                  |
+| Pill default           | Inter          | 11 px   | 510    | -0.005em  | Sentence case                                                                                                                                                                                            |
+| Pill `--mono`          | JetBrains Mono | 10.5 px | 500    | 0         | Inline mono pills (ids)                                                                                                                                                                                  |
+| Button                 | Inter          | 12 px   | 510    | -0.005em  | Primary / secondary button label                                                                                                                                                                         |
 
 ### Typography Principles
 
-- **Playfair Display is scoped to `.site-home` only.** Docs and operator UI never use the serif.
-- **Docs H1 is heavier sans** (600, -0.05em tracking) so it reads as reference material, not marketing.
-- **All eyebrows are uppercase JetBrains Mono** with 0.06em tracking (0.16em on the doc masthead). Lowercase mono is reserved for inline code and protocol strings like `agh-network/v0`.
-- **Negative tracking on headings** (-0.02em to -0.05em) tightens large type; body stays at default tracking.
-- **No bold body text.** Max weight for body is Medium 500.
-- **P&L / semantic values** — positive in `#30D158`, negative in `#FF453A`, neutral in `#E5E5E7`. The color IS the information.
-- **Selection color** — `rgba(232,87,42,0.28)`. Warm accent, not default blue.
+- **Inter is the runtime ladder.** No Playfair, no NuixyberNext anywhere inside `web/` or `packages/ui` — those faces live in `packages/site` only.
+- **Inter weight 510 sits between Medium and SemiBold** — slightly punchier than 500 without the dense feel of 600. Body stays at 400.
+- **UPPERCASE is scoped.** Only sidebar labels, table heads, run-cell mono labels, and Eyebrow `case="upper"` go uppercase. Pill default, button labels, and copy stay sentence case (`Eyebrow case="sentence"` is the default).
+- **Eyebrow markup is mandatory.** Every uppercase mono label in `web/` and `packages/site` MUST use either (a) the `<Eyebrow>` component (`@agh/ui`) for cases with dynamic tone/size/weight, or (b) the static utility classes `eyebrow` / `eyebrow-badge` / `eyebrow-micro` (defined in `packages/ui/src/tokens.css`) on structural elements (`<dt>`, `<label>`, `<TableHead>`, sidebar section labels, etc.). Inlining `font-mono` + `uppercase` + `text-eyebrow|badge|micro` + `tracking-mono` is forbidden — that combination IS the utility. Use `font-semibold!` (with `!`) when overriding the utility's baked-in `font-medium`. `@agh/ui` ships structural primitives (`<Sidebar.SectionLabel>`, `<TableHead>`, `<MetadataList.Term>`, `<WireCardHead>`) that already apply the utility internally. Canonical tracking is `--tracking-mono` (0.06em). Never reach for arbitrary values like `tracking-wider`, `text-[10.5px]`, or the legacy `--tracking-badge` (0.08em) for eyebrow text.
+- **Negative tracking on titles** (-0.014em to -0.028em) tightens the page-h1 / detail-h1 / topbar-title hierarchy. Body and small text use a slight negative tracking (-0.005em to -0.006em) for crisp ranges on the warm canvas.
+- **No bold UI weight.** The ladder tops out at 510. Body is 400, never bold.
+- **Signal text on tint surfaces** — text uses the full signal hex, the tint token sits behind. The color carries the meaning.
+- **Selection color** uses `var(--accent-tint)` (`rgba(232, 87, 42, 0.10)`). Warm accent, not default blue. The legacy `--overlay-selection` token is intentionally absent.
+
+## 3a. Layout Grammar
+
+A flat, prop-driven layout vocabulary that sits between the token sheet (§2) and the per-component contracts (§4). Every runtime surface is composed from the four primitives below.
+
+### Shell skeleton
+
+```
++---------------------------------------------+
+| Topbar (h-12 / 14 px title / count chip)    |  <-- page identity lives here
++---------------+-----------------------------+
+| Sidebar (244) | <PageShell density="route"> |  <-- 28/36/80 envelope
+| collapse      |   page body                 |
+|  244 / 220 /  |   detail surface: <DetailHeader> 24 px H1 + crumbs
+|  drawer       |                             |
++---------------+-----------------------------+
+```
+
+- **Topbar height redundancy** is intentional: the shell row reserves `grid-rows-[48px_1fr]` so content does not jump while the `<Topbar>` (`h-12` = 48 px) mounts.
+- **Sidebar collapse ladder**: default 244 px → 220 px when viewport ≤ 1100 px → drawer when viewport ≤ 880 px. Defined in `packages/ui/src/components/sidebar.tsx` constants (`SIDEBAR_PANEL_WIDTH_DEFAULT`, `SIDEBAR_PANEL_WIDTH_MD`, `SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT`, `SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT`). The previous 768 px breakpoint is removed.
+
+### Page envelope
+
+`<PageShell density="route">` applies the proposal envelope `28 px` block-start, `36 px` inline, `80 px` block-end. No `max-width` cap — content stretches edge-to-edge under the topbar / sidebar. The existing `density="comfortable" | "compact"` callers are unaffected; they opt into `"route"` explicitly as systems migrate.
+
+### Detail surfaces
+
+`<DetailHeader>` is the only primitive emitting a 24 px H1 in-body. It owns the 6-row anatomy: `crumbs / pre-title / 24 px H1 / pills / meta / actions`. The 22 px body-side H1 is forbidden — non-detail routes carry page identity in the topbar's 14 px route title only.
+
+### Modal anatomy
+
+Three modal widths via tokens; no off-ladder literals.
+
+| Token              | Value | Used for                                                |
+| ------------------ | ----- | ------------------------------------------------------- |
+| `--width-modal-sm` | 560px | Confirm dialog, small editor (single field, single CTA) |
+| `--width-modal-md` | 720px | Task editor modal (new / edit), settings field editor   |
+| `--width-modal-lg` | 880px | Bridges add-bridge wizard, knowledge create dialog      |
+
+`<Dialog.Overlay>` / `<Sheet.Overlay>` are the only surfaces that resolve `--overlay-blur` (3 px) on top of `--overlay-scrim` (0.55) — every other element stays blur-free (§10).
+
+### Radii ladder (4 / 5 / 6 / 8 / 10 / 14 / pill)
+
+Same ladder as §5, with three notes specific to the layout vocabulary:
+
+- **`--radius-xs` (4 px) and `--radius` (6 px) are pinned at `:root`**. They mirror inside `@theme inline` so Tailwind utilities (`rounded-xs`, `rounded`) stay generated; the `:root` pin makes them resolvable inside any custom-property cascade without depending on the `@theme inline` layer.
+- **`--radius-mono-badge` is 4 px** (retuned from 6 px). Topbar count badges, `<MonoId>`, and any other dense mono chip use the sharper rim.
+- **`--radius-icon-well` stays in rem (`0.625rem`)** — the single rem-based exception in an otherwise px ladder. Icon-well sizing scales with root `font-size` for in-body affordances. Do not normalise it back to `10px`.
+
+### Sizing tokens
+
+Two-tier logo well; the catalog tier is for browse/install, the provider tier for connected/configured.
+
+| Token                       | Value            | Used for                                                                       |
+| --------------------------- | ---------------- | ------------------------------------------------------------------------------ |
+| `--size-catalog-logo`       | `1.5rem` (24 px) | `<CatalogCard logoSize="default">` (skill / model / bridge browse)             |
+| `--size-provider-logo-well` | `2.5rem` (40 px) | `<CatalogCard logoSize="lg">` (settings provider card, configured bridge card) |
+
+`<CatalogCard logoSize="default" | "lg">` maps onto these. Inline arbitrary sizes are forbidden.
 
 ## 4. Component Stylings
 
+Every component anatomy below quotes `var(--token)` references against `packages/ui/src/tokens.css`. Hex literals are forbidden in this section — token names are stable and resolve through the canonical CSS variables. Historical hex values that no longer match the palette are deleted, not annotated.
+
 ### Buttons
 
-#### Primary (CTA)
+`<Button>` ships 9 additive variants and 10 sizes. The 6 below cover the runtime ladder; `outline` / `secondary` / `link` are retained for legacy callsites only and forbidden in new code. CTA radius is `var(--radius)` (6 px) — **never pill-shaped CTAs.**
 
-Solid accent fill. The main call-to-action on marketing, primary button in UI.
+#### `default` / `primary` (accent CTA)
 
-| State    | Background | Text      | Border Radius | Height (default / lg)   | Padding  |
-| -------- | ---------- | --------- | ------------- | ----------------------- | -------- |
-| Default  | `#E8572A`  | `#FFFFFF` | 8px           | 36px / 44px             | 8px 20px |
-| Hover    | `#D14E25`  | `#FFFFFF` | 8px           | same                    | same     |
-| Active   | `#D14E25`  | `#FFFFFF` | 8px           | same + `translate-y-px` | same     |
-| Disabled | `#4A4847`  | `#636366` | 8px           | same                    | same     |
+Solid accent fill. `primary` is an initial-parity alias for `default`.
 
-Marketing CTAs use `lg` (44px, `rounded-lg`). **Never pill-shaped.**
+| State    | Background            | Text                | Radius          | Height (default / lg) | Padding |
+| -------- | --------------------- | ------------------- | --------------- | --------------------- | ------- |
+| Default  | `var(--accent)`       | `var(--accent-ink)` | `var(--radius)` | 30px / 36px           | 0 12 px |
+| Hover    | `var(--accent-hover)` | `var(--accent-ink)` | same            | same                  | same    |
+| Active   | `var(--accent-hover)` | `var(--accent-ink)` | same            | same                  | same    |
+| Disabled | `var(--disabled)`     | `var(--muted)`      | same            | same                  | same    |
 
-#### Secondary / Outline
+Active rim emits `box-shadow: var(--highlight)`; never accent on hover-border.
 
-Border-only. Hover warms the border toward accent.
+#### `neutral` (filled secondary)
 
-| State    | Background  | Border                                               | Text      |
-| -------- | ----------- | ---------------------------------------------------- | --------- |
-| Default  | transparent | 1px solid `#3C3A39`                                  | `#E5E5E7` |
-| Hover    | transparent | 1px solid `color-mix(in srgb, #E8572A 40%, #3C3A39)` | `#E8572A` |
-| Disabled | transparent | 1px solid `#3C3A39`                                  | `#636366` |
+Background glaze. Use when `secondary` is too quiet and `default` is too loud.
 
-#### Ghost
+| State    | Background                 | Text               | Border |
+| -------- | -------------------------- | ------------------ | ------ |
+| Default  | `var(--btn-default-fill)`  | `var(--fg-strong)` | none   |
+| Hover    | `var(--btn-default-hover)` | `var(--fg-strong)` | none   |
+| Disabled | `var(--disabled)`          | `var(--muted)`     | none   |
 
-Text-only. Hover reveals subtle background (`rgba(255,255,255,0.06)`).
+#### `ghost`
 
-| State     | Background               | Text      | Height | Padding      |
-| --------- | ------------------------ | --------- | ------ | ------------ |
-| Default   | transparent              | `#8E8E93` | 28px   | 6px 12px     |
-| Hover     | `rgba(255,255,255,0.06)` | `#E5E5E7` | 28px   | 6px 12px     |
-| Icon Only | transparent              | `#8E8E93` | 28px   | 6px (square) |
+Text-only. Hover lifts via the row-hover glaze.
 
-Marketing ghost CTA override: `hover:border-accent hover:text-accent hover:bg-transparent`.
+| State     | Background         | Text               | Height | Padding    |
+| --------- | ------------------ | ------------------ | ------ | ---------- |
+| Default   | transparent        | `var(--muted)`     | 26 px  | 0 12 px    |
+| Hover     | `var(--row-hover)` | `var(--fg-strong)` | 26 px  | 0 12 px    |
+| Icon Only | transparent        | `var(--muted)`     | 26 px  | 0 (square) |
 
-#### Danger
+#### `destructive` (danger)
 
-Same shape as primary. Red fill for destructive actions.
+Text-only by default; tint on hover. The variant name stays `destructive` (the AGH name for `danger`).
 
-| State    | Background  | Text      |
-| -------- | ----------- | --------- |
-| Default  | `#FF453A`   | `#FFFFFF` |
-| Hover    | Lighter red | `#FFFFFF` |
-| Disabled | `#4A4847`   | `#636366` |
+| State    | Background           | Text            | Border |
+| -------- | -------------------- | --------------- | ------ |
+| Default  | transparent          | `var(--danger)` | none   |
+| Hover    | `var(--danger-tint)` | `var(--danger)` | none   |
+| Disabled | `var(--disabled)`    | `var(--muted)`  | none   |
 
-#### Pill Toggle / Filter Tabs (Operator UI)
+#### `success`
 
-| State    | Background  | Border              | Text      | Radius |
-| -------- | ----------- | ------------------- | --------- | ------ |
-| Active   | `#E8572A`   | none                | `#FFFFFF` | 20px   |
-| Inactive | transparent | 1px solid `#3C3A39` | `#8E8E93` | 20px   |
+Text-only by default; tint on hover. Same anatomy as `destructive` with `--success` / `--success-tint`.
 
-Filter pill dimensions: height 32px, padding 6px 14px, gap 6px.
+#### `icon`
 
-#### Header Nav Pills (Site)
+Square 26 × 26 icon-only button. Background `var(--row-hover)` on hover; ghost otherwise. Stroke comes from `<Icon size>`.
 
-Round-full pills used only in the marketing + docs site header.
+Marketing CTAs use `cta` (36 px) and `cta-lg` (44 px) sizes with `var(--radius-md)` (8 px). Header nav pills (site only) keep `var(--radius-pill)` per §5 "Layout Principles".
 
-| State   | Background                | Text      | Radius |
-| ------- | ------------------------- | --------- | ------ |
-| Default | transparent               | `#8E8E93` | 9999px |
-| Hover   | `rgba(232, 87, 42, 0.12)` | `#E5E5E7` | 9999px |
-| Active  | `rgba(232, 87, 42, 0.12)` | `#E8572A` | 9999px |
+### Pill / Status / Mono identifiers
 
-### Badges, Chips & Mono Labels
+`<Pill>` is the canonical runtime chip. Every pill ships **radius `var(--radius-xs)` (4 px) across sizes** — the per-size radius tiers (`--radius-chip`, `--radius-mono-badge`) are reserved for legacy / off-runtime consumers; `--radius-pill` is marketing nav only. The `uppercase` prop is gone; callers that need uppercase emit `className="uppercase"` themselves or compose `<Eyebrow>`.
 
-Three related but distinct primitives:
+#### `<Pill>` sizes + tones
 
-#### Status Badge
+| Size | Height | Padding | Type                        | Notes                            |
+| ---- | ------ | ------- | --------------------------- | -------------------------------- |
+| `xs` | 17 px  | 0 6 px  | Inter 10.5 / 510 / -0.005em | Inline tag chips, run-cell pills |
+| `sm` | 19 px  | 0 7 px  | Inter 11 / 510 / -0.005em   | Default size, row pills          |
+| `md` | 22 px  | 0 8 px  | Inter 12 / 510 / -0.005em   | Toolbar pills, detail-head pills |
 
-Semantic-tinted pill for runtime states. Always JetBrains Mono, uppercase.
+Neutral pill is **borderless tint-only**: `bg-var(--neutral-tint)` / `text-var(--fg)`. Signal tones (`success | warning | danger | info | accent`) ride 8-10 % tint backgrounds with full-signal text — never solid signal fills.
 
-- **Dimensions:** height 22px, padding 3px 8px, radius 6px (`--radius-mono-badge`).
-- **Type:** JetBrains Mono 10px, weight 600, tracking 0.08em, uppercase.
-- **Coloring by signal** (background = 15% tint, text = full color):
-  - **Accent** — submitted, running, active
-  - **Success** — filled, approved, healthy
-  - **Danger** — rejected, error, critical, halted
-  - **Warning** — partial, pending, degraded
-  - **Info** — info, guardian type
-  - **Neutral** — cancelled, idle, inactive
+#### `<Pill mono>` (identifier mono variant)
 
-#### Mono Badge
+All mono pills emit **10.5 px / 600 / tracking 0** regardless of size. Use only for inline status / kind chips that carry a tone — for bare row identifiers reach for `<MonoId>`, never `<Pill mono>`.
 
-Inline mono pill for identifiers (agent IDs, versions, protocol strings).
+#### Active toggle state
 
-- **Radius:** 6px (`--radius-mono-badge`).
-- **Padding:** 2px 6px.
-- **Type:** JetBrains Mono 11px, weight 500, tracking 0.06em.
-- **Default:** border 1px `#3C3A39`, text `#98989D`, background transparent.
-- **Variants:** same tint-formula as status badges when they carry a signal.
-- **`solid-accent` (reserved):** solid `#E8572A` background, `#17110F` text. Reserved for unread-count pills inside channel/nav rows — never for general status.
+Active pill toggles drop their border in favor of `bg-var(--elevated)` + `text-var(--fg-strong)` + `box-shadow: var(--highlight)`. The legacy `solid-accent` variant is reserved for unread-count chips in channel/nav rows.
 
-#### Mono Chip
-
-Neutral inline chip for capability descriptors and tag rows (`code`, `shell`, `file.read`, `plan.delegate`).
-
-- **Radius:** 5px (`--radius-chip`).
-- **Padding:** 2px 6px.
-- **Type:** JetBrains Mono 10px, weight 500, tracking 0.04em.
-- **Background:** `#2E2C2B` (surface-elevated). **Text:** `#8E8E93`.
-- Use when an identifier needs a neutral chip without a semantic tone. For tinted variants reach for `MonoBadge`.
-
-#### Kind Chip
+#### Kind Chip (wire protocol marker)
 
 Wire-protocol kind marker (`say`, `greet`, `direct`, `receipt`, `recipe`, `trace`, `whois`).
 
-- **Radius:** 3px.
-- **Padding:** 1px 6px.
-- **Type:** JetBrains Mono 9.5px, weight 600, uppercase, tracking 0.08em.
-- **Surface:** transparent with 1px `#3C3A39` border. **Text:** `#636366`.
-- **Wire-dot prefix:** 7×7 circle whose color is keyed off `kind` —
-  - `say #8E8E93` · `greet #5BA6FF` · `direct #E8572A` · `receipt #30D158` · `recipe #FFD60A` · `trace #B892FF` · `whois #4FD1C5`.
+- **Radius:** `var(--radius-xs)` (4 px) — pinned
+- **Padding:** 1 px 6 px.
+- **Type:** JetBrains Mono 9.5 px / 600 / uppercase / tracking 0.06em via `--tracking-mono`.
+- **Surface:** `var(--canvas-soft)`, ring `box-shadow: 0 0 0 1px var(--line-soft)`. **Text:** `var(--muted)`.
+- **Wire-dot prefix:** 7 × 7 circle whose color resolves from the kind palette (`say → --muted`, `greet → --info`, `direct → --accent`, `receipt → --success`, `recipe → --warning`, `trace → --info`, `whois → --info`).
 - Unknown kinds (platform names, event ids) render the chrome without a dot.
-
-#### Wire Chip
-
-Free-floating filter chip used in stand-alone filter rows (the network channel header `ALL · SAY · DIRECT · …`). Distinct from `Pills`, which renders a contained segmented track.
-
-- **Radius:** 4px.
-- **Padding:** 3px 8px.
-- **Type:** JetBrains Mono 10.5px.
-- **Inactive:** bg `#1E1C1B`, border 1px `#3C3A39`, text `#8E8E93`.
-- **Hover:** border `#636366`, text `#E5E5E7`.
-- **Active:** bg `#2E2C2B`, border `#636366`, text `#E5E5E7` — never solid accent.
-- **Dot prefix (optional):** 7×7 circle when the chip carries a kind, color from the same map as Kind Chip.
 
 #### ALPHA Chip (brand)
 
-Sits next to the `agh` wordmark.
+Sits next to the `agh` wordmark. Mono, uppercase, `--tracking-mono` (0.06em), 10 px. Transparent fill, 1 px `var(--line)` ring, `var(--muted)` text.
 
-- Mono, uppercase, tracking-widest, 10px.
-- Transparent fill, 1px muted border (`#3C3A39`), `#98989D` text.
+### `<PillGroup>` segmented selector
 
-### Metric Cards
+Header-level segmented selector (`ALL / GLOBAL / WORKSPACE`, `LIST / KANBAN / DASHBOARD / INBOX`, `JOBS / TRIGGERS`).
 
-Three variants, all using surface background with 12px radius (`--radius-diagram`).
+- **Track.** Borderless `bg-var(--canvas-soft)`, radius `var(--radius-md)` (8 px), padding 2 px, segment gap 1 px.
+- **Segment.** Min-height 24 px (`md`) / 20 px (`sm`), padding 0 10 px, Inter sentence-case **12 px / 510 / -0.005em** (NOT mono, NOT uppercase). Default text `var(--muted)`; hover `var(--fg)`.
+- **Active.** `bg-var(--elevated)` / `text-var(--fg-strong)` + `box-shadow: var(--highlight)`. **Never solid accent.**
+- **Count badge.** 3 px radius literal, `bg-var(--badge-fill)`, `text-var(--muted)`, `tabular-nums`, sentence-case (NOT uppercase, NOT `var(--accent)`).
 
-#### Simple
+The chipped `default` variant of `<Tabs>` is deprecated in favor of `<PillGroup>`
 
-- **Container:** bg `#1E1C1B`, radius 12px, padding 16px 20px, gap 8px.
-- **Label (eyebrow):** JetBrains Mono 11px, 600, uppercase, 0.06em tracking, `#636366`.
-- **Value:** Inter 24px, 700, -0.02em tracking, `#E5E5E7`.
-- **Semantic values:** positive `#30D158`, negative `#FF453A`, warning `#FFD60A`.
+### `<Tabs>` underline tabs
 
-#### With Subtext
+`<Tabs>` ships two variants. `default` (chipped) is deprecated.
 
-Simple + a secondary line: Inter 13px, 400, `#8E8E93`.
+#### `variant="line"`
 
-#### With Sparkline
+- **Indicator.** `bg-var(--fg-strong)` 1.5 px underline (NOT `var(--accent)` 2 px).
+- **Trigger.** 12 / 500 default → 12 / 510 active.
+- **Active count chip.** `bg-[rgba(255,255,255,0.07)]` / `text-var(--fg)`. Never `var(--accent)`.
 
-Simple + an inline SVG sparkline aligned right of the value.
+#### `variant="lane"`
 
-### Feature Card (Marketing)
+Lane-tab pattern (used in `.page-head` analogs):
+
+- **Separator.** `·` rendered between triggers via the primitive (CSS pseudo).
+- **Count slot.** Bare mono 10.5 px `text-var(--faint)` inline next to the label — no chip wrapper.
+- **Active indicator.** Same `var(--fg-strong)` 1.5 px underline.
+
+### `<Empty>` empty state
+
+- **Layout.** Top-padded `64 px 0 0` (NOT flex-centered).
+- **Icon-well.** 38 × 38, radius `var(--radius-lg)` (10 px), `bg-var(--canvas-soft)`, no border, `text-var(--muted)`.
+- **Title.** 18 / 510 / -0.022em via `--text-empty-h1` / `--tracking-empty-h1`.
+- **Description.** Max-width 54ch, `text-var(--muted)`.
+- **CTA.** `margin-top: 22 px`, `<Button variant="default">` (accent CTA).
+
+### `<Metric>` / `<KpiCard>`
+
+`<DashboardCard>` was hard-renamed to `<KpiCard>` with no alias.
+
+#### `<Metric>` (compact, in-body)
+
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-lg)` (10 px), padding 14 / 16, gap 8 px, **no border**.
+- **Label.** Sentence-case Inter **11.5 px / 510 / -0.005em** via `--text-form-hint`, `text-var(--muted)`. **Never `<Eyebrow>`** — see DESIGN.md §11 "Eyebrow misuse".
+- **Value.** Inter 22 px / 510 / -0.014em via `--text-metric-value`, `text-var(--fg-strong)`.
+- **Semantic values.** Tone-tinted text via `data-tone` (`positive → --success`, `negative → --danger`, `warning → --warning`).
+
+#### `<KpiCard>` (dashboard KPI)
+
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-lg)` (10 px), padding 16 / 18, gap 10 px, **no border**.
+- **Label.** Sentence-case Inter **12 px / 510 / -0.005em** via `--text-form-label`, `text-var(--muted)`.
+- **Value.** Inter 28 px / 510 / -0.018em via `--text-kpi-value`, `text-var(--fg-strong)` — never tone-colored.
+- **Subtext / sparkline.** Optional Inter 13 px `text-var(--muted)` line + inline `<QueueHealthSparkline>`.
+
+### Feature Card (Marketing — `packages/site` only)
 
 The canonical marketing card. Pattern: icon well → eyebrow → verb-forward title → mechanism sentence → optional mono source cite.
 
-- **Container:** bg `#1E1C1B`, radius 12px, border 1px `#3C3A39`, padding 24px, `ring-1 ring-foreground/10`.
-- **Icon well:** 40×40, radius 10px, bg `#2E2C2B`, accent-colored Lucide icon (16px, stroke 2).
-- **Eyebrow:** JetBrains Mono 11px 600 uppercase, 0.06em tracking, `#636366`.
-- **Title:** Inter 20px Medium 500, `#E5E5E7`, three-word verb-forward phrase.
-- **Description:** Inter 14px Regular, `#8E8E93`, one-sentence mechanism.
-- **Source cite (optional):** mono, tertiary text + `ArrowUpRight` (12px).
-- **Hover:** border → `color-mix(in srgb, #E8572A 40%, #3C3A39)`. No lift, no scale, 150ms transition on color only.
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-xl)` (14 px), `box-shadow: 0 0 0 1px var(--line-soft)`, padding 24 px.
+- **Icon well.** 40 × 40, radius `var(--radius-icon-well)` (10 px), `bg-var(--elevated)`, accent-colored Lucide icon via `<Icon size="default">`.
+- **Eyebrow.** `<Eyebrow>` (Inter UC 11 / 600 / 0.05em UC), `text-var(--muted)`.
+- **Title.** Inter 20 / 510 / -0.014em, `text-var(--fg-strong)`, three-word verb-forward phrase.
+- **Description.** Inter 14 / 400, `text-var(--muted)`, one-sentence mechanism.
+- **Source cite (optional).** Mono, `text-var(--subtle)` + `ArrowUpRight` (12 px).
+- **Hover.** Background lifts to `var(--elevated)`. **No lift, no scale, no accent border hover.**
 
-### Inputs
+### Form input
 
-#### Text Input (forms)
+Form-grade `<Input>` / `<Textarea>` / `<Select>` used inside `<Field>` and `<FormSection>` composites.
 
-Form-grade input used inside Field/InputGroup composites.
+- **Container.** `bg-var(--input-fill)` (≈ rgba(255,255,255,0.025)), radius `var(--radius-md)` (8 px), height 32 px, padding 0 11 px, gap 8 px. **No border at rest** — only `box-shadow: 0 0 0 1px transparent`.
+- **Type.** Inter 12.5 px / 510 / -0.005em via `--text-form-input`, `text-var(--fg-strong)`.
+- **Focus.** `bg-var(--canvas)` + `box-shadow: 0 0 0 1px var(--line-strong)` — never accent ring.
+- **Placeholder.** `text-var(--subtle)`.
+- **Icon (prefix).** Via `<Icon size="sm">` (12 px), `text-var(--muted)`.
+- **Disabled.** `bg-var(--disabled)`, `text-var(--muted)`.
+- **Inside `<FormSection>` modals.** Inputs MUST NOT override height through `h-9` / `h-10`.
 
-- **Container:** bg `#2E2C2B`, radius 8px, height 36px, padding 0 12px, gap 8px.
-- **Border:** 1px solid `#3C3A39` (default), 1.5px solid `#E8572A` (focused).
-- **Placeholder:** Inter 14px Regular, `#636366`.
-- **Text:** Inter 14px Regular, `#E5E5E7`.
-- **Icon (if any):** search / prefix icon, 16px, `#636366`.
-- **Disabled:** bg `#1E1C1B`, border `#2E2C2B`, text `#4A4847`.
+#### `<Textarea variant="mono">`
+
+Adds `font-family: var(--font-mono)` + 12 px size. Min-height 92 px, line-height 1.55. Same fill / focus contract as the default input.
 
 #### Search / Filter Input (sidebar + panel)
 
-Compact search/filter row used inside sidebars and list panels (`SearchInput`).
+Compact `SearchInput` row used inside sidebars and list panels.
 
-- **Container:** bg `#181716` (surface-panel), radius 7px, height 28px, padding 0 8px, gap 8px.
-- **Border:** 1px solid `#3C3A39` (default), 1px solid `#636366` (focus-within). No accent ring.
-- **Placeholder:** Inter 13px Regular, `#636366`.
-- **Text:** Inter 13px Regular, `#E5E5E7`.
-- **Search icon:** 12px, `#636366`.
-- **Kbd hint (`⌘K`, `jump`, …):** JetBrains Mono 9px uppercase, padding 1px 4px, radius 4px, border 1px `#3C3A39`, bg `#181716`, text `#636366`. Hidden on mobile (`sm:inline-flex`).
+- **Container.** `bg-var(--sidebar)`, radius `var(--radius-md)` (8 px), height 28 px, padding 0 8 px, gap 8 px.
+- **Border.** `box-shadow: 0 0 0 1px var(--line-soft)` at rest → `box-shadow: 0 0 0 1px var(--line-strong)` on focus-within. **No accent ring.**
+- **Text.** Inter 13 / 510 / -0.005em, `text-var(--fg-strong)`. Placeholder `text-var(--subtle)`.
+- **Search icon.** Via `<Icon size="sm">` (12 px), `text-var(--muted)`.
+- **Kbd hint (`⌘K`, `jump`, …).** JetBrains Mono 9 px uppercase via `--tracking-mono`, padding 1 / 4, radius `var(--radius-xs)` (4 px), `bg-var(--canvas-soft)`, `text-var(--subtle)`, ring `box-shadow: 0 0 0 1px var(--line-soft)`. Hidden on mobile.
 
-#### Pills (segmented toggle)
+#### Header Search Trigger (Site only)
 
-Header-level segmented selector (`ALL / GLOBAL / WORKSPACE`, `LIST / KANBAN / DASHBOARD / INBOX`, `JOBS / TRIGGERS`, room detail tabs).
+Round-full search trigger: `bg-var(--canvas-soft)`, ring `box-shadow: 0 0 0 1px var(--line-soft)`, mono `⌘K` hint on the right, 36 px height. Round-full radius is the marketing-nav carve-out only.
 
-- **Track:** inline-flex, gap 2px, padding 3px, radius 8px, border 1px `#3C3A39`, bg `#181716` (surface-panel).
-- **Segment:** height 22px, radius 5px, padding 0 10px, JetBrains Mono 10px weight 600 uppercase tracking 0.08em.
-- **Inactive:** bg transparent, text `#636366`. **Hover:** text `#8E8E93`.
-- **Active:** bg `#2E2C2B` (surface-elevated), text `#E5E5E7`. **Never solid accent.**
-- **Inline badge (count):** min-width 14px, height 14px, radius 7px, bg `#E8572A`, text `#17110F`, JetBrains Mono 9px weight 700.
+### `<Dialog>` / Modal
 
-#### Dropdown Filter (legacy single trigger)
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-lg)` (10 px), `box-shadow: var(--shadow-overlay)`.
+- **Width ladder.** `--modal-w-sm` (560 px) / `--modal-w-md` (720 px, New Task default) / `--modal-w-lg` (880 px, Bridges wizard). Never inline `sm:max-w-*` literals.
+- **Header.** Padding 13 / 18, title 13.5 / 510 / -0.012em via `--text-modal-title`, close button 26 × 26 ghost icon via `<Button variant="icon">`.
+- **Body.** Padding 18 px. Composes `<FormSection>` blocks for editor surfaces; `<RadioCard>` grid for template pickers.
+- **Footer.** Padding 11 / 18, `bg-var(--canvas-soft)`, left-aligned hint + right-aligned actions.
+- **Scrim.** `bg-var(--overlay-scrim)` (alpha 0.55) + `backdrop-filter: blur(var(--overlay-blur))` (3 px). Every other surface stays blur-free.
 
-Pill-shaped trigger for a popover filter (not segmented).
+### `<RadioCard>`
 
-- **Container:** radius 20px, height 32px, padding 6px 14px, gap 6px.
-- **Border:** 1px solid `#3C3A39` (default), 1px solid `#E8572A` (active).
-- **Active background:** `#E8572A1F` (~12% accent tint).
-- **Text:** Inter 14px, `#8E8E93` (default), `#E8572A` (active).
+Used in modal template pickers, scope pickers, approval policy pickers, max-attempts.
 
-#### Header Search Trigger (Site)
+- **Container.** Padding 9 / 11, radius `var(--radius)` (6 px), no border at rest.
+- **Resting fill.** `bg-var(--canvas-soft)`.
+- **Hover.** Lifts to `bg-var(--elevated)`.
+- **Selected.** `bg-var(--surface-glaze)` + `box-shadow: inset 0 0 0 1px var(--line-strong)`. **Never** `border-(--accent)`, never `bg-(--accent-tint)`.
+- **API.** `selected` / `onSelect` / `title` / `description` / `icon` / `badge`.
+- **Use.** Option groups with descriptions (template, scope, approval). `<PillGroup>` is reserved for short numeric / enumerated selectors (priority, attempts).
 
-Round-full search trigger: bg `#1E1C1B`, border 1px `#3C3A39`, mono `⌘K` hint on the right, 36px height.
+### `<CatalogCard>`
 
-### Cards & Containers
+Catalog grid card for templates, bridge providers, model providers, marketplace skills.
 
-#### Generic Card
+- **Container.** Padding 16 px, radius `var(--radius-lg)` (10 px), `bg-var(--canvas-soft)`, no border.
+- **Hover.** `bg-var(--elevated)`.
+- **Selected.** `bg-var(--surface-glaze)` + `box-shadow: inset 0 0 0 1px var(--line-strong)` — mirrors `<RadioCard>`, never accent.
+- **Icon-well (`logoSize="default"`).** 24 × 24, radius `var(--radius)` (6 px), `bg-var(--surface-glaze)`, glyph `text-var(--muted)`. The `size-catalog-logo` token (24 px) pins this.
+- **Icon-well (`logoSize="lg"`).** 40 × 40 (`--size-provider-logo-well`) — connected-provider chrome.
+- **Title.** Inter 13 / 510 / -0.012em, `text-var(--fg-strong)`.
+- **Tones on the logo.** `accent | neutral | success | warning | danger | info` color the glyph only — card chrome stays neutral.
 
-Default operator UI card.
+### `<FormSection>`
 
-- **Container:** bg `#1E1C1B`, radius 12px, padding 16px 20px, border 1px `#3C3A39`.
-- Used as the base for metric cards, session cards, etc.
+Tinted form-section block used inside `<TaskEditorModal>`, settings editor forms, and any other editable surface. Replaces `<Section>` inside modals.
+
+- **Container.** Padding 18 / 20 (`size="comfortable"`) or 14 / 14 (`size="compact"`), radius `var(--radius-lg)` (10 px), `bg-var(--canvas-soft)`, **no border**.
+- **Head.** 16 px margin-bottom. Composed of: optional leading icon (`<Icon size="default">`, `text-var(--subtle)`) + title (13 / 510 / -0.008em via `--text-section-head` + `--tracking-section-head`, `text-var(--fg-strong)`) + right-aligned 11 px sub eyebrow slot.
+- **Row.** Flex column, gap 6 px, `margin-top: 14 px` between rows. Each row head baseline-aligned: label + optional required glyph + optional inline hint.
+- **Children.** Form controls (`<Input>`, `<Textarea>`, `<Select>`, `<RadioCard>`, `<Filters>` fields). Form-row hints sit inline with the label — never below the input.
+- **Use.** Inside modals and editor surfaces. `<Section>` (13 px head, opt-in border) is reserved for in-body content grouping.
+
+### `<ContextBox>` (read-only context strip)
+
+Used inside `<TaskEditorModal>` and detail surfaces to render parent / dependency context as a key-value strip.
+
+- **Container.** Padding 13 / 14, radius `var(--radius)` (6 px), `bg-var(--input-fill)`, no border.
+- **Layout.** 2-column grid, gap 10 / 22.
+- **Label.** Mono UC 10.5 px / 500 / 0.04em via `--tracking-mono-meta`, `text-var(--faint)` (eyebrow utility).
+- **Value.** Inter 12 px / 510 / -0.005em, `text-var(--fg-strong)`. Identifier values render through `<MonoId>` — never `<Pill mono>`.
+
+### `<RunCard>`
+
+Active-run renderer used in `tasks-detail-overview-panel`, `/tasks/$id/runs/$runId`, and the agent-card timeline strip.
+
+- **Container.** Padding 14 / 16, radius `var(--radius-lg)` (10 px), `bg-var(--canvas-soft)`, **no border, no `border-l-* border-l-(--accent)` rail**.
+- **Top row (pill stack).** Status `<Pill>` + `<MonoId>` run-id + session info pill (`tone="info"`) + ghost mono attempt pill + optional warning pill tinted via `var(--warning-tint)` / `var(--danger-tint)`.
+- **Body (stat grid).** `grid-cols-4`, gap 14 px, `margin-top: 14 px`, `border-top: 1px solid var(--line-soft)`, `padding-top: 14 px`. Cells: `CHANNEL` / `QUEUED` / `STARTED` / `ELAPSED`.
+- **Cell value.** `<Time mode="relative">` for `QUEUED` / `STARTED`; `formatDuration` from `@agh/ui` for `ELAPSED`.
+- **Status enum.** `pending | in_progress | completed | failed | canceled` mapped via `RUN_STATUS_TONE` to `neutral | info | success | danger | neutral`.
+
+### `<DetailHeader>`
+
+Replaces every inlined detail-header copy. Renders the 6-row anatomy and owns the back slot.
+
+- **Row 1 — Crumbs.** Optional `DetailHeaderCrumb[]` (`·` separator) or `ReactNode`. Inter 11.5 / 510 / -0.005em, `text-var(--faint)`.
+- **Row 2 — Pre-title.** Optional eyebrow / kicker line via `<Eyebrow>` (Inter UC 11 / 600 / 0.05em UC).
+- **Row 3 — H1.** Inter **24 / 510 / -0.028em** via `--text-detail-h1` + `--tracking-detail-h1`, `text-var(--fg-strong)`. **The only body-side H1 in the runtime.**
+- **Row 4 — Pills.** Status / lane / owner pill row. `<MonoId>` for the entity id (NOT `<Pill mono>`).
+- **Row 5 — Meta.** Mono UC tags via `<Eyebrow>` + separators.
+- **Row 6 — Actions.** Trailing buttons. Primary CTA is the only accent surface in this row.
+- **Back slot.** `back?: () => void` mounts a 20 × 20 ghost chevron next to the title; default `backLabel = "Go back"`. Behaviour resolves through `router.history.back` with parent-route fallback.
+- **No `<PageHead>` primitive.** Page identity for non-detail surfaces lives in the global `<Topbar>` (14 px route title + count chip + meta slots).
+
+### Other runtime cards & containers
+
+#### `<Card>` generic
+
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-lg)` (10 px), padding 16 / 20, **no border** (the `ring-1 ring-(--line)` was removed).
+- Used as the base for runtime feature cards, action cards, etc.
+
+#### `<WireCard>` (chat / network protocol)
+
+- **Shell.** `bg-var(--canvas-soft)`, radius `var(--radius)` (6 px), `box-shadow: 0 0 0 1px var(--line-soft)`, max-width 520 px.
+- **Head (`WireCardHead`).** `bg-var(--rail)`, `border-bottom: 1px solid var(--line)`, padding 6 / 10, JetBrains Mono 10.5 / 600 / 0.06em UC via `--tracking-mono`, `text-var(--muted)`.
+- **Body (`WireCardBody`).** Padding 8 / 12, JetBrains Mono 11.
+- **Foot (`WireCardFoot`).** `bg-var(--rail)`, `border-top: 1px solid var(--line)`, padding 6 / 10, ghost action buttons.
+- **Inline variant.** Single-line strip, padding 6 / 10, gap 8.
 
 #### Code Block
 
-- **Container:** bg `#0E0E0F` (canvas-deep), radius 12px (`--radius-diagram`), padding 16–20px.
-- **Font:** JetBrains Mono, 13–14px, 1.6 line-height.
-- **Prompt:** `$ ` in `#E8572A`, rest of command in `#E5E5E7`.
-- **Copy button:** ghost, absolute top-right, tertiary icon → accent on hover, checkmark swap for 1.5s on copy success.
-- **Language label (optional):** mono eyebrow top-left, tertiary.
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-lg)` (10 px), padding 16-20 px.
+- **Font.** JetBrains Mono, 13-14 px, line-height 1.6.
+- **Prompt.** `$ ` in `var(--accent)`, command body `text-var(--fg-strong)`.
+- **Copy button.** `<Button variant="icon">`, absolute top-right, `text-var(--subtle)` → `var(--fg-strong)` on hover. Checkmark swap for 1.5 s on copy success.
 
-#### Metadata Table
+#### Metadata Table (`<MetadataList>`)
 
-Striped key-value rows.
+- **Odd rows.** Transparent.
+- **Even rows.** `bg-var(--canvas-soft)`.
+- **Key.** Inter 13 / 400, `text-var(--muted)`.
+- **Value.** Inter 14 / 510, `text-var(--fg-strong)`. Identifier values render through `<MonoId>`.
 
-- **Odd rows:** bg transparent.
-- **Even rows:** bg `#1E1C1B`.
-- **Key:** Inter 13px Regular, `#636366`.
-- **Value:** Inter 14px Medium, `#E5E5E7`.
-- **Badge values:** rendered inline as status badges.
+#### Comparison Highlighted Row (marketing only)
 
-#### Comparison Highlighted Row
+The ONE "colored left border" pattern in the system — and reserved for marketing comparison tables.
 
-The ONE "colored left border" pattern in the system.
+- **Border-left.** 4 px solid `var(--accent)`.
+- **Background.** `var(--accent-tint)`.
+- **Do not proliferate** to runtime lists — see DESIGN.md §11 "Side-stripe accent rail" for the ban on every other side-stripe.
 
-- **Border-left:** 4px solid `#E8572A`.
-- **Background:** `#E8572A26` (accent tint).
-- Reserved for the marketing comparison table. **Do not proliferate** to other lists.
+### `<DescriptionCard>`
+
+Streamdown-rendered markdown card. Used for `task.description`, agent descriptions, knowledge bodies.
+
+- **Container.** `bg-var(--canvas-soft)`, radius `var(--radius-lg)` (10 px), padding 16 / 18.
+- **Prose.** Line-height 1.7, max-width 72ch. Inline code via `var(--font-mono)`. Headings (`h1`-`h6`), links, code, kbd, strong, em, mark, blockquote ride canonical HTML and resolve through `var(--canvas-soft)` / `var(--surface-glaze)` / `var(--line)` / `var(--text-*)` tokens.
+- **Sanitization.** `STREAMDOWN_SAFE_CONFIG` composes five defenses (`skipHtml`, 13-element `disallowedElements`, URL-scheme allowlist via `defaultUrlTransform`, no streamdown chrome, canonical HTML overrides + `SafeImage` external-URL fallback). The XSS regression corpus in `description-card.test.tsx` is the security gate — do NOT relax without an ADR.
+
+### `<ChatToolCard>`
+
+Inline card showing tool execution inside chat threads.
+
+- **Container.** Padding 10 / 16, radius `var(--radius-md)` (8 px), `bg-var(--canvas-soft)`, no border.
+- **Head.** `<MonoId>` for the tool id + status `<Pill>` (`pending → neutral`, `in_progress → info`, `success → success`, `failed → danger`) + optional `<Time>` + actions slot.
+- **Sections.** Collapsible Input / Output regions (chevron `<button aria-expanded>` toggle). String outputs above `CHAT_TOOL_OUTPUT_COLLAPSE_LINES = 200` default-collapse.
+- **Failed state.** Tints the container with `var(--danger-tint)` (success / in_progress paint `var(--canvas-soft)`).
 
 ### Chat Components
 
@@ -395,126 +602,112 @@ The ONE "colored left border" pattern in the system.
 
 Right-aligned bubble.
 
-- **Bubble:** bg `#2E2C2B`, radius 12px, padding 16px 20px.
-- **Text:** Inter 14px Regular, `#E5E5E7`.
-- **Meta:** "YOU" + timestamp, JetBrains Mono 11px uppercase `#636366`, right-aligned above bubble.
+- **Bubble.** `bg-var(--elevated)`, radius `var(--radius-lg)` (10 px), padding 16 / 20.
+- **Text.** Inter 14 / 400, `text-var(--fg-strong)`.
+- **Meta.** "YOU" + `<Time>`, `<Eyebrow>` (Inter UC 11 / 600 / 0.05em UC), `text-var(--muted)`, right-aligned above the bubble.
 
 #### Agent Message
 
 Left-aligned, no bubble.
 
-- **Agent label:** 8px dot (semantic color) + agent name (JetBrains Mono 11px uppercase `#98989D`) + timestamp.
-- **Text:** Inter 14px Regular, `#8E8E93`.
-- **Numbered lists:** Inter 14px Regular, `#8E8E93`.
-
-#### Tool Call Card
-
-Inline card showing tool execution.
-
-- **Container:** bg `#1E1C1B`, radius 8px, padding 10px 16px, border 1px `#3C3A39`.
-- **Icon:** terminal `>_`, `#636366`.
-- **Tool name:** Inter 14px Medium, `#E5E5E7`.
-- **File path:** Inter 13px Regular, `#636366`.
-- **Status badge:** right-aligned (DONE / RUNNING / ERROR).
-
-#### Wire Card
-
-Bordered protocol card used to embed wire payloads (recipes, receipts, capability descriptors, room intros) inside message threads.
-
-- **Shell:** border 1px `#3C3A39`, bg `#1E1C1B`, radius 6px, max-width 520px (or `w-full` when stretched inside a message body).
-- **Head (`WireCardHead`):** bg `#0E0E0F` (canvas-deep), border-bottom 1px `#3C3A39`, padding 6px 10px, JetBrains Mono 10.5px uppercase tracking 0.06em, text `#636366`.
-- **Body (`WireCardBody`):** padding 8px 12px, JetBrains Mono 11px.
-- **Foot (`WireCardFoot`):** bg `#0E0E0F`, border-top 1px `#3C3A39`, padding 6px 10px, hosts ghost action buttons.
-- **Inline variant (`inline`):** single-line strip, padding 6px 10px, gap 8px — used for receipt confirmations.
+- **Agent label.** `<OwnerAvatar size="sm">` + agent name (`<Eyebrow>`, `text-var(--fg)`) + `<Time>`.
+- **Text.** Inter 14 / 400, `text-var(--muted)`.
 
 #### Typing Dots
 
 Three-dot typing indicator paired with `<peer> is typing…` copy.
 
-- 3× 4×4 dots, gap 2px, radius 50%, bg `#636366`.
-- Animation: `typing-bounce` 1.2s infinite ease-in-out, with 0s / 0.15s / 0.3s stagger.
-- Container copy: JetBrains Mono 11px `#636366`.
+- 3 × 4 × 4 dots, gap 2 px, radius 50 %, `bg-var(--muted)`.
+- Animation: `typing-bounce` 1.2 s infinite ease-in-out, with 0 / 0.15 / 0.3 s stagger.
+- Container copy: `<Eyebrow>` 11 px / `text-var(--muted)`.
 
-#### Chat Input
+#### Chat Input (composer)
 
-- **Container:** bg `#1E1C1B`, radius 12px, padding 12px 16px, border 1px `#3C3A39`.
-- **Focused:** border 1px `#E8572A`.
-- **Placeholder:** Inter 14px Regular, `#636366`.
-- **Send button:** 36px circle, bg `#E8572A`, white send icon.
+- **Container.** `bg-var(--input-fill)`, radius `var(--radius-lg)` (10 px), padding 12 / 16, no border at rest.
+- **Focus.** `bg-var(--canvas)` + `box-shadow: 0 0 0 1px var(--line-strong)` (never accent ring).
+- **Placeholder.** Inter 14 / 400, `text-var(--subtle)`.
+- **Send button.** 36 px square (`<Button variant="default">`), `bg-var(--accent)`, white send icon via `<Icon size="sm">`.
 
-### Status Indicators
+### `<OwnerAvatar>`
 
-Inline dot + label patterns.
+Owner-identity avatar used by kanban cards, task rows, agent cards, timeline events, run cards, chat threads.
 
-| Status               | Dot Color | Label           | Usage                                          |
-| -------------------- | --------- | --------------- | ---------------------------------------------- |
-| Connected / Online   | `#30D158` | "Connected"     | System footer, hero signal                     |
-| Disconnected / Error | `#FF453A` | "Disconnected"  | System footer                                  |
-| Degraded             | `#FFD60A` | "Degraded"      | Agent status                                   |
-| Dream Status         | `#30D158` | "Dream: 3h ago" | Knowledge page header                          |
-| Running              | `#E8572A` | "RUNNING"       | Tool call, active session                      |
-| Pulse (live)         | `#30D158` | "Shipped today" | InstallSection — `animate-ping` on a 1.5px dot |
+- **Sizes.** `sm` (20 × 20) / `default` (24 × 24) / `lg` (32 × 32).
+- **Background / foreground.** Resolves through `colorsFor(ownerKind, ownerId)` against the tokenised owner palette — `var(--avatar-agent-{0..3}-{bg,fg})` (4 slots), `var(--avatar-human-{0..2}-{bg,fg})` (3 slots), `var(--avatar-system-{bg,fg})`. Slot selection is deterministic via FNV-1a hash mod slot count.
+- **Glyph.** 2-character monogram by default; optional `glyph` slot for system owners or branded icons.
+- **A11y.** Emits `role="img"` + `aria-label="{Role} {Name}"` automatically.
+- **Live state.** Optional `Pill(accent, pulsing) live` chip rendered alongside in agent cards uses the `pill-pulse` keyframe.
 
-**Dot size:** 8px circle (6px for site pulse). Wrap in a larger clickable area when interactive.
+### `<StatusDot>` indicator
+
+Single-LED status indicator used by `<RuntimeConnectionIndicator>` and inline status surfaces.
+
+| Tone    | Solid            | Ring                       |
+| ------- | ---------------- | -------------------------- |
+| accent  | `var(--accent)`  | `var(--accent-tint)` ring  |
+| success | `var(--success)` | `var(--success-tint)` ring |
+| warning | `var(--warning)` | `var(--warning-tint)` ring |
+| danger  | `var(--danger)`  | `var(--danger-tint)` ring  |
+| faint   | `var(--faint)`   | `var(--line)` ring         |
+
+- **Sizes.** 6 px (default) / 5 px (`sm`). Wrap in a larger clickable area when interactive.
+- **A11y.** Defaults to `aria-hidden="true"` unless a `label` prop is provided.
+- **Daemon LED states.** `connected + !degraded → success solid`; `connected + degraded → success pulse`; `connecting → success pulse`; `disconnected | error → danger solid`.
 
 ### Sidebar (Operator UI)
 
 #### Structure
 
-- **Workspace icon rail:** 44px wide, left edge. 28px circle avatars.
-  - App logo: `#E8572A` bg, white letter.
-  - Active workspace: `#E8572A` border.
-  - Inactive: `#2E2C2B` bg, `#8E8E93` letter.
-  - Hover: `#353332` bg.
-  - New: `#2E2C2B` bg, dashed border, `+` icon.
-- **Sidebar panel:** bg `#0E0E0F` (canvas-deep), width 240px, full height.
+- **Workspace rail.** Width `var(--width-rail)` (56 px). Cells render at 30 × 30 with `var(--radius-md)` (8 px) squircle radius.
+  - **App logo.** `bg-var(--accent)`, `text-var(--accent-ink)` letter A, active rim `box-shadow: var(--highlight)`.
+- **Active workspace.** 2 × 16 px `bg-var(--fg-strong)` nub anchored at the inside edge — never `var(--accent)`.
+- **Inactive.** `bg-var(--elevated)`, `text-var(--muted)` letter.
+- **Hover.** `bg-var(--row-hover)`.
+- **New.** `bg-var(--elevated)`, ring `box-shadow: 0 0 0 1px var(--line-soft)` dashed, `+` icon via `<Icon size="default">`.
+- **Sidebar panel.** `bg-var(--sidebar)`, width 244 px default / 220 px ≤ 1100 px / drawer overlay ≤ 880 px.
 
-#### Section Header (`SidebarSectionLabel`)
+#### Section Header (`<SidebarSectionLabel>`)
 
-JetBrains Mono 9px weight 600 uppercase, tracking 0.14em, `#98989D` (`--color-text-label`). Padding 12px 12px 6px 12px. Same primitive used for `AGENTS`, `WORKSPACE`, `STARRED`, `CHANNELS`, `DIRECT MESSAGES`, and panel-internal subheaders.
+Inter UC 10.5 / 510 / 0.05em via `--text-section-label` + `--tracking-section-label`, `text-var(--muted)`. Padding 12 / 12 / 6 / 12. Same primitive used for `AGENTS`, `WORKSPACE`, `STARRED`, `CHANNELS`, `DIRECT MESSAGES`, panel-internal subheaders. Sidebar group labels use the **Inter UC family** (NOT mono UC)
+
+The AGENTS section label renders `{live}/{total} live` whole-tree count via `computeAgentsCount(agents, sessions)`; the count slot hides when `total === 0`.
 
 #### Nav Row (top-level + channel rows)
 
 Flat row, no border or card chrome.
 
-- **Row:** padding 6px 8px, radius 6px, gap 8px (top-level) / gap 2.5 (channel rows).
-- **Icon:** 13–14px, `#636366` default → `#E5E5E7` when active.
-- **Label:** Inter 13px (top-level) / JetBrains Mono 12px (channel rows). Default text `#8E8E93`, active `#E5E5E7` weight 500. Unread channel rows render the label `#E5E5E7` weight 600.
-- **Hover:** bg `#353332` (`--color-hover`).
-- **Active:** bg `#1E1C1B` (`--color-surface`) **plus** a 2px-wide accent left bar (`#E8572A`) anchored against the panel edge (`-left-2` in a `px-2` nav container, `-left-1.5` in a `mx-1.5` row).
-- **Unread badge:** `MonoBadge` `tone="solid-accent"` with the count.
+- **Row.** Padding 6 / 8, radius `var(--radius)` (6 px), gap 8 px (top-level) / 2.5 (channel rows).
+- **Icon.** Via `<Icon size="sm">` (12 px) or `default` (14 px), `text-var(--muted)` default → `text-var(--fg-strong)` when active.
+- **Label.** Inter 13 (top-level) / JetBrains Mono 12 (channel rows). Default `text-var(--muted)`, active `text-var(--fg-strong)` 510. Unread channel rows render the label `text-var(--fg-strong)` 600.
+- **Hover.** `bg-var(--row-hover)`.
+- **Active.** `bg-var(--row-selected)` **plus** a 2 px-wide indicator rail rendered via `ACTIVE_NAV_INDICATOR_CLASS` (`bg-var(--fg-strong)`) anchored against the panel edge. **Never accent.**
+- **Unread badge.** `<Pill mono>` with `solid-accent` variant + count (the legacy carve-out — accent text-on-tint).
 
-#### Session Row (collapsible child)
+### Topbar (Operator UI)
 
-Indented child row beneath each agent collapsible.
+48 px shell row + 12 px gap + 22 px inline padding. Topbar slot vocabulary: `{ title, trailing, count, back, backLabel, meta, overflow }`.
 
-- **Row:** padding 4px 8px, radius 5px, font-size 12px, color `#8E8E93`.
-- **Indent:** 18–22px from the agent label, with a 1px `#3C3A39` left rule between the indent and the row.
-- **Active treatment:** same flat-row + 2px left accent bar pattern as Nav Row, anchored at `-left-3` to clear the indent line.
+- **Container.** Height 48 px, `bg-var(--canvas)`, `border-bottom: 1px solid var(--line-soft)`.
+- **Leading icon.** 22 × 22, `text-var(--muted)`, no chip, no accent tint.
+- **Title.** Inter 14 / 510 / -0.014em via `--tracking-tight`, `text-var(--fg-strong)`.
+- **Count chip.** Inter 11 px / 510 / tabular-nums, `bg-var(--badge-fill)` / `text-var(--faint)`, radius `var(--radius-mono-badge)` (4 px after the token retune) — never accent.
+- **Separator.** `·` rendered via `.topbar__sep` (mono 10.5 / `text-var(--faint)`).
+- **Detail-mode topbar.** Swaps to `back + title + id-chip + sep + meta + spacer + actions + overflow`. Back resolves through `router.history.back` with parent-route fallback.
+- **Primary CTA.** "New {noun}" sentence-case via `<Button variant="default">`. Never `variant="outline"`.
 
-#### System Status Footer
+### Site Header (Marketing + Docs — site only)
 
-Dot + label + version (`#636366`, right-aligned) + settings nav row.
-
-### Site Header (Marketing + Docs)
-
-- **Shell:** sticky top, bg `rgba(20, 19, 18, 0.92)` + `backdrop-blur-xl`, border-bottom 1px `#3C3A39`.
-- **Wordmark:** NuixyberNext "agh" + `ALPHA` chip (mono 10px, muted border).
-- **Nav pills:** round-full, hover + active tint `rgba(232,87,42,0.12)`.
-- **Search trigger:** round-full pill, 36px, mono `⌘K` hint.
-- **GH button:** round-full ghost with GitHub logo.
+- **Shell.** Sticky top, `bg-color-mix(in srgb, var(--canvas) 92%, transparent)` + `backdrop-blur-xl`, `border-bottom: 1px solid var(--line)`. The marketing site keeps its own blur via its own stack
+- **Wordmark.** NuixyberNext "agh" + ALPHA chip (mono 10 px, `var(--line)` ring).
+- **Nav pills.** Round-full (marketing carve-out), hover + active tint `var(--accent-tint)`.
+- **Search trigger.** Round-full, 36 px, mono `⌘K` hint.
+- **GH button.** Round-full ghost with GitHub logo via `<Icon size="default">`.
 
 ### Docs Masthead
 
-- **Eyebrow:** JetBrains Mono 12px, 600, uppercase, tracking 0.16em, `#636366`.
-- **Title:** Inter 600, clamp ramp (see Docs H1).
-- **Sub-lead:** Inter 18px Regular, `#8E8E93`, max-width 58ch.
-
-### Empty State
-
-- **Icon:** 48px (rare exception to inline icon sizing), `#636366`, centered.
-- **Title:** Inter 15px Medium, `#8E8E93`.
-- **Description:** Inter 13px Regular, `#636366`.
+- **Eyebrow.** `<Eyebrow>` (JetBrains Mono 12 / 600 / 0.06em UC via `--tracking-mono`), `text-var(--muted)`.
+- **Title.** Inter 510, clamp ramp (see DESIGN.md §13 site type clamps).
+- **Sub-lead.** Inter 18 / 400, `text-var(--muted)`, max-width 58ch.
 
 ## 5. Layout Principles
 
@@ -538,17 +731,21 @@ Section vertical padding on marketing is set by a `SectionFrame` `padY` prop (`m
 
 ### Border Radius Scale
 
-| Token                                 | Value  | Usage                                                           |
-| ------------------------------------- | ------ | --------------------------------------------------------------- |
-| `--radius-chip`                       | 5px    | Kind chips (protocol kinds)                                     |
-| `--radius-mono-badge` / `--radius-sm` | 6px    | Mono badges, status badges, tags, counts                        |
-| `--radius-md` / `--radius`            | 8px    | Buttons, inputs, avatars, tool call cards, small UI             |
-| `--radius-lg`                         | 12px   | Cards, modals, containers (alias: `--radius-diagram`)           |
-| `--radius-diagram`                    | 12px   | Cards, code blocks, diagrams — marketing feature card canonical |
-| `--radius-xl`                         | 20px   | Filter pills, large capsule filters                             |
-| `rounded-full` (9999px)               | 9999px | Header nav pills, search trigger, GH button, status dots        |
+The runtime kit ships a single radii ladder: **4 / 5 / 6 / 8 / 10 / 14 / pill**. There is no separate `--radius-diagram` literal — `--radius-lg` is the canonical 10 px card / panel radius.
 
-No extreme rounding. CTAs are 8px (`rounded-lg`), **never pill**.
+| Token           | Value   | Usage                                               |
+| --------------- | ------- | --------------------------------------------------- |
+| `--radius-xs`   | 4 px    | Tightest chip rim                                   |
+| `--radius-sm`   | 5 px    | Kind chip                                           |
+| `--radius`      | 6 px    | Default control radius (status badges, mono badges) |
+| `--radius-md`   | 8 px    | Inputs, buttons, avatars                            |
+| `--radius-lg`   | 10 px   | Cards, panels, popovers, modals                     |
+| `--radius-xl`   | 14 px   | Sheet shell, hero card, large surface               |
+| `--radius-pill` | 9999 px | Search trigger, header nav pills, status dots       |
+
+Aliases retained for ergonomic component usage: `--radius-chip` (5 px), `--radius-mono-badge` (6 px), `--radius-icon-well` (10 px).
+
+CTAs use `--radius-md` (8 px). **Never pill-shaped CTAs.**
 
 ### Elevation (Flat Depth Model)
 
@@ -584,29 +781,42 @@ No box-shadows. Depth is communicated purely through background lightness + 1px 
 
 ## 6. Depth & Elevation
 
-AGH uses a **flat depth model** — no traditional shadow system. Four background levels create all necessary visual hierarchy.
+AGH uses a **flat depth model** — depth comes from the warm surface ramp + 1 px translucent hairlines. The two-token shadow vocabulary is defined by the two-token shadow vocabulary; every other surface stays flat.
+
+### Surface ramp
 
 ```
-Canvas Deep (#0E0E0F) → Canvas (#141312) → Surface (#1E1C1B) → Elevated (#2E2C2B)
+--rail (#0c0b0b) → --canvas (#131211) → --canvas-soft (#1a1918)
+                → --canvas-tint (#1c1b1a) → --elevated (#232220)
 ```
 
-Each step is a clear lightness increase in the warm gray scale. Borders (`#3C3A39`) provide additional separation when background contrast alone isn't sufficient.
+Each step is a small, deliberate lightness increase. Hairlines (`--line` / `--line-soft` / `--line-strong`) carry the rest of the separation.
+
+### Whitelisted shadows
+
+The shadow vocabulary is **exactly two tokens**. Introducing a third (`--shadow-card`, `--shadow-pop`, or any sibling) is forbidden and §11 "Anti-patterns".
+
+| Token              | Value                                                                         | Allowed on                                                                             |
+| ------------------ | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `--shadow-overlay` | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `dialog`, `confirm-dialog`, `sheet`                                                    |
+| `--highlight`      | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    | `button --primary`, active `pill-group` segment, active filter `pill`, rail logo plate |
+
+Every other surface stays flat. Popovers, dropdowns, tooltips, and command menus use `box-shadow: 0 0 0 1px var(--line-soft)` plus `bg: var(--canvas-soft)` — the 1 px ring carries the separation. Kanban cards stay flat with the same inset ring; the 1 px black baseline currently inlined on `<Button>` remains a literal next to `var(--highlight)` (no third token).
 
 ### Depth Patterns
 
-| Pattern                     | How it works                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------- |
-| **Card on canvas**          | Surface (#1E1C1B) on canvas (#141312) — needs 1px divider border for clear edge             |
-| **Nested card / icon well** | Elevated (#2E2C2B) inside surface (#1E1C1B) — e.g. search input, icon well                  |
-| **Deep panel on landing**   | Canvas Deep (#0E0E0F) on canvas — used for code blocks and `SectionFrame background="deep"` |
-| **Selected list item**      | Elevated (#2E2C2B) + left accent bar (#E8572A)                                              |
-| **Hover state**             | Hover (#353332) replaces the current surface                                                |
-| **Divider**                 | 1px solid #3C3A39 — between list items, sections, sidebar regions                           |
-| **Border emphasis**         | 1px solid #E8572A — focused inputs, active dropdown filters                                 |
-| **Warm hover on card**      | Border → `color-mix(in srgb, #E8572A 40%, #3C3A39)` — the only card hover                   |
-| **Comparison highlight**    | `border-l-4 #E8572A` + `#E8572A26` bg — ONLY on the comparison table                        |
+| Pattern                     | How it works                                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Card on canvas**          | `--canvas-soft` on `--canvas` — 1 px `--line` ring carries the edge                                                                 |
+| **Nested card / icon well** | `--elevated` inside `--canvas-soft` — e.g. search input, icon well                                                                  |
+| **Selected list item**      | `--elevated` + 2 px `--fg-strong` indicator rail. Side-stripe `border-l-* border-l-(--accent)` is banned — see §11 "Anti-patterns". |
+| **Hover state**             | `--hover` replaces the current surface fill                                                                                         |
+| **Divider**                 | 1 px solid `--line` between rows; `--line-soft` for softer subgroup splits                                                          |
+| **Focus ring**              | `box-shadow: 0 0 0 1px var(--line-strong)` — white, never accent                                                                    |
+| **Floating overlay**        | `box-shadow: var(--shadow-overlay)` on dialog / sheet only                                                                          |
+| **Active rim**              | `box-shadow: var(--highlight)` on primary button, active pill segment, rail logo plate                                              |
 
-Ring outlines (`ring-1 ring-foreground/10`) and `shadow-xs` on shadcn inputs are the only places shadows appear. No drop shadows, no layered shadows, no glows.
+No ambient shadows, no `shadow-md` / `shadow-lg`, no glows. The styles regression test rejects every Tailwind shadow utility outside the two whitelisted resolutions and grep-bans `--shadow-card` / `--shadow-pop` from the runtime contract.
 
 ## 7. Voice & Content
 
@@ -686,68 +896,132 @@ Every icon comes from `lucide-react`. Standard set used: `Check`, `Minus`, `Arro
 ### Principles
 
 - **Minimal, purposeful motion.** Transitions serve state changes, not decoration.
-- **Fast.** 150ms for hover/focus, 200ms for panel transitions.
+- **One fast tier (`--dur` 140ms) + one slow tier (`--dur-slow` 200ms).** Same `--ease` (`cubic-bezier(0.2, 0, 0, 1)`) everywhere.
 - **No entrance animations.** Content appears immediately; no staggered reveals, no scroll-triggered fades.
-- **No bounce / spring easing.** Use `ease-out` or `ease-in-out` only.
-- **Reduced motion is respected globally** — `@media (prefers-reduced-motion: reduce)` zeroes all durations and animations.
+- **No bounce / spring easing.** `--ease` (warm ease-out) is the default; `--ease-in-out` only for symmetric panel transitions.
+- **Reduced motion is respected globally** via a universal-selector guard (see below).
+
+### Tokens
+
+| Token           | Value                          | Notes                                  |
+| --------------- | ------------------------------ | -------------------------------------- |
+| `--dur`         | `140ms`                        | Default duration                       |
+| `--dur-slow`    | `200ms`                        | Sidebar / sheet / panel transitions    |
+| `--ease`        | `cubic-bezier(0.2, 0, 0, 1)`   | Default ease (warm ease-out)           |
+| `--ease-in-out` | `cubic-bezier(0.4, 0, 0.2, 1)` | Symmetric easing for opens/closes only |
 
 ### Transitions
 
-| Element           | Property         | Duration | Easing                                    |
-| ----------------- | ---------------- | -------- | ----------------------------------------- |
-| Button hover      | background-color | 150ms    | ease-out                                  |
-| Link hover        | color            | 150ms    | ease                                      |
-| Border focus      | border-color     | 150ms    | ease-out                                  |
-| List item hover   | background-color | 150ms    | ease-out                                  |
-| Card hover border | border-color     | 150ms    | ease-out                                  |
-| Sidebar collapse  | width            | 200ms    | ease-in-out                               |
-| Modal enter       | opacity          | 200ms    | ease-out                                  |
-| Tooltip           | opacity          | 100ms    | ease-out                                  |
-| Button active     | transform        | —        | `translate-y-px` (1px nudge, no duration) |
+| Element          | Property                 | Duration     | Easing          |
+| ---------------- | ------------------------ | ------------ | --------------- |
+| Button hover     | background-color         | `--dur`      | `--ease`        |
+| Link hover       | color                    | `--dur`      | `--ease`        |
+| Border focus     | border-color, box-shadow | `--dur`      | `--ease`        |
+| List item hover  | background-color         | `--dur`      | `--ease`        |
+| Sidebar collapse | width                    | `--dur-slow` | `--ease-in-out` |
+| Modal enter      | opacity                  | `--dur-slow` | `--ease`        |
+| Tooltip          | opacity                  | `--dur`      | `--ease`        |
 
-No `transform` transitions on hover. No scale, no lift, no translate on card/button hover.
+No `transform` transitions on hover. No scale, no lift, no translate on card / button hover.
+
+### Reduced motion (PRD F4 + M5)
+
+`tokens.css` carries a universal-selector reduced-motion guard that zeros every animation and transition — not only those that read `--dur*`. This is required because `tw-animate-css` utilities and the `shimmer` / `typing-bounce` keyframes hardcode their durations and would otherwise keep playing. the duration is `0.001ms` (not `0`) so CSS `animationend` callbacks still fire for libraries that rely on them.
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+```
+
+The `web/src/__tests__/styles.test.ts` regression test asserts the guard exists, applies to `*, *::before, *::after`, and pins each of the three declarations at `0.001ms !important`.
 
 ### Loading States
 
 - **Shimmer:** `@utility animate-shimmer` — 200% background shift, 2s, infinite. For skeleton loaders.
 - **Spinner:** rotating icon for inline loading.
-- **Pulse:** `animate-ping` on a 1.5px success dot — signals live state ("Shipped today"). Used sparingly.
+- **Pulse:** `animate-ping` on a 1.5 px success dot — signals live state. Used sparingly.
 
 ## 10. Do's and Don'ts
 
 ### Do
 
-- **Use the flat depth model** — bg lightness (`#0E0E0F → #141312 → #1E1C1B → #2E2C2B`) for hierarchy. No gradients on content. No stacked shadows.
-- **Use warm values.** All grays in this system are tinted warm. Never substitute cool iOS grays.
-- **Use JetBrains Mono for all metadata** — section eyebrows, badge text, timestamps, protocol strings. Always uppercase (except protocol identifiers, which are lowercase mono) with 0.06–0.16em tracking.
-- **Use Playfair Display only inside `.site-home`.** Marketing hero and section H2s only.
-- **Use Inter everywhere else** — including docs H1/H2. Docs headings use weight 600, tracking -0.05em / -0.035em.
-- **Use semantic color consistently** — accent = action, green = stable/positive, red = error/negative, yellow = warning/pending, purple = informational.
-- **Use the 15%-tint formula** — 15% opacity of the semantic color as background, full color as text.
-- **Keep buttons at 36px height** (default) or 28px (compact/ghost) or 44px (marketing `lg` CTA) — no other heights.
-- **Use 1px solid `#3C3A39` borders** as the universal divider. `1.5px solid #E8572A` for focus. `color-mix(#E8572A 40%, #3C3A39)` for card hover.
+- **Use the warm surface ramp** — `--rail` → `--canvas` → `--canvas-soft` → `--canvas-tint` → `--elevated` for hierarchy. No gradients on content. No stacked shadows.
+- **Use warm values.** Every gray is tinted warm. Never substitute cool iOS grays.
+- **Use JetBrains Mono for run-cell mono labels and protocol strings only.** Sidebar labels, table heads, and Eyebrow `case="upper"` go uppercase; everywhere else the runtime kit is sentence case.
+- **Use Inter Variable for everything readable in the runtime kit** — Inter-510 ladder for titles + buttons + pill default; weight 400 for body. Playfair Display and NuixyberNext are `packages/site` only.
+- **Use signal color consistently** — accent = action, `--success` = stable, `--danger` = stop, `--warning` = caution, `--info` = informational, `--neutral` = idle.
+- **Use the 6–10 % tint formula** — `--success-tint` (8 %), `--warning-tint` (8 %), `--danger-tint` (9 %), `--info-tint` (7 %), `--neutral-tint` (6 %), `--accent-tint` (10 %). Full-color text rides on the tint.
+- **Use the radii ladder** — 4 / 5 / 6 / 8 / 10 / 14 / pill. Cards land on `--radius-lg` (10 px); buttons / inputs land on `--radius-md` (8 px); pills on `--radius-pill`.
+- **Use translucent hairlines** — `--line` for the universal divider, `--line-soft` for popover ring + group bottoms, `--line-strong` for focus rings. Focus is **white**, never accent.
+- **Whitelisted shadows only** — `--shadow-overlay` (modals / sheets) and `--highlight` (active rim). Everything else is flat with a 1 px ring on `--line-soft`.
 - **Left-align content** — page titles, list items, descriptions start from the same left edge.
-- **Use colored semantic values** — positive green, negative red, neutral white. The color IS the information.
-- **Respect reduced motion** — the global CSS already zeros durations; never override.
+- **Use colored signal values** — positive `--success`, negative `--danger`, neutral `--fg`. The color IS the information.
+- **Respect reduced motion** — the universal-selector guard already zeros durations; never override `!important`.
+- **Route identity lives in the global `<Topbar>`** — 14 px route title + count chip + meta slots. Do NOT add a body-side 22 px H1 as a duplicate. Detail surfaces are the only exception — they emit a 24 px `<DetailHeader>` hero in addition to the topbar swap.
 
 ### Don't
 
-- **Don't use shadows.** Flat depth only. No `box-shadow`, no drop-shadow, no elevation shadows. `ring-1 ring-foreground/10` and `shadow-xs` on shadcn inputs are the only exceptions.
-- **Don't use gradients** — no content gradients, no gradient text, no gradient borders. The hero mesh PNG is the single exception.
-- **Don't use blur / glass effects** outside the sticky site header and the hero signal cards. No backdrop-blur elsewhere.
-- **Don't use decorative texture** — no hatching, no grain, no noise overlays outside the hero mesh.
+- **Don't use Tailwind shadow utilities outside the whitelist.** `shadow-md`, `shadow-lg`, `shadow-xl`, `shadow-2xl`, `shadow-xs`, `shadow-sm`, `shadow-inner`, `shadow-none` are all banned by `web/src/__tests__/styles.test.ts`. Use `box-shadow: var(--shadow-overlay)` or `var(--highlight)` only on the components named in §6.
+- **Don't use gradients** — no content gradients, no gradient text, no gradient borders. The marketing site's hero mesh PNG is the single exception inside `packages/site`.
+- **Don't use `backdrop-blur` or `mix-blend-*`** anywhere in the runtime kit (`web/`, `packages/ui`). The marketing site's sticky header keeps its own blur via its own stack.
+- **Don't use decorative texture** — no hatching, no grain, no noise overlays.
 - **Don't use emoji. Anywhere.** Not in UI, docs, marketing, commits, or copy samples.
-- **Don't switch fonts.** Inter for readable content. Playfair Display only in `.site-home`. JetBrains Mono for metadata. NuixyberNext only for the `agh` wordmark. No Bricolage, no Geist, no alternative display face.
-- **Don't add new semantic colors.** The five-signal system (accent, success, danger, warning, info) is complete.
-- **Don't use large decorative icons** — icons are 12–20px inline. 48px is reserved for empty-state illustrations.
-- **Don't make badges with borders** — status badges and kind chips use tinted backgrounds only. Neutral / mono badges use borders.
+- **Don't switch fonts.** Inter Variable for readable content; JetBrains Mono for metadata. Playfair Display + NuixyberNext are `packages/site` only. No Bricolage, no Geist, no alternative display face.
+- **Don't add new signal colors.** The five-signal system (accent, success, warning, danger, info) plus `--neutral` is complete.
+- **Don't use large decorative icons** — icons are 12–20 px inline. 48 px is reserved for empty-state illustrations.
+- **Don't make badges with borders** — status badges and kind chips use tinted backgrounds only. Neutral / mono badges use the 1 px hairline.
 - **Don't use pure white (`#FFFFFF`) for backgrounds** — reserved only for button text on accent fill.
-- **Don't use `rounded-full` for CTAs.** CTAs are 8px. Only header nav pills, search trigger, status dots use `rounded-full`.
-- **Don't proliferate the left-colored-border pattern.** It exists once — the highlighted comparison row. Selected list items use a 3px accent bar on a surface background, not a border.
+- **Don't use `rounded-full` for CTAs.** CTAs are `--radius-md` (8 px). Only header nav pills, search triggers, and status dots use `--radius-pill`.
+- **Don't paint a side-stripe accent rail on cards or rows.** `border-l-* border-l-(--accent)` (and `border-l-accent`) is banned. Active rows use the `--fg-strong` indicator rail; accent stays reserved for primary CTAs and the active rail logo. Enforced by `compozy-design-system/no-side-stripe-accent`. See §11 "Anti-patterns".
+- **Don't inline glaze rgba literals.** `bg-[rgba(255,255,255,0.0NN)]` is forbidden — resolve through `--row-hover` / `--row-selected` / `--surface-glaze` / `--bar-fill` / `--input-fill` / `--btn-default-fill` / `--btn-default-hover` / `--badge-fill`. Enforced by `compozy-design-system/no-design-glaze-rgba`.
+- **Don't introduce `--shadow-card` or `--shadow-pop` to the runtime kit.** The two-token shadow vocabulary in §6 is exhaustive. Cards stay flat with `box-shadow: 0 0 0 1px var(--line-soft)`.
+- **Don't apply `backdrop-filter: blur(...)` outside `.dialog-scrim` / `.sheet-scrim`.** Modal and sheet scrims resolve `var(--overlay-blur)` (3 px) on top of `var(--overlay-scrim)` (alpha 0.55); every other runtime surface stays blur-free. The marketing site's sticky header keeps its own blur via its own stack.
+- **Don't trigger accent on hover.** `hover:border-(--accent)`, `hover:bg-(--accent)`, `hover:text-(--accent)` are banned. Hover changes background tint (`--hover` / `--row-hover`), never border or text color. Accent is for the resting active/CTA state only.
+- **Don't use `<Button variant="outline">`.** Runtime variants are `default | primary | ghost | danger | success | icon | neutral`. The outline silhouette is gone. Enforced by `compozy-design-system/no-banned-props`.
+- **Don't import `Loader2` from `lucide-react` in production routes.** Use `<Spinner>` for "this surface is loading data" and `.dot--pulse` for "this entity is in an active running state". Enforced by `compozy-design-system/no-banned-imports`.
 - **Don't write "we" / "our" in marketing body.** Product is the subject.
 - **Don't render on a white background.** Dark mode only.
 
-## 11. Responsive Behavior
+## 11. Anti-patterns
+
+Anti-patterns are bans that are easy to slip into and expensive to unwind across many call-sites. Each item below is grep-banned, lint-banned, or test-banned in the runtime contract — `web/` and `packages/ui`. The `agh-design` skill's rules block carries the author-side mirror; this section is the human-readable spec.
+
+### Side-stripe accent rail on cards or rows
+
+- **Pattern:** `border-l-2 border-l-(--accent)` / `border-l-accent` painted on `Metric`, `KpiCard`, `Section`, `RadioCard`, `CatalogCard`, list rows, or any "active" surface as a left-edge indicator.
+- **Why banned:** The selected-rail rule moves the selected-rail color to `var(--fg-strong)` (white, 2 px) — the accent rail collapses the "one accent per viewport" budget into row-level decoration. Accent stays reserved for primary CTAs, the active workspace nub, and the rail logo plate.
+- **Replace with:** `bg-(--row-selected)` or `bg-(--surface-glaze)` plus the white 2 px rail emitted by `ACTIVE_NAV_INDICATOR_CLASS` (sidebar nav) or the list-row equivalent.
+- **Enforcement:** `compozy-design-system/no-side-stripe-accent`.
+
+### Eyebrow misuse — inline mono uppercase tuples and structural-vs-metric confusion
+
+- **Pattern A — inline tuple:** `font-mono uppercase tracking-mono text-[11px]` (or any arbitrary `tracking-[Nem]` tuple) open-coded next to a label. That tuple IS the eyebrow contract; reinventing it skips the `<Eyebrow>` primitive and the `--text-eyebrow` / `--text-badge` / `--text-micro` / `--tracking-mono` tokens.
+- **Pattern B — wrong register:** `<Eyebrow>` applied to `KpiCard` / `Metric` value labels. Eyebrows are for structural section heads, table heads, run-cells, and protocol identifiers. KPI / Metric labels are sentence-case Inter 12 px / 510 / -0.005em — NOT uppercase mono Eyebrow.
+- **Replace with:** `<Eyebrow>` (prop-less / L-022 — `{ children, className }` only) for structural labels; tone via `className="text-(--muted|subtle|accent|success|warning|danger|info)"`. KPI / Metric labels stay bare sentence-case Inter.
+- **Enforcement:** `compozy-design-system/no-inline-eyebrow` + `compozy-design-system/no-inline-design-tuples`.
+
+### Accent overload — more than one accent target per viewport
+
+- **Pattern:** Multiple accent surfaces co-occurring in the same viewport — accent CTA + accent side-stripe + accent tab indicator + accent count chip + accent border-on-hover. Accent leaks into selected rails, active tabs, hover states, and count chips when its single contract is "the next action".
+- **Why banned:** Accent is the highest-signal token in the palette. When every surface competes for it, none of them carry information — the eye has nowhere to land. The "one accent target per viewport" rule (`agh-design` SKILL.md rules block) protects the CTA hierarchy.
+- **Replace with:** `--fg-strong` for selected rails; `--fg-strong` 1.5 px for `<Tabs variant="line">` indicators; `--badge-fill` / `--muted` 3 px chip for `<PillGroup>` count badges; `--row-hover` / `--row-selected` glaze for hover/selected backgrounds. Accent stays on the active CTA, the rail logo plate, and the active workspace nub.
+- **Enforcement:** Combined effect of `no-side-stripe-accent` + class-list snapshots on `Tabs` / `PillGroup` / `Pill` primitives.
+
+### `Section` as page-head — body-side 22 px H1 duplicating route identity
+
+- **Pattern:** `<Section title={routeTitle}>` rendering a 22 px (or larger) H1 at the top of a non-detail page (List / Kanban / Dashboard / Inbox / Knowledge / Bridges / Skills / Agents / Settings / Sandbox / Triggers / Jobs / Network). The route's identity already lives in the global `<Topbar>` (14 px route title + count chip + meta slots); the body-side H1 doubles it.
+- **Why banned:** The hierarchy rule splits `<Section>` (body H2, 13 px) from `<DetailHeader>` (24 px H1, detail-only). The proposal's 22 px page-head tier does not exist in the runtime contract — `Section` may render a body H2 but never a page-level H1.
+- **Replace with:** Flow content directly under the topbar. For detail surfaces only, emit `<DetailHeader>` with the 6-row anatomy (crumbs / pre-title / 24 px H1 / pills / meta / actions). The runtime does NOT introduce a `<PageHead>` primitive.
+- **Enforcement:** `compozy-design-system/no-inline-design-tuples` flags the `text-[22px].*tracking-[-0.026em]` page-h1 tuple; class-list snapshots on `<Section>` lock the 13 px body H2.
+
+## 12. Responsive Behavior
 
 ### Breakpoints
 
@@ -774,51 +1048,153 @@ Desktop-first, optimized for 1440px wide screens. Site content is capped at `--s
 - **Expanded:** icon rail (40px) + panel (~220px). Agent list, nav items, system footer visible.
 - **Collapsed:** icon rail only (40px). Workspace circles visible, panel content hidden.
 
-## 12. Agent Prompt Guide
+## 13. Site Profile (`packages/site` extensions)
+
+The marketing + Fumadocs site at `agh.network` ships through `packages/site` and is the only AGH surface that loads Playfair Display (`--font-display`) and NuixyberNext (`--font-wordmark`). It SHARES the runtime contract for color, surface, text, accent, hairlines, signal, overlays, motion, and shadows — runtime-side primitives in `packages/ui/src/tokens.css` are authoritative for both surfaces. Site EXTENDS the contract with responsive typography clamps, layout widths, marketing/doc body styles, and bento overlays declared in `packages/site/app/global.css`. Inventing a new `--color-*` or non-clamp `--text-*` token in site-scope drifts from the contract and MUST be added to this section first.
+
+### What site shares with runtime (do NOT redefine)
+
+- Surface ramp: `--rail`, `--canvas`, `--canvas-soft`, `--canvas-tint`, `--sidebar`, `--elevated`, `--hover`, `--disabled`.
+- Hairlines: `--line`, `--line-soft`, `--line-strong`.
+- Text: `--fg`, `--fg-strong`, `--muted`, `--subtle`, `--faint`.
+- Accent + signal: `--accent`, `--accent-{hover,strong,ink,tint,tint-strong,dim,glow}`, `--success`, `--warning`, `--danger`, `--info`, `--neutral` (+ `*-tint` siblings).
+- Overlays: `--overlay-scrim`, `--overlay-ghost-hover` (the runtime `::selection` rule resolves `var(--accent-tint)` directly; `--overlay-selection` is intentionally absent).
+- Motion: `--dur`, `--dur-slow`, `--ease`, `--ease-in-out`, `--duration-fast/base/slow`, `--ease-out`.
+- Shadow whitelist: `--shadow-overlay`, `--highlight` (modals + active rim only).
+- Eyebrow utility: single `eyebrow` `@utility` (Inter UC 11 / 600 / 0.05em — `--text-eyebrow` + `--tracking-section-label`) and the prop-less `<Eyebrow>` component from `@agh/ui`. The legacy `eyebrow-badge` / `eyebrow-micro` tiers are deleted from the runtime contract.
+
+### What site adds — fonts
+
+| Token             | Family               | Loaded by                       | Scope                                         |
+| ----------------- | -------------------- | ------------------------------- | --------------------------------------------- |
+| `--font-display`  | **Playfair Display** | `next/font` in `app/layout.tsx` | `.site-home` only (landing hero + section H2) |
+| `--font-wordmark` | **NuixyberNext**     | `@agh/ui/logos`                 | `agh` wordmark in `home-header` only          |
+
+`--font-sans` (Inter Variable) and `--font-mono` (JetBrains Mono) inherit from runtime. Site re-declares them in its own `@theme inline` so Next.js font CSS variables (`--font-inter`, `--font-jetbrains-mono`, `--font-playfair`) bind correctly.
+
+### What site adds — responsive type clamps
+
+All site clamps live in `packages/site/app/global.css` `@theme inline`. They are the only legitimate place to declare site-scoped `--text-site-*` typography tokens. Each clamp follows the `clamp(min, vw, max)` formula so hero / page / card titles fluidly scale across the home page, blog, changelog, runtime docs, and protocol docs.
+
+| Group            | Tokens                                                                                                                                                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hero             | `--text-site-hero` (clamp 2.8–5.4 rem), `--text-site-error-title` (2.6–4.8), `--text-site-hero-section` (2.6–4.2)                                                                                                                       |
+| Page / article   | `--text-site-blog-title` (2.6–4.6), `--text-site-doc-title` (2.55–4.0), `--text-site-protocol-title` (2.4–3.8), `--text-site-page-title` (2.4–4.0), `--text-site-article-title` (2.4–3.6), `--text-site-section-title` (2.2–3.6)        |
+| Sub-sections     | `--text-site-category-title` (2.2–3.4), `--text-site-cta-title` (2.0–3.2), `--text-site-feature-title` (2.0–2.8), `--text-site-subsection-title` (1.9–2.6), `--text-site-doc-heading` (1.7–2.45), `--text-site-release-title` (1.6–2.1) |
+| Cards / quote    | `--text-site-empty-title` (1.55–2.0), `--text-site-quote` (1.5–1.95), `--text-site-card-title` (1.45–1.9), `--text-site-subheading` (1.3–1.7)                                                                                           |
+| Bento (fixed)    | `--text-site-bento-2xl` (2.5 rem), `-xl` (2.35), `-lg` (2.0), `-md` (1.9), `-sm` (1.8), `-xs` (1.65)                                                                                                                                    |
+| Lead / body      | `--text-site-lead` (1.1875 rem, line-height 1.5), `--leading-doc-body` (1.8 — used by `.site-doc-body`)                                                                                                                                 |
+| Inline / accent  | `--text-inline-code` (0.9 em), `--text-accent-glyph` (0.85 em), `--text-ui-title-lg` (1.35 rem), `--text-display-2xl` (1.75 rem)                                                                                                        |
+| Eyebrow (shared) | `--text-eyebrow`, `--text-badge`, `--text-micro` (re-declared so site clamps stay in the same `@theme` block; values match runtime)                                                                                                     |
+
+Use the Tailwind utilities `text-site-hero`, `text-site-blog-title`, etc. directly — site clamps are exposed automatically through `@theme inline`. Do NOT reach for arbitrary `text-[clamp(...)]`; if a new size is needed, add a new `--text-site-*` token to this table first.
+
+### What site adds — layout primitives
+
+Declared in `:root` of `packages/site/app/global.css`:
+
+| Token                      | Value    | Role                               |
+| -------------------------- | -------- | ---------------------------------- |
+| `--site-layout-width`      | `1200px` | Landing / marketing page max-width |
+| `--site-doc-layout-width`  | `96rem`  | Fumadocs notebook max-width        |
+| `--site-doc-sidebar-width` | `16rem`  | Left sidebar in docs               |
+| `--site-doc-toc-width`     | `14rem`  | Right TOC rail in docs             |
+
+Reach these via Tailwind v4 arbitrary syntax — `max-w-(--site-layout-width)`, `w-(--site-doc-toc-width)`, etc.
+
+### What site adds — CSS classes
+
+| Class                                                                    | Where                                         | Purpose                                                                                                                                                                                                |
+| ------------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.site-home`                                                             | landing route only                            | Gates `--font-display` (Playfair) so it never leaks into runtime UI or non-home site routes. `.site-home h1, .site-home h2` switch to `var(--font-display)`.                                           |
+| `.site-doc-body`                                                         | Fumadocs MDX bodies (runtime + protocol docs) | Doc reader styles — `color: var(--muted)`, `font-size: 1rem`, `line-height: 1.8`, `max-width: 72ch` on paragraphs/lists/blockquotes, h2 with top-border separator, code chips with `--canvas-soft` bg. |
+| `.site-bento-overlay-{runtime,network,bridges,memory,extensibility}`     | bento illustrations                           | Five gradient overlays that fade illustration art into `--rail` (`#0c0b0b`) at the top edge so each bento card has a consistent dark vignette.                                                         |
+| `.agh-mermaid` (and `.agh-mermaid .node`, `.cluster`, `.edgePath`, etc.) | Mermaid diagrams (docs)                       | Mermaid theme overrides — node bg `--elevated`, node border `--accent`, edges `--subtle`, cluster bg `--canvas-soft`, text `--font-mono`.                                                              |
+
+Fumadocs neutral preset is also overridden here via `--color-fd-*` aliases — see `packages/site/app/global.css :81–107` and the `#nd-sidebar` / `#nd-toc` selectors.
+
+### Authoring rules
+
+1. When working in `packages/site`, color / surface / text / accent / signal / motion ALWAYS resolve from `packages/ui/src/tokens.css`. Never re-declare them in site CSS or invent `--site-color-*` shadows.
+2. Typography sizing in marketing or doc copy uses the `--text-site-*` clamp utilities. If a needed clamp is missing, add it to the table above and to `app/global.css @theme inline` in the same change.
+3. Layout widths use the `--site-*` layout tokens above. Never inline `max-w-[1200px]` — use `max-w-(--site-layout-width)`.
+4. Mono uppercase labels use the shared eyebrow utilities or `<Eyebrow>` component (see §3). Site does NOT get its own eyebrow vocabulary.
+5. Playfair Display (`--font-display`) is allowed only inside `.site-home`. NuixyberNext (`--font-wordmark`) is allowed only on the literal `agh` wordmark. Anywhere else in site (blog body, changelog, runtime/protocol docs) uses Inter Variable.
+
+## 14. Agent Prompt Guide
 
 ### Quick Color Reference
 
 ```
-Canvas Deep:    #0E0E0F
-Canvas:         #141312
-Surface:        #1E1C1B
-Surface Panel:  #181716
-Elevated:       #2E2C2B
-Divider:        #3C3A39
-Hover:          #353332
-Disabled:       #4A4847
+Rail:           #0c0b0b
+Canvas:         #131211
+Canvas Soft:    #1a1918
+Canvas Tint:    #1c1b1a
+Sidebar:        #1a1918  (semantic alias of canvas-soft)
+Elevated:       #232220
+Hover: var(--row-hover) (alias of glaze --row-hover)
+Disabled:       #4a4847
 
-Text Primary:   #E5E5E7
-Text Secondary: #8E8E93
-Text Tertiary:  #636366
-Text Label:     #98989D
+Line:           rgba(255,255,255,0.055)
+Line Soft:      rgba(255,255,255,0.03)
+Line Strong:    rgba(255,255,255,0.09)
 
-Accent:         #E8572A
-Accent Ink:     #17110F   (text on accent fill)
-Accent Hover:   #D14E25
-Accent Strong:  #F6874F
-Accent Dim:     #E8572A59 (~35% alpha)
-Accent Tint:    #E8572A26 (~15% alpha)
+Fg:             #ececef
+Fg Strong:      #f6f6f8
+Muted:          #9a9a9f
+Subtle:         #76767c
+Faint:          #545458
 
-Success:        #30D158
-Danger:         #FF453A
-Warning:        #FFD60A
-Info:           #BF5AF2
+Accent:         #e8572a
+Accent Ink:     #17110f   (text on accent fill)
+Accent Hover:   #d14e25
+Accent Strong:  #f6874f
+Accent Dim:     rgba(232,87,42,0.24)
+Accent Tint: rgba(232,87,42,0.10) (::selection background)
+Accent Tint S.: rgba(232,87,42,0.16)
+Accent Glow:    rgba(232,87,42,0.05)
 
-Scrim:          rgba(0,0,0,0.5)
-Ghost Hover:    rgba(255,255,255,0.06)
-Selection:      rgba(232,87,42,0.28)
-Tint Formula:   <semantic-color> at 15% opacity for bg, full color for text
+Success:        #5fbf85   tint rgba(95,191,133,0.08)
+Warning:        #d6a647   tint rgba(214,166,71,0.08)
+Danger:         #e0635a   tint rgba(224,99,90,0.09)
+Info:           #8e8eb5   tint rgba(142,142,181,0.12)  (Settings / observability)
+Neutral:        #7a7a80   tint rgba(150,150,155,0.06)  (warmed to match ramp)
+
+Scrim:          rgba(0,0,0,0.55)        (--overlay-scrim)
+Scrim blur:     3px                     (--overlay-blur, dialog/sheet ONLY)
+Ghost Hover:    rgba(255,255,255,0.06)  (--overlay-ghost-hover)
+Selection:      var(--accent-tint)      (::selection { background: var(--accent-tint); color: var(--fg-strong); })
+Tint Formula:   <signal-color> at 6–12% alpha for bg, full color for text
+
+Surface glaze ladder (--row-hover .. --badge-fill):
+  row-hover         rgba(255,255,255,0.022)   list/nav hover (alias --hover)
+  row-selected      rgba(255,255,255,0.030)   list/nav selected
+  surface-glaze     rgba(255,255,255,0.040)   RadioCard / panel-head selected
+  bar-fill          rgba(255,255,255,0.085)   priority / progress / usage bars
+  input-fill        rgba(255,255,255,0.025)   composer / textarea / search
+  btn-default-fill  rgba(255,255,255,0.040)   neutral Button default
+  btn-default-hover rgba(255,255,255,0.070)   neutral Button hover
+  badge-fill        rgba(255,255,255,0.050)   PillGroup count badge
+
+Owner avatar palette (--avatar-{agent,human,system}-{slot}-{bg,fg}):
+  agent 0..3        4 warm/cool slots, bg ~18% alpha, fg solid hex
+  human 0..2        3 warm slots, bg ~20% alpha, fg solid hex
+  system            bg --elevated, fg --subtle
+
+Modal width ladder:
+  --width-modal-sm  560px  confirm / single-field editor
+  --width-modal-md  720px  task editor (new/edit) / settings field editor
+  --width-modal-lg  880px  bridges wizard / knowledge create dialog
 ```
 
 ### Quick Type Reference
 
 ```
-UI / Body:      Inter Variable
-Marketing h1/h2: Playfair Display (only inside .site-home)
-Docs h1/h2:     Inter, weight 600, tracking -0.05em / -0.035em
-Metadata:       JetBrains Mono, uppercase, tracking 0.06em
-Wordmark:       NuixyberNext (only for the "agh" lockup)
+UI / Body (runtime):     Inter Variable, weight 510 ladder + 400 body
+Metadata (runtime):      JetBrains Mono, weight 500 (mono pill), 400 (code)
+Marketing h1/h2:         Playfair Display (packages/site only, .site-home scope)
+Docs h1/h2:              Inter, weight 600, packages/site only
+Wordmark:                NuixyberNext (packages/site only, "agh" lockup)
 ```
 
 ### Example Component Prompts
@@ -845,7 +1221,7 @@ Wordmark:       NuixyberNext (only for the "agh" lockup)
 
 **"Create a code block"**
 
-> Container: bg `#0E0E0F` (canvas-deep), radius 12px, padding 20px. Font: JetBrains Mono 14px, line-height 1.6. Prompt `$ ` in `#E8572A`, command in `#E5E5E7`. Copy button: absolute top-right, ghost, tertiary icon → accent on hover, checkmark swap for 1.5s on copy success. Optional language eyebrow top-left.
+> Container: bg `#1a1918` (`--canvas-soft`), radius 12px, padding 20px. Font: JetBrains Mono 14px, line-height 1.6. Prompt `$ ` in `--accent`, command in `--fg`. Copy button: absolute top-right, ghost, tertiary icon → accent on hover, checkmark swap for 1.5s on copy success. Optional language eyebrow top-left.
 
 **"Create a filter toolbar"**
 
@@ -857,17 +1233,19 @@ Wordmark:       NuixyberNext (only for the "agh" lockup)
 
 ### Implementation Checklist
 
-1. **Fonts loaded:** Inter Variable (400–600), Playfair Display (400, 500), JetBrains Mono (400–600), NuixyberNext (400, wordmark only).
-2. **Canvas background:** `#141312` on `<body>`. `color-scheme: dark` hardcoded. `.dark` forced on `RootProvider` with `enabled: false`.
-3. **Flat depth:** no box-shadows (except `ring-1 ring-foreground/10` and shadcn `shadow-xs`). Depth via bg color + 1px dividers only.
-4. **Buttons:** 8px radius, 28px / 36px / 44px heights. Never pill.
-5. **Badges:** 6px radius (`--radius-mono-badge`), 22px height, 15%-tinted bg, JetBrains Mono 10px 600 uppercase tracking 0.08em. Kind chips use 5px radius.
-6. **Inputs:** 8px radius, 36px height, bg `#2E2C2B`, border `#3C3A39`, focus border `#E8572A`.
-7. **Cards:** 12px radius (`--radius-diagram`), bg `#1E1C1B`, border 1px `#3C3A39`, padding 24px (marketing feature card) or 16px 20px (UI metric card).
-8. **Filter pills (UI):** 20px radius, 32px height, accent fill (active) or border-only (inactive).
-9. **Header nav pills (site):** `rounded-full`, hover/active tint `rgba(232,87,42,0.12)`.
-10. **Dividers:** 1px solid `#3C3A39` everywhere. 1.5px solid `#E8572A` for focus.
-11. **Semantic colors:** accent `#E8572A`, success `#30D158`, danger `#FF453A`, warning `#FFD60A`, info `#BF5AF2`. Tinted chips only; never solid banners.
-12. **Voice:** operator-first, dry, no emoji, no "we". Mono uppercase eyebrows everywhere.
-13. **Icons:** Lucide, stroke 2, 12–20px inline, 48px for empty-state only. Accent inside icon wells, `currentColor` elsewhere.
-14. **Respect `prefers-reduced-motion`** — do not add animations that bypass the global reset.
+1. **Fonts loaded (runtime):** Inter Variable (400 + 510 + 600), JetBrains Mono (400 + 500 + 600). Site adds Playfair Display + NuixyberNext via its own Next.js font stack. `--font-display` is declared as an Inter alias for symmetry but FORBIDDEN inside type-ramp callers in `web/src/**` / `packages/ui/src/**` — reserved for explicit logo/wordmark slots.
+2. **Canvas background:** `--canvas` (`#131211`) on `<body>`. `color-scheme: dark` hardcoded. `.dark` forced on `RootProvider` with `enabled: false`. Body baseline: `font-size: 0.84375rem`, `line-height: 1.5`, `letter-spacing: -0.006em`, `font-feature-settings: "cv01", "ss03", "cv11"`.
+3. **Flat depth:** only `--shadow-overlay` (modals / sheets) and `--highlight` (active rim). Every other surface stays flat with a 1 px ring on `--line-soft`. Modal scrim adds `backdrop-filter: blur(var(--overlay-blur))` (3 px) on `Dialog.Overlay` / `Sheet.Overlay` only.
+4. **Buttons:** `--radius-md` (8 px), heights 22 / 26 / 30 (Inter 12 px / 510 / -0.005em). Never pill. Neutral default fill resolves `var(--btn-default-fill)` / `var(--btn-default-hover)` (glaze ladder).
+5. **Badges:** `--radius-mono-badge` (4 px, retuned from 6 px), 22 px height, signal tint bg, JetBrains Mono 10.5 px / 500 / 0 (Pill `--mono`). Status pill default uses Inter 11 px / 510 sentence case.
+6. **Inputs:** `--radius-md` (8 px), bg `var(--input-fill)` for composer / textarea / search, border 1 px `--line`, focus ring `0 0 0 1px var(--line-strong)`.
+7. **Cards:** `--radius-lg` (10 px), bg `--canvas-soft`, 1 px `--line` ring. No shadows. Selected card uses `var(--surface-glaze)`.
+8. **Filter pills (UI):** `--radius-pill`, accent fill (active) or 1 px `--line` (inactive). `<PillGroup>` count badge fills with `var(--badge-fill)`.
+9. **Dividers:** 1 px solid `--line`; group bottoms use `--line-soft`. Focus ring uses `--line-strong` (white). No accent focus ring. Selected list/nav rails use `var(--fg-strong)`, never `--accent`.
+10. **Signal colors:** `--accent` `#e8572a`, `--success` `#5fbf85`, `--warning` `#d6a647`, `--danger` `#e0635a`, `--info` `#8e8eb5`, `--neutral` `#7a7a80`. Tinted chips only; never solid banners. `--info-tint` is 12 % (Settings / observability), `--neutral-tint` 6 % warm (`rgba(150,150,155,0.06)`).
+11. **Voice:** operator-first, dry, no emoji, no "we". Sentence case copy by default; UPPERCASE only on sidebar labels, table heads, run-cells, and `<Eyebrow>` (which is Inter UC 11 / 600 / -0.005em — single style, no `case` / `family` / `tone` / `size` props).
+12. **Icons:** Lucide, stroke 2, 12–20 px inline, 48 px for empty-state only. Accent inside icon wells, `currentColor` elsewhere.
+13. **Reduced motion** — the universal-selector `@media (prefers-reduced-motion: reduce)` block in `tokens.css` pins `animation-duration`, `animation-delay`, and `transition-duration` to `0.001ms !important` on `*, *::before, *::after`. The non-zero value preserves CSS `animationend` callback timing. Never bypass with `!important` or per-component opt-in.
+14. **Layout grammar (§3a):** Topbar carries page identity (14 px route title). `<DetailHeader>` is the only in-body 24 px H1 surface. `<PageShell density="route">` applies the 28/36/80 envelope. Modal widths pull from `--width-modal-{sm,md,lg}` (560/720/880). Sidebar collapse ladder: 244 → 220 (≤ 1100 px) → drawer (≤ 880 px).
+15. **Status tones:** six tones (`neutral / accent / success / warning / danger / info`). `violet` is not a token — approvals collapse to `info`. All tone mappings live in `web/src/lib/status-tone.ts` exhaustive dictionaries (`STATUS_TONE` / `RUN_STATUS_TONE` / `TASK_LANE_TONE`).
+16. **Owner avatars:** consume `--avatar-{agent,human,system}-{slot}-{bg,fg}` via `web/src/lib/owner-palette.ts → colorsFor()`. Inline hex is forbidden — Storybook + design ref tools must read from the same token source.

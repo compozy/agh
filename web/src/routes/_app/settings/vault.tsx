@@ -1,5 +1,5 @@
-import { AlertCircle, Check, KeyRound, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Check, KeyRound, Lock, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import {
   Alert,
@@ -9,9 +9,12 @@ import {
   Button,
   ConfirmDialog,
   Empty,
+  Eyebrow,
   Input,
   PageShell,
   Section,
+  StatusLineTopbarSlot,
+  useTopbarSlot,
 } from "@agh/ui";
 
 import {
@@ -21,60 +24,74 @@ import {
   type VaultLastAction,
   type VaultNamespaceFilter,
 } from "@/hooks/routes/use-settings-vault-page";
-import {
-  SettingsEditorDialog,
-  SettingsFieldRow,
-  SettingsStatusLine,
-} from "@/systems/settings/components";
+import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings/components";
 import { VAULT_NAMESPACES, VaultSecretsTable, type VaultSecret } from "@/systems/vault";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/settings/vault")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Vault", icon: Lock },
+  }),
   component: VaultSettingsPage,
 });
 
 function VaultSettingsPage() {
   const page = useSettingsVaultPage();
 
+  useTopbarSlot({
+    tabs: !page.isLoading ? (
+      <StatusLineTopbarSlot
+        daemonLabel={page.queryError ? "vault unavailable" : "vault available"}
+        status={page.queryError ? "error" : "connected"}
+        data-testid="settings-page-vault-status-line"
+        items={[
+          {
+            key: "total",
+            value: <span data-testid="settings-page-vault-total">{page.counts.total} secrets</span>,
+            tone: "neutral",
+          },
+          {
+            key: "sessions",
+            value: (
+              <span data-testid="settings-page-vault-sessions">
+                {page.counts.sessions} session-scoped
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "providers",
+            value: (
+              <span data-testid="settings-page-vault-providers">
+                {page.counts.providers} provider-scoped
+              </span>
+            ),
+            tone: "neutral",
+          },
+        ]}
+      />
+    ) : undefined,
+    actions: (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => void page.refetch()}
+        disabled={page.isRefetching}
+        data-testid="settings-page-vault-refresh"
+      >
+        <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
+        Refresh
+      </Button>
+    ),
+  });
+
   if (page.isLoading) {
     return <BlockLoading className="flex-1" data-testid="settings-page-vault-loading" />;
   }
 
   return (
-    <PageShell
-      slug="vault"
-      title="Vault"
-      statusLine={
-        <SettingsStatusLine
-          daemonLabel={page.queryError ? "vault unavailable" : "vault available"}
-          status={page.queryError ? "error" : "connected"}
-          data-testid="settings-page-vault-status-line"
-          items={[
-            <span key="total" data-testid="settings-page-vault-total">
-              {page.counts.total} secrets
-            </span>,
-            <span key="sessions" data-testid="settings-page-vault-sessions">
-              {page.counts.sessions} session-scoped
-            </span>,
-            <span key="providers" data-testid="settings-page-vault-providers">
-              {page.counts.providers} provider-scoped
-            </span>,
-          ]}
-        />
-      }
-      actions={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void page.refetch()}
-          disabled={page.isRefetching}
-          data-testid="settings-page-vault-refresh"
-        >
-          <RefreshCw className={page.isRefetching ? "size-3.5 animate-spin" : "size-3.5"} />
-          Refresh
-        </Button>
-      }
-    >
+    <PageShell slug="vault">
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
@@ -91,7 +108,7 @@ function VaultSettingsPage() {
             onClick={page.openCreate}
             data-testid="settings-page-vault-create"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             New secret
           </Button>
         }
@@ -110,6 +127,19 @@ function VaultSettingsPage() {
           title="Unable to load vault metadata"
           description={page.queryError}
           data-testid="settings-page-vault-error"
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void page.refetch()}
+              disabled={page.isRefetching}
+              data-testid="settings-page-vault-error-retry"
+            >
+              <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
+              Retry
+            </Button>
+          }
         />
       ) : (
         <VaultSecretsTable
@@ -159,18 +189,16 @@ function VaultFilterBar({
 }: VaultFilterBarProps) {
   return (
     <div
-      className="grid gap-4 rounded-lg border border-(--color-divider) bg-(--color-surface-panel) p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
+      className="grid gap-4 rounded-lg border border-line bg-canvas-soft p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
       data-testid="settings-page-vault-filters"
     >
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
-        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
-          Namespace
-        </span>
+        <Eyebrow className="text-muted">Namespace</Eyebrow>
         <select
           id="settings-page-vault-namespace"
           value={namespace}
           onChange={event => onNamespaceChange(event.target.value as VaultNamespaceFilter)}
-          className="h-9 rounded-md border border-(--color-divider) bg-(--color-surface-elevated) px-3 text-sm text-(--color-text-primary) outline-none"
+          className="h-9 rounded-md border border-line bg-elevated px-3 text-sm text-fg outline-none"
           data-testid="settings-page-vault-namespace"
         >
           <option value="all">All namespaces</option>
@@ -182,9 +210,7 @@ function VaultFilterBar({
         </select>
       </label>
       <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
-        <span className="font-mono text-eyebrow font-semibold uppercase tracking-mono text-(--color-text-label)">
-          Prefix
-        </span>
+        <Eyebrow className="text-muted">Prefix</Eyebrow>
         <Input
           id="settings-page-vault-prefix"
           value={prefix}
@@ -304,6 +330,10 @@ interface VaultDeleteDialogProps {
   onConfirm: () => void;
 }
 
+function isSessionScopedVaultRef(ref: string): boolean {
+  return ref.startsWith("vault:sessions/");
+}
+
 function VaultDeleteDialog({
   target,
   error,
@@ -311,24 +341,33 @@ function VaultDeleteDialog({
   onClose,
   onConfirm,
 }: VaultDeleteDialogProps) {
+  const sessionScope = target ? isSessionScopedVaultRef(target.ref) : false;
+  const confirmTypingValue = target && !sessionScope ? target.ref : undefined;
   return (
     <ConfirmDialog
       open={target !== null}
-      title="Delete vault secret?"
+      title={sessionScope ? "Delete session vault secret?" : "Delete vault secret?"}
       description={
         target ? (
           <span>
             Delete metadata and encrypted value for{" "}
-            <code className="font-mono text-(--color-text-primary)">{target.ref}</code>.
+            <code className="font-mono text-fg">{target.ref}</code>.
+            {sessionScope
+              ? " This is a session-scoped secret; it is removed immediately."
+              : " Cross-scope vault entries require typed confirmation."}
           </span>
         ) : null
       }
       error={error}
       isPending={isDeleting}
       cancelLabel="Cancel"
-      confirmLabel="Delete secret"
+      confirmLabel={sessionScope ? "Confirm" : "Delete secret"}
       confirmIcon={Trash2}
-      contentProps={{ "data-testid": "settings-vault-delete" }}
+      confirmTyping={confirmTypingValue}
+      contentProps={{
+        "data-testid": "settings-vault-delete",
+        "data-scope": sessionScope ? "session" : "cross",
+      }}
       descriptionProps={{ "data-testid": "settings-vault-delete-description" }}
       errorProps={{ "data-testid": "settings-vault-delete-error" }}
       cancelButtonProps={{
@@ -338,6 +377,7 @@ function VaultDeleteDialog({
       confirmButtonProps={{
         "data-testid": "settings-vault-delete-confirm",
       }}
+      confirmInputProps={{ "data-testid": "settings-vault-delete-confirm-typing" }}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();
@@ -370,7 +410,7 @@ function ActionResultBanner({
           onClick={onDismiss}
           data-testid="settings-page-vault-action-result-dismiss"
         >
-          <X className="size-3.5" />
+          <X className="size-3" />
         </Button>
       </AlertAction>
     </Alert>

@@ -23,9 +23,10 @@ vi.mock("@/hooks/routes/use-agent-detail-page", () => ({
 }));
 
 vi.mock("@/systems/agent", () => ({
-  AgentInfoPanel: () => <aside data-testid="agent-info-panel" />,
-  AgentPageHeader: ({ sessions }: { sessions: unknown[] }) => (
-    <header data-testid="agent-page-header">{sessions.length}</header>
+  AgentInfoInspector: () => <aside data-testid="agent-info-inspector" />,
+  AgentPageActions: () => <div data-testid="agent-page-actions" />,
+  AgentPageStatusPill: ({ sessions }: { sessions: unknown[] }) => (
+    <span data-testid="agent-page-status-pill">{sessions.length}</span>
   ),
   AgentSessionsList: ({ isLoading, isError }: { isLoading: boolean; isError: boolean }) => (
     <div data-testid="agent-sessions-list" data-loading={isLoading} data-error={isError} />

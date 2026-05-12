@@ -5,22 +5,28 @@ Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16
 ## Critical Rules
 
 - **Pull tokens from `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion. Site obeys the same warm-dark palette as runtime + web.
+- **Eyebrow markup is mandatory.** Every uppercase label in marketing/docs MUST use either (a) the `<Eyebrow>` component from `@agh/ui` (children + `className` only — no `case` / `family` / `tone` / `size` / `weight` props) or (b) the single static utility class `eyebrow` (defined in `packages/ui/src/tokens.css`) on structural elements. Color tone is applied through `className` (`text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, signal palette). Inlining `font-mono` + `uppercase` + arbitrary `text-[…]` + `tracking-[…]` tuples is forbidden — that combination IS the eyebrow utility. The deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals are forbidden. Canonical tokens: `--text-eyebrow` (11 px), `--tracking-eyebrow` (-0.005em); contract is **Inter UC 11/600/-0.005em**. See `DESIGN.md` §3, `web/CLAUDE.md`, and lesson `L-022` for the full rule.
 - **Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording.
 - **Hero positioning is locked**: headline "An open workplace for AI agents." with subhead "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts." Open-workplace-first. Do not propose alternative hero copy without explicit user approval.
 - **`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md).
+- **Test placement is mandatory before creating site tests.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites before creating a new file. Do not add prose-string, snapshot, generated-output, or file-existence tests unless that artifact is the product contract and no stronger gate exists.
 
 ## Build Commands
 
 ```bash
-cd packages/site && bun run source:generate   # Fumadocs MDX → .source/  (runs before typecheck/test/build)
-cd packages/site && bun run content:generate  # Velite MDX/YAML → .velite/  (runs after source:generate)
-cd packages/site && bun run typecheck
-cd packages/site && bun run test                # vitest run
-cd packages/site && bun run build               # next build
-cd packages/site && bun run dev                 # next dev (predev runs both generators)
-make site-dev                                   # equivalent dev shortcut
-make site-build                                  # equivalent build shortcut
-make cli-docs                                   # regenerate CLI reference from cobra JSON export
+# Turbo-backed validation commands run from the repo root.
+make bun-typecheck                                      # full Bun workspace typecheck through turbo
+make bun-test                                           # full Bun workspace test suite through turbo
+bunx turbo run typecheck --filter=./packages/site       # focused @agh/site typecheck
+bunx turbo run test --filter=./packages/site            # focused @agh/site tests
+bunx turbo run build --filter=./packages/site           # focused @agh/site build
+
+# Site generators and local dev shortcuts.
+cd packages/site && bun run source:generate             # Fumadocs MDX -> .source/
+cd packages/site && bun run content:generate            # Velite MDX/YAML -> .velite/
+cd packages/site && bun run dev                         # next dev (predev runs both generators)
+make site-dev                                           # equivalent dev shortcut
+make cli-docs                                           # regenerate CLI reference from cobra JSON export
 ```
 
 `predev`, `prebuild`, `pretypecheck`, `pretest` all run `source:generate` then `content:generate` in series. Both `.source/` and `.velite/` are generated artifacts — never commit them.
@@ -37,6 +43,7 @@ make cli-docs                                   # regenerate CLI reference from 
 | Next.js / SSR / app router      | `next-best-practices`                                 | `vercel-react-best-practices`               |
 | Tailwind v4 styling             | `tailwindcss`                                         |                                             |
 | TanStack (when used in site)    | `tanstack` + `tanstack-router-best-practices`         |                                             |
+| Site testing                    | `consolidate-test-suites` + `vitest`                  | `testing-anti-patterns`                     |
 
 ## Coding Style
 
@@ -57,8 +64,12 @@ make cli-docs                                   # regenerate CLI reference from 
 
 ## Testing
 
-- `bun run test` is `vitest run`. Snapshot tests cover MDX rendering; UI tests cover marketing components.
-- After any change to source generation (`source.config.ts`), regenerate via `bun run source:generate` and re-run typecheck.
+- Before adding or moving a site test, use `consolidate-test-suites` to record the invariant, owning layer, canonical suite, and verification command.
+- A docs/site task needs a test decision, not automatic new Vitest coverage. "No new automated test" is valid when source generation, route metadata, lint, typecheck, build, link checks, or an existing suite already owns the invariant.
+- The package `test` script is `vitest run`, but validation MUST invoke it through Turbo: `bunx turbo run test --filter=./packages/site` or `make bun-test` from the repo root.
+- Do not use `cd packages/site && bun run test` or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph.
+- Snapshot tests cover MDX rendering; UI tests cover marketing components.
+- After any change to source generation (`source.config.ts`), regenerate via `cd packages/site && bun run source:generate` and re-run `bunx turbo run typecheck --filter=./packages/site`.
 - Do not commit `out/`, `.source/`, `tsconfig.tsbuildinfo`, or `.next/`.
 
 ## Cross-References

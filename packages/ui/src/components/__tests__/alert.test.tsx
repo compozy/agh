@@ -27,8 +27,8 @@ describe("Alert", () => {
     expect(screen.getByTestId("alert")).toHaveAttribute("role", "status");
   });
 
-  it("supports the new semantic variants (success/warning/info/accent/destructive)", () => {
-    for (const variant of ["success", "warning", "info", "accent", "destructive"] as const) {
+  it("Should support the new semantic variants (success/warning/info/accent/danger)", () => {
+    for (const variant of ["success", "warning", "info", "accent", "danger"] as const) {
       const { unmount } = render(
         <Alert data-testid={`alert-${variant}`} variant={variant}>
           <AlertTitle>ok</AlertTitle>
@@ -52,7 +52,7 @@ describe("Alert", () => {
     );
 
     expect(screen.getByTestId("alert-meta")).toHaveAttribute("data-slot", "alert-meta");
-    expect(screen.getByTestId("alert-meta").className).toContain("tracking-mono");
+    expect(screen.getByTestId("alert-meta").className).toContain("eyebrow");
     expect(screen.getByTestId("alert-actions")).toHaveAttribute("data-slot", "alert-actions");
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(

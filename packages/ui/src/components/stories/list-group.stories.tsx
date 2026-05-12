@@ -13,7 +13,7 @@ const meta: Meta<typeof ListGroup> = {
   },
   decorators: [
     Story => (
-      <div className="w-[440px] overflow-hidden rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]">
+      <div className="w-[440px] overflow-hidden rounded-lg border border-line bg-canvas-soft">
         <Story />
       </div>
     ),

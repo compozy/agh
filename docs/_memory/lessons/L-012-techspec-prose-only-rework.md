@@ -8,7 +8,7 @@
 
 Two TechSpecs from the same period delivered radically different review trajectories:
 
-- **Autonomy techspec** (`.compozy/tasks/autonomous/_techspec.md`, 706 lines): MVP boundary at top, listed Architectural Boundaries, Go interface signatures pasted as code blocks (`ClaimCriteria`, `ClaimedRun`, `TaskClaimer`, `SpawnOpts`, `PermissionNarrower`), data-model fields with rationale, side-table-vs-JSON decisions explicit, lease invariants enumerated as a numbered list. Eighteen tasks executed cleanly with **one** review round.
+- **Autonomy techspec** (706 lines): MVP boundary at top, listed Architectural Boundaries, Go interface signatures pasted as code blocks (`ClaimCriteria`, `ClaimedRun`, `TaskClaimer`, `SpawnOpts`, `PermissionNarrower`), data-model fields with rationale, side-table-vs-JSON decisions explicit, lease invariants enumerated as a numbered list. Eighteen tasks executed cleanly with **one** review round.
 - **Release-adjustments / qa-review** (no `_techspec.md`, just review-only directories): unresolved review queues persisted across multiple PRs. Tasks 07-09 of autonomy that touched contract-laden interfaces had **exactly one** round of fixes because the techspec gave the implementer no contract ambiguity.
 
 The differentiator was not length — it was concreteness. Specs that paste signatures, list fields with rationale, and enumerate invariants leave nothing to interpretation. Specs that describe the same mechanics in prose force the implementer to invent shapes that reviewers then reject.
@@ -46,9 +46,5 @@ When a spec is missing a marker, fix the spec — do not start tasks against the
 
 ## Source
 
-- `.compozy/tasks/autonomous/_techspec.md` — the cleanest exemplar
-- `.compozy/tasks/autonomous/adrs/adr-003.md` (lease invariants numbered)
-- `.compozy/tasks/autonomous/adrs/adr-006.md` (safe spawn caps numbered)
-- `.compozy/tasks/release-adjustments/` and `.compozy/tasks/qa-review/` — review-only dirs without TechSpecs, persistent unresolved review queues
 - `../analysis/analysis_compozy_tasks.md` §"Markers of 'good enough to execute'" and §"Markers of trouble"
 - `docs/_memory/_synthesis.md` skill candidate S-M9 `agh-techspec-quality-gate`

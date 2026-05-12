@@ -41,23 +41,10 @@ describe("Tabs", () => {
     expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel two");
   });
 
-  it("Should forward the line variant data attribute to TabsList", () => {
-    const { container } = render(
-      <Tabs defaultValue="one">
-        <TabsList variant="line">
-          <TabsTrigger value="one">One</TabsTrigger>
-        </TabsList>
-        <TabsContent value="one">Panel</TabsContent>
-      </Tabs>
-    );
-    const list = container.querySelector("[data-slot=tabs-list]") as HTMLElement | null;
-    expect(list).toHaveAttribute("data-variant", "line");
-  });
-
   it("Should render count and live label slots inside a trigger", () => {
     const { container } = render(
       <Tabs defaultValue="runs">
-        <TabsList variant="line">
+        <TabsList>
           <TabsTrigger count={3} liveLabel="Live" value="runs">
             Runs
           </TabsTrigger>
@@ -69,5 +56,24 @@ describe("Tabs", () => {
     expect(screen.getByRole("tab", { name: /runs3live/i })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="tabs-trigger-count"]')).toHaveTextContent("3");
     expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
+  });
+
+  it("Should render bare count text from the count prop", () => {
+    const { container } = render(
+      <Tabs defaultValue="lane-a">
+        <TabsList>
+          <TabsTrigger count={4} value="lane-a">
+            Lane A
+          </TabsTrigger>
+          <TabsTrigger count={2} value="lane-b">
+            Lane B
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="lane-a">Panel</TabsContent>
+        <TabsContent value="lane-b">Panel</TabsContent>
+      </Tabs>
+    );
+    const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
+    expect(count?.textContent).toBe("4");
   });
 });

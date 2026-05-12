@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
+import { Eyebrow } from "@agh/ui";
 import { AuthorMeta } from "@/components/blog/author-meta";
 import { ContinueReading } from "@/components/blog/continue-reading";
 import { DateStamp } from "@/components/blog/date-stamp";
 import { BulletDivider } from "@/components/blog/divider";
 import { categoryLabel, formatReadingTime } from "@/components/blog/format";
 import { MdxContent } from "@/components/blog/mdx-content";
-import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { TocRail } from "@/components/blog/toc-rail";
 import { flattenToc } from "@/components/blog/toc-utils";
 import {
@@ -84,32 +84,32 @@ export default async function BlogPostPage({ params }: PageProps) {
         keywords={post.tags}
       />
       <BreadcrumbListJsonLd items={breadcrumbs} />
-      <section className="border-b border-(--color-divider) px-4 pt-14 pb-9">
+      <section className="border-b border-line px-4 pt-14 pb-9">
         <div className="mx-auto max-w-(--site-layout-width)">
-          <div className="max-w-[760px]">
+          <div className="max-w-190">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-1.5 text-small-body text-(--color-text-tertiary) hover:text-(--color-text-primary)"
+              className="inline-flex items-center gap-1.5 text-small-body text-subtle hover:text-fg"
             >
               <ArrowLeft size={13} aria-hidden />
               <span>Back to blog</span>
             </Link>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <MonoEyebrow tone="accent">BLOG</MonoEyebrow>
+              <Eyebrow className="text-accent">BLOG</Eyebrow>
               <BulletDivider />
-              <MonoEyebrow>{categoryLabel(post.category)}</MonoEyebrow>
+              <Eyebrow className="text-muted">{categoryLabel(post.category)}</Eyebrow>
               <BulletDivider />
               <DateStamp date={post.date} />
               <BulletDivider />
-              <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--color-text-tertiary)">
+              <span className="inline-flex items-center gap-1.5 text-eyebrow text-subtle">
                 <Clock size={11} aria-hidden />
-                <span className="font-mono uppercase tracking-mono">{readingTime} read</span>
+                <Eyebrow>{readingTime} read</Eyebrow>
               </span>
             </div>
-            <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-(--color-text-primary)">
+            <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-fg">
               {post.title}
             </h1>
-            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-(--color-text-secondary)">
+            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-muted">
               {post.description}
             </p>
             <div className="mt-9 flex items-center justify-between gap-4">

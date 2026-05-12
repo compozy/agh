@@ -1,12 +1,12 @@
 import * as React from "react";
 
-import { cn, Section } from "@agh/ui";
+import { cn, FormSection } from "@agh/ui";
 
 import { useOptionCardSlot } from "../hooks/use-option-card-slot";
 import {
   OptionCardContext,
   type OptionCardContextValue,
-  type OptionCardDensity,
+  type OptionCardSize,
 } from "./option-card-context";
 
 type OptionCardTone = "neutral" | "accent";
@@ -25,17 +25,15 @@ function isHeaderElement(node: React.ReactNode): node is React.ReactElement<Opti
   return React.isValidElement(node) && node.type === OptionCardHeaderSentinel;
 }
 
-interface OptionCardProps extends React.ComponentProps<typeof Section> {
-  density?: OptionCardDensity;
+interface OptionCardProps extends Omit<
+  React.ComponentProps<typeof FormSection>,
+  "title" | "rightLabel" | "size"
+> {
+  size?: OptionCardSize;
 }
 
-function OptionCardRoot({
-  className,
-  density = "comfortable",
-  children,
-  ...props
-}: OptionCardProps) {
-  const ctx = React.useMemo<OptionCardContextValue>(() => ({ density }), [density]);
+function OptionCardRoot({ className, size = "comfortable", children, ...props }: OptionCardProps) {
+  const ctx = React.useMemo<OptionCardContextValue>(() => ({ size }), [size]);
 
   let headerEyebrow: React.ReactNode;
   let headerRight: React.ReactNode;
@@ -52,20 +50,17 @@ function OptionCardRoot({
 
   return (
     <OptionCardContext.Provider value={ctx}>
-      <Section
+      <FormSection
         {...props}
         data-slot="option-card"
-        data-density={density}
-        label={headerEyebrow}
-        right={headerRight}
-        className={cn(
-          "rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
-          density === "comfortable" ? "p-5" : "p-4",
-          className
-        )}
+        data-size={size}
+        size={size}
+        title={headerEyebrow}
+        rightLabel={headerRight}
+        className={className}
       >
         {body}
-      </Section>
+      </FormSection>
     </OptionCardContext.Provider>
   );
 }
@@ -95,10 +90,8 @@ function OptionCardIcon({ className, tone = "neutral", children, ...props }: Opt
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]",
-        tone === "accent"
-          ? "text-[color:var(--color-accent)]"
-          : "text-[color:var(--color-text-primary)]",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-glaze",
+        tone === "accent" ? "text-accent" : "text-fg",
         className
       )}
       {...props}
@@ -122,7 +115,7 @@ function OptionCardTitle({ className, children, ...props }: React.ComponentProps
   return (
     <p
       data-slot="option-card-title"
-      className={cn("text-sm font-semibold text-[color:var(--color-text-primary)]", className)}
+      className={cn("text-sm font-medium text-fg", className)}
       {...props}
     >
       {children}
@@ -135,7 +128,7 @@ function OptionCardDescription({ className, children, ...props }: React.Componen
   return (
     <p
       data-slot="option-card-description"
-      className={cn("mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]", className)}
+      className={cn("mt-1 text-sm leading-6 text-muted", className)}
       {...props}
     >
       {children}
@@ -148,10 +141,7 @@ function OptionCardMeta({ className, children, ...props }: React.ComponentProps<
   return (
     <p
       data-slot="option-card-meta"
-      className={cn(
-        "mt-3 truncate font-mono text-eyebrow text-[color:var(--color-text-tertiary)]",
-        className
-      )}
+      className={cn("mt-3 truncate font-mono text-eyebrow text-subtle", className)}
       {...props}
     >
       {children}
@@ -181,9 +171,9 @@ const OptionCard = Object.assign(OptionCardRoot, {
 
 export { OptionCard };
 export type {
-  OptionCardDensity,
   OptionCardHeaderProps,
   OptionCardIconProps,
   OptionCardProps,
+  OptionCardSize,
   OptionCardTone,
 };

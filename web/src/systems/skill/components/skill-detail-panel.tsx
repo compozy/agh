@@ -4,11 +4,13 @@ import {
   Button,
   Card,
   CodeBlock,
+  DetailHeader,
   Empty,
+  Eyebrow,
   Pill,
-  PageHeader,
   Section,
   Spinner,
+  StatusDot,
   Switch,
   Table,
   TableBody,
@@ -16,13 +18,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Time,
 } from "@agh/ui";
 
 import {
   deriveSkillAuthor,
   deriveSkillCapabilities,
   deriveSkillRecentCalls,
-  formatSkillRelativeTime,
   skillSourceTone,
 } from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
@@ -39,21 +41,6 @@ interface SkillDetailPanelProps {
   onDisable: (name: string) => void;
   onEnable: (name: string) => void;
   isActionPending: boolean;
-}
-
-function SkillDetailMeta({ skill }: { skill: SkillPayload }) {
-  const author = deriveSkillAuthor(skill);
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {skill.version ? (
-        <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
-      ) : null}
-      {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
-      <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
-        {skill.source}
-      </Pill>
-    </div>
-  );
 }
 
 interface SkillContentSectionProps {
@@ -83,11 +70,11 @@ function SkillContentSection({
   if (isLoading) {
     return (
       <Card
-        className="flex-row items-center px-4 py-3 text-small-body text-(--color-text-secondary)"
+        className="flex-row items-center px-4 py-3 text-small-body text-muted"
         data-testid="content-loading"
         size="sm"
       >
-        <Spinner aria-hidden="true" className="size-4 text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-4 text-subtle" />
         Loading full skill content…
       </Card>
     );
@@ -95,7 +82,7 @@ function SkillContentSection({
   if (error) {
     return (
       <Card className="px-4 py-3" data-testid="content-error" size="sm">
-        <p className="text-small-body text-(--color-danger)">
+        <p className="text-small-body text-danger">
           {error.message ?? "Failed to load full content."}
         </p>
         <Button
@@ -112,7 +99,7 @@ function SkillContentSection({
   }
   return (
     <Card className="px-4 py-3" data-testid="content-empty" size="sm">
-      <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
+      <p className="text-small-body leading-relaxed text-muted">
         Full skill instructions are loaded on demand.
       </p>
       <div>
@@ -146,12 +133,7 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
       ) : (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="skill-capabilities-list">
           {capabilities.map(capability => (
-            <Pill
-              mono
-              data-testid={`skill-capability-${capability}`}
-              key={capability}
-              uppercase={false}
-            >
+            <Pill mono data-testid={`skill-capability-${capability}`} key={capability}>
               {capability}
             </Pill>
           ))}
@@ -160,6 +142,12 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
     </Section>
   );
 }
+
+const RECENT_STATUS_TONE = {
+  success: "faint",
+  error: "danger",
+  pending: "accent",
+} as const;
 
 function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
   const calls = deriveSkillRecentCalls(skill);
@@ -176,15 +164,15 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-lg border border-(--color-divider)"
+          className="overflow-hidden rounded-lg border border-line"
           data-testid="skill-recent-calls-table"
         >
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[72px]">Status</TableHead>
+                <TableHead className="w-18">Status</TableHead>
                 <TableHead>Call</TableHead>
-                <TableHead className="w-[120px] text-right">When</TableHead>
+                <TableHead className="w-30 text-right">When</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -194,22 +182,15 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                   key={`${call.label}-${call.timestamp ?? call.status}`}
                 >
                   <TableCell>
-                    <Pill.Dot
-                      pulse={call.status === "pending"}
-                      tone={
-                        call.status === "error"
-                          ? "danger"
-                          : call.status === "pending"
-                            ? "accent"
-                            : "success"
-                      }
+                    <StatusDot
+                      label={call.status}
+                      tone={RECENT_STATUS_TONE[call.status]}
+                      variant={call.status === "pending" ? "ring" : "solid"}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-(--color-text-secondary)">
-                    {call.label}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-eyebrow text-(--color-text-tertiary)">
-                    {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "--"}
+                  <TableCell className="font-mono text-xs text-muted">{call.label}</TableCell>
+                  <TableCell className="text-right font-mono text-eyebrow text-subtle">
+                    {call.timestamp ? <Time iso={call.timestamp} /> : "--"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -240,7 +221,7 @@ function SkillDetailPanel({
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="skill-detail-loading"
       >
-        <Spinner aria-hidden="true" className="size-5 text-(--color-text-tertiary)" />
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }
@@ -286,43 +267,45 @@ function SkillDetailPanel({
     }
   };
 
+  const author = deriveSkillAuthor(skill);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="skill-detail-panel">
-      <PageHeader
-        count={undefined}
-        icon={() => <Wrench className="size-3.5" data-testid="skill-detail-icon" />}
-        meta={<SkillDetailMeta skill={skill} />}
+      <DetailHeader
+        data-testid="skill-detail-header"
         title={<span data-testid="skill-detail-title">{skill.name}</span>}
+        pills={
+          <>
+            {skill.version ? (
+              <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
+            ) : null}
+            {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
+            <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
+              {skill.source}
+            </Pill>
+          </>
+        }
+        actions={
+          <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
+            <Eyebrow className="text-muted" id="skill-enabled-label">
+              {skill.enabled ? "Enabled" : "Disabled"}
+            </Eyebrow>
+            <Switch
+              aria-labelledby="skill-enabled-label"
+              checked={skill.enabled}
+              data-testid="skill-enabled-switch"
+              disabled={isActionPending}
+              onCheckedChange={handleToggle}
+            />
+          </div>
+        }
       />
 
       <div className="flex flex-col gap-6 px-6 py-5">
-        <Section
-          label="Overview"
-          right={
-            <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
-              <span
-                className="font-mono text-eyebrow uppercase tracking-badge text-(--color-text-label)"
-                id="skill-enabled-label"
-              >
-                {skill.enabled ? "Enabled" : "Disabled"}
-              </span>
-              <Switch
-                aria-labelledby="skill-enabled-label"
-                checked={skill.enabled}
-                data-testid="skill-enabled-switch"
-                disabled={isActionPending}
-                onCheckedChange={handleToggle}
-              />
-            </div>
-          }
-        >
+        <Section label="Overview">
           <div className="flex flex-col gap-3">
-            <p className="text-small-body leading-relaxed text-(--color-text-secondary)">
-              {skill.description}
-            </p>
-            <span className="truncate font-mono text-eyebrow text-(--color-text-tertiary)">
-              {skill.dir}
-            </span>
+            <p className="text-small-body leading-relaxed text-muted">{skill.description}</p>
+            <span className="truncate font-mono text-eyebrow text-subtle">{skill.dir}</span>
             <SkillContentSection
               content={content}
               error={contentError}

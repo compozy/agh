@@ -1,3 +1,5 @@
+import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
+import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 import {
   Button,
   Dialog,
@@ -12,16 +14,14 @@ import {
   FieldGroup,
   FieldTitle,
   Input,
-  Pill,
-  type PillTone,
   NativeSelect,
   NativeSelectOption,
+  Pill,
   Section,
   Spinner,
   Textarea,
+  type PillTone,
 } from "@agh/ui";
-import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
-import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 
 interface BridgeTestDeliveryDialogProps {
   bridgeName?: string;
@@ -61,13 +61,9 @@ export function BridgeTestDeliveryDialog({
 }: BridgeTestDeliveryDialogProps) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent
-        className="gap-0 p-0 text-(--color-text-primary) sm:max-w-2xl"
-        showCloseButton={false}
-        unframed
-      >
+      <DialogContent className="gap-0 p-0 text-fg sm:max-w-2xl" showCloseButton={false} unframed>
         <div
-          className="flex max-h-[min(80vh,760px)] flex-col"
+          className="flex max-h-[min(80vh,var(--height-modal-md))] flex-col"
           data-testid="bridge-test-delivery-dialog"
         >
           <DialogHeader variant="ruled">
@@ -195,11 +191,11 @@ export function BridgeTestDeliveryDialog({
                     </Pill>
                   }
                 >
-                  <p className="text-small-body text-(--color-text-primary)">
+                  <p className="text-small-body text-fg">
                     {describeBridgeTestTarget(result.delivery_target)}
                   </p>
                   {result.message ? (
-                    <p className="mt-2 text-small-body leading-relaxed text-(--color-text-secondary)">
+                    <p className="mt-2 text-small-body leading-relaxed text-muted">
                       Message: {result.message}
                     </p>
                   ) : null}
@@ -221,7 +217,7 @@ export function BridgeTestDeliveryDialog({
             >
               {isPending ? (
                 <>
-                  <Spinner className="size-3.5" />
+                  <Spinner className="size-3" />
                   Resolving…
                 </>
               ) : (

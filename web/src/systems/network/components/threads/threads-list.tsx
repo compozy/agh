@@ -59,8 +59,8 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
     <Item
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-none border-b border-(--color-divider) px-5 py-4",
-        active ? "bg-(--color-surface)" : null
+        "rounded-none border-b border-line px-5 py-4",
+        active ? "bg-canvas-soft" : null
       )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
       indicator={active ? "rail" : "none"}
@@ -81,33 +81,23 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
           <ThreadWorkPill openWorkCount={openWorkCount} />
         </ItemHeader>
 
-        <p className="line-clamp-2 text-small-body text-(--color-text-secondary)">
+        <p className="line-clamp-2 text-small-body text-muted">
           {thread.last_message_preview ?? "No messages yet."}
         </p>
 
         <ItemFooter className="items-start">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <Eyebrow data-testid="network-thread-list-row-meta-peers" weight="medium">
+            <Eyebrow data-testid="network-thread-list-row-meta-peers">
               {peerCount} {peerCount === 1 ? "peer" : "peers"}
             </Eyebrow>
-            <Eyebrow aria-hidden="true" weight="medium">
-              /
-            </Eyebrow>
-            <Eyebrow data-testid="network-thread-list-row-meta-replies" weight="medium">
+            <Eyebrow aria-hidden="true">/</Eyebrow>
+            <Eyebrow data-testid="network-thread-list-row-meta-replies">
               {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </Eyebrow>
-            <Eyebrow aria-hidden="true" weight="medium">
-              /
-            </Eyebrow>
-            <Eyebrow data-testid="network-thread-list-row-meta-opener" weight="medium">
-              started by {opener}
-            </Eyebrow>
+            <Eyebrow aria-hidden="true">/</Eyebrow>
+            <Eyebrow data-testid="network-thread-list-row-meta-opener">started by {opener}</Eyebrow>
           </div>
-          <Eyebrow
-            className="shrink-0"
-            data-testid="network-thread-list-row-meta-time"
-            weight="medium"
-          >
+          <Eyebrow className="shrink-0" data-testid="network-thread-list-row-meta-time">
             {lastActivity}
           </Eyebrow>
         </ItemFooter>
@@ -121,7 +111,7 @@ function ThreadsListSkeleton() {
     <SkeletonRows
       count={5}
       data-testid="network-thread-list-skeleton"
-      rowClassName="border-b border-(--color-divider) px-5 py-4"
+      rowClassName="border-b border-line px-5 py-4"
     >
       <Skeleton className="h-3.5 w-2/3" />
       <Skeleton className="h-3 w-full" />
@@ -150,8 +140,6 @@ export function ThreadsList({
     );
   }
 
-  const total = threads.length;
-
   return (
     <div
       aria-label={`Threads in #${channel}`}
@@ -163,15 +151,6 @@ export function ThreadsList({
       data-dim={dim ? "true" : "false"}
       data-testid="network-thread-list"
     >
-      <div
-        className="flex items-center justify-between gap-3 border-b border-(--color-divider) px-5 py-2"
-        data-testid="network-thread-list-subheader"
-      >
-        <Eyebrow>
-          {total} {total === 1 ? "thread" : "threads"}
-        </Eyebrow>
-        <Eyebrow aria-hidden="true">Sorted by recent activity</Eyebrow>
-      </div>
       {threads.map(thread => (
         <ThreadsListRow
           active={thread.thread_id === activeThreadId}

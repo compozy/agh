@@ -1,183 +1,365 @@
 /*
- * Shared design tokens. Consumers (packages/site, web/) own framework-level
- * stylesheet setup, including the single `@import "tailwindcss"` call and any
- * concrete font loading. This file must stay font-source agnostic so each
- * surface can choose its own delivery path without shipping duplicate faces.
+ * Shared design tokens for AGH (canonical Tailwind v4 single-layer `@theme`).
+ *
+ * Authority: `DESIGN.md` (repo root).
+ *
+ * Consumers (`web/`, `packages/site`) own framework-level stylesheet setup,
+ * including the single `@import "tailwindcss"` call and any concrete font
+ * loading. This file stays font-source agnostic so each surface can choose
+ * its own delivery path without shipping duplicate faces.
+ *
+ * Token contract: every design-system token meant to generate a utility is
+ * declared once inside `@theme` with its canonical Tailwind v4 namespace
+ * prefix (`--color-*`, `--text-*`, `--tracking-*`, `--leading-*`,
+ * `--radius-*`, `--duration-*`, `--ease-*`, `--shadow-*`, `--font-*`,
+ * `--font-weight-*`). Tailwind both generates the bare utility (`text-fg`,
+ * `bg-canvas-soft`, `duration-base`, `shadow-overlay`, …) AND exposes each
+ * token as a global CSS custom property (`var(--color-fg)`, etc.).
+ *
+ * Component-internal sizing/spacing tokens (modal widths, catalog/provider
+ * logo wells, PillGroup segment heights, PillGroup spacing) stay in `:root`
+ * and are consumed via arbitrary-value syntax inside the owning component
+ * (e.g. `w-(--width-modal-md)` in Dialog, `min-h-(--height-pill-group-segment-md)`
+ * in PillGroup). They are NOT in `@theme` because they are not part of a
+ * scale that benefits from utility generation, and adding them invites
+ * value-matching false positives in third-party tools that infer theme
+ * mappings from numeric values.
  */
+
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  color-scheme: dark;
-
-  /* Backgrounds */
-  --color-canvas: #141312;
-  --color-surface: #1e1c1b;
-  --color-surface-panel: #181716;
-  --color-surface-elevated: #2e2c2b;
-  --color-divider: #3c3a39;
-  --color-hover: #353332;
+@theme {
+  /* Surface ramp — warm-dark, layered backgrounds (depth without shadows). */
+  --color-rail: #0c0b0b;
+  --color-canvas: #131211;
+  --color-canvas-soft: #1a1918;
+  --color-canvas-tint: #1c1b1a;
+  --color-sidebar: #1a1918;
+  --color-elevated: #232220;
+  --color-hover: var(--color-row-hover);
   --color-disabled: #4a4847;
 
-  /* Text */
-  --color-text-primary: #e5e5e7;
-  --color-text-secondary: #8e8e93;
-  --color-text-tertiary: #636366;
-  --color-text-label: #98989d;
+  /* Hairlines — translucent rails derived from white. */
+  --color-line: rgba(255, 255, 255, 0.055);
+  --color-line-soft: rgba(255, 255, 255, 0.03);
+  --color-line-strong: rgba(255, 255, 255, 0.09);
 
-  /* Accent & Semantic */
+  /* Text. */
+  --color-fg: #ececef;
+  --color-fg-strong: #f6f6f8;
+  --color-muted: #9a9a9f;
+  --color-subtle: #76767c;
+  --color-faint: #545458;
+
+  /* Accent — warm operator orange (the only non-neutral hue). */
   --color-accent: #e8572a;
-  --color-accent-ink: #17110f;
   --color-accent-hover: #d14e25;
   --color-accent-strong: #f6874f;
-  --color-accent-dim: #e8572a59;
-  --color-accent-tint-strong: #e8572a3d;
-  --color-success: #30d158;
-  --color-danger: #ff453a;
-  --color-warning: #ffd60a;
-  --color-info: #bf5af2;
+  --color-accent-ink: #17110f;
+  --color-accent-tint: rgba(232, 87, 42, 0.1);
+  --color-accent-tint-strong: rgba(232, 87, 42, 0.16);
+  --color-accent-dim: rgba(232, 87, 42, 0.24);
+  --color-accent-glow: rgba(232, 87, 42, 0.05);
 
-  /* Protocol kind colors */
-  --color-kind-say: #8e8e93;
-  --color-kind-greet: #5ba6ff;
+  /* Signal palette — desaturated; tints at 6–12% alpha. */
+  --color-success: #5fbf85;
+  --color-success-tint: rgba(95, 191, 133, 0.08);
+  --color-warning: #d6a647;
+  --color-warning-tint: rgba(214, 166, 71, 0.08);
+  --color-danger: #e0635a;
+  --color-danger-tint: rgba(224, 99, 90, 0.09);
+  --color-info: #8e8eb5;
+  --color-info-tint: rgba(142, 142, 181, 0.12);
+  --color-neutral: #7a7a80;
+  --color-neutral-tint: rgba(150, 150, 155, 0.06);
+
+  /* Surface glaze ladder — translucent white tints over the warm ramp. */
+  --color-row-hover: rgba(255, 255, 255, 0.022);
+  --color-row-selected: rgba(255, 255, 255, 0.03);
+  --color-surface-glaze: rgba(255, 255, 255, 0.04);
+  --color-bar-fill: rgba(255, 255, 255, 0.085);
+  --color-input-fill: rgba(255, 255, 255, 0.025);
+  --color-btn-default-fill: rgba(255, 255, 255, 0.04);
+  --color-btn-default-hover: rgba(255, 255, 255, 0.07);
+  --color-badge-fill: rgba(255, 255, 255, 0.05);
+
+  /* Overlays. */
+  --color-overlay-scrim: rgba(0, 0, 0, 0.55);
+  --color-overlay-ghost-hover: rgba(255, 255, 255, 0.06);
+
+  /* Protocol kind colors. */
+  --color-kind-say: var(--color-neutral);
+  --color-kind-greet: var(--color-info);
   --color-kind-direct: var(--color-accent);
   --color-kind-receipt: var(--color-success);
   --color-kind-capability: var(--color-warning);
-  --color-kind-trace: #b892ff;
-  --color-kind-whois: #4fd1c5;
+  --color-kind-trace: var(--color-info);
+  --color-kind-whois: var(--color-neutral);
 
-  /* Landing diagram backgrounds */
-  --color-canvas-deep: #0e0e0f;
-  --color-line: #3c3a39;
+  /* Owner avatar palette.
+     `packages/ui/src/lib/owner-palette.ts` resolves these via
+     `colorsFor(ownerKind, ownerId)`. Storybook + design ref tools must
+     consume the same source as the runtime. */
+  --color-avatar-agent-0-bg: rgba(232, 144, 99, 0.18);
+  --color-avatar-agent-0-fg: #f2b895;
+  --color-avatar-agent-1-bg: rgba(168, 178, 220, 0.16);
+  --color-avatar-agent-1-fg: #c5cce7;
+  --color-avatar-agent-2-bg: rgba(143, 196, 178, 0.18);
+  --color-avatar-agent-2-fg: #a9d9c7;
+  --color-avatar-agent-3-bg: rgba(214, 168, 192, 0.18);
+  --color-avatar-agent-3-fg: #e0bcd0;
+  --color-avatar-human-0-bg: rgba(220, 192, 134, 0.2);
+  --color-avatar-human-0-fg: #e5cc9a;
+  --color-avatar-human-1-bg: rgba(195, 178, 156, 0.2);
+  --color-avatar-human-1-fg: #d6c5aa;
+  --color-avatar-human-2-bg: rgba(192, 173, 178, 0.2);
+  --color-avatar-human-2-fg: #d2bfc5;
+  --color-avatar-system-bg: var(--color-elevated);
+  --color-avatar-system-fg: var(--color-subtle);
 
-  /* Shared mono/diagram constants */
-  --tracking-mono: 0.06em;
-  --tracking-badge: 0.08em;
-  --radius-diagram: 12px;
-  --radius-chip: 5px;
-  --radius-mono-badge: 6px;
-  --height-mono-badge: 22px;
-  --height-pill-group-segment-sm: 20px;
-  --size-pill-group-badge: 14px;
-  --space-pill-group-track-gap: 2px;
-  --space-pill-group-track-padding: 3px;
-  --space-pill-group-segment-sm-x: 8px;
-  --space-pill-group-segment-md-x: 10px;
-  --space-pill-group-badge-x: 4px;
-  --text-pill-group-badge: 0.5625rem;
+  /* shadcn semantic aliases — mapped onto the canonical contract. */
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-fg);
+  --color-card: var(--color-canvas-soft);
+  --color-card-foreground: var(--color-fg);
+  --color-popover: var(--color-canvas-soft);
+  --color-popover-foreground: var(--color-fg);
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-accent-ink);
+  --color-secondary: transparent;
+  --color-secondary-foreground: var(--color-fg);
+  --color-muted-foreground: var(--color-muted);
+  --color-accent-foreground: var(--color-accent-ink);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-fg-strong);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-line-strong);
+  --color-chart-1: var(--color-accent);
+  --color-chart-2: var(--color-success);
+  --color-chart-3: var(--color-info);
+  --color-chart-4: var(--color-warning);
+  --color-chart-5: var(--color-danger);
+  --color-sidebar-foreground: var(--color-fg);
+  --color-sidebar-primary: var(--color-accent);
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: var(--color-elevated);
+  --color-sidebar-accent-foreground: var(--color-fg);
+  --color-sidebar-border: var(--color-line);
+  --color-sidebar-ring: var(--color-line-strong);
 
-  /* Motion */
-  --duration-fast: 100ms;
-  --duration-base: 150ms;
-  --duration-slow: 200ms;
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* Badge tints (15% opacity) */
-  --color-accent-tint: #e8572a26;
-  --color-success-tint: #30d15826;
-  --color-danger-tint: #ff453a26;
-  --color-warning-tint: #ffd60a26;
-  --color-info-tint: #bf5af226;
-  --color-neutral-tint: #63636626;
-
-  /* shadcn theme variables */
-  --background: var(--color-canvas);
-  --foreground: var(--color-text-primary);
-  --card: var(--color-surface);
-  --card-foreground: var(--color-text-primary);
-  --popover: var(--color-surface-elevated);
-  --popover-foreground: var(--color-text-primary);
-  --primary: var(--color-accent);
-  --primary-foreground: var(--color-accent-ink);
-  --secondary: transparent;
-  --secondary-foreground: var(--color-text-primary);
-  --muted: var(--color-surface-elevated);
-  --muted-foreground: var(--color-text-secondary);
-  --accent: var(--color-surface-elevated);
-  --accent-foreground: var(--color-text-primary);
-  --destructive: var(--color-danger);
-  --destructive-foreground: var(--color-text-primary);
-  --border: var(--color-divider);
-  --input: var(--color-divider);
-  --ring: var(--color-accent);
-  --chart-1: var(--color-accent);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-info);
-  --chart-4: var(--color-warning);
-  --chart-5: var(--color-danger);
-  --radius: 0.5rem;
-
-  --sidebar: var(--color-surface);
-  --sidebar-foreground: var(--color-text-primary);
-  --sidebar-primary: var(--color-accent);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--color-surface-elevated);
-  --sidebar-accent-foreground: var(--color-text-primary);
-  --sidebar-border: var(--color-divider);
-  --sidebar-ring: var(--color-accent);
-
-  --success: var(--color-success);
-}
-
-.dark {
-  color-scheme: dark;
-}
-
-@theme inline {
+  /* Font families. */
   --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
-  --font-mono: "JetBrains Mono", "Courier New", monospace;
-  --font-display: "Playfair Display", "Inter Variable", serif;
-  --font-wordmark:
-    "NuixyberNext", "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
+  /* Display alias reserved for explicit logo/wordmark surfaces only.
+     `font-display` utility is forbidden inside type-ramp callers under
+     `web/src/**` and `packages/ui/src/**` (lint enforced; see
+     `lint-plugins/compozy-design-system.mjs`).
+     Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
+  --font-display: var(--font-sans);
 
+  /* Weight ladder. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Type scale shared with both web and site surfaces. */
   --text-item-title: 0.9375rem;
   --text-item-title--line-height: 1.375rem;
   --text-small-body: 0.8125rem;
   --text-small-body--line-height: 1.125rem;
   --text-badge: 0.625rem;
   --text-badge--line-height: 0.75rem;
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1rem;
+  --text-display-2xl: 1.75rem;
+  --text-display-2xl--line-height: 1;
+  --text-site-lead: 1.1875rem;
+  --text-site-lead--line-height: 1.5;
+  --text-micro: 0.5625rem;
+  --text-micro--line-height: 0.75rem;
+  --text-inline-code: 0.9em;
+  --text-accent-glyph: 0.85em;
+  --text-ui-title-lg: 1.35rem;
+
+  /* Type ladder additions. */
+  --text-detail-h1: 1.4rem;
+  --text-detail-h1--line-height: 1.25;
+  --text-empty-h1: 1.125rem;
+  --text-modal-title: 0.84375rem;
+  --text-section-head: 0.7rem;
+  --text-form-input: 0.78125rem;
+  --text-form-label: 0.75rem;
+  --text-form-hint: 0.71875rem;
+  --text-form-required: 0.625rem;
+  --text-metric-value: 1.375rem;
+  --text-kpi-value: 1.75rem;
+  --text-kpi-value--line-height: 1.05;
+  --text-agent-metric: 1rem;
+  --text-rail-avatar: 0.71875rem;
+  --text-ws-name: 0.8125rem;
+  --text-mono-id: 0.65625rem;
+  --text-pill-group-badge: 0.5625rem;
+  /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
+     code-block content, tool-call title, topbar title). One step above
+     `--text-small-body` (13 px), one step below `--text-item-title` (15 px). */
+  --text-card-title: 0.875rem;
+  --text-card-title--line-height: 1.4;
+
+  /* Leading. */
+  --leading-small-body: var(--text-small-body--line-height);
+  /* Prose-body leading for description-card and chat-tool-card markdown
+     surfaces. Compact-prose surfaces (chat message body, code-block)
+     use Tailwind's `leading-relaxed` (1.625). */
+  --leading-prose: 1.7;
+
+  /* Tracking ladder. */
   --tracking-mono: 0.06em;
+  --tracking-detail-h1: -0.028em;
+  --tracking-empty-h1: -0.022em;
+  --tracking-modal-title: -0.012em;
+  --tracking-section-head: -0.008em;
+  --tracking-tight: -0.014em;
+  --tracking-eyebrow: -0.005em;
+  --tracking-mono-id: 0;
+  /* Body baseline tracking — matches the `letter-spacing: -0.006em` set on
+     `body` (see `:root` baseline below). Used by tabs label and any UI
+     row that needs to read against body type without optical drift. */
+  --tracking-body: -0.006em;
 
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --color-success: var(--success);
+  /* Radii — base + ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
+  --radius: 6px;
+  --radius-xxs: 3px;
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-pill: 9999px;
+  --radius-chip: 5px;
+  --radius-mono-badge: 4px;
+  --radius-icon-well: 10px;
 
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 4px);
-  --radius-xl: calc(var(--radius) + 12px);
+  /* Motion — single fast tier + slow tier; one ease curve. */
+  --duration-fast: 100ms;
+  --duration-base: 140ms;
+  --duration-slow: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Shadows — whitelist. Every other surface stays flat. */
+  --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+  --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  /* Focus / hairline rings — the flat-depth replacement for borders on
+     form controls and surfaces. `*-soft` uses `--color-line-soft` (3 %)
+     for menu / popover surfaces; the default uses `--color-line-strong`
+     (9 %) for active form controls. Inset variants live alongside for
+     surfaces where the ring must paint inside the element bounds (cards,
+     accordions, items). */
+  --shadow-focus-ring: 0 0 0 1px var(--color-line-strong);
+  --shadow-focus-ring-soft: 0 0 0 1px var(--color-line-soft);
+  --shadow-focus-ring-inset: inset 0 0 0 1px var(--color-line-strong);
+  --shadow-focus-ring-inset-soft: inset 0 0 0 1px var(--color-line-soft);
+
+  /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
+     `--size-*` namespaces so Tailwind generates bare utilities (`h-button-default`,
+     `size-button-icon-xs`, `w-modal-md`, etc.). Per L-023 these scale tokens stay
+     in `@theme`; only truly bespoke component-internal values (pill-group / modal
+     widths used pre-L-024) live in `:root` with explicit lint allowlist entries. */
+
+  /* Button geometry — pair with text-button (12 px) / text-eyebrow (11 px). */
+  --height-button-xs: 22px;
+  --height-button-sm: 22px;
+  --height-button-default: 26px;
+  --height-button-lg: 30px;
+  --size-button-icon-xs: 22px;
+  --size-button-icon-sm: 22px;
+  --size-button-icon-default: 26px;
+  --size-button-icon-lg: 30px;
+
+  /* Switch geometry — default vs sm. */
+  --height-switch-default: 18px;
+  --width-switch-default: 32px;
+  --height-switch-sm: 14px;
+  --width-switch-sm: 24px;
+
+  /* Pill geometry — xs / sm / md heights. */
+  --height-pill-xs: 17px;
+  --height-pill-sm: 19px;
+  --height-pill-md: 22px;
+
+  /* Tabs list + count chip + tab underline. */
+  --height-tabs-list: 26px;
+  --size-tab-underline: 1.5px;
+  --size-count-chip: 19px;
+  --size-count-chip-sm: 17px;
+
+  /* Empty / menu primitives. */
+  --size-empty-icon: 38px;
+  --width-menu-sub-min: 96px;
+
+  /* Forms / dialog body sizing. */
+  --height-form-textarea: 136px;
+  --height-editor-footer: 52px;
+  --width-detail-inspector-inline: 320px;
+
+  /* Table cell width ladder — recurring max-width cells across detail panels. */
+  --width-table-cell-sm: 224px;
+  --width-table-cell-md: 288px;
+  --width-table-cell-lg: 360px;
+
+  /* Layout ladder. */
+  --width-content-max: 1320px;
+  --width-message-bubble-max: 640px;
+  --width-wire-card-max: 520px;
+  --width-search-input-min: 220px;
+  --width-filters-menu-default: 200px;
+  --width-filters-menu-stack: 220px;
+
+  /* Modal height ceilings — wizard / editor / tall form sheets. */
+  --height-modal-md: 760px;
+  --height-modal-tall: 900px;
+  --height-modal-wizard: 960px;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Non-utility runtime var: consumed inside `backdrop-filter: blur(...)` on
+     dialog/sheet scrims; no Tailwind namespace matches `backdrop-filter`
+     directly so this stays out of `@theme`. */
+  --overlay-blur: 3px;
+
+  /* Component-internal sizing — consumed via arbitrary syntax inside the
+     owning component only. Kept out of `@theme` to prevent third-party
+     tooling from inferring generic 2px / 720px / 1.5rem matches against
+     these names. Names mirror the callsites verbatim. */
+  --width-modal-sm: 560px;
+  --width-modal-md: 720px;
+  --width-modal-lg: 880px;
+  --size-catalog-logo: 1.5rem;
+  --size-provider-logo-well: 2.5rem;
+  --size-pill-group-badge: 14px;
+  --height-pill-group-segment-md: 24px;
+  --height-pill-group-segment-sm: 20px;
+  --space-pill-group-track-gap: 1px;
+  --space-pill-group-track-padding: 2px;
+  --space-pill-group-segment-sm-x: 8px;
+  --space-pill-group-segment-md-x: 10px;
+  --space-pill-group-badge-x: 4px;
+
+  /* Switch thumb inset — consumed inside calc() inside arbitrary translate
+     value (`translate-x-[calc(100%-var(--space-switch-thumb-inset))]`).
+     Kept out of @theme because Tailwind has no `--space-*` namespace that
+     would generate a useful utility for this calc context. */
+  --space-switch-thumb-inset: 2px;
+}
+
+.dark {
+  color-scheme: dark;
 }
 
 @layer base {
@@ -193,7 +375,36 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    /* Body baseline / §9. */
+    font-size: 0.84375rem;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    font-feature-settings: "cv01", "ss03", "cv11";
     text-rendering: optimizeLegibility;
+  }
+
+  /* JetBrains Mono override:
+     Inter is calibrated for grayscale (`antialiased`) and its OpenType
+     features (cv01/ss03/cv11) are inherited from body. Both rules thin and
+     distort JetBrains Mono on macOS Chrome/Safari, where its narrower
+     strokes pay a much higher visual penalty than Inter's. Restore subpixel
+     rendering and reset font-feature-settings so the variable wght axis is
+     read at full stroke weight on every mono surface. */
+  .font-mono,
+  [class*="font-mono"],
+  code,
+  kbd,
+  samp,
+  pre {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+    font-feature-settings: normal;
+  }
+
+  /* Text selection — warm accent at 10%. */
+  ::selection {
+    background: var(--color-accent-tint);
+    color: var(--color-fg-strong);
   }
 }
 
@@ -210,6 +421,18 @@
   animation: shimmer 2s ease-in-out infinite;
 }
 
+/*
+ * Single eyebrow utility / §11, lesson L-022.
+ * Inter UC 11/600/-0.005em is the only eyebrow contract. The previous
+ * `eyebrow-badge` (10 px) and `eyebrow-micro` (9 px) variants are deleted
+ * (greenfield rule, SD-002 — no transitional alias). Consumers render
+ * through `<Eyebrow>` (`@agh/ui`) or this utility on structural HTML.
+ */
+@utility eyebrow {
+  @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+}
+
 @keyframes typing-bounce {
   0%,
   60%,
@@ -220,5 +443,23 @@
   30% {
     opacity: 1;
     transform: translateY(-2px);
+  }
+}
+
+/*
+ * Reduced-motion guard.
+ * Applies to every animation and transition, not only `--duration-*` token
+ * references. Required because `tw-animate-css` and the `shimmer` /
+ * `typing-bounce` keyframes hardcode their durations and would otherwise
+ * keep playing. `0.001ms` (not 0) preserves CSS animation-callback timing
+ * (libraries relying on `animationend`).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
+    transition-duration: 0.001ms !important;
   }
 }

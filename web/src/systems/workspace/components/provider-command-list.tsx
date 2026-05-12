@@ -1,6 +1,13 @@
 import { useMemo, type ReactNode } from "react";
 
-import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup } from "@agh/ui";
+import {
+  CommandEmpty,
+  CommandItem,
+  CommandList,
+  CommandSelectGroup,
+  Eyebrow,
+  KindIcon,
+} from "@agh/ui";
 
 import type { SessionProviderOption } from "../types";
 
@@ -90,12 +97,16 @@ export function ProviderCommandList({
                 }
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-sm text-(--color-text-primary)">
+                  <KindIcon
+                    className="shrink-0"
+                    kind={option.runtime_provider ?? option.name}
+                    size="xs"
+                    tone="muted"
+                  />
+                  <span className="truncate text-sm text-fg">
                     {option.display_name?.trim() || option.name}
                   </span>
-                  <span className="font-mono text-xs uppercase tracking-wide text-(--color-text-secondary)">
-                    {option.harness ?? "acp"}
-                  </span>
+                  <Eyebrow className="text-muted">{option.harness ?? "acp"}</Eyebrow>
                 </div>
               </CommandItem>
             );

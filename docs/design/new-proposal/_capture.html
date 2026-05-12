@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AGH proposal · capture wrapper</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#131211;color:#ececef;font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif}
+  iframe{display:block;width:100vw;height:100vh;border:0;background:#131211}
+</style>
+</head>
+<body>
+<iframe id="frame"></iframe>
+<script>
+// Read ?view=list|kanban|dashboard|inbox|new|detail|empty and forward via postMessage / hash injection.
+// The proposal app does not parse URL itself, so we boot it then inject state by simulating Tweaks clicks.
+const params = new URLSearchParams(location.search);
+const target = params.get('view') || 'list';
+const tplDefault = params.get('tpl') || 'one_shot';
+const taskId = params.get('task') || 'tsk-7f3a26';
+const accent = params.get('accent') || 'orange';
+const url = 'agh-refined-7.html#' + Math.random().toString(36).slice(2);
+const frame = document.getElementById('frame');
+frame.src = url;
+frame.addEventListener('load', () => {
+  const w = frame.contentWindow;
+  function tryDispatch(retries) {
+    if (retries <= 0) return;
+    try {
+      // Use the React fiber backdoor exposed via global views to flip state.
+      // The Tweaks panel uses setView/setMode/setAccent. We can directly re-render by clicking buttons.
+      const doc = w.document;
+      const tweaks = doc.querySelector('.tweaks');
+      if (!tweaks) return setTimeout(() => tryDispatch(retries - 1), 80);
+      // dispatch view
+      const buttons = Array.from(tweaks.querySelectorAll('button'));
+      if (target === 'empty') {
+        // click "list" + Empty toggle in topbar (No tasks button)
+        const v = buttons.find(b => b.textContent.trim().toLowerCase() === 'l');
+        if (v) v.click();
+        // hit Empty in topbar
+        setTimeout(() => {
+          const empty = doc.querySelector('button[aria-label="Toggle empty"], .topbar button.btn--ghost.btn--sm');
+          // fallback: click button labeled Empty
+          const emptyBtn = Array.from(doc.querySelectorAll('button')).find(b => b.textContent.trim() === 'Empty');
+          if (emptyBtn) emptyBtn.click();
+        }, 150);
+      } else if (target === 'new') {
+        const v = buttons.find(b => b.textContent.trim().toLowerCase() === 'l');
+        if (v) v.click();
+        setTimeout(() => {
+          const newBtn = Array.from(doc.querySelectorAll('button')).find(b => /^\+?\s*New task$/.test(b.textContent.trim()));
+          if (newBtn) newBtn.click();
+        }, 150);
+      } else if (target === 'detail') {
+        // Click first task row
+        const v = buttons.find(b => b.textContent.trim().toLowerCase() === 'l');
+        if (v) v.click();
+        setTimeout(() => {
+          const row = doc.querySelector('.task-row, button.task-row, [data-task-id]');
+          if (row) row.click();
+        }, 150);
+      } else {
+        const map = { list: 'l', kanban: 'k', dashboard: 'd', inbox: 'i' };
+        const ch = map[target];
+        if (!ch) return;
+        const v = buttons.find(b => b.textContent.trim().toLowerCase() === ch);
+        if (v) v.click();
+      }
+      // hide Tweaks panel itself for cleaner screenshots
+      setTimeout(() => {
+        const t = doc.querySelector('.tweaks');
+        if (t) t.style.display = 'none';
+        document.title = 'capture-ready:' + target;
+      }, 400);
+    } catch (e) {
+      setTimeout(() => tryDispatch(retries - 1), 80);
+    }
+  }
+  setTimeout(() => tryDispatch(60), 100);
+});
+</script>
+</body>
+</html>

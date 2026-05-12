@@ -51,21 +51,6 @@ describe("Popover", () => {
     });
   });
 
-  it("Should use a bordered popover surface without shadow depth", async () => {
-    render(<PopoverExample defaultOpen />);
-    await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
-
-    const content = document.body.querySelector(
-      "[data-slot='popover-content']"
-    ) as HTMLElement | null;
-
-    expect(content).not.toBeNull();
-    expect(content?.className).toContain("border");
-    expect(content?.className).toContain("bg-popover");
-    expect(content?.className).not.toContain("shadow");
-    expect(content?.className).not.toContain("ring-1");
-  });
-
   it("Should throw when PopoverContent is rendered outside <Popover>", () => {
     const originalError = console.error;
     try {

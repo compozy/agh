@@ -34,12 +34,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Comfortable density used by the first-run onboarding rail.
+ * Comfortable size used by the first-run onboarding rail.
  */
 export const Comfortable: Story = {
   args: {},
   render: () => (
-    <OptionCard density="comfortable" data-testid="option-card-comfortable">
+    <OptionCard size="comfortable" data-testid="option-card-comfortable">
       <OptionCard.Header eyebrow="Global" right={<Pill tone="accent">HOME</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="accent">
@@ -54,21 +54,19 @@ export const Comfortable: Story = {
         </OptionCard.Content>
       </OptionCard.Body>
       <OptionCard.Action>
-        <Button className="w-full justify-between text-(--color-accent-ink)">
-          Use this workspace
-        </Button>
+        <Button className="w-full justify-between text-accent-ink">Use this workspace</Button>
       </OptionCard.Action>
     </OptionCard>
   ),
 };
 
 /**
- * Compact density used inside the ruled workspace setup dialog.
+ * Compact size used inside the ruled workspace setup dialog.
  */
 export const Compact: Story = {
   args: {},
   render: () => (
-    <OptionCard density="compact" data-testid="option-card-compact">
+    <OptionCard size="compact" data-testid="option-card-compact">
       <OptionCard.Header eyebrow="Path" right={<Pill>MANUAL</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="neutral">
@@ -82,7 +80,7 @@ export const Compact: Story = {
         </OptionCard.Content>
       </OptionCard.Body>
       <OptionCard.Action>
-        <Button className="w-full justify-between text-(--color-accent-ink)">Register path</Button>
+        <Button className="w-full justify-between text-accent-ink">Register path</Button>
       </OptionCard.Action>
     </OptionCard>
   ),

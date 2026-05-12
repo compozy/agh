@@ -1,23 +1,25 @@
-import type * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
 
 import { cn } from "../lib/utils";
 
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "group/alert relative grid w-full gap-0.5 rounded-lg border px-2.5 py-2 text-left text-small-body has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-card text-card-foreground",
-        destructive:
-          "border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)] *:data-[slot=alert-description]:text-[color:var(--color-danger)]/90",
+        default: "bg-canvas-soft border-line text-fg",
+        neutral:
+          "border-neutral/20 bg-neutral-tint text-fg *:data-[slot=alert-description]:text-muted",
+        danger:
+          "border-danger/20 bg-danger-tint text-danger *:data-[slot=alert-description]:text-danger/85",
         warning:
-          "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)] *:data-[slot=alert-description]:text-[color:var(--color-warning)]/90",
+          "border-warning/20 bg-warning-tint text-warning *:data-[slot=alert-description]:text-warning/85",
         success:
-          "border-[color:var(--color-success)]/40 bg-[color:var(--color-success-tint)] text-[color:var(--color-success)] *:data-[slot=alert-description]:text-[color:var(--color-success)]/90",
-        info: "border-[color:var(--color-info)]/40 bg-[color:var(--color-info-tint)] text-[color:var(--color-info)] *:data-[slot=alert-description]:text-[color:var(--color-info)]/90",
+          "border-success/20 bg-success-tint text-success *:data-[slot=alert-description]:text-success/85",
+        info: "border-info/20 bg-info-tint text-info *:data-[slot=alert-description]:text-info/85",
         accent:
-          "border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)] *:data-[slot=alert-description]:text-[color:var(--color-accent)]/90",
+          "border-accent/20 bg-accent-tint text-accent *:data-[slot=alert-description]:text-accent/85",
       },
     },
     defaultVariants: {
@@ -45,7 +47,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
+        "font-medium tracking-eyebrow group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg-strong",
         className
       )}
       {...props}
@@ -58,7 +60,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="alert-description"
       className={cn(
-        "text-sm text-balance md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        "text-small-body text-balance md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg-strong [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
@@ -77,7 +79,7 @@ function AlertMeta({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-meta"
       className={cn(
-        "mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-badge uppercase tracking-mono text-current/75 group-has-[>svg]/alert:col-start-2",
+        "eyebrow mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-current/75 group-has-[>svg]/alert:col-start-2",
         className
       )}
       {...props}
@@ -98,5 +100,5 @@ function AlertActions({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { Alert, AlertTitle, AlertDescription, AlertAction, AlertMeta, AlertActions, alertVariants };
+export { Alert, AlertAction, AlertActions, AlertDescription, AlertMeta, AlertTitle, alertVariants };
 export type { AlertProps };

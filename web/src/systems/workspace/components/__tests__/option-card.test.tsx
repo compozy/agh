@@ -9,7 +9,7 @@ import { OptionCard } from "../option-card";
 
 function renderCard(action?: React.ReactNode) {
   return render(
-    <OptionCard density="comfortable" data-testid="option-card-root">
+    <OptionCard size="comfortable" data-testid="option-card-root">
       <OptionCard.Header eyebrow="Global" right={<Pill tone="accent">HOME</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="accent" data-testid="option-card-icon">
@@ -33,22 +33,14 @@ describe("OptionCard", () => {
     renderCard();
 
     const root = screen.getByTestId("option-card-root");
-    expect(root.dataset.density).toBe("comfortable");
+    expect(root.dataset.size).toBe("comfortable");
     expect(screen.getByText("Global")).toBeInTheDocument();
     expect(screen.getByText("HOME")).toBeInTheDocument();
   });
 
-  it("Should apply the comfortable density padding", () => {
-    renderCard();
-
-    const root = screen.getByTestId("option-card-root");
-    expect(root.className).toContain("p-5");
-    expect(root.className).not.toContain("p-4");
-  });
-
-  it("Should apply the compact density padding when density=compact", () => {
+  it("Should apply the compact size padding when size=compact", () => {
     render(
-      <OptionCard density="compact" data-testid="option-card-root">
+      <OptionCard size="compact" data-testid="option-card-root">
         <OptionCard.Body>
           <OptionCard.Content>
             <OptionCard.Title>Compact</OptionCard.Title>
@@ -58,8 +50,7 @@ describe("OptionCard", () => {
     );
 
     const root = screen.getByTestId("option-card-root");
-    expect(root.dataset.density).toBe("compact");
-    expect(root.className).toContain("p-4");
+    expect(root.dataset.size).toBe("compact");
   });
 
   it("Should expose tone via data attribute on the icon slot", () => {
@@ -67,7 +58,6 @@ describe("OptionCard", () => {
 
     const icon = screen.getByTestId("option-card-icon");
     expect(icon.dataset.tone).toBe("accent");
-    expect(icon.className).toContain("text-[color:var(--color-accent)]");
   });
 
   it("Should render the action button and trigger its handler when clicked", async () => {

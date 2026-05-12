@@ -575,6 +575,15 @@ describe("fetchSessionTranscript", () => {
     await expectFetchRequest({ path: "/api/sessions/sess-001/transcript" });
   });
 
+  it("returns an empty transcript without treating it as an invalid AI SDK message list", async () => {
+    mockJsonResponse({ messages: [] });
+
+    const result = await fetchSessionTranscript("sess-001");
+
+    expect(result).toEqual([]);
+    await expectFetchRequest({ path: "/api/sessions/sess-001/transcript" });
+  });
+
   it("throws 404 for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 

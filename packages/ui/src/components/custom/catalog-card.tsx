@@ -6,6 +6,13 @@ import { cn } from "../../lib/utils";
 
 type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "danger" | "info";
 
+/**
+ * Logo well size,
+ * `default` — 24 × 24 (`--size-catalog-logo`); browse/marketplace surfaces.
+ * `lg` — 40 × 40 (`--size-provider-logo-well`); configured/connected provider surfaces.
+ */
+type CatalogCardLogoSize = "default" | "lg";
+
 interface CatalogCardProps extends React.ComponentProps<"article"> {
   selected?: boolean;
   actionable?: boolean;
@@ -13,12 +20,18 @@ interface CatalogCardProps extends React.ComponentProps<"article"> {
 
 interface CatalogCardLogoProps extends React.ComponentProps<"span"> {
   tone?: CatalogCardTone;
+  size?: CatalogCardLogoSize;
 }
 
 type CatalogCardTitleProps = React.ComponentProps<"h3">;
 type CatalogCardDescriptionProps = React.ComponentProps<"p">;
 type CatalogCardMetaProps = React.ComponentProps<"div">;
 type CatalogCardActionsProps = React.ComponentProps<"div">;
+
+const LOGO_SIZE_CLASS: Record<CatalogCardLogoSize, string> = {
+  default: "size-(--size-catalog-logo)",
+  lg: "size-(--size-provider-logo-well)",
+};
 
 function CatalogCard({
   selected = false,
@@ -32,10 +45,9 @@ function CatalogCard({
       data-selected={selected ? "true" : undefined}
       data-actionable={actionable ? "true" : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-[var(--radius-diagram)] border border-(--color-divider) bg-(--color-surface) p-3 text-(--color-text-primary) transition-colors",
-        actionable &&
-          "hover:border-(--color-accent) hover:bg-(--color-hover) focus-within:border-(--color-accent)",
-        selected && "border-(--color-accent) bg-(--color-surface-panel)",
+        "flex min-w-0 flex-col gap-3 rounded-lg bg-canvas-soft p-4 text-fg transition-colors duration-base ease-out",
+        actionable && "hover:bg-elevated",
+        selected && "bg-surface-glaze shadow-focus-ring-inset",
         className
       )}
       {...props}
@@ -43,14 +55,21 @@ function CatalogCard({
   );
 }
 
-function CatalogCardLogo({ tone = "accent", className, ...props }: CatalogCardLogoProps) {
+function CatalogCardLogo({
+  tone = "accent",
+  size = "default",
+  className,
+  ...props
+}: CatalogCardLogoProps) {
   return (
     <span
       aria-hidden="true"
       data-slot="catalog-card-logo"
       data-tone={tone}
+      data-size={size}
       className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-diagram)] bg-(--color-surface-elevated)",
+        "inline-flex shrink-0 items-center justify-center rounded bg-surface-glaze",
+        LOGO_SIZE_CLASS[size],
         catalogCardLogoToneClass(tone),
         className
       )}
@@ -66,7 +85,7 @@ function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
       aria-level={3}
       data-slot="catalog-card-title"
       className={cn(
-        "min-w-0 truncate text-small-body font-medium text-(--color-text-primary)",
+        "min-w-0 truncate text-small-body font-medium tracking-modal-title text-fg-strong",
         className
       )}
       {...props}
@@ -78,7 +97,7 @@ function CatalogCardDescription({ className, ...props }: CatalogCardDescriptionP
   return (
     <p
       data-slot="catalog-card-description"
-      className={cn("text-small-body leading-6 text-(--color-text-secondary)", className)}
+      className={cn("text-small-body leading-6 text-muted", className)}
       {...props}
     />
   );
@@ -88,10 +107,7 @@ function CatalogCardMeta({ className, ...props }: CatalogCardMetaProps) {
   return (
     <div
       data-slot="catalog-card-meta"
-      className={cn(
-        "flex flex-wrap items-center gap-2 font-mono text-badge uppercase tracking-badge text-(--color-text-tertiary)",
-        className
-      )}
+      className={cn("eyebrow flex flex-wrap items-center gap-2 text-subtle", className)}
       {...props}
     />
   );
@@ -102,7 +118,7 @@ function CatalogCardActions({ className, ...props }: CatalogCardActionsProps) {
     <div
       data-slot="catalog-card-actions"
       className={cn(
-        "mt-auto flex flex-wrap items-center gap-2 border-t border-(--color-divider) pt-3",
+        "mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-3",
         className
       )}
       {...props}
@@ -113,17 +129,17 @@ function CatalogCardActions({ className, ...props }: CatalogCardActionsProps) {
 function catalogCardLogoToneClass(tone: CatalogCardTone): string {
   switch (tone) {
     case "success":
-      return "text-(--color-success)";
+      return "text-success";
     case "warning":
-      return "text-(--color-warning)";
+      return "text-warning";
     case "danger":
-      return "text-(--color-danger)";
+      return "text-danger";
     case "info":
-      return "text-(--color-info)";
+      return "text-info";
     case "neutral":
-      return "text-(--color-text-secondary)";
+      return "text-muted";
     case "accent":
-      return "text-(--color-accent)";
+      return "text-accent";
   }
 }
 
@@ -140,6 +156,7 @@ export type {
   CatalogCardActionsProps,
   CatalogCardDescriptionProps,
   CatalogCardLogoProps,
+  CatalogCardLogoSize,
   CatalogCardMetaProps,
   CatalogCardProps,
   CatalogCardTitleProps,

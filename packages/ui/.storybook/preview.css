@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 @import "@agh/ui/tokens.css";
 @import "shadcn/tailwind.css";
 

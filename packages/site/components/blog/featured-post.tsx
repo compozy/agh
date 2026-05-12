@@ -8,8 +8,8 @@ import { BulletDivider } from "./divider";
 import { categoryLabel, formatReadingTime } from "./format";
 import { KindChip, type WireKind } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
-import { MonoEyebrow } from "./mono-eyebrow";
 import { blogPostCover } from "@/lib/blog";
+import { Eyebrow } from "@agh/ui";
 
 export interface FeaturedPostProps {
   post: Post;
@@ -21,23 +21,21 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
   const cover = resolveFeaturedCover(post);
 
   return (
-    <article className="grid gap-10 rounded-xl border border-(--color-divider) bg-(--color-surface) p-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-center">
+    <article className="grid gap-10 rounded-xl border border-line bg-canvas-soft p-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-center">
       <div className="order-2 lg:order-1">
         <div className="flex flex-wrap items-center gap-3">
           <MonoBadge tone="accent">FEATURED</MonoBadge>
           <BulletDivider />
-          <MonoEyebrow>{categoryLabel(post.category)}</MonoEyebrow>
+          <Eyebrow className="text-muted">{categoryLabel(post.category)}</Eyebrow>
           <BulletDivider />
           <DateStamp date={post.date} />
         </div>
-        <h2 className="mt-6 max-w-[20ch] font-display text-site-feature-title font-normal leading-none tracking-tight text-(--color-text-primary)">
+        <h2 className="mt-6 max-w-[20ch] font-display text-site-feature-title font-normal leading-none tracking-tight text-fg">
           <Link href={post.permalink} className="transition-colors hover:text-accent">
             {post.title}
           </Link>
         </h2>
-        <p className="mt-5 max-w-[54ch] text-base leading-7 text-(--color-text-secondary)">
-          {post.description}
-        </p>
+        <p className="mt-5 max-w-[54ch] text-base leading-7 text-muted">{post.description}</p>
         {post.kinds.length > 0 && (
           <div className="mt-7 flex flex-wrap items-center gap-2">
             {post.kinds.map(kind => (
@@ -48,7 +46,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
         <div className="mt-7 flex flex-wrap items-center gap-4">
           <AuthorMeta handle={post.author} initial={authorInitial} size="sm" />
           <BulletDivider />
-          <span className="inline-flex items-center gap-1.5 text-xs text-(--color-text-tertiary)">
+          <span className="inline-flex items-center gap-1.5 text-xs text-subtle">
             <Clock size={12} aria-hidden />
             <span>{readingTime} read</span>
           </span>
@@ -91,7 +89,7 @@ interface FeaturedCoverProps {
 
 function FeaturedCover({ src, alt, width, height }: FeaturedCoverProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-(--color-divider) bg-(--color-canvas-deep)">
+    <div className="overflow-hidden rounded-xl border border-line bg-rail">
       <Image
         src={src}
         alt={alt}
@@ -120,14 +118,12 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
     { kind: wire[3], from: "bravo", to: "*", t: "00:00.384" },
   ];
   return (
-    <div className="relative min-h-[340px] rounded-xl border border-(--color-divider) bg-(--color-canvas-deep) p-6">
+    <div className="relative min-h-85 rounded-xl border border-line bg-rail p-6">
       <div className="flex items-center justify-between">
-        <MonoEyebrow tracking="wide">agh-network/v0</MonoEyebrow>
+        <Eyebrow className="text-muted tracking-badge!">agh-network/v0</Eyebrow>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block size-1.5 rounded-full bg-accent" />
-          <MonoEyebrow tone="accent" tracking="wide">
-            ALPHA
-          </MonoEyebrow>
+          <Eyebrow className="text-accent tracking-badge!">ALPHA</Eyebrow>
         </span>
       </div>
       <div className="mt-10 grid grid-cols-3 gap-4">
@@ -138,36 +134,28 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
         ].map(node => (
           <div
             key={node.id}
-            className={`rounded-lg border bg-(--color-surface) px-3 py-2.5 ${
-              node.highlight ? "border-accent" : "border-(--color-divider)"
+            className={`rounded-lg border bg-canvas-soft px-3 py-2.5 ${
+              node.highlight ? "border-accent" : "border-line"
             }`}
           >
-            <p
-              className={`font-mono text-eyebrow ${
-                node.highlight ? "text-accent" : "text-(--color-text-primary)"
-              }`}
-            >
+            <p className={`font-mono text-eyebrow ${node.highlight ? "text-accent" : "text-fg"}`}>
               {node.id}
             </p>
-            <p className="mt-1 font-mono text-micro uppercase tracking-badge text-(--color-text-tertiary)">
-              {node.role}
-            </p>
+            <Eyebrow className="mt-1 text-subtle">{node.role}</Eyebrow>
           </div>
         ))}
       </div>
-      <div className="mt-6 rounded-lg border border-(--color-divider) bg-(--color-surface) px-3 py-2.5">
-        <div className="flex items-center justify-between border-b border-(--color-divider) pb-2">
-          <MonoEyebrow tracking="wide">WIRE TRACE</MonoEyebrow>
-          <MonoEyebrow tone="neutral">{trace.length} events</MonoEyebrow>
+      <div className="mt-6 rounded-lg border border-line bg-canvas-soft px-3 py-2.5">
+        <div className="flex items-center justify-between border-b border-line pb-2">
+          <Eyebrow className="text-muted tracking-badge!">WIRE TRACE</Eyebrow>
+          <Eyebrow className="text-muted">{trace.length} events</Eyebrow>
         </div>
         <ul className="mt-3 flex flex-col gap-2">
           {trace.map(row => (
             <li key={`${row.t}-${row.kind}`} className="flex items-center gap-3">
-              <span className="w-16 font-mono text-badge text-(--color-text-tertiary)">
-                {row.t}
-              </span>
+              <span className="w-16 font-mono text-badge text-subtle">{row.t}</span>
               <KindChip kind={row.kind} />
-              <span className="font-mono text-eyebrow text-(--color-text-secondary)">
+              <span className="font-mono text-eyebrow text-muted">
                 {row.from} <span className="text-accent">→</span> {row.to}
               </span>
             </li>

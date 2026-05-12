@@ -20,7 +20,7 @@ interface SettingsEditorDialogProps {
   open: boolean;
   mode: EditorMode;
   title: string;
-  slug: string;
+  slug?: string;
   description?: ReactNode;
   metadata?: ReactNode;
   error?: string | null;
@@ -50,24 +50,25 @@ function SettingsEditorDialog({
   children,
 }: SettingsEditorDialogProps) {
   const computedSaveLabel = saveLabel ?? (mode === "create" ? "Create" : "Save changes");
+  const testSlug = slug ?? "modal";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="grid w-[calc(100%-2rem)] max-w-xl gap-4 sm:max-w-2xl"
         unframed
-        data-testid={`settings-${slug}-editor`}
+        data-testid={`settings-${testSlug}-editor`}
         data-mode={mode}
       >
         <DialogHeader variant="ruled">
-          <DialogTitle data-testid={`settings-${slug}-editor-title`}>{title}</DialogTitle>
+          <DialogTitle data-testid={`settings-${testSlug}-editor-title`}>{title}</DialogTitle>
           {description ? (
-            <DialogDescription data-testid={`settings-${slug}-editor-description`}>
+            <DialogDescription data-testid={`settings-${testSlug}-editor-description`}>
               {description}
             </DialogDescription>
           ) : null}
           {metadata ? (
-            <div data-testid={`settings-${slug}-editor-metadata`} className="pt-1">
+            <div data-testid={`settings-${testSlug}-editor-metadata`} className="pt-1">
               {metadata}
             </div>
           ) : null}
@@ -75,21 +76,21 @@ function SettingsEditorDialog({
 
         <div
           className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto"
-          data-testid={`settings-${slug}-editor-body`}
+          data-testid={`settings-${testSlug}-editor-body`}
         >
           {children}
         </div>
 
-        <div className="flex flex-col gap-2" data-testid={`settings-${slug}-editor-feedback`}>
+        <div className="flex flex-col gap-2" data-testid={`settings-${testSlug}-editor-feedback`}>
           {error ? (
-            <Alert variant="destructive" data-testid={`settings-${slug}-editor-error`}>
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+            <Alert variant="danger" data-testid={`settings-${testSlug}-editor-error`}>
+              <AlertCircle className="mt-0.5 size-3 shrink-0" />
               <AlertDescription className="text-xs">{error}</AlertDescription>
             </Alert>
           ) : null}
           {!error && warnings && warnings.length > 0 ? (
-            <Alert variant="warning" data-testid={`settings-${slug}-editor-warnings`}>
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+            <Alert variant="warning" data-testid={`settings-${testSlug}-editor-warnings`}>
+              <AlertCircle className="mt-0.5 size-3 shrink-0" />
               <AlertDescription>
                 <ul className="flex flex-col gap-1 text-xs">
                   {warnings.map(warning => (
@@ -108,7 +109,7 @@ function SettingsEditorDialog({
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
-            data-testid={`settings-${slug}-editor-cancel`}
+            data-testid={`settings-${testSlug}-editor-cancel`}
           >
             Cancel
           </Button>
@@ -118,9 +119,9 @@ function SettingsEditorDialog({
             size="sm"
             onClick={onSave}
             disabled={!canSave || isSaving}
-            data-testid={`settings-${slug}-editor-save`}
+            data-testid={`settings-${testSlug}-editor-save`}
           >
-            {isSaving ? <Spinner className="size-3.5" /> : null}
+            {isSaving ? <Spinner className="size-3" /> : null}
             {isSaving ? "Saving..." : computedSaveLabel}
           </Button>
         </DialogFooter>

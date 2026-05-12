@@ -65,7 +65,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 - **Claude Opus (`xhigh`)** pressure-tests TechSpecs in user-directed cross-LLM review rounds, reviews architecture decisions, writes/reviews React/E2E frontend code.
 - **`gpt-5.4-mini` with `reasoning_effort=high`** runs as parallel subagents for breadth (codebase mapping, competitor analysis, conversation-log auditing) when explicitly delegated.
 - Do not substitute models without explicit user approval.
-- Subagents are read-only — they return analysis to the parent agent, and the parent writes any required files.
+- Subagents default to read-only — they return analysis to the parent agent, and the parent writes any required files. They may write/edit/commit only when the parent's prompt explicitly delegates that action; otherwise the parent authors the change. Skills with stricter contracts (e.g. `cy-research-competitors`, `cy-spec-peer-review`, `cy-impl-peer-review`) keep their hard read-only rule for their dispatch lane.
 
 **Source:** Direct quotes across many sessions; codified in `feedback_multi_llm_pipeline.md` (user memory).
 
@@ -96,7 +96,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 - Record reproduction in the plan: timestamp, exact command, observed output.
 - Distinguish symptom from root cause in writing.
 - Fix at root cause; don't patch symptoms.
-- Add focused regression coverage at the correct layer.
+- Add focused regression coverage at the correct layer, or record why an existing gate already owns the invariant.
 - Re-run the narrow reproduction, the impacted scenario, and relevant package tests.
 
 **Source:** `.codex/plans/` (consistent forensic frame in `child-workgroup-activation.md`, `session-stop-hang.md`, `dashboard-xterm-visibility.md`, `prompt-stream-stall.md`); also encoded in `real-scenario-qa` and `cy-fix-reviews`.

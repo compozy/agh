@@ -8,12 +8,11 @@ import {
   Outlet,
   useNavigate,
 } from "@tanstack/react-router";
-import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
-import { TasksDetailHeader, TasksListPanel } from "@/systems/tasks";
+import { TasksDetailHeader, TasksListSurface } from "@/systems/tasks";
 import type { TaskDetailView, TaskListItem } from "@/systems/tasks";
 
 function buildTestRouter(initialUrl: string) {
@@ -234,20 +233,25 @@ function buildSelectionRouter(initialUrl: string) {
   return { router, detailRoute };
 
   function TasksListRouteComponent() {
-    const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [query, setQuery] = useState("");
     const navigate = useNavigate({ from: "/tasks" });
 
     return (
       <div data-testid="tasks-shell">
-        <TasksListPanel
-          onSearchChange={setQuery}
+        <TasksListSurface
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onScopeChange={() => {}}
           onSelectTask={taskId => {
-            setSelectedId(taskId);
             void navigate({ params: { id: taskId }, to: "/tasks/$id" });
           }}
-          searchQuery={query}
-          selectedTaskId={selectedId}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          scopeFilter="all"
+          sortBy="recent"
+          statusFilter={null}
           tasks={FIXTURE_TASKS}
           totalCount={FIXTURE_TASKS.length}
         />
@@ -273,7 +277,7 @@ describe("tasks router selection (integration)", () => {
     const { router } = buildSelectionRouter("/tasks");
     render(<RouterProvider router={router} />);
 
-    await waitFor(() => expect(screen.getByTestId("tasks-list-panel")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument());
     expect(router.state.location.pathname).toBe("/tasks");
 
     // Click the second task row.

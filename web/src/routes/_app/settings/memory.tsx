@@ -1,21 +1,33 @@
-import { AlertCircle, Loader2, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, Brain, Play } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, PageShell, Section, Switch } from "@agh/ui";
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
 import {
   SettingsDecimalInput,
   SettingsFieldRow,
   SettingsNumberInput,
-  SettingsPageActions,
-  SettingsRestartBanner,
   SettingsSaveBar,
-  SettingsStatusLine,
 } from "@/systems/settings/components";
+import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import type { TopbarRouteContext } from "@/types/topbar";
+import {
+  Button,
+  Input,
+  PageShell,
+  RestartBanner,
+  Section,
+  Spinner,
+  StatusLineTopbarSlot,
+  Switch,
+  useTopbarSlot,
+} from "@agh/ui";
 
 export const Route = createFileRoute("/_app/settings/memory")({
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { title: "Memory settings", icon: Brain },
+  }),
   component: MemorySettingsPage,
 });
 
@@ -43,6 +55,38 @@ export function MemorySettingsPage() {
     () => Object.values(validationErrors).some(message => message !== null),
     [validationErrors]
   );
+  const healthForSlot = page.envelope?.health;
+  useTopbarSlot({
+    tabs: healthForSlot ? (
+      <StatusLineTopbarSlot
+        data-testid={`${TEST_PREFIX}-status-line`}
+        status={healthForSlot.available ? "connected" : "error"}
+        items={[
+          {
+            key: "files",
+            value: `${healthForSlot.file_count} memory files`,
+            tone: "neutral",
+          },
+          {
+            key: "last",
+            value: (
+              <span data-testid={`${TEST_PREFIX}-last-consolidated`}>
+                {healthForSlot.last_consolidated_at
+                  ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
+                  : "no dream runs yet"}
+              </span>
+            ),
+            tone: "neutral",
+          },
+          {
+            key: "dream-state",
+            value: healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled",
+            tone: "neutral",
+          },
+        ]}
+      />
+    ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -50,7 +94,7 @@ export function MemorySettingsPage() {
         className="flex flex-1 items-center justify-center"
         data-testid={`${TEST_PREFIX}-loading`}
       >
-        <Loader2 className="size-5 animate-spin text-(--color-text-tertiary)" />
+        <Spinner className="size-5 text-subtle" />
       </div>
     );
   }
@@ -59,8 +103,8 @@ export function MemorySettingsPage() {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid={`${TEST_PREFIX}-error`}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-(--color-danger)" />
-          <p className="text-sm text-(--color-text-tertiary)">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">
             {page.error?.message ?? "Failed to load memory settings"}
           </p>
           <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
@@ -72,33 +116,15 @@ export function MemorySettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
-  const health = envelope.health;
   const dreamAvailable =
     envelope.actions.consolidate.available && envelope.health.dream_enabled && draft.dream.enabled;
+
+  const bannerProps = restartBannerPropsFor("memory", restart);
 
   return (
     <PageShell
       slug="memory"
-      title="Memory"
-      statusLine={
-        <SettingsStatusLine
-          data-testid={`${TEST_PREFIX}-status-line`}
-          status={health.available ? "connected" : "error"}
-          items={[
-            <span key="files">{health.file_count} memory files</span>,
-            <span key="last" data-testid={`${TEST_PREFIX}-last-consolidated`}>
-              {health.last_consolidated_at
-                ? `last dream ${formatHealthTimestamp(health.last_consolidated_at)}`
-                : "no dream runs yet"}
-            </span>,
-            <span key="dream-state">
-              {health.dream_enabled ? "dreaming enabled" : "dreaming disabled"}
-            </span>,
-          ]}
-        />
-      }
-      actions={<SettingsPageActions slug="memory" restart={restart} />}
-      banner={<SettingsRestartBanner slug="memory" restart={restart} />}
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
       footer={
         <SettingsSaveBar
           slug="memory"
@@ -1365,11 +1391,7 @@ function renderDreamSection({
           disabled={!dreamAvailable || dreamPending}
           onClick={onTriggerDream}
         >
-          {dreamPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Play className="size-3.5" />
-          )}
+          {dreamPending ? <Spinner className="size-3" /> : <Play className="size-3" />}
           Trigger dream
         </Button>
       }
@@ -1768,10 +1790,7 @@ function renderDreamSection({
         }
       />
       {actionMessage ? (
-        <p
-          className="text-xs text-(--color-text-tertiary)"
-          data-testid={`${TEST_PREFIX}-action-message`}
-        >
+        <p className="text-xs text-subtle" data-testid={`${TEST_PREFIX}-action-message`}>
           {actionMessage}
         </p>
       ) : null}

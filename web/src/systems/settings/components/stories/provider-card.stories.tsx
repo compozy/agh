@@ -92,7 +92,7 @@ export const Logos: Story = {
       {["claude", "codex", "gemini", "opencode", "hermes"].map(provider => (
         <span
           key={provider}
-          className="flex size-12 items-center justify-center rounded-icon-well border border-(--color-divider) bg-(--color-surface-elevated)"
+          className="flex size-12 items-center justify-center rounded-icon-well border border-line bg-elevated"
           title={provider}
         >
           <ProviderLogo provider={provider} />

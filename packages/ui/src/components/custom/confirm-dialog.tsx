@@ -52,10 +52,10 @@ interface ConfirmDialogProps {
 }
 
 const TONE_COPY: Record<ConfirmDialogTone, string> = {
-  danger: "text-[color:var(--color-danger)]",
-  warning: "text-[color:var(--color-warning)]",
-  accent: "text-[color:var(--color-accent)]",
-  neutral: "text-[color:var(--color-text-secondary)]",
+  danger: "text-danger",
+  warning: "text-warning",
+  accent: "text-accent",
+  neutral: "text-muted",
 };
 
 function ConfirmDialog({
@@ -166,12 +166,8 @@ function ConfirmDialog({
           </div>
         ) : null}
         {error ? (
-          <div className="border-t border-[color:var(--color-divider)] px-5 py-3">
-            <Alert
-              variant="destructive"
-              {...restErrorProps}
-              className={cn("text-xs", errorClassName)}
-            >
+          <div className="border-t border-line px-5 py-3">
+            <Alert variant="danger" {...restErrorProps} className={cn("text-xs", errorClassName)}>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           </div>
@@ -194,7 +190,7 @@ function ConfirmDialog({
               void onConfirm();
             }}
           >
-            {ConfirmIcon ? <ConfirmIcon className="size-3.5" /> : null}
+            {ConfirmIcon ? <ConfirmIcon className="size-3" /> : null}
             {confirmLabel}
           </Button>
         </DialogFooter>

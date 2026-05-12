@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { CommandSelect, CommandSelectShell, CommandSelectTrigger } from "@agh/ui";
+import { CommandSelect, CommandSelectShell, CommandSelectTrigger, Eyebrow } from "@agh/ui";
 
 import { AgentIcon } from "./agent-icon";
 import { AgentCommandList } from "./agent-command-list";
@@ -55,25 +55,21 @@ export function AgentCommandSelect({
             <AgentIcon
               provider={selectedAgent.provider}
               size="xs"
-              className="shrink-0 text-(--color-text-secondary)"
+              className="shrink-0 text-muted"
             />
-            <span className="truncate text-sm text-(--color-text-primary)">
-              {selectedAgent.name}
-            </span>
-            <span className="font-mono text-badge uppercase tracking-mono text-(--color-text-secondary)">
-              {selectedAgent.provider}
-            </span>
+            <span className="truncate text-sm text-fg">{selectedAgent.name}</span>
+            <Eyebrow className="text-muted">{selectedAgent.provider}</Eyebrow>
             {selectedAgent.category_path && selectedAgent.category_path.length > 0 ? (
-              <span
-                className="ml-auto truncate font-mono text-badge uppercase tracking-mono text-(--color-text-secondary)"
+              <Eyebrow
+                className="text-muted ml-auto truncate"
                 data-testid="agent-command-select-trigger-category"
               >
                 {formatCategoryLabel(selectedAgent.category_path)}
-              </span>
+              </Eyebrow>
             ) : null}
           </span>
         ) : (
-          <span className="truncate text-(--color-text-secondary)">{placeholder}</span>
+          <span className="truncate text-muted">{placeholder}</span>
         )}
       </CommandSelectTrigger>
       <CommandSelectShell

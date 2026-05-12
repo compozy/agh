@@ -68,7 +68,6 @@ export {
   automationSourceLabel,
   automationScopeLabel,
   automationScopeTone,
-  automationSemanticTone,
   automationSourceTone,
   automationStatusTone,
   describeFireLimit,

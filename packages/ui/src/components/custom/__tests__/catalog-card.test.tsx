@@ -62,4 +62,22 @@ describe("CatalogCard", () => {
       expect(screen.getByTestId("logo")).toHaveAttribute("data-tone", tone);
     }
   );
+
+  it("Should expose default logo size data attribute", () => {
+    render(
+      <CatalogCard>
+        <CatalogCard.Logo data-testid="logo" />
+      </CatalogCard>
+    );
+    expect(screen.getByTestId("logo")).toHaveAttribute("data-size", "default");
+  });
+
+  it("Should expose lg logo size data attribute", () => {
+    render(
+      <CatalogCard>
+        <CatalogCard.Logo data-testid="logo" size="lg" />
+      </CatalogCard>
+    );
+    expect(screen.getByTestId("logo")).toHaveAttribute("data-size", "lg");
+  });
 });

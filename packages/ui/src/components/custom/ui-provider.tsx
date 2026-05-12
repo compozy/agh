@@ -1,4 +1,4 @@
-import { MotionConfig } from "motion/react";
+import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import type { ReactNode } from "react";
 
 export interface UIProviderProps {
@@ -8,8 +8,10 @@ export interface UIProviderProps {
 
 export function UIProvider({ children, reducedMotion = "user" }: UIProviderProps) {
   return (
-    <MotionConfig reducedMotion={reducedMotion} transition={{ duration: 0.15, ease: "easeOut" }}>
-      {children}
-    </MotionConfig>
+    <LazyMotion features={domAnimation}>
+      <MotionConfig reducedMotion={reducedMotion} transition={{ duration: 0.15, ease: "easeOut" }}>
+        {children}
+      </MotionConfig>
+    </LazyMotion>
   );
 }

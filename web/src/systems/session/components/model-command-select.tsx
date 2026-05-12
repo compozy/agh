@@ -1,14 +1,15 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
 import { Boxes } from "lucide-react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 
 import {
+  CommandEmpty,
+  CommandItem,
+  CommandList,
   CommandSelect,
   CommandSelectGroup,
   CommandSelectShell,
   CommandSelectTrigger,
-  CommandEmpty,
-  CommandItem,
-  CommandList,
+  Eyebrow,
   Pill,
 } from "@agh/ui";
 
@@ -94,7 +95,7 @@ export function ModelCommandSelect({
         data-testid={triggerTestId}
         disabled={disabled}
         className={className}
-        icon={<Boxes aria-hidden="true" className="size-3.5" />}
+        icon={<Boxes aria-hidden="true" className="size-3" />}
         label={triggerLabel}
         selected={Boolean(trimmedValue)}
       />
@@ -123,11 +124,9 @@ export function ModelCommandSelect({
               data-testid="model-command-item-default"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="truncate text-sm text-foreground">Use provider default</span>
+                <span className="truncate text-sm text-fg">Use provider default</span>
                 {trimmedDefault ? (
-                  <span className="ml-auto truncate font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                    {trimmedDefault}
-                  </span>
+                  <Eyebrow className="text-muted ml-auto truncate">{trimmedDefault}</Eyebrow>
                 ) : null}
               </div>
             </CommandItem>
@@ -147,7 +146,7 @@ export function ModelCommandSelect({
                   data-availability={option.availabilityState}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-sm text-foreground">{option.displayName}</span>
+                    <span className="truncate text-sm text-fg">{option.displayName}</span>
                     <Pill
                       mono
                       tone={modelAvailabilityTone(option.availabilityState)}
@@ -168,7 +167,7 @@ export function ModelCommandSelect({
                 onSelect={() => handleSelect(trimmedQuery)}
                 data-testid="model-command-item-custom"
               >
-                <span className="truncate text-sm text-foreground">Use "{trimmedQuery}"</span>
+                <span className="truncate text-sm text-fg">Use "{trimmedQuery}"</span>
               </CommandItem>
             </CommandSelectGroup>
           ) : null}

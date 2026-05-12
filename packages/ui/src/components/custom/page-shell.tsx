@@ -3,85 +3,68 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-import { PageHeader } from "./page-header";
+
+type PageShellDensity = "comfortable" | "compact" | "route";
 
 interface PageShellProps extends Omit<React.ComponentProps<"div">, "title"> {
   slug?: string;
-  title: React.ReactNode;
-  eyebrow?: React.ReactNode;
-  breadcrumb?: React.ReactNode;
-  subtitle?: React.ReactNode;
-  statusLine?: React.ReactNode;
-  statusRow?: React.ReactNode;
-  actions?: React.ReactNode;
   banner?: React.ReactNode;
   footer?: React.ReactNode;
   bodyClassName?: string;
+  density?: PageShellDensity;
 }
 
+/**
+ * PageShell hosts a route's body, banner, and sticky footer. After P4 the
+ * shell-level `<Topbar>` owns the route title and chrome, so PageShell does
+ * not render its own header. Routes push title/icon/count via TanStack Router
+ * `beforeLoad` and dynamic tabs/search/actions via `useTopbarSlot`.
+ */
 function PageShell({
   slug,
-  title,
-  eyebrow = "Settings",
-  breadcrumb,
-  subtitle,
-  statusLine,
-  statusRow,
-  actions,
   banner,
   footer,
   bodyClassName,
   className,
   children,
+  density = "comfortable",
   ...props
 }: PageShellProps) {
   const testId = slug ? `settings-page-${slug}` : undefined;
-  const headerTestId = slug ? `settings-page-${slug}-header` : undefined;
   const bodyTestId = slug ? `settings-page-${slug}-body` : undefined;
   const footerTestId = slug ? `settings-page-${slug}-footer` : undefined;
   const bannerTestId = slug ? `settings-page-${slug}-banner-slot` : undefined;
-  const eyebrowTestId = slug ? `settings-page-${slug}-eyebrow` : undefined;
-  const statusTestId = slug ? `settings-page-${slug}-status` : undefined;
-  const actionsTestId = slug ? `settings-page-${slug}-actions` : undefined;
-  const headerBreadcrumb =
-    breadcrumb ??
-    (eyebrow ? (
-      <span data-testid={eyebrowTestId} className="tracking-mono">
-        {eyebrow} / {title}
-      </span>
-    ) : undefined);
-  const headerStatus = statusRow ?? statusLine;
+  const bodyPadding =
+    density === "compact"
+      ? "px-4 py-3 sm:px-5 md:px-6"
+      : density === "route"
+        ? "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
+        : "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10";
+  const bodyGap =
+    density === "compact"
+      ? "gap-4 pb-8 md:gap-5 md:pb-10"
+      : density === "route"
+        ? "gap-5 pb-10 md:gap-6 md:pb-12"
+        : "gap-6 pb-12 md:gap-8 md:pb-16";
 
   return (
     <div
+      data-density={density}
       className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       data-testid={testId}
       {...props}
     >
-      <PageHeader
-        title={title}
-        breadcrumb={headerBreadcrumb}
-        subtitle={subtitle}
-        statusRow={headerStatus ? <div data-testid={statusTestId}>{headerStatus}</div> : undefined}
-        meta={actions ? <div data-testid={actionsTestId}>{actions}</div> : undefined}
-        className="px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
-        data-testid={headerTestId}
-      />
-
       {banner ? <div data-testid={bannerTestId}>{banner}</div> : null}
 
       <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10",
-          bodyClassName
-        )}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", bodyPadding, bodyClassName)}
         data-testid={bodyTestId}
       >
-        <div className="flex min-h-full flex-col gap-6 pb-12 md:gap-8 md:pb-16">{children}</div>
+        <div className={cn("flex min-h-full flex-col", bodyGap)}>{children}</div>
       </div>
 
       {footer ? (
-        <div className="border-t border-[color:var(--color-divider)]" data-testid={footerTestId}>
+        <div className="border-t border-line" data-testid={footerTestId}>
           {footer}
         </div>
       ) : null}
@@ -90,4 +73,4 @@ function PageShell({
 }
 
 export { PageShell };
-export type { PageShellProps };
+export type { PageShellProps, PageShellDensity };

@@ -32,7 +32,7 @@ export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
   ownerKind: "",
   ownerRef: "",
   parentTaskId: "",
-  maxAttempts: null,
+  maxAttempts: 1,
   approvalPolicy: "none",
   networkChannel: "",
   identifier: "",
@@ -49,7 +49,7 @@ export function createTaskEditorDraft(
     scope: activeWorkspaceId ? "workspace" : "global",
     priority: template.defaults.priority ?? "medium",
     maxAttempts:
-      typeof template.defaults.max_attempts === "number" ? template.defaults.max_attempts : null,
+      typeof template.defaults.max_attempts === "number" ? template.defaults.max_attempts : 1,
     approvalPolicy: template.defaults.approval_policy ?? "none",
     networkChannel: template.defaults.network_channel ?? "",
   };
@@ -67,7 +67,7 @@ export function applyTemplateDefaultsToTaskEditorDraft(
     maxAttempts:
       typeof template.defaults.max_attempts === "number"
         ? template.defaults.max_attempts
-        : draft.maxAttempts,
+        : (draft.maxAttempts ?? 1),
     approvalPolicy: template.defaults.approval_policy ?? draft.approvalPolicy,
     networkChannel: template.defaults.network_channel ?? draft.networkChannel,
   };

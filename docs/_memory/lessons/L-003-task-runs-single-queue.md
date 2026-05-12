@@ -1,8 +1,8 @@
 # L-003 — `task_runs` is the single durable work queue
 
 **Class:** Architecture / Autonomy
-**Date discovered:** 2026-04-25 (autonomy techspec, ADR-003)
-**Evidence sources:** 3 ADRs forbid duplication
+**Date discovered:** 2026-04-25
+**Evidence sources:** Architecture review records forbid duplication.
 
 ## Context
 
@@ -35,7 +35,4 @@ Two durable queues for the same work creates two sources of truth for ownership 
 
 ## Source
 
-- `.compozy/tasks/autonomous/adrs/adr-003.md` — Extend Task Runs for Atomic Claim/Lease
-- `.compozy/tasks/autonomous/adrs/adr-004.md` — Split Semantic vs Mechanical Scheduling
-- `.compozy/tasks/autonomous/adrs/adr-010.md` — Manual Operator Control First-Class
-- `../analysis/analysis_compozy_tasks.md` (lesson 1, with 3 ADRs cited)
+Analysis corpus: docs/\_memory/analysis/analysis_compozy_tasks.md (lesson 1).

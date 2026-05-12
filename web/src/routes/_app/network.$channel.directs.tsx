@@ -1,23 +1,26 @@
-import { useState } from "react";
-import { Plus } from "lucide-react";
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
+import { Network as NetworkIcon, Plus } from "lucide-react";
+import { useState } from "react";
 
-import { Button } from "@agh/ui";
+import { Button, Eyebrow } from "@agh/ui";
 
 import {
   DirectsEmpty,
   DirectsList,
   NewDirectDialog,
   useNetworkChannelDirectsRoute,
-  useNetworkListFilters,
+  useNetworkListFiltersContext,
 } from "@/systems/network";
-import { ListFilterBar } from "@/systems/network/components/shell";
+import type { TopbarRouteContext } from "@/types/topbar";
 
 interface DirectDetailParams {
   directId?: string;
 }
 
 export const Route = createFileRoute("/_app/network/$channel/directs")({
+  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+    topbar: { title: `#${params.channel} · Directs`, icon: NetworkIcon },
+  }),
   component: NetworkChannelDirectsRoute,
 });
 
@@ -25,11 +28,7 @@ function NetworkChannelDirectsRoute() {
   const { channel } = Route.useParams();
   const detailParams = useParams({ strict: false }) as DirectDetailParams;
   const route = useNetworkChannelDirectsRoute(channel);
-  const filters = useNetworkListFilters({
-    channel,
-    threads: [],
-    directs: route.directs.directs,
-  });
+  const { filteredDirects } = useNetworkListFiltersContext();
   const [newDirectOpen, setNewDirectOpen] = useState(false);
 
   if (detailParams.directId) {
@@ -47,7 +46,7 @@ function NetworkChannelDirectsRoute() {
   const directsQuery = route.directs;
   const activeSession = route.session;
   const channelMembers = route.members;
-  const visibleDirects = filters.filteredDirects;
+  const visibleDirects = filteredDirects;
   const showEmpty = !directsQuery.isLoading && visibleDirects.length === 0;
   const sessionId = activeSession.session?.sessionId ?? "";
   const totalDirects = directsQuery.directs.length;
@@ -62,23 +61,11 @@ function NetworkChannelDirectsRoute() {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-directs-tab"
     >
-      <ListFilterBar
-        counts={filters.counts}
-        filter={filters.filter}
-        isMarkAllReadDisabled={filters.counts.unread === 0}
-        onFilterChange={filters.setFilter}
-        onMarkAllRead={filters.markAllRead}
-        onSortChange={filters.setSort}
-        sort={filters.sort}
-      />
-
       <header
-        className="flex items-center justify-between gap-3 border-b border-(--color-divider) px-5 py-2"
+        className="flex items-center justify-between gap-3 border-b border-line px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <span className="font-mono text-badge font-semibold uppercase tracking-mono text-(--color-text-tertiary)">
-          {subheaderLabel}
-        </span>
+        <Eyebrow className="text-subtle">{subheaderLabel}</Eyebrow>
         <Button
           aria-label="Open new direct room"
           data-testid="network-directs-new-direct"
@@ -88,7 +75,7 @@ function NetworkChannelDirectsRoute() {
           type="button"
           variant="outline"
         >
-          <Plus aria-hidden="true" className="size-3.5" />
+          <Plus aria-hidden="true" className="size-3" />
           New direct
         </Button>
       </header>
