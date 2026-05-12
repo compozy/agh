@@ -23,8 +23,12 @@
             "outputs": ["dist/**"],
             "env": ["VITE_AGH_API_URL"]
         },
+        "@agh/ui#build": {
+            "dependsOn": [],
+            "outputs": []
+        },
         "@agh/site#build": {
-            "dependsOn": ["//#codegen-check", "^build"],
+            "dependsOn": ["^build"],
             "outputs": ["out/**", ".next/**"]
         },
         "dev": {

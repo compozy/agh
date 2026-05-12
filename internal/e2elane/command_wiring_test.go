@@ -232,10 +232,6 @@ func TestTurboPipelineRunsSharedCodegenCheckBeforeWorkspaceGates(t *testing.T) {
 			task: "build",
 		},
 		{
-			name: "Should run shared codegen check before site builds",
-			task: "@agh/site#build",
-		},
-		{
 			name: "Should run shared codegen check before workspace typechecks",
 			task: "typecheck",
 		},
@@ -262,6 +258,41 @@ func TestTurboPipelineRunsSharedCodegenCheckBeforeWorkspaceGates(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestTurboPipelineKeepsVercelSiteBuildDeployableWithoutGoToolchain(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	cfg := readTurboJSON(t, filepath.Join(repoRoot, "turbo.json"))
+	const codegenCheckTask = "//#codegen-check"
+
+	for _, taskName := range []string{"@agh/site#build", "@agh/ui#build"} {
+		task, ok := cfg.Tasks[taskName]
+		if !ok {
+			t.Fatalf("turbo task %q missing from %#v", taskName, cfg.Tasks)
+		}
+		if containsString(task.DependsOn, codegenCheckTask) {
+			t.Fatalf(
+				"turbo task %q dependsOn = %#v, want no %q because Vercel site deploys do not install Go",
+				taskName,
+				task.DependsOn,
+				codegenCheckTask,
+			)
+		}
+	}
+
+	siteBuild, ok := cfg.Tasks["@agh/site#build"]
+	if !ok {
+		t.Fatalf("turbo task %q missing from %#v", "@agh/site#build", cfg.Tasks)
+	}
+	if !containsString(siteBuild.DependsOn, "^build") {
+		t.Fatalf(
+			"turbo task %q dependsOn = %#v, want dependency build propagation",
+			"@agh/site#build",
+			siteBuild.DependsOn,
+		)
 	}
 }
 
