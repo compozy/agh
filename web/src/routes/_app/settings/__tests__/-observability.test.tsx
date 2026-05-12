@@ -109,10 +109,10 @@ beforeEach(() => {
   };
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../observability";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ObservabilitySettingsPage = (Route as any).component as () => ReactNode;
+const ObservabilitySettingsPage = routeComponent(Route);
 
 describe("ObservabilitySettingsPage", () => {
   it("renders a loading indicator during the initial fetch", () => {

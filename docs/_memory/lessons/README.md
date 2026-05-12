@@ -31,6 +31,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-021](L-021-schema-migration-identity-is-append-only.md)    | Schema migration identity is append-only                                         | Persistence                      |
 | [L-022](L-022-eyebrow-canonical-source.md)                    | Eyebrow typography needs one canonical source                                    | Frontend / Design system         |
 | [L-023](L-023-token-utility-canonical-form.md)                | Design tokens belong in `@theme`, not in `:root` aliased through `@theme inline` | Frontend / Design system / Build |
+| [L-024](L-024-design-md-generated-tokens.md)                  | Generated design-token specs prevent documentation drift                         | Frontend / Design system / Docs  |
 
 ## How to use
 

@@ -15,7 +15,7 @@ func TestContextIsCanceledOnCleanup(t *testing.T) {
 	var ctx context.Context
 	done := make(chan struct{})
 
-	t.Run("subtest", func(t *testing.T) {
+	t.Run("Should subtest", func(t *testing.T) {
 		ctx = Context(t)
 		go func() {
 			<-ctx.Done()
@@ -39,7 +39,7 @@ func TestContextCreatedDuringCleanupRemainsUsable(t *testing.T) {
 
 	errCh := make(chan error, 1)
 
-	t.Run("subtest", func(t *testing.T) {
+	t.Run("Should subtest", func(t *testing.T) {
 		t.Cleanup(func() {
 			ctx := Context(t)
 			if err := ctx.Err(); err != nil {

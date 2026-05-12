@@ -6,49 +6,25 @@ import {
   useDeleteSettingsProvider,
   usePutSettingsProvider,
   useSettingsProviders,
+  type ProviderDraft,
   type SettingsMutationResult,
   type SettingsProviderEntry,
   type SettingsProviderRequest,
+  type SettingsSourceKind,
 } from "@/systems/settings";
+import {
+  applyProviderFilters,
+  DEFAULT_PROVIDER_FILTERS,
+  providerCredentialsConfigured,
+  type ProviderAuthMode,
+  type ProviderDefaultFilter,
+  type ProviderFilterState,
+  type ProviderHarness,
+} from "@/systems/settings/lib/providers-list-filters";
+import type { ProviderStateLabel } from "@/systems/settings/lib/provider-state";
 
-type ProviderCredentialSlotDraft = NonNullable<
-  NonNullable<SettingsProviderRequest["settings"]>["credential_slots"]
->[number];
-type ProviderModelsPayload = NonNullable<
-  NonNullable<SettingsProviderRequest["settings"]>["models"]
->;
-type ProviderModelPayload = NonNullable<ProviderModelsPayload["curated"]>[number];
-
-export type ProviderDraft = {
-  name: string;
-  command: string;
-  display_name: string;
-  model_default: string;
-  curated_models: string;
-  curated_snapshot: ProviderModelPayload[];
-  target_env: string;
-  harness: string;
-  runtime_provider: string;
-  transport: string;
-  base_url: string;
-  auth_mode: string;
-  env_policy: string;
-  home_policy: string;
-  auth_status_command: string;
-  auth_login_command: string;
-  secret_ref: string;
-  secret_value: string;
-  credential_slots: ProviderCredentialSlotDraft[];
-  credential_secret_values: string[];
-};
-
-function providerCredentialsConfigured(provider: SettingsProviderEntry): boolean {
-  const credentials = provider.credentials ?? [];
-  if (credentials.length === 0) {
-    return true;
-  }
-  return credentials.every(credential => !credential.required || credential.present);
-}
+type ProviderCredentialSlotDraft = ProviderDraft["credential_slots"][number];
+type ProviderModelPayload = ProviderDraft["curated_snapshot"][number];
 
 function emptyDraft(): ProviderDraft {
   return {
@@ -239,10 +215,16 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
-export type ProviderEditorState =
+export type ProviderInspectorState =
   | { mode: "closed" }
-  | { mode: "create"; draft: ProviderDraft }
-  | { mode: "edit"; name: string; draft: ProviderDraft; entry: SettingsProviderEntry };
+  | { mode: "inspect"; entry: SettingsProviderEntry }
+  | {
+      mode: "edit";
+      entry: SettingsProviderEntry;
+      draft: ProviderDraft;
+      cameFrom: "inspect" | "external";
+    }
+  | { mode: "create"; draft: ProviderDraft };
 
 type DeleteState = { mode: "closed" } | { mode: "open"; entry: SettingsProviderEntry };
 
@@ -252,15 +234,18 @@ export type ProviderLastAction =
 
 type LastAction = ProviderLastAction | null;
 
+export type { ProviderDraft };
+
 export function useSettingsProvidersPage() {
   const query = useSettingsProviders();
   const putMutation = usePutSettingsProvider();
   const deleteMutation = useDeleteSettingsProvider();
   const page = useSettingsPage({ currentSlug: "providers" });
 
-  const [editor, setEditor] = useState<ProviderEditorState>({ mode: "closed" });
+  const [inspector, setInspector] = useState<ProviderInspectorState>({ mode: "closed" });
   const [deleteTarget, setDeleteTarget] = useState<DeleteState>({ mode: "closed" });
   const [lastAction, setLastAction] = useState<LastAction>(null);
+  const [filters, setFilters] = useState<ProviderFilterState>(DEFAULT_PROVIDER_FILTERS);
 
   const envelope = query.data ?? null;
   const providers = envelope?.providers ?? [];
@@ -276,65 +261,114 @@ export function useSettingsProvidersPage() {
     return { total: providers.length, installed, binaryMissing, unconfigured };
   }, [providers]);
 
-  const openCreate = useCallback(() => {
-    putMutation.reset();
-    setEditor({ mode: "create", draft: emptyDraft() });
-  }, [putMutation]);
+  const filteredProviders = useMemo(
+    () => applyProviderFilters(providers, filters),
+    [providers, filters]
+  );
 
-  const openEdit = useCallback(
+  const setStatusFilter = useCallback((next: ProviderStateLabel | null) => {
+    setFilters(current => ({ ...current, statusFilter: next }));
+  }, []);
+  const setSourceFilter = useCallback((next: SettingsSourceKind | null) => {
+    setFilters(current => ({ ...current, sourceFilter: next }));
+  }, []);
+  const setHarnessFilter = useCallback((next: ProviderHarness | null) => {
+    setFilters(current => ({ ...current, harnessFilter: next }));
+  }, []);
+  const setAuthModeFilter = useCallback((next: ProviderAuthMode | null) => {
+    setFilters(current => ({ ...current, authModeFilter: next }));
+  }, []);
+  const setDefaultFilter = useCallback((next: ProviderDefaultFilter | null) => {
+    setFilters(current => ({ ...current, defaultFilter: next }));
+  }, []);
+  const setNameQuery = useCallback((next: string) => {
+    setFilters(current => ({ ...current, nameQuery: next }));
+  }, []);
+
+  const openInspect = useCallback(
     (entry: SettingsProviderEntry) => {
       putMutation.reset();
-      setEditor({ mode: "edit", name: entry.name, draft: toDraft(entry), entry });
+      setInspector({ mode: "inspect", entry });
     },
     [putMutation]
   );
 
-  const closeEditor = useCallback(() => {
-    setEditor({ mode: "closed" });
+  const openCreate = useCallback(() => {
+    putMutation.reset();
+    setInspector({ mode: "create", draft: emptyDraft() });
+  }, [putMutation]);
+
+  const switchToEdit = useCallback(() => {
+    setInspector(current => {
+      if (current.mode !== "inspect") return current;
+      return {
+        mode: "edit",
+        entry: current.entry,
+        draft: toDraft(current.entry),
+        cameFrom: "inspect",
+      };
+    });
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    putMutation.reset();
+    setInspector(current => {
+      if (current.mode === "edit" && current.cameFrom === "inspect") {
+        return { mode: "inspect", entry: current.entry };
+      }
+      return { mode: "closed" };
+    });
+  }, [putMutation]);
+
+  const closeInspector = useCallback(() => {
+    setInspector({ mode: "closed" });
     putMutation.reset();
   }, [putMutation]);
 
   const updateDraft = useCallback((updater: (draft: ProviderDraft) => ProviderDraft) => {
-    setEditor(current => {
-      if (current.mode === "closed") return current;
+    setInspector(current => {
+      if (current.mode !== "edit" && current.mode !== "create") return current;
       return { ...current, draft: updater(current.draft) };
     });
   }, []);
 
-  const editorIsValid = useMemo(() => {
-    if (editor.mode === "closed") return false;
-    const name = editor.draft.name.trim();
+  const inspectorIsValid = useMemo(() => {
+    if (inspector.mode !== "edit" && inspector.mode !== "create") return false;
+    const name = inspector.draft.name.trim();
     if (name.length === 0) return false;
     if (
-      editor.draft.auth_mode === "bound_secret" &&
-      buildCredentialSlots(editor.draft).length === 0
+      inspector.draft.auth_mode === "bound_secret" &&
+      buildCredentialSlots(inspector.draft).length === 0
     ) {
       return false;
     }
-    if (editor.draft.secret_value.trim() && !editor.draft.secret_ref.trim().startsWith("vault:")) {
+    if (
+      inspector.draft.secret_value.trim() &&
+      !inspector.draft.secret_ref.trim().startsWith("vault:")
+    ) {
       return false;
     }
-    if (editor.mode === "create") {
+    if (inspector.mode === "create") {
       return !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase());
     }
     return true;
-  }, [editor, providers]);
+  }, [inspector, providers]);
 
-  const saveEditor = useCallback(() => {
-    if (editor.mode === "closed") return;
-    const name = editor.draft.name.trim();
+  const saveInspector = useCallback(() => {
+    if (inspector.mode !== "edit" && inspector.mode !== "create") return;
+    const name = inspector.draft.name.trim();
     if (!name) return;
-    const body = toRequest(editor.draft);
+    const body = toRequest(inspector.draft);
     putMutation.mutate(
       { name, body },
       {
         onSuccess: result => {
           setLastAction({ kind: "saved", name, result });
-          setEditor({ mode: "closed" });
+          setInspector({ mode: "closed" });
         },
       }
     );
-  }, [editor, putMutation]);
+  }, [inspector, putMutation]);
 
   const openDelete = useCallback(
     (entry: SettingsProviderEntry) => {
@@ -361,6 +395,11 @@ export function useSettingsProvidersPage() {
           hadFallback: Boolean(target.fallback),
         });
         setDeleteTarget({ mode: "closed" });
+        setInspector(current =>
+          current.mode === "inspect" && current.entry.name === target.name
+            ? { mode: "closed" }
+            : current
+        );
       },
     });
   }, [deleteMutation, deleteTarget]);
@@ -372,18 +411,28 @@ export function useSettingsProvidersPage() {
     error: query.error,
     envelope,
     providers,
+    filteredProviders,
+    filters,
+    setStatusFilter,
+    setSourceFilter,
+    setHarnessFilter,
+    setAuthModeFilter,
+    setDefaultFilter,
+    setNameQuery,
     counts,
     restart: page.restart,
-    editor,
-    editorIsValid,
-    editorError: errorMessage(putMutation.error),
-    editorWarnings: putMutation.data?.warnings,
-    editorIsSaving: putMutation.isPending,
+    inspector,
+    inspectorIsValid,
+    inspectorError: errorMessage(putMutation.error),
+    inspectorWarnings: putMutation.data?.warnings,
+    inspectorIsSaving: putMutation.isPending,
+    openInspect,
     openCreate,
-    openEdit,
-    closeEditor,
+    switchToEdit,
+    cancelEdit,
+    closeInspector,
     updateDraft,
-    saveEditor,
+    saveInspector,
     deleteTarget,
     deleteError: errorMessage(deleteMutation.error),
     deleteIsPending: deleteMutation.isPending,

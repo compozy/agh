@@ -256,7 +256,7 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 
 	driver := New()
 
-	t.Run("prompt requires connection", func(t *testing.T) {
+	t.Run("Should prompt requires connection", func(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{SessionID: "session-1"}
@@ -275,7 +275,7 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 		}
 	})
 
-	t.Run("cancel requires connection and does not panic", func(t *testing.T) {
+	t.Run("Should cancel requires connection and does not panic", func(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{SessionID: "session-1"}
@@ -298,7 +298,7 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 		}
 	})
 
-	t.Run("stop requires lifecycle", func(t *testing.T) {
+	t.Run("Should stop requires lifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)

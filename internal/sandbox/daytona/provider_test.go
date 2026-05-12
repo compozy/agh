@@ -492,7 +492,7 @@ func TestDaytonaToolHostCreateTerminalResolvesCwdWithinRuntimeRoot(t *testing.T)
 		return host, transport
 	}
 
-	t.Run("rejects escaped cwd", func(t *testing.T) {
+	t.Run("Should rejects escaped cwd", func(t *testing.T) {
 		t.Parallel()
 
 		host, _ := newHost()
@@ -505,7 +505,7 @@ func TestDaytonaToolHostCreateTerminalResolvesCwdWithinRuntimeRoot(t *testing.T)
 		}
 	})
 
-	t.Run("resolves relative cwd against runtime root", func(t *testing.T) {
+	t.Run("Should resolves relative cwd against runtime root", func(t *testing.T) {
 		t.Parallel()
 
 		host, transport := newHost()

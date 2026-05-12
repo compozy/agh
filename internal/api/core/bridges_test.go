@@ -389,7 +389,7 @@ func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 	t.Parallel()
 
-	t.Run("lifecycle transition maps bridge errors", func(t *testing.T) {
+	t.Run("Should lifecycle transition maps bridge errors", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -404,7 +404,7 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("service unavailable covers lifecycle and secret bindings", func(t *testing.T) {
+	t.Run("Should service unavailable covers lifecycle and secret bindings", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, nil)
@@ -455,7 +455,7 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid secret binding payload is rejected before service call", func(t *testing.T) {
+	t.Run("Should invalid secret binding payload is rejected before service call", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -482,7 +482,7 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid bridge secret binding maps to bad request", func(t *testing.T) {
+	t.Run("Should invalid bridge secret binding maps to bad request", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -515,7 +515,7 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 	t.Parallel()
 
-	t.Run("create rejects malformed json", func(t *testing.T) {
+	t.Run("Should create rejects malformed json", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -588,7 +588,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("create maps service errors", func(t *testing.T) {
+	t.Run("Should create maps service errors", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -616,7 +616,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("get maps not found", func(t *testing.T) {
+	t.Run("Should get maps not found", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -631,7 +631,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("update rejects malformed json", func(t *testing.T) {
+	t.Run("Should update rejects malformed json", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -652,7 +652,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("update maps service errors", func(t *testing.T) {
+	t.Run("Should update maps service errors", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -672,7 +672,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("update rejects semantically invalid payload", func(t *testing.T) {
+	t.Run("Should update rejects semantically invalid payload", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -699,7 +699,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("routes map not found", func(t *testing.T) {
+	t.Run("Should routes map not found", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -714,7 +714,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("secret binding put maps service errors", func(t *testing.T) {
+	t.Run("Should secret binding put maps service errors", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -740,7 +740,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("secret binding put rejects malformed json", func(t *testing.T) {
+	t.Run("Should secret binding put rejects malformed json", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -767,7 +767,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("secret binding delete maps missing binding", func(t *testing.T) {
+	t.Run("Should secret binding delete maps missing binding", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -787,7 +787,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("test delivery rejects malformed json", func(t *testing.T) {
+	t.Run("Should test delivery rejects malformed json", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -808,7 +808,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("test delivery maps service errors", func(t *testing.T) {
+	t.Run("Should test delivery maps service errors", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
@@ -834,7 +834,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		}
 	})
 
-	t.Run("test delivery rejects mismatched bridge instance id", func(t *testing.T) {
+	t.Run("Should test delivery rejects mismatched bridge instance id", func(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{

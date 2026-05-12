@@ -1812,7 +1812,7 @@ func TestObserveEventsAndApproveHandlers(t *testing.T) {
 func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 
-	t.Run("missing decision", func(t *testing.T) {
+	t.Run("Should missing decision", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 		recorder := performRequest(
 			t,
@@ -1826,7 +1826,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid decision", func(t *testing.T) {
+	t.Run("Should invalid decision", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 		recorder := performRequest(
 			t,
@@ -1840,7 +1840,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("session not found", func(t *testing.T) {
+	t.Run("Should session not found", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
 				return session.ErrSessionNotFound
@@ -1858,7 +1858,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("pending permission missing", func(t *testing.T) {
+	t.Run("Should pending permission missing", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
 				return session.ErrPendingPermissionNotFound
@@ -1876,7 +1876,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("session not active", func(t *testing.T) {
+	t.Run("Should session not active", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
 				return session.ErrSessionNotActive
@@ -1894,7 +1894,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("valid request", func(t *testing.T) {
+	t.Run("Should valid request", func(t *testing.T) {
 		var (
 			gotID  string
 			gotReq acp.ApproveRequest

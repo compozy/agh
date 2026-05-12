@@ -642,7 +642,7 @@ func TestRegistryInstallRejectsOnDiskManifestIdentityMismatch(t *testing.T) {
 func TestRegistryUtilityHelpers(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
-	t.Run("capability denied error formatting", func(t *testing.T) {
+	t.Run("Should capability denied error formatting", func(t *testing.T) {
 		var nilDenied *ErrCapabilityDenied
 		if got := nilDenied.Error(); got != "" {
 			t.Fatalf("nil ErrCapabilityDenied.Error() = %q, want empty", got)
@@ -670,7 +670,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("typed registry errors expose sentinels", func(t *testing.T) {
+	t.Run("Should typed registry errors expose sentinels", func(t *testing.T) {
 		notFound := &ExtensionNotFoundError{Name: "missing"}
 		if got := notFound.Error(); got != "extension: extension not found: missing" {
 			t.Fatalf("ExtensionNotFoundError.Error() = %q", got)
@@ -707,7 +707,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("parse extension source", func(t *testing.T) {
+	t.Run("Should parse extension source", func(t *testing.T) {
 		for input, want := range map[string]ExtensionSource{
 			"bundled":     SourceBundled,
 			"user":        SourceUser,
@@ -727,7 +727,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("check ready validates receiver", func(t *testing.T) {
+	t.Run("Should check ready validates receiver", func(t *testing.T) {
 		var nilRegistry *Registry
 		if err := nilRegistry.checkReady("list"); err == nil {
 			t.Fatal("nil registry checkReady() error = nil, want non-nil")
@@ -739,7 +739,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("resolve install artifact supports directory and manifest file", func(t *testing.T) {
+	t.Run("Should resolve install artifact supports directory and manifest file", func(t *testing.T) {
 		dir := t.TempDir()
 		jsonPath := filepath.Join(dir, manifestJSONFileName)
 		writeFile(t, jsonPath, `{
@@ -782,7 +782,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("checksum helper handles errors and hashes symlinks deterministically", func(t *testing.T) {
+	t.Run("Should checksum helper handles errors and hashes symlinks deterministically", func(t *testing.T) {
 		if _, err := ComputeDirectoryChecksum(""); err == nil {
 			t.Fatal("ComputeDirectoryChecksum(blank) error = nil, want non-nil")
 		}
@@ -861,14 +861,14 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("constraint mapper preserves passthrough errors", func(t *testing.T) {
+	t.Run("Should constraint mapper preserves passthrough errors", func(t *testing.T) {
 		original := errors.New("boom")
 		if err := mapRegistryConstraintError(original, "duplicate"); !errors.Is(err, original) {
 			t.Fatalf("mapRegistryConstraintError(boom) = %v, want wrapped boom", err)
 		}
 	})
 
-	t.Run("string and json helpers normalize optional values", func(t *testing.T) {
+	t.Run("Should string and json helpers normalize optional values", func(t *testing.T) {
 		t.Parallel()
 
 		if got := optionalInstallString("   "); got != nil {
@@ -892,7 +892,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("manifest resolution prefers toml and reports missing manifests", func(t *testing.T) {
+	t.Run("Should manifest resolution prefers toml and reports missing manifests", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -935,7 +935,7 @@ min_agh_version = "0.5.0"
 		}
 	})
 
-	t.Run("rows affected helper and checksum string handle edge cases", func(t *testing.T) {
+	t.Run("Should rows affected helper and checksum string handle edge cases", func(t *testing.T) {
 		t.Parallel()
 
 		if err := rowsAffectedNotFound(registryTestResult{rowsAffected: 1}, "existing"); err != nil {
@@ -964,7 +964,7 @@ min_agh_version = "0.5.0"
 		}
 	})
 
-	t.Run("write checksum entry covers regular files symlinks and errors", func(t *testing.T) {
+	t.Run("Should write checksum entry covers regular files symlinks and errors", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()

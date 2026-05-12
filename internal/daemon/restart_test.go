@@ -803,7 +803,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		OldSocketPath: filepath.Join(t.TempDir(), "daemon.sock"),
 	}
 
-	t.Run("Socket still exists", func(t *testing.T) {
+	t.Run("Should Socket still exists", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -829,7 +829,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Daemon info still exists", func(t *testing.T) {
+	t.Run("Should Daemon info still exists", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -856,7 +856,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Daemon lock still held", func(t *testing.T) {
+	t.Run("Should Daemon lock still held", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -875,7 +875,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Lock probe release failure", func(t *testing.T) {
+	t.Run("Should Lock probe release failure", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -899,7 +899,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Unexpected lock probe error", func(t *testing.T) {
+	t.Run("Should Unexpected lock probe error", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)

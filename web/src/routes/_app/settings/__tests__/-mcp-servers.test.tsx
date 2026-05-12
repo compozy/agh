@@ -201,10 +201,10 @@ beforeEach(() => {
   pageState = makeState();
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../mcp-servers";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const MCPServersPage = (Route as any).component as () => ReactNode;
+const MCPServersPage = routeComponent(Route);
 
 describe("MCPServersSettingsPage", () => {
   it("renders loading state", () => {

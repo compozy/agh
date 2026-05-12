@@ -606,7 +606,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	}
 
 	for _, envelope := range sectionEnvelopes {
-		t.Run("section/"+string(envelope.Section), func(t *testing.T) {
+		t.Run("Should section/"+string(envelope.Section), func(t *testing.T) {
 			t.Parallel()
 			if _, err := core.SettingsSectionResponseFromEnvelope(envelope); err != nil {
 				t.Fatalf("SettingsSectionResponseFromEnvelope(%s) error = %v", envelope.Section, err)
@@ -753,7 +753,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	}
 
 	for _, envelope := range collectionEnvelopes {
-		t.Run("collection/"+string(envelope.Collection), func(t *testing.T) {
+		t.Run("Should collection/"+string(envelope.Collection), func(t *testing.T) {
 			t.Parallel()
 			if _, err := core.SettingsCollectionResponseFromEnvelope(envelope); err != nil {
 				t.Fatalf("SettingsCollectionResponseFromEnvelope(%s) error = %v", envelope.Collection, err)

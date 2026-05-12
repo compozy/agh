@@ -26,7 +26,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 	repoRoot := harnessRepoRoot(t)
 	buildHarnessTelegramReferenceAdapter(t, repoRoot)
 
-	t.Run("ready_delivery", func(t *testing.T) {
+	t.Run("Should ready_delivery", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 0, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
 			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
@@ -92,7 +92,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		}
 	})
 
-	t.Run("resume_delivery", func(t *testing.T) {
+	t.Run("Should resume_delivery", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 5, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
 			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
@@ -163,7 +163,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		}
 	})
 
-	t.Run("auth_required_health", func(t *testing.T) {
+	t.Run("Should auth_required_health", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 10, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
 			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
@@ -198,7 +198,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		}
 	})
 
-	t.Run("multi_instance_provider_scope", func(t *testing.T) {
+	t.Run("Should multi_instance_provider_scope", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 15, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
 			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),

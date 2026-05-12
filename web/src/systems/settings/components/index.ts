@@ -1,9 +1,13 @@
 export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
-export { ProviderCard, providerStateTone } from "./provider-card";
+export { ProviderCard } from "./provider-card";
+export { ProviderEditForm } from "./provider-edit-form";
+export { ProviderInspectorSheet } from "./provider-inspector-sheet";
+export { ProviderInspectView } from "./provider-inspect-view";
 export { ProviderLogo } from "./provider-logo";
 export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { ProvidersGrid } from "./providers-grid";
+export { ProvidersListFilters } from "./providers-list-filters";
 export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsFieldRow } from "./settings-field-row";
 export type { SettingsFieldRowVariant } from "./settings-field-row";

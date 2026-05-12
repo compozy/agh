@@ -85,7 +85,7 @@ func TestAutonomyPayloadsCarryCoordinationChannelID(t *testing.T) {
 func TestTaskRunPreClaimDenyAndNarrowCriteriaOnly(t *testing.T) {
 	t.Parallel()
 
-	t.Run("denies claim", func(t *testing.T) {
+	t.Run("Should denies claim", func(t *testing.T) {
 		t.Parallel()
 
 		hooks := newTestHooks(
@@ -126,7 +126,7 @@ func TestTaskRunPreClaimDenyAndNarrowCriteriaOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("narrows claim criteria", func(t *testing.T) {
+	t.Run("Should narrows claim criteria", func(t *testing.T) {
 		t.Parallel()
 
 		priorityMin := 30
@@ -170,7 +170,7 @@ func TestTaskRunPreClaimDenyAndNarrowCriteriaOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects broadening criteria patch", func(t *testing.T) {
+	t.Run("Should rejects broadening criteria patch", func(t *testing.T) {
 		t.Parallel()
 
 		priorityMin := 10

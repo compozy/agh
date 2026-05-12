@@ -8,7 +8,7 @@ import (
 func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("sandbox prepare", func(t *testing.T) {
+	t.Run("Should sandbox prepare", func(t *testing.T) {
 		t.Parallel()
 
 		original := SandboxPreparePayload{
@@ -40,7 +40,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("sandbox lifecycle slices", func(t *testing.T) {
+	t.Run("Should sandbox lifecycle slices", func(t *testing.T) {
 		t.Parallel()
 
 		ready := cloneAsyncPayload(SandboxReadyPayload{RuntimeAdditionalDirs: []string{"/runtime"}})
@@ -58,7 +58,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("prompt and context payloads", func(t *testing.T) {
+	t.Run("Should prompt and context payloads", func(t *testing.T) {
 		t.Parallel()
 
 		original := ContextCompactPayload{
@@ -95,7 +95,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("event and message raw json", func(t *testing.T) {
+	t.Run("Should event and message raw json", func(t *testing.T) {
 		t.Parallel()
 
 		event := EventRecordPayload{Content: json.RawMessage(`{"value":"before"}`)}
@@ -113,7 +113,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("automation payloads", func(t *testing.T) {
+	t.Run("Should automation payloads", func(t *testing.T) {
 		t.Parallel()
 
 		job := AutomationJobPreFirePayload{
@@ -154,7 +154,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("agent payloads", func(t *testing.T) {
+	t.Run("Should agent payloads", func(t *testing.T) {
 		t.Parallel()
 
 		preStart := AgentPreStartPayload{Args: []string{"before"}}
@@ -172,7 +172,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("tool payloads", func(t *testing.T) {
+	t.Run("Should tool payloads", func(t *testing.T) {
 		t.Parallel()
 
 		preCall := ToolPreCallPayload{ToolInput: json.RawMessage(`{"tool":"before"}`)}
@@ -204,7 +204,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("permission payloads", func(t *testing.T) {
+	t.Run("Should permission payloads", func(t *testing.T) {
 		t.Parallel()
 
 		request := PermissionRequestPayload{
@@ -249,7 +249,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("default branch returns value", func(t *testing.T) {
+	t.Run("Should default branch returns value", func(t *testing.T) {
 		t.Parallel()
 
 		original := SessionPreCreatePayload{SessionContext: SessionContext{SessionID: "session-default"}}
@@ -263,7 +263,7 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 	t.Parallel()
 
-	t.Run("task pre claim criteria", func(t *testing.T) {
+	t.Run("Should task pre claim criteria", func(t *testing.T) {
 		t.Parallel()
 
 		original := TaskRunPreClaimPayload{
@@ -283,7 +283,7 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		}
 	})
 
-	t.Run("task value payloads", func(t *testing.T) {
+	t.Run("Should task value payloads", func(t *testing.T) {
 		t.Parallel()
 
 		enqueued := cloneAsyncPayload(TaskRunEnqueuedPayload{TaskRunContext: TaskRunContext{TaskID: "task-enqueued"}})
@@ -301,7 +301,7 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		}
 	})
 
-	t.Run("spawn permissions", func(t *testing.T) {
+	t.Run("Should spawn permissions", func(t *testing.T) {
 		t.Parallel()
 
 		original := SpawnPreCreatePayload{
@@ -347,7 +347,7 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		}
 	})
 
-	t.Run("spawn lifecycle nil permissions", func(t *testing.T) {
+	t.Run("Should spawn lifecycle nil permissions", func(t *testing.T) {
 		t.Parallel()
 
 		cloned := cloneAsyncPayload(SpawnLifecyclePayload{})

@@ -299,7 +299,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 	t.Parallel()
 
 	rawToken := "agh_claim_DENIEDTOKEN123"
-	t.Run("missing identity", func(t *testing.T) {
+	t.Run("Should missing identity", func(t *testing.T) {
 		t.Parallel()
 
 		recorder := performAgentKernelRequest(
@@ -315,7 +315,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		}
 	})
 
-	t.Run("permission denied redacts token in error", func(t *testing.T) {
+	t.Run("Should permission denied redacts token in error", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newAgentTaskHandlers(t, stubTaskManager{
@@ -344,7 +344,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed payload", func(t *testing.T) {
+	t.Run("Should malformed payload", func(t *testing.T) {
 		t.Parallel()
 
 		recorder := performAgentKernelRequest(
@@ -360,7 +360,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		}
 	})
 
-	t.Run("stale token maps conflict and redacts token", func(t *testing.T) {
+	t.Run("Should stale token maps conflict and redacts token", func(t *testing.T) {
 		t.Parallel()
 
 		recorder := performAgentKernelRequest(
@@ -387,7 +387,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		}
 	})
 
-	t.Run("complete result rejects raw claim token before service", func(t *testing.T) {
+	t.Run("Should complete result rejects raw claim token before service", func(t *testing.T) {
 		t.Parallel()
 
 		recorder := performAgentKernelRequest(

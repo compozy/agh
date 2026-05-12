@@ -171,7 +171,7 @@ describe("useSettingsProvidersPage", () => {
       result.current.openCreate();
     });
 
-    expect(result.current.editor).toMatchObject({
+    expect(result.current.inspector).toMatchObject({
       mode: "create",
       draft: {
         name: "",
@@ -195,7 +195,7 @@ describe("useSettingsProvidersPage", () => {
       result.current.updateDraft(draft => ({ ...draft, name: "Claude" }));
     });
 
-    expect(result.current.editorIsValid).toBe(false);
+    expect(result.current.inspectorIsValid).toBe(false);
   });
 
   it("opens edit editor seeded from the entry and keeps the selected item", async () => {
@@ -205,12 +205,13 @@ describe("useSettingsProvidersPage", () => {
     await waitFor(() => expect(result.current.providers).toHaveLength(2));
 
     act(() => {
-      result.current.openEdit(claudeEntry);
+      result.current.openInspect(claudeEntry);
+      result.current.switchToEdit();
     });
 
-    expect(result.current.editor).toMatchObject({
+    expect(result.current.inspector).toMatchObject({
       mode: "edit",
-      name: "claude",
+      entry: expect.objectContaining({ name: "claude" }),
       draft: expect.objectContaining({
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         model_default: "claude-sonnet-4-6",
@@ -241,7 +242,8 @@ describe("useSettingsProvidersPage", () => {
     await waitFor(() => expect(result.current.providers).toHaveLength(2));
 
     act(() => {
-      result.current.openEdit(claudeEntry);
+      result.current.openInspect(claudeEntry);
+      result.current.switchToEdit();
     });
     act(() => {
       result.current.updateDraft(draft => ({
@@ -251,7 +253,7 @@ describe("useSettingsProvidersPage", () => {
       }));
     });
     act(() => {
-      result.current.saveEditor();
+      result.current.saveInspector();
     });
 
     await waitFor(() => {
@@ -273,7 +275,7 @@ describe("useSettingsProvidersPage", () => {
         auth_login_command: "claude login",
       },
     });
-    expect(result.current.editor.mode).toBe("closed");
+    expect(result.current.inspector.mode).toBe("closed");
   });
 
   it("preserves additional credential slots when editing provider metadata", async () => {
@@ -344,7 +346,8 @@ describe("useSettingsProvidersPage", () => {
     await waitFor(() => expect(result.current.providers).toHaveLength(1));
 
     act(() => {
-      result.current.openEdit(providerWithMultipleCredentials);
+      result.current.openInspect(providerWithMultipleCredentials);
+      result.current.switchToEdit();
     });
     act(() => {
       result.current.updateDraft(draft => ({
@@ -357,7 +360,7 @@ describe("useSettingsProvidersPage", () => {
       }));
     });
     act(() => {
-      result.current.saveEditor();
+      result.current.saveInspector();
     });
 
     await waitFor(() => {
@@ -435,7 +438,7 @@ describe("useSettingsProvidersPage", () => {
       }));
     });
     act(() => {
-      result.current.saveEditor();
+      result.current.saveInspector();
     });
 
     await waitFor(() => {
@@ -491,10 +494,11 @@ describe("useSettingsProvidersPage", () => {
     await waitFor(() => expect(result.current.providers).toHaveLength(2));
 
     act(() => {
-      result.current.openEdit(codexEntry);
+      result.current.openInspect(codexEntry);
+      result.current.switchToEdit();
     });
     act(() => {
-      result.current.saveEditor();
+      result.current.saveInspector();
     });
 
     await waitFor(() => {
@@ -543,16 +547,17 @@ describe("useSettingsProvidersPage", () => {
     await waitFor(() => expect(result.current.providers).toHaveLength(2));
 
     act(() => {
-      result.current.openEdit(claudeEntry);
+      result.current.openInspect(claudeEntry);
+      result.current.switchToEdit();
     });
     act(() => {
-      result.current.saveEditor();
+      result.current.saveInspector();
     });
 
     await waitFor(() => {
-      expect(result.current.editorError).toBe("invalid credential_slots[0].secret_ref");
+      expect(result.current.inspectorError).toBe("invalid credential_slots[0].secret_ref");
     });
-    expect(result.current.editor.mode).toBe("edit");
+    expect(result.current.inspector.mode).toBe("edit");
     expect(result.current.lastAction).toBeNull();
   });
 

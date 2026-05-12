@@ -11,7 +11,7 @@ export default defineConfig({
   testMatch: ["**/*.spec.ts"],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   workers: 1,
   timeout: 90_000,
   expect: {
@@ -25,8 +25,8 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     headless: process.env.PLAYWRIGHT_HEADFUL !== "1",
-    trace: "off",
-    screenshot: "off",
-    video: "off",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
 });

@@ -617,7 +617,7 @@ func TestStoreScanSkipsMalformedFilesAndLogsWarning(t *testing.T) {
 func TestStoreLoadIndex(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns full content", func(t *testing.T) {
+	t.Run("Should returns full content", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
@@ -647,7 +647,7 @@ func TestStoreLoadIndex(t *testing.T) {
 		}
 	})
 
-	t.Run("truncates by line count", func(t *testing.T) {
+	t.Run("Should truncates by line count", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
@@ -679,7 +679,7 @@ func TestStoreLoadIndex(t *testing.T) {
 		}
 	})
 
-	t.Run("truncates by byte count and respects utf8", func(t *testing.T) {
+	t.Run("Should truncates by byte count and respects utf8", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
@@ -705,7 +705,7 @@ func TestStoreLoadIndex(t *testing.T) {
 		}
 	})
 
-	t.Run("missing index returns empty content", func(t *testing.T) {
+	t.Run("Should missing index returns empty content", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
@@ -753,7 +753,7 @@ func TestStoreLoadPromptIndexViaBackendAlias(t *testing.T) {
 func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 	t.Parallel()
 
-	t.Run("missing index synthesizes from files", func(t *testing.T) {
+	t.Run("Should missing index synthesizes from files", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
@@ -780,7 +780,7 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 		}
 	})
 
-	t.Run("stale index synthesizes and ignores missing targets", func(t *testing.T) {
+	t.Run("Should stale index synthesizes and ignores missing targets", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
@@ -816,7 +816,7 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 		}
 	})
 
-	t.Run("stale index synthesizes when metadata changes", func(t *testing.T) {
+	t.Run("Should stale index synthesizes when metadata changes", func(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)

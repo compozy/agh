@@ -34,6 +34,7 @@ const (
 	webDistIndex              = "web/dist/index.html"
 	daemonBinaryEnvVar        = "AGH_TEST_DAEMON_BIN"
 	driverBinaryEnvVar        = "AGH_TEST_ACPMOCK_DRIVER_BIN"
+	designSyncScriptPath      = "scripts/sync-design-md.mjs"
 )
 
 var (
@@ -163,7 +164,7 @@ func Codegen() error {
 			return err
 		}
 	}
-	return nil
+	return SyncDesignMD()
 }
 
 func CodegenCheck() error {
@@ -179,7 +180,17 @@ func CodegenCheck() error {
 			return err
 		}
 	}
-	return nil
+	return SyncDesignMDCheck()
+}
+
+// SyncDesignMD refreshes generated DESIGN.md token frontmatter and tables.
+func SyncDesignMD() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", designSyncScriptPath, "--write")
+}
+
+// SyncDesignMDCheck verifies generated DESIGN.md token frontmatter and tables.
+func SyncDesignMDCheck() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", designSyncScriptPath, "--check")
 }
 
 // BunLint runs the monorepo-wide lint script (oxfmt + oxlint over every workspace).

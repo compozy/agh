@@ -714,7 +714,7 @@ func TestClientFetchRequestedReleaseRejectsPrerelease(t *testing.T) {
 func TestClientFetchReleasePageErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("not found", func(t *testing.T) {
+	t.Run("Should not found", func(t *testing.T) {
 		t.Parallel()
 
 		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
@@ -735,7 +735,7 @@ func TestClientFetchReleasePageErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("Should unauthorized", func(t *testing.T) {
 		t.Parallel()
 
 		server := newGitHubServer(t, func(writer http.ResponseWriter, _ *http.Request) {

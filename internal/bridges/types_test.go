@@ -479,7 +479,7 @@ func TestInboundMessageEnvelopeValidatesTypedInteractionFamilies(t *testing.T) {
 		IdempotencyKey:   "idem-1",
 	}
 
-	t.Run("command", func(t *testing.T) {
+	t.Run("Should command", func(t *testing.T) {
 		event := base
 		event.EventFamily = InboundEventFamilyCommand
 		event.Command = &InboundCommand{Command: "/help", Text: "bridge"}
@@ -493,7 +493,7 @@ func TestInboundMessageEnvelopeValidatesTypedInteractionFamilies(t *testing.T) {
 		}
 	})
 
-	t.Run("action", func(t *testing.T) {
+	t.Run("Should action", func(t *testing.T) {
 		event := base
 		event.EventFamily = InboundEventFamilyAction
 		event.Action = &InboundAction{ActionID: "approve", MessageID: "msg-1", Value: "run-1"}
@@ -507,7 +507,7 @@ func TestInboundMessageEnvelopeValidatesTypedInteractionFamilies(t *testing.T) {
 		}
 	})
 
-	t.Run("reaction", func(t *testing.T) {
+	t.Run("Should reaction", func(t *testing.T) {
 		event := base
 		event.EventFamily = InboundEventFamilyReaction
 		event.Reaction = &InboundReaction{MessageID: "msg-1", Emoji: "thumbs_up", Added: true}
@@ -649,7 +649,7 @@ func TestDeliveryEventRejectsInvalidTypedPayloadCombinations(t *testing.T) {
 		Final: true,
 	}
 
-	t.Run("error event requires typed error payload", func(t *testing.T) {
+	t.Run("Should error event requires typed error payload", func(t *testing.T) {
 		event := base
 		event.EventType = DeliveryEventTypeError
 		if err := event.Validate(); err == nil {
@@ -657,7 +657,7 @@ func TestDeliveryEventRejectsInvalidTypedPayloadCombinations(t *testing.T) {
 		}
 	})
 
-	t.Run("resume event requires typed resume payload", func(t *testing.T) {
+	t.Run("Should resume event requires typed resume payload", func(t *testing.T) {
 		event := base
 		event.EventType = DeliveryEventTypeResume
 		event.Final = false
@@ -666,7 +666,7 @@ func TestDeliveryEventRejectsInvalidTypedPayloadCombinations(t *testing.T) {
 		}
 	})
 
-	t.Run("delete event requires delete operation", func(t *testing.T) {
+	t.Run("Should delete event requires delete operation", func(t *testing.T) {
 		event := base
 		event.EventType = DeliveryEventTypeDelete
 		event.Operation = DeliveryOperationPost

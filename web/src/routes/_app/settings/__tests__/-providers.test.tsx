@@ -1,10 +1,16 @@
 import { fireEvent, screen } from "@testing-library/react";
-import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SettingsProviderEntry } from "@/systems/settings";
+import type { ProviderInspectorState } from "@/hooks/routes/use-settings-providers-page";
+import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks/fixtures";
+import {
+  DEFAULT_PROVIDER_FILTERS,
+  type ProviderFilterState,
+} from "@/systems/settings/lib/providers-list-filters";
 
 type RestartBanner = {
   isVisible: boolean;
@@ -117,18 +123,28 @@ type PageState = {
   error: Error | null;
   envelope: { providers: SettingsProviderEntry[] } | null;
   providers: SettingsProviderEntry[];
+  filteredProviders: SettingsProviderEntry[];
+  filters: ProviderFilterState;
+  setStatusFilter: ReturnType<typeof vi.fn>;
+  setSourceFilter: ReturnType<typeof vi.fn>;
+  setHarnessFilter: ReturnType<typeof vi.fn>;
+  setAuthModeFilter: ReturnType<typeof vi.fn>;
+  setDefaultFilter: ReturnType<typeof vi.fn>;
+  setNameQuery: ReturnType<typeof vi.fn>;
   counts: { total: number; installed: number; binaryMissing: number; unconfigured: number };
   restart: RestartBanner;
-  editor: { mode: "closed" | "create" | "edit"; [key: string]: unknown };
-  editorIsValid: boolean;
-  editorError: string | null;
-  editorWarnings: string[] | undefined;
-  editorIsSaving: boolean;
+  inspector: ProviderInspectorState;
+  inspectorIsValid: boolean;
+  inspectorError: string | null;
+  inspectorWarnings: string[] | undefined;
+  inspectorIsSaving: boolean;
+  openInspect: ReturnType<typeof vi.fn>;
   openCreate: ReturnType<typeof vi.fn>;
-  openEdit: ReturnType<typeof vi.fn>;
-  closeEditor: ReturnType<typeof vi.fn>;
+  switchToEdit: ReturnType<typeof vi.fn>;
+  cancelEdit: ReturnType<typeof vi.fn>;
+  closeInspector: ReturnType<typeof vi.fn>;
   updateDraft: ReturnType<typeof vi.fn>;
-  saveEditor: ReturnType<typeof vi.fn>;
+  saveInspector: ReturnType<typeof vi.fn>;
   deleteTarget: { mode: "closed" | "open"; entry?: SettingsProviderEntry };
   deleteError: string | null;
   deleteIsPending: boolean;
@@ -198,28 +214,39 @@ vi.mock("@/systems/model-catalog", async () => {
   };
 });
 
-function defaultEditor() {
-  return { mode: "closed" as const };
+function defaultInspector(): ProviderInspectorState {
+  return { mode: "closed" };
 }
 
 function makeState(overrides: Partial<PageState> = {}): PageState {
+  const providers = overrides.providers ?? [claudeEntry, builtinEntry];
   return {
     isLoading: false,
     error: null,
-    envelope: { providers: [claudeEntry, builtinEntry] },
-    providers: [claudeEntry, builtinEntry],
-    counts: { total: 2, installed: 1, binaryMissing: 0, unconfigured: 1 },
+    envelope: { providers },
+    providers,
+    filteredProviders: overrides.filteredProviders ?? providers,
+    filters: overrides.filters ?? DEFAULT_PROVIDER_FILTERS,
+    setStatusFilter: vi.fn(),
+    setSourceFilter: vi.fn(),
+    setHarnessFilter: vi.fn(),
+    setAuthModeFilter: vi.fn(),
+    setDefaultFilter: vi.fn(),
+    setNameQuery: vi.fn(),
+    counts: { total: providers.length, installed: 1, binaryMissing: 0, unconfigured: 1 },
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
-    editor: defaultEditor(),
-    editorIsValid: false,
-    editorError: null,
-    editorWarnings: undefined,
-    editorIsSaving: false,
+    inspector: defaultInspector(),
+    inspectorIsValid: false,
+    inspectorError: null,
+    inspectorWarnings: undefined,
+    inspectorIsSaving: false,
+    openInspect: vi.fn(),
     openCreate: vi.fn(),
-    openEdit: vi.fn(),
-    closeEditor: vi.fn(),
+    switchToEdit: vi.fn(),
+    cancelEdit: vi.fn(),
+    closeInspector: vi.fn(),
     updateDraft: vi.fn(),
-    saveEditor: vi.fn(),
+    saveInspector: vi.fn(),
     deleteTarget: { mode: "closed" },
     deleteError: null,
     deleteIsPending: false,
@@ -236,10 +263,36 @@ beforeEach(() => {
   pageState = makeState();
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../providers";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ProvidersSettingsPage = (Route as any).component as () => ReactNode;
+const ProvidersSettingsPage = routeComponent(Route);
+
+const draftFor = (entry: SettingsProviderEntry): ProviderDraft => ({
+  name: entry.name,
+  command: entry.settings.command ?? "",
+  display_name: entry.settings.display_name ?? "",
+  model_default: entry.settings.models?.default ?? "",
+  curated_models: (entry.settings.models?.curated ?? [])
+    .map(model => model.id)
+    .filter(Boolean)
+    .join("\n"),
+  curated_snapshot: (entry.settings.models?.curated ?? []).map(model => ({ ...model })),
+  target_env: entry.settings.credential_slots?.[0]?.target_env ?? "",
+  harness: entry.settings.harness ?? "acp",
+  runtime_provider: entry.settings.runtime_provider ?? "",
+  transport: entry.settings.transport ?? "",
+  base_url: entry.settings.base_url ?? "",
+  auth_mode: entry.settings.auth_mode ?? "native_cli",
+  env_policy: entry.settings.env_policy ?? "filtered",
+  home_policy: entry.settings.home_policy ?? "operator",
+  auth_status_command: entry.settings.auth_status_command ?? "",
+  auth_login_command: entry.settings.auth_login_command ?? "",
+  secret_ref: entry.settings.credential_slots?.[0]?.secret_ref ?? "",
+  secret_value: "",
+  credential_slots: (entry.settings.credential_slots ?? []).map(slot => ({ ...slot })),
+  credential_secret_values: (entry.settings.credential_slots ?? []).map(() => ""),
+});
 
 describe("ProvidersSettingsPage", () => {
   it("renders loading state while fetching", () => {
@@ -269,28 +322,22 @@ describe("ProvidersSettingsPage", () => {
     );
   });
 
-  it("opens the create editor when clicking the new-provider action", () => {
+  it("opens the create flow when clicking the new-provider action", () => {
     render(<ProvidersSettingsPage />);
     fireEvent.click(screen.getByTestId("settings-page-providers-create"));
     expect(pageState.openCreate).toHaveBeenCalled();
   });
 
-  it("renders each provider card with settings, source metadata, and state tone", () => {
+  it("renders each provider card with identity, summary, and state tone", () => {
     render(<ProvidersSettingsPage />);
     expect(screen.getByTestId("settings-page-providers-card-claude")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-providers-card-claude-command")).toHaveTextContent(
-      "npx -y @agentclientprotocol/claude-agent-acp@latest"
+    expect(screen.getByTestId("settings-page-providers-card-claude-name")).toHaveTextContent(
+      "claude"
     );
-    expect(screen.getByTestId("settings-page-providers-card-claude-auth-mode")).toHaveTextContent(
-      "native_cli"
+    expect(screen.getByTestId("settings-page-providers-card-claude-model")).toHaveTextContent(
+      "claude-sonnet-4-6"
     );
-    expect(
-      screen.getByTestId("settings-page-providers-card-claude-curated-models")
-    ).toHaveTextContent("claude-sonnet-4-6");
-    expect(screen.getByTestId("settings-page-providers-card-codex-reasoning")).toHaveTextContent(
-      "Per model"
-    );
-    expect(screen.getByTestId("settings-page-providers-card-claude-auth-status")).toHaveTextContent(
+    expect(screen.getByTestId("settings-page-providers-card-claude-auth-state")).toHaveTextContent(
       "native_cli"
     );
     expect(
@@ -299,9 +346,21 @@ describe("ProvidersSettingsPage", () => {
     expect(
       screen.getByTestId("settings-page-providers-card-codex-source-effective")
     ).toHaveTextContent("BUILTIN");
-    expect(
-      screen.getByTestId("settings-page-providers-card-codex-credential-state")
-    ).toHaveTextContent("MISSING");
+    expect(screen.getByTestId("settings-page-providers-card-claude-status")).toHaveAttribute(
+      "data-state",
+      "installed"
+    );
+    expect(screen.getByTestId("settings-page-providers-card-codex-status")).toHaveAttribute(
+      "data-state",
+      "unconfigured"
+    );
+  });
+
+  it("surfaces the inline hint when credentials are missing", () => {
+    render(<ProvidersSettingsPage />);
+    expect(screen.getByTestId("settings-page-providers-card-codex-hint")).toHaveTextContent(
+      "Bind OPENAI_API_KEY to continue."
+    );
   });
 
   it("renders the newly supported ACP provider cards from the catalog", () => {
@@ -335,19 +394,157 @@ describe("ProvidersSettingsPage", () => {
     }
   });
 
-  it("disables delete for builtin-only providers", () => {
+  it("invokes openInspect when the card open action is clicked", () => {
     render(<ProvidersSettingsPage />);
-    expect(screen.getByTestId("settings-page-providers-card-codex-delete")).toBeDisabled();
-    expect(screen.getByTestId("settings-page-providers-card-claude-delete")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("settings-page-providers-card-claude-open"));
+    expect(pageState.openInspect).toHaveBeenCalledWith(claudeEntry);
   });
 
-  it("invokes the edit and delete handlers from card controls", () => {
+  it("renders the inspector sheet with the entry config when in inspect mode", () => {
+    pageState = makeState({ inspector: { mode: "inspect", entry: claudeEntry } });
     render(<ProvidersSettingsPage />);
-    fireEvent.click(screen.getByTestId("settings-page-providers-card-claude-edit"));
-    expect(pageState.openEdit).toHaveBeenCalledWith(claudeEntry);
+    const sheet = screen.getByTestId("provider-inspector-sheet");
+    expect(sheet).toHaveAttribute("data-mode", "inspect");
+    expect(screen.getByTestId("provider-inspector-title")).toHaveTextContent("claude");
+    expect(screen.getByTestId("inspect-command")).toHaveTextContent(
+      "npx -y @agentclientprotocol/claude-agent-acp@latest"
+    );
+    expect(screen.getByTestId("inspect-auth-mode")).toHaveTextContent("native_cli");
+  });
 
-    fireEvent.click(screen.getByTestId("settings-page-providers-card-claude-delete"));
+  it("uses the provider configuration subtitle when display name is blank", () => {
+    pageState = makeState({
+      inspector: {
+        mode: "inspect",
+        entry: { ...claudeEntry, settings: { ...claudeEntry.settings, display_name: "" } },
+      },
+    });
+    render(<ProvidersSettingsPage />);
+    expect(screen.getByText("Provider configuration")).toBeInTheDocument();
+  });
+
+  it("renders the edit form inside the sheet when inspector is in edit mode", () => {
+    pageState = makeState({
+      inspector: {
+        mode: "edit",
+        entry: claudeEntry,
+        draft: draftFor(claudeEntry),
+        cameFrom: "inspect",
+      },
+      inspectorIsValid: true,
+    });
+    render(<ProvidersSettingsPage />);
+    expect(screen.getByTestId("provider-inspector-sheet")).toHaveAttribute("data-mode", "edit");
+    expect(screen.getByTestId("settings-providers-editor-name-input")).toBeDisabled();
+    expect(screen.getByTestId("settings-providers-editor-command-input")).toHaveValue(
+      "npx -y @agentclientprotocol/claude-agent-acp@latest"
+    );
+  });
+
+  it("clears draft credential secrets when auth mode leaves bound secret", async () => {
+    const draft: ProviderDraft = {
+      ...draftFor(builtinEntry),
+      auth_mode: "bound_secret",
+      target_env: "OPENAI_API_KEY",
+      secret_ref: "vault:providers/codex/api-key",
+      secret_value: "sk-primary",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "OPENAI_API_KEY",
+          secret_ref: "vault:providers/codex/api-key",
+          kind: "api_key",
+          required: true,
+        },
+        {
+          name: "organization",
+          target_env: "OPENAI_ORG_ID",
+          secret_ref: "vault:providers/codex/organization",
+          kind: "organization",
+          required: false,
+        },
+      ],
+      credential_secret_values: ["sk-primary", "org-secret"],
+    };
+    const updateDraft = vi.fn();
+    pageState = makeState({
+      inspector: { mode: "edit", entry: builtinEntry, draft, cameFrom: "inspect" },
+      updateDraft,
+    });
+    const user = userEvent.setup();
+    render(<ProvidersSettingsPage />);
+
+    await user.selectOptions(
+      screen.getByTestId("settings-providers-editor-auth-mode-input"),
+      "native_cli"
+    );
+
+    expect(updateDraft).toHaveBeenCalledTimes(1);
+    const updater = updateDraft.mock.calls[0]?.[0] as
+      | ((current: ProviderDraft) => ProviderDraft)
+      | undefined;
+    if (!updater) {
+      throw new Error("expected provider draft updater");
+    }
+    const next = updater(draft);
+    expect(next.auth_mode).toBe("native_cli");
+    expect(next.target_env).toBe("");
+    expect(next.secret_ref).toBe("");
+    expect(next.secret_value).toBe("");
+    expect(next.credential_slots).toEqual([]);
+    expect(next.credential_secret_values).toEqual([]);
+  });
+
+  it("disables delete in inspect footer for builtin-only providers", () => {
+    pageState = makeState({ inspector: { mode: "inspect", entry: builtinEntry } });
+    render(<ProvidersSettingsPage />);
+    expect(screen.getByTestId("provider-inspector-delete")).toBeDisabled();
+  });
+
+  it("invokes openDelete from inspect footer for deletable providers", async () => {
+    pageState = makeState({ inspector: { mode: "inspect", entry: claudeEntry } });
+    const user = userEvent.setup();
+    render(<ProvidersSettingsPage />);
+    await user.click(screen.getByTestId("provider-inspector-delete"));
     expect(pageState.openDelete).toHaveBeenCalledWith(claudeEntry);
+  });
+
+  it("switches the inspector into edit mode via the inspect footer", () => {
+    pageState = makeState({ inspector: { mode: "inspect", entry: claudeEntry } });
+    render(<ProvidersSettingsPage />);
+    fireEvent.click(screen.getByTestId("provider-inspector-edit"));
+    expect(pageState.switchToEdit).toHaveBeenCalled();
+  });
+
+  it("disables the edit action while delete is pending", async () => {
+    pageState = makeState({
+      inspector: { mode: "inspect", entry: claudeEntry },
+      deleteIsPending: true,
+    });
+    const user = userEvent.setup();
+    render(<ProvidersSettingsPage />);
+    const edit = screen.getByTestId("provider-inspector-edit");
+    expect(edit).toBeDisabled();
+
+    await user.click(edit);
+
+    expect(pageState.switchToEdit).not.toHaveBeenCalled();
+  });
+
+  it("surfaces inspector validation errors in the sheet footer", () => {
+    pageState = makeState({
+      inspector: {
+        mode: "edit",
+        entry: claudeEntry,
+        draft: draftFor(claudeEntry),
+        cameFrom: "inspect",
+      },
+      inspectorError: "command must not be empty",
+    });
+    render(<ProvidersSettingsPage />);
+    expect(screen.getByTestId("provider-inspector-error")).toHaveTextContent(
+      "command must not be empty"
+    );
   });
 
   it("renders the @agh/ui Empty card when the catalog is empty", () => {
@@ -361,96 +558,6 @@ describe("ProvidersSettingsPage", () => {
     expect(empty).toBeInTheDocument();
     expect(empty).toHaveAttribute("data-slot", "empty");
     expect(empty).toHaveTextContent("No providers configured");
-  });
-
-  it("renders the edit dialog seeded from the editor state", () => {
-    pageState = makeState({
-      editor: {
-        mode: "edit",
-        name: "claude",
-        draft: {
-          name: "claude",
-          command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-          display_name: "Claude",
-          model_default: "claude-sonnet-4-6",
-          curated_models: "claude-sonnet-4-6\nclaude-haiku-4-5",
-          target_env: "",
-          harness: "acp",
-          runtime_provider: "",
-          transport: "",
-          base_url: "",
-          auth_mode: "native_cli",
-          env_policy: "filtered",
-          home_policy: "operator",
-          auth_status_command: "claude auth status",
-          auth_login_command: "claude login",
-          secret_ref: "",
-          secret_value: "",
-          credential_slots: [],
-          credential_secret_values: [],
-        },
-        entry: claudeEntry,
-      },
-      editorIsValid: true,
-    });
-    render(<ProvidersSettingsPage />);
-    expect(screen.getByTestId("settings-providers-editor-title")).toHaveTextContent(
-      "Edit provider"
-    );
-    expect(screen.getByTestId("settings-providers-editor-name-input")).toBeDisabled();
-    expect(screen.getByTestId("settings-providers-editor-command-input")).toHaveValue(
-      "npx -y @agentclientprotocol/claude-agent-acp@latest"
-    );
-    expect(screen.getByTestId("settings-providers-editor-curated-models-input")).toHaveValue(
-      "claude-sonnet-4-6\nclaude-haiku-4-5"
-    );
-    expect(screen.getByTestId("settings-providers-editor-source-effective")).toHaveTextContent(
-      "CONFIG"
-    );
-  });
-
-  it("surfaces validation errors returned by the mutation", () => {
-    pageState = makeState({
-      editor: {
-        mode: "edit",
-        name: "claude",
-        draft: {
-          name: "claude",
-          command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-          display_name: "",
-          model_default: "",
-          curated_models: "",
-          target_env: "ANTHROPIC_API_KEY",
-          harness: "acp",
-          runtime_provider: "",
-          transport: "",
-          base_url: "",
-          auth_mode: "bound_secret",
-          env_policy: "filtered",
-          home_policy: "operator",
-          auth_status_command: "",
-          auth_login_command: "",
-          secret_ref: "env:ANTHROPIC_API_KEY",
-          secret_value: "",
-          credential_slots: [
-            {
-              name: "api_key",
-              target_env: "ANTHROPIC_API_KEY",
-              secret_ref: "env:ANTHROPIC_API_KEY",
-              kind: "api_key",
-              required: false,
-            },
-          ],
-          credential_secret_values: [""],
-        },
-        entry: claudeEntry,
-      },
-      editorError: "command must not be empty",
-    });
-    render(<ProvidersSettingsPage />);
-    expect(screen.getByTestId("settings-providers-editor-error")).toHaveTextContent(
-      "command must not be empty"
-    );
   });
 
   it("shows the builtin-fallback note in the delete dialog when fallback is present", () => {

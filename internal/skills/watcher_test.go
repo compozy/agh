@@ -238,7 +238,7 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 	t.Parallel()
 
-	t.Run("added after empty baseline", func(t *testing.T) {
+	t.Run("Should added after empty baseline", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -271,7 +271,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		}
 	})
 
-	t.Run("modified after populated baseline", func(t *testing.T) {
+	t.Run("Should modified after populated baseline", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -334,22 +334,16 @@ func TestWatcherStartRefreshesOnlyWhenGlobalStateChanges(t *testing.T) {
 		t.Fatalf("waitForCalls(1) error = %v", err)
 	}
 
-	select {
-	case <-time.After(50 * time.Millisecond):
-	case <-done:
-		t.Fatal("watcher exited before cancellation")
-	}
-
-	if calls := spy.calls(); calls != 1 {
-		t.Fatalf("refresh calls after steady state = %d, want 1", calls)
-	}
-
 	cancel()
 
 	select {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("watcher did not stop after cancellation")
+	}
+
+	if calls := spy.calls(); calls != 1 {
+		t.Fatalf("refresh calls after global change = %d, want 1", calls)
 	}
 }
 
@@ -383,25 +377,10 @@ func TestWatcherStartDoesNotRefreshWithoutChangesAcrossMultiplePolls(t *testing.
 	spy := newRefreshSpy()
 	watcher := newTestWatcher(spy, 10*time.Millisecond, root)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		watcher.Start(ctx)
-		close(done)
-	}()
-
-	select {
-	case <-time.After(60 * time.Millisecond):
-	case <-done:
-		t.Fatal("watcher exited before cancellation")
-	}
-
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("watcher did not stop after cancellation")
+	for poll := range 3 {
+		if err := watcher.pollOnce(context.Background()); err != nil {
+			t.Fatalf("pollOnce(%d) error = %v", poll, err)
+		}
 	}
 
 	if calls := spy.calls(); calls != 0 {

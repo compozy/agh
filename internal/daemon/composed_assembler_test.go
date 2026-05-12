@@ -20,7 +20,7 @@ import (
 func TestComposedAssemblerAssemble(t *testing.T) {
 	t.Parallel()
 
-	t.Run("zero providers returns trimmed base prompt", func(t *testing.T) {
+	t.Run("Should zero providers returns trimmed base prompt", func(t *testing.T) {
 		t.Parallel()
 
 		assembler := NewComposedAssembler()
@@ -31,7 +31,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("prepend provider renders before base prompt", func(t *testing.T) {
+	t.Run("Should prepend provider renders before base prompt", func(t *testing.T) {
 		t.Parallel()
 
 		assembler := NewComposedAssembler(
@@ -45,7 +45,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("append provider renders after base prompt", func(t *testing.T) {
+	t.Run("Should append provider renders after base prompt", func(t *testing.T) {
 		t.Parallel()
 
 		assembler := NewComposedAssembler(
@@ -59,7 +59,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("prepend and append providers preserve ordering", func(t *testing.T) {
+	t.Run("Should prepend and append providers preserve ordering", func(t *testing.T) {
 		t.Parallel()
 
 		assembler := NewComposedAssembler(
@@ -74,7 +74,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("nil providers are skipped", func(t *testing.T) {
+	t.Run("Should nil providers are skipped", func(t *testing.T) {
 		t.Parallel()
 
 		var nilProvider session.PromptProvider
@@ -90,7 +90,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("provider errors are returned", func(t *testing.T) {
+	t.Run("Should provider errors are returned", func(t *testing.T) {
 		t.Parallel()
 
 		wantErr := errors.New("boom")
@@ -109,7 +109,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("empty provider sections do not add whitespace", func(t *testing.T) {
+	t.Run("Should empty provider sections do not add whitespace", func(t *testing.T) {
 		t.Parallel()
 
 		assembler := NewComposedAssembler(
@@ -123,7 +123,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace is passed to all providers", func(t *testing.T) {
+	t.Run("Should workspace is passed to all providers", func(t *testing.T) {
 		t.Parallel()
 
 		prepend := &recordingPromptProvider{section: "# Memory section"}
@@ -148,7 +148,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("nil assembler returns trimmed base prompt", func(t *testing.T) {
+	t.Run("Should nil assembler returns trimmed base prompt", func(t *testing.T) {
 		t.Parallel()
 
 		var assembler *ComposedAssembler
@@ -166,7 +166,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("empty and nil options are ignored", func(t *testing.T) {
+	t.Run("Should empty and nil options are ignored", func(t *testing.T) {
 		t.Parallel()
 
 		assembler := NewComposedAssembler(

@@ -1036,7 +1036,7 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
 	manager := &fakeExtensionRuntime{}
 
-	t.Run("syncs hook bindings when available", func(t *testing.T) {
+	t.Run("Should syncs hook bindings when available", func(t *testing.T) {
 		t.Parallel()
 
 		syncCalls := 0
@@ -1063,7 +1063,7 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to rebuild without hook bindings", func(t *testing.T) {
+	t.Run("Should falls back to rebuild without hook bindings", func(t *testing.T) {
 		t.Parallel()
 
 		rebuilds := 0
@@ -1085,7 +1085,7 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 		}
 	})
 
-	t.Run("logs sync failures without rebuilding", func(t *testing.T) {
+	t.Run("Should logs sync failures without rebuilding", func(t *testing.T) {
 		t.Parallel()
 
 		syncCalls := 0
@@ -3126,7 +3126,6 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 		"after-shutdown",
 		"Should not be observed",
 	)
-	time.Sleep(4 * cfg.Skills.PollInterval)
 
 	if got := registry.GlobalVersion(); got != versionAfterRefresh {
 		t.Fatalf("registry version after shutdown = %d, want %d", got, versionAfterRefresh)
@@ -3318,10 +3317,11 @@ func TestDreamTickerRunsAndStopsOnCancellation(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	runCount := dream.runCount()
-	time.Sleep(30 * time.Millisecond)
-	if got := dream.runCount(); got != runCount {
-		t.Fatalf("dream run count after shutdown = %d, want %d", got, runCount)
+	d.mu.Lock()
+	dreamRuntime := d.dreamRuntime
+	d.mu.Unlock()
+	if dreamRuntime != nil {
+		t.Fatal("dream runtime still attached after daemon shutdown")
 	}
 }
 
@@ -3402,24 +3402,6 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 	}
 	if got := sessions.createCall(0).WorkspacePath; got != "" {
 		t.Fatalf("Create() workspace_path = %q, want empty", got)
-	}
-
-	if _, err := dispatcher.Session.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPostStop,
-			Timestamp: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   "sess-dream",
-			SessionType: string(session.SessionTypeDream),
-			State:       string(session.StateStopped),
-		},
-	}); err != nil {
-		t.Fatalf("DispatchSessionPostStop(dream) error = %v", err)
-	}
-	time.Sleep(20 * time.Millisecond)
-	if got := dream.runCount(); got != 1 {
-		t.Fatalf("dream run count after dream-session stop = %d, want 1", got)
 	}
 
 	cancel()

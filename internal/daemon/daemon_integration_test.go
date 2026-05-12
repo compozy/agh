@@ -4039,7 +4039,7 @@ func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.Ho
 		unmarshalOK  bool
 	)
 
-	t.Run("read file", func(t *testing.T) {
+	t.Run("Should read file", func(t *testing.T) {
 		var err error
 		payloadBytes, err = os.ReadFile(path)
 		if err != nil {
@@ -4048,7 +4048,7 @@ func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.Ho
 		readOK = true
 	})
 
-	t.Run("unmarshal", func(t *testing.T) {
+	t.Run("Should unmarshal", func(t *testing.T) {
 		if !readOK {
 			t.Skip("payload unavailable after read failure")
 		}
@@ -4058,7 +4058,7 @@ func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.Ho
 		unmarshalOK = true
 	})
 
-	t.Run("event", func(t *testing.T) {
+	t.Run("Should event", func(t *testing.T) {
 		if !unmarshalOK {
 			t.Skip("payload unavailable after unmarshal failure")
 		}
@@ -4067,7 +4067,7 @@ func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.Ho
 		}
 	})
 
-	t.Run("workspace id", func(t *testing.T) {
+	t.Run("Should workspace id", func(t *testing.T) {
 		if !unmarshalOK {
 			t.Skip("payload unavailable after unmarshal failure")
 		}
@@ -4076,7 +4076,7 @@ func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.Ho
 		}
 	})
 
-	t.Run("workspace path", func(t *testing.T) {
+	t.Run("Should workspace path", func(t *testing.T) {
 		if !unmarshalOK {
 			t.Skip("payload unavailable after unmarshal failure")
 		}

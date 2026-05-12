@@ -29,8 +29,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     providers: settingsProviderFixtures,
-    onEdit: fn(),
-    onDelete: fn(),
+    onOpen: fn(),
   },
   render: args => (
     <PanelSurface className="px-6 py-6">
@@ -46,8 +45,7 @@ export const Default: Story = {
 export const Empty: Story = {
   args: {
     providers: [],
-    onEdit: fn(),
-    onDelete: fn(),
+    onOpen: fn(),
   },
   render: args => (
     <PanelSurface className="px-6 py-6">

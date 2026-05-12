@@ -181,7 +181,7 @@ func TestServiceShouldRunAllGatesPassWithoutLockSideEffects(t *testing.T) {
 func TestServiceShouldRunEvaluatesGatesInOrder(t *testing.T) {
 	t.Parallel()
 
-	t.Run("time gate short-circuits session and lock", func(t *testing.T) {
+	t.Run("Should time gate short-circuits session and lock", func(t *testing.T) {
 		now := time.Now().UTC().Round(0)
 		lock := &stubLock{lastConsolidatedAt: now.Add(-time.Hour)}
 		sequence := make([]string, 0, 2)
@@ -211,7 +211,7 @@ func TestServiceShouldRunEvaluatesGatesInOrder(t *testing.T) {
 		}
 	})
 
-	t.Run("session gate runs after time gate without touching lock", func(t *testing.T) {
+	t.Run("Should session gate runs after time gate without touching lock", func(t *testing.T) {
 		now := time.Now().UTC().Round(0)
 		sequence := make([]string, 0, 1)
 		lock := &stubLock{

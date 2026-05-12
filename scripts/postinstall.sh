@@ -5,21 +5,45 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE_DIR="$ROOT_DIR/.agents/skills"
 TARGET_DIR="$ROOT_DIR/.claude/skills"
 
+link_skill() {
+  local source_path="$1"
+  local skill_name
+  skill_name="$(basename "$source_path")"
+  local target="$TARGET_DIR/$skill_name"
+
+  if [ -L "$target" ] || [ -d "$target" ]; then
+    rm -rf "$target"
+  fi
+
+  ln -s "$source_path" "$target"
+}
+
 if [ -d "$SOURCE_DIR" ]; then
   mkdir -p "$TARGET_DIR"
 
+  linked_skills=0
   for skill in "$SOURCE_DIR"/*/; do
-    skill_name="$(basename "$skill")"
-    target="$TARGET_DIR/$skill_name"
+    skill="${skill%/}"
 
-    if [ -L "$target" ]; then
-      rm "$target"
+    if [ -f "$skill/SKILL.md" ]; then
+      link_skill "$skill"
+      linked_skills=$((linked_skills + 1))
+      continue
     fi
 
-    ln -s "$skill" "$target"
+    # No SKILL.md at this level: treat the folder as a skill group and
+    # symlink each nested child that contains a SKILL.md at the top level
+    # (Claude Code does not load nested skill folders).
+    for nested in "$skill"/*/; do
+      nested="${nested%/}"
+      if [ -f "$nested/SKILL.md" ]; then
+        link_skill "$nested"
+        linked_skills=$((linked_skills + 1))
+      fi
+    done
   done
 
-  echo "Linked $(ls -1d "$SOURCE_DIR"/*/ | wc -l | tr -d ' ') skills from .agents/skills → .claude/skills"
+  echo "Linked $linked_skills skills from .agents/skills → .claude/skills"
 else
   echo "No .agents/skills directory found, skipping skill symlink."
 fi

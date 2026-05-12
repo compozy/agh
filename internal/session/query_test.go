@@ -451,7 +451,7 @@ func TestManagerEventsRejectTraversalSessionID(t *testing.T) {
 func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("requires context and session id", func(t *testing.T) {
+	t.Run("Should requires context and session id", func(t *testing.T) {
 		h := newHarness(t)
 		var nilCtx context.Context
 		if _, _, err := h.manager.openQueryRecorder(nilCtx, "sess-1"); err == nil {
@@ -462,7 +462,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("active session requires recorder", func(t *testing.T) {
+	t.Run("Should active session requires recorder", func(t *testing.T) {
 		h := newHarness(t)
 		session := createSession(t, h)
 		t.Cleanup(func() {
@@ -494,7 +494,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("finalizing active session reopens stored events after recorder closes", func(t *testing.T) {
+	t.Run("Should finalizing active session reopens stored events after recorder closes", func(t *testing.T) {
 		h := newHarness(t)
 		session := createSession(t, h)
 
@@ -663,7 +663,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("missing session metadata", func(t *testing.T) {
+	t.Run("Should missing session metadata", func(t *testing.T) {
 		h := newHarness(t)
 		if _, _, err := h.manager.openQueryRecorder(
 			testutil.Context(t),
@@ -676,7 +676,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("missing database file", func(t *testing.T) {
+	t.Run("Should missing database file", func(t *testing.T) {
 		h := newHarness(t)
 		writeStoppedSessionArtifacts(t, h, "stored-no-db", false)
 
@@ -691,7 +691,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("store open failure", func(t *testing.T) {
+	t.Run("Should store open failure", func(t *testing.T) {
 		openErr := errors.New("boom")
 		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
 			return nil, openErr
@@ -709,7 +709,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("cleanup closes reopened recorder", func(t *testing.T) {
+	t.Run("Should cleanup closes reopened recorder", func(t *testing.T) {
 		recorder := &queryRecorderStub{}
 		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
 			return recorder, nil

@@ -646,7 +646,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
 
-	t.Run("happy path json endpoints", func(t *testing.T) {
+	t.Run("Should happy path json endpoints", func(t *testing.T) {
 		t.Parallel()
 
 		publishResp := performRequest(t, fixture.Engine, http.MethodPost, "/tasks/task-1/publish", nil)
@@ -814,7 +814,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("task stream sse", func(t *testing.T) {
+	t.Run("Should task stream sse", func(t *testing.T) {
 		t.Parallel()
 
 		streamResp := testutil.PerformRequestWithHeaders(

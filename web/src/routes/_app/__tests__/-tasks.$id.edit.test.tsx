@@ -69,10 +69,10 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../tasks.$id.edit";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TaskEditRoute = (Route as any).component as () => ReactNode;
+const TaskEditRoute = routeComponent(Route);
 
 describe("TaskEditRoute", () => {
   beforeEach(() => {

@@ -4,7 +4,6 @@ export default defineConfig({
   test: {
     pool: "threads",
     isolate: true,
-    passWithNoTests: true,
     exclude: ["**/node_modules/**", "**/dist/**", "**/bin/**"],
     coverage: {
       provider: "v8",

@@ -271,7 +271,7 @@ func TestKernelPutRawRejectsInvalidScopeBinding(t *testing.T) {
 func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *testing.T) {
 	t.Parallel()
 
-	t.Run("non-active nonce", func(t *testing.T) {
+	t.Run("Should non-active nonce", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -300,7 +300,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 		}
 	})
 
-	t.Run("stale source version", func(t *testing.T) {
+	t.Run("Should stale source version", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -339,7 +339,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 		}
 	})
 
-	t.Run("per-record payload limit", func(t *testing.T) {
+	t.Run("Should per-record payload limit", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t, WithMaxSpecBytes(8))
@@ -364,7 +364,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 		}
 	})
 
-	t.Run("per-call payload limit", func(t *testing.T) {
+	t.Run("Should per-call payload limit", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t, WithMaxSpecBytes(64), WithMaxSnapshotBytes(18))
@@ -770,7 +770,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 	kernel, _ := openTestKernel(t)
 	ctx := testutil.Context(t)
 
-	t.Run("activate source session rejects extension actor and blank nonce", func(t *testing.T) {
+	t.Run("Should activate source session rejects extension actor and blank nonce", func(t *testing.T) {
 		source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-edge"}
 		if err := kernel.ActivateSourceSession(
 			ctx,
@@ -788,7 +788,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("reset source rejects extension actor", func(t *testing.T) {
+	t.Run("Should reset source rejects extension actor", func(t *testing.T) {
 		source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-reset"}
 		if err := kernel.ResetSource(
 			ctx,
@@ -802,7 +802,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("put rejects scope escalation and source mismatch", func(t *testing.T) {
+	t.Run("Should put rejects scope escalation and source mismatch", func(t *testing.T) {
 		workspaceActor := testOperatorActor()
 		workspaceActor.MaxScope = ResourceScope{Kind: ResourceScopeKindWorkspace, ID: "ws-1"}
 		workspaceActor.GrantedScopes = []ResourceScopeKind{ResourceScopeKindWorkspace}
@@ -843,7 +843,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("list and get reject invalid source and scope access", func(t *testing.T) {
+	t.Run("Should list and get reject invalid source and scope access", func(t *testing.T) {
 		source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-read"}
 		if err := kernel.ActivateSourceSession(ctx, testDaemonActor(), source, "nonce-read"); err != nil {
 			t.Fatalf("ActivateSourceSession() error = %v", err)
@@ -891,7 +891,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("snapshot rejects non-extension actor duplicate keys and blank nonce", func(t *testing.T) {
+	t.Run("Should snapshot rejects non-extension actor duplicate keys and blank nonce", func(t *testing.T) {
 		source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-snapshot-edge"}
 		if err := kernel.ActivateSourceSession(ctx, testDaemonActor(), source, "nonce-snapshot"); err != nil {
 			t.Fatalf("ActivateSourceSession() error = %v", err)
@@ -1023,7 +1023,7 @@ func TestKernelLockSourceReleasesIdleEntries(t *testing.T) {
 func TestKernelAdditionalValidationBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("constructor rejects invalid option state", func(t *testing.T) {
+	t.Run("Should constructor rejects invalid option state", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -1067,7 +1067,7 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("direct mutation validation", func(t *testing.T) {
+	t.Run("Should direct mutation validation", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -1119,7 +1119,7 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("read and source management validation", func(t *testing.T) {
+	t.Run("Should read and source management validation", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -1142,7 +1142,7 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("join cleanup error combines errors", func(t *testing.T) {
+	t.Run("Should join cleanup error combines errors", func(t *testing.T) {
 		t.Parallel()
 
 		cleanupErr := errors.New("cleanup")

@@ -34,6 +34,18 @@ func (s *recordingReconcileEventSink) count(eventType ReconcileEventType) int {
 	return count
 }
 
+func (s *recordingReconcileEventSink) waitForCount(
+	t *testing.T,
+	eventType ReconcileEventType,
+	want int,
+) {
+	t.Helper()
+
+	waitForCondition(t, time.Second, func() bool {
+		return s.count(eventType) >= want
+	})
+}
+
 type recordingReconcileHealthSink struct {
 	mu      sync.Mutex
 	updates []ReconcileHealth
@@ -52,6 +64,20 @@ func (s *recordingReconcileHealthSink) latest() ReconcileHealth {
 		return ReconcileHealth{}
 	}
 	return s.updates[len(s.updates)-1]
+}
+
+func (s *recordingReconcileHealthSink) waitForStatus(
+	t *testing.T,
+	status ReconcileHealthStatus,
+) ReconcileHealth {
+	t.Helper()
+
+	var latest ReconcileHealth
+	waitForCondition(t, time.Second, func() bool {
+		latest = s.latest()
+		return latest.Status == status
+	})
+	return latest
 }
 
 type reentrantTriggerSink struct {
@@ -107,6 +133,26 @@ func waitForCondition(t *testing.T, timeout time.Duration, fn func() bool) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("condition not satisfied before timeout")
+}
+
+func waitForReconcileIdle(t *testing.T, driver ReconcileDriver, kind ResourceKind) {
+	t.Helper()
+
+	impl, ok := driver.(*reconcileDriver)
+	if !ok {
+		t.Fatalf("driver type = %T, want *reconcileDriver", driver)
+	}
+	normalizedKind := kind.Normalize()
+	waitForCondition(t, time.Second, func() bool {
+		impl.mu.Lock()
+		defer impl.mu.Unlock()
+
+		if len(impl.queue) != 0 {
+			return false
+		}
+		state := impl.kindStates[normalizedKind]
+		return state != nil && !state.pending && !state.running && !state.dirty
+	})
 }
 
 func TestReconcileDriverSingleFlightCoalescesSameKind(t *testing.T) {
@@ -167,12 +213,8 @@ func TestReconcileDriverSingleFlightCoalescesSameKind(t *testing.T) {
 
 	close(releaseFirstBuild)
 
-	waitForCondition(t, time.Second, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return buildCalls == 2
-	})
-	time.Sleep(100 * time.Millisecond)
+	eventSink.waitForCount(t, ReconcileEventApplied, 2)
+	waitForReconcileIdle(t, driver, testResourceKind)
 
 	mu.Lock()
 	gotBuildCalls := buildCalls
@@ -311,7 +353,8 @@ func TestReconcileDriverOpensDegradedCircuitAndWaitsForFreshWrite(t *testing.T) 
 	}
 
 	close(releaseFirstBuild)
-	time.Sleep(100 * time.Millisecond)
+	eventSink.waitForCount(t, ReconcileEventDegraded, 1)
+	healthSink.waitForStatus(t, ReconcileHealthStatusDegraded)
 
 	mu.Lock()
 	gotBuildCalls := buildCalls
@@ -340,7 +383,7 @@ func TestReconcileDriverOpensDegradedCircuitAndWaitsForFreshWrite(t *testing.T) 
 func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T) {
 	t.Parallel()
 
-	t.Run("root write fans out to dependents in order", func(t *testing.T) {
+	t.Run("Should root write fans out to dependents in order", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -416,7 +459,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 		}
 	})
 
-	t.Run("dependent write does not reverse-trigger dependencies", func(t *testing.T) {
+	t.Run("Should dependent write does not reverse-trigger dependencies", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -483,7 +526,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 func TestReconcileDriverValidationAndLifecycleErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("registered projectors require raw store", func(t *testing.T) {
+	t.Run("Should registered projectors require raw store", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := NewReconcileDriver(
@@ -503,7 +546,7 @@ func TestReconcileDriverValidationAndLifecycleErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("closed and unknown kinds are rejected", func(t *testing.T) {
+	t.Run("Should closed and unknown kinds are rejected", func(t *testing.T) {
 		t.Parallel()
 
 		driver, err := NewReconcileDriver(nil, MutationActor{}, nil)
@@ -522,7 +565,7 @@ func TestReconcileDriverValidationAndLifecycleErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("reason validation rejects unsupported values", func(t *testing.T) {
+	t.Run("Should reason validation rejects unsupported values", func(t *testing.T) {
 		t.Parallel()
 
 		if err := ReconcileReason("invalid").Validate("reason"); !errors.Is(err, ErrValidation) {

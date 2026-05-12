@@ -101,7 +101,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 		})
 	}
 
-	t.Run("custom resolver", func(t *testing.T) {
+	t.Run("Should custom resolver", func(t *testing.T) {
 		t.Parallel()
 
 		recorder := httptest.NewRecorder()

@@ -440,7 +440,7 @@ func TestMultiRegistryCheckUpdate(t *testing.T) {
 		})
 	}
 
-	t.Run("newer version available", func(t *testing.T) {
+	t.Run("Should newer version available", func(t *testing.T) {
 		info, err := makeRegistry("1.2.0").CheckUpdate(context.Background(), "pkg", "1.1.0")
 		if err != nil {
 			t.Fatalf("CheckUpdate() error = %v", err)
@@ -450,7 +450,7 @@ func TestMultiRegistryCheckUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("equal version", func(t *testing.T) {
+	t.Run("Should equal version", func(t *testing.T) {
 		info, err := makeRegistry("1.2.0").CheckUpdate(context.Background(), "pkg", "1.2.0")
 		if err != nil {
 			t.Fatalf("CheckUpdate() error = %v", err)
@@ -491,7 +491,7 @@ func TestMultiRegistryCloseClosesAllSources(t *testing.T) {
 func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("search respects canceled context", func(t *testing.T) {
+	t.Run("Should search respects canceled context", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
@@ -501,14 +501,14 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("info requires slug", func(t *testing.T) {
+	t.Run("Should info requires slug", func(t *testing.T) {
 		_, err := NewMultiRegistry(testLogger(), &stubRegistrySource{name: "source"}).Info(context.Background(), " ")
 		if err == nil {
 			t.Fatal("Info(blank slug) error = nil, want non-nil")
 		}
 	})
 
-	t.Run("info returns not found when no source resolves slug", func(t *testing.T) {
+	t.Run("Should info returns not found when no source resolves slug", func(t *testing.T) {
 		_, err := NewMultiRegistry(
 			testLogger(),
 			&stubRegistrySource{name: "source"},
@@ -521,7 +521,7 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("download rejects nil result", func(t *testing.T) {
+	t.Run("Should download rejects nil result", func(t *testing.T) {
 		registry := NewMultiRegistry(testLogger(), &stubRegistrySource{
 			name: "source",
 			infoFunc: func(context.Context, string) (*Detail, error) {

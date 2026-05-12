@@ -247,7 +247,7 @@ func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
 	homePaths := testHomePaths(t)
 	service := testService(t, homePaths, Dependencies{})
 
-	t.Run("section workspace unsupported", func(t *testing.T) {
+	t.Run("Should section workspace unsupported", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.GetSection(ctx, SectionRequest{
 			Section:     SectionGeneral,
@@ -259,7 +259,7 @@ func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
 		}
 	})
 
-	t.Run("providers workspace unsupported", func(t *testing.T) {
+	t.Run("Should providers workspace unsupported", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.ListCollection(ctx, CollectionRequest{
 			Collection:  CollectionProviders,
@@ -271,7 +271,7 @@ func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace mcp requires workspace id", func(t *testing.T) {
+	t.Run("Should workspace mcp requires workspace id", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.ListCollection(ctx, CollectionRequest{
 			Collection: CollectionMCPServers,
@@ -1630,7 +1630,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	service := testService(t, homePaths, Dependencies{})
 
-	t.Run("unknown section", func(t *testing.T) {
+	t.Run("Should unknown section", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.GetSection(ctx, SectionRequest{Section: SectionName("unknown")})
 		if err == nil || !strings.Contains(err.Error(), `unknown section "unknown"`) {
@@ -1638,7 +1638,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("missing section payload", func(t *testing.T) {
+	t.Run("Should missing section payload", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionMemory},
@@ -1648,7 +1648,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("empty collection name", func(t *testing.T) {
+	t.Run("Should empty collection name", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -1658,7 +1658,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("missing provider payload", func(t *testing.T) {
+	t.Run("Should missing provider payload", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -1669,7 +1669,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("missing mcp payload", func(t *testing.T) {
+	t.Run("Should missing mcp payload", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
@@ -1680,7 +1680,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown collection", func(t *testing.T) {
+	t.Run("Should unknown collection", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionName("unknown")},
@@ -1691,7 +1691,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("delete empty name", func(t *testing.T) {
+	t.Run("Should delete empty name", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -1701,7 +1701,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("update unknown section", func(t *testing.T) {
+	t.Run("Should update unknown section", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionName("mystery")},

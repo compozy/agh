@@ -5,8 +5,8 @@
     "type": "module",
     "scripts": {
         "generate:openapi": "bun run scripts/generate-openapi.ts",
-        "source:generate": "fumadocs-mdx source.config.ts .source",
-        "content:generate": "velite build",
+        "source:generate": "bun --bun fumadocs-mdx source.config.ts .source",
+        "content:generate": "bun --bun velite build",
         "predev": "bun run generate:openapi && bun run source:generate && bun run content:generate",
         "prebuild": "bun run generate:openapi && bun run source:generate && bun run content:generate",
         "pretypecheck": "bun run generate:openapi && bun run source:generate && bun run content:generate",

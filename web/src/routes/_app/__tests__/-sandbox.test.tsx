@@ -145,10 +145,10 @@ beforeEach(() => {
   pageState = makeState();
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../sandbox";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const SandboxPage = (Route as any).component as () => ReactNode;
+const SandboxPage = routeComponent(Route);
 
 describe("SandboxPage", () => {
   it("renders loading state", () => {

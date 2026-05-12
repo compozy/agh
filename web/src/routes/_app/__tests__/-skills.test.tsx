@@ -157,7 +157,10 @@ vi.mock("@/systems/skill", async () => {
   };
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../skills";
+
+const SkillsPage = routeComponent(Route);
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -199,9 +202,6 @@ const ALL_SKILLS = [...BUNDLED_SKILLS, ...WORKSPACE_SKILLS, ...MARKETPLACE_SKILL
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const SkillsPage = (Route as any).component as () => React.ReactNode;
 
 // ---------------------------------------------------------------------------
 // Tests

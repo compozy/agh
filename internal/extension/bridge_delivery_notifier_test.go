@@ -316,7 +316,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		},
 	}
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("Should success", func(t *testing.T) {
 		t.Parallel()
 
 		process := newFakeProcess(9001)
@@ -362,7 +362,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("canceled context", func(t *testing.T) {
+	t.Run("Should canceled context", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -375,7 +375,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("nil manager", func(t *testing.T) {
+	t.Run("Should nil manager", func(t *testing.T) {
 		t.Parallel()
 
 		var manager *Manager
@@ -385,7 +385,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("inactive extension", func(t *testing.T) {
+	t.Run("Should inactive extension", func(t *testing.T) {
 		t.Parallel()
 
 		manager := &Manager{
@@ -400,7 +400,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("missing negotiated method", func(t *testing.T) {
+	t.Run("Should missing negotiated method", func(t *testing.T) {
 		t.Parallel()
 
 		manager := &Manager{
@@ -419,7 +419,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("process call failure", func(t *testing.T) {
+	t.Run("Should process call failure", func(t *testing.T) {
 		t.Parallel()
 
 		process := newFakeProcess(9003)
@@ -445,7 +445,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid request", func(t *testing.T) {
+	t.Run("Should invalid request", func(t *testing.T) {
 		t.Parallel()
 
 		manager := &Manager{}
@@ -455,7 +455,7 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("missing extension name", func(t *testing.T) {
+	t.Run("Should missing extension name", func(t *testing.T) {
 		t.Parallel()
 
 		manager := &Manager{}

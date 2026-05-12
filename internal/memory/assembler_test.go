@@ -17,7 +17,7 @@ import (
 func TestAssemblerAssemble(t *testing.T) {
 	t.Parallel()
 
-	t.Run("global index only", func(t *testing.T) {
+	t.Run("Should global index only", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -32,7 +32,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace index only", func(t *testing.T) {
+	t.Run("Should workspace index only", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -47,7 +47,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("both indexes", func(t *testing.T) {
+	t.Run("Should both indexes", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -61,7 +61,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("empty indexes returns original prompt", func(t *testing.T) {
+	t.Run("Should empty indexes returns original prompt", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -71,7 +71,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("includes taxonomy instructions", func(t *testing.T) {
+	t.Run("Should includes taxonomy instructions", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -85,7 +85,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("includes agh memory command reference", func(t *testing.T) {
+	t.Run("Should includes agh memory command reference", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -106,7 +106,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("includes staleness policy", func(t *testing.T) {
+	t.Run("Should includes staleness policy", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -119,7 +119,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("memory context before agent prompt", func(t *testing.T) {
+	t.Run("Should memory context before agent prompt", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -144,7 +144,7 @@ func TestAssemblerAssemble(t *testing.T) {
 func TestAssemblerPromptSection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns memory block for global and workspace indexes only", func(t *testing.T) {
+	t.Run("Should returns memory block for global and workspace indexes only", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -170,7 +170,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 		}
 	})
 
-	t.Run("returns empty string when indexes are missing", func(t *testing.T) {
+	t.Run("Should returns empty string when indexes are missing", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -181,7 +181,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 		}
 	})
 
-	t.Run("respects context cancellation", func(t *testing.T) {
+	t.Run("Should respects context cancellation", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
