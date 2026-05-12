@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { routeTree } from "@/routeTree.gen";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RouteLike = { options?: { id?: string }; children?: RouteLike[] | Record<string, RouteLike> };
 
 function getChildren(node: RouteLike): RouteLike[] {

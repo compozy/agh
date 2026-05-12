@@ -102,10 +102,10 @@ beforeEach(() => {
   mockUseSettingsVaultPage.mockReturnValue(makeState());
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../vault";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const VaultSettingsPage = (Route as any).component as () => ReactNode;
+const VaultSettingsPage = routeComponent(Route);
 
 describe("VaultSettingsPage", () => {
   it("renders vault counts, filters, and redacted metadata rows", () => {

@@ -1368,7 +1368,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 func TestWorkspaceHelperFunctions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("errorType", func(t *testing.T) {
+	t.Run("Should errorType", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -1392,7 +1392,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("checkContext", func(t *testing.T) {
+	t.Run("Should checkContext", func(t *testing.T) {
 		t.Parallel()
 
 		if err := checkContext(nilTestContext()); err == nil {
@@ -1410,7 +1410,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("canonicalRoot", func(t *testing.T) {
+	t.Run("Should canonicalRoot", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := canonicalRoot(""); err == nil {
@@ -1427,7 +1427,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("snapshots and overrides", func(t *testing.T) {
+	t.Run("Should snapshots and overrides", func(t *testing.T) {
 		t.Parallel()
 
 		snapshots := make(map[string]filesnap.Snapshot)
@@ -1470,7 +1470,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("generateID", func(t *testing.T) {
+	t.Run("Should generateID", func(t *testing.T) {
 		t.Parallel()
 
 		if got := generateID("ws"); !strings.HasPrefix(got, "ws_") {

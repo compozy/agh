@@ -168,7 +168,7 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 			body: []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"secret"}}}`),
 		},
 	} {
-		t.Run("reject raw claim_token in "+tt.name, func(t *testing.T) {
+		t.Run("Should reject raw claim_token in "+tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			handlers := newAgentChannelHandlers(t, stubNetworkService{

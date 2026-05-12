@@ -341,7 +341,7 @@ func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
 	now := time.Date(2026, 4, 14, 18, 5, 0, 0, time.UTC)
 	peerID := "reviewer.sess-ops"
 
-	t.Run("allows clearing stale channel", func(t *testing.T) {
+	t.Run("Should allows clearing stale channel", func(t *testing.T) {
 		t.Parallel()
 
 		auditor := &taskIngressAuditRecorder{}
@@ -401,7 +401,7 @@ func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects unrelated writes while stale channel remains", func(t *testing.T) {
+	t.Run("Should rejects unrelated writes while stale channel remains", func(t *testing.T) {
 		t.Parallel()
 
 		auditor := &taskIngressAuditRecorder{}
@@ -499,7 +499,7 @@ func TestCancelTaskFromPeerRejectsPeerWithoutTaskWriteCapability(t *testing.T) {
 func TestTaskIngressHelpersCoverValidationAndReasonMapping(t *testing.T) {
 	t.Parallel()
 
-	t.Run("validates ingress context fields", func(t *testing.T) {
+	t.Run("Should validates ingress context fields", func(t *testing.T) {
 		t.Parallel()
 
 		if err := (TaskIngressContext{}).Validate(); err == nil {
@@ -510,7 +510,7 @@ func TestTaskIngressHelpersCoverValidationAndReasonMapping(t *testing.T) {
 		}
 	})
 
-	t.Run("covers reason mapping", func(t *testing.T) {
+	t.Run("Should covers reason mapping", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -537,7 +537,7 @@ func TestTaskIngressHelpersCoverValidationAndReasonMapping(t *testing.T) {
 		}
 	})
 
-	t.Run("applies manager task service option", func(t *testing.T) {
+	t.Run("Should applies manager task service option", func(t *testing.T) {
 		t.Parallel()
 
 		opts := managerOptions{}

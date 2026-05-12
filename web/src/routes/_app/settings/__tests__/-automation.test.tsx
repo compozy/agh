@@ -121,10 +121,10 @@ beforeEach(() => {
   };
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../automation";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AutomationSettingsPage = (Route as any).component as () => ReactNode;
+const AutomationSettingsPage = routeComponent(Route);
 
 describe("AutomationSettingsPage", () => {
   it("renders a loading indicator during the initial fetch", () => {

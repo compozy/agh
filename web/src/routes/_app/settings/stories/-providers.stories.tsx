@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 import { useEffect } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -87,6 +87,7 @@ export const CreateProvider: Story = {
 
 /**
  * Delete dialog and fallback banner for removing an overlay provider that reveals the builtin definition.
+ * The Delete action lives inside the card overflow menu now -- open it before clicking the item.
  */
 export const DeleteOverlay: Story = {
   args: {},
@@ -94,7 +95,10 @@ export const DeleteOverlay: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("settings-page-providers-card-claude-delete"));
+    await userEvent.click(
+      await canvas.findByTestId("settings-page-providers-card-claude-overflow")
+    );
+    await userEvent.click(await screen.findByTestId("settings-page-providers-card-claude-delete"));
     await expect(canvas.findByTestId("settings-providers-delete-fallback")).resolves.toBeDefined();
   },
 };

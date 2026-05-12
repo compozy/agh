@@ -522,7 +522,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 
-	t.Run("list", func(t *testing.T) {
+	t.Run("Should list", func(t *testing.T) {
 		var gotFilter resources.ResourceFilter
 		handlers := NewBaseHandlers(&BaseHandlerConfig{
 			TransportName: "core-test",
@@ -569,7 +569,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("get", func(t *testing.T) {
+	t.Run("Should get", func(t *testing.T) {
 		var gotKind resources.ResourceKind
 		var gotID string
 		handlers := NewBaseHandlers(&BaseHandlerConfig{
@@ -613,7 +613,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("put", func(t *testing.T) {
+	t.Run("Should put", func(t *testing.T) {
 		var gotDraft resources.RawDraft
 		handlers := NewBaseHandlers(&BaseHandlerConfig{
 			TransportName: "core-test",
@@ -655,7 +655,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("delete", func(t *testing.T) {
+	t.Run("Should delete", func(t *testing.T) {
 		var gotKind resources.ResourceKind
 		var gotID string
 		var gotVersion int64
@@ -698,7 +698,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t *testing.T) {
 	t.Parallel()
 
-	t.Run("service unavailable", func(t *testing.T) {
+	t.Run("Should service unavailable", func(t *testing.T) {
 		handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "core-test"})
 
 		tests := []struct {
@@ -756,7 +756,7 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 		}
 	})
 
-	t.Run("bad requests", func(t *testing.T) {
+	t.Run("Should bad requests", func(t *testing.T) {
 		handlers := NewBaseHandlers(&BaseHandlerConfig{
 			TransportName: "core-test",
 			Resources:     stubResourceService{},
@@ -835,7 +835,7 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 		}
 	})
 
-	t.Run("service errors", func(t *testing.T) {
+	t.Run("Should service errors", func(t *testing.T) {
 		tests := []struct {
 			name   string
 			method string

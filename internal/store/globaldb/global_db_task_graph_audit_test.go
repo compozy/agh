@@ -98,7 +98,7 @@ func TestGlobalDBCreateDependencyRejectsInvalidEdges(t *testing.T) {
 		t.Fatalf("CreateTask(root) error = %v", err)
 	}
 
-	t.Run("self dependency", func(t *testing.T) {
+	t.Run("Should self dependency", func(t *testing.T) {
 		t.Parallel()
 
 		err := globalDB.CreateDependency(testutil.Context(t), taskDependencyForTest(rootTask.ID, rootTask.ID))
@@ -107,7 +107,7 @@ func TestGlobalDBCreateDependencyRejectsInvalidEdges(t *testing.T) {
 		}
 	})
 
-	t.Run("duplicate dependency", func(t *testing.T) {
+	t.Run("Should duplicate dependency", func(t *testing.T) {
 		t.Parallel()
 
 		dependencyTask := taskRecordForTest("task-dependency-guard-duplicate")
@@ -126,7 +126,7 @@ func TestGlobalDBCreateDependencyRejectsInvalidEdges(t *testing.T) {
 		}
 	})
 
-	t.Run("dependency limit", func(t *testing.T) {
+	t.Run("Should dependency limit", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)

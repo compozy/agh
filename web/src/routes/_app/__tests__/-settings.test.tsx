@@ -25,10 +25,10 @@ vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => (opts: { to: string; fuzzy?: boolean }) => matchedRoutes[opts.to] ?? false,
 }));
 
+import { routeComponent } from "@/test/route-options";
 import { Route, SETTINGS_SECTIONS } from "../settings";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const SettingsShell = (Route as any).component as () => ReactNode;
+const SettingsShell = routeComponent(Route);
 
 describe("SettingsShell", () => {
   beforeEach(() => {

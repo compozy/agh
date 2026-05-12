@@ -1337,7 +1337,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 		})
 	}
 
-	t.Run("host api method values", func(t *testing.T) {
+	t.Run("Should host api method values", func(t *testing.T) {
 		t.Parallel()
 
 		got := hostAPIMethodValues()

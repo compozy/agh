@@ -158,7 +158,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 func TestValidateInfrastructure(t *testing.T) {
 	t.Parallel()
 
-	t.Run("valid infrastructure", func(t *testing.T) {
+	t.Run("Should valid infrastructure", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -171,7 +171,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		}
 	})
 
-	t.Run("missing workspace directory", func(t *testing.T) {
+	t.Run("Should missing workspace directory", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -196,7 +196,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		assertErrorContains(t, errs, missingWorkspace)
 	})
 
-	t.Run("unresolvable agent", func(t *testing.T) {
+	t.Run("Should unresolvable agent", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -208,7 +208,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		assertErrorContains(t, errs, "missing-agent")
 	})
 
-	t.Run("missing event store", func(t *testing.T) {
+	t.Run("Should missing event store", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -218,7 +218,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		assertErrorContains(t, errs, store.SessionDBFile(filepath.Join(h.homePaths.SessionsDir, meta.ID)))
 	})
 
-	t.Run("empty event store", func(t *testing.T) {
+	t.Run("Should empty event store", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -229,7 +229,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		assertErrorContains(t, errs, "file is empty")
 	})
 
-	t.Run("invalid meta fields", func(t *testing.T) {
+	t.Run("Should invalid meta fields", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -240,7 +240,7 @@ func TestValidateInfrastructure(t *testing.T) {
 		assertErrorContains(t, errs, "session id")
 	})
 
-	t.Run("collects multiple failures", func(t *testing.T) {
+	t.Run("Should collects multiple failures", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)

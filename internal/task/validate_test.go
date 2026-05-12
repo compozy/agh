@@ -288,14 +288,14 @@ func TestTaskFieldMutabilityHelpers(t *testing.T) {
 func TestDomainValidationHelpers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("task valid", func(t *testing.T) {
+	t.Run("Should task valid", func(t *testing.T) {
 		t.Parallel()
 		if err := validTask().Validate(); err != nil {
 			t.Fatalf("Task.Validate() error = %v", err)
 		}
 	})
 
-	t.Run("draft task valid", func(t *testing.T) {
+	t.Run("Should draft task valid", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
 		taskRecord.Status = TaskStatusDraft
@@ -304,7 +304,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task invalid owner", func(t *testing.T) {
+	t.Run("Should task invalid owner", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
 		taskRecord.Owner = &Ownership{Kind: OwnerKindHuman}
@@ -314,7 +314,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task dependency self dependency", func(t *testing.T) {
+	t.Run("Should task dependency self dependency", func(t *testing.T) {
 		t.Parallel()
 		err := (Dependency{
 			TaskID:          "task-1",
@@ -326,7 +326,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task run queued session invalid", func(t *testing.T) {
+	t.Run("Should task run queued session invalid", func(t *testing.T) {
 		t.Parallel()
 		run := validRun()
 		run.SessionID = "sess-1"
@@ -336,7 +336,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task run lease metadata and capabilities", func(t *testing.T) {
+	t.Run("Should task run lease metadata and capabilities", func(t *testing.T) {
 		t.Parallel()
 
 		base := validRun()
@@ -424,7 +424,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task event invalid payload", func(t *testing.T) {
+	t.Run("Should task event invalid payload", func(t *testing.T) {
 		t.Parallel()
 		event := validEvent()
 		event.Payload = json.RawMessage(`{`)
@@ -434,7 +434,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task patch requires mutable field", func(t *testing.T) {
+	t.Run("Should task patch requires mutable field", func(t *testing.T) {
 		t.Parallel()
 		err := (Patch{}).Validate("patch")
 		if err == nil || !errors.Is(err, ErrValidation) {
@@ -442,7 +442,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("run failure requires error", func(t *testing.T) {
+	t.Run("Should run failure requires error", func(t *testing.T) {
 		t.Parallel()
 		err := (RunFailure{}).Validate("failure")
 		if err == nil || !errors.Is(err, ErrValidation) {
@@ -450,7 +450,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("start task session requires matching task and run", func(t *testing.T) {
+	t.Run("Should start task session requires matching task and run", func(t *testing.T) {
 		t.Parallel()
 		req := StartTaskSession{
 			Task:  validTask(),
@@ -464,7 +464,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("task query validates filters", func(t *testing.T) {
+	t.Run("Should task query validates filters", func(t *testing.T) {
 		t.Parallel()
 		err := (Query{
 			Scope:         ScopeWorkspace,
@@ -480,7 +480,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("start task session valid", func(t *testing.T) {
+	t.Run("Should start task session valid", func(t *testing.T) {
 		t.Parallel()
 		req := StartTaskSession{
 			Task:  validTask(),
@@ -1077,7 +1077,7 @@ func TestOwnershipIsZero(t *testing.T) {
 func TestAdditionalBranchCoverage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("task missing id", func(t *testing.T) {
+	t.Run("Should task missing id", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
 		taskRecord.ID = ""
@@ -1087,7 +1087,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task parent self", func(t *testing.T) {
+	t.Run("Should task parent self", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
 		taskRecord.ParentTaskID = taskRecord.ID
@@ -1097,7 +1097,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task missing title", func(t *testing.T) {
+	t.Run("Should task missing title", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
 		taskRecord.Title = ""
@@ -1107,7 +1107,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task run missing claimed by ref", func(t *testing.T) {
+	t.Run("Should task run missing claimed by ref", func(t *testing.T) {
 		t.Parallel()
 		run := validRun()
 		run.Status = TaskRunStatusClaimed
@@ -1118,7 +1118,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task run invalid attempt", func(t *testing.T) {
+	t.Run("Should task run invalid attempt", func(t *testing.T) {
 		t.Parallel()
 		run := validRun()
 		run.Attempt = 0
@@ -1128,7 +1128,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task event missing event type", func(t *testing.T) {
+	t.Run("Should task event missing event type", func(t *testing.T) {
 		t.Parallel()
 		event := validEvent()
 		event.EventType = ""
@@ -1138,7 +1138,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task event missing origin", func(t *testing.T) {
+	t.Run("Should task event missing origin", func(t *testing.T) {
 		t.Parallel()
 		event := validEvent()
 		event.Origin.Ref = ""
@@ -1148,7 +1148,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("start task session invalid actor", func(t *testing.T) {
+	t.Run("Should start task session invalid actor", func(t *testing.T) {
 		t.Parallel()
 		req := StartTaskSession{
 			Task:  validTask(),
@@ -1162,7 +1162,7 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("nested path helper empty path", func(t *testing.T) {
+	t.Run("Should nested path helper empty path", func(t *testing.T) {
 		t.Parallel()
 		if got := nestedPath("", "field"); got != "field" {
 			t.Fatalf("nestedPath('', 'field') = %q, want field", got)

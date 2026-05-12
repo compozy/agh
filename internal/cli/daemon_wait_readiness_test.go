@@ -36,7 +36,7 @@ func (p *timeoutDaemonProcess) complete(err error) {
 	close(p.done)
 }
 
-func TestWaitForDaemonStartRefacs(t *testing.T) {
+func TestWaitForDaemonStartReadiness(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should timeout when child stays alive and readiness never succeeds", func(t *testing.T) {

@@ -371,7 +371,7 @@ func TestFormatNetworkMessageSayGuidanceKeepsCurrentThreadByDefault(t *testing.T
 func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 	t.Parallel()
 
-	t.Run("idle delivery triggers immediately", func(t *testing.T) {
+	t.Run("Should idle delivery triggers immediately", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -417,7 +417,7 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		coordinator.wait()
 	})
 
-	t.Run("busy delivery waits for turn end", func(t *testing.T) {
+	t.Run("Should busy delivery waits for turn end", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()

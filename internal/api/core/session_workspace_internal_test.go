@@ -23,7 +23,7 @@ func (s workspaceGetterStub) Get(ctx context.Context, ref string) (workspacepkg.
 func TestSessionWorkspaceHelpers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("validate create session request", func(t *testing.T) {
+	t.Run("Should validate create session request", func(t *testing.T) {
 		t.Parallel()
 
 		if err := validateCreateSessionRequest("core-test", "", ""); err == nil {
@@ -74,7 +74,7 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("lookup workspace id", func(t *testing.T) {
+	t.Run("Should lookup workspace id", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := lookupWorkspaceID(context.Background(), "core-test", nil, "alpha"); err == nil {
@@ -97,7 +97,7 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("filter and trim helpers", func(t *testing.T) {
+	t.Run("Should filter and trim helpers", func(t *testing.T) {
 		t.Parallel()
 
 		filtered := filterSessionInfosByWorkspaceIDInternal([]*session.Info{
@@ -115,7 +115,7 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("path validators", func(t *testing.T) {
+	t.Run("Should path validators", func(t *testing.T) {
 		t.Parallel()
 
 		if err := validateAbsolutePathInternal("core-test", "path", ""); err == nil {

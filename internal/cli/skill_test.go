@@ -601,7 +601,7 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T) {
 	t.Parallel()
 
-	t.Run("default-name", func(t *testing.T) {
+	t.Run("Should default-name", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		stdout, _, err := executeRootCommand(t, env.deps, "skill", "create")
@@ -628,7 +628,7 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 		}
 	})
 
-	t.Run("unsafe-names", func(t *testing.T) {
+	t.Run("Should unsafe-names", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		testCases := []string{
@@ -1169,7 +1169,7 @@ func TestSkillUpdateCommandValidatesArguments(t *testing.T) {
 func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("load-marketplace-registry-default-and-unsupported", func(t *testing.T) {
+	t.Run("Should load-marketplace-registry-default-and-unsupported", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			info: map[string]registrypkg.Detail{
 				"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
@@ -1210,7 +1210,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("extract-and-locate-skill-file", func(t *testing.T) {
+	t.Run("Should extract-and-locate-skill-file", func(t *testing.T) {
 		root := t.TempDir()
 		archive := mustTarGz(t, map[string]string{
 			"review/SKILL.md":       skillDocument("review", "Review helper", "body"),
@@ -1231,7 +1231,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("extract-rejects-traversal", func(t *testing.T) {
+	t.Run("Should extract-rejects-traversal", func(t *testing.T) {
 		var buffer bytes.Buffer
 		gzipWriter := gzip.NewWriter(&buffer)
 		tarWriter := tar.NewWriter(gzipWriter)
@@ -1258,7 +1258,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("extract-rejects-unsupported-entry-type", func(t *testing.T) {
+	t.Run("Should extract-rejects-unsupported-entry-type", func(t *testing.T) {
 		var buffer bytes.Buffer
 		gzipWriter := gzip.NewWriter(&buffer)
 		tarWriter := tar.NewWriter(gzipWriter)
@@ -1282,7 +1282,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("extract-rejects-empty-destination", func(t *testing.T) {
+	t.Run("Should extract-rejects-empty-destination", func(t *testing.T) {
 		err := extractMarketplaceArchive(bytes.NewReader(mustTarGz(t, map[string]string{
 			"review/SKILL.md": skillDocument("review", "Review helper", "body"),
 		})), "")
@@ -1294,7 +1294,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("extract-rejects-invalid-gzip-stream", func(t *testing.T) {
+	t.Run("Should extract-rejects-invalid-gzip-stream", func(t *testing.T) {
 		err := extractMarketplaceArchive(strings.NewReader("not-a-gzip-stream"), t.TempDir())
 		if err == nil {
 			t.Fatal("extractMarketplaceArchive(invalid gzip) error = nil, want failure")
@@ -1304,7 +1304,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("move-installed-skill-dir-replaces-existing", func(t *testing.T) {
+	t.Run("Should move-installed-skill-dir-replaces-existing", func(t *testing.T) {
 		parent := t.TempDir()
 		source := filepath.Join(parent, "source")
 		target := filepath.Join(parent, "target")
@@ -1324,7 +1324,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("installed-marketplace-skill-discovery", func(t *testing.T) {
+	t.Run("Should installed-marketplace-skill-discovery", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 		writeInstalledMarketplaceSkill(
 			t,
@@ -1356,7 +1356,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("find-installed-marketplace-skill-rejects-files", func(t *testing.T) {
+	t.Run("Should find-installed-marketplace-skill-rejects-files", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 		writeFile(t, filepath.Join(env.homePaths.SkillsDir, "not-a-dir"), "plain file")
 
@@ -1367,7 +1367,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("path-guards-and-locate-errors", func(t *testing.T) {
+	t.Run("Should path-guards-and-locate-errors", func(t *testing.T) {
 		if _, err := pathWithinRoot(t.TempDir(), filepath.Join("..", "escape")); err == nil {
 			t.Fatal("pathWithinRoot(escape) error = nil, want failure")
 		}
@@ -1387,7 +1387,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("move-installed-skill-dir-without-replace-rejects-existing", func(t *testing.T) {
+	t.Run("Should move-installed-skill-dir-without-replace-rejects-existing", func(t *testing.T) {
 		parent := t.TempDir()
 		source := filepath.Join(parent, "source")
 		target := filepath.Join(parent, "target")
@@ -1399,7 +1399,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-replaces-existing-directory", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-replaces-existing-directory", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
 				"@agh/review": {
@@ -1462,7 +1462,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-replaces-existing-target", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-replaces-existing-target", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
 				"@agh/review": {
@@ -1513,7 +1513,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-rejects-nil-archive", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-rejects-nil-archive", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1534,7 +1534,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-rejects-nil-archive-stream", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-rejects-nil-archive-stream", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1555,7 +1555,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-rejects-missing-skill-file", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-rejects-missing-skill-file", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
 				"@agh/review": {
@@ -1603,7 +1603,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-surfaces-archive-close-errors", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-surfaces-archive-close-errors", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1636,7 +1636,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-joins-temp-dir-cleanup-errors", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-joins-temp-dir-cleanup-errors", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 		t.Cleanup(func() {
 			if chmodErr := os.Chmod(
@@ -1672,7 +1672,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-falls-back-to-detail-version-and-default-registry", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-falls-back-to-detail-version-and-default-registry", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 		targetDir := filepath.Join(env.homePaths.SkillsDir, "custom-review")
 
@@ -1733,7 +1733,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-uses-runtime-now-when-clock-is-nil", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-uses-runtime-now-when-clock-is-nil", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		item, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1772,7 +1772,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-propagates-info-errors", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-propagates-info-errors", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1790,7 +1790,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-rejects-nil-detail", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-rejects-nil-detail", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1808,7 +1808,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-rejects-target-override-outside-root", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-rejects-target-override-outside-root", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1842,7 +1842,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-surfaces-move-errors", func(t *testing.T) {
+	t.Run("Should install-marketplace-skill-surfaces-move-errors", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := installMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1876,7 +1876,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("list-installed-marketplace-skills-missing-dir", func(t *testing.T) {
+	t.Run("Should list-installed-marketplace-skills-missing-dir", func(t *testing.T) {
 		items, err := listInstalledMarketplaceSkills(filepath.Join(t.TempDir(), "missing"))
 		if err != nil {
 			t.Fatalf("listInstalledMarketplaceSkills(missing) error = %v", err)
@@ -1886,7 +1886,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("update-marketplace-skill-requires-slug-metadata", func(t *testing.T) {
+	t.Run("Should update-marketplace-skill-requires-slug-metadata", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := updateMarketplaceSkill(testutil.Context(t), &runtimeContext{
@@ -1906,7 +1906,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("update-marketplace-skill-keeps-installed-registry-provenance", func(t *testing.T) {
+	t.Run("Should update-marketplace-skill-keeps-installed-registry-provenance", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 		writeInstalledMarketplaceSkill(
 			t,
@@ -2001,7 +2001,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("update-marketplace-skill-keeps-existing-directory-when-package-name-changes", func(t *testing.T) {
+	t.Run("Should update-marketplace-skill-keeps-existing-directory-when-package-name-changes", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			info: map[string]registrypkg.Detail{
 				"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "2.0.0"}},
@@ -2078,7 +2078,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("update-marketplace-skills-all-with-no-installed-items", func(t *testing.T) {
+	t.Run("Should update-marketplace-skills-all-with-no-installed-items", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		items, err := updateMarketplaceSkills(testutil.Context(t), &runtimeContext{
@@ -2092,7 +2092,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("update-marketplace-skills-validates-name-when-not-updating-all", func(t *testing.T) {
+	t.Run("Should update-marketplace-skills-validates-name-when-not-updating-all", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
 		_, err := updateMarketplaceSkills(testutil.Context(t), &runtimeContext{

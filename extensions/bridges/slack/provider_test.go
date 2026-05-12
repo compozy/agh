@@ -1683,7 +1683,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		t.Fatal("bad URL error = nil, want non-nil")
 	}
 
-	t.Run("rate limited", func(t *testing.T) {
+	t.Run("Should rate limited", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Retry-After", "7")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -1702,7 +1702,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("decode response failure", func(t *testing.T) {
+	t.Run("Should decode response failure", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`not-json`))
@@ -1715,7 +1715,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("api error classification", func(t *testing.T) {
+	t.Run("Should api error classification", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			writeSlackAPIResponse(t, w, map[string]any{"ok": false, "error": "missing_scope"})
 		}))
@@ -1729,7 +1729,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("decode result failure", func(t *testing.T) {
+	t.Run("Should decode result failure", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			writeSlackAPIResponse(t, w, map[string]any{"ok": true, "ts": "1775866808.100000"})
 		}))
@@ -1746,7 +1746,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("wrapper success", func(t *testing.T) {
+	t.Run("Should wrapper success", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch strings.TrimPrefix(r.URL.Path, "/") {
 			case "auth.test":

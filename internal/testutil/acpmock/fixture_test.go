@@ -18,7 +18,7 @@ import (
 func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 	t.Parallel()
 
-	t.Run("maps named agents and bridge responses", func(t *testing.T) {
+	t.Run("Should maps named agents and bridge responses", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := LoadFixture(filepath.Join("testdata", "multi_agent_fixture.json"))
@@ -49,7 +49,7 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		}
 	})
 
-	t.Run("maps permission and sandbox primitives", func(t *testing.T) {
+	t.Run("Should maps permission and sandbox primitives", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := LoadFixture(filepath.Join("testdata", "permission_env_fixture.json"))
@@ -229,7 +229,7 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("load fixture requires path", func(t *testing.T) {
+	t.Run("Should load fixture requires path", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := LoadFixture(" "); err == nil || !strings.Contains(err.Error(), "fixture path is required") {
@@ -237,7 +237,7 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("load fixture reports read error", func(t *testing.T) {
+	t.Run("Should load fixture reports read error", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := LoadFixture(filepath.Join(t.TempDir(), "missing.json")); err == nil ||
@@ -538,7 +538,7 @@ func TestTurnMatchNetworkRequiresExactConversationMetadata(t *testing.T) {
 		{name: "trust", edit: func(meta *acp.PromptNetworkMeta) { meta.Trust = "verified" }},
 	}
 	for _, tc := range directCases {
-		t.Run("direct rejects wrong "+tc.name, func(t *testing.T) {
+		t.Run("Should direct rejects wrong "+tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			meta := directMeta
@@ -581,7 +581,7 @@ func TestTurnMatchNetworkRequiresExactConversationMetadata(t *testing.T) {
 		{name: "trust", edit: func(meta *acp.PromptNetworkMeta) { meta.Trust = "verified" }},
 	}
 	for _, tc := range threadCases {
-		t.Run("thread rejects wrong "+tc.name, func(t *testing.T) {
+		t.Run("Should thread rejects wrong "+tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			meta := threadMeta
@@ -697,7 +697,7 @@ func TestResolveDriverPathHonorsExplicitAndEnvOverrides(t *testing.T) {
 }
 
 func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
-	t.Run("default diagnostics path uses logs directory", func(t *testing.T) {
+	t.Run("Should default diagnostics path uses logs directory", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mockHomePaths(t)
@@ -711,7 +711,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("resolve diagnostics path rejects unsafe agent names", func(t *testing.T) {
+	t.Run("Should resolve diagnostics path rejects unsafe agent names", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mockHomePaths(t)
@@ -721,7 +721,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("resolve diagnostics path requires logs directory without override", func(t *testing.T) {
+	t.Run("Should resolve diagnostics path requires logs directory without override", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mockHomePaths(t)
@@ -732,7 +732,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("render agent def uses default prompt", func(t *testing.T) {
+	t.Run("Should render agent def uses default prompt", func(t *testing.T) {
 		t.Parallel()
 
 		content := renderAgentDef("mock-alpha", AgentFixture{Provider: "claude"}, "node driver.js")
@@ -741,7 +741,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("read diagnostics reports invalid json", func(t *testing.T) {
+	t.Run("Should read diagnostics reports invalid json", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "bad.jsonl")
@@ -753,7 +753,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("register requires agents dir", func(t *testing.T) {
+	t.Run("Should register requires agents dir", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := Register(aghconfig.HomePaths{}, RegisterOptions{}); err == nil ||
@@ -762,7 +762,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("register reports missing fixture agent", func(t *testing.T) {
+	t.Run("Should register reports missing fixture agent", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mockHomePaths(t)
@@ -776,7 +776,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("register rejects unsafe runtime agent names", func(t *testing.T) {
+	t.Run("Should register rejects unsafe runtime agent names", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mockHomePaths(t)
@@ -791,7 +791,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("register wraps diagnostics path failures", func(t *testing.T) {
+	t.Run("Should register wraps diagnostics path failures", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mockHomePaths(t)
@@ -884,7 +884,7 @@ func TestDefaultDriverPathSharesConcurrentBuildResult(t *testing.T) {
 func TestValidationAndDriverHelpers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("validation helpers reject invalid values", func(t *testing.T) {
+	t.Run("Should validation helpers reject invalid values", func(t *testing.T) {
 		t.Parallel()
 
 		if err := validateToolKind("tool_kind", "bogus"); err == nil {
@@ -922,7 +922,7 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("driver helpers resolve defaults and omit empty diagnostics", func(t *testing.T) {
+	t.Run("Should driver helpers resolve defaults and omit empty diagnostics", func(t *testing.T) {
 		t.Parallel()
 
 		driverPath, err := DefaultDriverPath()
@@ -939,7 +939,7 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("read diagnostics reports missing file", func(t *testing.T) {
+	t.Run("Should read diagnostics reports missing file", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := ReadDiagnostics(filepath.Join(t.TempDir(), "missing.jsonl")); err == nil ||

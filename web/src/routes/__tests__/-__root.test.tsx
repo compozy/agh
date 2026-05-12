@@ -44,22 +44,17 @@ vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => (opts: { to: string }) => opts.to === "/",
 }));
 
+import { routeComponent, routeErrorComponent, routeNotFoundComponent } from "@/test/route-options";
+
 import { Route } from "../__root";
 
-describe("RootComponent", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const RootComponent = (Route as any).component as () => React.ReactNode;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const RootErrorBoundary = (Route as any).errorComponent as (props: {
-    error: Error;
-    reset: () => void;
-  }) => React.ReactNode;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const RootNotFoundBoundary = (Route as any).notFoundComponent as (props: {
-    isNotFound: true;
-    routeId: string;
-  }) => React.ReactNode;
+const RootComponent = routeComponent(Route);
+const RootErrorBoundary: (props: { error: Error; reset: () => void }) => React.ReactNode =
+  routeErrorComponent(Route);
+const RootNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => React.ReactNode =
+  routeNotFoundComponent(Route);
 
+describe("RootComponent", () => {
   it("renders the Outlet inside the shell", () => {
     render(<RootComponent />);
     expect(screen.getByTestId("outlet")).toBeInTheDocument();

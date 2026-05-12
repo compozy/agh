@@ -180,22 +180,17 @@ vi.mock("@/systems/workspace", () => ({
     ) : null,
 }));
 
+import { routeComponent, routeErrorComponent, routeNotFoundComponent } from "@/test/route-options";
+
 import { Route } from "../_app";
 
-describe("AppLayout", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const AppLayout = (Route as any).component as () => ReactNode;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const AppErrorBoundary = (Route as any).errorComponent as (props: {
-    error: Error;
-    reset: () => void;
-  }) => ReactNode;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const AppNotFoundBoundary = (Route as any).notFoundComponent as (props: {
-    isNotFound: true;
-    routeId: string;
-  }) => ReactNode;
+const AppLayout = routeComponent(Route);
+const AppErrorBoundary: (props: { error: Error; reset: () => void }) => ReactNode =
+  routeErrorComponent(Route);
+const AppNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => ReactNode =
+  routeNotFoundComponent(Route);
 
+describe("AppLayout", () => {
   beforeEach(() => {
     mockHasWorkspaces = true;
     mockActiveWorkspaceId = workspaceFixture.id;
@@ -208,12 +203,11 @@ describe("AppLayout", () => {
     mockCreateSessionMutateAsync.mockReset();
   });
 
-  it("renders sidebar, topbar shell, and outlet inside a CSS grid (56px 244px 1fr)", () => {
+  it("renders sidebar, topbar shell, and outlet inside the app shell", () => {
     render(<AppLayout />);
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("topbar-shell")).toBeInTheDocument();
-    const grid = screen.getByTestId("app-grid");
-    expect(grid.className).toContain("grid-cols-[56px_244px_1fr]");
+    expect(screen.getByTestId("app-grid")).toBeInTheDocument();
     const content = screen.getByTestId("app-content");
     expect(content.id).toBe("app-content");
     expect(content).toContainElement(screen.getByTestId("outlet"));

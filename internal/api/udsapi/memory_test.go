@@ -65,7 +65,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
 
-	t.Run("default list returns global scope", func(t *testing.T) {
+	t.Run("Should default list returns global scope", func(t *testing.T) {
 		resp := performRequest(t, engine, http.MethodGet, "/api/memory", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
@@ -78,7 +78,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 		}
 	})
 
-	t.Run("scope global filters to global", func(t *testing.T) {
+	t.Run("Should scope global filters to global", func(t *testing.T) {
 		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=global", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d", resp.Code, http.StatusOK)
@@ -91,7 +91,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 		}
 	})
 
-	t.Run("scope workspace filters to workspace", func(t *testing.T) {
+	t.Run("Should scope workspace filters to workspace", func(t *testing.T) {
 		resp := performRequest(
 			t,
 			engine,
@@ -110,7 +110,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace query without scope includes both scopes", func(t *testing.T) {
+	t.Run("Should workspace query without scope includes both scopes", func(t *testing.T) {
 		resp := performRequest(
 			t,
 			engine,

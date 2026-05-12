@@ -149,7 +149,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 	})
 	installExtensionFixture(t, homePaths, dir)
 
-	t.Run("human", func(t *testing.T) {
+	t.Run("Should human", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps, "extension", "list", "-o", "human")
 		if err != nil {
 			t.Fatalf("extension list human error = %v", err)
@@ -161,7 +161,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		}
 	})
 
-	t.Run("json", func(t *testing.T) {
+	t.Run("Should json", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps, "extension", "list", "-o", "json")
 		if err != nil {
 			t.Fatalf("extension list json error = %v", err)
@@ -175,7 +175,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		}
 	})
 
-	t.Run("toon", func(t *testing.T) {
+	t.Run("Should toon", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps, "extension", "list", "-o", "toon")
 		if err != nil {
 			t.Fatalf("extension list toon error = %v", err)

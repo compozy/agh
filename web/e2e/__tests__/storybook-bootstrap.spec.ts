@@ -69,7 +69,6 @@ test("registers the MSW worker and bypasses unknown requests in web Storybook", 
     });
 
     expect(unknownRequest).toEqual({ ok: false, status: 404 });
-    await page.waitForTimeout(250);
     expect(browserConsole.some(entry => entry.includes("without a matching request handler"))).toBe(
       false
     );

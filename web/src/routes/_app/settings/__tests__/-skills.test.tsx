@@ -175,10 +175,10 @@ beforeEach(() => {
   };
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../skills";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const SkillsSettingsPage = (Route as any).component as () => ReactNode;
+const SkillsSettingsPage = routeComponent(Route);
 
 describe("SkillsSettingsPage", () => {
   it("renders a loading indicator during the initial fetch", () => {

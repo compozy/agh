@@ -69,7 +69,7 @@ func TestRuntimeTriggerReturnsGateMissWhenRunSignalGateMisses(t *testing.T) {
 func TestRuntimeTriggerStates(t *testing.T) {
 	t.Parallel()
 
-	t.Run("disabled returns disabled message", func(t *testing.T) {
+	t.Run("Should disabled returns disabled message", func(t *testing.T) {
 		runtime := NewRuntime(
 			false,
 			&fakeDreamService{shouldRun: true},
@@ -93,7 +93,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 		}
 	})
 
-	t.Run("gate miss returns not satisfied message", func(t *testing.T) {
+	t.Run("Should gate miss returns not satisfied message", func(t *testing.T) {
 		runtime := NewRuntime(
 			true,
 			&fakeDreamService{shouldRun: false},
@@ -117,7 +117,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 		}
 	})
 
-	t.Run("service error is returned", func(t *testing.T) {
+	t.Run("Should service error is returned", func(t *testing.T) {
 		expectedErr := errors.New("gate failed")
 		runtime := NewRuntime(
 			true,
@@ -136,7 +136,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 		}
 	})
 
-	t.Run("successful run trims workspace", func(t *testing.T) {
+	t.Run("Should successful run trims workspace", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true}
 		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
 			return nil
@@ -161,7 +161,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 func TestRuntimeLastConsolidatedAt(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil callback returns zero time", func(t *testing.T) {
+	t.Run("Should nil callback returns zero time", func(t *testing.T) {
 		runtime := NewRuntime(true, nil, nil, time.Minute, discardLogger(), nil)
 		got, err := runtime.LastConsolidatedAt()
 		if err != nil {
@@ -172,7 +172,7 @@ func TestRuntimeLastConsolidatedAt(t *testing.T) {
 		}
 	})
 
-	t.Run("callback result is returned", func(t *testing.T) {
+	t.Run("Should callback result is returned", func(t *testing.T) {
 		expected := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
 		runtime := NewRuntime(true, nil, nil, time.Minute, discardLogger(), func() (time.Time, error) {
 			return expected, nil
@@ -256,7 +256,7 @@ func TestRuntimeStartDoesNothingWhenDisabled(t *testing.T) {
 func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("lock unavailable is swallowed", func(t *testing.T) {
+	t.Run("Should lock unavailable is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrLockUnavailable}
 		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
 			return nil
@@ -277,7 +277,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("signal gate miss is swallowed", func(t *testing.T) {
+	t.Run("Should signal gate miss is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrDreamGateNotSatisfied}
 		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
 			return nil
@@ -298,7 +298,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("should run error skips spawn", func(t *testing.T) {
+	t.Run("Should skip spawn on should-run error", func(t *testing.T) {
 		service := &fakeDreamService{shouldRunErr: errors.New("gate failed")}
 		spawnCalls := 0
 		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
@@ -529,7 +529,7 @@ func TestNewSessionSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 func TestResolveWorkspaceRefValidatesInputs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("blank ref is rejected", func(t *testing.T) {
+	t.Run("Should blank ref is rejected", func(t *testing.T) {
 		_, err := resolveWorkspaceRef(context.Background(), &fakeWorkspaceResolver{}, "   ")
 		if err == nil {
 			t.Fatal("resolveWorkspaceRef() error = nil, want non-nil")
@@ -539,7 +539,7 @@ func TestResolveWorkspaceRefValidatesInputs(t *testing.T) {
 		}
 	})
 
-	t.Run("empty resolved id is rejected", func(t *testing.T) {
+	t.Run("Should empty resolved id is rejected", func(t *testing.T) {
 		_, err := resolveWorkspaceRef(context.Background(), &fakeWorkspaceResolver{
 			resolveResolved: workspacepkg.ResolvedWorkspace{},
 		}, "workspace-alias")
@@ -592,7 +592,7 @@ func TestNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld(t *testing
 func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("prompt error is wrapped", func(t *testing.T) {
+	t.Run("Should prompt error is wrapped", func(t *testing.T) {
 		sessions := &fakeSessionManager{promptErr: errors.New("prompt failed")}
 		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
 		if err == nil {
@@ -603,7 +603,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("stop error is joined", func(t *testing.T) {
+	t.Run("Should stop error is joined", func(t *testing.T) {
 		stopErr := errors.New("stop failed")
 		sessions := &fakeSessionManager{stopErr: stopErr}
 		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
@@ -612,7 +612,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("prompt event errors are surfaced", func(t *testing.T) {
+	t.Run("Should prompt event errors are surfaced", func(t *testing.T) {
 		sessions := &fakeSessionManager{
 			promptEvents: []acp.AgentEvent{{Type: acp.EventTypeError, Error: "tool failed"}},
 		}
@@ -622,7 +622,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("stop uses fresh context after caller cancellation", func(t *testing.T) {
+	t.Run("Should stop uses fresh context after caller cancellation", func(t *testing.T) {
 		sessions := &fakeSessionManager{}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()

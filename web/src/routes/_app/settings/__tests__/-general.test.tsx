@@ -173,10 +173,10 @@ beforeEach(() => {
   };
 });
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../general";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const GeneralSettingsPage = (Route as any).component as () => ReactNode;
+const GeneralSettingsPage = routeComponent(Route);
 
 describe("GeneralSettingsPage", () => {
   it("renders a loading indicator while fetching", () => {

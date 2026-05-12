@@ -159,7 +159,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 
 	codec := mustJSONCodec(t, testResourceKind, 1024, validateTestTypedSpec)
 
-	t.Run("foreign source get denied and list filtered", func(t *testing.T) {
+	t.Run("Should foreign source get denied and list filtered", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -204,7 +204,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 		}
 	})
 
-	t.Run("granted kind mismatch rejected", func(t *testing.T) {
+	t.Run("Should granted kind mismatch rejected", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)
@@ -235,7 +235,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 		}
 	})
 
-	t.Run("scope boundary rejected", func(t *testing.T) {
+	t.Run("Should scope boundary rejected", func(t *testing.T) {
 		t.Parallel()
 
 		kernel, _ := openTestKernel(t)

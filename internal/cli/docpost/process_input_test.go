@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestProcessInputRefacs(t *testing.T) {
+func TestProcessInputValidation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should reject ambiguous agh-prefixed source filenames", func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestProcessInputRefacs(t *testing.T) {
 	})
 }
 
-func TestLinkRewriteRefacs(t *testing.T) {
+func TestLinkRewriteCodeRegionHandling(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should preserve command links inside code regions", func(t *testing.T) {

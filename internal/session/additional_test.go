@@ -91,7 +91,7 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 func TestCreateErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("blank agent name uses config default", func(t *testing.T) {
+	t.Run("Should blank agent name uses config default", func(t *testing.T) {
 		h := newHarness(t)
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID})
 		if err != nil {
@@ -105,7 +105,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("blank agent name without config default", func(t *testing.T) {
+	t.Run("Should blank agent name without config default", func(t *testing.T) {
 		h := newHarness(t)
 		h.cfg.Defaults.Agent = ""
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
@@ -127,7 +127,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("empty generated session id", func(t *testing.T) {
+	t.Run("Should empty generated session id", func(t *testing.T) {
 		h := newHarness(t, WithSessionIDGenerator(func() string { return "" }))
 		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
@@ -137,7 +137,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("store open failure", func(t *testing.T) {
+	t.Run("Should store open failure", func(t *testing.T) {
 		h := newHarness(t)
 		h.manager = newManagerWithHarness(t, h, WithStore(func(context.Context, string, string) (EventRecorder, error) {
 			return nil, errors.New("open failed")

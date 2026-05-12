@@ -75,13 +75,16 @@ function SettingsEditorDialog({
         </DialogHeader>
 
         <div
-          className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto"
+          className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-5 py-4"
           data-testid={`settings-${testSlug}-editor-body`}
         >
           {children}
         </div>
 
-        <div className="flex flex-col gap-2" data-testid={`settings-${testSlug}-editor-feedback`}>
+        <div
+          className="flex flex-col gap-2 px-5"
+          data-testid={`settings-${testSlug}-editor-feedback`}
+        >
           {error ? (
             <Alert variant="danger" data-testid={`settings-${testSlug}-editor-error`}>
               <AlertCircle className="mt-0.5 size-3 shrink-0" />

@@ -10,10 +10,11 @@ vi.mock("@tanstack/react-router", () => ({
   redirect: (payload: { to: string }) => redirectMock(payload),
 }));
 
+import { routeBeforeLoad } from "@/test/route-options";
+
 import { Route } from "../index";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const beforeLoad = (Route as any).beforeLoad as () => void;
+const beforeLoad = routeBeforeLoad(Route);
 
 describe("SettingsIndexRedirect", () => {
   it("redirects the default settings route to the general section", () => {

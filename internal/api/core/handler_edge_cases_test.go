@@ -430,7 +430,7 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("health observer failure", func(t *testing.T) {
+	t.Run("Should health observer failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{},
@@ -455,7 +455,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("health memory failure", func(t *testing.T) {
+	t.Run("Should health memory failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{},
@@ -485,7 +485,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("health automation failure", func(t *testing.T) {
+	t.Run("Should health automation failure", func(t *testing.T) {
 		fixture := newHandlerFixtureWithAutomation(
 			t,
 			testutil.StubSessionManager{},
@@ -515,7 +515,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("daemon status session list failure", func(t *testing.T) {
+	t.Run("Should daemon status session list failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -544,7 +544,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("daemon status observer failure", func(t *testing.T) {
+	t.Run("Should daemon status observer failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{},
@@ -569,7 +569,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("daemon status network enabled without service", func(t *testing.T) {
+	t.Run("Should daemon status network enabled without service", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -600,7 +600,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("daemon status network missing payload", func(t *testing.T) {
+	t.Run("Should daemon status network missing payload", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -635,7 +635,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("daemon status network failure", func(t *testing.T) {
+	t.Run("Should daemon status network failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -674,7 +674,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("list all failure", func(t *testing.T) {
+	t.Run("Should list all failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -699,7 +699,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace lookup failure", func(t *testing.T) {
+	t.Run("Should workspace lookup failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{

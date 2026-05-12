@@ -1499,7 +1499,7 @@ func TestManagerTimelineSupportsStableOrderingAndWindows(t *testing.T) {
 func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("aggregates session and usage data", func(t *testing.T) {
+	t.Run("Should aggregates session and usage data", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -1673,7 +1673,7 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 		}
 	})
 
-	t.Run("keeps optional fields empty when runtime data is absent", func(t *testing.T) {
+	t.Run("Should keeps optional fields empty when runtime data is absent", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -2501,7 +2501,7 @@ func TestManagerCreateTaskAppliesSemanticDefaultsAndDraftStatus(t *testing.T) {
 func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 	t.Parallel()
 
-	t.Run("draft stays non runnable until published", func(t *testing.T) {
+	t.Run("Should draft stays non runnable until published", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -2548,7 +2548,7 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 		}
 	})
 
-	t.Run("draft with unresolved dependencies cannot publish into execution", func(t *testing.T) {
+	t.Run("Should draft with unresolved dependencies cannot publish into execution", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -2598,7 +2598,7 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ready task cannot publish", func(t *testing.T) {
+	t.Run("Should ready task cannot publish", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -2626,7 +2626,7 @@ func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
 		}
 	})
 
-	t.Run("already published draft cannot publish again", func(t *testing.T) {
+	t.Run("Should already published draft cannot publish again", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -3349,7 +3349,7 @@ func TestManagerEnqueueRunRejectsDraftTask(t *testing.T) {
 func TestManagerCreateChildTaskEnforcesParentRulesAndEmitsAudit(t *testing.T) {
 	t.Parallel()
 
-	t.Run("global parent allows workspace child and emits parent event", func(t *testing.T) {
+	t.Run("Should global parent allows workspace child and emits parent event", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -3388,7 +3388,7 @@ func TestManagerCreateChildTaskEnforcesParentRulesAndEmitsAudit(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace parent rejects cross scope or cross workspace children", func(t *testing.T) {
+	t.Run("Should workspace parent rejects cross scope or cross workspace children", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -3762,7 +3762,7 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 func TestManagerReadPathsDoNotPersistDependencyReconciliation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("GetTask derives dependency status without writes", func(t *testing.T) {
+	t.Run("Should GetTask derives dependency status without writes", func(t *testing.T) {
 		t.Parallel()
 
 		manager, store, actor, blockerID, targetID := setupStaleDependencyReadScenario(t)
@@ -3789,7 +3789,7 @@ func TestManagerReadPathsDoNotPersistDependencyReconciliation(t *testing.T) {
 		}
 	})
 
-	t.Run("ListTasks derives dependency status without writes", func(t *testing.T) {
+	t.Run("Should ListTasks derives dependency status without writes", func(t *testing.T) {
 		t.Parallel()
 
 		manager, store, actor, blockerID, targetID := setupStaleDependencyReadScenario(t)
@@ -5238,7 +5238,7 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("start run fails closed when executor returns nil session ref", func(t *testing.T) {
+	t.Run("Should start run fails closed when executor returns nil session ref", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5271,7 +5271,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("attach run rejects active session reuse", func(t *testing.T) {
+	t.Run("Should attach run rejects active session reuse", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5326,7 +5326,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("attach run validates executor state and session id", func(t *testing.T) {
+	t.Run("Should attach run validates executor state and session id", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5409,7 +5409,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 	}
 
-	t.Run("claimed run requeues and records recovery event", func(t *testing.T) {
+	t.Run("Should claimed run requeues and records recovery event", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5459,7 +5459,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		}
 	})
 
-	t.Run("starting run is promoted to running when session is live", func(t *testing.T) {
+	t.Run("Should starting run is promoted to running when session is live", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5503,7 +5503,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		}
 	})
 
-	t.Run("running run fails closed when the attached session is not live", func(t *testing.T) {
+	t.Run("Should running run fails closed when the attached session is not live", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5572,7 +5572,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		}
 	})
 
-	t.Run("claimed run cannot recover to running without a session binding", func(t *testing.T) {
+	t.Run("Should claimed run cannot recover to running without a session binding", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5608,7 +5608,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		}
 	})
 
-	t.Run("running run remains unchanged when recovery confirms it is still live", func(t *testing.T) {
+	t.Run("Should running run remains unchanged when recovery confirms it is still live", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5662,7 +5662,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		}
 	})
 
-	t.Run("starting run cannot be requeued on boot", func(t *testing.T) {
+	t.Run("Should starting run cannot be requeued on boot", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5734,7 +5734,7 @@ func TestManagerGetTaskAndFailRunGuardrails(t *testing.T) {
 func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 	t.Parallel()
 
-	t.Run("formats recovery errors for bound and missing sessions", func(t *testing.T) {
+	t.Run("Should formats recovery errors for bound and missing sessions", func(t *testing.T) {
 		t.Parallel()
 
 		if got, want := runBootRecoveryError(Run{
@@ -5759,7 +5759,7 @@ func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 		}
 	})
 
-	t.Run("normalizes recovery metadata reason", func(t *testing.T) {
+	t.Run("Should normalizes recovery metadata reason", func(t *testing.T) {
 		t.Parallel()
 
 		metadata := runBootRecoveryMetadata(Run{
@@ -5786,7 +5786,7 @@ func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 		}
 	})
 
-	t.Run("write authority rejects read-only actors", func(t *testing.T) {
+	t.Run("Should write authority rejects read-only actors", func(t *testing.T) {
 		t.Parallel()
 
 		actor := validActorContext()
@@ -5802,7 +5802,7 @@ func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 func TestManagerAdditionalBranchCoverage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("constructor validates required dependencies", func(t *testing.T) {
+	t.Run("Should constructor validates required dependencies", func(t *testing.T) {
 		t.Parallel()
 
 		if _, err := NewManager(); err == nil {
@@ -5827,7 +5827,7 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("surface helpers default origin refs", func(t *testing.T) {
+	t.Run("Should surface helpers default origin refs", func(t *testing.T) {
 		t.Parallel()
 
 		extension, err := DeriveExtensionActorContext("ext-1", "")
@@ -5855,7 +5855,7 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("task depth detects cycles", func(t *testing.T) {
+	t.Run("Should task depth detects cycles", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -5877,7 +5877,7 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("create child rejects mismatched parent field", func(t *testing.T) {
+	t.Run("Should create child rejects mismatched parent field", func(t *testing.T) {
 		t.Parallel()
 
 		manager := newTaskManagerForTest(t, newInMemoryManagerStore())
@@ -5900,7 +5900,7 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("remove dependency validates ids and nil payload marshals cleanly", func(t *testing.T) {
+	t.Run("Should remove dependency validates ids and nil payload marshals cleanly", func(t *testing.T) {
 		t.Parallel()
 
 		manager := newTaskManagerForTest(t, newInMemoryManagerStore())
@@ -5921,7 +5921,7 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("ownership helpers cover nil and zero values", func(t *testing.T) {
+	t.Run("Should ownership helpers cover nil and zero values", func(t *testing.T) {
 		t.Parallel()
 
 		if got := normalizeOwnership(nil); got != nil {

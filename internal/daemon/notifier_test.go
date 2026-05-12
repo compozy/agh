@@ -586,6 +586,48 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 	}
 }
 
+func TestDreamSessionStopExecutorSkipsDreamSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip dream sessions without enqueueing a check", func(t *testing.T) {
+		t.Parallel()
+
+		dream := &spyDreamRuntime{}
+		type typedExecutor = hookspkg.TypedNativeExecutor[
+			hookspkg.SessionLifecyclePayload,
+			hookspkg.SessionPostStopPatch,
+		]
+		rawExecutor := dreamSessionStopExecutor(dream)
+		executor, ok := rawExecutor.(*typedExecutor)
+		if !ok {
+			t.Fatalf("dreamSessionStopExecutor() type = %T, want typed native executor", rawExecutor)
+		}
+
+		if _, err := executor.ExecuteTyped(
+			testutil.Context(t),
+			hookspkg.RegisteredHook{Name: "daemon.dream.session_stop", Event: hookspkg.HookSessionPostStop},
+			hookspkg.SessionLifecyclePayload{
+				PayloadBase: hookspkg.PayloadBase{
+					Event:     hookspkg.HookSessionPostStop,
+					Timestamp: time.Date(2026, 4, 9, 15, 0, 0, 0, time.UTC),
+				},
+				SessionContext: hookspkg.SessionContext{
+					SessionID:   "sess-dream",
+					WorkspaceID: "ws-dream",
+					SessionType: string(session.SessionTypeDream),
+					State:       string(session.StateStopped),
+				},
+			},
+		); err != nil {
+			t.Fatalf("ExecuteTyped() error = %v", err)
+		}
+
+		if got := dream.calls; len(got) != 0 {
+			t.Fatalf("dream calls = %#v, want none for dream session stop", got)
+		}
+	})
+}
+
 func TestMarketplaceHookAllowedHonorsConsentKeys(t *testing.T) {
 	t.Parallel()
 

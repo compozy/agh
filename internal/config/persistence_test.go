@@ -491,7 +491,7 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 func TestOverlayEditorSetTableMutations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("replace existing table", func(t *testing.T) {
+	t.Run("Should replace existing table", func(t *testing.T) {
 		t.Parallel()
 
 		editor, err := newOverlayEditor(ConfigName, []byte(`
@@ -537,7 +537,7 @@ agent = "general"
 		}
 	})
 
-	t.Run("reject replacement when nested subtables exist", func(t *testing.T) {
+	t.Run("Should reject replacement when nested subtables exist", func(t *testing.T) {
 		t.Parallel()
 
 		editor, err := newOverlayEditor(ConfigName, []byte(`
@@ -565,7 +565,7 @@ default = "gpt-4o"
 		}
 	})
 
-	t.Run("render explicit empty array-of-tables values", func(t *testing.T) {
+	t.Run("Should render explicit empty array-of-tables values", func(t *testing.T) {
 		t.Parallel()
 
 		editor, err := newOverlayEditor(ConfigName, []byte{})

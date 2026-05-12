@@ -100,10 +100,10 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../tasks.new";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TaskCreateRoute = (Route as any).component as () => ReactNode;
+const TaskCreateRoute = routeComponent(Route);
 
 describe("TaskCreateRoute", () => {
   beforeEach(() => {

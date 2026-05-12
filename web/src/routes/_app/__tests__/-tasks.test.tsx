@@ -79,15 +79,15 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../tasks";
+
+const TasksRoute = routeComponent(Route);
 import {
   buildDashboardFixture,
   buildInboxFixture,
   buildInboxItemFixture,
 } from "@/systems/tasks/components/test-fixtures";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TasksRoute = (Route as any).component as () => ReactNode;
 
 function renderTasksRoute() {
   const client = new QueryClient({

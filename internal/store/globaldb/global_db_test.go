@@ -2454,7 +2454,7 @@ func TestGlobalDBListSessionsWrapsInvalidActivityJSONValidation(t *testing.T) {
 func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("stop reason updates columns", func(t *testing.T) {
+	t.Run("Should stop reason updates columns", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -2492,7 +2492,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 		assertOptionalStringEqual(t, gotStopDetail, stringPointerForTest("requested by user"), "stop_detail")
 	})
 
-	t.Run("missing stop reason leaves existing columns unchanged", func(t *testing.T) {
+	t.Run("Should missing stop reason leaves existing columns unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -2528,7 +2528,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 		assertOptionalStringEqual(t, gotStopDetail, stringPointerForTest("deadline exceeded"), "stop_detail")
 	})
 
-	t.Run("explicit nil stop reason clears existing columns", func(t *testing.T) {
+	t.Run("Should explicit nil stop reason clears existing columns", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)

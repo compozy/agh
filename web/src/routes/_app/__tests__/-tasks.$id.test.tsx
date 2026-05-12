@@ -104,10 +104,10 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
 
 import { getTask, getTaskTree } from "@/systems/tasks/adapters/tasks-api";
 
+import { routeComponent } from "@/test/route-options";
 import { Route } from "../tasks.$id";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TaskDetailRoute = (Route as any).component as () => ReactNode;
+const TaskDetailRoute = routeComponent(Route);
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
