@@ -261,7 +261,7 @@ port = 4317
 		value any
 	}{
 		{path: []string{"skills", "enabled"}, value: true},
-		{path: []string{"skills", "disabled_skills"}, value: []string{"agh-session-guide"}},
+		{path: []string{"skills", "disabled_skills"}, value: []string{"agh"}},
 		{path: []string{"skills", "poll_interval"}, value: "3s"},
 		{path: []string{"skills", "marketplace", "registry"}, value: "clawhub"},
 		{path: []string{"skills", "marketplace", "base_url"}, value: "https://skills.example"},
@@ -305,7 +305,7 @@ port = 4317
 	for _, want := range []string{
 		"[skills]",
 		"enabled = true",
-		`disabled_skills = ["agh-session-guide"]`,
+		`disabled_skills = ["agh"]`,
 		`poll_interval = "3s"`,
 		"[skills.marketplace]",
 		`registry = "clawhub"`,

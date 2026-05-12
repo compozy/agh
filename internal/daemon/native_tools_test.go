@@ -28,12 +28,12 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
-	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 func TestDaemonNativeTools(t *testing.T) {
@@ -54,7 +54,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_list) error = %v", err)
 		}
-		requireNativeStructuredContains(t, listResult, []byte(`"agh-memory-guide"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"agh"`))
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -67,22 +67,22 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_search) error = %v", err)
 		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"agh-network"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"agh"`))
 
 		viewResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSkillView,
-				Input:  json.RawMessage(`{"name":"agh-memory-guide"}`),
+				Input:  json.RawMessage(`{"name":"agh","file":"references/memory.md"}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_view) error = %v", err)
 		}
-		requireNativeStructuredContains(t, viewResult, []byte(`# AGH Memory Guide`))
+		requireNativeStructuredContains(t, viewResult, []byte(`## Contents`))
 		if len(viewResult.Content) != 1 ||
-			!bytes.Contains([]byte(viewResult.Content[0].Text), []byte(`# AGH Memory Guide`)) {
+			!bytes.Contains([]byte(viewResult.Content[0].Text), []byte(`## Contents`)) {
 			t.Fatalf("skill_view content = %#v, want real skill body", viewResult.Content)
 		}
 	})

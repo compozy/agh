@@ -1068,13 +1068,22 @@ func (n *daemonNativeTools) skillView(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	content, err := n.deps.Skills.LoadContent(ctx, skill)
+	file := strings.TrimSpace(input.File)
+	var content string
+	if file != "" {
+		content, err = n.deps.Skills.LoadResource(ctx, skill, file)
+	} else {
+		content, err = n.deps.Skills.LoadContent(ctx, skill)
+	}
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	payload := map[string]any{
 		"skill":   core.SkillPayloadFromSkill(skill),
 		"content": content,
+	}
+	if file != "" {
+		payload["file"] = file
 	}
 	result, err := structuredResult(payload, content)
 	if err != nil {
@@ -2726,6 +2735,7 @@ type skillSearchInput struct {
 type skillViewInput struct {
 	Name        string `json:"name"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
+	File        string `json:"file,omitempty"`
 }
 
 type networkPeersInput struct {

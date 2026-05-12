@@ -45,8 +45,8 @@ only when it needs it.
   <RouteRow
     href="/runtime/core/skills/bundled"
     label="Bundled"
-    title="Skills shipped in the AGH binary"
-    description="Use this page when you need the names, scope, and triggers of skills that ship with AGH."
+    title="The skill shipped in the AGH binary"
+    description="Use this page when you need the bundled `agh` skill, its references, and contextual injections."
     meta="Built-in"
   />
 </RouteList>
@@ -64,7 +64,7 @@ only when it needs it.
 `SKILL.md` has YAML frontmatter followed by Markdown instructions. The frontmatter gives AGH the
 skill name, description, version, and optional AGH-specific metadata. The Markdown body is procedural
 guidance for the agent. Resource files stay next to the skill and are read on demand with
-`agh__skill_view --file <path>` from inside a session, or with `agh skill view <name> --file <path>`
+`agh__skill_view` with a `file` input from inside a session, or with `agh skill view <name> --file <path>`
 from the operator CLI.
 
 The runtime does not keep full skill bodies in list/detail payloads. This keeps prompts, APIs, and
@@ -76,14 +76,14 @@ AGH starts from the filesystem-backed skill layers implemented today, then appli
 agent's `skills/` directory as a final overlay when one effective agent is selected. Later rows
 override earlier rows when the same skill name is visible.
 
-| Precedence | Source          | Directory or owner                                                        | Notes                                                                    |
-| ---------- | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1          | Bundled         | compiled into the binary from `internal/skills/bundled/skills/*/SKILL.md` | Lowest precedence. Always available when skills are enabled.             |
-| 2          | Marketplace     | `$AGH_HOME/skills/<name>` with `.agh-meta.json`                           | Installed by `agh skill install`. Load-time hash verification must pass. |
-| 3          | User            | `$AGH_HOME/skills/<name>`                                                 | Local operator-controlled global skills.                                 |
-| 4          | Additional root | `<additional-dir>/.agh/skills/<name>`                                     | Visible to workspaces that registered additional roots.                  |
-| 5          | Workspace       | `<workspace>/.agh/skills/<name>`                                          | Highest base precedence for that workspace.                              |
-| 6          | Agent-local     | `<effective-agent-root>/skills/<name>`                                    | Final overlay for the winning agent definition only.                     |
+| Precedence | Source          | Directory or owner                                | Notes                                                                    |
+| ---------- | --------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1          | Bundled         | compiled into the binary from `skills/*/SKILL.md` | Lowest precedence. Always available when skills are enabled.             |
+| 2          | Marketplace     | `$AGH_HOME/skills/<name>` with `.agh-meta.json`   | Installed by `agh skill install`. Load-time hash verification must pass. |
+| 3          | User            | `$AGH_HOME/skills/<name>`                         | Local operator-controlled global skills.                                 |
+| 4          | Additional root | `<additional-dir>/.agh/skills/<name>`             | Visible to workspaces that registered additional roots.                  |
+| 5          | Workspace       | `<workspace>/.agh/skills/<name>`                  | Highest base precedence for that workspace.                              |
+| 6          | Agent-local     | `<effective-agent-root>/skills/<name>`            | Final overlay for the winning agent definition only.                     |
 
 In short, bundled, marketplace, user, additional root, and workspace form the base stack, then
 Agent-local overlays on top. Agent-local is resolved from the winning `AGENT.md` directory only
@@ -151,12 +151,13 @@ The prompt catalog has this shape:
 
 ```xml
 <available-skills>
-  <skill name="agh-session-guide">Operate AGH sessions from the CLI...</skill>
+  <skill name="agh">Operate and extend AGH, the local-first agent operating system...</skill>
 </available-skills>
 
-Use `agh__skill_view <name>` to load full instructions for any skill, or
+Use `agh__skill_view` with `{ "name": "agh" }` to load full instructions for any skill, or
 `agh skill view <name>` from the operator CLI when the tool path is unavailable.
-Use `agh__skill_view <name> --file <path>` (or `agh skill view <name> --file <path>`) to read a
+Use `agh__skill_view` with `{ "name": "agh", "file": "references/network.md" }`
+(or `agh skill view <name> --file <path>`) to read a
 specific skill resource file.
 ```
 
@@ -173,7 +174,7 @@ Important details:
 | Disabled skills     | Omitted from the catalog.                                                                                  |
 | Catalog order       | Sorted by skill name after resolution.                                                                     |
 | Prompt position     | Memory context is prepended, the `AGENT.md` prompt stays in the middle, and the skill catalog is appended. |
-| Network sessions    | Sessions with a network channel also receive the full bundled `agh-network` body.                          |
+| Network sessions    | Sessions with a network channel also receive `agh` `references/network.md`.                                |
 
 Disabled skills are hidden from the prompt catalog. Current MCP and hook resolution still iterates
 the resolved skill list, so do not treat disabling a skill as a complete runtime kill switch for
@@ -227,6 +228,6 @@ There is no interactive MCP consent prompt today. Consent is a static config all
 
 - [SKILL.md Format](/runtime/core/skills/skill-md) documents the file format and schema.
 - [Marketplace](/runtime/core/skills/marketplace) shows how to search, install, update, and remove skills.
-- [Bundled Skills](/runtime/core/skills/bundled) lists the skills shipped in the AGH binary.
+- [Bundled Skill](/runtime/core/skills/bundled) documents the `agh` skill shipped in the AGH binary.
 - [Agent Definitions](/runtime/core/agents/definitions) explains how agents and skill-aware MCP servers meet at session start.
 - [Spawning](/runtime/core/agents/spawning) follows the ACP startup path that receives skill MCP servers.

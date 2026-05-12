@@ -180,7 +180,7 @@ func TestBuildCatalogDoesNotTruncateUnicodeDescriptionsBelowRuneLimit(t *testing
 func TestBuildCatalogExcludesDisabledSkills(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldExcludeDisabledSkills", func(t *testing.T) {
+	t.Run("Should exclude disabled skills", func(t *testing.T) {
 		got := BuildCatalog([]*Skill{
 			{
 				Meta: SkillMeta{
@@ -284,14 +284,14 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldPreferSkillViewToolOverCliFallback", func(t *testing.T) {
+	t.Run("Should prefer skill view tool over CLI fallback", func(t *testing.T) {
 		t.Parallel()
 
 		got := BuildCatalog([]*Skill{
 			{
 				Meta: SkillMeta{
-					Name:        "agh-tools-guide",
-					Description: "Tool guidance",
+					Name:        "agh",
+					Description: "AGH guidance",
 				},
 				Enabled: true,
 			},

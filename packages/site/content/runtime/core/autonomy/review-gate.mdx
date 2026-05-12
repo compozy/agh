@@ -55,8 +55,9 @@ Read this section first. Everything else on the page operates inside it.
    then either reuses an eligible active reviewer session or creates a local reviewer session
    through the daemon composition root.
 6. The daemon binds the reviewer session to the review request through
-   `task.Service.BindRunReviewSession` before exposing `submit_run_review`. The bundled
-   `agh-task-reviewer` skill loads only because the binding is durable.
+   `task.Service.BindRunReviewSession` before exposing `submit_run_review`. The reviewer prompt
+   directs the session to load `agh` and read `references/tasks-and-orchestration.md`, but the
+   binding is the authority.
 7. The reviewer submits exactly one typed verdict. `task.Service.RecordRunReview` validates the
    review/run link, actor identity, active binding when the actor is a reviewer session,
    idempotency, payload bounds, and status transition.
@@ -244,10 +245,10 @@ internally with the `agh__` prefix so toolset routing can hide it when the sessi
 
 Visibility rules enforced by the runtime:
 
-- The bundled `agh-task-reviewer` skill must be active. Its `metadata.agh.requires_review_request`
-  flag is the load trigger; the tool is hidden until the loader sees an active review binding.
-- `LookupReviewForSession(session_id)` must return a binding that matches the call's `review_id`.
-  Mismatched ids return an unavailable-tool error and never reach the verdict path.
+- `LookupReviewForSession(session_id)` must return an active binding before the tool is visible.
+  The lookup runs against task-service state, not skill metadata.
+- The binding must match the call's `review_id`. Mismatched ids return an unavailable-tool error
+  and never reach the verdict path.
 - The tool never inspects claim leases or exposes raw claim tokens. Reviewer sessions do not need
   an active claim.
 - Operator/API/UDS/CLI verdict submissions go through the explicit `/api/task-reviews/{id}/verdict`
@@ -303,18 +304,17 @@ and never carry raw claim tokens or full reviewer transcripts.
 notifier on review-gated work. See
 [Notification Cursors](/runtime/core/autonomy/notification-cursors).
 
-## Bundled skill expectations
+## AGH skill expectations
 
-`agh-task-reviewer` is one of the bundled orchestration skills. It is loaded only by reviewer
-sessions with an active binding (`metadata.agh.requires_review_request = true`) and is purely
-instructional:
+`agh` is the bundled runtime skill. Reviewer sessions are instructed to load it and read
+`references/tasks-and-orchestration.md`. That reference is purely instructional:
 
 - It cannot record verdicts, change task state, alter reviewer routing, or expose claim tokens.
 - It teaches reviewers how to read review packets, prefer typed outcomes, and submit bounded
   evidence through `submit_run_review`.
 
-See [Bundled Skills — Orchestration](/runtime/core/skills/bundled#agh-task-reviewer) for skill load
-triggers and the orchestration-skill authority boundary.
+See [Bundled Skill](/runtime/core/skills/bundled) for the contextual reference-loading model and
+the skill authority boundary.
 
 ## Config lifecycle
 
@@ -341,8 +341,8 @@ Behavior to keep in mind:
   `TaskExecutionProfile.Review` shapes reviewer selection.
 - [Notification Cursors](/runtime/core/autonomy/notification-cursors) explains why bridge
   terminal notifications wait for the accepted-final event on review-gated runs.
-- [Bundled Skills](/runtime/core/skills/bundled) documents the orchestration skills, including
-  `agh-task-reviewer`.
+- [Bundled Skill](/runtime/core/skills/bundled) documents the `agh` skill and its contextual
+  reference-loading model.
 - [config.toml](/runtime/core/configuration/config-toml) lists every `[task.orchestration]` key.
 - [agh task review](/runtime/cli-reference/task/review) is the generated CLI reference for the
   review commands.

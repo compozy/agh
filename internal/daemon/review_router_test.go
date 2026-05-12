@@ -98,7 +98,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		if create.AgentName != "reviewer" || create.Channel != "reviews" {
 			t.Fatalf("CreateOpts agent/channel = %q/%q, want reviewer/reviews", create.AgentName, create.Channel)
 		}
-		if !strings.Contains(create.PromptOverlay, "agh-task-reviewer") ||
+		if !strings.Contains(create.PromptOverlay, "references/tasks-and-orchestration.md") ||
 			!strings.Contains(create.PromptOverlay, "submit_run_review") {
 			t.Fatalf("CreateOpts.PromptOverlay = %q, want reviewer instructions", create.PromptOverlay)
 		}

@@ -2240,8 +2240,8 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	if d.skillsRegistry == nil {
 		t.Fatal("boot() did not initialize the skills registry")
 	}
-	if _, ok := d.skillsRegistry.Get("agh-session-guide"); !ok {
-		t.Fatal("skills registry does not contain bundled skill agh-session-guide")
+	if _, ok := d.skillsRegistry.Get("agh"); !ok {
+		t.Fatal("skills registry does not contain bundled skill agh")
 	}
 
 	workspace := workspacepkg.ResolvedWorkspace{
@@ -2252,7 +2252,7 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		t.Fatalf("PromptAssembler.Assemble() error = %v", err)
 	}
 
-	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "agh-session-guide")
+	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "agh")
 	assertPromptExcludes(t, prompt, "# Persistent Memory")
 }
 

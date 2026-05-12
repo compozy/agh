@@ -141,8 +141,9 @@ describe("tool-first canonical surface docs", () => {
 
     expectIncludesAll(skillsIndex, ["`agh__skill_view`", "`agh__skill_search`", "operator CLI"]);
     expectIncludesAll(bundled, [
-      "agh-tools-guide",
-      "Discover and call AGH-native tools",
+      "`agh`",
+      "references/native-tools.md",
+      "AGH-native tools",
       "agh__tool_search",
     ]);
   });

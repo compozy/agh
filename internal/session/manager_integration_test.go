@@ -15,11 +15,11 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 func TestManagerIntegrationFullLifecycle(t *testing.T) {
@@ -748,10 +748,11 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
 	}
+	networkSkill = strings.TrimSpace(networkSkill)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",

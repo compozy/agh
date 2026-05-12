@@ -723,7 +723,8 @@ func reviewSessionName(taskID string) string {
 
 func reviewRouterPromptOverlay(taskID string, runID string) string {
 	return fmt.Sprintf(
-		"Load the agh-task-reviewer skill. Review task %s run %s and submit the verdict with submit_run_review.",
+		"Load the agh skill and read %s. Review task %s run %s and submit the verdict with submit_run_review.",
+		bundledTaskReference,
 		strings.TrimSpace(taskID),
 		strings.TrimSpace(runID),
 	)

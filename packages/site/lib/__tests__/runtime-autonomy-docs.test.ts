@@ -213,8 +213,8 @@ describe("runtime review-gate docs", () => {
       "Reviewer-bound native tool",
       "submit_run_review",
       "agh__task_run_review_submit",
-      "agh-task-reviewer",
-      "metadata.agh.requires_review_request",
+      "references/tasks-and-orchestration.md",
+      "task-service state, not skill metadata",
       "Inspect from the operator web UI",
       "Orchestration",
       "permanent disclaimer",
@@ -229,7 +229,7 @@ describe("runtime review-gate docs", () => {
       "task.run_review_timeout",
       "task.run_review_invalid_output",
       "task.run_review_retry_enqueued",
-      "Bundled skill expectations",
+      "AGH skill expectations",
       "Config lifecycle",
       "[task.orchestration.review]",
     ]);
@@ -333,28 +333,20 @@ describe("runtime notification cursor docs", () => {
   });
 });
 
-describe("bundled orchestration skill docs", () => {
-  it("describes orchestration skills as instructional only and lists load triggers", () => {
+describe("bundled AGH skill docs", () => {
+  it("describes the AGH skill as instructional only and lists contextual references", () => {
     const bundled = readRuntimeDoc("core/skills/bundled.mdx");
 
     expectIncludesAll(bundled, [
-      "agh-orchestrator",
-      "agh-task-worker",
-      "agh-task-reviewer",
+      "`agh`",
+      "references/tools-and-skills.md",
+      "references/native-tools.md",
+      "references/tasks-and-orchestration.md",
       "instructional",
-      "does not own task state",
-      "metadata.agh",
-      "always_load.session_types",
-      "injected_by",
-      "internal/daemon/coordinator_runtime",
-      "requires_active_task_claim",
-      "requires_review_request",
-      "Verdict authority",
+      "binding is the authority",
       "task.Service.RecordRunReview",
       "submit_run_review",
-      "agh__task_run_review_submit",
-      "These metadata fields are load and visibility hints",
-      "not authority",
+      "contextual prompt help",
     ]);
   });
 });

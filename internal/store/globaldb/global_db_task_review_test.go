@@ -63,7 +63,7 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 		bound, err := globalDB.BindRunReviewSession(ctx, taskpkg.BindRunReviewSessionRequest{
 			ReviewID:          stored.ReviewID,
 			SessionID:         "sess-reviewer",
-			ReviewerAgentName: "agh-task-reviewer",
+			ReviewerAgentName: "reviewer",
 			ReviewerPeerID:    "peer-reviewer",
 			ReviewerChannelID: "channel-review",
 		}, fixedTaskReviewStoreTime().Add(time.Minute))

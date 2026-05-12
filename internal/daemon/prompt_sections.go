@@ -7,13 +7,16 @@ import (
 	"strings"
 
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 const (
-	bundledNetworkSkillName = "agh-network"
-	bundledToolsSkillName   = "agh-tools-guide"
+	bundledAghSkillName         = "agh"
+	bundledNetworkReference     = "references/network.md"
+	bundledToolsReference       = "references/tools-and-skills.md"
+	bundledNativeToolsReference = "references/native-tools.md"
+	bundledTaskReference        = "references/tasks-and-orchestration.md"
 
 	startupSituationSectionOrder = 50
 	startupMemorySectionOrder    = 100
@@ -132,8 +135,12 @@ func defaultStartupPromptSectionDescriptors(
 			Order:          startupToolsSectionOrder,
 			Budget:         startupToolsSectionBudget,
 			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider:       bundledPromptSectionProvider(bundledToolsSkillName),
-			Predicate:      policyIncludesSection(HarnessPromptSectionTools),
+			Provider: bundledReferencesPromptSectionProvider(
+				bundledAghSkillName,
+				bundledToolsReference,
+				bundledNativeToolsReference,
+			),
+			Predicate: policyIncludesSection(HarnessPromptSectionTools),
 		},
 		PromptSectionDescriptor{
 			Name:           string(HarnessPromptSectionNetwork),
@@ -141,7 +148,7 @@ func defaultStartupPromptSectionDescriptors(
 			Order:          startupNetworkSectionOrder,
 			Budget:         startupNetworkSectionBudget,
 			BudgetBehavior: PromptSectionBudgetBehaviorOmit,
-			Provider:       bundledPromptSectionProvider(bundledNetworkSkillName),
+			Provider:       bundledReferencesPromptSectionProvider(bundledAghSkillName, bundledNetworkReference),
 			Predicate:      policyIncludesSection(HarnessPromptSectionNetwork),
 		},
 	)
@@ -192,12 +199,21 @@ func (fn promptSectionProviderFunc) PromptSection(
 	return fn(ctx, workspace)
 }
 
-func bundledPromptSectionProvider(name string) session.PromptProvider {
+func bundledReferencesPromptSectionProvider(name string, referencePaths ...string) session.PromptProvider {
 	return promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
-		content, err := bundled.LoadContent(strings.TrimSpace(name))
-		if err != nil {
-			return "", fmt.Errorf("daemon: load bundled startup section %q: %w", name, err)
+		contents := make([]string, 0, len(referencePaths))
+		for _, referencePath := range referencePaths {
+			content, err := skillbundled.LoadResource(strings.TrimSpace(name), strings.TrimSpace(referencePath))
+			if err != nil {
+				return "", fmt.Errorf(
+					"daemon: load bundled startup section %q file %q: %w",
+					name,
+					referencePath,
+					err,
+				)
+			}
+			contents = append(contents, strings.TrimSpace(content))
 		}
-		return content, nil
+		return strings.Join(contents, "\n\n"), nil
 	})
 }

@@ -119,7 +119,7 @@ level = "debug"
 
 [skills]
 enabled = false
-disabled_skills = ["code-review", "agh-session-guide"]
+disabled_skills = ["code-review", "agh"]
 poll_interval = "5s"
 allowed_marketplace_mcp = ["@registry/skill-a", "@registry/skill-b"]
 allowed_marketplace_hooks = ["@registry/hook-a", "@registry/hook-b"]
@@ -264,7 +264,7 @@ max_queue_depth = 250
 	if got, want := cfg.Skills.PollInterval, 5*time.Second; got != want {
 		t.Fatalf("Load() Skills.PollInterval = %s, want %s", got, want)
 	}
-	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "agh-session-guide"}; !slices.Equal(got, want) {
+	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "agh"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
 	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{

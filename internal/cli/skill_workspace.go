@@ -15,7 +15,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
-	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
+	skillbundled "github.com/pedronauck/agh/skills"
 	"github.com/spf13/cobra"
 )
 

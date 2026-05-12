@@ -36,7 +36,6 @@ import (
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -44,6 +43,7 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 type bootState struct {
@@ -1924,13 +1924,13 @@ func (d *Daemon) publishBootState(state *bootState) {
 func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) skills.RegistryConfig {
 	if cfg == nil {
 		return skills.RegistryConfig{
-			BundledFS:     bundled.FS(),
+			BundledFS:     skillbundled.FS(),
 			UserSkillsDir: d.homePaths.SkillsDir,
 		}
 	}
 
 	return skills.RegistryConfig{
-		BundledFS:      bundled.FS(),
+		BundledFS:      skillbundled.FS(),
 		UserSkillsDir:  d.homePaths.SkillsDir,
 		UserAgentsDir:  d.homePaths.AgentsDir,
 		DisabledSkills: append([]string(nil), cfg.Skills.DisabledSkills...),
