@@ -709,8 +709,12 @@ func taskBridgeNotificationSubscriptionFromRequest(
 			taskWorkspaceID,
 		)
 	}
+	subscriptionID := strings.TrimSpace(req.SubscriptionID)
+	if subscriptionID == "" {
+		subscriptionID = store.NewID("bts")
+	}
 	subscription := bridgepkg.BridgeTaskSubscription{
-		SubscriptionID:   store.NewID("bts"),
+		SubscriptionID:   subscriptionID,
 		TaskID:           strings.TrimSpace(taskRecord.ID),
 		BridgeInstanceID: strings.TrimSpace(req.BridgeInstanceID),
 		Scope:            taskScope,

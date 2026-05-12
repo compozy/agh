@@ -185,6 +185,62 @@ var taskTools = []toolspkg.Descriptor{
 		[]string{"tasks", "execution_profile"},
 		[]string{"task execution profile", "profile delete"},
 	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskNotificationSubscribe,
+		"task_notification_subscribe",
+		"Task Notification Subscribe",
+		"Create one bridge notification subscription for terminal task events.",
+		taskNotificationSubscribeInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "notifications", "bridges"},
+		[]string{"task notification subscribe", "bridge task subscription"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskNotificationList,
+		"task_notification_list",
+		"Task Notification List",
+		"List bridge notification subscriptions for one task.",
+		taskNotificationListInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "notifications", "bridges"},
+		[]string{"task notification list", "bridge task subscriptions"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskNotificationShow,
+		"task_notification_show",
+		"Task Notification Show",
+		"Read one bridge notification subscription for one task.",
+		taskNotificationShowInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "notifications", "bridges"},
+		[]string{"task notification show", "bridge task subscription detail"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskNotificationDelete,
+		"task_notification_delete",
+		"Task Notification Delete",
+		"Delete one bridge notification subscription for one task.",
+		taskNotificationDeleteInputSchema,
+		toolspkg.RiskDestructive,
+		false,
+		true,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{"tasks", "notifications", "bridges"},
+		[]string{"task notification delete", "unsubscribe bridge task notification"},
+	),
 }
 
 func taskDescriptors() []toolspkg.Descriptor {
@@ -363,6 +419,56 @@ const taskExecutionProfileSetInputSchema = `{
 	"properties":{
 		"task_id":{"type":"string"},
 		"profile":` + taskExecutionProfileSchema + `
+	},
+	"additionalProperties":false
+}`
+
+const taskNotificationSubscribeInputSchema = `{
+	"type":"object",
+	"required":["task_id","bridge_instance_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"subscription_id":{"type":"string"},
+		"bridge_instance_id":{"type":"string"},
+		"scope":{"type":"string","enum":["","global","workspace"]},
+		"workspace_id":{"type":"string"},
+		"peer_id":{"type":"string"},
+		"thread_id":{"type":"string"},
+		"group_id":{"type":"string"},
+		"delivery_mode":{"type":"string","enum":["","direct-send","reply"]}
+	},
+	"additionalProperties":false
+}`
+
+const taskNotificationListInputSchema = `{
+	"type":"object",
+	"required":["task_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"bridge_instance_id":{"type":"string"},
+		"scope":{"type":"string","enum":["","global","workspace"]},
+		"workspace_id":{"type":"string"},
+		"limit":{"type":"integer"}
+	},
+	"additionalProperties":false
+}`
+
+const taskNotificationShowInputSchema = `{
+	"type":"object",
+	"required":["task_id","subscription_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"subscription_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskNotificationDeleteInputSchema = `{
+	"type":"object",
+	"required":["task_id","subscription_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"subscription_id":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

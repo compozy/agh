@@ -158,6 +158,20 @@ The CLI does not expose a cursor-reset verb. Cursor reset is deliberately kept o
 notification command group, so normal operator recovery starts by repairing task/review state and
 letting replay run again.
 
+## Manage subscriptions with native tools
+
+Managed agents use the same bridge subscription contract through the `agh__tasks` toolset:
+
+| Native tool                        | Purpose                                                 |
+| ---------------------------------- | ------------------------------------------------------- |
+| `agh__task_notification_subscribe` | Create or idempotently replace one bridge subscription. |
+| `agh__task_notification_list`      | List a task's bridge notification subscriptions.        |
+| `agh__task_notification_show`      | Read one subscription plus inline cursor diagnostics.   |
+| `agh__task_notification_delete`    | Remove the active subscription target.                  |
+
+`subscription_id` is optional on subscribe. When present, the daemon preserves it as the
+idempotency key; when omitted, AGH generates the `bts-*` identifier.
+
 ## Manage subscriptions through HTTP and UDS
 
 Both transports mount the same shared core handlers. Operation IDs come from `openapi/agh.json`;

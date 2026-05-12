@@ -44,6 +44,23 @@ The default discovery surface is intentionally small:
 The goal is progressive disclosure. Agents should not load every tool schema into context on every
 turn. They search, inspect, then invoke.
 
+## Operational toolsets
+
+AGH groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
+granted through agent definitions or inspected through `agh toolsets info`.
+
+| Toolset                | Includes                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| `agh__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.          |
+| `agh__provider_models` | Provider model catalog list, refresh, and source-status tools.                 |
+| `agh__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                    |
+| `agh__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools. |
+| `agh__bridges`         | Bridge instance, route, secret-binding, and status diagnostics.                |
+| `agh__automation`      | Automation job, trigger, and run management.                                   |
+
+Toolsets are not aliases for removed tool IDs. For example, `agh__memory_admin` exposes
+`agh__memory_admin_history`; it does not reintroduce `agh__memory_history`.
+
 ## How toolsets help operators
 
 Toolsets answer practical questions:

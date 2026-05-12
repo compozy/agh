@@ -43,6 +43,25 @@ describe("tool-first canonical surface docs", () => {
     ]);
   });
 
+  it("documents operational native toolsets for task, model catalog, and Memory administration", () => {
+    const toolsets = readDoc("core/tools/toolsets.mdx");
+    const tools = readDoc("core/tools/index.mdx");
+
+    expectIncludesAll(toolsets, [
+      "agh__tasks",
+      "agh__provider_models",
+      "agh__memory",
+      "agh__memory_admin",
+      "agh__memory_admin_history",
+      "does not reintroduce `agh__memory_history`",
+    ]);
+    expectIncludesAll(tools, [
+      "task bridge notification subscription management",
+      "Memory v2 operational/admin actions",
+      "provider model catalog list/refresh/status",
+    ]);
+  });
+
   it("documents tool-callable autonomy without raw claim tokens", () => {
     const leases = readDoc("core/autonomy/task-runs-and-leases.mdx");
     const autonomyIndex = readDoc("core/autonomy/index.mdx");
