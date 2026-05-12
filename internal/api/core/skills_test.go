@@ -88,7 +88,7 @@ func testSkillWithProvenance() *skills.Skill {
 func TestSkillPayloadFromSkill(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should converts all fields correctly including provenance", func(t *testing.T) {
+	t.Run("Should convert all fields correctly including provenance", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkillWithProvenance()
@@ -129,7 +129,7 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should omits empty optional fields", func(t *testing.T) {
+	t.Run("Should omit empty optional fields", func(t *testing.T) {
 		t.Parallel()
 
 		skill := &skills.Skill{
@@ -161,7 +161,7 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should nil skill returns zero payload", func(t *testing.T) {
+	t.Run("Should return zero payload for nil skill", func(t *testing.T) {
 		t.Parallel()
 
 		payload := core.SkillPayloadFromSkill(nil)
@@ -199,7 +199,7 @@ func TestStatusForSkillError(t *testing.T) {
 func TestListSkills(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should missing workspace returns global skill list", func(t *testing.T) {
+	t.Run("Should return global skill list when workspace is missing", func(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{
@@ -227,7 +227,7 @@ func TestListSkills(t *testing.T) {
 		}
 	})
 
-	t.Run("Should valid workspace returns skill list", func(t *testing.T) {
+	t.Run("Should return skill list for valid workspace", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkill()
@@ -275,7 +275,7 @@ func TestListSkills(t *testing.T) {
 func TestGetSkill(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should unknown name returns 404", func(t *testing.T) {
+	t.Run("Should return 404 for unknown name", func(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{
@@ -291,7 +291,7 @@ func TestGetSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should valid name returns skill metadata", func(t *testing.T) {
+	t.Run("Should return skill metadata for valid name", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkillWithProvenance()
@@ -323,7 +323,7 @@ func TestGetSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should workspace query resolves workspace-only skills", func(t *testing.T) {
+	t.Run("Should resolve workspace-only skills when workspace query provided", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceSkill := testSkill()
@@ -376,7 +376,7 @@ func TestGetSkill(t *testing.T) {
 func TestGetSkillContent(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should returns explicit skill body", func(t *testing.T) {
+	t.Run("Should return explicit skill body", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkill()
@@ -408,7 +408,7 @@ func TestGetSkillContent(t *testing.T) {
 		}
 	})
 
-	t.Run("Should workspace query resolves workspace skill content", func(t *testing.T) {
+	t.Run("Should resolve workspace skill content when workspace query provided", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceSkill := testSkill()
@@ -455,7 +455,7 @@ func TestGetSkillContent(t *testing.T) {
 func TestEnableSkill(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should returns ok true on success", func(t *testing.T) {
+	t.Run("Should return ok true on success", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkill()
@@ -512,7 +512,7 @@ func TestEnableSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not found returns 404", func(t *testing.T) {
+	t.Run("Should return 404 when skill not found", func(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{
@@ -539,7 +539,7 @@ func TestEnableSkill(t *testing.T) {
 func TestDisableSkill(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should returns ok true on success", func(t *testing.T) {
+	t.Run("Should return ok true on success", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkill()
@@ -596,7 +596,7 @@ func TestDisableSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not found returns 404", func(t *testing.T) {
+	t.Run("Should return 404 when skill not found", func(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{

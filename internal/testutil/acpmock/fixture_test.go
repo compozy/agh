@@ -252,37 +252,37 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 		want string
 	}{
 		{
-			name: "invalid version",
+			name: "Should reject invalid version",
 			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "fixture version 1",
 		},
 		{
-			name: "duplicate agent",
+			name: "Should reject duplicate agent",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]},{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hello"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "duplicate agent",
 		},
 		{
-			name: "legacy matcher fields are rejected",
+			name: "Should reject legacy matcher fields",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"equals":"a"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "unknown field",
 		},
 		{
-			name: "invalid stop reason",
+			name: "Should reject invalid stop reason",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"stop_reason":"bad","steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "stop_reason",
 		},
 		{
-			name: "invalid permission decision",
+			name: "Should reject invalid permission decision",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"permission","tool_call_id":"perm-1","tool_kind":"edit","expect_decision":"maybe"}]}]}]}`,
 			want: "expect_decision",
 		},
 		{
-			name: "sandbox cwd must be absolute",
+			name: "Should reject sandbox cwd that is not absolute",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"sandbox_exec","command":"agh","cwd":"relative"}]}]}]}`,
 			want: "cwd must be absolute",
 		},
 		{
-			name: "driver control requires payload",
+			name: "Should reject driver control without payload",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"driver_control"}]}]}]}`,
 			want: "driver_control is required",
 		},

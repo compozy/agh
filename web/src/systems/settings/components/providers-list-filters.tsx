@@ -43,9 +43,8 @@ export function ProvidersListFilters({
         harnessFilter,
         authModeFilter,
         defaultFilter,
-        nameQuery,
       }),
-    [statusFilter, sourceFilter, harnessFilter, authModeFilter, defaultFilter, nameQuery]
+    [statusFilter, sourceFilter, harnessFilter, authModeFilter, defaultFilter]
   );
 
   const handleFiltersChange = (next: Filter<string>[]) => {

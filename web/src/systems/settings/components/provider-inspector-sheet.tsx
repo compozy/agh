@@ -2,10 +2,8 @@ import { AlertCircle, Pencil, Plus, Save, Trash2 } from "lucide-react";
 
 import { Alert, AlertDescription, Button, Pill, Sheet, SheetContent, Spinner } from "@agh/ui";
 
-import type { ProviderDraft } from "@/hooks/routes/use-settings-providers-page";
-
 import { getProviderStateView } from "../lib/provider-state";
-import type { SettingsProviderEntry } from "../types";
+import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import { ProviderEditForm } from "./provider-edit-form";
 import { ProviderInspectView } from "./provider-inspect-view";
 import { ProviderLogo } from "./provider-logo";
@@ -133,8 +131,8 @@ function SheetTitleBlock({
   const subtitle =
     mode === "create"
       ? "Create a new provider overlay"
-      : (provider?.settings.display_name ??
-        (mode === "edit" ? "Edit provider overlay" : "Provider configuration"));
+      : provider?.settings.display_name ||
+        (mode === "edit" ? "Edit provider overlay" : "Provider configuration");
 
   return (
     <header className="flex flex-col gap-3 border-b border-line-soft px-6 py-4">
@@ -278,6 +276,7 @@ function SheetFooterBlock(props: SheetFooterBlockProps) {
               variant="default"
               size="sm"
               onClick={onSwitchToEdit}
+              disabled={isDeleting}
               data-testid="provider-inspector-edit"
             >
               <Pencil aria-hidden="true" className="size-3" />

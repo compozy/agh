@@ -3,12 +3,9 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  ProviderDraft,
-  ProviderInspectorState,
-} from "@/hooks/routes/use-settings-providers-page";
+import type { ProviderInspectorState } from "@/hooks/routes/use-settings-providers-page";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import type { SettingsProviderEntry } from "@/systems/settings";
+import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks/fixtures";
 import {
   DEFAULT_PROVIDER_FILTERS,
@@ -415,6 +412,17 @@ describe("ProvidersSettingsPage", () => {
     expect(screen.getByTestId("inspect-auth-mode")).toHaveTextContent("native_cli");
   });
 
+  it("uses the provider configuration subtitle when display name is blank", () => {
+    pageState = makeState({
+      inspector: {
+        mode: "inspect",
+        entry: { ...claudeEntry, settings: { ...claudeEntry.settings, display_name: "" } },
+      },
+    });
+    render(<ProvidersSettingsPage />);
+    expect(screen.getByText("Provider configuration")).toBeInTheDocument();
+  });
+
   it("renders the edit form inside the sheet when inspector is in edit mode", () => {
     pageState = makeState({
       inspector: {
@@ -431,6 +439,60 @@ describe("ProvidersSettingsPage", () => {
     expect(screen.getByTestId("settings-providers-editor-command-input")).toHaveValue(
       "npx -y @agentclientprotocol/claude-agent-acp@latest"
     );
+  });
+
+  it("clears draft credential secrets when auth mode leaves bound secret", async () => {
+    const draft: ProviderDraft = {
+      ...draftFor(builtinEntry),
+      auth_mode: "bound_secret",
+      target_env: "OPENAI_API_KEY",
+      secret_ref: "vault:providers/codex/api-key",
+      secret_value: "sk-primary",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "OPENAI_API_KEY",
+          secret_ref: "vault:providers/codex/api-key",
+          kind: "api_key",
+          required: true,
+        },
+        {
+          name: "organization",
+          target_env: "OPENAI_ORG_ID",
+          secret_ref: "vault:providers/codex/organization",
+          kind: "organization",
+          required: false,
+        },
+      ],
+      credential_secret_values: ["sk-primary", "org-secret"],
+    };
+    const updateDraft = vi.fn();
+    pageState = makeState({
+      inspector: { mode: "edit", entry: builtinEntry, draft, cameFrom: "inspect" },
+      updateDraft,
+    });
+    const user = userEvent.setup();
+    render(<ProvidersSettingsPage />);
+
+    await user.selectOptions(
+      screen.getByTestId("settings-providers-editor-auth-mode-input"),
+      "native_cli"
+    );
+
+    expect(updateDraft).toHaveBeenCalledTimes(1);
+    const updater = updateDraft.mock.calls[0]?.[0] as
+      | ((current: ProviderDraft) => ProviderDraft)
+      | undefined;
+    if (!updater) {
+      throw new Error("expected provider draft updater");
+    }
+    const next = updater(draft);
+    expect(next.auth_mode).toBe("native_cli");
+    expect(next.target_env).toBe("");
+    expect(next.secret_ref).toBe("");
+    expect(next.secret_value).toBe("");
+    expect(next.credential_slots).toEqual([]);
+    expect(next.credential_secret_values).toEqual([]);
   });
 
   it("disables delete in inspect footer for builtin-only providers", () => {
@@ -452,6 +514,21 @@ describe("ProvidersSettingsPage", () => {
     render(<ProvidersSettingsPage />);
     fireEvent.click(screen.getByTestId("provider-inspector-edit"));
     expect(pageState.switchToEdit).toHaveBeenCalled();
+  });
+
+  it("disables the edit action while delete is pending", async () => {
+    pageState = makeState({
+      inspector: { mode: "inspect", entry: claudeEntry },
+      deleteIsPending: true,
+    });
+    const user = userEvent.setup();
+    render(<ProvidersSettingsPage />);
+    const edit = screen.getByTestId("provider-inspector-edit");
+    expect(edit).toBeDisabled();
+
+    await user.click(edit);
+
+    expect(pageState.switchToEdit).not.toHaveBeenCalled();
   });
 
   it("surfaces inspector validation errors in the sheet footer", () => {

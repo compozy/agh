@@ -2,9 +2,8 @@ import { KeyRound, Plus, X } from "lucide-react";
 
 import { Button, Input, NativeSelect, NativeSelectOption, Textarea } from "@agh/ui";
 
-import type { ProviderDraft } from "@/hooks/routes/use-settings-providers-page";
-
 import { SettingsFieldRow } from "./settings-field-row";
+import type { ProviderDraft } from "../types";
 
 type CredentialSlotDraft = ProviderDraft["credential_slots"][number];
 
@@ -187,15 +186,22 @@ export function ProviderEditForm({ mode, draft, onChange }: ProviderEditFormProp
             className="w-44 font-mono"
             data-testid="settings-providers-editor-auth-mode-input"
             value={draft.auth_mode}
-            onChange={event =>
+            onChange={event => {
+              const authMode = event.target.value;
               onChange(current => ({
                 ...current,
-                auth_mode: event.target.value,
-                ...(event.target.value === "bound_secret"
+                auth_mode: authMode,
+                ...(authMode === "bound_secret"
                   ? {}
-                  : { target_env: "", secret_ref: "", secret_value: "", credential_slots: [] }),
-              }))
-            }
+                  : {
+                      target_env: "",
+                      secret_ref: "",
+                      secret_value: "",
+                      credential_slots: [],
+                      credential_secret_values: [],
+                    }),
+              }));
+            }}
           >
             {["native_cli", "bound_secret", "none"].map(option => (
               <NativeSelectOption key={option} value={option}>
@@ -389,7 +395,7 @@ function AdditionalCredentialSlotsEditor({
                 <div
                   className="grid gap-2 rounded-md border border-line p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
                   data-testid={`settings-providers-editor-credential-slot-${index}`}
-                  key={slot.name || slot.target_env || slot.secret_ref || slot.kind}
+                  key={`credential-slot-${index}`}
                 >
                   <Input
                     className="font-mono"

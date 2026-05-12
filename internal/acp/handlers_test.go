@@ -122,7 +122,7 @@ func TestFallbackPermissionEventRaw(t *testing.T) {
 func TestWatchTerminalShutdown(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should exits when terminal finishes first", func(t *testing.T) {
+	t.Run("Should exit when terminal finishes first", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -150,7 +150,7 @@ func TestWatchTerminalShutdown(t *testing.T) {
 		}
 	})
 
-	t.Run("Should runs shutdown when manager context cancels first", func(t *testing.T) {
+	t.Run("Should run shutdown when manager context cancels first", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(context.Background())

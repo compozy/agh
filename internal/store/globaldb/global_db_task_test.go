@@ -477,7 +477,7 @@ func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace"),
 	)
 
-	t.Run("Should create rejects global task with workspace", func(t *testing.T) {
+	t.Run("Should reject creating global task with workspace", func(t *testing.T) {
 		t.Parallel()
 
 		record := taskRecordForTest("task-invalid-create-global")
@@ -489,7 +489,7 @@ func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should create rejects workspace task without workspace", func(t *testing.T) {
+	t.Run("Should reject creating workspace task without workspace", func(t *testing.T) {
 		t.Parallel()
 
 		record := taskRecordForTest("task-invalid-create-workspace")
@@ -501,7 +501,7 @@ func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should update rejects global task with workspace", func(t *testing.T) {
+	t.Run("Should reject updating global task with workspace", func(t *testing.T) {
 		t.Parallel()
 
 		record := taskRecordForTest("task-invalid-update-global")
@@ -517,7 +517,7 @@ func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should update rejects workspace task without workspace", func(t *testing.T) {
+	t.Run("Should reject updating workspace task without workspace", func(t *testing.T) {
 		t.Parallel()
 
 		record := taskRecordForTest("task-invalid-update-workspace")

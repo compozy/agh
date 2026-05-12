@@ -6,6 +6,7 @@ import {
   useDeleteSettingsProvider,
   usePutSettingsProvider,
   useSettingsProviders,
+  type ProviderDraft,
   type SettingsMutationResult,
   type SettingsProviderEntry,
   type SettingsProviderRequest,
@@ -14,6 +15,7 @@ import {
 import {
   applyProviderFilters,
   DEFAULT_PROVIDER_FILTERS,
+  providerCredentialsConfigured,
   type ProviderAuthMode,
   type ProviderDefaultFilter,
   type ProviderFilterState,
@@ -21,44 +23,8 @@ import {
 } from "@/systems/settings/lib/providers-list-filters";
 import type { ProviderStateLabel } from "@/systems/settings/lib/provider-state";
 
-type ProviderCredentialSlotDraft = NonNullable<
-  NonNullable<SettingsProviderRequest["settings"]>["credential_slots"]
->[number];
-type ProviderModelsPayload = NonNullable<
-  NonNullable<SettingsProviderRequest["settings"]>["models"]
->;
-type ProviderModelPayload = NonNullable<ProviderModelsPayload["curated"]>[number];
-
-export type ProviderDraft = {
-  name: string;
-  command: string;
-  display_name: string;
-  model_default: string;
-  curated_models: string;
-  curated_snapshot: ProviderModelPayload[];
-  target_env: string;
-  harness: string;
-  runtime_provider: string;
-  transport: string;
-  base_url: string;
-  auth_mode: string;
-  env_policy: string;
-  home_policy: string;
-  auth_status_command: string;
-  auth_login_command: string;
-  secret_ref: string;
-  secret_value: string;
-  credential_slots: ProviderCredentialSlotDraft[];
-  credential_secret_values: string[];
-};
-
-function providerCredentialsConfigured(provider: SettingsProviderEntry): boolean {
-  const credentials = provider.credentials ?? [];
-  if (credentials.length === 0) {
-    return true;
-  }
-  return credentials.every(credential => !credential.required || credential.present);
-}
+type ProviderCredentialSlotDraft = ProviderDraft["credential_slots"][number];
+type ProviderModelPayload = ProviderDraft["curated_snapshot"][number];
 
 function emptyDraft(): ProviderDraft {
   return {
@@ -267,6 +233,8 @@ export type ProviderLastAction =
   | { kind: "deleted"; name: string; result: SettingsMutationResult; hadFallback: boolean };
 
 type LastAction = ProviderLastAction | null;
+
+export type { ProviderDraft };
 
 export function useSettingsProvidersPage() {
   const query = useSettingsProviders();

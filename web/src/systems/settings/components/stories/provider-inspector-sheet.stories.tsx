@@ -4,14 +4,11 @@ import { useMemo, useState } from "react";
 import { fn } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
-import type { SettingsProviderEntry } from "@/systems/settings";
+import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
 import { ProviderInspectorSheet } from "../provider-inspector-sheet";
-import type {
-  ProviderDraft,
-  ProviderInspectorState,
-} from "@/hooks/routes/use-settings-providers-page";
+import type { ProviderInspectorState } from "@/hooks/routes/use-settings-providers-page";
 
 const claude = settingsProviderFixtures[0]!;
 const openrouter = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;

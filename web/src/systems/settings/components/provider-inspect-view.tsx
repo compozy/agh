@@ -140,8 +140,8 @@ function Row({
         align === "start" ? "items-start" : "items-center"
       }`}
     >
-      <dt className="text-xs text-subtle">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
+      <span className="text-xs text-subtle">{label}</span>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

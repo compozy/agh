@@ -42,6 +42,11 @@ export interface ProviderFilterHandlers {
   onDefaultChange: (next: ProviderDefaultFilter | null) => void;
 }
 
+type ProviderChipFilterState = Pick<
+  ProviderFilterState,
+  "statusFilter" | "sourceFilter" | "harnessFilter" | "authModeFilter" | "defaultFilter"
+>;
+
 const STATUS_OPTIONS: { value: ProviderStateLabel; label: string }[] = [
   { value: "installed", label: "Installed" },
   { value: "binary-missing", label: "Binary missing" },
@@ -95,7 +100,7 @@ function buildChip(field: ProviderFilterFieldKey, value: string): Filter<string>
   };
 }
 
-export function providerFiltersToChips(state: ProviderFilterState): Filter<string>[] {
+export function providerFiltersToChips(state: ProviderChipFilterState): Filter<string>[] {
   const chips: Filter<string>[] = [];
   if (state.statusFilter) chips.push(buildChip("status", state.statusFilter));
   if (state.sourceFilter) chips.push(buildChip("source", state.sourceFilter));

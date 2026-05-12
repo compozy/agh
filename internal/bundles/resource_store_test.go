@@ -315,6 +315,8 @@ func TestResourceStoreOrderingComparators(t *testing.T) {
 	}
 	for _, tc := range activationCases {
 		t.Run("Should activation/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if compareActivations(tc.left, tc.right) >= 0 {
 				t.Fatalf("compareActivations(%s) >= 0, want left before right", tc.name)
 			}
@@ -344,6 +346,8 @@ func TestResourceStoreOrderingComparators(t *testing.T) {
 	}
 	for _, tc := range inventoryCases {
 		t.Run("Should inventory/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			if compareInventoryItems(tc.left, tc.right) >= 0 {
 				t.Fatalf("compareInventoryItems(%s) >= 0, want left before right", tc.name)
 			}

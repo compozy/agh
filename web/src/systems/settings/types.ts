@@ -24,6 +24,38 @@ export type SettingsProviderCollection = OperationResponse<"listSettingsProvider
 export type SettingsProviderEntry = SettingsProviderCollection["providers"][number];
 export type SettingsProviderDetail = OperationResponse<"getSettingsProvider", 200>["provider"];
 export type SettingsProviderRequest = OperationRequestBody<"putSettingsProvider">;
+export type SettingsProviderCredentialSlotRequest = NonNullable<
+  NonNullable<SettingsProviderRequest["settings"]>["credential_slots"]
+>[number];
+export type SettingsProviderModelsRequest = NonNullable<
+  NonNullable<SettingsProviderRequest["settings"]>["models"]
+>;
+export type SettingsProviderModelRequest = NonNullable<
+  SettingsProviderModelsRequest["curated"]
+>[number];
+
+export type ProviderDraft = {
+  name: string;
+  command: string;
+  display_name: string;
+  model_default: string;
+  curated_models: string;
+  curated_snapshot: SettingsProviderModelRequest[];
+  target_env: string;
+  harness: string;
+  runtime_provider: string;
+  transport: string;
+  base_url: string;
+  auth_mode: string;
+  env_policy: string;
+  home_policy: string;
+  auth_status_command: string;
+  auth_login_command: string;
+  secret_ref: string;
+  secret_value: string;
+  credential_slots: SettingsProviderCredentialSlotRequest[];
+  credential_secret_values: string[];
+};
 
 export type SettingsSandboxCollection = OperationResponse<"listSettingsSandboxes", 200>;
 export type SettingsSandboxEntry = SettingsSandboxCollection["sandboxes"][number];
