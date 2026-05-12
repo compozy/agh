@@ -51,7 +51,7 @@ export function TaskKanbanColumn({
     <section
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-lg bg-canvas-soft",
-        "min-h-[460px] max-h-[calc(100vh-220px)]",
+        "min-h-115 max-h-[calc(100vh-var(--space-kanban-col-offset))]",
         className
       )}
       data-testid={`tasks-kanban-column-${column.id}`}
@@ -61,7 +61,7 @@ export function TaskKanbanColumn({
         {dotTone === null ? null : <StatusDot tone={dotTone} size="default" label={column.label} />}
         <h2 className="text-small-body font-medium text-fg-strong">{column.label}</h2>
         <span
-          className="font-mono text-[10px] tabular-nums text-faint"
+          className="font-mono text-badge tabular-nums text-faint"
           data-testid={`tasks-kanban-column-count-${column.id}`}
         >
           {count}

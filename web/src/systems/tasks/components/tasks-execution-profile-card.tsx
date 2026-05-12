@@ -179,7 +179,7 @@ function TasksExecutionProfileCardView({
     >
       {hasActiveRun ? (
         <div
-          className="flex items-start gap-2 rounded bg-warning-tint px-3 py-2 text-[12px] leading-relaxed text-warning"
+          className="flex items-start gap-2 rounded bg-warning-tint px-3 py-2 text-form-label leading-relaxed text-warning"
           data-testid="tasks-execution-profile-active-run-warning"
         >
           <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -256,7 +256,7 @@ function TasksExecutionProfileCardView({
                 <ProfileLine label="model" value={profile.coordinator.model} />
               ) : null}
               {profile.coordinator?.guidance ? (
-                <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-muted">
+                <p className="whitespace-pre-wrap text-form-label leading-relaxed text-muted">
                   {profile.coordinator.guidance}
                 </p>
               ) : null}
@@ -351,7 +351,7 @@ function ExecutionProfileEditorDialog({
         </DialogHeader>
         <Textarea
           aria-label="Execution profile JSON"
-          className="min-h-[280px]"
+          className="min-h-72"
           data-testid="tasks-execution-profile-editor-input"
           disabled={isSetPending}
           onChange={event => editor.setValue(event.target.value)}
@@ -463,7 +463,7 @@ interface ProfileLineProps {
 
 function ProfileLine({ label, value, primary = false }: ProfileLineProps) {
   return (
-    <span className="inline-flex min-w-0 items-baseline gap-1.5 font-mono text-[11px] tabular-nums">
+    <span className="inline-flex min-w-0 items-baseline gap-1.5 font-mono text-eyebrow tabular-nums">
       <span className="text-faint">{label}</span>
       <span className={primary ? "min-w-0 truncate text-fg-strong" : "min-w-0 truncate text-muted"}>
         {value}

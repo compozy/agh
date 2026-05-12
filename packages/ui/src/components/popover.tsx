@@ -105,7 +105,7 @@ function PopoverContent({
                 />
               }
               className={cn(
-                "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-canvas-soft p-2.5 text-[13px] text-fg shadow-[0_0_0_1px_var(--line-soft)] outline-hidden",
+                "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-canvas-soft p-2.5 text-small-body text-fg shadow-focus-ring-soft outline-hidden",
                 className
               )}
               {...props}
@@ -123,7 +123,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="popover-header"
-      className={cn("flex flex-col gap-0.5 text-[13px]", className)}
+      className={cn("flex flex-col gap-0.5 text-small-body", className)}
       {...props}
     />
   );

@@ -20,7 +20,7 @@ function NativeSelect({ className, size = "default", ...props }: NativeSelectPro
       <select
         data-slot="native-select"
         data-size={size}
-        className="h-9 w-full min-w-0 appearance-none rounded-md border border-line bg-elevated py-0 pr-9 pl-3 text-[13px] text-fg transition-colors outline-none select-none selection:bg-accent-tint-strong selection:text-fg placeholder:text-subtle focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-line-soft disabled:bg-canvas disabled:text-disabled disabled:opacity-100 aria-invalid:border-danger aria-invalid:shadow-none data-[size=sm]:h-8 data-[size=sm]:rounded-sm data-[size=sm]:pr-8 data-[size=sm]:pl-2.5"
+        className="h-9 w-full min-w-0 appearance-none rounded-md border border-line bg-elevated py-0 pr-9 pl-3 text-small-body text-fg transition-colors outline-none select-none selection:bg-accent-tint-strong selection:text-fg placeholder:text-subtle focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-line-soft disabled:bg-canvas disabled:text-disabled disabled:opacity-100 aria-invalid:border-danger aria-invalid:shadow-none data-[size=sm]:h-8 data-[size=sm]:rounded-sm data-[size=sm]:pr-8 data-[size=sm]:pl-2.5"
         {...props}
       />
       <ChevronDownIcon

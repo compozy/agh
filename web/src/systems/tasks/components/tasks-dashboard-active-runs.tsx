@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight } from "lucide-react";
 
-import { Eyebrow, Pill, type PillTone } from "@agh/ui";
+import { Eyebrow, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -18,19 +18,6 @@ export interface TasksDashboardActiveRunsProps {
   dashboard: TaskDashboardView;
   maxItems?: number;
 }
-
-// `<Pill.Dot>` reads its default tone color through `var(--success)` etc., but
-// the runtime tokens.css only exposes the `--color-*` namespace. Threading the
-// resolved CSS variable via `color=` keeps the signal visible until the
-// primitive is patched.
-const TONE_COLOR_VAR: Record<PillTone, string> = {
-  neutral: "var(--color-neutral)",
-  accent: "var(--color-accent)",
-  success: "var(--color-success)",
-  warning: "var(--color-warning)",
-  danger: "var(--color-danger)",
-  info: "var(--color-info)",
-};
 
 export function TasksDashboardActiveRuns({
   dashboard,
@@ -55,7 +42,7 @@ export function TasksDashboardActiveRuns({
     >
       {visible.length === 0 ? (
         <p
-          className="px-5 py-6 text-[12px] text-muted"
+          className="px-5 py-6 text-form-label text-muted"
           data-testid="tasks-dashboard-active-runs-empty"
         >
           No active runs right now.
@@ -73,14 +60,14 @@ export function TasksDashboardActiveRuns({
               >
                 <Link
                   className={cn(
-                    "group flex min-w-0 items-center gap-3 text-[12px] outline-none",
+                    "group flex min-w-0 items-center gap-3 text-form-label outline-none",
                     "focus-visible:rounded-xs focus-visible:ring-1 focus-visible:ring-line-strong"
                   )}
                   data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}
                   params={{ id: run.task_id, runId: run.run_id }}
                   to="/tasks/$id/runs/$runId"
                 >
-                  <Pill.Dot color={TONE_COLOR_VAR[signal.tone]} pulse={signal.pulse} size="sm" />
+                  <Pill.Dot tone={signal.tone} pulse={signal.pulse} size="sm" />
                   <div className="flex min-w-0 flex-1 items-baseline gap-2">
                     <span className="min-w-0 truncate text-section-head font-medium tracking-section-head text-fg-strong">
                       {run.task_title}
@@ -118,7 +105,7 @@ export function TasksDashboardActiveRuns({
                 </Link>
                 {run.error ? (
                   <p
-                    className="flex items-start gap-1.5 pl-[14px] text-[11.5px] text-danger"
+                    className="flex items-start gap-1.5 pl-3.5 text-form-hint text-danger"
                     data-testid={`tasks-dashboard-active-run-error-${run.run_id}`}
                   >
                     <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
@@ -133,7 +120,7 @@ export function TasksDashboardActiveRuns({
 
       {hidden > 0 ? (
         <p
-          className="border-t border-line-soft px-5 py-3 text-[12px] text-muted"
+          className="border-t border-line-soft px-5 py-3 text-form-label text-muted"
           data-testid="tasks-dashboard-active-runs-more"
         >
           +{hidden} more active runs

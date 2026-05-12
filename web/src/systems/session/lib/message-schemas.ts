@@ -63,6 +63,10 @@ const aghPermissionDataSchema = aghEventDataSchema.extend({
 });
 
 export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
+  if (Array.isArray(messages) && messages.length === 0) {
+    return [];
+  }
+
   return validateUIMessages<SessionMessage>({
     messages,
     dataSchemas: {

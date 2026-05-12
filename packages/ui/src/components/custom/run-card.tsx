@@ -80,12 +80,12 @@ function RunCard({
     <section
       data-slot="run-card"
       data-status={status}
-      className={cn("flex flex-col gap-3 rounded-lg bg-canvas-soft px-[18px] py-4", className)}
+      className={cn("flex flex-col gap-3 rounded-lg bg-canvas-soft px-5 py-4", className)}
       {...props}
     >
       <header
         data-slot="run-card-pills"
-        className="flex flex-wrap items-center gap-2 text-[12px] text-muted"
+        className="flex flex-wrap items-center gap-2 text-form-label text-muted"
       >
         <Pill data-slot="run-card-status" tone={tone}>
           {statusLabel}
@@ -106,7 +106,7 @@ function RunCard({
         <div
           data-slot="run-card-warning"
           data-tone={warning.tone}
-          className={cn("rounded px-3 py-2 text-[12.5px]", WARNING_TONE_CLASS[warning.tone])}
+          className={cn("rounded px-3 py-2 text-form-input", WARNING_TONE_CLASS[warning.tone])}
           role="status"
         >
           {warning.message}
@@ -144,7 +144,10 @@ function RunCardStat({
       <Eyebrow data-slot={`run-card-${slot}-label`} className="text-muted">
         {label}
       </Eyebrow>
-      <span data-slot={`run-card-${slot}-value`} className="min-w-0 truncate text-[12.5px] text-fg">
+      <span
+        data-slot={`run-card-${slot}-value`}
+        className="min-w-0 truncate text-form-input text-fg"
+      >
         {value}
       </span>
     </div>

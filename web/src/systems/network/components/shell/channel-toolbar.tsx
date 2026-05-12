@@ -74,7 +74,6 @@ const CHIP_FIELDS: ReadonlyArray<ChipFieldDescriptor> = [
 
 interface TabItem extends LaneTabsItem<ChannelTab> {
   to: "/network/$channel/threads" | "/network/$channel/directs" | "/network/$channel/activity";
-  testId: string;
 }
 
 function buildTabs({

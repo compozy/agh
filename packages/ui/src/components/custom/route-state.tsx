@@ -37,7 +37,7 @@ function RouteState({
       data-slot="route-state"
       data-mode={mode}
       className={cn(
-        "flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-lg border border-line bg-canvas-soft px-6 py-8 text-center",
+        "flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-line bg-canvas-soft px-6 py-8 text-center",
         className
       )}
       {...ariaProps}
@@ -53,7 +53,7 @@ function RouteState({
         </span>
       ) : null}
       {isLoading ? (
-        <p data-slot="route-state-loading-label" className="text-[13px] text-muted">
+        <p data-slot="route-state-loading-label" className="text-small-body text-muted">
           {loadingLabel}
         </p>
       ) : (
@@ -61,20 +61,20 @@ function RouteState({
           {title ? (
             <h2
               data-slot="route-state-title"
-              className="text-[18px] font-medium tracking-empty-h1 text-fg-strong"
+              className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong"
             >
               {title}
             </h2>
           ) : null}
           {message ? (
-            <p data-slot="route-state-message" className="max-w-md text-[13px] text-muted">
+            <p data-slot="route-state-message" className="max-w-md text-small-body text-muted">
               {message}
             </p>
           ) : null}
           {cause ? (
             <div
               data-slot="route-state-cause"
-              className="max-w-md rounded border border-line bg-canvas px-3 py-2 font-mono text-[11px] text-subtle"
+              className="max-w-md rounded border border-line bg-canvas px-3 py-2 font-mono text-eyebrow text-subtle"
             >
               {cause}
             </div>

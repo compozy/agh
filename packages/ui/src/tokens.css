@@ -186,24 +186,35 @@
   --text-ui-title-lg: 1.35rem;
 
   /* Type ladder additions. */
-  --text-detail-h1: 1.5rem;
+  --text-detail-h1: 1.4rem;
+  --text-detail-h1--line-height: 1.25;
   --text-empty-h1: 1.125rem;
   --text-modal-title: 0.84375rem;
-  --text-section-head: 0.8125rem;
+  --text-section-head: 0.7rem;
   --text-form-input: 0.78125rem;
   --text-form-label: 0.75rem;
   --text-form-hint: 0.71875rem;
   --text-form-required: 0.625rem;
   --text-metric-value: 1.375rem;
   --text-kpi-value: 1.75rem;
+  --text-kpi-value--line-height: 1.05;
   --text-agent-metric: 1rem;
   --text-rail-avatar: 0.71875rem;
   --text-ws-name: 0.8125rem;
   --text-mono-id: 0.65625rem;
   --text-pill-group-badge: 0.5625rem;
+  /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
+     code-block content, tool-call title, topbar title). One step above
+     `--text-small-body` (13 px), one step below `--text-item-title` (15 px). */
+  --text-card-title: 0.875rem;
+  --text-card-title--line-height: 1.4;
 
   /* Leading. */
   --leading-small-body: var(--text-small-body--line-height);
+  /* Prose-body leading for description-card and chat-tool-card markdown
+     surfaces. Compact-prose surfaces (chat message body, code-block)
+     use Tailwind's `leading-relaxed` (1.625). */
+  --leading-prose: 1.7;
 
   /* Tracking ladder. */
   --tracking-mono: 0.06em;
@@ -214,9 +225,14 @@
   --tracking-tight: -0.014em;
   --tracking-eyebrow: -0.005em;
   --tracking-mono-id: 0;
+  /* Body baseline tracking — matches the `letter-spacing: -0.006em` set on
+     `body` (see `:root` baseline below). Used by tabs label and any UI
+     row that needs to read against body type without optical drift. */
+  --tracking-body: -0.006em;
 
   /* Radii — base + ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
   --radius: 6px;
+  --radius-xxs: 3px;
   --radius-xs: 4px;
   --radius-sm: 5px;
   --radius-md: 8px;
@@ -237,6 +253,76 @@
   /* Shadows — whitelist. Every other surface stays flat. */
   --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
   --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  /* Focus / hairline rings — the flat-depth replacement for borders on
+     form controls and surfaces. `*-soft` uses `--color-line-soft` (3 %)
+     for menu / popover surfaces; the default uses `--color-line-strong`
+     (9 %) for active form controls. Inset variants live alongside for
+     surfaces where the ring must paint inside the element bounds (cards,
+     accordions, items). */
+  --shadow-focus-ring: 0 0 0 1px var(--color-line-strong);
+  --shadow-focus-ring-soft: 0 0 0 1px var(--color-line-soft);
+  --shadow-focus-ring-inset: inset 0 0 0 1px var(--color-line-strong);
+  --shadow-focus-ring-inset-soft: inset 0 0 0 1px var(--color-line-soft);
+
+  /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
+     `--size-*` namespaces so Tailwind generates bare utilities (`h-button-default`,
+     `size-button-icon-xs`, `w-modal-md`, etc.). Per L-023 these scale tokens stay
+     in `@theme`; only truly bespoke component-internal values (pill-group / modal
+     widths used pre-L-024) live in `:root` with explicit lint allowlist entries. */
+
+  /* Button geometry — pair with text-button (12 px) / text-eyebrow (11 px). */
+  --height-button-xs: 22px;
+  --height-button-sm: 22px;
+  --height-button-default: 26px;
+  --height-button-lg: 30px;
+  --size-button-icon-xs: 22px;
+  --size-button-icon-sm: 22px;
+  --size-button-icon-default: 26px;
+  --size-button-icon-lg: 30px;
+
+  /* Switch geometry — default vs sm. */
+  --height-switch-default: 18px;
+  --width-switch-default: 32px;
+  --height-switch-sm: 14px;
+  --width-switch-sm: 24px;
+
+  /* Pill geometry — xs / sm / md heights. */
+  --height-pill-xs: 17px;
+  --height-pill-sm: 19px;
+  --height-pill-md: 22px;
+
+  /* Tabs list + count chip + tab underline. */
+  --height-tabs-list: 26px;
+  --size-tab-underline: 1.5px;
+  --size-count-chip: 19px;
+  --size-count-chip-sm: 17px;
+
+  /* Empty / menu primitives. */
+  --size-empty-icon: 38px;
+  --width-menu-sub-min: 96px;
+
+  /* Forms / dialog body sizing. */
+  --height-form-textarea: 136px;
+  --height-editor-footer: 52px;
+  --width-detail-inspector-inline: 320px;
+
+  /* Table cell width ladder — recurring max-width cells across detail panels. */
+  --width-table-cell-sm: 224px;
+  --width-table-cell-md: 288px;
+  --width-table-cell-lg: 360px;
+
+  /* Layout ladder. */
+  --width-content-max: 1320px;
+  --width-message-bubble-max: 640px;
+  --width-wire-card-max: 520px;
+  --width-search-input-min: 220px;
+  --width-filters-menu-default: 200px;
+  --width-filters-menu-stack: 220px;
+
+  /* Modal height ceilings — wizard / editor / tall form sheets. */
+  --height-modal-md: 760px;
+  --height-modal-tall: 900px;
+  --height-modal-wizard: 960px;
 }
 
 :root {
@@ -264,6 +350,12 @@
   --space-pill-group-segment-sm-x: 8px;
   --space-pill-group-segment-md-x: 10px;
   --space-pill-group-badge-x: 4px;
+
+  /* Switch thumb inset — consumed inside calc() inside arbitrary translate
+     value (`translate-x-[calc(100%-var(--space-switch-thumb-inset))]`).
+     Kept out of @theme because Tailwind has no `--space-*` namespace that
+     would generate a useful utility for this calc context. */
+  --space-switch-thumb-inset: 2px;
 }
 
 .dark {

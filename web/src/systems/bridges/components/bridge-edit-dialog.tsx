@@ -64,7 +64,10 @@ function renderBridgeEditDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-0 p-0 text-fg sm:max-w-3xl" showCloseButton={false} unframed>
-        <div className="flex max-h-[min(80vh,900px)] flex-col" data-testid="bridge-edit-dialog">
+        <div
+          className="flex max-h-[min(80vh,var(--height-modal-tall))] flex-col"
+          data-testid="bridge-edit-dialog"
+        >
           <DialogHeader variant="ruled">
             <DialogTitle>Edit Bridge</DialogTitle>
             <DialogDescription>

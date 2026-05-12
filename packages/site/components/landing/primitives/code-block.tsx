@@ -61,13 +61,13 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        "min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-(--line) bg-(--rail)",
+        "min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-line bg-rail",
         className
       )}
     >
       {(caption || language || copyable) && (
-        <div className="flex min-w-0 items-start justify-between gap-3 border-b border-(--line) px-4 py-2.5">
-          <Eyebrow className="min-w-0 leading-relaxed text-(--subtle) wrap-anywhere">
+        <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line px-4 py-2.5">
+          <Eyebrow className="min-w-0 leading-relaxed text-subtle wrap-anywhere">
             {caption ?? language ?? "shell"}
           </Eyebrow>
           {copyable ? (
@@ -84,8 +84,8 @@ export function CodeBlock({
               }
               aria-live="polite"
               className={cn(
-                "text-(--subtle) hover:text-accent",
-                copyState === "failed" && "text-(--danger) hover:text-(--danger)"
+                "text-subtle hover:text-accent",
+                copyState === "failed" && "text-danger hover:text-danger"
               )}
             >
               {copyState === "copied" ? (
@@ -99,14 +99,14 @@ export function CodeBlock({
           ) : null}
         </div>
       )}
-      <pre className="overflow-x-auto p-4 font-mono text-small-body leading-7 text-(--fg)">
+      <pre className="overflow-x-auto p-4 font-mono text-small-body leading-7 text-fg">
         <code>
           {displayLines.map(({ id, line }) => (
             <div key={id} className={line === "" ? "h-[1.1em]" : undefined}>
               {shell && line !== "" && !line.startsWith("#") ? (
                 <span className="select-none text-accent">$ </span>
               ) : null}
-              {line.startsWith("#") ? <span className="text-(--subtle)">{line}</span> : line}
+              {line.startsWith("#") ? <span className="text-subtle">{line}</span> : line}
             </div>
           ))}
         </code>

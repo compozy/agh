@@ -184,7 +184,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           ref={titleRef}
           tabIndex={-1}
           data-testid="topbar-title-text"
-          className="truncate text-[14px] font-medium tracking-tight text-fg-strong outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
+          className="truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
         >
           {renderedTitle}
         </h1>
@@ -192,7 +192,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           <span
             data-slot="topbar-count"
             data-testid="topbar-count"
-            className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
+            className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted"
           >
             {resolvedCount}
           </span>

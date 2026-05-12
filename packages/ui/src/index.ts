@@ -275,6 +275,17 @@ export {
   FORMAT_TIME_FALLBACK,
 } from "./lib/format-time";
 export {
+  AGH_CODE_DEFAULT_THEME,
+  AGH_CODE_SUPPORTED_LANGUAGES,
+  AGH_CODE_THEMES,
+  normalizeAghCodeLanguage,
+  resolveAghCodeThemeName,
+  type AghCodeLanguage,
+  type AghCodeThemeName,
+  type CodeBlockResolvedTheme,
+  type CodeBlockThemeMode,
+} from "./lib/code-theme";
+export {
   AGENT_SLOT_COUNT,
   HUMAN_SLOT_COUNT,
   SYSTEM_SLOT_COUNT,
@@ -297,15 +308,6 @@ export {
   type RunCardWarning,
   type RunCardWarningTone,
 } from "./components/custom/run-card";
-export {
-  CHAT_TOOL_OUTPUT_COLLAPSE_LINES,
-  ChatToolCard,
-  TOOL_STATUS_LABEL,
-  TOOL_STATUS_TONE,
-  type ChatToolCardProps,
-  type ChatToolCardSection,
-  type ChatToolStatus,
-} from "./components/custom/chat-tool-card";
 export {
   OwnerAvatar,
   type OwnerAvatarProps,
@@ -372,6 +374,7 @@ export { TypingDots, type TypingDotsProps } from "./components/custom/typing-dot
 export {
   CodeBlock,
   CopyIconButton,
+  type CodeBlockHighlightState,
   type CodeBlockProps,
   type CodeBlockTone,
   type CopyIconButtonProps,
@@ -486,8 +489,11 @@ export {
   type ChatMessageAlign,
 } from "./components/custom/chat-message-bubble";
 export {
+  TOOL_CALL_STATUS_LABEL,
+  TOOL_CALL_STATUS_TONE,
   ToolCallCard,
   type ToolCallCardProps,
+  type ToolCallCardSectionProps,
   type ToolCallStatus,
 } from "./components/custom/tool-call-card";
 export { Metric, type MetricProps, type MetricTone } from "./components/custom/metric";

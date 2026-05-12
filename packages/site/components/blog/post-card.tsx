@@ -12,19 +12,19 @@ export interface PostCardProps {
 
 export function PostCard({ post }: PostCardProps) {
   return (
-    <article className="group flex min-h-[230px] flex-col rounded-xl border border-(--line) bg-(--canvas-soft) p-5">
+    <article className="group flex min-h-58 flex-col rounded-xl border border-line bg-canvas-soft p-5">
       <div className="flex items-center gap-2.5">
         <Eyebrow className="text-accent">{categoryLabel(post.category)}</Eyebrow>
         <BulletDivider />
         <DateStamp date={post.date} />
       </div>
-      <h3 className="mt-4 font-sans text-xl font-medium leading-tight tracking-tight text-(--fg) transition-colors group-hover:text-accent">
+      <h3 className="mt-4 font-sans text-xl font-medium leading-tight tracking-tight text-fg transition-colors group-hover:text-accent">
         <Link href={post.permalink}>{post.title}</Link>
       </h3>
-      <p className="mt-3 text-sm leading-7 text-(--muted)">{post.description}</p>
-      <div className="mt-auto flex items-center justify-between border-t border-(--line) pt-3.5">
-        <Eyebrow className="text-(--muted)">{post.author}</Eyebrow>
-        <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--subtle)">
+      <p className="mt-3 text-sm leading-7 text-muted">{post.description}</p>
+      <div className="mt-auto flex items-center justify-between border-t border-line pt-3.5">
+        <Eyebrow className="text-muted">{post.author}</Eyebrow>
+        <span className="inline-flex items-center gap-1.5 text-eyebrow text-subtle">
           <Clock size={11} aria-hidden />
           <span className="font-mono tracking-mono">
             {formatReadingTime(post.metadata.readingTime)}

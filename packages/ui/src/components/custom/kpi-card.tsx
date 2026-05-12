@@ -59,12 +59,12 @@ function KpiCard({
       </div>
       <div
         data-slot="kpi-card-value"
-        className="text-[28px] font-medium leading-none tracking-detail-h1 text-fg-strong tabular-nums"
+        className="text-kpi-value font-medium leading-none tracking-detail-h1 text-fg-strong tabular-nums"
       >
         {value}
       </div>
       {detail ? (
-        <p data-slot="kpi-card-detail" className="text-[12px] text-muted">
+        <p data-slot="kpi-card-detail" className="text-form-label text-muted">
           {detail}
         </p>
       ) : null}

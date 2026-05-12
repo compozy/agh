@@ -13,7 +13,7 @@ interface WithMotionProps {
 
 interface DotExpectation {
   tone: PillTone;
-  color: string;
+  className: string;
 }
 
 const SIZES: PillSize[] = ["xs", "sm", "md"];
@@ -125,26 +125,29 @@ describe("Pill.Dot", () => {
     expect(dot).not.toBeNull();
     expect(dot?.getAttribute("data-tone")).toBe("neutral");
     expect(dot?.getAttribute("data-size")).toBe("md");
-    expect(dot?.style.backgroundColor).toBe("var(--subtle)");
+    expect(dot?.className).toContain("bg-subtle");
+    expect(dot?.style.backgroundColor).toBe("");
     expect(dot?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it.each<DotExpectation>([
-    { tone: "accent", color: "var(--accent)" },
-    { tone: "success", color: "var(--success)" },
-    { tone: "warning", color: "var(--warning)" },
-    { tone: "danger", color: "var(--danger)" },
-    { tone: "info", color: "var(--info)" },
-  ])("Should map tone %s to the semantic color token", ({ tone, color }) => {
+    { tone: "accent", className: "bg-accent" },
+    { tone: "success", className: "bg-success" },
+    { tone: "warning", className: "bg-warning" },
+    { tone: "danger", className: "bg-danger" },
+    { tone: "info", className: "bg-info" },
+  ])("Should map tone %s to the semantic color utility", ({ tone, className }) => {
     const { container } = render(<Pill.Dot tone={tone} />);
     const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
-    expect(dot?.style.backgroundColor).toBe(color);
+    expect(dot?.className).toContain(className);
+    expect(dot?.style.backgroundColor).toBe("");
   });
 
   it("Should let an explicit color override the tone-derived background", () => {
     const { container } = render(<Pill.Dot tone="success" color="#5BA6FF" />);
     const dot = container.querySelector<HTMLElement>('[data-slot="pill-dot"]');
     expect(dot?.style.backgroundColor).toBe("rgb(91, 166, 255)");
+    expect(dot?.className).not.toContain("bg-success");
   });
 
   it("Should expose data-pulse only when reduced motion is off", () => {

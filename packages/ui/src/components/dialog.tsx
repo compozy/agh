@@ -102,7 +102,7 @@ function DialogOverlay({ className, style, ...props }: DialogPrimitive.Backdrop.
 type DialogChromeVariant = "default" | "ruled";
 
 const DIALOG_CONTENT_BASE =
-  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-canvas-soft text-[13px] text-fg shadow-overlay outline-none sm:max-w-sm";
+  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-canvas-soft text-small-body text-fg shadow-overlay outline-none sm:max-w-sm";
 const DIALOG_CONTENT_FRAMED = "gap-4 p-4";
 const DIALOG_CONTENT_UNFRAMED = "gap-0 p-0";
 
@@ -231,7 +231,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-[15px] leading-none font-medium tracking-tight text-fg-strong",
+        "text-item-title leading-none font-medium tracking-tight text-fg-strong",
         className
       )}
       {...props}
@@ -244,7 +244,7 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-[13px] text-muted *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-fg-strong",
+        "text-small-body text-muted *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-fg-strong",
         className
       )}
       {...props}

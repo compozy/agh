@@ -36,12 +36,12 @@ function MetadataTile({
       </div>
       <div
         data-slot="metadata-tile-value"
-        className="truncate text-[13px] font-medium text-fg tabular-nums"
+        className="truncate text-small-body font-medium text-fg tabular-nums"
       >
         {value}
       </div>
       {detail ? (
-        <p data-slot="metadata-tile-detail" className="truncate text-[11.5px] text-subtle">
+        <p data-slot="metadata-tile-detail" className="truncate text-form-hint text-subtle">
           {detail}
         </p>
       ) : null}

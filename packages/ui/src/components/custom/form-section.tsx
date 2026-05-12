@@ -23,8 +23,8 @@ export interface FormSectionProps extends Omit<React.ComponentProps<"section">, 
 }
 
 const SIZE_CLASSNAME: Record<FormSectionSize, string> = {
-  comfortable: "px-5 py-[18px]",
-  compact: "px-4 py-[14px]",
+  comfortable: "px-5 py-5",
+  compact: "px-4 py-3.5",
 };
 
 function FormSection({
@@ -49,15 +49,14 @@ function FormSection({
           <span
             aria-hidden="true"
             data-slot="form-section-icon"
-            className="inline-flex size-[14px] shrink-0 items-center justify-center text-subtle"
+            className="inline-flex size-3.5 shrink-0 items-center justify-center text-subtle"
           >
             <Icon width={14} height={14} strokeWidth={1.75} />
           </span>
         ) : null}
         <h3
           data-slot="form-section-title"
-          className="min-w-0 truncate text-(length:--text-section-head) tracking-section-head text-fg-strong"
-          style={{ fontWeight: 510 }}
+          className="min-w-0 truncate text-section-head font-medium tracking-section-head text-fg-strong"
         >
           {title}
         </h3>
@@ -71,11 +70,11 @@ function FormSection({
         ) : null}
       </header>
       {description ? (
-        <p data-slot="form-section-description" className="mb-3 text-[12px] text-muted">
+        <p data-slot="form-section-description" className="mb-3 text-form-label text-muted">
           {description}
         </p>
       ) : null}
-      <div data-slot="form-section-body" className="flex min-w-0 flex-col gap-[14px] [&>*+*]:mt-0">
+      <div data-slot="form-section-body" className="flex min-w-0 flex-col gap-3.5 [&>*+*]:mt-0">
         {children}
       </div>
     </section>

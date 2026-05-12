@@ -63,7 +63,7 @@ export function TasksDetailDependenciesPanel({
               <LinkedRecordTable.Cell className="w-8 pl-4">
                 <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="max-w-[360px]">
+              <LinkedRecordTable.Cell className="max-w-90">
                 <LinkedRecordTable.Title>
                   <span className="truncate text-small-body text-fg">{target.title}</span>
                   <div className="flex flex-wrap items-center gap-1.5">

@@ -1375,7 +1375,7 @@ agh session list --active`;
             <ToolCallCard
               toolName="read_file"
               filePath="internal/daemon/daemon.go"
-              status="running"
+              status="in_progress"
             />
           </ChatMessageBubble>
           <ChatMessageBubble role="system">Session idle · 2m</ChatMessageBubble>

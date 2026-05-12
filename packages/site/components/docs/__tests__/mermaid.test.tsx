@@ -51,12 +51,12 @@ describe("Mermaid", () => {
         securityLevel: "strict",
         theme: "base",
         themeVariables: expect.objectContaining({
-          background: "#0E0E0F",
-          primaryBorderColor: "#E8572A",
-          primaryTextColor: "#E5E5E7",
-          lineColor: "#8E8E93",
-          actorBorder: "#E8572A",
-          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+          background: "var(--color-rail)",
+          primaryBorderColor: "var(--color-accent)",
+          primaryTextColor: "var(--color-fg)",
+          lineColor: "var(--color-muted)",
+          actorBorder: "var(--color-accent)",
+          fontFamily: "var(--font-sans)",
         }),
       })
     );

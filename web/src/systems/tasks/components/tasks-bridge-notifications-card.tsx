@@ -270,14 +270,14 @@ function renderTasksBridgeNotificationsCard({
                   data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}`}
                   key={sub.subscription_id}
                 >
-                  <TableCell className="max-w-[280px]">
+                  <TableCell className="max-w-70">
                     <div className="flex min-w-0 flex-col gap-1.5">
                       <MonoId value={sub.subscription_id} />
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Pill tone="info">{sub.scope}</Pill>
                         <Pill tone="neutral">{sub.delivery_mode}</Pill>
                       </div>
-                      <span className="text-[10.5px] text-faint">
+                      <span className="text-mono-id text-faint">
                         Created {formatRelativeTime(sub.created_at)}
                       </span>
                     </div>
@@ -302,18 +302,18 @@ function renderTasksBridgeNotificationsCard({
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-zero`}
                       >
                         <Pill tone="neutral">zero state</Pill>
-                        <span className="font-mono text-[10.5px] text-faint">seq 0</span>
+                        <span className="font-mono text-mono-id text-faint">seq 0</span>
                       </span>
                     ) : (
                       <div className="flex flex-col gap-1">
                         <span
-                          className="font-mono text-[10.5px] text-fg tabular-nums"
+                          className="font-mono text-mono-id text-fg tabular-nums"
                           data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-seq`}
                         >
                           seq {formatLastSequence(cursor?.last_sequence)}
                         </span>
                         {cursor?.last_delivery_id ? (
-                          <span className="font-mono text-[10px] text-faint">
+                          <span className="font-mono text-badge text-faint">
                             delivery {cursor.last_delivery_id}
                           </span>
                         ) : null}
@@ -322,29 +322,29 @@ function renderTasksBridgeNotificationsCard({
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[12px] text-fg">
+                      <span className="text-form-label text-fg">
                         {cursor?.last_delivered_at
                           ? formatRelativeTime(cursor.last_delivered_at)
                           : "--"}
                       </span>
                       {cursor?.updated_at ? (
-                        <span className="text-[10.5px] text-faint">
+                        <span className="text-mono-id text-faint">
                           updated {formatRelativeTime(cursor.updated_at)}
                         </span>
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-[220px]">
+                  <TableCell className="max-w-56">
                     {cursor?.last_error ? (
                       <span
-                        className="inline-flex items-start gap-1.5 text-[12px] text-warning"
+                        className="inline-flex items-start gap-1.5 text-form-label text-warning"
                         data-testid={`tasks-bridge-notifications-row-${sub.subscription_id}-cursor-error`}
                       >
                         <TriangleAlert className="mt-0.5 size-3 shrink-0" />
                         <span className="min-w-0 truncate">{cursor.last_error}</span>
                       </span>
                     ) : (
-                      <span className="text-[12px] text-faint">--</span>
+                      <span className="text-form-label text-faint">--</span>
                     )}
                   </TableCell>
                   <TableCell className="w-8 pr-4">
@@ -599,7 +599,7 @@ interface BridgeTargetRowProps {
 
 function BridgeTargetRow({ label, value, primary = false }: BridgeTargetRowProps) {
   return (
-    <span className="inline-flex min-w-0 items-baseline gap-1.5 font-mono text-[11px] tabular-nums">
+    <span className="inline-flex min-w-0 items-baseline gap-1.5 font-mono text-eyebrow tabular-nums">
       <span className="text-faint">{label}</span>
       <span className={primary ? "min-w-0 truncate text-fg-strong" : "min-w-0 truncate text-muted"}>
         {value}

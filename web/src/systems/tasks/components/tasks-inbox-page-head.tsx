@@ -41,14 +41,14 @@ export function TasksInboxPageHead({
           Inbox
         </h1>
         <span
-          className="inline-flex min-h-[20px] items-center rounded bg-canvas-soft px-1.5 py-0.5 font-mono text-[11.5px] font-medium tabular-nums text-faint"
+          className="inline-flex min-h-5 items-center rounded bg-canvas-soft px-1.5 py-0.5 font-mono text-form-hint font-medium tabular-nums text-faint"
           data-testid="tasks-inbox-page-count"
         >
           {countLabel}
         </span>
       </div>
       <div
-        className="flex flex-wrap items-center gap-2 text-[12px] text-subtle"
+        className="flex flex-wrap items-center gap-2 text-form-label text-subtle"
         data-testid="tasks-inbox-page-meta"
       >
         {workspaceName ? (
@@ -77,7 +77,7 @@ export function TasksInboxPageHead({
           </span>
         ) : null}
         <span
-          className="font-mono text-[11.5px] tabular-nums text-faint"
+          className="font-mono text-form-hint tabular-nums text-faint"
           data-testid="tasks-inbox-page-totals"
         >
           {unreadCount} unread · {archivedCount} archived

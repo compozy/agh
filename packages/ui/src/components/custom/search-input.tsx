@@ -37,7 +37,7 @@ function SearchInput({
       data-slot="search-input"
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex h-[26px] min-w-[220px] items-center gap-2 rounded border border-line bg-canvas-soft px-2 text-[13px] text-fg transition-colors focus-within:border-line-strong focus-within:shadow-[0_0_0_1px_var(--line-strong)]",
+        "flex h-button-default min-w-search-input-min items-center gap-2 rounded border border-line bg-canvas-soft px-2 text-small-body text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60",
         containerClassName
       )}
@@ -51,7 +51,7 @@ function SearchInput({
         onChange={event => onChange?.(event.target.value)}
         disabled={disabled}
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-subtle disabled:cursor-not-allowed",
+          "min-w-0 flex-1 bg-transparent text-small-body text-fg outline-none placeholder:text-subtle disabled:cursor-not-allowed",
           className
         )}
         {...props}

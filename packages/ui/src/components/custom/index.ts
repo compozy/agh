@@ -95,6 +95,7 @@ export { MetricGrid, type MetricGridColumns, type MetricGridProps } from "./metr
 export {
   CodeBlock,
   CopyIconButton,
+  type CodeBlockHighlightState,
   type CodeBlockProps,
   type CodeBlockTone,
   type CopyIconButtonProps,
@@ -105,7 +106,14 @@ export {
   type ChatMessageBubbleProps,
   type ChatMessageRole,
 } from "./chat-message-bubble";
-export { ToolCallCard, type ToolCallCardProps, type ToolCallStatus } from "./tool-call-card";
+export {
+  TOOL_CALL_STATUS_LABEL,
+  TOOL_CALL_STATUS_TONE,
+  ToolCallCard,
+  type ToolCallCardProps,
+  type ToolCallCardSectionProps,
+  type ToolCallStatus,
+} from "./tool-call-card";
 export {
   WireCard,
   WireCardBody,
@@ -246,15 +254,6 @@ export {
   type RunCardWarning,
   type RunCardWarningTone,
 } from "./run-card";
-export {
-  CHAT_TOOL_OUTPUT_COLLAPSE_LINES,
-  ChatToolCard,
-  TOOL_STATUS_LABEL,
-  TOOL_STATUS_TONE,
-  type ChatToolCardProps,
-  type ChatToolCardSection,
-  type ChatToolStatus,
-} from "./chat-tool-card";
 export { OwnerAvatar, type OwnerAvatarProps, type OwnerAvatarSize } from "./owner-avatar";
 
 // Slot + system primitives.

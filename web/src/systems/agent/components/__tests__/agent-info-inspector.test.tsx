@@ -111,15 +111,15 @@ describe("AgentInfoInspector", () => {
     expect(screen.getByTestId("agent-info-mcp-empty")).toHaveAttribute("data-fill", "false");
   });
 
-  it("Should consume <DetailInspector> with one tab (MCP)", () => {
+  it("Should consume <DetailInspector> without a tab strip", () => {
     const { container } = render(<AgentInfoInspector agent={makeAgent()} />);
     const root = container.querySelector<HTMLElement>(
       '[data-slot="detail-inspector"][data-mode="inline"]'
     );
     expect(root).not.toBeNull();
     expect(root?.style.width).toBe("320px");
-    // Single tab labeled "MCP"
-    expect(screen.getByRole("tab", { name: /MCP/i })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="detail-inspector-tabs"]')).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
   });
 
   it("Should expose the canonical 1440 px breakpoint constant", () => {

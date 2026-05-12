@@ -40,11 +40,11 @@ export function AutomationOperationsPage({
         aria-label={`${title} scope`}
         data-testid={`${titlePrefix}-scope-tabs`}
         items={[
-          { value: "all", label: "ALL", testId: `${titlePrefix}-scope-all` },
-          { value: "global", label: "GLOBAL", testId: `${titlePrefix}-scope-global` },
+          { value: "all", label: "All", testId: `${titlePrefix}-scope-all` },
+          { value: "global", label: "Global", testId: `${titlePrefix}-scope-global` },
           {
             value: "workspace",
-            label: "WORKSPACE",
+            label: "Workspace",
             testId: `${titlePrefix}-scope-workspace`,
           },
         ]}

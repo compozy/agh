@@ -103,11 +103,11 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
             >
               Permission Required
             </Eyebrow>
-            <p className="text-[13px] text-fg">
+            <p className="text-small-body text-fg">
               The agent is requesting permission before it continues this turn.
             </p>
           </header>
-          <dl className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
+          <dl className="flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted">
             <div className="flex items-center gap-1.5">
               <dt className="text-subtle">Tool</dt>
               <dd className="font-mono text-fg">{permission.toolName}</dd>

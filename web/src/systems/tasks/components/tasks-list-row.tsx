@@ -138,7 +138,7 @@ function TasksListRow({
       {showRail ? (
         <span
           aria-hidden="true"
-          className="absolute top-2 bottom-2 left-0 w-[2px] rounded-tr-xs rounded-br-xs bg-fg-strong"
+          className="absolute top-2 bottom-2 left-0 w-0.5 rounded-tr-xs rounded-br-xs bg-fg-strong"
         />
       ) : null}
 
@@ -179,7 +179,7 @@ function TasksListRow({
           <MonoId value={identifier} size="sm" data-slot="tasks-list-row-id" />
           <MetaSeparator />
           <span
-            className="font-mono text-[10px] tabular-nums text-faint"
+            className="font-mono text-badge tabular-nums text-faint"
             data-slot="tasks-list-row-timestamp"
           >
             {timestamp}

@@ -25,9 +25,9 @@ export function KnowledgePage() {
       aria-label="Knowledge scope"
       data-testid="tab-pills"
       items={[
-        { value: "global", label: "GLOBAL", testId: "tab-global" },
-        { value: "workspace", label: "WORKSPACE", testId: "tab-workspace" },
-        { value: "agent", label: "AGENT", testId: "tab-agent" },
+        { value: "global", label: "Global", testId: "tab-global" },
+        { value: "workspace", label: "Workspace", testId: "tab-workspace" },
+        { value: "agent", label: "Agent", testId: "tab-agent" },
       ]}
       onChange={value => page.setActiveScope(value as typeof page.activeScope)}
       value={page.activeScope}
@@ -49,8 +49,8 @@ export function KnowledgePage() {
           aria-label="Agent tier"
           data-testid="agent-tier-pills"
           items={[
-            { value: "workspace", label: "WORKSPACE", testId: "tier-workspace" },
-            { value: "global", label: "GLOBAL", testId: "tier-global" },
+            { value: "workspace", label: "Workspace", testId: "tier-workspace" },
+            { value: "global", label: "Global", testId: "tier-global" },
           ]}
           onChange={value => page.setAgentTier(value as typeof page.agentTier)}
           value={page.agentTier}

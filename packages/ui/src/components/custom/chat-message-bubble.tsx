@@ -48,7 +48,7 @@ function ChatMessageBubble({
         <span aria-hidden="true" className="h-px flex-1 bg-line" />
         <div
           data-slot="chat-message-body"
-          className="font-mono text-eyebrow leading-[16px] tracking-mono"
+          className="font-mono text-eyebrow leading-small-body tracking-mono"
         >
           {children}
         </div>
@@ -72,7 +72,7 @@ function ChatMessageBubble({
       >
         <div
           data-slot="chat-message-inner"
-          className="flex max-w-[min(640px,84%)] flex-col gap-1.5"
+          className="flex max-w-message-bubble-max flex-col gap-1.5"
         >
           {meta ? (
             <Eyebrow
@@ -84,7 +84,7 @@ function ChatMessageBubble({
           ) : null}
           <div
             data-slot="chat-message-body"
-            className="rounded-lg bg-elevated px-5 py-4 text-[14px] leading-[1.6] text-fg"
+            className="rounded-lg bg-elevated px-5 py-4 text-card-title leading-relaxed text-fg"
           >
             {children}
           </div>
@@ -110,7 +110,7 @@ function ChatMessageBubble({
             {meta}
           </Eyebrow>
         ) : null}
-        <div data-slot="chat-message-body" className="text-[14px] leading-[1.6] text-muted">
+        <div data-slot="chat-message-body" className="text-card-title leading-relaxed text-muted">
           {children}
         </div>
       </div>

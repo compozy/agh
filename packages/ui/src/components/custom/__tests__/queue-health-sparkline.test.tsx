@@ -52,10 +52,10 @@ describe("QueueHealthSparkline", () => {
 
     const cells = queryCells();
     expect(cells).toHaveLength(SAMPLE.length);
-    expect(cells[0]?.getAttribute("fill")).toBe("var(--bar-fill)");
-    expect(cells[1]?.getAttribute("fill")).toBe("var(--bar-fill)");
-    expect(cells[2]?.getAttribute("fill")).toBe("var(--bar-fill)");
-    expect(cells[3]?.getAttribute("fill")).toBe("var(--accent-tint-strong)");
+    expect(cells[0]?.getAttribute("fill")).toBe("var(--color-bar-fill)");
+    expect(cells[1]?.getAttribute("fill")).toBe("var(--color-bar-fill)");
+    expect(cells[2]?.getAttribute("fill")).toBe("var(--color-bar-fill)");
+    expect(cells[3]?.getAttribute("fill")).toBe("var(--color-accent-tint-strong)");
     expect(cells[3]?.getAttribute("data-stuck")).toBe("true");
     expect(cells[0]?.getAttribute("data-stuck")).toBeNull();
   });

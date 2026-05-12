@@ -111,7 +111,7 @@ export function SessionActivityInline({ activity }: { activity?: RuntimeActivity
     <span
       data-testid="session-activity-inline"
       className={cn(
-        "hidden min-w-0 max-w-[20rem] items-center gap-1.5 rounded-sm border px-2 py-1 md:flex",
+        "hidden min-w-0 max-w-80 items-center gap-1.5 rounded-sm border px-2 py-1 md:flex",
         "border-line bg-canvas",
         "text-eyebrow text-muted"
       )}

@@ -48,7 +48,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
       data-testid={`tasks-multi-agent-agent-${task.id}`}
       data-is-live={isLive ? "true" : "false"}
       data-is-root={isRoot ? "true" : "false"}
-      className="flex w-full min-w-0 flex-col gap-4 rounded-lg bg-canvas-soft px-[18px] py-4"
+      className="flex w-full min-w-0 flex-col gap-4 rounded-lg bg-canvas-soft px-5 py-4"
     >
       <header className="flex items-start gap-3">
         <OwnerAvatar
@@ -61,7 +61,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className="truncate text-[13px] font-[510] text-fg-strong"
+              className="truncate text-small-body font-medium text-fg-strong"
               data-testid={`tasks-multi-agent-agent-label-${task.id}`}
             >
               {ownerName}
@@ -77,7 +77,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
             ) : null}
           </div>
           <div
-            className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted"
+            className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-form-label text-muted"
             data-testid={`tasks-multi-agent-agent-meta-${task.id}`}
           >
             <MonoId data-testid={`tasks-multi-agent-agent-id-${task.id}`} value={taskIdentifier} />
@@ -100,7 +100,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
 
       {failureMessage ? (
         <p
-          className="flex items-start gap-1.5 rounded bg-danger-tint px-3 py-2 text-[12px] text-danger"
+          className="flex items-start gap-1.5 rounded bg-danger-tint px-3 py-2 text-form-label text-danger"
           data-testid={`tasks-multi-agent-agent-error-${task.id}`}
         >
           <AlertCircle className="mt-0.5 size-3 shrink-0" strokeWidth={1.75} />
@@ -115,14 +115,14 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
         >
           {eventsTop.map(event => (
             <li
-              className="grid grid-cols-[1fr_auto] items-baseline gap-3 text-[11.5px]"
+              className="grid grid-cols-[1fr_auto] items-baseline gap-3 text-form-hint"
               data-testid={`tasks-multi-agent-agent-event-${event.event_id}`}
               key={event.event_id}
             >
               <span className="truncate font-mono tabular-nums text-muted">{event.event_type}</span>
               {event.timestamp ? (
                 <Time
-                  className="shrink-0 text-right text-[10.5px] text-subtle"
+                  className="shrink-0 text-right text-mono-id text-subtle"
                   iso={event.timestamp}
                   mode="relative"
                 />
@@ -140,7 +140,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
       >
         <Link
           aria-label={isRoot ? "View full timeline" : `Open agent ${taskIdentifier}`}
-          className="inline-flex items-center gap-1.5 text-[11.5px] text-muted transition-colors duration-base ease-out hover:text-fg-strong"
+          className="inline-flex items-center gap-1.5 text-form-hint text-muted transition-colors duration-base ease-out hover:text-fg-strong"
           data-testid={`tasks-multi-agent-agent-link-${task.id}`}
           params={{ id: task.id }}
           to="/tasks/$id"
@@ -162,7 +162,7 @@ function AgentMetric({ label, value }: AgentMetricProps) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <Eyebrow className="text-subtle">{label}</Eyebrow>
-      <span className="text-[15px] font-[510] tabular-nums text-fg-strong">{value}</span>
+      <span className="text-item-title font-medium tabular-nums text-fg-strong">{value}</span>
     </div>
   );
 }

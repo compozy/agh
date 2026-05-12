@@ -157,13 +157,13 @@ export function TasksReviewsCard({
             const missingWorkCount = formatMissingWorkCount(review.missing_work);
             return (
               <TableRow data-testid={`${testIdPrefix}-${review.review_id}`} key={review.review_id}>
-                <TableCell className="max-w-[320px]">
+                <TableCell className="max-w-80">
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <MonoId value={review.review_id} />
-                    <span className="font-mono text-[10.5px] text-faint">run {review.run_id}</span>
+                    <span className="font-mono text-mono-id text-faint">run {review.run_id}</span>
                     {review.reason ? (
                       <p
-                        className="line-clamp-2 text-[12px] leading-relaxed text-muted"
+                        className="line-clamp-2 text-form-label leading-relaxed text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-reason`}
                       >
                         {review.reason}
@@ -171,7 +171,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {review.next_round_guidance ? (
                       <p
-                        className="line-clamp-3 rounded-md bg-input-fill px-2 py-1.5 text-[11.5px] leading-relaxed text-muted"
+                        className="line-clamp-3 rounded-md bg-input-fill px-2 py-1.5 text-form-hint leading-relaxed text-muted"
                         data-testid={`${testIdPrefix}-${review.review_id}-guidance`}
                       >
                         {review.next_round_guidance}
@@ -179,7 +179,7 @@ export function TasksReviewsCard({
                     ) : null}
                     {missingWorkCount > 0 ? (
                       <span
-                        className="text-[11px] text-warning"
+                        className="text-eyebrow text-warning"
                         data-testid={`${testIdPrefix}-${review.review_id}-missing-work`}
                       >
                         Missing work · {missingWorkCount}
@@ -196,7 +196,7 @@ export function TasksReviewsCard({
                       {status}
                     </Pill>
                   ) : (
-                    <span className="text-[12px] text-faint">--</span>
+                    <span className="text-form-label text-faint">--</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -209,7 +209,7 @@ export function TasksReviewsCard({
                     </Pill>
                   ) : (
                     <span
-                      className="text-[12px] text-faint"
+                      className="text-form-label text-faint"
                       data-testid={`${testIdPrefix}-${review.review_id}-outcome-pending`}
                     >
                       pending
@@ -218,28 +218,28 @@ export function TasksReviewsCard({
                 </TableCell>
                 <TableCell>
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-[12px] text-fg">
+                    <span className="text-form-label text-fg">
                       {review.reviewer_agent_name ?? "--"}
                     </span>
                     {review.reviewer_session_id ? (
-                      <span className="font-mono text-[10.5px] text-faint">
+                      <span className="font-mono text-mono-id text-faint">
                         session {review.reviewer_session_id}
                       </span>
                     ) : null}
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="font-mono text-[11px] tabular-nums text-muted">
+                  <span className="font-mono text-eyebrow tabular-nums text-muted">
                     round {review.review_round} · attempt {review.attempt}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-[12px] text-faint">
+                  <span className="text-form-label text-faint">
                     {formatRelativeTime(review.requested_at)}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-[12px] text-faint">
+                  <span className="text-form-label text-faint">
                     {review.outcome ? formatRelativeTime(review.reviewed_at) : "--"}
                   </span>
                 </TableCell>

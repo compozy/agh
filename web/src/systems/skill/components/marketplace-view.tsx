@@ -174,7 +174,7 @@ function MarketplaceView({
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {filtered.length === 0 ? (
           <div
-            className="flex min-h-[240px] items-center justify-center"
+            className="flex min-h-60 items-center justify-center"
             data-testid="marketplace-empty"
           >
             <Empty

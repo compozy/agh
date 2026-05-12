@@ -30,22 +30,22 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
   size?: MetricSize;
 }
 
-const VALUE_COLOR: Record<MetricTone, string> = {
-  default: "var(--fg)",
-  accent: "var(--accent)",
-  success: "var(--success)",
-  warning: "var(--warning)",
-  danger: "var(--danger)",
+const TONE_VALUE_CLASS: Record<MetricTone, string> = {
+  default: "text-fg",
+  accent: "text-accent",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-danger",
 };
 
 const SIZE_VALUE_CLASS: Record<MetricSize, string> = {
-  default: "text-[24px] leading-[30px] tracking-[-0.02em]",
-  lg: "text-[28px] leading-[1.05] tracking-detail-h1",
+  default: "text-detail-h1 leading-(--text-detail-h1--line-height) tracking-detail-h1",
+  lg: "text-kpi-value leading-(--text-kpi-value--line-height) tracking-detail-h1",
 };
 
 const SIZE_CONTAINER_CLASS: Record<MetricSize, string> = {
   default: "px-5 py-4",
-  lg: "px-[18px] py-4",
+  lg: "px-5 py-4",
 };
 
 /**
@@ -83,8 +83,11 @@ function Metric({
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"
-          className={cn("min-w-0 truncate font-medium tabular-nums", SIZE_VALUE_CLASS[size])}
-          style={{ color: VALUE_COLOR[tone], fontWeight: 510 }}
+          className={cn(
+            "min-w-0 truncate font-medium tabular-nums",
+            SIZE_VALUE_CLASS[size],
+            TONE_VALUE_CLASS[tone]
+          )}
         >
           {value}
         </span>
@@ -98,7 +101,7 @@ function Metric({
         ) : null}
       </div>
       {subtext !== undefined ? (
-        <p data-slot="metric-subtext" className="truncate text-[13px] leading-5 text-muted">
+        <p data-slot="metric-subtext" className="truncate text-small-body leading-5 text-muted">
           {subtext}
         </p>
       ) : null}

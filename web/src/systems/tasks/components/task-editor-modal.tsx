@@ -205,17 +205,16 @@ export function TaskEditorModal({
         data-mode={mode}
         showCloseButton={false}
         unframed
-        className="w-(--width-modal-md) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-md) grid-rows-[auto_1fr_auto] max-h-[min(720px,calc(100vh-2rem))]"
+        className="w-(--width-modal-md) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-md) grid-rows-[auto_1fr_auto] max-h-[min(var(--height-modal-md),calc(100vh-2rem))]"
       >
         <header
           data-slot="task-editor-modal-head"
-          className="flex items-center justify-between gap-3 border-b border-line bg-canvas-soft px-[18px] py-[13px]"
+          className="flex items-center justify-between gap-3 border-b border-line bg-canvas-soft px-5 py-3.5"
         >
           <DialogTitle
             id={titleId}
             data-testid="task-editor-modal-title"
-            className="text-modal-title tracking-modal-title text-fg-strong"
-            style={{ fontWeight: 510 }}
+            className="text-modal-title font-medium tracking-modal-title text-fg-strong"
           >
             {title}
           </DialogTitle>
@@ -247,10 +246,10 @@ export function TaskEditorModal({
           <footer
             data-slot="task-editor-modal-foot"
             data-testid="task-editor-modal-footer"
-            className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas-soft px-[18px] py-[11px]"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas-soft px-5 py-3"
           >
             <p
-              className="min-w-0 flex-1 text-[12px] text-muted"
+              className="min-w-0 flex-1 text-form-label text-muted"
               data-testid="task-editor-modal-hint"
             >
               {FOOTER_HINT}
@@ -303,7 +302,7 @@ function TaskEditorFormBody({
 }: TaskEditorFormBodyProps) {
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-[18px]"
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5"
       data-testid="task-editor-modal-body"
     >
       {isNewMode && templateId && onTemplateChange ? (
@@ -343,7 +342,7 @@ function TaskEditorFormBody({
             Describe the expected outcome, constraints, and completion criteria.
           </FieldDescription>
           <Textarea
-            className="min-h-[136px]"
+            className="min-h-form-textarea"
             data-testid="task-editor-description-input"
             id="task-editor-description-input"
             onChange={form.updateText("description")}

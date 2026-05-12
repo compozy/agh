@@ -360,7 +360,7 @@ function FilterInput<T = unknown>({
         onBlur={validateFilterInputOnBlur}
         onKeyDown={handleKeyDown}
         className={cn(
-          context.size == "sm" && "h-7! text-xs",
+          context.size == "sm" && "h-7! text-form-label",
           context.size == "default" && "h-8!",
           context.size == "lg" && "h-9!"
         )}
@@ -373,7 +373,7 @@ function FilterInput<T = unknown>({
               <AlertCircleIcon className="text-destructive size-3" />
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-sm">{validationMessage}</p>
+              <p>{validationMessage}</p>
             </TooltipContent>
           </Tooltip>
         </InputGroupAddon>
@@ -717,7 +717,7 @@ function SelectOptionsMenuContent<T = unknown>({
             }
             placeholder={context.i18n.placeholders.searchField(field.label || "")}
             className={cn(
-              "border-input h-8 rounded-none border-0 bg-transparent! px-2 text-sm shadow-none",
+              "border-input h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
               "focus-visible:border-border focus-visible:ring-0 focus-visible:ring-offset-0",
               open && "placeholder:text-foreground"
             )}
@@ -760,7 +760,7 @@ function SelectOptionsMenuContent<T = unknown>({
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {allFilteredOptions.length === 0 && (
-              <div className="text-muted-foreground py-2 text-center text-sm">
+              <div className="text-muted-foreground py-2 text-center text-small-body">
                 {context.i18n.noResultsFound}
               </div>
             )}
@@ -987,7 +987,10 @@ function SelectOptionsPopover<T = unknown>({
           </Button>
         }
       />
-      <DropdownMenuContent align="start" className={cn("w-[200px] px-0", field.className)}>
+      <DropdownMenuContent
+        align="start"
+        className={cn("w-filters-menu-default px-0", field.className)}
+      >
         {menuContent}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -1281,7 +1284,7 @@ function FilterSubmenuContent<T = unknown>({
             }
             placeholder={i18n.placeholders.searchField(field.label || "")}
             className={cn(
-              "h-8 rounded-none border-0 bg-transparent! px-2 text-sm shadow-none",
+              "h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
               "focus-visible:border-border focus-visible:ring-0 focus-visible:ring-offset-0",
               isActive && "placeholder:text-foreground"
             )}
@@ -1387,7 +1390,7 @@ function FilterSubmenuContent<T = unknown>({
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {filteredOptions.length === 0 ? (
-              <div className="text-muted-foreground py-2 text-center text-sm">
+              <div className="text-muted-foreground py-2 text-center text-small-body">
                 {i18n.noResultsFound}
               </div>
             ) : (
@@ -1462,7 +1465,9 @@ function FiltersMenuFieldList<T = unknown>({
 }: FiltersMenuFieldListProps<T>) {
   if (filteredFields.length === 0) {
     return (
-      <div className="text-muted-foreground py-2 text-center text-sm">{i18n.noFieldsFound}</div>
+      <div className="text-muted-foreground py-2 text-center text-small-body">
+        {i18n.noFieldsFound}
+      </div>
     );
   }
 
@@ -1507,7 +1512,7 @@ function FiltersMenuFieldList<T = unknown>({
             {field.icon}
             <span>{field.label}</span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-[200px]" side="right">
+          <DropdownMenuSubContent className="w-filters-menu-default" side="right">
             <FilterSubmenuContent
               field={field}
               currentValues={currentValues}
@@ -1639,7 +1644,7 @@ function FiltersMenuSearchInput<T = unknown>({
           }
           placeholder={i18n.searchFields}
           className={cn(
-            "h-8 rounded-none border-0 bg-transparent! px-2 text-sm shadow-none",
+            "h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
             "focus-visible:border-border focus-visible:ring-0 focus-visible:ring-offset-0",
             activeMenu === "root" && "placeholder:text-foreground"
           )}
@@ -1894,7 +1899,10 @@ export function Filters<T = unknown>({
             }}
           >
             <DropdownMenuTrigger render={triggerButton} />
-            <DropdownMenuContent className={cn("w-[220px]", menuPopupClassName)} align="start">
+            <DropdownMenuContent
+              className={cn("w-filters-menu-stack", menuPopupClassName)}
+              align="start"
+            >
               {showSearchInput && (
                 <FiltersMenuSearchInput
                   activeMenu={activeMenu}

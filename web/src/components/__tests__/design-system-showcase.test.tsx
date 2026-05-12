@@ -94,6 +94,7 @@ const SHADCN_ALIASES: ReadonlySet<string> = new Set([
   "--text-rail-avatar",
   "--text-ws-name",
   "--text-mono-id",
+  "--text-card-title",
   // Tracking ladder
   "--tracking-detail-h1",
   "--tracking-empty-h1",
@@ -102,7 +103,9 @@ const SHADCN_ALIASES: ReadonlySet<string> = new Set([
   "--tracking-tight",
   "--tracking-eyebrow",
   "--tracking-mono-id",
+  "--tracking-body",
   "--leading-small-body",
+  "--leading-prose",
   // CSS-only companion properties for --text-* tokens
   "--text-item-title--line-height",
   "--text-small-body--line-height",
@@ -111,8 +114,15 @@ const SHADCN_ALIASES: ReadonlySet<string> = new Set([
   "--text-display-2xl--line-height",
   "--text-site-lead--line-height",
   "--text-micro--line-height",
+  "--text-detail-h1--line-height",
+  "--text-kpi-value--line-height",
+  "--text-card-title--line-height",
   // Shadow utilities exercised through component primitives, not swatches
   "--shadow-highlight",
+  "--shadow-focus-ring",
+  "--shadow-focus-ring-soft",
+  "--shadow-focus-ring-inset",
+  "--shadow-focus-ring-inset-soft",
 ]);
 
 const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
@@ -128,6 +138,7 @@ const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
   "--shadow-overlay",
   "--highlight",
   "--radius-chip",
+  "--radius-xxs",
   "--radius-mono-badge",
   "--radius-icon-well",
   "--duration-fast",
@@ -135,6 +146,48 @@ const COMPONENT_GEOMETRY_TOKENS: ReadonlySet<string> = new Set([
   "--duration-slow",
   "--ease-out",
   "--ease-in-out",
+  // Button / switch / pill / tabs / count-chip / empty / menu / form / dialog /
+  // table / layout / modal geometry — exercised through the owning primitive
+  // (button.tsx, switch.tsx, pill.tsx, tabs.tsx, section.tsx, topbar.tsx,
+  // dropdown-menu.tsx, search-input.tsx, dialog.tsx, etc.) rather than the
+  // swatch wall.
+  "--height-button-xs",
+  "--height-button-sm",
+  "--height-button-default",
+  "--height-button-lg",
+  "--size-button-icon-xs",
+  "--size-button-icon-sm",
+  "--size-button-icon-default",
+  "--size-button-icon-lg",
+  "--height-switch-default",
+  "--width-switch-default",
+  "--height-switch-sm",
+  "--width-switch-sm",
+  "--space-switch-thumb-inset",
+  "--height-pill-xs",
+  "--height-pill-sm",
+  "--height-pill-md",
+  "--height-tabs-list",
+  "--size-tab-underline",
+  "--size-count-chip",
+  "--size-count-chip-sm",
+  "--size-empty-icon",
+  "--width-menu-sub-min",
+  "--height-form-textarea",
+  "--height-editor-footer",
+  "--width-detail-inspector-inline",
+  "--width-table-cell-sm",
+  "--width-table-cell-md",
+  "--width-table-cell-lg",
+  "--width-content-max",
+  "--width-message-bubble-max",
+  "--width-wire-card-max",
+  "--width-search-input-min",
+  "--width-filters-menu-default",
+  "--width-filters-menu-stack",
+  "--height-modal-md",
+  "--height-modal-tall",
+  "--height-modal-wizard",
 ]);
 
 function extractDeclBlocks(source: string): string[] {

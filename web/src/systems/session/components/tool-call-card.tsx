@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 
-import { ChatToolCard as PrimitiveChatToolCard, type ChatToolStatus } from "@agh/ui";
+import { CodeBlock, ToolCallCard as PrimitiveToolCallCard, type ToolCallStatus } from "@agh/ui";
 
 import { getToolLabel } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
@@ -10,7 +10,7 @@ export interface ToolCallCardProps {
   message: UIMessage;
 }
 
-function statusFromMessage(message: UIMessage): ChatToolStatus {
+function statusFromMessage(message: UIMessage): ToolCallStatus {
   if (message.toolError) return "failed";
   if (message.toolResult !== undefined) return "completed";
   return "in_progress";
@@ -25,7 +25,7 @@ function formatJsonSource(input: Record<string, unknown> | undefined): string {
   }
 }
 
-function labelTestIdFor(status: ChatToolStatus): string {
+function labelTestIdFor(status: ToolCallStatus): string {
   switch (status) {
     case "in_progress":
       return "tool-card-executing";
@@ -38,7 +38,7 @@ function labelTestIdFor(status: ChatToolStatus): string {
   }
 }
 
-function progressLabelFor(message: UIMessage, status: ChatToolStatus): string {
+function progressLabelFor(message: UIMessage, status: ToolCallStatus): string {
   const toolName = message.toolName ?? "tool";
   if (status === "in_progress") {
     return getToolLabel(toolName, "active");
@@ -50,9 +50,9 @@ function progressLabelFor(message: UIMessage, status: ChatToolStatus): string {
 }
 
 /**
- * Chat-thread tool surface consuming `<ChatToolCard>` Maps
- * the legacy `UIMessage.toolResult / toolError / toolName` shape onto the
- * primitive's `{ toolName, status, input, output, errorMessage }` API and
+ * Chat-thread tool surface composing `<ToolCallCard>` from `@agh/ui`. Maps the
+ * legacy `UIMessage.toolResult / toolError / toolName` shape onto the
+ * compound `<ToolCallCard.Input>` + `<ToolCallCard.Output>` slots and
  * delegates per-tool output rendering to the existing `ExpandedToolContent`
  * dispatcher.
  */
@@ -62,23 +62,23 @@ export const ToolCallCard = memo(
     const toolName = message.toolName ?? "tool";
     const progressLabel = progressLabelFor(message, status);
     const labelTestId = labelTestIdFor(status);
-
-    const inputSource = useMemo(() => formatJsonSource(message.toolInput), [message.toolInput]);
-    const input = inputSource ? { source: inputSource, format: "code" as const } : undefined;
-    const output = message.toolResult
-      ? { node: <ExpandedToolContent message={message} /> }
-      : undefined;
+    const inputJson = useMemo(() => formatJsonSource(message.toolInput), [message.toolInput]);
+    const hasOutput = message.toolResult !== undefined;
     const errorMessage = status === "failed" ? progressLabel : undefined;
-
     return (
       <div data-testid="tool-call-card">
-        <PrimitiveChatToolCard
-          toolName={toolName}
-          status={status}
-          input={input}
-          output={output}
-          errorMessage={errorMessage}
-        />
+        <PrimitiveToolCallCard toolName={toolName} status={status} errorMessage={errorMessage}>
+          {inputJson ? (
+            <PrimitiveToolCallCard.Input>
+              <CodeBlock language="json" code={inputJson} />
+            </PrimitiveToolCallCard.Input>
+          ) : null}
+          {hasOutput ? (
+            <PrimitiveToolCallCard.Output>
+              <ExpandedToolContent message={message} />
+            </PrimitiveToolCallCard.Output>
+          ) : null}
+        </PrimitiveToolCallCard>
         <span data-testid={labelTestId} className="sr-only">
           {progressLabel}
         </span>

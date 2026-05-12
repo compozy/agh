@@ -16,24 +16,24 @@ describe("Metric", () => {
     expect(value?.textContent).toBe("12");
   });
 
-  it.each<{ tone: MetricTone; color: string }>([
-    { tone: "success", color: "var(--success)" },
-    { tone: "danger", color: "var(--danger)" },
-    { tone: "warning", color: "var(--warning)" },
-    { tone: "accent", color: "var(--accent)" },
-  ])("Should apply the $tone semantic color to the value", ({ tone, color }) => {
+  it.each<{ tone: MetricTone; className: string }>([
+    { tone: "success", className: "text-success" },
+    { tone: "danger", className: "text-danger" },
+    { tone: "warning", className: "text-warning" },
+    { tone: "accent", className: "text-accent" },
+  ])("Should apply the $tone semantic color utility to the value", ({ tone, className }) => {
     const { container } = render(<Metric label="Signal" value="08" tone={tone} />);
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
-    expect(value?.style.color).toBe(color);
+    expect(value?.className).toContain(className);
     const root = container.querySelector<HTMLElement>('[data-slot="metric"]');
     expect(root).not.toBeNull();
     expect(container.querySelector('[data-slot="metric"]')?.getAttribute("data-tone")).toBe(tone);
   });
 
-  it("Should default the value color to text-primary", () => {
+  it("Should default the value color utility to text-fg", () => {
     const { container } = render(<Metric label="Sessions" value="12" />);
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
-    expect(value?.style.color).toBe("var(--fg)");
+    expect(value?.className).toContain("text-fg");
   });
 
   it("Should render the optional detail slot inline with the value", () => {

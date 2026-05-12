@@ -25,14 +25,14 @@ export interface QueueHealthSparklineProps extends Omit<React.ComponentProps<"di
 }
 
 const DEFAULT_HEIGHT = 96;
-const BAR_FILL = "var(--bar-fill)";
-const STUCK_FILL = "var(--accent-tint-strong)";
+const BAR_FILL = "var(--color-bar-fill)";
+const STUCK_FILL = "var(--color-accent-tint-strong)";
 
 const TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
-  background: "var(--canvas-soft)",
-  border: "1px solid var(--line)",
+  background: "var(--color-canvas-soft)",
+  border: "1px solid var(--color-line)",
   borderRadius: "var(--radius-sm)",
-  color: "var(--fg)",
+  color: "var(--color-fg)",
   fontFamily: "var(--font-mono)",
   fontSize: "11px",
   padding: "4px 6px",
@@ -57,8 +57,8 @@ const QueueHealthSparklineChart = React.lazy(async () => {
               <Tooltip
                 cursor={false}
                 contentStyle={TOOLTIP_CONTENT_STYLE}
-                labelStyle={{ color: "var(--muted)" }}
-                itemStyle={{ color: "var(--fg-strong)" }}
+                labelStyle={{ color: "var(--color-muted)" }}
+                itemStyle={{ color: "var(--color-fg-strong)" }}
               />
             ) : null}
             <Bar dataKey="value" isAnimationActive={false} radius={[1, 1, 0, 0]} minPointSize={2}>

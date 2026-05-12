@@ -65,7 +65,7 @@ export function NetworkSection() {
           title="Implemented commands"
           description={
             <>
-              <code className="font-mono text-(--fg)">
+              <code className="font-mono text-fg">
                 agh network status | peers | channels | threads | directs | work | send | inbox
               </code>{" "}
               are implemented runtime commands, not narrative-only examples.
@@ -88,7 +88,7 @@ export function NetworkSection() {
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-center">
-        <div className="max-w-[60ch] text-sm leading-relaxed text-(--muted)">
+        <div className="max-w-[60ch] text-sm leading-relaxed text-muted">
           <p>
             Every other agent tool stops at the single-runtime boundary. AGH Network is the open
             agent network protocol , so a coder on your laptop can hand work to a deployer on CI,
@@ -97,7 +97,7 @@ export function NetworkSection() {
           </p>
           <Link
             href="/protocol"
-            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-(--accent-hover)"
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
           >
             Read the full agh-network/v0 spec
             <ArrowUpRight aria-hidden className="size-4" />

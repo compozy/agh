@@ -24,8 +24,8 @@ function WireCard({ inline = false, className, ...props }: WireCardProps) {
       className={cn(
         "bg-canvas-soft",
         inline
-          ? "inline-flex items-center gap-2 rounded-[6px] px-2.5 py-1.5"
-          : "max-w-[520px] overflow-hidden rounded-[6px]",
+          ? "inline-flex items-center gap-2 rounded px-2.5 py-1.5"
+          : "max-w-wire-card-max overflow-hidden rounded",
         className
       )}
     />

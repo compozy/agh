@@ -34,9 +34,9 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
 const RAIL_CLASS: Record<InboxGroupId, string> = {
   needs_review: "bg-warning",
   blocked: "bg-danger",
-  stuck: "bg-transparent shadow-[inset_0_0_0_1px_var(--warning)]",
+  stuck: "bg-transparent inset-ring-1 inset-ring-warning",
   mentions: "bg-fg-strong",
-  updates: "bg-transparent shadow-[inset_0_0_0_1px_var(--line-strong)]",
+  updates: "bg-transparent shadow-focus-ring-inset",
 };
 
 function TasksInboxRow({
@@ -76,7 +76,7 @@ function TasksInboxRow({
       aria-disabled={!clickable}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "grid min-h-[44px] items-stretch gap-3 border-b border-line-soft py-2.5 pr-3.5 text-left transition-colors duration-base ease-out",
+        "grid min-h-11 items-stretch gap-3 border-b border-line-soft py-2.5 pr-3.5 text-left transition-colors duration-base ease-out",
         trailing ? "grid-cols-[3px_minmax(0,1fr)_auto]" : "grid-cols-[3px_minmax(0,1fr)]",
         clickable &&
           "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",

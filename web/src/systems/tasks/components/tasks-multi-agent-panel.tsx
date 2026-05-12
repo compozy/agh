@@ -79,7 +79,7 @@ export function TasksMultiAgentPanel({
       <header className="flex flex-col gap-1.5" data-testid="tasks-multi-agent-header">
         <Eyebrow className="text-muted">Agents</Eyebrow>
         <p
-          className="text-[13px] text-fg-strong tabular-nums"
+          className="text-small-body text-fg-strong tabular-nums"
           data-testid="tasks-multi-agent-summary"
         >
           {subtitle}
@@ -115,7 +115,7 @@ export function TasksMultiAgentPanel({
 
       {state === "no-active" ? (
         <p
-          className="rounded-lg bg-canvas-soft px-4 py-3 text-[12.5px] text-muted"
+          className="rounded-lg bg-canvas-soft px-4 py-3 text-form-input text-muted"
           data-testid="tasks-multi-agent-no-active"
         >
           No runs are currently active. Descendant status will refresh as soon as a run resumes.

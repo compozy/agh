@@ -9,31 +9,35 @@ function loadMermaid() {
   if (!mermaidLoader) {
     mermaidLoader = import("mermaid")
       .then(({ default: mermaid }) => {
+        // Mermaid emits SVG with `fill` / `stroke` attributes set to these
+        // theme variable values. SVG attributes accept `var(--…)`, so we
+        // wire each Mermaid theme key to the canonical AGH token. Retunes
+        // flow from `packages/ui/src/tokens.css` without touching this file.
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: "strict",
           theme: "base",
           themeVariables: {
-            background: "#0E0E0F",
-            primaryColor: "#1E1C1B",
-            primaryBorderColor: "#E8572A",
-            primaryTextColor: "#E5E5E7",
-            secondaryColor: "#2E2C2B",
-            tertiaryColor: "#17110F",
-            lineColor: "#8E8E93",
-            textColor: "#E5E5E7",
-            mainBkg: "#1E1C1B",
-            nodeBorder: "#E8572A",
-            clusterBkg: "#17110F",
-            clusterBorder: "#3C3A39",
-            edgeLabelBackground: "#17110F",
-            actorBkg: "#1E1C1B",
-            actorBorder: "#E8572A",
-            actorTextColor: "#E5E5E7",
-            noteBkgColor: "#1E1C1B",
-            noteBorderColor: "#3C3A39",
-            noteTextColor: "#8E8E93",
-            fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+            background: "var(--color-rail)",
+            primaryColor: "var(--color-canvas-soft)",
+            primaryBorderColor: "var(--color-accent)",
+            primaryTextColor: "var(--color-fg)",
+            secondaryColor: "var(--color-elevated)",
+            tertiaryColor: "var(--color-accent-ink)",
+            lineColor: "var(--color-muted)",
+            textColor: "var(--color-fg)",
+            mainBkg: "var(--color-canvas-soft)",
+            nodeBorder: "var(--color-accent)",
+            clusterBkg: "var(--color-accent-ink)",
+            clusterBorder: "var(--color-elevated)",
+            edgeLabelBackground: "var(--color-accent-ink)",
+            actorBkg: "var(--color-canvas-soft)",
+            actorBorder: "var(--color-accent)",
+            actorTextColor: "var(--color-fg)",
+            noteBkgColor: "var(--color-canvas-soft)",
+            noteBorderColor: "var(--color-elevated)",
+            noteTextColor: "var(--color-muted)",
+            fontFamily: "var(--font-sans)",
           },
         });
         return mermaid;
@@ -104,7 +108,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
   }, [state.svg]);
 
   return (
-    <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-(--line) bg-(--canvas-soft) p-4">
+    <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-line bg-canvas-soft p-4">
       {state.svg ? (
         <div
           ref={containerRef}
@@ -115,20 +119,20 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
       ) : state.error ? (
         <div>
           <Eyebrow className="text-accent">Diagram source</Eyebrow>
-          <p className="mt-2 text-sm leading-6 text-(--muted)">
+          <p className="mt-2 text-sm leading-6 text-muted">
             Mermaid could not render this diagram in the current browser session.
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-md border border-(--line) bg-(--rail) p-3 text-xs leading-6 text-(--muted)">
+          <pre className="mt-4 overflow-x-auto rounded-md border border-line bg-rail p-3 text-xs leading-6 text-muted">
             <code>{chart}</code>
           </pre>
-          <p className="mt-3 text-sm leading-6 text-(--subtle)">{state.error}</p>
+          <p className="mt-3 text-sm leading-6 text-subtle">{state.error}</p>
         </div>
       ) : (
-        <p className="text-sm leading-6 text-(--muted)">Rendering diagram…</p>
+        <p className="text-sm leading-6 text-muted">Rendering diagram…</p>
       )}
 
       {caption ? (
-        <figcaption className="mt-3 text-sm leading-6 text-(--muted)">{caption}</figcaption>
+        <figcaption className="mt-3 text-sm leading-6 text-muted">{caption}</figcaption>
       ) : null}
     </figure>
   );

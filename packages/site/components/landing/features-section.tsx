@@ -40,7 +40,7 @@ const FEATURES = [
 
 export function FeaturesSection() {
   return (
-    <SectionFrame background="canvas" padY="lg" className="border-b border-(--line)">
+    <SectionFrame background="canvas" padY="lg" className="border-b border-line">
       <SectionHeader
         align="start"
         eyebrow="Operator surface"
@@ -53,7 +53,7 @@ export function FeaturesSection() {
           <li key={feature.eyebrow}>
             <article
               data-testid="feature-card"
-              className="group flex h-full min-h-[420px] flex-col overflow-hidden rounded-(--radius-diagram) border border-(--line) bg-(--canvas-soft) p-4 transition-colors duration-300 hover:border-accent/40 sm:p-5"
+              className="group flex h-full min-h-105 flex-col overflow-hidden rounded-(--radius-diagram) border border-line bg-canvas-soft p-4 transition-colors duration-slow hover:border-accent/40 sm:p-5"
             >
               <div className="overflow-hidden rounded-md">
                 <Image
@@ -64,15 +64,15 @@ export function FeaturesSection() {
                   decoding="async"
                   sizes="(min-width: 768px) 50vw, 100vw"
                   unoptimized
-                  className="block aspect-16/10 w-full object-contain opacity-95 transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+                  className="block aspect-16/10 w-full object-contain opacity-95 transition-transform duration-slow ease-out group-hover:scale-[1.02]"
                 />
               </div>
               <div className="flex flex-1 flex-col pt-5">
                 <Eyebrow className="text-accent">{feature.eyebrow}</Eyebrow>
-                <h3 className="mt-3 text-base font-medium leading-snug tracking-tight text-(--fg)">
+                <h3 className="mt-3 text-base font-medium leading-snug tracking-tight text-fg">
                   {feature.title}
                 </h3>
-                <p className="mt-3 text-sm leading-relaxed text-(--muted)">{feature.description}</p>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{feature.description}</p>
               </div>
             </article>
           </li>

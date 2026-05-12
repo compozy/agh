@@ -33,7 +33,7 @@ function FieldLegend({
       data-slot="field-legend"
       data-variant={variant}
       className={cn(
-        "mb-1.5 font-medium tracking-eyebrow text-fg-strong data-[variant=label]:text-[13px] data-[variant=legend]:text-[15px]",
+        "mb-1.5 font-medium tracking-eyebrow text-fg-strong data-[variant=label]:text-small-body data-[variant=legend]:text-item-title",
         className
       )}
       {...props}
@@ -114,7 +114,7 @@ function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="field-label"
       className={cn(
-        "flex w-fit items-center gap-2 text-[13px] leading-snug font-medium text-fg-strong group-data-[disabled=true]/field:opacity-50",
+        "flex w-fit items-center gap-2 text-small-body leading-snug font-medium text-fg-strong group-data-[disabled=true]/field:opacity-50",
         className
       )}
       {...props}
@@ -127,7 +127,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="field-description"
       className={cn(
-        "text-left text-[13px] leading-normal font-normal text-muted group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
+        "text-left text-small-body leading-normal font-normal text-muted group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
         "last:mt-0 nth-last-2:-mt-1",
         "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-accent",
         className
@@ -149,7 +149,7 @@ function FieldSeparator({
       data-slot="field-separator"
       data-content={!!children}
       className={cn(
-        "relative -my-2 h-5 text-[13px] group-data-[variant=outline]/field-group:-mb-2",
+        "relative -my-2 h-5 text-small-body group-data-[variant=outline]/field-group:-mb-2",
         className
       )}
       {...props}
@@ -202,7 +202,7 @@ function FieldError({
     <div
       role="alert"
       data-slot="field-error"
-      className={cn("text-[13px] font-normal text-danger", className)}
+      className={cn("text-small-body font-normal text-danger", className)}
       {...props}
     >
       {content}

@@ -5,9 +5,9 @@ type Background = "canvas" | "surface" | "deep";
 type PadY = "md" | "lg" | "xl";
 
 const BG_CLASS: Record<Background, string> = {
-  canvas: "bg-(--canvas)",
-  surface: "bg-(--canvas-soft)",
-  deep: "bg-(--rail)",
+  canvas: "bg-canvas",
+  surface: "bg-canvas-soft",
+  deep: "bg-rail",
 };
 
 const PAD_Y_CLASS: Record<PadY, string> = {
@@ -45,7 +45,7 @@ export function SectionFrame({
         "px-4",
         BG_CLASS[background],
         PAD_Y_CLASS[padY],
-        divided && "border-t border-(--line)",
+        divided && "border-t border-line",
         className
       )}
     >

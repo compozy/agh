@@ -16,9 +16,9 @@ function Card({ className, size = "default", activeRail = false, ...props }: Car
       data-size={size}
       data-active-rail={activeRail ? "true" : undefined}
       className={cn(
-        "group/card relative flex flex-col gap-4 overflow-hidden rounded-lg bg-canvas-soft py-4 text-[13px] text-fg has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
+        "group/card relative flex flex-col gap-4 overflow-hidden rounded-lg bg-canvas-soft py-4 text-small-body text-fg has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
         activeRail &&
-          "before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-accent",
+          "before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent",
         className
       )}
       {...props}
@@ -44,7 +44,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "text-[15px] leading-snug font-medium tracking-tight text-fg-strong group-data-[size=sm]/card:text-[13px]",
+        "text-item-title leading-snug font-medium tracking-tight text-fg-strong group-data-[size=sm]/card:text-small-body",
         className
       )}
       {...props}
@@ -56,7 +56,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-[13px] text-muted", className)}
+      className={cn("text-small-body text-muted", className)}
       {...props}
     />
   );

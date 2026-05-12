@@ -40,7 +40,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
   const testId = `settings-page-providers-card-${provider.name}`;
 
   return (
-    <Card data-testid={testId} className="transition-colors duration-150 ease-out hover:bg-hover">
+    <Card data-testid={testId} className="transition-colors duration-base ease-out hover:bg-hover">
       <CardHeader>
         <div className="flex items-center gap-3">
           <CatalogCard.Logo

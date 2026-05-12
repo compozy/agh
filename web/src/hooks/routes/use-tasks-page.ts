@@ -74,7 +74,7 @@ export type CreateTaskDraftInput = TaskEditorDraft;
 function useTasksPage(options: UseTasksPageOptions = {}) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
-  const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "kanban");
+  const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "list");
   const [scopeFilter, setScopeFilter] = useState<TaskScopeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);

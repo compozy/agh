@@ -29,19 +29,19 @@ export default function BlogIndexPage() {
 
   return (
     <>
-      <section className="border-b border-(--line) px-4 pt-14 pb-14">
+      <section className="border-b border-line px-4 pt-14 pb-14">
         <div className="mx-auto max-w-(--site-layout-width)">
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">BLOG</Eyebrow>
-            <span className="inline-block h-px w-9 bg-(--line)" />
-            <Eyebrow className="text-(--muted)">Field notes from the runtime</Eyebrow>
+            <span className="inline-block h-px w-9 bg-line" />
+            <Eyebrow className="text-muted">Field notes from the runtime</Eyebrow>
           </div>
-          <h1 className="mt-6 max-w-[20ch] font-display text-site-blog-title font-normal leading-none tracking-tight text-(--fg)">
+          <h1 className="mt-6 max-w-[20ch] font-display text-site-blog-title font-normal leading-none tracking-tight text-fg">
             The runtime, the protocol, the receipts.
           </h1>
-          <p className="mt-6 max-w-[58ch] text-lg leading-7 text-(--muted)">
+          <p className="mt-6 max-w-[58ch] text-lg leading-7 text-muted">
             Protocol design, runtime engineering, and release receipts from the team shipping{" "}
-            <span className="text-(--fg)">agh-network/v0</span>. Read in any order.
+            <span className="text-fg">agh-network/v0</span>. Read in any order.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-2">
             <CategoryPill label="All" count={posts.length} href="/blog" active />
@@ -53,13 +53,13 @@ export default function BlogIndexPage() {
                 href={`/blog/categories/${category}`}
               />
             ))}
-            <span className="mx-1 inline-block h-4 w-px bg-(--line)" />
+            <span className="mx-1 inline-block h-4 w-px bg-line" />
             <Link
               href="/blog/feed.xml"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-small-body text-(--muted) hover:text-(--fg)"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-small-body text-muted hover:text-fg"
             >
               <Rss size={12} aria-hidden />
-              <Eyebrow className="text-(--muted)">RSS</Eyebrow>
+              <Eyebrow className="text-muted">RSS</Eyebrow>
             </Link>
           </div>
         </div>
@@ -77,9 +77,9 @@ export default function BlogIndexPage() {
         <div className="mx-auto max-w-(--site-layout-width)">
           <div className="flex items-baseline justify-between">
             <div className="flex items-center gap-3">
-              <Eyebrow className="text-(--muted) tracking-badge!">LATEST</Eyebrow>
-              <span className="inline-block h-px w-9 bg-(--line)" />
-              <span className="text-small-body text-(--muted)">Newest first</span>
+              <Eyebrow className="text-muted tracking-badge!">LATEST</Eyebrow>
+              <span className="inline-block h-px w-9 bg-line" />
+              <span className="text-small-body text-muted">Newest first</span>
             </div>
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">

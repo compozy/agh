@@ -63,7 +63,7 @@ export function BridgeTestDeliveryDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-0 p-0 text-fg sm:max-w-2xl" showCloseButton={false} unframed>
         <div
-          className="flex max-h-[min(80vh,760px)] flex-col"
+          className="flex max-h-[min(80vh,var(--height-modal-md))] flex-col"
           data-testid="bridge-test-delivery-dialog"
         >
           <DialogHeader variant="ruled">

@@ -76,12 +76,12 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
       onKeyDown={handleKeyDown}
       className={cn(
         "relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md bg-canvas-tint p-3 text-left transition-colors duration-base ease-out",
-        "shadow-[inset_0_0_0_1px_var(--line-soft)]",
-        "hover:bg-elevated hover:shadow-[inset_0_0_0_1px_var(--line)]",
+        "shadow-focus-ring-inset-soft",
+        "hover:bg-elevated hover:inset-ring-1 hover:inset-ring-line",
         clickable && "cursor-pointer",
         clickable &&
-          "focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)] focus-visible:outline-none focus-visible:ring-0",
-        selected && "bg-elevated shadow-[inset_0_0_0_1px_var(--line)]"
+          "focus-visible:shadow-focus-ring-inset focus-visible:outline-none focus-visible:ring-0",
+        selected && "bg-elevated inset-ring-1 inset-ring-line"
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
@@ -99,7 +99,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
 
       {failedError ? (
         <div
-          className="flex items-start gap-1.5 rounded-xs bg-danger-tint px-2 py-1 font-mono text-[10.5px] text-danger"
+          className="flex items-start gap-1.5 rounded-xs bg-danger-tint px-2 py-1 font-mono text-mono-id text-danger"
           data-testid={`tasks-kanban-card-error-${task.id}`}
         >
           <AlertCircle aria-hidden="true" className="mt-px size-3 shrink-0" />
@@ -119,10 +119,10 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
             ownerKind={ownerKind}
             size="sm"
           />
-          <span className="min-w-0 truncate text-[11px] text-muted">{ownerLabel}</span>
+          <span className="min-w-0 truncate text-eyebrow text-muted">{ownerLabel}</span>
         </div>
         <span
-          className="shrink-0 font-mono text-[10px] tabular-nums text-faint"
+          className="shrink-0 font-mono text-badge tabular-nums text-faint"
           data-testid={`tasks-kanban-card-time-${task.id}`}
         >
           {timestamp}

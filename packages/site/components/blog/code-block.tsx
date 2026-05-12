@@ -44,7 +44,7 @@ export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
   }
 
   return (
-    <div className="group relative mt-7 overflow-hidden rounded-xl border border-(--line) bg-(--rail)">
+    <div className="group relative mt-7 overflow-hidden rounded-xl border border-line bg-rail">
       <button
         type="button"
         onClick={onCopy}
@@ -53,8 +53,8 @@ export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
         }
         aria-live="polite"
         className={cn(
-          "absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md text-(--subtle) opacity-0 transition-opacity hover:text-(--fg) focus-visible:opacity-100 group-hover:opacity-100",
-          copyState === "failed" && "text-(--danger) hover:text-(--danger)"
+          "absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md text-subtle opacity-0 transition-opacity hover:text-fg focus-visible:opacity-100 group-hover:opacity-100",
+          copyState === "failed" && "text-danger hover:text-danger"
         )}
       >
         {copyState === "copied" ? (
@@ -69,7 +69,7 @@ export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
         ref={ref}
         {...props}
         className={cn(
-          "overflow-x-auto px-5 py-4 font-mono text-small-body leading-7 text-(--fg)",
+          "overflow-x-auto px-5 py-4 font-mono text-small-body leading-7 text-fg",
           className
         )}
       >

@@ -77,7 +77,7 @@ export function TasksDetailChildrenPanel({
             <Fragment key={child.id}>
               <LinkedRecordTable.Row data-testid={`tasks-detail-children-item-${child.id}`}>
                 <LinkedRecordTable.Cell className="w-8 pl-4" />
-                <LinkedRecordTable.Cell className="max-w-[360px]">
+                <LinkedRecordTable.Cell className="max-w-90">
                   <LinkedRecordTable.Title>
                     <span className="truncate text-small-body text-fg">{child.title}</span>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -126,7 +126,7 @@ export function TasksDetailChildrenPanel({
                       className="h-1 w-full overflow-hidden bg-accent-tint"
                       data-testid={`tasks-detail-children-progress-${child.id}`}
                     >
-                      <div className="h-full w-full animate-shimmer bg-[linear-gradient(90deg,transparent_0%,var(--accent)_50%,transparent_100%)] bg-size-[200%_100%]" />
+                      <div className="h-full w-full animate-shimmer bg-[linear-gradient(90deg,transparent_0%,var(--color-accent)_50%,transparent_100%)] bg-size-[200%_100%]" />
                     </div>
                   </td>
                 </tr>

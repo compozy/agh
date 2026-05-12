@@ -152,7 +152,7 @@ function WorkspaceSetupContent({
 
   return (
     <div
-      className="flex w-full flex-col gap-4 lg:max-w-[24rem] lg:justify-self-end"
+      className="flex w-full flex-col gap-4 lg:max-w-96 lg:justify-self-end"
       data-testid="workspace-setup-options"
     >
       {globalCard}
@@ -215,7 +215,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
               <div className="space-y-3">
                 <h1
                   data-testid="workspace-onboarding-hero-title"
-                  className="max-w-xl text-detail-h1 font-[510] tracking-detail-h1 text-fg"
+                  className="max-w-xl text-detail-h1 font-medium tracking-detail-h1 text-fg"
                 >
                   {copy.title}
                 </h1>

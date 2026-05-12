@@ -47,11 +47,11 @@ export function RuntimeSection() {
         <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
           <div>
             <Eyebrow className="text-accent">Runtime</Eyebrow>
-            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-(--fg)">
+            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-fg">
               A daemon built for sessions, not chats.
             </h2>
-            <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-(--muted)">
-              Start <code className="font-mono text-(--fg)">agh daemon start</code>. Every agent run
+            <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-muted">
+              Start <code className="font-mono text-fg">agh daemon start</code>. Every agent run
               becomes a session with a durable event log, an SSE stream, resumable state, and one
               operator surface shared by the CLI, API, and web UI.
             </p>
@@ -65,7 +65,7 @@ export function RuntimeSection() {
               decoding="async"
               sizes="424px"
               unoptimized
-              className="max-w-[424px] select-none object-contain opacity-95"
+              className="max-w-106 select-none object-contain opacity-95"
             />
           </div>
         </div>

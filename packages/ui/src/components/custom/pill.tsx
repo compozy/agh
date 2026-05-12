@@ -11,13 +11,13 @@ import { cn } from "../../lib/utils";
 export type PillTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
 export type PillSize = "xs" | "sm" | "md";
 
-const TONE_DOT_COLOR: Record<PillTone, string> = {
-  neutral: "var(--subtle)",
-  accent: "var(--accent)",
-  success: "var(--success)",
-  warning: "var(--warning)",
-  danger: "var(--danger)",
-  info: "var(--info)",
+const TONE_DOT_BG_CLASS: Record<PillTone, string> = {
+  neutral: "bg-subtle",
+  accent: "bg-accent",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
 };
 
 type PillContextValue = {
@@ -42,9 +42,9 @@ const pillVariants = cva(
         info: "bg-info-tint text-info",
       },
       size: {
-        xs: "h-[17px] px-1.5 leading-none",
-        sm: "h-[19px] px-2 leading-none",
-        md: "h-[22px] px-2.5 leading-none",
+        xs: "h-pill-xs px-1.5 leading-none",
+        sm: "h-pill-sm px-2 leading-none",
+        md: "h-pill-md px-2.5 leading-none",
       },
       mono: {
         true: "font-mono",
@@ -54,12 +54,12 @@ const pillVariants = cva(
       active: { true: "", false: "" },
     },
     compoundVariants: [
-      { mono: true, size: "xs", className: "text-[10.5px] font-semibold tracking-[0]" },
-      { mono: true, size: "sm", className: "text-[10.5px] font-semibold tracking-[0]" },
-      { mono: true, size: "md", className: "text-[10.5px] font-semibold tracking-[0]" },
-      { mono: false, size: "xs", className: "text-[11px] font-medium tracking-eyebrow" },
-      { mono: false, size: "sm", className: "text-[11px] font-medium tracking-eyebrow" },
-      { mono: false, size: "md", className: "text-[11px] font-medium tracking-eyebrow" },
+      { mono: true, size: "xs", className: "text-mono-id font-semibold tracking-mono-id" },
+      { mono: true, size: "sm", className: "text-mono-id font-semibold tracking-mono-id" },
+      { mono: true, size: "md", className: "text-mono-id font-semibold tracking-mono-id" },
+      { mono: false, size: "xs", className: "text-eyebrow font-medium tracking-eyebrow" },
+      { mono: false, size: "sm", className: "text-eyebrow font-medium tracking-eyebrow" },
+      { mono: false, size: "md", className: "text-eyebrow font-medium tracking-eyebrow" },
       { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
       { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
       { solid: true, tone: "success", className: "bg-success text-canvas" },
@@ -165,7 +165,6 @@ function PillDot({
   const effectiveSize: "sm" | "md" =
     explicitSize ?? (ctx ? (ctx.size === "md" ? "md" : "sm") : "md");
   const effectiveTone: PillTone = tone ?? ctx?.tone ?? "neutral";
-  const background = color ?? TONE_DOT_COLOR[effectiveTone];
   return (
     <span
       aria-hidden="true"
@@ -176,10 +175,11 @@ function PillDot({
       className={cn(
         "inline-block shrink-0 rounded-full",
         effectiveSize === "sm" ? "size-1.5" : "size-2",
+        color === undefined && TONE_DOT_BG_CLASS[effectiveTone],
         shouldAnimate && "animate-pulse",
         className
       )}
-      style={{ backgroundColor: background, ...style }}
+      style={color === undefined ? style : { backgroundColor: color, ...style }}
       {...props}
     />
   );

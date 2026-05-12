@@ -21,12 +21,10 @@ describe("TasksDetailTabs", () => {
 
     expect(screen.getByTestId("tasks-detail-tabs")).toBeInTheDocument();
     expect(
-      screen.getByTestId("tasks-detail-tab-runs").querySelector('[data-slot="tabs-trigger-count"]')
+      screen.getByTestId("tasks-detail-tab-runs").querySelector('[data-slot="lane-tabs-count"]')
     ).toHaveTextContent("3");
     expect(
-      screen
-        .getByTestId("tasks-detail-tab-timeline")
-        .querySelector('[data-slot="tabs-trigger-live"]')
+      screen.getByTestId("tasks-detail-tab-timeline").querySelector('[data-slot="lane-tabs-live"]')
     ).toBeInTheDocument();
     expect(screen.getByTestId("tasks-detail-tab-children")).toHaveAttribute(
       "aria-selected",

@@ -51,7 +51,7 @@ export const CustomKind: Story = {
   args: {},
   render: () => (
     <>
-      <KindChip kind="ack" label="ACK" dotColor="var(--success)" />
+      <KindChip kind="ack" label="ACK" dotColor="var(--color-success)" />
       <KindChip kind="lifecycle" />
     </>
   ),

@@ -47,7 +47,7 @@ function CatalogCard({
       className={cn(
         "flex min-w-0 flex-col gap-3 rounded-lg bg-canvas-soft p-4 text-fg transition-colors duration-base ease-out",
         actionable && "hover:bg-elevated",
-        selected && "bg-surface-glaze shadow-[inset_0_0_0_1px_var(--line-strong)]",
+        selected && "bg-surface-glaze shadow-focus-ring-inset",
         className
       )}
       {...props}
@@ -85,7 +85,7 @@ function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
       aria-level={3}
       data-slot="catalog-card-title"
       className={cn(
-        "min-w-0 truncate text-[13px] font-[510] tracking-modal-title text-fg-strong",
+        "min-w-0 truncate text-small-body font-medium tracking-modal-title text-fg-strong",
         className
       )}
       {...props}

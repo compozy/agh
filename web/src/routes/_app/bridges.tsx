@@ -30,9 +30,9 @@ function BridgesPage() {
         aria-label="Bridge scope"
         data-testid="bridge-scope-pills"
         items={[
-          { value: "all", label: "ALL", testId: "bridge-scope-all" },
-          { value: "global", label: "GLOBAL", testId: "bridge-scope-global" },
-          { value: "workspace", label: "WORKSPACE", testId: "bridge-scope-workspace" },
+          { value: "all", label: "All", testId: "bridge-scope-all" },
+          { value: "global", label: "Global", testId: "bridge-scope-global" },
+          { value: "workspace", label: "Workspace", testId: "bridge-scope-workspace" },
         ]}
         onChange={page.selectScope}
         value={page.activeScope}

@@ -14,9 +14,9 @@ const SIZE_PX: Record<OwnerAvatarSize, number> = {
 };
 
 const SIZE_TEXT: Record<OwnerAvatarSize, string> = {
-  sm: "text-[9px]",
-  default: "text-[10px]",
-  lg: "text-[12px]",
+  sm: "text-micro",
+  default: "text-badge",
+  lg: "text-form-label",
 };
 
 const ROLE_LABEL: Record<OwnerKind, string> = {

@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { http, HttpResponse } from "msw";
 
+import { storybookMswParameters } from "@/storybook/msw";
+import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { primarySessionFixture } from "@/systems/session/mocks";
 import { SessionThread } from "../session-thread";
 
 /**
@@ -7,17 +11,20 @@ import { SessionThread } from "../session-thread";
  *
  * The component depends on `@assistant-ui/react`'s `ThreadPrimitive` /
  * `MessagePrimitive` / `ComposerPrimitive`, which in turn require an active
- * runtime context (`AssistantRuntimeProvider`). Storybook does not bootstrap
- * that runtime, so these stories exercise the chrome (composer + clear button
- * + empty state) without actually streaming messages — they verify that the
- * SessionThread layout renders and the composer chrome stays on-token (`--accent`,
- * `--accent-ink`, `--canvas-soft`, `--line`, `--danger`/8|12|18 alpha mods).
+ * runtime context (`AssistantRuntimeProvider`). These stories use the same
+ * session runtime provider as the route shell, while overriding transcript
+ * hydration to keep the empty-thread chrome visible.
  */
 const meta: Meta<typeof SessionThread> = {
   title: "components/assistant-ui/SessionThread",
   component: SessionThread,
   parameters: {
     layout: "fullscreen",
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/sessions/:id/transcript", () => HttpResponse.json({ messages: [] })),
+      ],
+    }),
     docs: {
       description: {
         component:
@@ -27,9 +34,14 @@ const meta: Meta<typeof SessionThread> = {
   },
   decorators: [
     Story => (
-      <div className="flex h-[640px] w-full flex-col bg-background border border-line">
-        <Story />
-      </div>
+      <SessionChatRuntimeProvider
+        sessionId={primarySessionFixture.id}
+        workspaceId={primarySessionFixture.workspace_id}
+      >
+        <div className="flex h-[640px] w-full flex-col bg-background border border-line">
+          <Story />
+        </div>
+      </SessionChatRuntimeProvider>
     ),
   ],
 };
@@ -39,12 +51,11 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * Empty thread state — assistant-ui empty slot renders the agent eyebrow + intro copy.
- * Composer is enabled but unable to actually stream messages without a runtime context.
  */
 export const Empty: Story = {
   args: {
-    sessionId: "sess_storybook_demo",
-    agentName: "anthropic-claude",
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
     canPrompt: true,
     onCancelPrompt: () => undefined,
   },
@@ -55,8 +66,8 @@ export const Empty: Story = {
  */
 export const WithClear: Story = {
   args: {
-    sessionId: "sess_storybook_demo",
-    agentName: "openai",
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
     canPrompt: true,
     onCancelPrompt: () => undefined,
     onClearConversation: () => undefined,
@@ -70,8 +81,8 @@ export const WithClear: Story = {
  */
 export const Disabled: Story = {
   args: {
-    sessionId: "sess_storybook_demo",
-    agentName: "local-llama",
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
     canPrompt: false,
     onCancelPrompt: () => undefined,
   },

@@ -40,7 +40,7 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
               data-slot="status-breakdown-row"
               className="flex items-center gap-3"
             >
-              <span className="inline-flex w-24 shrink-0 truncate text-[12px] text-muted">
+              <span className="inline-flex w-24 shrink-0 truncate text-form-label text-muted">
                 {item.label}
               </span>
               <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas">
@@ -50,7 +50,7 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
                   style={{ width: `${Math.round(ratio * 100)}%` }}
                 />
               </div>
-              <span className="inline-flex w-12 shrink-0 justify-end font-mono text-[10.5px] tabular-nums text-muted">
+              <span className="inline-flex w-12 shrink-0 justify-end font-mono text-mono-id tabular-nums text-muted">
                 {item.value}
               </span>
             </li>

@@ -68,7 +68,7 @@ function renderAutomationJobForm({
 
   return (
     <form
-      className="flex max-h-[min(84vh,960px)] flex-col"
+      className="flex max-h-[min(84vh,var(--height-modal-wizard))] flex-col"
       data-testid="automation-job-form"
       onSubmit={handleSubmit}
     >

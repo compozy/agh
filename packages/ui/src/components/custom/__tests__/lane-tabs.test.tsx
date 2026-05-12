@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -18,34 +19,35 @@ function Harness({ initial = "all" }: { initial?: LaneValue }) {
 }
 
 describe("LaneTabs", () => {
-  it("Should render counts and mark the active tab as aria-current=page", () => {
+  it("Should render counts and mark the active tab as aria-selected", () => {
     render(<Harness initial="active" />);
     const active = screen.getByRole("tab", { name: /active/i });
-    expect(active).toHaveAttribute("aria-current", "page");
     expect(active).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 
-  it("Should advance the selection on ArrowRight and wrap on End", () => {
+  it("Should advance the selection on ArrowRight and wrap on End", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LaneTabs items={ITEMS} value="all" onChange={onChange} ariaLabel="Lanes" />);
-    const all = screen.getByRole("tab", { name: /all/i });
-    all.focus();
-    fireEvent.keyDown(all, { key: "ArrowRight" });
+    await user.click(screen.getByRole("tab", { name: /all/i }));
+    onChange.mockClear();
+    await user.keyboard("{ArrowRight}");
     expect(onChange).toHaveBeenLastCalledWith("active");
-    fireEvent.keyDown(all, { key: "End" });
+    await user.keyboard("{End}");
     expect(onChange).toHaveBeenLastCalledWith("done");
   });
 
-  it("Should retreat with ArrowLeft and Home", () => {
+  it("Should retreat with ArrowLeft and Home", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<LaneTabs items={ITEMS} value="active" onChange={onChange} ariaLabel="Lanes" />);
-    const active = screen.getByRole("tab", { name: /active/i });
-    active.focus();
-    fireEvent.keyDown(active, { key: "ArrowLeft" });
+    await user.click(screen.getByRole("tab", { name: /active/i }));
+    onChange.mockClear();
+    await user.keyboard("{ArrowLeft}");
     expect(onChange).toHaveBeenLastCalledWith("all");
-    fireEvent.keyDown(active, { key: "Home" });
+    await user.keyboard("{Home}");
     expect(onChange).toHaveBeenLastCalledWith("all");
   });
 });

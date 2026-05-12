@@ -4,4 +4,4 @@ export const NAV_ROW_CLASS =
 export const ACTIVE_NAV_ROW_CLASS = "bg-canvas-soft font-medium text-fg";
 
 export const ACTIVE_NAV_INDICATOR_CLASS =
-  "absolute -left-2 top-1.5 bottom-1.5 w-[2px] rounded-r-sm bg-accent";
+  "absolute -left-2 top-1.5 bottom-1.5 w-0.5 rounded-r-sm bg-accent";

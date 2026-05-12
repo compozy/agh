@@ -89,7 +89,7 @@ function groupByEventType(items: TaskTimelineItem[]): TimelineGroup[] {
 function LiveIndicator() {
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[11px]"
+      className="inline-flex items-center gap-1.5 text-eyebrow"
       data-testid="tasks-timeline-live"
     >
       <Pill.Dot tone="info" pulse />
@@ -187,7 +187,7 @@ export function TasksTimelinePanel({
               >
                 <header className="flex items-baseline justify-between gap-2">
                   <Eyebrow className="truncate text-muted">{group.label}</Eyebrow>
-                  <span className="font-mono text-[10.5px] tabular-nums text-faint">
+                  <span className="font-mono text-mono-id tabular-nums text-faint">
                     {group.items.length}
                   </span>
                 </header>

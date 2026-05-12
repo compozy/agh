@@ -20,7 +20,7 @@ export function SectionHeader({
   className,
 }: SectionHeaderProps) {
   const alignClass = align === "center" ? "text-center mx-auto" : "text-left";
-  const maxWidth = align === "center" ? "max-w-[750px]" : "max-w-[700px]";
+  const maxWidth = align === "center" ? "max-w-188" : "max-w-175";
   const titleClass =
     size === "lg"
       ? "text-site-hero-section leading-none font-normal tracking-tight"
@@ -28,14 +28,12 @@ export function SectionHeader({
 
   return (
     <div className={cn(maxWidth, alignClass, className)}>
-      {eyebrow ? <Eyebrow className="text-(--subtle)">{eyebrow}</Eyebrow> : null}
-      <h2 className={cn("mt-5 text-(--fg)", titleClass, align === "center" && "mx-auto")}>
-        {title}
-      </h2>
+      {eyebrow ? <Eyebrow className="text-subtle">{eyebrow}</Eyebrow> : null}
+      <h2 className={cn("mt-5 text-fg", titleClass, align === "center" && "mx-auto")}>{title}</h2>
       {description ? (
         <p
           className={cn(
-            "mt-5 text-base leading-relaxed text-(--muted)",
+            "mt-5 text-base leading-relaxed text-muted",
             align === "center" ? "mx-auto max-w-[58ch]" : "max-w-[62ch]"
           )}
         >

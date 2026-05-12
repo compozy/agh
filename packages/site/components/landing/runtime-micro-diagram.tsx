@@ -23,7 +23,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative aspect-3/4 w-full max-w-[260px] overflow-hidden rounded-(--radius-diagram) border border-(--line) bg-(--rail)",
+        "relative aspect-3/4 w-full max-w-65 overflow-hidden rounded-(--radius-diagram) border border-line bg-rail",
         className
       )}
       aria-hidden="true"
@@ -36,8 +36,8 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           width={200}
           height={52}
           rx={8}
-          fill="var(--accent-tint)"
-          stroke="var(--accent)"
+          fill="var(--color-accent-tint)"
+          stroke="var(--color-accent)"
           strokeWidth={1}
         />
         <text
@@ -47,7 +47,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           fontFamily="var(--font-mono)"
           fontSize="10"
           fontWeight={600}
-          fill="var(--accent)"
+          fill="var(--color-accent)"
           letterSpacing="0.08em"
         >
           AGH DAEMON
@@ -58,7 +58,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           textAnchor="middle"
           fontFamily="var(--font-mono)"
           fontSize="9"
-          fill="var(--muted)"
+          fill="var(--color-muted)"
         >
           pid 42871 · sqlite
         </text>
@@ -68,7 +68,14 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           const y = 92 + i * 44;
           return (
             <g key={sub.id}>
-              <line x1={120} y1={y - 10} x2={120} y2={y + 2} stroke="var(--line)" strokeWidth={1} />
+              <line
+                x1={120}
+                y1={y - 10}
+                x2={120}
+                y2={y + 2}
+                stroke="var(--color-line)"
+                strokeWidth={1}
+              />
               <rect
                 className={reducedMotion ? undefined : "agh-subsystem"}
                 style={
@@ -84,8 +91,8 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 width={176}
                 height={30}
                 rx={6}
-                fill="var(--canvas-soft)"
-                stroke="var(--line)"
+                fill="var(--color-canvas-soft)"
+                stroke="var(--color-line)"
                 strokeWidth={1}
               />
               <text
@@ -94,7 +101,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 fontFamily="var(--font-sans)"
                 fontSize="12"
                 fontWeight={500}
-                fill="var(--fg)"
+                fill="var(--color-fg)"
               >
                 {sub.label}
               </text>
@@ -104,7 +111,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
                 textAnchor="end"
                 fontFamily="var(--font-mono)"
                 fontSize="9.5"
-                fill="var(--subtle)"
+                fill="var(--color-subtle)"
               >
                 {sub.note}
               </text>
@@ -118,7 +125,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           .agh-subsystem {
             animation-name: agh-subsystem-pulse;
             animation-iteration-count: infinite;
-            animation-timing-function: ease-in-out;
+            animation-timing-function: var(--ease-in-out);
           }
           @media (prefers-reduced-motion: reduce) {
             .agh-subsystem {
@@ -127,12 +134,12 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
           }
           @keyframes agh-subsystem-pulse {
             0%, 100% {
-              fill: var(--canvas-soft);
-              stroke: var(--line);
+              fill: var(--color-canvas-soft);
+              stroke: var(--color-line);
             }
             10%, 30% {
-              fill: var(--accent-tint);
-              stroke: var(--accent);
+              fill: var(--color-accent-tint);
+              stroke: var(--color-accent);
             }
           }
         `}</style>

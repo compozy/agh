@@ -74,7 +74,7 @@ export function TasksDetailRunsPanel({
               <LinkedRecordTable.Cell className="w-8 pl-4">
                 <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
               </LinkedRecordTable.Cell>
-              <LinkedRecordTable.Cell className="max-w-[360px]">
+              <LinkedRecordTable.Cell className="max-w-90">
                 <LinkedRecordTable.Title>
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <MonoId value={run.id} />

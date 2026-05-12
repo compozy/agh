@@ -17,7 +17,7 @@ function TypingDots({ className, ...props }: TypingDotsProps) {
       {...props}
       data-slot="typing-dots"
       aria-hidden="true"
-      className={cn("inline-flex items-center gap-[2px]", className)}
+      className={cn("inline-flex items-center gap-0.5", className)}
     >
       <span className="size-1 rounded-full bg-subtle animate-[typing-bounce_1.2s_infinite_ease-in-out]" />
       <span className="size-1 rounded-full bg-subtle animate-[typing-bounce_1.2s_infinite_ease-in-out_0.15s]" />

@@ -37,7 +37,7 @@ const STEPS = [
 export function MemoryDreamSection() {
   return (
     <SectionFrame
-      className="relative border-b border-(--line)"
+      className="relative border-b border-line"
       background="canvas"
       padY="lg"
       ariaLabel="Memory and dream consolidation"
@@ -46,12 +46,12 @@ export function MemoryDreamSection() {
         <div className="flex h-full min-w-0 flex-col justify-between lg:sticky lg:top-24">
           <div>
             <Eyebrow className="text-accent">Memory</Eyebrow>
-            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-(--fg)">
+            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-fg">
               Memory that compounds
               <br />
-              <span className="italic text-(--subtle)">while you sleep.</span>
+              <span className="italic text-subtle">while you sleep.</span>
             </h2>
-            <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-(--muted)">
+            <p className="mt-4 max-w-[50ch] text-sm leading-relaxed text-muted">
               Memory is not a vector database. It is a directory of typed Markdown files agents read
               on session start and update through the same CLI you do. When the consolidation
               cascade fires, AGH spawns an ephemeral session that synthesizes recent activity into
@@ -59,7 +59,7 @@ export function MemoryDreamSection() {
             </p>
             <Link
               href="/runtime"
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-(--accent-hover)"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
             >
               Read the memory and dream guide
               <ArrowUpRight aria-hidden className="size-4" />
@@ -74,13 +74,13 @@ export function MemoryDreamSection() {
               decoding="async"
               sizes="400px"
               unoptimized
-              className="block w-full max-w-[400px] select-none object-contain opacity-95"
+              className="block w-full max-w-100 select-none object-contain opacity-95"
             />
           </div>
         </div>
 
         <div className="flex min-w-0 flex-col gap-0">
-          <ol className="flex flex-col divide-y divide-(--line)">
+          <ol className="flex flex-col divide-y divide-line">
             {STEPS.map((step, index) => (
               <li
                 key={step.eyebrow}
@@ -91,10 +91,8 @@ export function MemoryDreamSection() {
                 </Eyebrow>
                 <div className="min-w-0">
                   <Eyebrow className="text-accent">{step.eyebrow}</Eyebrow>
-                  <h3 className="mt-2 text-base font-medium leading-snug text-(--fg)">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-(--muted)">
+                  <h3 className="mt-2 text-base font-medium leading-snug text-fg">{step.title}</h3>
+                  <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted">
                     {step.description}
                   </p>
                 </div>

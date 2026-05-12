@@ -25,9 +25,9 @@ function Toaster({ closeButton = true, theme = "dark", ...props }: ToasterProps)
       }}
       style={
         {
-          "--normal-bg": "var(--canvas-soft)",
-          "--normal-text": "var(--fg)",
-          "--normal-border": "var(--line-soft)",
+          "--normal-bg": "var(--color-canvas-soft)",
+          "--normal-text": "var(--color-fg)",
+          "--normal-border": "var(--color-line-soft)",
           "--border-radius": "var(--radius-lg)",
         } as React.CSSProperties
       }

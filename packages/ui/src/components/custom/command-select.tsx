@@ -49,7 +49,7 @@ function CommandSelectTrigger({
   const content = children ?? (
     <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
       {icon ? <span className="shrink-0 text-subtle">{icon}</span> : null}
-      <span className={cn("truncate text-[13px]", selected ? "text-fg" : "text-subtle")}>
+      <span className={cn("truncate text-small-body", selected ? "text-fg" : "text-subtle")}>
         {label ?? placeholder}
       </span>
     </span>
@@ -60,7 +60,7 @@ function CommandSelectTrigger({
       data-slot="command-select-trigger"
       type={type}
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-line bg-elevated px-3 py-2 text-[13px] text-fg transition-colors outline-none hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-[0_0_0_1px_var(--line-strong)]",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-line bg-elevated px-3 py-2 text-small-body text-fg transition-colors outline-none hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-focus-ring",
         className
       )}
       {...props}

@@ -120,7 +120,7 @@ function DetailInspector({
         {title ? (
           <header
             data-slot="detail-inspector-header"
-            className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3 text-[13px] font-medium text-fg-strong"
+            className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3 text-small-body font-medium text-fg-strong"
           >
             {title}
           </header>

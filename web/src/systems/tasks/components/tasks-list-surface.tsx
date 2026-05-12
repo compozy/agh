@@ -85,7 +85,7 @@ export function TasksListSurface({
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-canvas"
       data-testid="tasks-list-surface"
     >
-      <div className="mx-auto w-full max-w-[1320px] px-9 pt-7 pb-20">
+      <div className="mx-auto w-full max-w-content-max px-9 pt-7 pb-20">
         <TasksListPageHead
           listUpdatedAt={listUpdatedAt}
           totalCount={totalCount}

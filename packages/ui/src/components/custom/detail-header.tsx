@@ -58,7 +58,7 @@ function DetailHeader({
   return (
     <header
       data-slot="detail-header"
-      className={cn("flex flex-col gap-2 border-b border-line px-9 py-7", className)}
+      className={cn("flex flex-col gap-2 border-b border-line px-6 py-5", className)}
       {...props}
     >
       {crumbs ? (
@@ -89,7 +89,6 @@ function DetailHeader({
           <h1
             data-slot="detail-header-title"
             className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong"
-            style={{ fontWeight: 510 }}
           >
             {title}
           </h1>
@@ -101,7 +100,7 @@ function DetailHeader({
           {meta ? (
             <div
               data-slot="detail-header-meta"
-              className="flex flex-wrap items-center gap-3 text-[12px] text-muted"
+              className="flex flex-wrap items-center gap-3 text-form-label text-muted"
             >
               {meta}
             </div>

@@ -104,12 +104,12 @@ describe("HomeHeader", () => {
     }
 
     for (const link of screen.getAllByRole("link", { name: "AGH Network" })) {
-      expect(link.getAttribute("class")).toContain("text-(--fg)");
-      expect(link.getAttribute("class")).toContain("bg-(--elevated)");
+      expect(link.getAttribute("class")).toContain("text-fg");
+      expect(link.getAttribute("class")).toContain("bg-elevated");
       expect(link.getAttribute("aria-current")).toBe("location");
     }
     for (const link of screen.getAllByRole("link", { name: "Home" })) {
-      expect(link.getAttribute("class")).not.toContain("bg-(--elevated)");
+      expect(link.getAttribute("class")).not.toContain("bg-elevated");
       expect(link.getAttribute("aria-current")).toBeNull();
     }
   });
@@ -121,8 +121,8 @@ describe("HomeHeader", () => {
 
     for (const link of screen.getAllByRole("link", { name: "Blog" })) {
       expect(link.getAttribute("aria-current")).toBe("page");
-      expect(link.getAttribute("class")).toContain("text-(--fg)");
-      expect(link.getAttribute("class")).toContain("bg-(--elevated)");
+      expect(link.getAttribute("class")).toContain("text-fg");
+      expect(link.getAttribute("class")).toContain("bg-elevated");
     }
   });
 

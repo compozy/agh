@@ -12,12 +12,12 @@ export interface DateStampProps extends Omit<ComponentProps<"time">, "children" 
 }
 
 const toneClass: Record<DateStampTone, string> = {
-  neutral: "text-(--muted)",
+  neutral: "text-muted",
   accent: "text-accent",
   success: "text-success",
-  danger: "text-(--danger)",
-  warning: "text-(--warning)",
-  info: "text-(--info)",
+  danger: "text-danger",
+  warning: "text-warning",
+  info: "text-info",
 };
 
 function displayDate(date: string, format: NonNullable<DateStampProps["format"]>) {

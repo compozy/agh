@@ -18,7 +18,7 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
 /**
  * Single radio choice rendered as a card.:
  * - resting state: `--canvas-soft` surface, no border (flat-depth).
- * - selected state: `--surface-glaze` background + `box-shadow: 0 0 0 1px var(--line-strong) inset`.
+ * - selected state: `--surface-glaze` background + `box-shadow: 0 0 0 1px var(--color-line-strong) inset`.
  *   No accent border, no `--accent-tint` fill — accent stays reserved for true CTAs.
  */
 function RadioCard({
@@ -56,10 +56,8 @@ function RadioCard({
       onClick={selectRadioCard}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-[11px] py-[9px] text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0",
-        selected
-          ? "bg-surface-glaze shadow-[inset_0_0_0_1px_var(--line-strong)]"
-          : "hover:bg-elevated",
+        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0",
+        selected ? "bg-surface-glaze shadow-focus-ring-inset" : "hover:bg-elevated",
         className
       )}
       {...props}
@@ -79,7 +77,7 @@ function RadioCard({
         <span
           data-slot="radio-card-title"
           className={cn(
-            "min-w-0 truncate text-[13px] font-medium tracking-eyebrow",
+            "min-w-0 truncate text-small-body font-medium tracking-eyebrow",
             selected ? "text-fg-strong" : "text-fg"
           )}
         >
@@ -92,7 +90,7 @@ function RadioCard({
         ) : null}
       </div>
       {description ? (
-        <p data-slot="radio-card-description" className="text-[12px] text-muted">
+        <p data-slot="radio-card-description" className="text-form-label text-muted">
           {description}
         </p>
       ) : null}

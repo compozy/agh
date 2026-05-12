@@ -54,19 +54,19 @@ function ReviewRow({
       ) : null}
       <div data-slot="review-row-body" className="min-w-0 flex-1 flex flex-col gap-1">
         <div data-slot="review-row-title-line" className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 truncate text-[13px] font-medium tracking-eyebrow text-fg-strong">
+          <p className="min-w-0 truncate text-small-body font-medium tracking-eyebrow text-fg-strong">
             {title}
           </p>
         </div>
         {description ? (
-          <p data-slot="review-row-description" className="text-[12px] text-muted">
+          <p data-slot="review-row-description" className="text-form-label text-muted">
             {description}
           </p>
         ) : null}
         {meta ? (
           <div
             data-slot="review-row-meta"
-            className="flex flex-wrap items-center gap-2 text-[11.5px] text-subtle"
+            className="flex flex-wrap items-center gap-2 text-form-hint text-subtle"
           >
             {meta}
           </div>

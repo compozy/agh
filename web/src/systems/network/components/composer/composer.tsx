@@ -57,8 +57,8 @@ function ComposerView({
       <Textarea
         aria-label={placeholder}
         className={cn(
-          "min-h-[64px] resize-none rounded border-0 bg-input-fill px-3 py-2 text-sm focus-visible:ring-0",
-          "focus:bg-canvas focus-visible:bg-canvas focus-visible:shadow-[0_0_0_1px_var(--line-strong)]",
+          "min-h-16 resize-none rounded border-0 bg-input-fill px-3 py-2 text-sm focus-visible:ring-0",
+          "focus:bg-canvas focus-visible:bg-canvas focus-visible:shadow-focus-ring",
           disabled && "cursor-not-allowed opacity-60"
         )}
         data-testid={`network-composer-textarea-${testIdSuffix}`}

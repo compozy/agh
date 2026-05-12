@@ -29,10 +29,10 @@ function PresenceDot({ state }: PresenceDotProps) {
 
   const tone =
     state === "running"
-      ? "var(--accent)"
+      ? "var(--color-accent)"
       : state === "needs_input"
-        ? "var(--warning)"
-        : "var(--danger)";
+        ? "var(--color-warning)"
+        : "var(--color-danger)";
 
   const ariaLabel =
     state === "running" ? "running" : state === "needs_input" ? "needs input" : "errored";
@@ -69,7 +69,7 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
           <div
             data-slot="direct-room-meta"
             data-testid="network-direct-identity-row-meta"
-            className="flex items-center gap-2 text-[13px] text-muted"
+            className="flex items-center gap-2 text-small-body text-muted"
           >
             <Eyebrow>agent</Eyebrow>
             <PresenceDot state={room.presence.state} />

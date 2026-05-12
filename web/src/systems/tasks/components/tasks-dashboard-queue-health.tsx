@@ -54,7 +54,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
       }
       title="Queue health"
     >
-      <p className="text-[12px] text-muted">
+      <p className="text-form-label text-muted">
         {totals.runs_total} runs tracked · {totals.completed_runs} completed
       </p>
 
@@ -65,7 +65,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
             data={series}
             height={SPARKLINE_HEIGHT}
           />
-          <div className="flex items-center justify-between font-mono text-[10px] text-faint">
+          <div className="flex items-center justify-between font-mono text-badge text-faint">
             <span>24h ago</span>
             <span>now</span>
           </div>
@@ -83,7 +83,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
 
       {hasWarning ? (
         <div
-          className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-[12px] text-fg"
+          className="mt-4 flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-form-label text-fg"
           data-testid="tasks-dashboard-warning"
         >
           <AlertTriangle aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
@@ -91,7 +91,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
         </div>
       ) : (
         <div
-          className="mt-4 flex items-center gap-2 text-[12px] text-success"
+          className="mt-4 flex items-center gap-2 text-form-label text-success"
           data-testid="tasks-dashboard-ok"
         >
           <Check aria-hidden="true" className="size-3 shrink-0" />

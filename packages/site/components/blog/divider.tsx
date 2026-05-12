@@ -5,5 +5,5 @@ export interface BulletDividerProps {
 }
 
 export function BulletDivider({ className }: BulletDividerProps) {
-  return <span aria-hidden className={cn("inline-block h-3 w-px bg-(--line)", className)} />;
+  return <span aria-hidden className={cn("inline-block h-3 w-px bg-line", className)} />;
 }

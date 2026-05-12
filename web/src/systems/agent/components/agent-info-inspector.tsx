@@ -1,5 +1,4 @@
 import { Plug } from "lucide-react";
-import { useCallback, useState } from "react";
 
 import {
   DetailInspector,
@@ -17,8 +16,6 @@ import {
 
 import type { AgentPayload } from "../types";
 
-const AGENT_INFO_INSPECTOR_TABS = [{ id: "mcp", label: "MCP" }] as const;
-
 export interface AgentInfoInspectorProps {
   agent: AgentPayload;
   className?: string;
@@ -27,9 +24,8 @@ export interface AgentInfoInspectorProps {
 }
 
 /**
- * Agent-detail right rail consuming the `<DetailInspector>` primitive per
- * Renders one tab (MCP) listing the agent's declared MCP servers
- * with transport rendered via `<Eyebrow>`
+ * Agent-detail right rail consuming the `<DetailInspector>` primitive.
+ * Renders the agent's declared MCP servers with transport via `<Eyebrow>`.
  */
 export function AgentInfoInspector({
   agent,
@@ -37,17 +33,12 @@ export function AgentInfoInspector({
   drawerOpen,
   onDrawerOpenChange,
 }: AgentInfoInspectorProps) {
-  const [activeTab, setActiveTab] = useState<string>("mcp");
-  const handleTabChange = useCallback((id: string) => setActiveTab(id), []);
   const mcpServers = agent.mcp_servers ?? [];
 
   return (
     <DetailInspector
       data-testid="agent-info-inspector"
       aria-label={`${agent.name} agent details`}
-      tabs={AGENT_INFO_INSPECTOR_TABS}
-      activeTab={activeTab}
-      onTabChange={handleTabChange}
       open={drawerOpen}
       onOpenChange={onDrawerOpenChange}
       className={cn("min-w-0", className)}

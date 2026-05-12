@@ -84,12 +84,12 @@ export default async function BlogPostPage({ params }: PageProps) {
         keywords={post.tags}
       />
       <BreadcrumbListJsonLd items={breadcrumbs} />
-      <section className="border-b border-(--line) px-4 pt-14 pb-9">
+      <section className="border-b border-line px-4 pt-14 pb-9">
         <div className="mx-auto max-w-(--site-layout-width)">
-          <div className="max-w-[760px]">
+          <div className="max-w-190">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-1.5 text-small-body text-(--subtle) hover:text-(--fg)"
+              className="inline-flex items-center gap-1.5 text-small-body text-subtle hover:text-fg"
             >
               <ArrowLeft size={13} aria-hidden />
               <span>Back to blog</span>
@@ -97,19 +97,19 @@ export default async function BlogPostPage({ params }: PageProps) {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Eyebrow className="text-accent">BLOG</Eyebrow>
               <BulletDivider />
-              <Eyebrow className="text-(--muted)">{categoryLabel(post.category)}</Eyebrow>
+              <Eyebrow className="text-muted">{categoryLabel(post.category)}</Eyebrow>
               <BulletDivider />
               <DateStamp date={post.date} />
               <BulletDivider />
-              <span className="inline-flex items-center gap-1.5 text-eyebrow text-(--subtle)">
+              <span className="inline-flex items-center gap-1.5 text-eyebrow text-subtle">
                 <Clock size={11} aria-hidden />
                 <Eyebrow>{readingTime} read</Eyebrow>
               </span>
             </div>
-            <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-(--fg)">
+            <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-fg">
               {post.title}
             </h1>
-            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-(--muted)">
+            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-muted">
               {post.description}
             </p>
             <div className="mt-9 flex items-center justify-between gap-4">

@@ -46,17 +46,17 @@ export default async function CategoryArchivePage({ params }: PageProps) {
 
   return (
     <>
-      <section className="border-b border-(--line) px-4 pt-14 pb-12">
+      <section className="border-b border-line px-4 pt-14 pb-12">
         <div className="mx-auto max-w-(--site-layout-width)">
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">CATEGORY</Eyebrow>
-            <span className="inline-block h-px w-9 bg-(--line)" />
-            <Eyebrow className="text-(--muted)">{categoryLabel(category)}</Eyebrow>
+            <span className="inline-block h-px w-9 bg-line" />
+            <Eyebrow className="text-muted">{categoryLabel(category)}</Eyebrow>
           </div>
-          <h1 className="mt-6 font-display text-site-category-title font-normal leading-none tracking-tight text-(--fg)">
+          <h1 className="mt-6 font-display text-site-category-title font-normal leading-none tracking-tight text-fg">
             {categoryLabel(category)} posts
           </h1>
-          <p className="mt-4 max-w-[58ch] text-base leading-7 text-(--muted)">
+          <p className="mt-4 max-w-[58ch] text-base leading-7 text-muted">
             {posts.length === 0
               ? "Nothing filed here yet. Subscribe to the feed to catch the next one."
               : `${posts.length} ${posts.length === 1 ? "post" : "posts"} in this category.`}
@@ -87,7 +87,7 @@ export default async function CategoryArchivePage({ params }: PageProps) {
               secondaryAction={{ href: "/blog/feed.xml", label: "Subscribe via RSS" }}
             />
           ) : (
-            <div className="border-t border-(--line)">
+            <div className="border-t border-line">
               {posts.map(post => (
                 <ArchiveRow key={post.slug} post={post} />
               ))}

@@ -62,7 +62,7 @@ const BRIDGES: Bridge[] = [
   {
     id: "github",
     name: "GitHub",
-    logo: <GithubLogo aria-hidden className="size-7 text-(--fg)" />,
+    logo: <GithubLogo aria-hidden className="size-7 text-fg" />,
     status: "planned",
   },
   {
@@ -75,7 +75,7 @@ const BRIDGES: Bridge[] = [
 
 export function BridgesSection() {
   return (
-    <SectionFrame background="surface" padY="lg" className="border-b border-(--line)">
+    <SectionFrame background="surface" padY="lg" className="border-b border-line">
       <SectionHeader
         align="start"
         eyebrow="Bridges"
@@ -86,7 +86,7 @@ export function BridgesSection() {
       <ul className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {BRIDGES.map(bridge => (
           <li key={bridge.id}>
-            <article className="group relative flex h-full flex-col items-start gap-3 rounded-(--radius-diagram) border border-(--line) bg-(--canvas) p-5 transition-colors hover:border-accent/35">
+            <article className="group relative flex h-full flex-col items-start gap-3 rounded-(--radius-diagram) border border-line bg-canvas p-5 transition-colors hover:border-accent/35">
               <div className="flex items-center justify-between self-stretch">
                 <div className="flex size-10 items-center justify-center">{bridge.logo}</div>
                 {bridge.status === "alpha" ? (
@@ -99,17 +99,17 @@ export function BridgesSection() {
                   </Pill>
                 )}
               </div>
-              <p className="text-sm font-medium text-(--fg)">{bridge.name}</p>
-              <Eyebrow className="text-(--subtle)">bridge:{bridge.id}</Eyebrow>
+              <p className="text-sm font-medium text-fg">{bridge.name}</p>
+              <Eyebrow className="text-subtle">bridge:{bridge.id}</Eyebrow>
             </article>
           </li>
         ))}
       </ul>
 
       {/* Flow strip */}
-      <div className="mt-10 rounded-(--radius-diagram) border border-(--line) bg-(--canvas) p-6">
-        <div className="flex items-center justify-between border-b border-(--line) pb-4">
-          <Eyebrow className="text-(--subtle)">How a bridge delivers a session</Eyebrow>
+      <div className="mt-10 rounded-(--radius-diagram) border border-line bg-canvas p-6">
+        <div className="flex items-center justify-between border-b border-line pb-4">
+          <Eyebrow className="text-subtle">How a bridge delivers a session</Eyebrow>
           <Pill mono tone="accent">
             inside the daemon
           </Pill>
@@ -125,7 +125,7 @@ export function BridgesSection() {
         </div>
       </div>
 
-      <p className="mt-6 max-w-[64ch] text-small-body leading-relaxed text-(--subtle)">
+      <p className="mt-6 max-w-[64ch] text-small-body leading-relaxed text-subtle">
         Every bridge is a workspace-scoped adapter. One platform message maps to one durable
         session, so a user thread keeps its context across restarts.
       </p>
@@ -133,14 +133,14 @@ export function BridgesSection() {
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
         <Link
           href="/runtime/core/bridges/setup"
-          className="inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-small-body font-medium text-accent transition-colors hover:bg-(--accent-tint)"
+          className="inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-small-body font-medium text-accent transition-colors hover:bg-accent-tint"
         >
           Configure Slack, Discord, or Telegram
           <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
         <Link
           href="/runtime/core/extensions"
-          className="inline-flex items-center gap-2 rounded-lg border border-(--line) px-4 py-2 text-small-body font-medium text-(--fg) transition-colors hover:border-accent/35 hover:text-accent"
+          className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-small-body font-medium text-fg transition-colors hover:border-accent/35 hover:text-accent"
         >
           Build a bridge adapter
           <ArrowRight aria-hidden="true" className="size-4" />
@@ -162,11 +162,11 @@ function FlowNode({
   return (
     <div
       className={`rounded-md border px-3 py-2 text-center ${
-        highlight ? "border-accent bg-(--accent-tint)" : "border-(--line) bg-(--canvas-soft)"
+        highlight ? "border-accent bg-accent-tint" : "border-line bg-canvas-soft"
       }`}
     >
-      <p className={`text-xs font-medium ${highlight ? "text-accent" : "text-(--fg)"}`}>{title}</p>
-      <p className="font-mono text-badge tracking-mono text-(--subtle)">{sub}</p>
+      <p className={`text-xs font-medium ${highlight ? "text-accent" : "text-fg"}`}>{title}</p>
+      <p className="font-mono text-badge tracking-mono text-subtle">{sub}</p>
     </div>
   );
 }
@@ -174,7 +174,7 @@ function FlowNode({
 function FlowArrow({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center">
-      <Eyebrow className="text-(--subtle)">{label}</Eyebrow>
+      <Eyebrow className="text-subtle">{label}</Eyebrow>
       <ArrowRight aria-hidden className="size-4 text-accent" />
     </div>
   );

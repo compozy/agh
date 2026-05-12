@@ -81,14 +81,14 @@ function Section({
                 ) : null}
                 <h2
                   data-slot="section-label"
-                  className="truncate text-(length:--text-section-head) font-[510] tracking-section-head text-fg-strong"
+                  className="truncate text-section-head font-semibold tracking-section-head text-subtle uppercase"
                 >
                   {label}
                 </h2>
                 {hasCount ? (
                   <span
                     data-slot="section-count"
-                    className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-[10.5px] font-medium tabular-nums text-muted"
+                    className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted"
                   >
                     {count}
                   </span>

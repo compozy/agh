@@ -83,7 +83,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
             hideIfDisabled
             className={cn(
               "my-auto ms-auto max-md:hidden",
-              navMode === "top" ? "ps-2.5 rounded-xl max-w-sm" : "max-w-[240px]"
+              navMode === "top" ? "ps-2.5 rounded-xl max-w-sm" : "max-w-60"
             )}
           />
         )}

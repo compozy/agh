@@ -66,27 +66,27 @@ function TimelineEvent({
       ) : null}
       <div data-slot="timeline-event-body" className="flex min-w-0 flex-1 flex-col gap-1 pb-3">
         <div className="flex min-w-0 items-baseline gap-2">
-          <p className="min-w-0 truncate text-[13px] font-medium tracking-eyebrow text-fg-strong">
+          <p className="min-w-0 truncate text-small-body font-medium tracking-eyebrow text-fg-strong">
             {title}
           </p>
           {time ? (
             <span
               data-slot="timeline-event-time"
-              className="ml-auto shrink-0 font-mono text-[10.5px] tabular-nums text-subtle"
+              className="ml-auto shrink-0 font-mono text-mono-id tabular-nums text-subtle"
             >
               {time}
             </span>
           ) : null}
         </div>
         {description ? (
-          <p data-slot="timeline-event-description" className="text-[12px] text-muted">
+          <p data-slot="timeline-event-description" className="text-form-label text-muted">
             {description}
           </p>
         ) : null}
         {meta ? (
           <div
             data-slot="timeline-event-meta"
-            className="flex flex-wrap items-center gap-2 text-[11.5px] text-subtle"
+            className="flex flex-wrap items-center gap-2 text-form-hint text-subtle"
           >
             {meta}
           </div>

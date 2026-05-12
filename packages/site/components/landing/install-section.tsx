@@ -103,7 +103,7 @@ export function InstallSection() {
   }
 
   return (
-    <SectionFrame background="surface" padY="lg" className="border-b border-(--line)">
+    <SectionFrame background="surface" padY="lg" className="border-b border-line">
       <SectionHeader
         align="center"
         eyebrow="Getting started"
@@ -111,11 +111,11 @@ export function InstallSection() {
         description="macOS and Linux. Install with curl, use a package manager, or build from a source checkout if you are already inside the repository."
       />
 
-      <div className="mx-auto mt-10 w-full max-w-[760px]">
+      <div className="mx-auto mt-10 w-full max-w-190">
         <div
           role="tablist"
           aria-label="Install methods"
-          className="flex flex-wrap gap-1 rounded-md border border-(--line) bg-(--canvas) p-1"
+          className="flex flex-wrap gap-1 rounded-md border border-line bg-canvas p-1"
         >
           {INSTALL_TABS.map(t => (
             <button
@@ -134,7 +134,7 @@ export function InstallSection() {
                   size: "sm",
                 }),
                 "flex-1 font-mono text-xs tracking-mono",
-                t.id === tab && "bg-(--accent-tint) text-accent hover:bg-(--accent-tint)"
+                t.id === tab && "bg-accent-tint text-accent hover:bg-accent-tint"
               )}
             >
               {t.label}
@@ -156,20 +156,20 @@ export function InstallSection() {
         ))}
       </div>
 
-      <div className="mx-auto mt-14 max-w-[760px]">
+      <div className="mx-auto mt-14 max-w-190">
         <div className="flex flex-col gap-5">
           {STEPS.map(item => (
             <div
               key={item.step}
-              className="flex flex-col gap-4 rounded-(--radius-diagram) border border-(--line) bg-(--canvas) p-6"
+              className="flex flex-col gap-4 rounded-(--radius-diagram) border border-line bg-canvas p-6"
             >
               <div className="flex items-start gap-4">
                 <span className="mt-0.5 font-mono text-lg font-medium text-accent">
                   {item.step}
                 </span>
                 <div className="flex-1">
-                  <h3 className="text-lg font-medium text-(--fg)">{item.title}</h3>
-                  <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-(--muted)">
+                  <h3 className="text-lg font-medium text-fg">{item.title}</h3>
+                  <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-muted">
                     {item.description}
                   </p>
                 </div>

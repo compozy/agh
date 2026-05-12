@@ -23,8 +23,8 @@ export function AuthorMeta({
       <div className={cn("flex items-center gap-3", className)}>
         <Avatar initial={initial} size={size} />
         <div>
-          <p className="font-sans text-sm font-medium text-(--fg)">{handle}</p>
-          {role && <Eyebrow className="text-(--muted)">{role}</Eyebrow>}
+          <p className="font-sans text-sm font-medium text-fg">{handle}</p>
+          {role && <Eyebrow className="text-muted">{role}</Eyebrow>}
         </div>
       </div>
     );
@@ -33,7 +33,7 @@ export function AuthorMeta({
   return (
     <div className={cn("inline-flex items-center gap-2.5", className)}>
       <Avatar initial={initial} size={size} />
-      <Eyebrow className="text-(--muted)">{handle}</Eyebrow>
+      <Eyebrow className="text-muted">{handle}</Eyebrow>
     </div>
   );
 }

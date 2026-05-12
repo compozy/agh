@@ -33,8 +33,8 @@ function HeaderLink({ href, label, pathname }: { href: string; label: string; pa
       href={href}
       aria-current={current}
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-(--muted) transition-colors hover:text-(--fg)",
-        active && "bg-(--elevated) text-(--fg)"
+        "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-muted transition-colors hover:text-fg",
+        active && "bg-elevated text-fg"
       )}
     >
       {label}
@@ -50,7 +50,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
     <header
       {...props}
       className={cn(
-        "sticky top-0 z-40 border-b border-(--line) bg-background/92 px-4 backdrop-blur-xl",
+        "sticky top-0 z-40 border-b border-line bg-background/92 px-4 backdrop-blur-xl",
         props.className
       )}
     >
@@ -70,7 +70,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
             <>
               <slots.searchTrigger.full
                 hideIfDisabled
-                className="hidden min-w-[220px] rounded-full border border-(--line) bg-(--canvas-soft) ps-2.5 lg:flex"
+                className="hidden min-w-search-input-min rounded-full border border-line bg-canvas-soft ps-2.5 lg:flex"
               />
               <slots.searchTrigger.sm
                 hideIfDisabled
@@ -78,8 +78,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                   buttonVariants({
                     variant: "ghost",
                     size: "icon-sm",
-                    className:
-                      "rounded-full text-(--muted) hover:bg-(--hover) hover:text-(--fg) lg:hidden",
+                    className: "rounded-full text-muted hover:bg-hover hover:text-fg lg:hidden",
                   })
                 )}
               />
@@ -96,7 +95,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                 buttonVariants({
                   variant: "ghost",
                   size: "icon-sm",
-                  className: "rounded-full text-(--muted) hover:bg-(--hover) hover:text-(--fg)",
+                  className: "rounded-full text-muted hover:bg-hover hover:text-fg",
                 })
               )}
             >
@@ -106,7 +105,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
         </div>
       </div>
 
-      <div className="border-t border-(--line) md:hidden">
+      <div className="border-t border-line md:hidden">
         <nav className="mx-auto flex w-full max-w-(--site-layout-width) items-center gap-1 overflow-x-auto px-4 py-2">
           {primaryLinks.map(link => (
             <HeaderLink key={link.href} href={link.href} label={link.label} pathname={pathname} />

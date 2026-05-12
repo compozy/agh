@@ -75,7 +75,7 @@ export function TasksStreamResumeCard({
       </div>
       {streamState === "error" && streamErrorMessage ? (
         <div
-          className="flex items-start gap-2 rounded bg-danger-tint px-3 py-2 text-[12px] leading-relaxed text-danger"
+          className="flex items-start gap-2 rounded bg-danger-tint px-3 py-2 text-form-label leading-relaxed text-danger"
           data-testid="tasks-stream-resume-error"
         >
           <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -84,7 +84,7 @@ export function TasksStreamResumeCard({
       ) : null}
       {streamState === "disabled" ? (
         <div
-          className="flex items-start gap-2 text-[12px] leading-relaxed text-faint"
+          className="flex items-start gap-2 text-form-label leading-relaxed text-faint"
           data-testid="tasks-stream-resume-disabled"
         >
           <Activity className="mt-0.5 size-3 shrink-0" />

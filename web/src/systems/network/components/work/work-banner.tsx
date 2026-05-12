@@ -128,7 +128,7 @@ export function WorkBanner({
     <Alert
       aria-live="polite"
       className={cn(
-        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0 transition-[opacity,max-height] duration-200 ease-out",
+        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0 transition-all duration-slow ease-out",
         TONE_BG[tone],
         fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
         className

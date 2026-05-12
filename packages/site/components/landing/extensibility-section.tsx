@@ -53,7 +53,7 @@ const FEATURES = [
 
 export function ExtensibilitySection() {
   return (
-    <SectionFrame background="canvas" padY="lg" className="border-b border-(--line)">
+    <SectionFrame background="canvas" padY="lg" className="border-b border-line">
       <SectionHeader
         align="start"
         eyebrow="Extensibility"
@@ -72,15 +72,15 @@ export function ExtensibilitySection() {
             cite={feature.cite}
           />
         ))}
-        <article className="group relative flex min-h-[220px] flex-col items-start justify-center gap-4 rounded-(--radius-diagram) border border-dashed border-(--line) bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
-          <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-(--line) text-(--muted) transition-colors group-hover:border-accent group-hover:text-accent">
+        <article className="group relative flex min-h-55 flex-col items-start justify-center gap-4 rounded-(--radius-diagram) border border-dashed border-line bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
+          <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-line text-muted transition-colors group-hover:border-accent group-hover:text-accent">
             <BookOpen aria-hidden className="size-5" />
           </span>
-          <Eyebrow className="text-(--subtle)">Reference</Eyebrow>
-          <h3 className="text-base font-medium leading-snug text-(--fg)">
+          <Eyebrow className="text-subtle">Reference</Eyebrow>
+          <h3 className="text-base font-medium leading-snug text-fg">
             Every extensibility surface, in one reference.
           </h3>
-          <p className="text-sm leading-relaxed text-(--muted)">
+          <p className="text-sm leading-relaxed text-muted">
             Hooks, skills, automation, sandbox, extensions: schemas, CLI verbs, examples.
           </p>
           <Link
@@ -90,24 +90,24 @@ export function ExtensibilitySection() {
             Read extensions docs
             <ArrowUpRight
               aria-hidden
-              className="size-3 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              className="size-3 transition-transform duration-slow group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
             />
           </Link>
         </article>
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-center lg:gap-10">
-        <div className="max-w-[56ch] text-sm leading-relaxed text-(--muted)">
-          <h3 className="font-display text-2xl mb-2 mt-8 text-white">
+        <div className="max-w-[56ch] text-sm leading-relaxed text-muted">
+          <h3 className="font-display text-2xl mb-2 mt-8 text-fg-strong">
             A skill is a Markdown file with frontmatter.
           </h3>
           <p>
             A hook is a TOML block in your config. Everything the daemon loads is inspectable with{" "}
-            <code className="font-mono text-(--fg)">agh skill view</code>,{" "}
-            <code className="font-mono text-(--fg)">agh hooks list</code>, and{" "}
-            <code className="font-mono text-(--fg)">agh extension list</code>.
+            <code className="font-mono text-fg">agh skill view</code>,{" "}
+            <code className="font-mono text-fg">agh hooks list</code>, and{" "}
+            <code className="font-mono text-fg">agh extension list</code>.
           </p>
-          <Eyebrow className="mt-4 text-(--subtle)">Contract on disk, not a plugin API.</Eyebrow>
+          <Eyebrow className="mt-4 text-subtle">Contract on disk, not a plugin API.</Eyebrow>
         </div>
         <Image
           src="/images/extensibility-skill-contract-v1.png"

@@ -900,7 +900,7 @@ function FilesSection({ files }: FilesSectionProps) {
       ) : (
         <ScrollArea
           data-testid="session-inspector-files-scroll"
-          className="max-h-[240px] rounded-md border border-line bg-canvas-soft"
+          className="max-h-60 rounded-md border border-line bg-canvas-soft"
         >
           <ul
             data-testid="session-inspector-files-list"

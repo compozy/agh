@@ -10,7 +10,7 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "flex size-full flex-col overflow-hidden rounded-lg bg-canvas-soft p-1 text-fg shadow-[0_0_0_1px_var(--line-soft)]",
+        "flex size-full flex-col overflow-hidden rounded-lg bg-canvas-soft p-1 text-fg shadow-focus-ring-soft",
         className
       )}
       {...props}
@@ -57,13 +57,13 @@ function CommandInput({
     <div data-slot="command-input-wrapper" className="p-1 pb-0">
       <div
         data-slot="command-input-group"
-        className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-line bg-canvas-tint px-2 text-[13px] text-fg transition-colors outline-none focus-within:border-line-strong"
+        className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-line bg-canvas-tint px-2 text-small-body text-fg transition-colors outline-none focus-within:border-line-strong"
       >
         <SearchIcon aria-hidden="true" className="size-4 shrink-0 text-subtle" />
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(
-            "w-full border-0 bg-transparent text-[13px] text-fg outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50",
+            "w-full border-0 bg-transparent text-small-body text-fg outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50",
             className
           )}
           {...props}
@@ -93,7 +93,7 @@ function CommandEmpty({
   return (
     <CommandPrimitive.Empty
       data-slot="command-empty"
-      className={cn("py-6 text-center text-[13px] text-muted", className)}
+      className={cn("py-6 text-center text-small-body text-muted", className)}
       {...props}
     />
   );
@@ -137,7 +137,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-fg outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-elevated data-selected:text-fg-strong [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-fg-strong",
+        "group/command-item relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-small-body text-fg outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-elevated data-selected:text-fg-strong [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-fg-strong",
         className
       )}
       {...props}
@@ -152,7 +152,7 @@ function CommandShortcut({ className, ...props }: React.ComponentProps<"span">) 
   return (
     <span
       data-slot="command-shortcut"
-      className={cn("ml-auto font-mono text-[10px] tracking-mono text-faint", className)}
+      className={cn("ml-auto font-mono text-badge tracking-mono text-faint", className)}
       {...props}
     />
   );

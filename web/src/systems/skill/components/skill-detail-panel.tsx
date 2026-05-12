@@ -170,9 +170,9 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[72px]">Status</TableHead>
+                <TableHead className="w-18">Status</TableHead>
                 <TableHead>Call</TableHead>
-                <TableHead className="w-[120px] text-right">When</TableHead>
+                <TableHead className="w-30 text-right">When</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

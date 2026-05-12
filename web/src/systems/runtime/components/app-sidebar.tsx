@@ -247,13 +247,13 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
       <span
         aria-hidden="true"
         data-testid="workspace-switcher-avatar"
-        className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
+        className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
       >
         {initial}
       </span>
       <span
         data-testid="workspace-switcher-name"
-        className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-tight text-fg"
+        className="min-w-0 flex-1 truncate text-small-body font-medium tracking-tight text-fg"
       >
         {label}
       </span>

@@ -44,7 +44,7 @@ function PriorityBars({ level, ariaLabel, className, ...props }: PriorityBarsPro
           key={heightClass}
           data-slot="priority-bars-bar"
           aria-hidden="true"
-          className={cn("w-[2px] rounded-[1px]", heightClass, fillClass)}
+          className={cn("w-0.5 rounded-xs", heightClass, fillClass)}
         />
       ))}
     </span>

@@ -125,7 +125,7 @@ describe("useTasksPage", () => {
       expect(result.current.visibleTasks).toHaveLength(3);
     });
 
-    expect(result.current.mode).toBe("kanban");
+    expect(result.current.mode).toBe("list");
     expect(result.current.tasksCount).toBe(3);
     expect(result.current.effectiveSelectedTaskId).toBe("task_001");
     expect(result.current.statusCounts.ready).toBe(1);

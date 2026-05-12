@@ -65,21 +65,20 @@ function Empty({
       <span
         aria-hidden="true"
         data-slot="empty-icon"
-        className="inline-flex size-[38px] items-center justify-center rounded-lg bg-canvas-soft text-subtle"
+        className="inline-flex size-empty-icon items-center justify-center rounded-lg bg-canvas-soft text-subtle"
       >
         {iconContent}
       </span>
       <TitleTag
         data-slot="empty-title"
         className="text-lg font-medium leading-snug tracking-empty-h1 text-fg-strong"
-        style={{ fontWeight: 510 }}
       >
         {title}
       </TitleTag>
       {description ? (
         <p
           data-slot="empty-description"
-          className="max-w-md text-[13px] leading-relaxed text-muted"
+          className="max-w-md text-small-body leading-relaxed text-muted"
         >
           {description}
         </p>

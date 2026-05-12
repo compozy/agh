@@ -71,7 +71,7 @@ export const ToolRole: Story = {
   args: {
     role: "tool",
     children: (
-      <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="done">
+      <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed">
         <pre className="font-mono text-[12px] leading-[1.6] text-muted">
           $ rg &quot;onToolCall&quot; packages/runtime -l
         </pre>
@@ -109,7 +109,7 @@ export const AllRoles: Story = {
         Two candidates, I&apos;ll extract the grouping into `groupToolCallsByTurn`.
       </ChatMessageBubble>
       <ChatMessageBubble role="tool" data-role-key="tool">
-        <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="done" />
+        <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed" />
       </ChatMessageBubble>
       <ChatMessageBubble role="diff" data-role-key="diff">
         <div className="rounded-md border border-line bg-rail p-3 font-mono text-[12px]">
@@ -135,7 +135,7 @@ export const RoleAlignmentInteraction: Story = {
           data-role-key={role}
         >
           {role === "tool" ? (
-            <ToolCallCard toolName="shell.run" status="running" />
+            <ToolCallCard toolName="shell.run" status="in_progress" />
           ) : (
             `message for role ${role}`
           )}
@@ -176,7 +176,7 @@ export const StatusBadgeCycleInteraction: Story = {
       data-testid="tool-statuses"
       style={{ maxWidth: 820, margin: "0 auto" }}
     >
-      {(["running", "done", "error"] as ToolCallStatus[]).map(status => (
+      {(["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]).map(status => (
         <ChatMessageBubble key={status} role="tool">
           <ToolCallCard
             toolName="file.read"
@@ -192,11 +192,12 @@ export const StatusBadgeCycleInteraction: Story = {
     const canvas = within(canvasElement);
     const wrapper = await canvas.findByTestId("tool-statuses");
     const expected: Record<ToolCallStatus, { tone: string; label: string }> = {
-      running: { tone: "accent", label: "RUNNING" },
-      done: { tone: "success", label: "DONE" },
-      error: { tone: "danger", label: "ERROR" },
+      pending: { tone: "neutral", label: "Pending" },
+      in_progress: { tone: "info", label: "Running" },
+      completed: { tone: "success", label: "Done" },
+      failed: { tone: "danger", label: "Error" },
     };
-    for (const status of ["running", "done", "error"] as ToolCallStatus[]) {
+    for (const status of ["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]) {
       const card = wrapper.querySelector<HTMLElement>(`[data-status-key="${status}"]`);
       await expect(card).not.toBeNull();
       const badge = card?.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');

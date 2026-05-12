@@ -47,11 +47,11 @@ function ActionResultBanner({
     >
       {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 mt-0.5" /> : null}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p data-slot="action-result-banner-title" className="text-[13px] font-medium">
+        <p data-slot="action-result-banner-title" className="text-small-body font-medium">
           {title}
         </p>
         {description ? (
-          <p data-slot="action-result-banner-description" className="text-[12px] opacity-90">
+          <p data-slot="action-result-banner-description" className="text-form-label opacity-90">
             {description}
           </p>
         ) : null}

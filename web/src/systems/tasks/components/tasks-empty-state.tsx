@@ -79,7 +79,7 @@ export function TasksEmptyState({
                   variant="neutral"
                 >
                   <Copy className="size-3" />
-                  <span className="font-mono text-[11px] text-fg-strong">agh tasks new</span>
+                  <span className="font-mono text-eyebrow text-fg-strong">agh tasks new</span>
                 </Button>
               ) : null}
             </>
@@ -122,7 +122,7 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
     <button
       className={cn(
         "flex h-full flex-col gap-3 rounded-lg bg-canvas-soft p-4 text-left transition-colors duration-base ease-out",
-        "hover:bg-elevated focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--line-strong)]"
+        "hover:bg-elevated focus-visible:outline-none focus-visible:shadow-focus-ring-inset"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
       data-tone={slot.tone}
@@ -135,10 +135,10 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
       >
         {slot.icon}
       </span>
-      <span className="text-(length:--text-section-head) font-[510] tracking-section-head text-fg-strong">
+      <span className="text-(length:--text-section-head) font-medium tracking-section-head text-fg-strong">
         {template.label}
       </span>
-      <p className="text-[12px] leading-relaxed text-muted">{template.description}</p>
+      <p className="text-form-label leading-relaxed text-muted">{template.description}</p>
     </button>
   );
 }

@@ -17,12 +17,13 @@ function Tabs({ className, orientation = "horizontal", ...props }: TabsPrimitive
   );
 }
 
-function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
+function TabsList({ activateOnFocus = true, className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
+      activateOnFocus={activateOnFocus}
       className={cn(
-        "group/tabs-list inline-flex w-fit items-center justify-center gap-0 rounded-none border-b border-line bg-transparent p-0 text-muted group-data-horizontal/tabs:h-[26px] group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col",
+        "group/tabs-list inline-flex items-center gap-1 border-b border-line group-data-horizontal/tabs:h-tabs-list group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-vertical/tabs:border-b-0 group-data-vertical/tabs:border-r",
         className
       )}
       {...props}
@@ -40,10 +41,9 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 py-0.5 text-[12.5px] font-medium tracking-[-0.006em] whitespace-nowrap text-muted transition-colors duration-base ease-out group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--line-strong)] disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        "data-active:bg-transparent data-active:font-[510] data-active:text-fg-strong data-active:shadow-none",
-        "not-first:before:content-['·'] not-first:before:px-1.5 not-first:before:text-faint not-first:before:opacity-50 not-first:before:select-none",
-        "after:absolute after:bg-fg-strong after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-2 group-data-horizontal/tabs:after:bottom-[-1.5px] group-data-horizontal/tabs:after:h-[1.5px] group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-[1.5px] data-active:after:opacity-100",
+        "relative inline-flex h-9 items-center gap-1.5 px-2 text-form-label font-medium tracking-eyebrow whitespace-nowrap text-muted transition-colors duration-base ease-out hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-active:bg-transparent data-active:text-fg-strong",
+        "after:absolute after:bg-accent after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:right-0 group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:left-0 group-data-horizontal/tabs:after:h-px group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-px data-active:after:opacity-100",
         className
       )}
       {...props}
@@ -51,10 +51,10 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       <span data-slot="tabs-trigger-label" className="inline-flex min-w-0 items-center">
         {children}
       </span>
-      {typeof count === "number" ? (
+      {count !== undefined ? (
         <span
           data-slot="tabs-trigger-count"
-          className="inline-flex items-center justify-center bg-transparent px-0 font-mono text-[10.5px] font-medium tracking-[0] tabular-nums text-faint group-data-[active=true]:text-muted"
+          className="inline-flex h-pill-xs min-w-count-chip-sm items-center justify-center rounded-mono-badge bg-canvas-soft px-1 font-mono text-badge font-medium tabular-nums text-muted"
         >
           {count}
         </span>
@@ -77,7 +77,7 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
-      className={cn("flex-1 text-[13px] outline-none", className)}
+      className={cn("flex-1 text-small-body outline-none", className)}
       {...props}
     />
   );

@@ -329,7 +329,7 @@ describe("KnowledgePage", () => {
 
   it("Should default to the GLOBAL scope and render the global memory list", () => {
     renderPage();
-    expect(screen.getByTestId("tab-global")).toHaveTextContent("GLOBAL");
+    expect(screen.getByTestId("tab-global")).toHaveTextContent("Global");
     expect(screen.getByTestId("tab-global")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
     expect(screen.getByTestId("memory-item-global:user_role.md")).toBeInTheDocument();

@@ -43,7 +43,7 @@ function TaskGroup({ id, label, count, children, actions, className }: TaskGroup
         </Eyebrow>
         <span
           aria-hidden="true"
-          className="font-mono text-[10.5px] tabular-nums text-faint"
+          className="font-mono text-mono-id tabular-nums text-faint"
           data-slot="task-group-count"
           data-testid={`task-group-${id}-count`}
         >

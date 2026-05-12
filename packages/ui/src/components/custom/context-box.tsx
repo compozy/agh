@@ -36,7 +36,7 @@ function ContextBox({ entries, title, className, ...props }: ContextBoxProps) {
             <dt data-slot="context-box-label" className="eyebrow text-muted">
               {entry.label}
             </dt>
-            <dd data-slot="context-box-value" className="text-[12px] text-fg">
+            <dd data-slot="context-box-value" className="text-form-label text-fg">
               {entry.value}
             </dd>
           </React.Fragment>

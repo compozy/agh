@@ -123,26 +123,25 @@ function BridgeCreateDialogContent({
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
         aria-labelledby={titleId}
-        className="w-(--width-modal-lg) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-lg) grid-rows-[auto_auto_1fr_auto] max-h-[min(900px,calc(100vh-2rem))]"
+        className="w-(--width-modal-lg) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-lg) grid-rows-[auto_auto_1fr_auto] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))]"
         data-testid="bridge-create-dialog"
         showCloseButton={false}
         unframed
       >
         <header
           data-slot="bridge-wizard-head"
-          className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-[13px]"
+          className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5"
         >
           <DialogTitle
             id={titleId}
             data-testid="bridge-wizard-title"
-            className="text-modal-title tracking-modal-title text-fg-strong"
-            style={{ fontWeight: 510 }}
+            className="text-modal-title font-medium tracking-modal-title text-fg-strong"
           >
             Create bridge
           </DialogTitle>
           {selectedProvider ? (
             <span
-              className="font-mono text-[12px] text-muted"
+              className="font-mono text-form-label text-muted"
               data-testid="bridge-wizard-active-provider"
             >
               {selectedProvider.display_name}
@@ -152,7 +151,7 @@ function BridgeCreateDialogContent({
 
         <nav
           aria-label="Bridge create steps"
-          className="flex items-center gap-2 border-b border-line bg-canvas-tint px-[18px] py-[10px] text-eyebrow"
+          className="flex items-center gap-2 border-b border-line bg-canvas-tint px-5 py-2.5 text-eyebrow"
           data-testid="bridge-wizard-stepper"
         >
           {WIZARD_STEPS.map((item, index) => {
@@ -193,7 +192,7 @@ function BridgeCreateDialogContent({
         </nav>
 
         <div
-          className="flex min-h-0 flex-col gap-4 overflow-y-auto p-[18px]"
+          className="flex min-h-0 flex-col gap-4 overflow-y-auto p-5"
           data-testid="bridge-wizard-body"
         >
           {step === "provider" ? (
@@ -234,10 +233,13 @@ function BridgeCreateDialogContent({
         </div>
 
         <footer
-          className="flex flex-wrap items-center gap-3 border-t border-line bg-canvas-soft px-[18px] py-[13px]"
+          className="flex flex-wrap items-center gap-3 border-t border-line bg-canvas-soft px-5 py-3.5"
           data-slot="bridge-wizard-footer"
         >
-          <span className="font-mono text-[12px] text-muted" data-testid="bridge-wizard-progress">
+          <span
+            className="font-mono text-form-label text-muted"
+            data-testid="bridge-wizard-progress"
+          >
             Step {currentIndex + 1} of {WIZARD_STEPS.length}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">

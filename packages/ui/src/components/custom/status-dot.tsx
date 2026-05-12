@@ -32,7 +32,7 @@ const TONE_TEXT_COLOR: Record<StatusDotTone, string> = {
 
 const SIZE_PX: Record<StatusDotSize, string> = {
   default: "size-1.5",
-  sm: "size-[5px]",
+  sm: "size-1.5",
 };
 
 function StatusDot({

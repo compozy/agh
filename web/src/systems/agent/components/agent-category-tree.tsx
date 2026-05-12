@@ -61,7 +61,7 @@ export function AgentCategoryTree({
         titleAs="span"
         fill={false}
         data-testid="agents-error"
-        className="items-start gap-2 p-2 text-left"
+        className="items-start gap-2 p-2 text-left text-sm"
       />
     );
   }

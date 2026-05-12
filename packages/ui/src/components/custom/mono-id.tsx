@@ -24,7 +24,7 @@ const COPY_FEEDBACK_MS = 1200;
 
 const SIZE_CLASSNAME: Record<MonoIdSize, string> = {
   default: "text-mono-id",
-  sm: "text-[10px]",
+  sm: "text-badge",
 };
 
 function MonoId({

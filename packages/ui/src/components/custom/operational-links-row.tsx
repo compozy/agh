@@ -47,7 +47,7 @@ function OperationalLinksRow({
             href={item.href}
             target={item.target}
             rel={externalRel}
-            className="inline-flex items-center gap-1 rounded-xs px-2 py-1 text-[12px] text-muted transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+            className="inline-flex items-center gap-1 rounded-xs px-2 py-1 text-form-label text-muted transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
           >
             {Icon ? <Icon aria-hidden="true" className="size-3" /> : null}
             <span>{item.label}</span>
