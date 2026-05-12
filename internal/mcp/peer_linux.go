@@ -4,6 +4,7 @@ package mcp
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"os"
 
@@ -18,7 +19,12 @@ func peerInfoFromUnixConn(conn *net.UnixConn) (PeerInfo, error) {
 	var peer PeerInfo
 	var sysErr error
 	controlErr := rawConn.Control(func(fd uintptr) {
-		ucred, err := unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+		fdInt, err := unixFDToInt(fd)
+		if err != nil {
+			sysErr = err
+			return
+		}
+		ucred, err := unix.GetsockoptUcred(fdInt, unix.SOL_SOCKET, unix.SO_PEERCRED)
 		if err != nil {
 			sysErr = fmt.Errorf("mcp: read uds peer credentials: %w", err)
 			return
@@ -43,4 +49,11 @@ func peerInfoFromUnixConn(conn *net.UnixConn) (PeerInfo, error) {
 		return PeerInfo{}, sysErr
 	}
 	return peer, nil
+}
+
+func unixFDToInt(fd uintptr) (int, error) {
+	if fd > uintptr(math.MaxInt) {
+		return 0, fmt.Errorf("mcp: unix file descriptor %d exceeds int range", fd)
+	}
+	return int(fd), nil
 }
