@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TasksDetailTabs } from "../tasks-detail-tabs";
@@ -20,12 +20,10 @@ describe("TasksDetailTabs", () => {
     );
 
     expect(screen.getByTestId("tasks-detail-tabs")).toBeInTheDocument();
+    expect(within(screen.getByTestId("tasks-detail-tab-runs")).getByText("3")).toBeInTheDocument();
     expect(
-      screen.getByTestId("tasks-detail-tab-runs").querySelector('[data-slot="lane-tabs-count"]')
-    ).toHaveTextContent("3");
-    expect(
-      screen.getByTestId("tasks-detail-tab-timeline").querySelector('[data-slot="lane-tabs-live"]')
-    ).toBeInTheDocument();
+      within(screen.getByTestId("tasks-detail-tab-timeline")).getByText("Live")
+    ).toHaveAttribute("aria-live", "polite");
     expect(screen.getByTestId("tasks-detail-tab-children")).toHaveAttribute(
       "aria-selected",
       "false"
