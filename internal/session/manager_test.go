@@ -23,13 +23,13 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/sandbox"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
@@ -3201,10 +3201,11 @@ func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testi
 	t.Parallel()
 
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
 	}
+	networkSkill = strings.TrimSpace(networkSkill)
 
 	h.manager = newManagerWithHarness(
 		t,
@@ -3277,10 +3278,11 @@ func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
 	}
+	networkSkill = strings.TrimSpace(networkSkill)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
@@ -3305,10 +3307,11 @@ func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", testBundledAghSkillName, testBundledNetworkReference, err)
 	}
+	networkSkill = strings.TrimSpace(networkSkill)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
@@ -3640,7 +3643,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 					if strings.TrimSpace(startup.Channel) == "" {
 						return prompt, nil
 					}
-					networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+					networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
 					if err != nil {
 						return "", err
 					}
@@ -3793,7 +3796,10 @@ func (fn promptAssemblerFunc) Assemble(
 	return fn(ctx, agent, workspace)
 }
 
-const testBundledNetworkSkillName = "agh-network"
+const (
+	testBundledAghSkillName     = "agh"
+	testBundledNetworkReference = "references/network.md"
+)
 
 type startupPromptAssemblerFunc func(
 	context.Context,

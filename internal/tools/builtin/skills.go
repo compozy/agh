@@ -35,7 +35,7 @@ var skillTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDSkillView,
 		"skill_view",
 		"Skill View",
-		"Read one skill and its verified body through the existing skill registry.",
+		"Read one skill body or one resource file through the existing skill registry.",
 		skillViewInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -76,7 +76,8 @@ const skillViewInputSchema = `{
 	"required":["name"],
 	"properties":{
 		"name":{"type":"string"},
-		"workspace_id":{"type":"string"}
+		"workspace_id":{"type":"string"},
+		"file":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

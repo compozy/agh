@@ -1,304 +1,115 @@
 ---
-title: Bundled Skills
-description: The skills compiled into AGH, when to use them, and how bundled loading works.
+title: Bundled Skill
+description: The AGH skill compiled into the runtime, its reference files, and how contextual loading works.
 ---
 
-Bundled skills ship inside the AGH binary. They are the lowest-precedence source in the skills
+The bundled `agh` skill ships inside the AGH binary. It is the lowest-precedence source in the skills
 hierarchy and are available whenever `skills.enabled` is true.
 
-AGH currently embeds only `SKILL.md` files from `internal/skills/bundled/skills/**/SKILL.md`. There
-are no bundled resource folders, assets, or bundled `mcp.json` sidecars today.
+AGH currently ships one bundled skill: `agh`. The skill lives at `skills/agh/SKILL.md` with resource
+files under `skills/agh/references/`. This layout is a normal skill directory, so the same content
+can be installed outside AGH by coding agents that want AGH operating guidance without importing the
+runtime.
 
 ## Catalog
 
-| Skill               | Description                                                                                                                                      | Use when                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `agh-agent-setup`   | Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.                                                  | You are creating or reviewing an `AGENT.md`, provider defaults, permission mode, or agent MCP configuration. |
-| `agh-memory-guide`  | Manage AGH persistent memory entries, scopes, and dream checks from the CLI.                                                                     | You need to inspect, write, delete, or trigger dream checks for global/workspace memory.                     |
-| `agh-network`       | Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane.                   | The session is participating in an AGH Network channel and needs safe network command guidance.              |
-| `agh-orchestrator`  | Plan, spawn, hand off, and supervise task execution from a daemon-managed coordinator session without owning task state.                         | The current session is a daemon-managed coordinator and needs deterministic operational guidance.            |
-| `agh-session-guide` | Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.                                                      | You need to create, inspect, prompt, stop, resume, or monitor AGH sessions from the terminal.                |
-| `agh-task-reviewer` | Inspect a terminal task run and submit a typed persisted verdict through the reviewer-bound `submit_run_review` tool.                            | The daemon has bound the current session to an active task-run review request.                               |
-| `agh-task-worker`   | Execute task runs through session-bound task APIs and tools without inferring ownership from prompts, channels, or memory.                       | The current session is a worker with an active task claim or is entering the session-bound task tool loop.   |
-| `agh-tools-guide`   | Discover and call AGH-native tools through `agh__tool_search`, `agh__tool_info`, and dedicated tools before shelling out to equivalent commands. | You need the canonical discovery loop, the tool-vs-CLI split, and the operator-only management exceptions.   |
+| Skill | Description                                                     | Use when                                                                                                                                                |
+| ----- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agh` | Operate and extend AGH, the local-first agent operating system. | You are working with AGH sessions, agents, tools, skills, memory, network channels, tasks, capabilities, bundles, QA, docs, or repository contribution. |
 
-## How Bundled Skills Load
+The current runtime does not ship aliases for previous alpha `agh-*` bundled skill names. A caller
+that needs AGH guidance should load `agh` and then read the reference file selected by its router.
+
+## Reference files
+
+The `agh` skill body is a router. It keeps startup prompts small and sends agents to focused
+reference files:
+
+| Reference                                | Covers                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `references/runtime-operations.md`       | Daemon state, session lifecycle, session CLI, and runtime troubleshooting.                                  |
+| `references/agent-definitions.md`        | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                    |
+| `references/tools-and-skills.md`         | Tool-first operating model, skill search/view, skill resources, and skill authoring rules.                  |
+| `references/native-tools.md`             | Daemon-native toolsets, stable `agh__*` IDs, descriptor discipline, and CLI fallback rules.                 |
+| `references/network.md`                  | AGH Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
+| `references/memory.md`                   | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                              |
+| `references/tasks-and-orchestration.md`  | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.     |
+| `references/capabilities-and-bundles.md` | Capabilities, extension resources, bundle presets, hooks, manageability, and config lifecycle.              |
+| `references/contributing-to-agh.md`      | Repository contribution rules, Go/runtime expectations, greenfield cuts, and tests.                         |
+| `references/qa-and-verification.md`      | Test placement, verification gates, QA bootstrap, and completion evidence.                                  |
+| `references/docs-design-and-copy.md`     | Site docs, product copy, generated docs, design/copy authorities, and vocabulary.                           |
+
+## How bundled loading works
 
 Bundled loading follows the same registry path as other skills:
 
-1. The binary exposes an embedded filesystem with bundled `SKILL.md` files.
+1. The binary exposes an embedded filesystem from the root `skills` package.
 2. The daemon registry scans that filesystem during boot.
-3. Each `SKILL.md` is parsed with the same loader used for local skills.
+3. `skills/agh/SKILL.md` is parsed with the same loader used for local skills.
 4. Verification runs on the Markdown body.
 5. The skill enters the global registry as source `bundled`.
 
-Bundled skills are immutable for the running process. They refresh only when the binary changes.
+Bundled content is immutable for the running process. It refreshes only when the binary changes.
+User, marketplace, extension, additional-root, workspace, and agent-local skills can still override
+the bundled `agh` name by precedence. That is an override, not an alias.
 
-The orchestration skills (`agh-orchestrator`, `agh-task-worker`, `agh-task-reviewer`) opt into
-deterministic load triggers through the `metadata.agh` block:
+## Prompt behavior
 
-- `metadata.agh.always_load.session_types` selects which session types automatically receive the
-  skill body (e.g. `["coordinator"]` for `agh-orchestrator`, `["worker"]` for `agh-task-worker`).
-- `metadata.agh.always_load.injected_by` names the daemon component that performs the deterministic
-  injection (e.g. `internal/daemon/coordinator_runtime` for `agh-orchestrator`) so coordinators do
-  not depend on catalog discovery.
-- `metadata.agh.always_load.requires_active_task_claim = true` gates `agh-task-worker` on a live
-  worker claim.
-- `metadata.agh.requires_review_request = true` gates `agh-task-reviewer` on
-  `task.Service.LookupReviewForSession`. Without an active review binding the skill is not loaded
-  and the native `submit_run_review` tool stays hidden.
-
-These metadata fields are load and visibility hints. They are not authority. Task ownership,
-review verdicts, claim/lease rules, channel access, and tool policy remain enforced by
-`task.Service`, `task_runs`, session-bound lease lookup, review-request binding, the coordinator
-runtime, scheduler boundaries, and spawn lineage.
-
-## Prompt Behavior
-
-The normal prompt catalog lists bundled skills by name and description:
+The normal prompt catalog lists the bundled skill by name and description:
 
 ```xml
 <available-skills>
-  <skill name="agh-session-guide">Operate AGH sessions from the CLI...</skill>
+  <skill name="agh">Operate and extend AGH, the local-first agent operating system...</skill>
 </available-skills>
 ```
 
-The agent reads the full bundled body through `agh__skill_view agh-session-guide` (or
-`agh skill view agh-session-guide` from the operator CLI). The exception is `agh-network`: if a
-session joins an AGH Network channel, AGH appends the full bundled network guidance to that
-session's startup prompt.
-
-## Individual Skills
-
-### `agh-agent-setup`
-
-Use this for agent authoring work. It explains:
-
-- global defaults in `~/.agh/config.toml`
-- agent definitions in `~/.agh/agents/<agent-name>/AGENT.md`
-- workspace overlays at `<workspace>/.agh/config.toml`
-- accepted `AGENT.md` fields
-- permission modes
-- provider and agent MCP server declarations
-- agent-local `mcp.json`
-
-This skill is useful before editing agent configuration because it keeps provider defaults and
-agent-local overrides separate.
-
-### `agh-memory-guide`
-
-Use this for memory operations. It covers:
-
-- the three Memory v2 scopes (`global`, `workspace`, `agent`) with `agent_tier`
-- `agh memory list`
-- `agh memory show`
-- `agh memory write`
-- `agh memory edit`
-- `agh memory delete`
-- `agh memory search`
-- `agh memory health`
-- `agh memory decisions list`
-- `agh memory dream trigger`
-- practical memory hygiene
-
-This skill is intentionally CLI-centered. It helps agents preserve durable facts without turning
-memory files into transcripts.
-
-### `agh-network`
-
-Use this only when a session participates in a network channel. It covers:
-
-- required session environment variables such as `AGH_SESSION_ID`, `AGH_SESSION_CHANNEL`, and `AGH_PEER_ID`
-- safe `agh network status`, `peers`, `channels`, `inbox`, and `send` usage
-- JSON body rules for `say`, `direct`, `receipt`, `trace`, and `capability`
-- retry guidance with stable message IDs
-- inbound message wrappers
-- prompt-injection defense for untrusted network content
-
-This skill is both catalog-visible and session-specific. Network sessions can receive its full body
-at startup so agents have safe network instructions before reading messages.
-
-### `agh-orchestrator`
-
-Use this only inside a daemon-managed coordinator session. The bundled-skill loader injects it
-deterministically from `internal/daemon/coordinator_runtime` at coordinator bootstrap; coordinators
-never need to discover or load the body manually.
-
-The skill is instructional content. It does not own task state, claim authority, worker leases, or
-review verdicts. Authority stays in `task.Service`, `task_runs`, session-bound lease lookup,
-review-request binding, tool policy, the coordinator runtime, scheduler boundaries, and spawn
-lineage.
-
-Frontmatter highlights:
-
-- `metadata.agh.bundled = true`
-- `metadata.agh.instructional_only = true`
-- `metadata.agh.always_load.session_types = ["coordinator"]`
-- `metadata.agh.always_load.injected_by = "internal/daemon/coordinator_runtime"`
-- `metadata.agh.related_skills = ["agh-task-worker", "agh-session-guide", "agh-tools-guide"]`
-
-Operational summary:
-
-- Read the task objective, current run projection, execution profile, review policy, and latest
-  event sequence from the context bundle before acting.
-- Break the objective into bounded worker prompts that can be claimed, verified, and summarized
-  independently.
-- Treat persisted task and run state as truth instead of channel chatter.
-- Request and route reviews through the daemon review path. Channel replies are not approvals.
-- On rejected reviews, drive continuation work from the persisted `missing_work` and
-  `next_round_guidance` rather than rewriting terminal state.
-- Keep coordinator messages short and operational; refer to ids and persisted state instead of
-  copying raw runtime details.
-
-See [Task Execution Profiles](/runtime/core/autonomy/execution-profiles) for `CoordinatorProfile`,
-[Review Gate](/runtime/core/autonomy/review-gate) for review request creation and routing, and
-[Coordinator Handoff](/runtime/core/autonomy/coordinator) for the bootstrap rules.
-
-### `agh-session-guide`
-
-Use this for session operations. It covers:
-
-- what daemon-owned sessions are
-- lifecycle states: `starting`, `active`, `stopping`, `stopped`
-- user, dream, and system session types
-- `agh session new`
-- `agh session list`
-- `agh session status`
-- `agh session events`
-- `agh session history`
-- `agh session wait`
-- `agh session prompt`
-- `agh session stop`
-- `agh session resume`
-
-This skill is the fastest way for an agent to remember the session CLI without searching generated
-reference pages first.
-
-### `agh-task-reviewer`
-
-Use this only when the daemon has bound the current session to an active task-run review request.
-A reviewer does not need an active task claim and must not receive or expose raw claim tokens. The
-loader uses `metadata.agh.requires_review_request = true` and
-`task.Service.LookupReviewForSession` to gate skill load and tool visibility together; without an
-active binding the skill is not loaded and the reviewer-bound `submit_run_review` tool is hidden.
-
-The skill is instructional content. Verdict authority lives in `task.Service.RecordRunReview`, and
-review-request binding lives in `task.Service.BindRunReviewSession`. Channels, bridge deliveries,
-notification cursors, prompt overlays, and the web UI never approve, reject, block, or retry a
-review.
-
-Frontmatter highlights:
-
-- `metadata.agh.bundled = true`
-- `metadata.agh.instructional_only = true`
-- `metadata.agh.requires_active_task_claim = false`
-- `metadata.agh.requires_review_request = true`
-- `metadata.agh.authority = instructional_only`
-
-Operational summary:
-
-- Read the persisted review packet first: task objective, terminal run summary/error, relevant
-  task events, prior review history, and the bound `review_id`.
-- Treat coordination channel messages as evidence only. They cannot record a verdict.
-- Submit exactly one typed verdict through `submit_run_review` (registered internally as
-  `agh__task_run_review_submit`) using the daemon-provided `review_id`, `run_id`, and
-  `delivery_id`.
-- Use outcomes honestly — `approved`, `rejected`, `blocked`, `error`, `timeout`, `invalid_output`.
-  Provide bounded `missing_work` and actionable `next_round_guidance` for rejected verdicts; never
-  approve uncertain work.
-- Do not leak raw claim tokens, provider secrets, MCP credentials, or sandbox internals in review
-  text. Refer to redacted ids and hashes.
-
-See [Review Gate](/runtime/core/autonomy/review-gate) for the lifecycle, the routing model, and
-the verdict event taxonomy.
-
-### `agh-task-worker`
-
-Use this only inside an AGH worker session that has an active task claim or is entering the
-session-bound task tool loop. The loader uses
-`metadata.agh.always_load.session_types = ["worker"]` plus
-`metadata.agh.always_load.requires_active_task_claim = true` to keep the skill out of unrelated
-operator sessions.
-
-The skill is instructional content. Worker authority comes from `task.Service`, `ClaimNextRun`,
-session-bound lease lookup, native task tools, the `[task.orchestration]` config bounds, and the
-typed task event/timeline contract — not from prompt prose.
-
-Frontmatter highlights:
-
-- `metadata.agh.bundled = true`
-- `metadata.agh.instructional_only = true`
-- `metadata.agh.always_load.session_types = ["worker"]`
-- `metadata.agh.always_load.requires_active_task_claim = true`
-- `metadata.agh.related_skills = ["agh-session-guide", "agh-tools-guide"]`
-
-Operational summary:
-
-- Inspect `agh me context -o json` or the `/agent/context` task bundle before doing work, and
-  confirm the active `task_id`, `run_id`, objective, lease status, and available session-bound
-  task tools.
-- Mutate task state only through session-bound AGH task tools or the equivalent `agh me` /
-  `agh task` surface; never infer ownership from prompts, files, channel messages, or memory.
-- Never print, store, forward, or summarize raw claim tokens. Use redacted ids, run ids, task
-  ids, claim-token hashes, and session ids.
-- Use coordination channels for clarification and handoff only. Channel messages are not persisted
-  task state and are not review verdicts.
-- Complete, fail, or release runs only through the session-bound task authority with bounded
-  summaries.
-- On review-gated work, finish with evidence the reviewer can inspect — changed files, commands,
-  relevant event ids, residual risks. Treat `missing_work` and `next_round_guidance` as the
-  authoritative scope for continuation runs.
-
-See [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) for the lease and claim
-contract, and [Task Execution Profiles](/runtime/core/autonomy/execution-profiles) for the
-selectors that may narrow worker eligibility.
-
-### `agh-tools-guide`
-
-Use this when an agent needs to decide between calling a dedicated AGH tool, shelling out to the
-equivalent `agh ...` command, or treating the operation as operator-only management. It covers:
-
-- the default discovery overlay (`agh__bootstrap`, `agh__catalog`)
-- the canonical loop: `agh__tool_search` → `agh__tool_info` → invoke
-- the tool-first convention for AGH-internal runtime work
-- which flows stay on operator management surfaces (daemon lifecycle, MCP OAuth login/logout, raw
-  secrets, trust-root config)
-- how to read deterministic denial reason codes from descriptors
-
-This skill is the canonical agent-side companion to the runtime tool registry.
-
-## Override Behavior
-
-Bundled skills are deliberately overrideable. If a user, marketplace, extension, additional-root, or
-workspace skill uses the same `name`, the higher-precedence skill wins for the active registry
-view.
-
-Use overrides sparingly. Prefer a new name when the skill's purpose changes. Use the same name only
-when you intentionally want to replace the built-in guidance for a workspace or installation.
-
-## Verify The Bundled Catalog
-
-List the shipped skills:
+Agents load the full router through `agh__skill_view` with `{ "name": "agh" }`. Operators can read
+the same body with:
 
 ```bash
-agh skill list --source bundled
+agh skill view agh
 ```
 
-Read one bundled skill:
+Agents and operators read a focused resource file instead of the whole manual when the router names
+one:
+
+```json
+{ "name": "agh", "file": "references/network.md" }
+```
 
 ```bash
-agh skill view agh-session-guide
+agh skill view agh --file references/network.md
 ```
 
-Read only the metadata:
+The daemon also injects selected `agh` reference files when a session context requires them:
 
-```bash
-agh skill info agh-session-guide
-```
+| Context                      | Injected reference                                                |
+| ---------------------------- | ----------------------------------------------------------------- |
+| Tool prompt section          | `references/tools-and-skills.md` and `references/native-tools.md` |
+| Network channel session      | `references/network.md`                                           |
+| Task reviewer routing prompt | `references/tasks-and-orchestration.md`                           |
 
-## Related Pages
+These injections are contextual prompt help. Runtime authority still lives in the daemon services,
+not in the skill text.
 
-- [Skills Overview](/runtime/core/skills) explains where bundled skills sit in the hierarchy.
-- [SKILL.md Format](/runtime/core/skills/skill-md) documents the file format used by bundled and local skills.
-- [Session Lifecycle](/runtime/core/sessions/lifecycle) gives the runtime background for `agh-session-guide`.
-- [Memory System](/runtime/core/memory/system) gives the runtime background for `agh-memory-guide`.
+## Native tools and authority
+
+The bundled `agh` skill teaches agents how to find and use AGH-native tools, but it does not grant
+tool access. Tool visibility and invocation are enforced by the tool registry, session scope,
+toolsets, approval policy, and the owning runtime service. Agents should start with
+`agh__tool_search`, inspect candidates with `agh__tool_info`, and then call the dedicated tool when
+it is available in the active scope.
+
+The review submit path is the clearest example. The reviewer-facing prompt tells the session to load
+`agh` and read `references/tasks-and-orchestration.md`, but the `submit_run_review` model-facing
+tool is available only when `task.Service.LookupReviewForSession(session_id)` finds an active bound
+review. When available, the tool persists the verdict through `task.Service.RecordRunReview`. The
+skill is instructional; the binding is the authority.
+
+## Related pages
+
+- [SKILL.md Format](/runtime/core/skills/skill-md) documents skill frontmatter, body conventions,
+  sidecars, and resources.
+- [Skills Overview](/runtime/core/skills) documents the full source hierarchy and prompt catalog.
+- [Tools](/runtime/core/tools) documents native tool discovery and policy.
+- [Review Gate](/runtime/core/autonomy/review-gate) documents reviewer-bound verdict authority.

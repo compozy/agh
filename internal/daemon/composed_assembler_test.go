@@ -12,9 +12,9 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/soul"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 func TestComposedAssemblerAssemble(t *testing.T) {
@@ -504,10 +504,11 @@ func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t 
 		t.TempDir(),
 	)
 
-	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
 	}
+	networkSkill = strings.TrimSpace(networkSkill)
 	if !strings.Contains(got, networkSkill) {
 		t.Fatalf("AssembleStartup() = %q, want bundled network skill content", got)
 	}
@@ -537,16 +538,26 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 			t.TempDir(),
 		)
 
-		toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+		toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
 		if err != nil {
-			t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
 		}
-		networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+		toolsGuide = strings.TrimSpace(toolsGuide)
+		nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
 		if err != nil {
-			t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
 		}
+		nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
+		networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
+		if err != nil {
+			t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
+		}
+		networkSkill = strings.TrimSpace(networkSkill)
 		if !strings.Contains(got, toolsGuide) {
 			t.Fatalf("AssembleStartup() = %q, want bundled tools guide content", got)
+		}
+		if !strings.Contains(got, nativeToolsGuide) {
+			t.Fatalf("AssembleStartup() = %q, want bundled native tools guide content", got)
 		}
 		if strings.Contains(got, networkSkill) {
 			t.Fatalf("AssembleStartup() = %q, want no bundled network content without channel", got)

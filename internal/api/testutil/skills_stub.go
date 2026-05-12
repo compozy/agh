@@ -18,6 +18,7 @@ type StubSkillsRegistry struct {
 		agentName string,
 	) ([]*skills.Skill, error)
 	LoadContentFn        func(ctx context.Context, skill *skills.Skill) (string, error)
+	LoadResourceFn       func(ctx context.Context, skill *skills.Skill, relativePath string) (string, error)
 	SetEnabledFn         func(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
 	SetEnabledForAgentFn func(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
 }
@@ -63,6 +64,17 @@ func (s StubSkillsRegistry) ForAgent(
 func (s StubSkillsRegistry) LoadContent(ctx context.Context, skill *skills.Skill) (string, error) {
 	if s.LoadContentFn != nil {
 		return s.LoadContentFn(ctx, skill)
+	}
+	return "", nil
+}
+
+func (s StubSkillsRegistry) LoadResource(
+	ctx context.Context,
+	skill *skills.Skill,
+	relativePath string,
+) (string, error) {
+	if s.LoadResourceFn != nil {
+		return s.LoadResourceFn(ctx, skill, relativePath)
 	}
 	return "", nil
 }

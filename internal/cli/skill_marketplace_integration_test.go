@@ -12,8 +12,8 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/skills"
-	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/testutil"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 func TestSkillSearchInstallListRemoveIntegrationFlow(t *testing.T) {

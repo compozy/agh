@@ -150,7 +150,7 @@ mcp_servers:
 skills:
   inherit: true
   disabled:
-    - agh-session-guide
+    - agh
   extra_sources:
     - ./shared-skills/
 memory:
@@ -221,7 +221,7 @@ When the daemon assembles the prompt for a session with a specific agent, skills
 - `skills.extra_sources` is still draft and rejected by the current runtime
 - Override audit trail logs all shadows for debugging
 
-**Example:** Agent `code-reviewer` has `skills.disabled: [agh-session-guide]` and a local `review-checklist` skill. The effective skill set is: all global/workspace skills minus `agh-session-guide`, plus the agent's `review-checklist` (which would override any global skill with the same name).
+**Example:** Agent `code-reviewer` has `skills.disabled: [agh]` and a local `review-checklist` skill. The effective skill set is: all global/workspace skills minus the bundled `agh` guide, plus the agent's `review-checklist` (which would override any global skill with the same name).
 
 ### 2.5 Memory Resolution Hierarchy
 

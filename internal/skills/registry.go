@@ -172,6 +172,26 @@ func (r *Registry) LoadContent(ctx context.Context, skill *Skill) (string, error
 	}
 }
 
+// LoadResource loads a resource file relative to one resolved skill.
+func (r *Registry) LoadResource(ctx context.Context, skill *Skill, relativePath string) (string, error) {
+	if err := checkRegistryContext(ctx); err != nil {
+		return "", err
+	}
+	if skill == nil {
+		return "", errors.New("skills: skill is required")
+	}
+
+	switch skill.Source {
+	case SourceBundled:
+		if r.cfg.BundledFS == nil {
+			return "", errors.New("skills: bundled skills filesystem is required")
+		}
+		return readBundledSkillResource(r.cfg.BundledFS, skill.Dir, relativePath)
+	default:
+		return ReadSkillResourceContent(skill.Dir, relativePath)
+	}
+}
+
 // ForWorkspace returns the global skill set overlaid with resolver-provided workspace skills.
 func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*Skill, error) {
 	if err := checkRegistryContext(ctx); err != nil {

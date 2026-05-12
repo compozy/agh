@@ -11,8 +11,6 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
-const taskReviewerSkillName = "agh-task-reviewer"
-
 type submitRunReviewInput struct {
 	ReviewID          string   `json:"review_id"`
 	RunID             string   `json:"run_id"`
@@ -126,11 +124,8 @@ func (n *daemonNativeTools) submitRunReviewAvailability(
 	ctx context.Context,
 	scope toolspkg.Scope,
 ) toolspkg.Availability {
-	if n == nil || n.deps == nil || n.deps.Tasks == nil || n.deps.Skills == nil {
+	if n == nil || n.deps == nil || n.deps.Tasks == nil {
 		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
-	}
-	if !n.taskReviewerSkillRequiresReviewRequest() {
-		return toolspkg.Unavailable(toolspkg.ReasonPolicyDenied)
 	}
 	actor, sessionID, err := reviewToolActorContext(toolspkg.ToolIDTaskRunReviewSubmit, scope)
 	if err != nil {
@@ -315,22 +310,6 @@ func reviewToolActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.A
 		return taskpkg.ActorContext{}, "", nativeReviewToolError(id, err)
 	}
 	return actor, sessionID, nil
-}
-
-func (n *daemonNativeTools) taskReviewerSkillRequiresReviewRequest() bool {
-	if n == nil || n.deps == nil || n.deps.Skills == nil {
-		return false
-	}
-	skill, ok := n.deps.Skills.Get(taskReviewerSkillName)
-	if !ok || skill == nil || skill.Meta.Metadata == nil {
-		return false
-	}
-	agh, ok := skill.Meta.Metadata["agh"].(map[string]any)
-	if !ok {
-		return false
-	}
-	requiresReviewRequest, ok := agh["requires_review_request"].(bool)
-	return ok && requiresReviewRequest
 }
 
 func submitRunReviewPreview(result taskpkg.RunReviewResult) string {

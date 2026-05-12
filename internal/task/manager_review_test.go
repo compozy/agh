@@ -367,7 +367,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			BindRunReviewSessionRequest{
 				ReviewID:          review.ReviewID,
 				SessionID:         "sess-reviewer",
-				ReviewerAgentName: "agh-task-reviewer",
+				ReviewerAgentName: "reviewer",
 				ReviewerChannelID: "review-channel",
 			},
 			validActorContext(),

@@ -115,7 +115,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/settings`             | Settings overlay/projection                                                   |
 | `internal/situation`            | Situation surface providers (`/agent/context`)                                |
 | `internal/skills`               | Skills catalog, loader, `VerifyContent`, MCP/hook decl, provenance            |
-| `internal/skills/bundled`       | Bundled skill definitions                                                     |
+| `skills/` (repo-root)           | Embedded bundled skill definitions and resources                              |
 | `internal/sse`                  | Shared SSE helpers                                                            |
 | `internal/store`                | SQLite shared helpers, migrations registry, validation                        |
 | `internal/store/globaldb`       | Global catalog (`agh.db`): sessions, metadata                                 |

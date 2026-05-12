@@ -3772,9 +3772,9 @@ func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	}
 	fragments = append(fragments, "Base prompt.")
 	if wantSkills {
-		fragments = append(fragments, "<available-skills>", "agh-session-guide")
+		fragments = append(fragments, "<available-skills>", "agh")
 	}
-	fragments = append(fragments, "# AGH Tools Guide")
+	fragments = append(fragments, "# Tools And Skills", "# Native Tools")
 	return fragments
 }
 

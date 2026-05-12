@@ -1,13 +1,13 @@
-package bundled
+package skills
 
 import (
 	"embed"
 	"io/fs"
 )
 
-// embeddedSkills stores the bundled starter skills compiled into the binary.
+// embeddedSkills stores the bundled skills compiled into the AGH binary.
 //
-//go:embed skills/**/SKILL.md
+//go:embed agh
 var embeddedSkills embed.FS
 
 // FS returns the bundled skills filesystem compiled into the AGH binary.

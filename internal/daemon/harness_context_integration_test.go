@@ -19,11 +19,11 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	skillbundled "github.com/pedronauck/agh/skills"
 )
 
 func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
@@ -122,25 +122,38 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("startup IncludeSections = %#v, want tools section", startupResolved.Policy.IncludeSections)
 	}
 
-	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
 	}
-	toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+	networkSkill = strings.TrimSpace(networkSkill)
+	toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
 	}
+	toolsGuide = strings.TrimSpace(toolsGuide)
+	nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+	if err != nil {
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+	}
+	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, networkSkill) {
 		t.Fatalf("start system prompt = %q, want bundled network skill content", got)
 	}
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, toolsGuide) {
 		t.Fatalf("start system prompt = %q, want bundled tools guide content", got)
 	}
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, nativeToolsGuide) {
+		t.Fatalf("start system prompt = %q, want bundled native tools guide content", got)
+	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
 		t.Fatalf("network skill occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, toolsGuide); got != 1 {
 		t.Fatalf("tools guide occurrences = %d, want 1", got)
+	}
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, nativeToolsGuide); got != 1 {
+		t.Fatalf("native tools guide occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, "<agh-situation-context>"); got != 1 {
 		t.Fatalf("situation context occurrences = %d, want 1", got)
@@ -153,6 +166,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		"You are a coding assistant.",
 		"<available-skills>",
 		toolsGuide,
+		nativeToolsGuide,
 		networkSkill,
 	)
 
@@ -289,19 +303,29 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 		t.Fatalf("resolved policy changed across resume\nbefore=%#v\nafter=%#v", beforeResume.Policy, afterResume.Policy)
 	}
 
-	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
 	}
-	toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+	networkSkill = strings.TrimSpace(networkSkill)
+	toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
 	}
+	toolsGuide = strings.TrimSpace(toolsGuide)
+	nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+	if err != nil {
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+	}
+	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
 		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, toolsGuide); got != 1 {
 		t.Fatalf("resume prompt tools guide occurrences = %d, want 1", got)
+	}
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, nativeToolsGuide); got != 1 {
+		t.Fatalf("resume prompt native tools guide occurrences = %d, want 1", got)
 	}
 }
 
@@ -334,19 +358,29 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 		_ = manager.Stop(testutil.Context(t), created.ID)
 	})
 
-	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
 	}
+	networkSkill = strings.TrimSpace(networkSkill)
 	if strings.Contains(driver.startCalls[0].SystemPrompt, networkSkill) {
 		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
 	}
-	toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+	toolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledToolsReference)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledToolsReference, err)
 	}
+	toolsGuide = strings.TrimSpace(toolsGuide)
+	nativeToolsGuide, err := skillbundled.LoadResource(bundledAghSkillName, bundledNativeToolsReference)
+	if err != nil {
+		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
+	}
+	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
 	if !strings.Contains(driver.startCalls[0].SystemPrompt, toolsGuide) {
 		t.Fatalf("start system prompt missing bundled tools guide")
+	}
+	if !strings.Contains(driver.startCalls[0].SystemPrompt, nativeToolsGuide) {
+		t.Fatalf("start system prompt missing bundled native tools guide")
 	}
 	assertPromptContainsInOrder(
 		t,
@@ -356,6 +390,7 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 		"You are a coding assistant.",
 		"<available-skills>",
 		toolsGuide,
+		nativeToolsGuide,
 	)
 }
 

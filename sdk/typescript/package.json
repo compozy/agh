@@ -25,9 +25,9 @@
     },
     "scripts": {
         "codegen-check": "bun run --cwd ../.. codegen-check",
-        "build": "bun run codegen-check && rm -rf dist && tsc -p tsconfig.types.json && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node ./scripts/postbuild.mjs",
-        "typecheck": "bun run codegen-check && tsc -p tsconfig.json --noEmit",
-        "test": "bun run codegen-check && vitest run --config vitest.config.ts",
+        "build": "rm -rf dist && tsc -p tsconfig.types.json && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node ./scripts/postbuild.mjs",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "test": "vitest run --config vitest.config.ts",
         "coverage": "vitest run --config vitest.config.ts --coverage"
     },
     "engines": {
