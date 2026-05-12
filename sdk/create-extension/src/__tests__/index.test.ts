@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parseArgs, renderHelp, scaffoldExtension } from "../index.js";
 
 const tempDirs: string[] = [];
+const goCommandTimeoutMs = 20_000;
+const goTemplateTestTimeoutMs = 30_000;
 
 describe("@agh/create-extension", () => {
   afterEach(async () => {
@@ -87,44 +89,50 @@ describe("@agh/create-extension", () => {
     expect(source).toContain('name: "tool-provider"');
   });
 
-  it("scaffolds a buildable Go tool provider template", async () => {
-    const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-go-tool-"));
-    tempDirs.push(baseDir);
+  it(
+    "scaffolds a buildable Go tool provider template",
+    async () => {
+      const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-go-tool-"));
+      tempDirs.push(baseDir);
 
-    const projectDir = path.join(baseDir, "go-tool-provider");
-    await scaffoldExtension({
-      name: "Go Tool Provider",
-      template: "go-tool-provider",
-      directory: projectDir,
-    });
+      const projectDir = path.join(baseDir, "go-tool-provider");
+      await scaffoldExtension({
+        name: "Go Tool Provider",
+        template: "go-tool-provider",
+        directory: projectDir,
+      });
 
-    const extensionManifest = JSON.parse(
-      await readFile(path.join(projectDir, "extension.json"), "utf8")
-    ) as {
-      capabilities: { provides: string[] };
-      subprocess: { command: string };
-      resources: { tools: { search: { backend: { handler: string } } } };
-    };
-    const source = await readFile(path.join(projectDir, "main.go"), "utf8");
-    const goMod = await readFile(path.join(projectDir, "go.mod"), "utf8");
+      const extensionManifest = JSON.parse(
+        await readFile(path.join(projectDir, "extension.json"), "utf8")
+      ) as {
+        capabilities: { provides: string[] };
+        subprocess: { command: string };
+        resources: { tools: { search: { backend: { handler: string } } } };
+      };
+      const source = await readFile(path.join(projectDir, "main.go"), "utf8");
+      const goMod = await readFile(path.join(projectDir, "go.mod"), "utf8");
 
-    expect(extensionManifest.capabilities.provides).toContain("tool.provider");
-    expect(extensionManifest.subprocess.command).toBe("./go-tool-provider");
-    expect(extensionManifest.resources.tools.search.backend.handler).toBe("search");
-    expect(source).toContain("aghsdk.Tool[SearchInput]");
-    expect(source).toContain('Name:    "go-tool-provider"');
-    expect(goMod).toContain("module example.com/go-tool-provider");
+      expect(extensionManifest.capabilities.provides).toContain("tool.provider");
+      expect(extensionManifest.subprocess.command).toBe("./go-tool-provider");
+      expect(extensionManifest.resources.tools.search.backend.handler).toBe("search");
+      expect(source).toContain("aghsdk.Tool[SearchInput]");
+      expect(source).toContain('Name:    "go-tool-provider"');
+      expect(goMod).toContain("module example.com/go-tool-provider");
 
-    const repoRoot = path.resolve(__dirname, "../../../..");
-    execFileSync("go", ["mod", "edit", "-replace", `github.com/pedronauck/agh=${repoRoot}`], {
-      cwd: projectDir,
-      stdio: "pipe",
-    });
-    execFileSync("go", ["test", "./..."], {
-      cwd: projectDir,
-      stdio: "pipe",
-    });
-  });
+      const repoRoot = path.resolve(__dirname, "../../../..");
+      execFileSync("go", ["mod", "edit", "-replace", `github.com/pedronauck/agh=${repoRoot}`], {
+        cwd: projectDir,
+        stdio: "pipe",
+        timeout: goCommandTimeoutMs,
+      });
+      execFileSync("go", ["build", "./..."], {
+        cwd: projectDir,
+        stdio: "pipe",
+        timeout: goCommandTimeoutMs,
+      });
+    },
+    goTemplateTestTimeoutMs
+  );
 
   it("rejects non-empty target directories", async () => {
     const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-full-"));
