@@ -2,14 +2,15 @@
 
 React 19 SPA with Vite 8, TanStack Router (file-based), TanStack Query v5, Tailwind CSS v4, shadcn/ui (base-nova), Zustand, Zod. Formatted with oxfmt, linted with oxlint.
 
-## Design System — `DESIGN.md` is the source of truth
+## Design System — generated `DESIGN.md` + token source
 
-**`DESIGN.md` (repo root) is the authoritative design-system specification** for the web app, the `@agh/ui` kit, and every marketing/docs surface. Before writing or changing UI:
+**`packages/ui/src/tokens.css` is the canonical token source. `DESIGN.md` is the generated token specification plus stable visual rationale** for the web app, the `@agh/ui` kit, and every marketing/docs surface. Before writing or changing UI:
 
-- Pull every color, font, radius, spacing step, and motion value **from `DESIGN.md`** — never invent tokens.
-- Flat depth model only: no `box-shadow`, no gradients on content, no glass except the sticky site header. Depth comes from 4 background steps + 1px `#3C3A39` dividers.
+- Pull every color, font, radius, spacing step, and motion value from `packages/ui/src/tokens.css` and the generated `DESIGN.md` tables/frontmatter — never invent tokens.
+- If `packages/ui/src/tokens.css` or site `@theme inline` tokens change, run `make codegen` and then `make codegen-check`. Do not hand-edit generated `DESIGN.md` frontmatter or `<!-- BEGIN:tokens:* -->` regions.
+- Flat depth model only: no freehand `box-shadow`, no gradients on content, no glass except the sticky site header. Depth comes from the warm surface ramp, `--color-line*` hairlines, and exported `--shadow-*` overlay/focus tokens only.
 - Type stack: **Inter** (UI + body), **JetBrains Mono** (all metadata, uppercase, tracking 0.06em+), **Playfair Display** (marketing `.site-home` only), **NuixyberNext** (the `agh` wordmark only).
-- Signal palette — color is information, never decoration: accent `#E8572A` = action, `#30D158` = success, `#FF453A` = danger, `#FFD60A` = warning, `#BF5AF2` = info. Status/kind chips use the 15%-tint formula; no solid semantic banners.
+- Signal palette — color is information, never decoration: accent `#E8572A` = action, `#5FBF85` = success, `#E0635A` = danger, `#D6A647` = warning, `#8E8EB5` = info. Status/kind chips use exported tint tokens; no solid semantic banners.
 - Tokens live in `packages/ui/src/tokens.css`; never override with ad-hoc hex values in components.
 - For design-system or UI redesign tasks, implementation runs through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and MUST activate the mandatory design skills below.
 
@@ -63,7 +64,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | External docs lookup          | `context7`                                                      | `exa-web-search-free`           |
 | Task completion               | `cy-final-verify`                                               |                                 |
 
-**Design-system / redesign passes**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `ui-craft` before touching any component. `DESIGN.md` tokens win over anything informal already in the codebase. `ui-craft` is reference-routed — match the task to a row in `.agents/skills/ui-craft/SKILL.md` and read the listed files in full (e.g. `accessibility-floor.md`, `component-patterns.md`, `ai-slop-patterns.md`, `anti-defaults.md`, `microcopy-quality.md`, `motion-patterns.md`, `dark-mode.md`).
+**Design-system / redesign passes**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `ui-craft` before touching any component. `agh-design` lives at `.agents/skills/agh/agh-design/SKILL.md`. `packages/ui/src/tokens.css` and generated `DESIGN.md` tokens win over anything informal already in the codebase. `ui-craft` is reference-routed — match the task to a row in `.agents/skills/ui-craft/SKILL.md` and read the listed files in full (e.g. `accessibility-floor.md`, `component-patterns.md`, `ai-slop-patterns.md`, `anti-defaults.md`, `microcopy-quality.md`, `motion-patterns.md`, `dark-mode.md`).
 
 **Visual verification with `agh-ui-screenshot` is mandatory for every UI change in this workspace.** Tests verify code, not pixels.
 

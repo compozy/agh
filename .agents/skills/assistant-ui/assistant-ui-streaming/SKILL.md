@@ -1,5 +1,5 @@
 ---
-name: streaming
+name: assistant-ui-streaming
 description: Guide for assistant-stream package and streaming protocols. Use when implementing streaming backends, custom protocols, or debugging stream issues.
 version: 0.0.1
 license: MIT

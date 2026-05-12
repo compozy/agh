@@ -4,7 +4,7 @@ Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16
 
 ## Critical Rules
 
-- **Pull tokens from `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion. Site obeys the same warm-dark palette as runtime + web.
+- **Pull tokens from `packages/ui/src/tokens.css` and generated `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion. Site-only layout/type extensions live in `packages/site/app/global.css` `@theme inline`. After changing runtime or site theme tokens, run `make codegen` and `make codegen-check`; never hand-edit generated `DESIGN.md` token regions.
 - **Eyebrow markup is mandatory.** Every uppercase label in marketing/docs MUST use either (a) the `<Eyebrow>` component from `@agh/ui` (children + `className` only — no `case` / `family` / `tone` / `size` / `weight` props) or (b) the single static utility class `eyebrow` (defined in `packages/ui/src/tokens.css`) on structural elements. Color tone is applied through `className` (`text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, signal palette). Inlining `font-mono` + `uppercase` + arbitrary `text-[…]` + `tracking-[…]` tuples is forbidden — that combination IS the eyebrow utility. The deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals are forbidden. Canonical tokens: `--text-eyebrow` (11 px), `--tracking-eyebrow` (-0.005em); contract is **Inter UC 11/600/-0.005em**. See `DESIGN.md` §3, `web/CLAUDE.md`, and lesson `L-022` for the full rule.
 - **Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording.
 - **Hero positioning is locked**: headline "An open workplace for AI agents." with subhead "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts." Open-workplace-first. Do not propose alternative hero copy without explicit user approval.
@@ -75,6 +75,6 @@ make cli-docs                                           # regenerate CLI referen
 
 - Root rules and architecture: `/CLAUDE.md`, `/AGENTS.md`.
 - Web runtime UI rules: `/web/CLAUDE.md`.
-- Design tokens: `/DESIGN.md`.
+- Design token source: `/packages/ui/src/tokens.css`; generated design spec/rationale: `/DESIGN.md`; site-only theme extensions: `/packages/site/app/global.css`.
 - Copy system: `/COPY.md`.
 - Lessons / glossary / standing directives: `/docs/_memory/`.

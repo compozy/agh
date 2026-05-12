@@ -1,5 +1,5 @@
 ---
-name: runtime
+name: assistant-ui-runtime
 description: Guide for assistant-ui runtime system and state management. Use when working with runtimes, accessing state, or managing thread/message data.
 version: 0.0.1
 license: MIT

@@ -1,5 +1,5 @@
 ---
-name: primitives
+name: assistant-ui-primitives
 description: Guide for assistant-ui UI primitives - ThreadPrimitive, ComposerPrimitive, MessagePrimitive. Use when customizing chat UI components.
 version: 0.0.1
 license: MIT

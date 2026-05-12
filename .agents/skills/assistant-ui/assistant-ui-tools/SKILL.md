@@ -1,5 +1,5 @@
 ---
-name: tools
+name: assistant-ui-tools
 description: Guide for tool registration and tool UI in assistant-ui. Use when implementing LLM tools, tool call rendering, or human-in-the-loop patterns.
 version: 0.0.1
 license: MIT
