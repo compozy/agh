@@ -7,12 +7,12 @@
         "codegen-check": "bun run --cwd .. codegen-check",
         "dev": "bun run codegen && bun run dev:raw",
         "dev:raw": "vite --port 3000",
-        "build": "bun run codegen-check && bun run build:raw",
+        "build": "bun run build:raw",
         "build:raw": "vite build && tsgo --noEmit",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
         "preview": "vite preview",
-        "test": "bun run codegen-check && bun run test:raw",
+        "test": "bun run test:raw",
         "test:raw": "vitest run",
         "test:e2e": "bun run test:e2e:daemon-served",
         "test:e2e:raw": "bun run test:e2e:daemon-served:raw",
@@ -25,7 +25,7 @@
         "lint": "bun run format && bunx oxlint",
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",
-        "typecheck": "bun run codegen-check && bun run typecheck:raw",
+        "typecheck": "bun run typecheck:raw",
         "typecheck:raw": "tsgo --noEmit"
     },
     "dependencies": {

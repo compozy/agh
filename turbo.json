@@ -15,13 +15,16 @@
         "openapi/compozy-daemon.json"
     ],
     "tasks": {
+        "//#codegen-check": {
+            "outputs": []
+        },
         "build": {
-            "dependsOn": ["^build"],
+            "dependsOn": ["//#codegen-check", "^build"],
             "outputs": ["dist/**"],
             "env": ["VITE_AGH_API_URL"]
         },
         "@agh/site#build": {
-            "dependsOn": ["^build"],
+            "dependsOn": ["//#codegen-check", "^build"],
             "outputs": ["out/**", ".next/**"]
         },
         "dev": {
@@ -33,11 +36,11 @@
             "outputs": []
         },
         "typecheck": {
-            "dependsOn": ["transit"],
+            "dependsOn": ["//#codegen-check", "transit"],
             "outputs": []
         },
         "test": {
-            "dependsOn": ["transit"],
+            "dependsOn": ["//#codegen-check", "transit"],
             "outputs": []
         }
     }

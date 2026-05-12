@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,14 @@ import (
 
 type packageJSON struct {
 	Scripts map[string]string `json:"scripts"`
+}
+
+type turboJSON struct {
+	Tasks map[string]turboTask `json:"tasks"`
+}
+
+type turboTask struct {
+	DependsOn []string `json:"dependsOn"`
 }
 
 func TestMakefileE2ETargetsDelegateToLaneSpecificMageTargets(t *testing.T) {
@@ -203,6 +212,59 @@ func TestRootPackageScriptsExposeSharedCodegenEntryPoints(t *testing.T) {
 	}
 }
 
+func TestTurboPipelineRunsSharedCodegenCheckBeforeWorkspaceGates(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	cfg := readTurboJSON(t, filepath.Join(repoRoot, "turbo.json"))
+	const codegenCheckTask = "//#codegen-check"
+
+	if _, ok := cfg.Tasks[codegenCheckTask]; !ok {
+		t.Fatalf("turbo tasks = %#v, want root task %q", cfg.Tasks, codegenCheckTask)
+	}
+
+	tests := []struct {
+		name string
+		task string
+	}{
+		{
+			name: "Should run shared codegen check before workspace builds",
+			task: "build",
+		},
+		{
+			name: "Should run shared codegen check before site builds",
+			task: "@agh/site#build",
+		},
+		{
+			name: "Should run shared codegen check before workspace typechecks",
+			task: "typecheck",
+		},
+		{
+			name: "Should run shared codegen check before workspace tests",
+			task: "test",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			task, ok := cfg.Tasks[tc.task]
+			if !ok {
+				t.Fatalf("turbo task %q missing from %#v", tc.task, cfg.Tasks)
+			}
+			if !containsString(task.DependsOn, codegenCheckTask) {
+				t.Fatalf(
+					"turbo task %q dependsOn = %#v, want %q",
+					tc.task,
+					task.DependsOn,
+					codegenCheckTask,
+				)
+			}
+		})
+	}
+}
+
 func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) {
 	t.Parallel()
 
@@ -257,7 +319,7 @@ func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) 
 	}
 }
 
-func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) {
+func TestWebPackageScriptsRouteSharedCodegenThroughTurboOwnedGates(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := repoRoot(t)
@@ -284,19 +346,19 @@ func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) 
 			command: "bun run codegen && bun run dev:raw",
 		},
 		{
-			name:    "Should run codegen-check before build",
+			name:    "Should leave build raw for the Turbo-owned shared codegen check",
 			script:  "build",
-			command: "bun run codegen-check && bun run build:raw",
+			command: "bun run build:raw",
 		},
 		{
-			name:    "Should run codegen-check before test",
+			name:    "Should leave test raw for the Turbo-owned shared codegen check",
 			script:  "test",
-			command: "bun run codegen-check && bun run test:raw",
+			command: "bun run test:raw",
 		},
 		{
-			name:    "Should run codegen-check before typecheck",
+			name:    "Should leave typecheck raw for the Turbo-owned shared codegen check",
 			script:  "typecheck",
-			command: "bun run codegen-check && bun run typecheck:raw",
+			command: "bun run typecheck:raw",
 		},
 	}
 
@@ -306,6 +368,55 @@ func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) 
 
 			if got := pkg.Scripts[tc.script]; got != tc.command {
 				t.Fatalf("web package script %q = %q, want %q", tc.script, got, tc.command)
+			}
+		})
+	}
+}
+
+func TestExtensionSDKPackageScriptsRouteSharedCodegenThroughTurboOwnedGates(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	pkg := readPackageJSON(t, filepath.Join(repoRoot, "sdk", "typescript", "package.json"))
+	const extensionSDKBuildScript = "rm -rf dist && " +
+		"tsc -p tsconfig.types.json && " +
+		"tsc -p tsconfig.esm.json && " +
+		"tsc -p tsconfig.cjs.json && " +
+		"node ./scripts/postbuild.mjs"
+
+	tests := []struct {
+		name    string
+		script  string
+		command string
+	}{
+		{
+			name:    "Should route codegen-check through the shared repo entry point",
+			script:  "codegen-check",
+			command: "bun run --cwd ../.. codegen-check",
+		},
+		{
+			name:    "Should leave build raw for the Turbo-owned shared codegen check",
+			script:  "build",
+			command: extensionSDKBuildScript,
+		},
+		{
+			name:    "Should leave typecheck raw for the Turbo-owned shared codegen check",
+			script:  "typecheck",
+			command: "tsc -p tsconfig.json --noEmit",
+		},
+		{
+			name:    "Should leave test raw for the Turbo-owned shared codegen check",
+			script:  "test",
+			command: "vitest run --config vitest.config.ts",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pkg.Scripts[tc.script]; got != tc.command {
+				t.Fatalf("extension SDK package script %q = %q, want %q", tc.script, got, tc.command)
 			}
 		})
 	}
@@ -439,4 +550,23 @@ func readPackageJSON(t *testing.T, path string) packageJSON {
 		t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
 	}
 	return pkg
+}
+
+func readTurboJSON(t *testing.T, path string) turboJSON {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+
+	var cfg turboJSON
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
+	}
+	return cfg
+}
+
+func containsString(values []string, want string) bool {
+	return slices.Contains(values, want)
 }
