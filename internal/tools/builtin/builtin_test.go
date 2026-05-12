@@ -53,11 +53,44 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDWorkspaceList,
 			toolspkg.ToolIDWorkspaceInfo,
 			toolspkg.ToolIDWorkspaceDescribe,
+			toolspkg.ToolIDProviderModelsList,
+			toolspkg.ToolIDProviderModelsRefresh,
+			toolspkg.ToolIDProviderModelsStatus,
 			toolspkg.ToolIDMemoryList,
 			toolspkg.ToolIDMemoryShow,
 			toolspkg.ToolIDMemorySearch,
 			toolspkg.ToolIDMemoryPropose,
 			toolspkg.ToolIDMemoryNote,
+			toolspkg.ToolIDMemoryHealth,
+			toolspkg.ToolIDMemoryScopeShow,
+			toolspkg.ToolIDMemoryAdminHistory,
+			toolspkg.ToolIDMemoryReindex,
+			toolspkg.ToolIDMemoryPromote,
+			toolspkg.ToolIDMemoryReset,
+			toolspkg.ToolIDMemoryReload,
+			toolspkg.ToolIDMemoryDecisionsList,
+			toolspkg.ToolIDMemoryDecisionsShow,
+			toolspkg.ToolIDMemoryDecisionsRevert,
+			toolspkg.ToolIDMemoryRecallTrace,
+			toolspkg.ToolIDMemoryDreamStatus,
+			toolspkg.ToolIDMemoryDreamList,
+			toolspkg.ToolIDMemoryDreamShow,
+			toolspkg.ToolIDMemoryDreamTrigger,
+			toolspkg.ToolIDMemoryDreamRetry,
+			toolspkg.ToolIDMemoryDailyList,
+			toolspkg.ToolIDMemoryExtractorStatus,
+			toolspkg.ToolIDMemoryExtractorFailures,
+			toolspkg.ToolIDMemoryExtractorRetry,
+			toolspkg.ToolIDMemoryExtractorDrain,
+			toolspkg.ToolIDMemoryProviderList,
+			toolspkg.ToolIDMemoryProviderGet,
+			toolspkg.ToolIDMemoryProviderSelect,
+			toolspkg.ToolIDMemoryProviderEnable,
+			toolspkg.ToolIDMemoryProviderDisable,
+			toolspkg.ToolIDMemorySessionLedger,
+			toolspkg.ToolIDMemorySessionReplay,
+			toolspkg.ToolIDMemorySessionsPrune,
+			toolspkg.ToolIDMemorySessionsRepair,
 			toolspkg.ToolIDObserveEvents,
 			toolspkg.ToolIDObserveMetrics,
 			toolspkg.ToolIDObserveSearch,
@@ -76,6 +109,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskExecutionProfileGet,
 			toolspkg.ToolIDTaskExecutionProfileSet,
 			toolspkg.ToolIDTaskExecutionProfileDelete,
+			toolspkg.ToolIDTaskNotificationSubscribe,
+			toolspkg.ToolIDTaskNotificationList,
+			toolspkg.ToolIDTaskNotificationShow,
+			toolspkg.ToolIDTaskNotificationDelete,
 			toolspkg.ToolIDTaskRunClaimNext,
 			toolspkg.ToolIDTaskRunHeartbeat,
 			toolspkg.ToolIDTaskRunComplete,
@@ -161,6 +198,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"agh__task_run_cancel",
 			"agh__mcp_auth_login",
 			"agh__mcp_auth_logout",
+			"agh__memory_read",
+			"agh__memory_history",
+			"agh__memory_write",
+			"agh__memory_edit",
+			"agh__memory_delete",
 		}
 		for _, id := range excluded {
 			if _, ok := got[id]; ok {
@@ -244,11 +286,70 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceInfo], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceDescribe], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDProviderModelsList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDProviderModelsRefresh],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDProviderModelsStatus],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryShow], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemorySearch], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryPropose], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryNote], toolspkg.RiskMutating, false, false, false)
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDMemoryHealth,
+			toolspkg.ToolIDMemoryScopeShow,
+			toolspkg.ToolIDMemoryAdminHistory,
+			toolspkg.ToolIDMemoryDecisionsList,
+			toolspkg.ToolIDMemoryDecisionsShow,
+			toolspkg.ToolIDMemoryRecallTrace,
+			toolspkg.ToolIDMemoryDreamStatus,
+			toolspkg.ToolIDMemoryDreamList,
+			toolspkg.ToolIDMemoryDreamShow,
+			toolspkg.ToolIDMemoryDailyList,
+			toolspkg.ToolIDMemoryExtractorStatus,
+			toolspkg.ToolIDMemoryExtractorFailures,
+			toolspkg.ToolIDMemoryProviderList,
+			toolspkg.ToolIDMemoryProviderGet,
+			toolspkg.ToolIDMemorySessionLedger,
+		} {
+			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskRead, true, false, false)
+		}
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDMemoryReindex,
+			toolspkg.ToolIDMemoryPromote,
+			toolspkg.ToolIDMemoryReload,
+			toolspkg.ToolIDMemoryDreamTrigger,
+			toolspkg.ToolIDMemoryDreamRetry,
+			toolspkg.ToolIDMemoryExtractorRetry,
+			toolspkg.ToolIDMemoryExtractorDrain,
+			toolspkg.ToolIDMemoryProviderSelect,
+			toolspkg.ToolIDMemoryProviderEnable,
+			toolspkg.ToolIDMemoryProviderDisable,
+			toolspkg.ToolIDMemorySessionReplay,
+			toolspkg.ToolIDMemorySessionsRepair,
+		} {
+			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskMutating, false, false, false)
+		}
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDMemoryReset,
+			toolspkg.ToolIDMemoryDecisionsRevert,
+			toolspkg.ToolIDMemorySessionsPrune,
+		} {
+			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskDestructive, false, true, false)
+		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveEvents], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveMetrics], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveSearch], toolspkg.RiskRead, true, false, false)
@@ -319,6 +420,38 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDTaskExecutionProfileDelete],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskNotificationSubscribe],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskNotificationList],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskNotificationShow],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskNotificationDelete],
 			toolspkg.RiskDestructive,
 			false,
 			true,
@@ -568,6 +701,10 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileGet) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileSet) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileDelete) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationSubscribe) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationList) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationShow) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationDelete) ||
 			slices.Contains(tasks, toolspkg.ToolIDTaskRunClaimNext) {
 			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
 		}
@@ -639,6 +776,18 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("workspace toolset expansion = %#v, want read-only workspace tools", workspace)
 		}
 
+		providerModels, err := catalog.Expand(toolspkg.ToolsetIDProviderModels, universe)
+		if err != nil {
+			t.Fatalf("Expand(provider_models) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDProviderModelsList,
+			toolspkg.ToolIDProviderModelsRefresh,
+			toolspkg.ToolIDProviderModelsStatus,
+		}; !slices.Equal(providerModels, want) {
+			t.Fatalf("provider models expansion = %#v, want %#v", providerModels, want)
+		}
+
 		memory, err := catalog.Expand(toolspkg.ToolsetIDMemory, universe)
 		if err != nil {
 			t.Fatalf("Expand(memory) error = %v", err)
@@ -646,10 +795,51 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(memory, toolspkg.ToolIDMemoryShow) ||
 			!slices.Contains(memory, toolspkg.ToolIDMemoryPropose) ||
 			!slices.Contains(memory, toolspkg.ToolIDMemoryNote) ||
+			slices.Contains(memory, toolspkg.ToolIDMemoryHealth) ||
+			slices.Contains(memory, toolspkg.ToolIDMemoryReset) ||
 			slices.Contains(memory, toolspkg.ToolID("agh__memory_read")) ||
 			slices.Contains(memory, toolspkg.ToolID("agh__memory_history")) ||
 			slices.Contains(memory, toolspkg.ToolID("agh__memory_write")) {
 			t.Fatalf("memory toolset expansion = %#v, want Memory v2 Slice 1 tools", memory)
+		}
+
+		memoryAdmin, err := catalog.Expand(toolspkg.ToolsetIDMemoryAdmin, universe)
+		if err != nil {
+			t.Fatalf("Expand(memory_admin) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDMemoryAdminHistory,
+			toolspkg.ToolIDMemoryDailyList,
+			toolspkg.ToolIDMemoryDecisionsList,
+			toolspkg.ToolIDMemoryDecisionsRevert,
+			toolspkg.ToolIDMemoryDecisionsShow,
+			toolspkg.ToolIDMemoryDreamList,
+			toolspkg.ToolIDMemoryDreamRetry,
+			toolspkg.ToolIDMemoryDreamShow,
+			toolspkg.ToolIDMemoryDreamStatus,
+			toolspkg.ToolIDMemoryDreamTrigger,
+			toolspkg.ToolIDMemoryExtractorDrain,
+			toolspkg.ToolIDMemoryExtractorFailures,
+			toolspkg.ToolIDMemoryExtractorRetry,
+			toolspkg.ToolIDMemoryExtractorStatus,
+			toolspkg.ToolIDMemoryHealth,
+			toolspkg.ToolIDMemoryPromote,
+			toolspkg.ToolIDMemoryProviderDisable,
+			toolspkg.ToolIDMemoryProviderEnable,
+			toolspkg.ToolIDMemoryProviderGet,
+			toolspkg.ToolIDMemoryProviderList,
+			toolspkg.ToolIDMemoryProviderSelect,
+			toolspkg.ToolIDMemoryRecallTrace,
+			toolspkg.ToolIDMemoryReindex,
+			toolspkg.ToolIDMemoryReload,
+			toolspkg.ToolIDMemoryReset,
+			toolspkg.ToolIDMemoryScopeShow,
+			toolspkg.ToolIDMemorySessionLedger,
+			toolspkg.ToolIDMemorySessionReplay,
+			toolspkg.ToolIDMemorySessionsPrune,
+			toolspkg.ToolIDMemorySessionsRepair,
+		}; !slices.Equal(memoryAdmin, want) {
+			t.Fatalf("memory admin toolset expansion = %#v, want %#v", memoryAdmin, want)
 		}
 
 		observe, err := catalog.Expand(toolspkg.ToolsetIDObserve, universe)

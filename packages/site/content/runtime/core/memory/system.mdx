@@ -213,49 +213,51 @@ extractor inbox/DLQ artifacts, and dreaming output unless the caller explicitly 
 
 Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice 1 verbs are:
 
-| Capability         | CLI                                                            | HTTP / UDS                                                                | Native tool           |
-| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------- |
-| List entries       | `agh memory list`                                              | `GET /api/memory`                                                         | `agh__memory_list`    |
-| Show one entry     | `agh memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `agh__memory_show`    |
-| Search recall      | `agh memory search <query>`                                    | `POST /api/memory/search`                                                 | `agh__memory_search`  |
-| Operator write     | `agh memory write`                                             | `POST /api/memory`                                                        | n/a                   |
-| Edit               | `agh memory edit <filename>`                                   | `PATCH /api/memory/{filename}`                                            | `agh__memory_propose` |
-| Delete             | `agh memory delete <filename>`                                 | `DELETE /api/memory/{filename}`                                           | `agh__memory_propose` |
-| Agent proposal     | n/a                                                            | controller-backed via `POST /api/memory` / `PATCH /api/memory/{filename}` | `agh__memory_propose` |
-| Ad-hoc note        | n/a                                                            | `POST /api/memory/ad-hoc`                                                 | `agh__memory_note`    |
-| Dream trigger      | `agh memory dream trigger`                                     | `POST /api/memory/dreams/trigger`                                         | n/a                   |
-| Dream listing      | `agh memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | n/a                   |
-| Dream retry        | `agh memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | n/a                   |
-| Dream status       | `agh memory dream status`                                      | `GET /api/memory/dreams/status`                                           | n/a                   |
-| Decisions list     | `agh memory decisions list`                                    | `GET /api/memory/decisions`                                               | n/a                   |
-| Decision detail    | `agh memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | n/a                   |
-| Decision revert    | `agh memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | n/a                   |
-| Recall trace       | `agh memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | n/a                   |
-| History            | `agh memory history`                                           | `GET /api/memory/history`                                                 | n/a                   |
-| Health             | `agh memory health`                                            | `GET /api/memory/health`                                                  | n/a                   |
-| Config metadata    | n/a                                                            | `GET /api/memory/config`                                                  | n/a                   |
-| Reindex            | `agh memory reindex`                                           | `POST /api/memory/reindex`                                                | n/a                   |
-| Promote            | `agh memory promote --from <scope[:tier]> --to <scope[:tier]>` | `POST /api/memory/promote`                                                | n/a                   |
-| Reset              | `agh memory reset`                                             | `POST /api/memory/reset`                                                  | n/a                   |
-| Reload snapshot    | `agh memory reload`                                            | `POST /api/memory/reload`                                                 | n/a                   |
-| Scope inspector    | `agh memory scope-show`                                        | `GET /api/memory/scope-show`                                              | n/a                   |
-| Daily logs         | `agh memory daily ls`                                          | `GET /api/memory/daily`                                                   | n/a                   |
-| Extractor status   | `agh memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | n/a                   |
-| Extractor failures | `agh memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | n/a                   |
-| Extractor replay   | `agh memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | n/a                   |
-| Extractor drain    | `agh memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | n/a                   |
-| Provider list      | `agh memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | n/a                   |
-| Provider select    | n/a                                                            | `POST /api/memory/providers/select`                                       | n/a                   |
-| Provider enable    | `agh memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | n/a                   |
-| Provider disable   | `agh memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | n/a                   |
-| Session ledger     | n/a                                                            | `GET /api/memory/sessions/{session_id}/ledger`                            | n/a                   |
-| Session replay     | n/a                                                            | `POST /api/memory/sessions/{session_id}/replay`                           | n/a                   |
-| Session prune      | n/a                                                            | `POST /api/memory/sessions/prune`                                         | n/a                   |
-| Session repair     | n/a                                                            | `POST /api/memory/sessions/repair`                                        | n/a                   |
+| Capability         | CLI                                                            | HTTP / UDS                                                                | Native tool                                             |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
+| List entries       | `agh memory list`                                              | `GET /api/memory`                                                         | `agh__memory_list`                                      |
+| Show one entry     | `agh memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `agh__memory_show`                                      |
+| Search recall      | `agh memory search <query>`                                    | `POST /api/memory/search`                                                 | `agh__memory_search`                                    |
+| Operator write     | `agh memory write`                                             | `POST /api/memory`                                                        | n/a                                                     |
+| Edit               | `agh memory edit <filename>`                                   | `PATCH /api/memory/{filename}`                                            | `agh__memory_propose`                                   |
+| Delete             | `agh memory delete <filename>`                                 | `DELETE /api/memory/{filename}`                                           | `agh__memory_propose`                                   |
+| Agent proposal     | n/a                                                            | controller-backed via `POST /api/memory` / `PATCH /api/memory/{filename}` | `agh__memory_propose`                                   |
+| Ad-hoc note        | n/a                                                            | `POST /api/memory/ad-hoc`                                                 | `agh__memory_note`                                      |
+| Dream trigger      | `agh memory dream trigger`                                     | `POST /api/memory/dreams/trigger`                                         | `agh__memory_dream_trigger`                             |
+| Dream listing      | `agh memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | `agh__memory_dream_list`, `agh__memory_dream_show`      |
+| Dream retry        | `agh memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | `agh__memory_dream_retry`                               |
+| Dream status       | `agh memory dream status`                                      | `GET /api/memory/dreams/status`                                           | `agh__memory_dream_status`                              |
+| Decisions list     | `agh memory decisions list`                                    | `GET /api/memory/decisions`                                               | `agh__memory_decisions_list`                            |
+| Decision detail    | `agh memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | `agh__memory_decisions_show`                            |
+| Decision revert    | `agh memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | `agh__memory_decisions_revert`                          |
+| Recall trace       | `agh memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | `agh__memory_recall_trace`                              |
+| History            | `agh memory history`                                           | `GET /api/memory/history`                                                 | `agh__memory_admin_history`                             |
+| Health             | `agh memory health`                                            | `GET /api/memory/health`                                                  | `agh__memory_health`                                    |
+| Config metadata    | n/a                                                            | `GET /api/memory/config`                                                  | n/a                                                     |
+| Reindex            | `agh memory reindex`                                           | `POST /api/memory/reindex`                                                | `agh__memory_reindex`                                   |
+| Promote            | `agh memory promote --from <scope[:tier]> --to <scope[:tier]>` | `POST /api/memory/promote`                                                | `agh__memory_promote`                                   |
+| Reset              | `agh memory reset`                                             | `POST /api/memory/reset`                                                  | `agh__memory_reset`                                     |
+| Reload snapshot    | `agh memory reload`                                            | `POST /api/memory/reload`                                                 | `agh__memory_reload`                                    |
+| Scope inspector    | `agh memory scope-show`                                        | `GET /api/memory/scope-show`                                              | `agh__memory_scope_show`                                |
+| Daily logs         | `agh memory daily ls`                                          | `GET /api/memory/daily`                                                   | `agh__memory_daily_list`                                |
+| Extractor status   | `agh memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | `agh__memory_extractor_status`                          |
+| Extractor failures | `agh memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | `agh__memory_extractor_failures`                        |
+| Extractor replay   | `agh memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | `agh__memory_extractor_retry`                           |
+| Extractor drain    | `agh memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | `agh__memory_extractor_drain`                           |
+| Provider list      | `agh memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | `agh__memory_provider_list`, `agh__memory_provider_get` |
+| Provider select    | n/a                                                            | `POST /api/memory/providers/select`                                       | `agh__memory_provider_select`                           |
+| Provider enable    | `agh memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | `agh__memory_provider_enable`                           |
+| Provider disable   | `agh memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | `agh__memory_provider_disable`                          |
+| Session ledger     | n/a                                                            | `GET /api/memory/sessions/{session_id}/ledger`                            | `agh__memory_session_ledger`                            |
+| Session replay     | n/a                                                            | `POST /api/memory/sessions/{session_id}/replay`                           | `agh__memory_session_replay`                            |
+| Session prune      | n/a                                                            | `POST /api/memory/sessions/prune`                                         | `agh__memory_sessions_prune`                            |
+| Session repair     | n/a                                                            | `POST /api/memory/sessions/repair`                                        | `agh__memory_sessions_repair`                           |
 
-`agh__memory_propose` and `agh__memory_note` are the only native write surfaces; both route through
-the controller. There is no `agh__memory_read`, no `memory_history` tool, no `agh memory read`, and
-no `agh memory consolidate` in this slice — the renamed verbs above own the same intent.
+Entry writes from agents still route through `agh__memory_propose` and `agh__memory_note`; both go
+through the controller. The operational tools live in the separate `agh__memory_admin` toolset and
+mirror the daemon CLI/API surfaces. There is no `agh__memory_read`, no `agh__memory_history`, no raw
+`agh__memory_write`, no raw `agh__memory_edit`, no raw `agh__memory_delete`, no `agh memory read`,
+and no `agh memory consolidate` in this slice — the renamed verbs above own the same intent.
 
 CLI verbs accept `-o json` and `-o jsonl` for structured output. Errors are deterministic
 `{code, message, details}` payloads with stable codes such as `memory.scope.invalid`,

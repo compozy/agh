@@ -57,6 +57,39 @@ function extractGoStringConstants(source: string, typeName: string): Set<string>
   return constants;
 }
 
+function parseMarkdownTableRow(row: string): string[] {
+  return row
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map(cell => cell.trim());
+}
+
+function findMarkdownTable(content: string, requiredHeaders: string[]): string[][] {
+  const lines = content.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (!line.trim().startsWith("|")) {
+      continue;
+    }
+    const header = parseMarkdownTableRow(line);
+    if (!requiredHeaders.every(required => header.includes(required))) {
+      continue;
+    }
+    const rows: string[][] = [];
+    for (let rowIndex = index + 2; rowIndex < lines.length; rowIndex += 1) {
+      const row = lines[rowIndex] ?? "";
+      if (!row.trim().startsWith("|")) {
+        break;
+      }
+      rows.push(parseMarkdownTableRow(row));
+    }
+    return rows;
+  }
+  return [];
+}
+
 describe("runtime docs truth", () => {
   it("uses the canonical MCP server resource kind from the runtime codec", () => {
     const mcpResourceSource = readRepoFile("internal/config/mcp_resource.go");
@@ -115,6 +148,43 @@ describe("runtime docs truth", () => {
     expect(content).not.toContain("agh__example_tool");
     expect(concreteInvocations.length).toBeGreaterThan(0);
     expect(concreteInvocations.filter(id => !builtinToolIDs.has(id))).toEqual([]);
+  });
+
+  it("keeps operational native-tool documentation matrix explicit and tied to compiled IDs", () => {
+    const toolSource = readRepoFile("internal/tools/builtin_ids.go");
+    const builtinToolIDs = extractGoStringConstants(toolSource, "ToolID");
+    const docs = [
+      {
+        path: "packages/site/content/runtime/core/memory/system.mdx",
+        headers: ["Capability", "Native tool"],
+        nativeCell: 3,
+      },
+      {
+        path: "packages/site/content/runtime/core/autonomy/notification-cursors.mdx",
+        headers: ["Native tool", "Purpose"],
+        nativeCell: 0,
+      },
+      {
+        path: "packages/site/content/runtime/core/agents/model-catalog.mdx",
+        headers: ["Native tool", "Purpose"],
+        nativeCell: 0,
+      },
+    ];
+
+    for (const doc of docs) {
+      const rows = findMarkdownTable(readRepoFile(doc.path), doc.headers);
+      expect(rows.length, doc.path).toBeGreaterThan(0);
+      for (const row of rows) {
+        const cell = row[doc.nativeCell] ?? "";
+        const ids = [...cell.matchAll(/\x60(agh__[a-z0-9_]+)\x60/g)].map(match => match[1] ?? "");
+        const explicitException = /\bn\/a\b/i.test(cell);
+        expect(ids.length > 0 || explicitException, doc.path + ": " + row.join(" | ")).toBe(true);
+        expect(
+          ids.filter(id => !builtinToolIDs.has(id)),
+          doc.path + ": " + cell
+        ).toEqual([]);
+      }
+    }
   });
 
   it("teaches the Slice 1 Memory v2 surfaces and not their replaced predecessors", () => {
@@ -281,10 +351,46 @@ describe("runtime docs truth", () => {
       "agh__memory_search",
       "agh__memory_propose",
       "agh__memory_note",
+      "agh__memory_health",
+      "agh__memory_scope_show",
+      "agh__memory_admin_history",
+      "agh__memory_reindex",
+      "agh__memory_promote",
+      "agh__memory_reset",
+      "agh__memory_reload",
+      "agh__memory_decisions_list",
+      "agh__memory_decisions_show",
+      "agh__memory_decisions_revert",
+      "agh__memory_recall_trace",
+      "agh__memory_dream_status",
+      "agh__memory_dream_list",
+      "agh__memory_dream_show",
+      "agh__memory_dream_trigger",
+      "agh__memory_dream_retry",
+      "agh__memory_daily_list",
+      "agh__memory_extractor_status",
+      "agh__memory_extractor_failures",
+      "agh__memory_extractor_retry",
+      "agh__memory_extractor_drain",
+      "agh__memory_provider_list",
+      "agh__memory_provider_get",
+      "agh__memory_provider_select",
+      "agh__memory_provider_enable",
+      "agh__memory_provider_disable",
+      "agh__memory_session_ledger",
+      "agh__memory_session_replay",
+      "agh__memory_sessions_prune",
+      "agh__memory_sessions_repair",
     ]) {
       expect(ids.has(required)).toBe(true);
     }
-    for (const removed of ["agh__memory_read", "agh__memory_history", "agh__memory_write"]) {
+    for (const removed of [
+      "agh__memory_read",
+      "agh__memory_history",
+      "agh__memory_write",
+      "agh__memory_edit",
+      "agh__memory_delete",
+    ]) {
       expect(ids.has(removed)).toBe(false);
     }
   });

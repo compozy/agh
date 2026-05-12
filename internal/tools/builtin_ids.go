@@ -62,6 +62,12 @@ const (
 	ToolIDWorkspaceInfo ToolID = "agh__workspace_info"
 	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
 	ToolIDWorkspaceDescribe ToolID = "agh__workspace_describe"
+	// ToolIDProviderModelsList lists the daemon provider model catalog.
+	ToolIDProviderModelsList ToolID = "agh__provider_models_list"
+	// ToolIDProviderModelsRefresh refreshes one or more provider model catalog sources.
+	ToolIDProviderModelsRefresh ToolID = "agh__provider_models_refresh"
+	// ToolIDProviderModelsStatus reads provider model catalog source status.
+	ToolIDProviderModelsStatus ToolID = "agh__provider_models_status"
 	// ToolIDMemoryList lists memory headers visible for a scope.
 	ToolIDMemoryList ToolID = "agh__memory_list"
 	// ToolIDMemoryShow reads one memory document through the current memory store.
@@ -72,6 +78,66 @@ const (
 	ToolIDMemoryPropose ToolID = "agh__memory_propose"
 	// ToolIDMemoryNote records a controller-backed ad-hoc memory note.
 	ToolIDMemoryNote ToolID = "agh__memory_note"
+	// ToolIDMemoryHealth reads Memory v2 health and derived catalog state.
+	ToolIDMemoryHealth ToolID = "agh__memory_health"
+	// ToolIDMemoryScopeShow reports effective Memory v2 scope resolution.
+	ToolIDMemoryScopeShow ToolID = "agh__memory_scope_show"
+	// ToolIDMemoryAdminHistory lists Memory v2 operation history without reusing the removed legacy ID.
+	ToolIDMemoryAdminHistory ToolID = "agh__memory_admin_history"
+	// ToolIDMemoryReindex rebuilds Memory v2 derived indexes.
+	ToolIDMemoryReindex ToolID = "agh__memory_reindex"
+	// ToolIDMemoryPromote promotes one Memory v2 entry across scopes.
+	ToolIDMemoryPromote ToolID = "agh__memory_promote"
+	// ToolIDMemoryReset resets derived Memory v2 state.
+	ToolIDMemoryReset ToolID = "agh__memory_reset"
+	// ToolIDMemoryReload invalidates future Memory v2 snapshots.
+	ToolIDMemoryReload ToolID = "agh__memory_reload"
+	// ToolIDMemoryDecisionsList lists Memory v2 controller decisions.
+	ToolIDMemoryDecisionsList ToolID = "agh__memory_decisions_list"
+	// ToolIDMemoryDecisionsShow reads one Memory v2 controller decision.
+	ToolIDMemoryDecisionsShow ToolID = "agh__memory_decisions_show"
+	// ToolIDMemoryDecisionsRevert reverts one applied Memory v2 controller decision.
+	ToolIDMemoryDecisionsRevert ToolID = "agh__memory_decisions_revert"
+	// ToolIDMemoryRecallTrace reads one materialized Memory v2 recall trace.
+	ToolIDMemoryRecallTrace ToolID = "agh__memory_recall_trace"
+	// ToolIDMemoryDreamStatus reads live Memory v2 dreaming status.
+	ToolIDMemoryDreamStatus ToolID = "agh__memory_dream_status"
+	// ToolIDMemoryDreamList lists Memory v2 dreaming run records.
+	ToolIDMemoryDreamList ToolID = "agh__memory_dream_list"
+	// ToolIDMemoryDreamShow reads one Memory v2 dreaming run record.
+	ToolIDMemoryDreamShow ToolID = "agh__memory_dream_show"
+	// ToolIDMemoryDreamTrigger triggers Memory v2 dream consolidation.
+	ToolIDMemoryDreamTrigger ToolID = "agh__memory_dream_trigger"
+	// ToolIDMemoryDreamRetry retries Memory v2 dream consolidation.
+	ToolIDMemoryDreamRetry ToolID = "agh__memory_dream_retry"
+	// ToolIDMemoryDailyList lists Memory v2 daily operation logs.
+	ToolIDMemoryDailyList ToolID = "agh__memory_daily_list"
+	// ToolIDMemoryExtractorStatus reads Memory v2 extractor queue status.
+	ToolIDMemoryExtractorStatus ToolID = "agh__memory_extractor_status"
+	// ToolIDMemoryExtractorFailures lists Memory v2 extractor failures.
+	ToolIDMemoryExtractorFailures ToolID = "agh__memory_extractor_failures"
+	// ToolIDMemoryExtractorRetry retries Memory v2 extractor failures.
+	ToolIDMemoryExtractorRetry ToolID = "agh__memory_extractor_retry"
+	// ToolIDMemoryExtractorDrain drains the Memory v2 extractor queue.
+	ToolIDMemoryExtractorDrain ToolID = "agh__memory_extractor_drain"
+	// ToolIDMemoryProviderList lists Memory v2 providers.
+	ToolIDMemoryProviderList ToolID = "agh__memory_provider_list"
+	// ToolIDMemoryProviderGet reads one Memory v2 provider.
+	ToolIDMemoryProviderGet ToolID = "agh__memory_provider_get"
+	// ToolIDMemoryProviderSelect selects the active Memory v2 provider.
+	ToolIDMemoryProviderSelect ToolID = "agh__memory_provider_select"
+	// ToolIDMemoryProviderEnable enables one Memory v2 provider.
+	ToolIDMemoryProviderEnable ToolID = "agh__memory_provider_enable"
+	// ToolIDMemoryProviderDisable disables one Memory v2 provider.
+	ToolIDMemoryProviderDisable ToolID = "agh__memory_provider_disable"
+	// ToolIDMemorySessionLedger reads one materialized Memory v2 session ledger.
+	ToolIDMemorySessionLedger ToolID = "agh__memory_session_ledger"
+	// ToolIDMemorySessionReplay replays one materialized Memory v2 session ledger.
+	ToolIDMemorySessionReplay ToolID = "agh__memory_session_replay"
+	// ToolIDMemorySessionsPrune prunes Memory v2 session ledgers.
+	ToolIDMemorySessionsPrune ToolID = "agh__memory_sessions_prune"
+	// ToolIDMemorySessionsRepair repairs Memory v2 session ledgers.
+	ToolIDMemorySessionsRepair ToolID = "agh__memory_sessions_repair"
 	// ToolIDObserveEvents reads redacted observability events.
 	ToolIDObserveEvents ToolID = "agh__observe_events"
 	// ToolIDObserveMetrics reads daemon observability health and metrics.
@@ -108,6 +174,14 @@ const (
 	ToolIDTaskExecutionProfileSet ToolID = "agh__task_execution_profile_set"
 	// ToolIDTaskExecutionProfileDelete removes one task execution profile.
 	ToolIDTaskExecutionProfileDelete ToolID = "agh__task_execution_profile_delete"
+	// ToolIDTaskNotificationSubscribe creates one bridge notification subscription for a task.
+	ToolIDTaskNotificationSubscribe ToolID = "agh__task_notification_subscribe"
+	// ToolIDTaskNotificationList lists bridge notification subscriptions for a task.
+	ToolIDTaskNotificationList ToolID = "agh__task_notification_list"
+	// ToolIDTaskNotificationShow reads one bridge notification subscription for a task.
+	ToolIDTaskNotificationShow ToolID = "agh__task_notification_show"
+	// ToolIDTaskNotificationDelete deletes one bridge notification subscription for a task.
+	ToolIDTaskNotificationDelete ToolID = "agh__task_notification_delete"
 	// ToolIDTaskRunClaimNext claims the next run for the caller session.
 	ToolIDTaskRunClaimNext ToolID = "agh__task_run_claim_next"
 	// ToolIDTaskRunHeartbeat extends the caller session's active run lease.
@@ -227,8 +301,12 @@ const (
 	ToolsetIDAuthoredContext ToolsetID = "agh__authored_context"
 	// ToolsetIDWorkspace groups read-only workspace tools.
 	ToolsetIDWorkspace ToolsetID = "agh__workspace"
+	// ToolsetIDProviderModels groups provider model catalog tools.
+	ToolsetIDProviderModels ToolsetID = "agh__provider_models"
 	// ToolsetIDMemory groups Memory v2 read and proposal tools.
 	ToolsetIDMemory ToolsetID = "agh__memory"
+	// ToolsetIDMemoryAdmin groups Memory v2 operational tools.
+	ToolsetIDMemoryAdmin ToolsetID = "agh__memory_admin"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "agh__observe"
 	// ToolsetIDBridges groups read-only bridge inspection tools.

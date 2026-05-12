@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	apitest "github.com/pedronauck/agh/internal/api/testutil"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -21,7 +22,9 @@ import (
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
 	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/notifications"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -245,12 +248,26 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		tasks := &nativeTaskManager{}
 		networkService := &nativeNetworkStub{}
+		memoryStore := memorypkg.NewStore(
+			filepath.Join(t.TempDir(), "schema-memory"),
+			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), store.GlobalDatabaseName)),
+		)
+		catalog := &nativeModelCatalogService{}
+		extractor := &nativeMemoryExtractorService{}
+		providers := &nativeMemoryProviderService{}
+		ledger := &nativeMemorySessionLedgerService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills:       newLoadedNativeSkillRegistry(t),
-			Network:      networkService,
-			NetworkStore: apitest.StubNetworkStore{},
-			Tasks:        tasks,
-			Automation:   apitest.StubAutomationManager{},
+			Skills:              newLoadedNativeSkillRegistry(t),
+			Network:             networkService,
+			NetworkStore:        apitest.StubNetworkStore{},
+			Tasks:               tasks,
+			Bridges:             apitest.StubBridgeService{},
+			Automation:          apitest.StubAutomationManager{},
+			ModelCatalog:        catalog,
+			MemoryStore:         memoryStore,
+			MemoryExtractor:     extractor,
+			MemoryProviders:     providers,
+			MemorySessionLedger: ledger,
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{}
 			},
@@ -298,6 +315,10 @@ func TestDaemonNativeTools(t *testing.T) {
 				json.RawMessage(`{"task_id":"task","profile":{"created_at":"bad"}}`),
 			},
 			{toolspkg.ToolIDTaskExecutionProfileDelete, json.RawMessage(`{"task_id":7}`)},
+			{toolspkg.ToolIDTaskNotificationSubscribe, json.RawMessage("{\"task_id\":7}")},
+			{toolspkg.ToolIDTaskNotificationList, json.RawMessage("{\"task_id\":\"task\",\"limit\":\"bad\"}")},
+			{toolspkg.ToolIDTaskNotificationShow, json.RawMessage("{\"task_id\":\"task\",\"subscription_id\":7}")},
+			{toolspkg.ToolIDTaskNotificationDelete, json.RawMessage("{\"task_id\":\"task\",\"subscription_id\":7}")},
 			{toolspkg.ToolIDAutomationJobsList, json.RawMessage(`{"limit":"bad"}`)},
 			{toolspkg.ToolIDAutomationJobsGet, json.RawMessage(`{"job_id":7}`)},
 			{toolspkg.ToolIDMCPAuthStatus, json.RawMessage(`{"server_name":7}`)},
@@ -315,6 +336,34 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			{toolspkg.ToolIDAutomationRunsList, json.RawMessage(`{"limit":"bad"}`)},
 			{toolspkg.ToolIDAutomationRunsGet, json.RawMessage(`{"run_id":7}`)},
+			{toolspkg.ToolIDProviderModelsList, json.RawMessage("{\"provider_id\":7}")},
+			{toolspkg.ToolIDProviderModelsRefresh, json.RawMessage("{\"source_id\":7}")},
+			{toolspkg.ToolIDProviderModelsStatus, json.RawMessage("{\"provider_id\":7}")},
+			{toolspkg.ToolIDMemoryHealth, json.RawMessage("{\"workspace_id\":7}")},
+			{toolspkg.ToolIDMemoryScopeShow, json.RawMessage("{\"scope\":7}")},
+			{toolspkg.ToolIDMemoryAdminHistory, json.RawMessage("{\"limit\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryReindex, json.RawMessage("{\"include_system\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryPromote, json.RawMessage("{\"filename\":7}")},
+			{toolspkg.ToolIDMemoryReset, json.RawMessage("{\"confirm\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryReload, json.RawMessage("{\"scope\":7}")},
+			{toolspkg.ToolIDMemoryDecisionsList, json.RawMessage("{\"limit\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryDecisionsShow, json.RawMessage("{\"decision_id\":7}")},
+			{toolspkg.ToolIDMemoryDecisionsRevert, json.RawMessage("{\"decision_id\":7}")},
+			{toolspkg.ToolIDMemoryRecallTrace, json.RawMessage("{\"session_id\":\"sess\",\"turn_seq\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryDreamList, json.RawMessage("{\"limit\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryDreamShow, json.RawMessage("{\"dream_id\":7}")},
+			{toolspkg.ToolIDMemoryDreamTrigger, json.RawMessage("{\"force\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryDreamRetry, json.RawMessage("{\"failure_id\":7}")},
+			{toolspkg.ToolIDMemoryDailyList, json.RawMessage("{\"limit\":\"bad\"}")},
+			{toolspkg.ToolIDMemoryExtractorRetry, json.RawMessage("{\"failure_id\":7}")},
+			{toolspkg.ToolIDMemoryProviderList, json.RawMessage("{\"workspace_id\":7}")},
+			{toolspkg.ToolIDMemoryProviderGet, json.RawMessage("{\"name\":7}")},
+			{toolspkg.ToolIDMemoryProviderSelect, json.RawMessage("{\"name\":7}")},
+			{toolspkg.ToolIDMemoryProviderEnable, json.RawMessage("{\"name\":7}")},
+			{toolspkg.ToolIDMemoryProviderDisable, json.RawMessage("{\"name\":7}")},
+			{toolspkg.ToolIDMemorySessionLedger, json.RawMessage("{\"session_id\":7}")},
+			{toolspkg.ToolIDMemorySessionReplay, json.RawMessage("{\"session_id\":7}")},
+			{toolspkg.ToolIDMemorySessionsPrune, json.RawMessage("{\"older_than_hours\":\"bad\"}")},
 		}
 
 		for _, tc := range cases {
@@ -334,6 +383,211 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if got := networkService.totalCalls(); got != 0 {
 			t.Fatalf("network calls = %d, want 0", got)
+		}
+		if got := catalog.totalCalls(); got != 0 {
+			t.Fatalf("model catalog calls = %d, want 0", got)
+		}
+		if got := extractor.totalCalls(); got != 0 {
+			t.Fatalf("memory extractor calls = %d, want 0", got)
+		}
+		if got := providers.totalCalls(); got != 0 {
+			t.Fatalf("memory provider calls = %d, want 0", got)
+		}
+		if got := ledger.totalCalls(); got != 0 {
+			t.Fatalf("memory session ledger calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should read provider model catalog tools through the model catalog service boundary", func(t *testing.T) {
+		t.Parallel()
+
+		available := true
+		now := time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC)
+		catalog := &nativeModelCatalogService{
+			models: []modelcatalog.Model{{
+				ProviderID:        "codex",
+				ModelID:           "gpt-5.4",
+				DisplayName:       "GPT-5.4",
+				Available:         &available,
+				AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+				RefreshedAt:       now,
+				Sources: []modelcatalog.SourceRef{{
+					SourceID:    modelcatalog.SourceIDConfig,
+					SourceKind:  modelcatalog.SourceKindConfig,
+					Priority:    modelcatalog.PriorityConfig,
+					RefreshedAt: now,
+				}},
+			}},
+			statuses: []modelcatalog.SourceStatus{{
+				SourceID:     modelcatalog.SourceIDConfig,
+				SourceKind:   modelcatalog.SourceKindConfig,
+				ProviderID:   "codex",
+				Priority:     modelcatalog.PriorityConfig,
+				LastRefresh:  now,
+				LastSuccess:  now,
+				RefreshState: modelcatalog.RefreshStateSucceeded,
+				RowCount:     1,
+			}},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			ModelCatalog: catalog,
+		}, nativeApproveAllPolicyInputs())
+
+		listResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsList,
+				Input: json.RawMessage(
+					`{"provider_id":"codex","source_id":"config","refresh":true,"include_stale":true}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(provider_models_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"provider_id":"codex"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"model_id":"gpt-5.4"`))
+		if catalog.listCalls != 1 ||
+			catalog.lastList.ProviderID != "codex" ||
+			catalog.lastList.SourceID != modelcatalog.SourceIDConfig ||
+			!catalog.lastList.Refresh ||
+			!catalog.lastList.IncludeStale {
+			t.Fatalf("ListModels options = %#v after %d calls", catalog.lastList, catalog.listCalls)
+		}
+
+		refreshResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsRefresh,
+				Input: json.RawMessage(
+					`{"provider_id":"codex","source_id":"config","force":true,"request_id":"req-1"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(provider_models_refresh) error = %v", err)
+		}
+		requireNativeStructuredContains(t, refreshResult, []byte(`"source_id":"config"`))
+		if catalog.refreshCalls != 1 ||
+			catalog.lastRefresh.ProviderID != "codex" ||
+			catalog.lastRefresh.SourceID != modelcatalog.SourceIDConfig ||
+			!catalog.lastRefresh.Force ||
+			catalog.lastRefresh.RequestID != "req-1" {
+			t.Fatalf("Refresh options = %#v after %d calls", catalog.lastRefresh, catalog.refreshCalls)
+		}
+
+		statusResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsStatus,
+				Input:  json.RawMessage(`{"provider_id":"codex"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(provider_models_status) error = %v", err)
+		}
+		requireNativeStructuredContains(t, statusResult, []byte(`"refresh_state":"succeeded"`))
+		if catalog.statusCalls != 1 || catalog.lastStatusProviderID != "codex" {
+			t.Fatalf("ListSourceStatus provider = %q after %d calls", catalog.lastStatusProviderID, catalog.statusCalls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsList,
+				Input:  json.RawMessage(`{"provider_id":"Bad Provider"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(provider_models_list invalid provider) error = %v, want ErrToolInvalidInput", err)
+		}
+		if catalog.listCalls != 1 {
+			t.Fatalf("ListModels calls = %d, want unchanged after invalid provider", catalog.listCalls)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsRefresh,
+				Input:  json.RawMessage(`{"source_id":"bad source"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(provider_models_refresh invalid source) error = %v, want ErrToolInvalidInput", err)
+		}
+		if catalog.refreshCalls != 1 {
+			t.Fatalf("Refresh calls = %d, want unchanged after invalid source", catalog.refreshCalls)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsStatus,
+				Input:  json.RawMessage(`{"provider_id":"Bad Provider"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(provider_models_status invalid provider) error = %v, want ErrToolInvalidInput", err)
+		}
+		if catalog.statusCalls != 1 {
+			t.Fatalf("Status calls = %d, want unchanged after invalid provider", catalog.statusCalls)
+		}
+	})
+
+	t.Run("Should map provider model service failures to native tool errors", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name string
+			id   toolspkg.ToolID
+			mut  func(*nativeModelCatalogService)
+			want toolspkg.ErrorCode
+		}{
+			{
+				name: "list backend failure",
+				id:   toolspkg.ToolIDProviderModelsList,
+				mut: func(catalog *nativeModelCatalogService) {
+					catalog.listErr = errors.New("catalog read failed")
+				},
+				want: toolspkg.ErrorCodeBackendFailed,
+			},
+			{
+				name: "refresh unavailable",
+				id:   toolspkg.ToolIDProviderModelsRefresh,
+				mut: func(catalog *nativeModelCatalogService) {
+					catalog.refreshErr = modelcatalog.ErrAllSourcesFailed
+				},
+				want: toolspkg.ErrorCodeUnavailable,
+			},
+			{
+				name: "status backend failure",
+				id:   toolspkg.ToolIDProviderModelsStatus,
+				mut: func(catalog *nativeModelCatalogService) {
+					catalog.statusErr = errors.New("status read failed")
+				},
+				want: toolspkg.ErrorCodeBackendFailed,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				catalog := &nativeModelCatalogService{}
+				tc.mut(catalog)
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					ModelCatalog: catalog,
+				}, nativeApproveAllPolicyInputs())
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{},
+					toolspkg.CallRequest{ToolID: tc.id},
+				)
+				requireToolCode(t, err, tc.want)
+			})
 		}
 	})
 
@@ -2868,6 +3122,714 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should dispatch Memory admin tools through operational Memory v2 services", func(t *testing.T) {
+		t.Parallel()
+
+		globalDir := filepath.Join(t.TempDir(), "memory")
+		catalogPath := filepath.Join(t.TempDir(), "memory.db")
+		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
+		if err := memoryStore.Write(
+			memcontract.ScopeGlobal,
+			"ops.md",
+			nativeMemoryDocument("Ops", "Operational memory", memcontract.TypeUser, "memory admin health"),
+		); err != nil {
+			t.Fatalf("Write(global memory) error = %v", err)
+		}
+		cfg := aghconfig.Config{}
+		cfg.Memory.Enabled = true
+		cfg.Memory.GlobalDir = globalDir
+		cfg.Memory.Dream.CheckInterval = time.Hour
+		extractor := &nativeMemoryExtractorService{
+			status: contract.MemoryExtractorStatusPayload{Status: contract.MemoryExtractorStateIdle, QueuedSessions: 2},
+		}
+		providers := &nativeMemoryProviderService{
+			provider: contract.MemoryProviderPayload{
+				Name:   "builtin",
+				Status: contract.MemoryProviderStateActive,
+				Active: true,
+				Tools:  []string{toolspkg.ToolIDMemoryPropose.String()},
+			},
+		}
+		ledger := &nativeMemorySessionLedgerService{
+			response: contract.MemorySessionLedgerResponse{
+				Meta: contract.MemorySessionLedgerMetaPayload{
+					Version:   1,
+					SessionID: "sess-memory",
+					Path:      filepath.Join(t.TempDir(), "sess-memory.jsonl"),
+					Checksum:  "sha256:test",
+					CreatedAt: time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC),
+				},
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Config:              cfg,
+			MemoryStore:         memoryStore,
+			MemoryExtractor:     extractor,
+			MemoryProviders:     providers,
+			MemorySessionLedger: ledger,
+		}, nativeApproveAllPolicyInputs())
+
+		healthResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryHealth},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_health) error = %v", err)
+		}
+		requireNativeStructuredContains(t, healthResult, []byte(`"enabled":true`))
+		requireNativeStructuredContains(t, healthResult, []byte(`"global_files":1`))
+
+		extractorResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryExtractorStatus},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_extractor_status) error = %v", err)
+		}
+		requireNativeStructuredContains(t, extractorResult, []byte(`"status":"idle"`))
+		if extractor.statusCalls != 1 {
+			t.Fatalf("extractor Status calls = %d, want 1", extractor.statusCalls)
+		}
+
+		providerResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryProviderList,
+				Input:  json.RawMessage(`{"workspace_id":"ws-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_provider_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, providerResult, []byte(`"name":"builtin"`))
+		if providers.listCalls != 1 || providers.lastWorkspaceID != "ws-1" {
+			t.Fatalf("provider list workspace = %q after %d calls", providers.lastWorkspaceID, providers.listCalls)
+		}
+
+		ledgerResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemorySessionLedger,
+				Input:  json.RawMessage(`{"session_id":"sess-memory"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_session_ledger) error = %v", err)
+		}
+		requireNativeStructuredContains(t, ledgerResult, []byte(`"session_id":"sess-memory"`))
+		if ledger.getCalls != 1 || ledger.lastSessionID != "sess-memory" {
+			t.Fatalf("session ledger id = %q after %d calls", ledger.lastSessionID, ledger.getCalls)
+		}
+
+		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.ToolIDMemoryAdminHistory)
+		if err != nil {
+			t.Fatalf("Registry.Get(memory_admin_history) error = %v", err)
+		}
+		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, "agh__memory_history")
+		if !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("Registry.Get(memory_history legacy) error = %v, want ErrToolNotFound", err)
+		}
+	})
+
+	t.Run("Should cover Memory admin native groups and destructive reset guards", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			id      toolspkg.ToolID
+			scope   toolspkg.Scope
+			input   func(nativeMemoryAdminFixture) json.RawMessage
+			want    []byte
+			wantErr toolspkg.ErrorCode
+			assert  func(*testing.T, nativeMemoryAdminFixture)
+		}{
+			{name: "health", id: toolspkg.ToolIDMemoryHealth, want: []byte(`"enabled":true`)},
+			{
+				name:  "scope show",
+				id:    toolspkg.ToolIDMemoryScopeShow,
+				input: staticNativeInput(`{"scope":"global"}`),
+				want:  []byte(`"scope":"global"`),
+			},
+			{name: "history", id: toolspkg.ToolIDMemoryAdminHistory, want: []byte(`"operations"`)},
+			{name: "reindex", id: toolspkg.ToolIDMemoryReindex, want: []byte(`"indexed_files"`)},
+			{
+				name: "promote",
+				id:   toolspkg.ToolIDMemoryPromote,
+				input: staticNativeInput(
+					`{"filename":"ops.md","from":{"scope":"global"},"to":{"scope":"global"},` +
+						`"idempotency_key":"promote-test","dry_run":true}`,
+				),
+				want: []byte(`"decision"`),
+				assert: func(t *testing.T, fixture nativeMemoryAdminFixture) {
+					t.Helper()
+					records, err := fixture.memoryStore.ListDecisionRecords(t.Context(), memorypkg.DecisionListQuery{})
+					if err != nil {
+						t.Fatalf("ListDecisionRecords() error = %v", err)
+					}
+					if len(records) != 2 {
+						t.Fatalf("decision record count = %d, want existing fixture decisions only", len(records))
+					}
+				},
+			},
+			{
+				name:  "reset unconfirmed guard",
+				id:    toolspkg.ToolIDMemoryReset,
+				input: staticNativeInput(`{"derived_only":true,"confirm":false}`),
+				want:  []byte(`"deleted_rows":0`),
+			},
+			{
+				name:  "reset derived",
+				id:    toolspkg.ToolIDMemoryReset,
+				input: staticNativeInput(`{"derived_only":true,"confirm":true}`),
+				want:  []byte(`"derived_only":true`),
+			},
+			{name: "reload", id: toolspkg.ToolIDMemoryReload, want: []byte(`"generation"`)},
+			{name: "decisions list", id: toolspkg.ToolIDMemoryDecisionsList, want: []byte(`"decisions"`)},
+			{
+				name: "decisions show",
+				id:   toolspkg.ToolIDMemoryDecisionsShow,
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(`{"decision_id":%q}`, fixture.decision.ID))
+				},
+				want: []byte(`"decision"`),
+			},
+			{
+				name:  "decisions show denies out-of-scope agent decision",
+				id:    toolspkg.ToolIDMemoryDecisionsShow,
+				scope: toolspkg.Scope{SessionID: "sess-reviewer", AgentName: "reviewer"},
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(`{"decision_id":%q}`, fixture.agentDecision.ID))
+				},
+				wantErr: toolspkg.ErrorCodeDenied,
+			},
+			{
+				name: "decisions revert dry run",
+				id:   toolspkg.ToolIDMemoryDecisionsRevert,
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(
+						`{"decision_id":%q,"reason":"verify native revert","dry_run":true}`,
+						fixture.decision.ID,
+					))
+				},
+				want: []byte(`"dry_run":true`),
+			},
+			{
+				name:  "decisions revert dry run denies out-of-scope agent decision",
+				id:    toolspkg.ToolIDMemoryDecisionsRevert,
+				scope: toolspkg.Scope{SessionID: "sess-reviewer", AgentName: "reviewer"},
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(
+						`{"decision_id":%q,"reason":"verify native revert","dry_run":true}`,
+						fixture.agentDecision.ID,
+					))
+				},
+				wantErr: toolspkg.ErrorCodeDenied,
+			},
+			{
+				name:    "recall trace not materialized",
+				id:      toolspkg.ToolIDMemoryRecallTrace,
+				input:   staticNativeInput(`{"session_id":"sess-memory","turn_seq":1}`),
+				wantErr: toolspkg.ErrorCodeNotFound,
+			},
+			{name: "dream status", id: toolspkg.ToolIDMemoryDreamStatus, want: []byte(`"dreams":[]`)},
+			{name: "dream list", id: toolspkg.ToolIDMemoryDreamList, want: []byte(`"dreams"`)},
+			{
+				name:    "dream show missing",
+				id:      toolspkg.ToolIDMemoryDreamShow,
+				input:   staticNativeInput(`{"dream_id":"dream-missing"}`),
+				wantErr: toolspkg.ErrorCodeNotFound,
+			},
+			{
+				name:  "dream trigger",
+				id:    toolspkg.ToolIDMemoryDreamTrigger,
+				input: staticNativeInput(`{"scope":"workspace","workspace_id":"ws-1","force":true}`),
+				want:  []byte(`"triggered":true`),
+				assert: func(t *testing.T, fixture nativeMemoryAdminFixture) {
+					t.Helper()
+					if fixture.dream.triggerCalls != 1 || fixture.dream.lastWorkspace != "ws-1" {
+						t.Fatalf("dream trigger = %#v, want one ws-1 call", fixture.dream)
+					}
+				},
+			},
+			{
+				name:  "dream retry",
+				id:    toolspkg.ToolIDMemoryDreamRetry,
+				input: staticNativeInput(`{"failure_id":"dream-failure","force":true}`),
+				want:  []byte(`"retried":true`),
+				assert: func(t *testing.T, fixture nativeMemoryAdminFixture) {
+					t.Helper()
+					if fixture.dream.triggerCalls != 1 || fixture.dream.lastWorkspace != "dream-failure" {
+						t.Fatalf("dream retry trigger = %#v, want one dream-failure call", fixture.dream)
+					}
+				},
+			},
+			{
+				name:    "dream retry rejects missing target",
+				id:      toolspkg.ToolIDMemoryDreamRetry,
+				input:   staticNativeInput(`{"force":true}`),
+				wantErr: toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name:    "dream retry rejects conflicting targets",
+				id:      toolspkg.ToolIDMemoryDreamRetry,
+				input:   staticNativeInput(`{"failure_id":"dream-failure","dream_id":"dream-run","force":true}`),
+				wantErr: toolspkg.ErrorCodeInvalidInput,
+			},
+			{name: "daily list", id: toolspkg.ToolIDMemoryDailyList, want: []byte(`"logs"`)},
+			{name: "extractor status", id: toolspkg.ToolIDMemoryExtractorStatus, want: []byte(`"status":"idle"`)},
+			{name: "extractor failures", id: toolspkg.ToolIDMemoryExtractorFailures, want: []byte(`"failure-native"`)},
+			{
+				name:  "extractor retry",
+				id:    toolspkg.ToolIDMemoryExtractorRetry,
+				input: staticNativeInput(`{"failure_id":"failure-native"}`),
+				want:  []byte(`"retried":1`),
+				assert: func(t *testing.T, fixture nativeMemoryAdminFixture) {
+					t.Helper()
+					if fixture.extractor.lastRetry.FailureID != "failure-native" {
+						t.Fatalf("extractor retry = %#v, want failure-native", fixture.extractor.lastRetry)
+					}
+				},
+			},
+			{name: "extractor drain", id: toolspkg.ToolIDMemoryExtractorDrain, want: []byte(`"remaining":0`)},
+			{
+				name:  "provider list",
+				id:    toolspkg.ToolIDMemoryProviderList,
+				input: staticNativeInput(`{"workspace_id":"ws-1"}`),
+				want:  []byte(`"name":"builtin"`),
+			},
+			{
+				name:  "provider get",
+				id:    toolspkg.ToolIDMemoryProviderGet,
+				input: staticNativeInput(`{"workspace_id":"ws-1","name":"builtin"}`),
+				want:  []byte(`"name":"builtin"`),
+			},
+			{
+				name:  "provider select",
+				id:    toolspkg.ToolIDMemoryProviderSelect,
+				input: staticNativeInput(`{"workspace_id":"ws-1","name":"builtin"}`),
+				want:  []byte(`"active":true`),
+			},
+			{
+				name:  "provider enable",
+				id:    toolspkg.ToolIDMemoryProviderEnable,
+				input: staticNativeInput(`{"workspace_id":"ws-1","name":"builtin","reason":"test"}`),
+				want:  []byte(`"changed":true`),
+			},
+			{
+				name:  "provider disable",
+				id:    toolspkg.ToolIDMemoryProviderDisable,
+				input: staticNativeInput(`{"workspace_id":"ws-1","name":"builtin","reason":"test"}`),
+				want:  []byte(`"changed":true`),
+			},
+			{
+				name:  "session ledger",
+				id:    toolspkg.ToolIDMemorySessionLedger,
+				input: staticNativeInput(`{"session_id":"sess-memory"}`),
+				want:  []byte(`"session_id":"sess-memory"`),
+			},
+			{
+				name: "session replay",
+				id:   toolspkg.ToolIDMemorySessionReplay,
+				input: staticNativeInput(
+					`{"session_id":"sess-memory","include_tool_events":true,"include_memory":true}`,
+				),
+				want: []byte(`"session_id":"sess-memory"`),
+			},
+			{
+				name:  "sessions prune",
+				id:    toolspkg.ToolIDMemorySessionsPrune,
+				input: staticNativeInput(`{"older_than_hours":24,"dry_run":true}`),
+				want:  []byte(`"dry_run":true`),
+			},
+			{name: "sessions repair", id: toolspkg.ToolIDMemorySessionsRepair, want: []byte(`"repaired_ledgers":1`)},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				fixture := newNativeMemoryAdminFixture(t)
+				var input json.RawMessage
+				if tc.input != nil {
+					input = tc.input(fixture)
+				}
+				result, err := fixture.registry.Call(
+					t.Context(),
+					tc.scope,
+					toolspkg.CallRequest{ToolID: tc.id, Input: input},
+				)
+				if tc.wantErr != "" {
+					requireToolCode(t, err, tc.wantErr)
+					return
+				}
+				if err != nil {
+					t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
+				}
+				requireNativeStructuredContains(t, result, tc.want)
+				if tc.assert != nil {
+					tc.assert(t, fixture)
+				}
+			})
+		}
+	})
+
+	t.Run(
+		"Should manage task notification subscriptions through native task and bridge boundaries",
+		func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, 5, 12, 11, 0, 0, 0, time.UTC)
+			tasks := &nativeTaskManager{
+				getView: &taskpkg.View{Task: taskpkg.Task{
+					ID:          "task-1",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+					Title:       "Notify bridge",
+					Status:      taskpkg.TaskStatusInProgress,
+				}},
+			}
+			var (
+				putSubscription bridgepkg.BridgeTaskSubscription
+				listQuery       bridgepkg.BridgeTaskSubscriptionQuery
+				deleteID        string
+				deleted         bool
+			)
+			bridges := apitest.StubBridgeService{
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					if id != "bridge-1" {
+						t.Fatalf("GetInstance id = %q, want bridge-1", id)
+					}
+					return &bridgepkg.BridgeInstance{
+						ID:          "bridge-1",
+						Scope:       bridgepkg.ScopeWorkspace,
+						WorkspaceID: "ws-1",
+					}, nil
+				},
+				PutTaskSubscriptionFn: func(_ context.Context, subscription bridgepkg.BridgeTaskSubscription) error {
+					putSubscription = subscription
+					return nil
+				},
+				GetTaskSubscriptionFn: func(_ context.Context, id string) (bridgepkg.BridgeTaskSubscription, error) {
+					if id != putSubscription.SubscriptionID {
+						t.Fatalf("GetBridgeTaskSubscription id = %q, want %q", id, putSubscription.SubscriptionID)
+					}
+					if deleted {
+						return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+					}
+					stored := putSubscription
+					if stored.UpdatedAt.IsZero() {
+						stored.UpdatedAt = now
+					}
+					return stored, nil
+				},
+				ListTaskSubscriptionsFn: func(
+					_ context.Context,
+					query bridgepkg.BridgeTaskSubscriptionQuery,
+				) ([]bridgepkg.BridgeTaskSubscription, error) {
+					listQuery = query
+					return []bridgepkg.BridgeTaskSubscription{putSubscription}, nil
+				},
+				DeleteTaskSubscriptionFn: func(_ context.Context, id string) error {
+					deleteID = id
+					deleted = true
+					return nil
+				},
+				GetCursorFn: func(_ context.Context, key notifications.CursorKey) (notifications.Cursor, error) {
+					if key.ConsumerID != "bridge_task_subscription:sub-native" ||
+						key.StreamName != "task_events" ||
+						key.SubjectID != "task-1" {
+						t.Fatalf("GetCursor key = %#v, want native subscription cursor", key)
+					}
+					return notifications.Cursor{
+						Key:             key,
+						LastSequence:    11,
+						LastDeliveryID:  "delivery-11",
+						LastDeliveredAt: now,
+						UpdatedAt:       now,
+					}, nil
+				},
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Tasks:   tasks,
+				Bridges: bridges,
+			}, nativeApproveAllPolicyInputs())
+
+			subscribeResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
+					Input: json.RawMessage(
+						`{"task_id":"task-1","subscription_id":"sub-native","bridge_instance_id":"bridge-1",` +
+							`"scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","thread_id":"thread-1",` +
+							`"delivery_mode":"reply"}`,
+					),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(task_notification_subscribe) error = %v", err)
+			}
+			requireNativeStructuredContains(t, subscribeResult, []byte(`"subscription_id":"sub-native"`))
+			requireNativeStructuredContains(t, subscribeResult, []byte(`"last_sequence":11`))
+			if putSubscription.SubscriptionID != "sub-native" ||
+				putSubscription.TaskID != "task-1" ||
+				putSubscription.BridgeInstanceID != "bridge-1" ||
+				putSubscription.Scope != bridgepkg.ScopeWorkspace ||
+				putSubscription.WorkspaceID != "ws-1" ||
+				putSubscription.DeliveryMode != bridgepkg.DeliveryModeReply {
+				t.Fatalf("put subscription = %#v", putSubscription)
+			}
+
+			listResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTaskNotificationList,
+					Input: json.RawMessage(
+						`{"task_id":"task-1","bridge_instance_id":"bridge-1","scope":"workspace","workspace_id":"ws-1","limit":3}`,
+					),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(task_notification_list) error = %v", err)
+			}
+			requireNativeStructuredContains(t, listResult, []byte(`"subscription_id":"sub-native"`))
+			if listQuery.TaskID != "task-1" ||
+				listQuery.BridgeInstanceID != "bridge-1" ||
+				listQuery.Scope != bridgepkg.ScopeWorkspace ||
+				listQuery.WorkspaceID != "ws-1" ||
+				listQuery.Limit != 3 {
+				t.Fatalf("list query = %#v", listQuery)
+			}
+
+			showResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTaskNotificationShow,
+					Input:  json.RawMessage(`{"task_id":"task-1","subscription_id":"sub-native"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(task_notification_show) error = %v", err)
+			}
+			requireNativeStructuredContains(t, showResult, []byte(`"last_delivery_id":"delivery-11"`))
+
+			deleteResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTaskNotificationDelete,
+					Input:  json.RawMessage(`{"task_id":"task-1","subscription_id":"sub-native"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(task_notification_delete) error = %v", err)
+			}
+			requireNativeStructuredContains(t, deleteResult, []byte(`"deleted":true`))
+			if deleteID != "sub-native" {
+				t.Fatalf("delete id = %q, want sub-native", deleteID)
+			}
+		},
+	)
+
+	t.Run("Should keep task notification subscribe successful when cursor enrichment fails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 12, 11, 30, 0, 0, time.UTC)
+		tasks := &nativeTaskManager{
+			getView: &taskpkg.View{Task: taskpkg.Task{
+				ID:          "task-1",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-1",
+				Title:       "Notify bridge",
+				Status:      taskpkg.TaskStatusInProgress,
+			}},
+		}
+		var putSubscription bridgepkg.BridgeTaskSubscription
+		bridges := apitest.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if id != "bridge-1" {
+					t.Fatalf("GetInstance id = %q, want bridge-1", id)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:          "bridge-1",
+					Scope:       bridgepkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}, nil
+			},
+			PutTaskSubscriptionFn: func(_ context.Context, subscription bridgepkg.BridgeTaskSubscription) error {
+				putSubscription = subscription
+				return nil
+			},
+			GetTaskSubscriptionFn: func(_ context.Context, id string) (bridgepkg.BridgeTaskSubscription, error) {
+				if id != putSubscription.SubscriptionID {
+					t.Fatalf("GetBridgeTaskSubscription id = %q, want %q", id, putSubscription.SubscriptionID)
+				}
+				stored := putSubscription
+				stored.UpdatedAt = now
+				return stored, nil
+			},
+			GetCursorFn: func(context.Context, notifications.CursorKey) (notifications.Cursor, error) {
+				return notifications.Cursor{}, errors.New("cursor backend unavailable")
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks:   tasks,
+			Bridges: bridges,
+		}, nativeApproveAllPolicyInputs())
+
+		subscribeResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
+				Input: json.RawMessage(
+					`{"task_id":"task-1","subscription_id":"sub-native","bridge_instance_id":"bridge-1",` +
+						`"scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","thread_id":"thread-1",` +
+						`"delivery_mode":"reply"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_notification_subscribe) error = %v", err)
+		}
+		requireNativeStructuredContains(t, subscribeResult, []byte(`"subscription_id":"sub-native"`))
+		requireNativeStructuredContains(
+			t,
+			subscribeResult,
+			[]byte(`"consumer_id":"bridge_task_subscription:sub-native"`),
+		)
+		if putSubscription.SubscriptionID != "sub-native" {
+			t.Fatalf("put subscription id = %q, want sub-native", putSubscription.SubscriptionID)
+		}
+	})
+
+	t.Run("Should reject task notification invalid input and bridge service errors", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			id      toolspkg.ToolID
+			input   json.RawMessage
+			bridges apitest.StubBridgeService
+			want    toolspkg.ErrorCode
+		}{
+			{
+				name: "subscribe missing delivery target",
+				id:   toolspkg.ToolIDTaskNotificationSubscribe,
+				input: json.RawMessage(
+					`{"task_id":"task-1","subscription_id":"sub-1","bridge_instance_id":"bridge-1",` +
+						`"scope":"workspace","workspace_id":"ws-1","delivery_mode":"reply"}`,
+				),
+				want: toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name: "subscribe scope mismatch",
+				id:   toolspkg.ToolIDTaskNotificationSubscribe,
+				input: json.RawMessage(
+					`{"task_id":"task-1","subscription_id":"sub-1","bridge_instance_id":"bridge-1",` +
+						`"scope":"global","peer_id":"peer-1","delivery_mode":"reply"}`,
+				),
+				want: toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name: "subscribe missing bridge instance",
+				id:   toolspkg.ToolIDTaskNotificationSubscribe,
+				input: json.RawMessage(
+					`{"task_id":"task-1","subscription_id":"sub-1","bridge_instance_id":"missing",` +
+						`"scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
+				),
+				bridges: apitest.StubBridgeService{},
+				want:    toolspkg.ErrorCodeNotFound,
+			},
+			{
+				name:  "list invalid scope",
+				id:    toolspkg.ToolIDTaskNotificationList,
+				input: json.RawMessage(`{"task_id":"task-1","scope":"invalid"}`),
+				want:  toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name:  "list backend failure",
+				id:    toolspkg.ToolIDTaskNotificationList,
+				input: json.RawMessage(`{"task_id":"task-1"}`),
+				bridges: apitest.StubBridgeService{
+					ListTaskSubscriptionsFn: func(
+						context.Context,
+						bridgepkg.BridgeTaskSubscriptionQuery,
+					) ([]bridgepkg.BridgeTaskSubscription, error) {
+						return nil, errors.New("list subscriptions failed")
+					},
+				},
+				want: toolspkg.ErrorCodeBackendFailed,
+			},
+			{
+				name:  "show missing subscription id",
+				id:    toolspkg.ToolIDTaskNotificationShow,
+				input: json.RawMessage(`{"task_id":"task-1"}`),
+				want:  toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name:  "show missing subscription",
+				id:    toolspkg.ToolIDTaskNotificationShow,
+				input: json.RawMessage(`{"task_id":"task-1","subscription_id":"missing"}`),
+				bridges: apitest.StubBridgeService{
+					GetTaskSubscriptionFn: func(context.Context, string) (bridgepkg.BridgeTaskSubscription, error) {
+						return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+					},
+				},
+				want: toolspkg.ErrorCodeNotFound,
+			},
+			{
+				name:  "delete missing subscription id",
+				id:    toolspkg.ToolIDTaskNotificationDelete,
+				input: json.RawMessage(`{"task_id":"task-1"}`),
+				want:  toolspkg.ErrorCodeInvalidInput,
+			},
+			{
+				name:  "delete missing subscription",
+				id:    toolspkg.ToolIDTaskNotificationDelete,
+				input: json.RawMessage(`{"task_id":"task-1","subscription_id":"missing"}`),
+				bridges: apitest.StubBridgeService{
+					GetTaskSubscriptionFn: func(context.Context, string) (bridgepkg.BridgeTaskSubscription, error) {
+						return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+					},
+				},
+				want: toolspkg.ErrorCodeNotFound,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				bridges := tc.bridges
+				tasks := &nativeTaskManager{
+					getView: &taskpkg.View{Task: taskpkg.Task{
+						ID:          "task-1",
+						Scope:       taskpkg.ScopeWorkspace,
+						WorkspaceID: "ws-1",
+						Title:       "Notify bridge",
+						Status:      taskpkg.TaskStatusInProgress,
+					}},
+				}
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Tasks:   tasks,
+					Bridges: bridges,
+				}, nativeApproveAllPolicyInputs())
+
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{},
+					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
+				)
+				requireToolCode(t, err, tc.want)
+			})
+		}
+	})
+
 	t.Run("Should deny subagent memory writes and mark root tool writes", func(t *testing.T) {
 		t.Parallel()
 
@@ -3454,6 +4416,468 @@ func nativeApproveAllPolicyInputs() toolspkg.PolicyInputs {
 	}
 }
 
+type nativeMemoryAdminFixture struct {
+	registry      *toolspkg.RuntimeRegistry
+	memoryStore   *memorypkg.Store
+	decision      memcontract.Decision
+	agentDecision memcontract.Decision
+	dream         *nativeDreamTriggerService
+	extractor     *nativeMemoryExtractorService
+	providers     *nativeMemoryProviderService
+	ledger        *nativeMemorySessionLedgerService
+}
+
+func staticNativeInput(input string) func(nativeMemoryAdminFixture) json.RawMessage {
+	return func(nativeMemoryAdminFixture) json.RawMessage {
+		return json.RawMessage(input)
+	}
+}
+
+func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
+	t.Helper()
+
+	now := time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC)
+	globalDir := filepath.Join(t.TempDir(), "memory")
+	memoryStore := memorypkg.NewStore(
+		globalDir,
+		memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), store.GlobalDatabaseName)),
+	)
+	if err := memoryStore.EnsureDirs(); err != nil {
+		t.Fatalf("EnsureDirs() error = %v", err)
+	}
+	if err := memoryStore.Write(
+		memcontract.ScopeGlobal,
+		"ops.md",
+		nativeMemoryDocument("Ops", "Operational memory", memcontract.TypeUser, "memory admin health"),
+	); err != nil {
+		t.Fatalf("Write(global memory) error = %v", err)
+	}
+	decision, err := memoryStore.ProposeCandidate(t.Context(), memcontract.Candidate{
+		Scope:   memcontract.ScopeGlobal,
+		Origin:  memcontract.OriginTool,
+		Content: "Native Memory admin decisions stay inspectable.",
+		Frontmatter: memcontract.Header{
+			Name:  "Native admin decision",
+			Type:  memcontract.TypeUser,
+			Scope: memcontract.ScopeGlobal,
+		},
+		SubmittedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("ProposeCandidate() error = %v", err)
+	}
+	agentStore := memoryStore.ForAgent("", "coder", memcontract.AgentTierGlobal)
+	if err := agentStore.EnsureDirs(); err != nil {
+		t.Fatalf("EnsureDirs(agent memory) error = %v", err)
+	}
+	agentDecision, err := agentStore.ProposeCandidate(t.Context(), memcontract.Candidate{
+		Scope:     memcontract.ScopeAgent,
+		AgentName: "coder",
+		AgentTier: memcontract.AgentTierGlobal,
+		Origin:    memcontract.OriginTool,
+		Content:   "Native Memory admin agent decisions stay scoped.",
+		Frontmatter: memcontract.Header{
+			Name:      "Native admin agent decision",
+			Type:      memcontract.TypeFeedback,
+			Scope:     memcontract.ScopeAgent,
+			AgentName: "coder",
+			AgentTier: memcontract.AgentTierGlobal,
+		},
+		SubmittedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("ProposeCandidate(agent) error = %v", err)
+	}
+
+	cfg := aghconfig.Config{}
+	cfg.Memory.Enabled = true
+	cfg.Memory.GlobalDir = globalDir
+	cfg.Memory.Dream.Agent = "dreaming-curator"
+	cfg.Memory.Dream.CheckInterval = time.Hour
+	dream := &nativeDreamTriggerService{enabled: true, triggered: true, reason: "queued", last: now}
+	extractor := &nativeMemoryExtractorService{
+		status: contract.MemoryExtractorStatusPayload{
+			Status:         contract.MemoryExtractorStateIdle,
+			QueuedSessions: 2,
+			FailureCount:   1,
+		},
+		failures: []contract.MemoryExtractorFailurePayload{{
+			ID:        "failure-native",
+			SessionID: "sess-memory",
+			Reason:    "decode failed",
+			Path:      filepath.Join(t.TempDir(), "failure.json"),
+			CreatedAt: now,
+		}},
+		retry: contract.MemoryExtractorRetryResponse{Retried: 1},
+		drain: contract.MemoryExtractorDrainResponse{DrainedAt: now, Remaining: 0},
+	}
+	providers := &nativeMemoryProviderService{
+		provider: contract.MemoryProviderPayload{
+			Name:   "builtin",
+			Status: contract.MemoryProviderStateActive,
+			Active: true,
+			Tools:  []string{toolspkg.ToolIDMemoryPropose.String()},
+		},
+	}
+	ledger := &nativeMemorySessionLedgerService{
+		response: contract.MemorySessionLedgerResponse{
+			Meta: contract.MemorySessionLedgerMetaPayload{
+				Version:   1,
+				SessionID: "sess-memory",
+				Path:      filepath.Join(t.TempDir(), "sess-memory.jsonl"),
+				Checksum:  "sha256:test",
+				CreatedAt: now,
+			},
+		},
+		replay: contract.MemorySessionReplayResponse{
+			Events: []contract.MemorySessionLedgerEntryPayload{{
+				Sequence:  1,
+				EventType: "message.created",
+				EmittedAt: now,
+			}},
+		},
+		prune:  contract.MemorySessionsPruneResponse{PrunedSessions: 2, PrunedEvents: 3, DryRun: true},
+		repair: contract.MemorySessionsRepairResponse{RepairedLedgers: 1, CompletedAt: now},
+	}
+	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+		Config:              cfg,
+		MemoryStore:         memoryStore,
+		DreamTrigger:        dream,
+		MemoryExtractor:     extractor,
+		MemoryProviders:     providers,
+		MemorySessionLedger: ledger,
+	}, nativeApproveAllPolicyInputs())
+	return nativeMemoryAdminFixture{
+		registry:      registry,
+		memoryStore:   memoryStore,
+		decision:      decision,
+		agentDecision: agentDecision,
+		dream:         dream,
+		extractor:     extractor,
+		providers:     providers,
+		ledger:        ledger,
+	}
+}
+
+type nativeDreamTriggerService struct {
+	enabled       bool
+	triggered     bool
+	reason        string
+	last          time.Time
+	err           error
+	triggerCalls  int
+	lastWorkspace string
+}
+
+func (s *nativeDreamTriggerService) Trigger(_ context.Context, workspace string) (bool, string, error) {
+	s.triggerCalls++
+	s.lastWorkspace = workspace
+	if s.err != nil {
+		return false, "", s.err
+	}
+	return s.triggered, s.reason, nil
+}
+
+func (s *nativeDreamTriggerService) LastConsolidatedAt() (time.Time, error) {
+	if s.err != nil {
+		return time.Time{}, s.err
+	}
+	return s.last, nil
+}
+
+func (s *nativeDreamTriggerService) Enabled() bool {
+	return s.enabled
+}
+
+type nativeModelCatalogService struct {
+	models               []modelcatalog.Model
+	statuses             []modelcatalog.SourceStatus
+	listCalls            int
+	refreshCalls         int
+	statusCalls          int
+	lastList             modelcatalog.ListOptions
+	lastRefresh          modelcatalog.RefreshOptions
+	lastStatusProviderID string
+	listErr              error
+	refreshErr           error
+	statusErr            error
+}
+
+func (s *nativeModelCatalogService) ListModels(
+	_ context.Context,
+	opts modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	s.listCalls++
+	s.lastList = opts
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return append([]modelcatalog.Model(nil), s.models...), nil
+}
+
+func (s *nativeModelCatalogService) Refresh(
+	_ context.Context,
+	opts modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	s.refreshCalls++
+	s.lastRefresh = opts
+	if s.refreshErr != nil {
+		return append([]modelcatalog.SourceStatus(nil), s.statuses...), s.refreshErr
+	}
+	return append([]modelcatalog.SourceStatus(nil), s.statuses...), nil
+}
+
+func (s *nativeModelCatalogService) ListSourceStatus(
+	_ context.Context,
+	providerID string,
+) ([]modelcatalog.SourceStatus, error) {
+	s.statusCalls++
+	s.lastStatusProviderID = providerID
+	if s.statusErr != nil {
+		return nil, s.statusErr
+	}
+	return append([]modelcatalog.SourceStatus(nil), s.statuses...), nil
+}
+
+func (s *nativeModelCatalogService) totalCalls() int {
+	return s.listCalls + s.refreshCalls + s.statusCalls
+}
+
+type nativeMemoryExtractorService struct {
+	status       contract.MemoryExtractorStatusPayload
+	failures     []contract.MemoryExtractorFailurePayload
+	retry        contract.MemoryExtractorRetryResponse
+	drain        contract.MemoryExtractorDrainResponse
+	err          error
+	statusCalls  int
+	failureCalls int
+	retryCalls   int
+	drainCalls   int
+	lastRetry    contract.MemoryExtractorRetryRequest
+}
+
+func (s *nativeMemoryExtractorService) Status(
+	context.Context,
+) (contract.MemoryExtractorStatusPayload, error) {
+	s.statusCalls++
+	if s.err != nil {
+		return contract.MemoryExtractorStatusPayload{}, s.err
+	}
+	return s.status, nil
+}
+
+func (s *nativeMemoryExtractorService) ListFailures(
+	context.Context,
+) ([]contract.MemoryExtractorFailurePayload, error) {
+	s.failureCalls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]contract.MemoryExtractorFailurePayload(nil), s.failures...), nil
+}
+
+func (s *nativeMemoryExtractorService) Retry(
+	_ context.Context,
+	req contract.MemoryExtractorRetryRequest,
+) (contract.MemoryExtractorRetryResponse, error) {
+	s.retryCalls++
+	s.lastRetry = req
+	if s.err != nil {
+		return contract.MemoryExtractorRetryResponse{}, s.err
+	}
+	return s.retry, nil
+}
+
+func (s *nativeMemoryExtractorService) Drain(
+	context.Context,
+) (contract.MemoryExtractorDrainResponse, error) {
+	s.drainCalls++
+	if s.err != nil {
+		return contract.MemoryExtractorDrainResponse{}, s.err
+	}
+	if !s.drain.DrainedAt.IsZero() {
+		return s.drain, nil
+	}
+	return contract.MemoryExtractorDrainResponse{DrainedAt: time.Now().UTC()}, nil
+}
+
+func (s *nativeMemoryExtractorService) totalCalls() int {
+	return s.statusCalls + s.failureCalls + s.retryCalls + s.drainCalls
+}
+
+type nativeMemoryProviderService struct {
+	provider        contract.MemoryProviderPayload
+	err             error
+	listCalls       int
+	getCalls        int
+	selectCalls     int
+	enableCalls     int
+	disableCalls    int
+	lastWorkspaceID string
+	lastName        string
+	lastReason      string
+}
+
+func (s *nativeMemoryProviderService) List(
+	_ context.Context,
+	workspaceID string,
+) ([]contract.MemoryProviderPayload, error) {
+	s.listCalls++
+	s.lastWorkspaceID = workspaceID
+	if s.err != nil {
+		return nil, s.err
+	}
+	return []contract.MemoryProviderPayload{s.provider}, nil
+}
+
+func (s *nativeMemoryProviderService) Get(
+	_ context.Context,
+	workspaceID string,
+	name string,
+) (contract.MemoryProviderPayload, error) {
+	s.getCalls++
+	s.lastWorkspaceID = workspaceID
+	s.lastName = name
+	if s.err != nil {
+		return contract.MemoryProviderPayload{}, s.err
+	}
+	return s.provider, nil
+}
+
+func (s *nativeMemoryProviderService) Select(
+	_ context.Context,
+	workspaceID string,
+	name string,
+) (contract.MemoryProviderPayload, error) {
+	s.selectCalls++
+	s.lastWorkspaceID = workspaceID
+	s.lastName = name
+	if s.err != nil {
+		return contract.MemoryProviderPayload{}, s.err
+	}
+	selected := s.provider
+	selected.Name = name
+	selected.Active = true
+	selected.Status = contract.MemoryProviderStateActive
+	return selected, nil
+}
+
+func (s *nativeMemoryProviderService) Enable(
+	_ context.Context,
+	workspaceID string,
+	name string,
+	reason string,
+) (contract.MemoryProviderLifecycleResponse, error) {
+	s.enableCalls++
+	s.lastWorkspaceID = workspaceID
+	s.lastName = name
+	s.lastReason = reason
+	if s.err != nil {
+		return contract.MemoryProviderLifecycleResponse{}, s.err
+	}
+	enabled := s.provider
+	enabled.Name = name
+	return contract.MemoryProviderLifecycleResponse{Provider: enabled, Changed: true}, nil
+}
+
+func (s *nativeMemoryProviderService) Disable(
+	_ context.Context,
+	workspaceID string,
+	name string,
+	reason string,
+) (contract.MemoryProviderLifecycleResponse, error) {
+	s.disableCalls++
+	s.lastWorkspaceID = workspaceID
+	s.lastName = name
+	s.lastReason = reason
+	if s.err != nil {
+		return contract.MemoryProviderLifecycleResponse{}, s.err
+	}
+	disabled := s.provider
+	disabled.Name = name
+	disabled.Active = false
+	disabled.Status = contract.MemoryProviderStateStandby
+	return contract.MemoryProviderLifecycleResponse{Provider: disabled, Changed: true}, nil
+}
+
+func (s *nativeMemoryProviderService) totalCalls() int {
+	return s.listCalls + s.getCalls + s.selectCalls + s.enableCalls + s.disableCalls
+}
+
+type nativeMemorySessionLedgerService struct {
+	response      contract.MemorySessionLedgerResponse
+	replay        contract.MemorySessionReplayResponse
+	prune         contract.MemorySessionsPruneResponse
+	repair        contract.MemorySessionsRepairResponse
+	err           error
+	getCalls      int
+	replayCalls   int
+	pruneCalls    int
+	repairCalls   int
+	lastSessionID string
+	lastReplay    contract.MemorySessionReplayRequest
+	lastPrune     contract.MemorySessionsPruneRequest
+}
+
+func (s *nativeMemorySessionLedgerService) Get(
+	_ context.Context,
+	sessionID string,
+) (contract.MemorySessionLedgerResponse, error) {
+	s.getCalls++
+	s.lastSessionID = sessionID
+	if s.err != nil {
+		return contract.MemorySessionLedgerResponse{}, s.err
+	}
+	response := s.response
+	response.Meta.SessionID = sessionID
+	return response, nil
+}
+
+func (s *nativeMemorySessionLedgerService) Replay(
+	_ context.Context,
+	sessionID string,
+	req contract.MemorySessionReplayRequest,
+) (contract.MemorySessionReplayResponse, error) {
+	s.replayCalls++
+	s.lastSessionID = sessionID
+	s.lastReplay = req
+	if s.err != nil {
+		return contract.MemorySessionReplayResponse{}, s.err
+	}
+	response := s.replay
+	response.SessionID = sessionID
+	return response, nil
+}
+
+func (s *nativeMemorySessionLedgerService) Prune(
+	_ context.Context,
+	req contract.MemorySessionsPruneRequest,
+) (contract.MemorySessionsPruneResponse, error) {
+	s.pruneCalls++
+	s.lastPrune = req
+	if s.err != nil {
+		return contract.MemorySessionsPruneResponse{}, s.err
+	}
+	return s.prune, nil
+}
+
+func (s *nativeMemorySessionLedgerService) Repair(
+	context.Context,
+) (contract.MemorySessionsRepairResponse, error) {
+	s.repairCalls++
+	if s.err != nil {
+		return contract.MemorySessionsRepairResponse{}, s.err
+	}
+	if !s.repair.CompletedAt.IsZero() {
+		return s.repair, nil
+	}
+	return contract.MemorySessionsRepairResponse{CompletedAt: time.Now().UTC()}, nil
+}
+
+func (s *nativeMemorySessionLedgerService) totalCalls() int {
+	return s.getCalls + s.replayCalls + s.pruneCalls + s.repairCalls
+}
+
 type nativeMemoryToolWriteRecorder struct {
 	sessionID string
 	turnSeq   int64
@@ -3581,6 +5005,21 @@ func requireToolReason(t *testing.T, err error, target error, reason toolspkg.Re
 	got, ok := toolspkg.ReasonOf(err)
 	if !ok || got != reason {
 		t.Fatalf("ReasonOf(error) = %q/%v, want %q", got, ok, reason)
+	}
+}
+
+func requireToolCode(t *testing.T, err error, want toolspkg.ErrorCode) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want tool code %s", want)
+	}
+	var toolErr *toolspkg.ToolError
+	if !errors.As(err, &toolErr) {
+		t.Fatalf("error = %T %[1]v, want *tools.ToolError", err)
+	}
+	if toolErr.Code != want {
+		t.Fatalf("tool error code = %s, want %s; error=%v", toolErr.Code, want, err)
 	}
 }
 

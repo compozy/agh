@@ -36,35 +36,41 @@ import (
 )
 
 type daemonNativeToolsDeps struct {
-	Registry          func() toolspkg.Registry
-	Skills            core.SkillsRegistry
-	Sessions          core.SessionManager
-	Workspaces        core.WorkspaceService
-	WorkspaceResolver workspacepkg.RuntimeResolver
-	Network           core.NetworkService
-	NetworkStore      core.NetworkStore
-	Tasks             taskpkg.Manager
-	MemoryStore       *memorypkg.Store
-	MemoryToolWrites  memoryToolWriteRecorder
-	Bridges           core.BridgeService
-	HomePaths         aghconfig.HomePaths
-	Observer          core.Observer
-	HookBindings      hookBindingPublisher
-	AgentCatalog      core.AgentCatalog
-	HeartbeatStatus   core.HeartbeatStatusService
-	HeartbeatWake     core.HeartbeatWakeService
-	SessionHealth     core.SessionHealthReader
-	WakeEvents        core.HeartbeatWakeEventReader
-	Automation        core.AutomationManager
-	AutomationRuntime func() core.AutomationManager
-	ExtensionRegistry *extensionpkg.Registry
-	ExtensionRuntime  func() extensionRuntime
-	ExtensionMarket   aghconfig.ExtensionsMarketplaceConfig
-	ExtensionSources  extensionMarketplaceSourceLoader
-	AgentSkills       agentSkillPublisher
-	ToolMCP           toolMCPPublisher
-	MCPAuth           func() toolspkg.MCPAuthStatusProvider
-	Bundles           bundleResourcePublisher
+	Registry            func() toolspkg.Registry
+	Config              aghconfig.Config
+	Skills              core.SkillsRegistry
+	Sessions            core.SessionManager
+	Workspaces          core.WorkspaceService
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	ModelCatalog        core.ModelCatalogService
+	Network             core.NetworkService
+	NetworkStore        core.NetworkStore
+	Tasks               taskpkg.Manager
+	MemoryStore         *memorypkg.Store
+	MemoryToolWrites    memoryToolWriteRecorder
+	DreamTrigger        core.DreamTrigger
+	MemoryExtractor     core.MemoryExtractorService
+	MemoryProviders     core.MemoryProviderService
+	MemorySessionLedger core.MemorySessionLedgerService
+	Bridges             core.BridgeService
+	HomePaths           aghconfig.HomePaths
+	Observer            core.Observer
+	HookBindings        hookBindingPublisher
+	AgentCatalog        core.AgentCatalog
+	HeartbeatStatus     core.HeartbeatStatusService
+	HeartbeatWake       core.HeartbeatWakeService
+	SessionHealth       core.SessionHealthReader
+	WakeEvents          core.HeartbeatWakeEventReader
+	Automation          core.AutomationManager
+	AutomationRuntime   func() core.AutomationManager
+	ExtensionRegistry   *extensionpkg.Registry
+	ExtensionRuntime    func() extensionRuntime
+	ExtensionMarket     aghconfig.ExtensionsMarketplaceConfig
+	ExtensionSources    extensionMarketplaceSourceLoader
+	AgentSkills         agentSkillPublisher
+	ToolMCP             toolMCPPublisher
+	MCPAuth             func() toolspkg.MCPAuthStatusProvider
+	Bundles             bundleResourcePublisher
 }
 
 type daemonNativeTools struct {
@@ -187,20 +193,26 @@ func (d *Daemon) nativeToolsDeps(
 	registryRef func() toolspkg.Registry,
 ) daemonNativeToolsDeps {
 	return daemonNativeToolsDeps{
-		Registry:          registryRef,
-		Skills:            skillsRegistryAPI(state.skillsRegistry),
-		Sessions:          state.sessions,
-		Workspaces:        state.workspaceResolver,
-		WorkspaceResolver: state.workspaceResolver,
-		Network:           state.deps.Network,
-		NetworkStore:      state.registry,
-		Tasks:             state.deps.Tasks,
-		MemoryStore:       state.memoryStore,
-		MemoryToolWrites:  state.memoryExtractor,
-		Bridges:           state.deps.Bridges,
-		HomePaths:         d.homePaths,
-		Observer:          state.observer,
-		HookBindings:      state.hookBindings,
+		Registry:            registryRef,
+		Config:              state.cfg,
+		Skills:              skillsRegistryAPI(state.skillsRegistry),
+		Sessions:            state.sessions,
+		Workspaces:          state.workspaceResolver,
+		WorkspaceResolver:   state.workspaceResolver,
+		ModelCatalog:        state.deps.ModelCatalog,
+		Network:             state.deps.Network,
+		NetworkStore:        state.registry,
+		Tasks:               state.deps.Tasks,
+		MemoryStore:         state.memoryStore,
+		MemoryToolWrites:    state.memoryExtractor,
+		DreamTrigger:        state.deps.DreamTrigger,
+		MemoryExtractor:     state.deps.MemoryExtractor,
+		MemoryProviders:     state.deps.MemoryProviders,
+		MemorySessionLedger: state.deps.MemorySessionLedger,
+		Bridges:             state.deps.Bridges,
+		HomePaths:           d.homePaths,
+		Observer:            state.observer,
+		HookBindings:        state.hookBindings,
 		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -367,26 +379,32 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 }
 
 type nativeToolAvailabilitySet struct {
-	registry         toolspkg.NativeAvailabilityFunc
-	skills           toolspkg.NativeAvailabilityFunc
-	network          toolspkg.NativeAvailabilityFunc
-	networkRead      toolspkg.NativeAvailabilityFunc
-	sessions         toolspkg.NativeAvailabilityFunc
-	sessionHealth    toolspkg.NativeAvailabilityFunc
-	heartbeatStatus  toolspkg.NativeAvailabilityFunc
-	heartbeatWake    toolspkg.NativeAvailabilityFunc
-	workspaces       toolspkg.NativeAvailabilityFunc
-	workspaceDetails toolspkg.NativeAvailabilityFunc
-	tasks            toolspkg.NativeAvailabilityFunc
-	memory           toolspkg.NativeAvailabilityFunc
-	observe          toolspkg.NativeAvailabilityFunc
-	bridges          toolspkg.NativeAvailabilityFunc
-	config           toolspkg.NativeAvailabilityFunc
-	hookRead         toolspkg.NativeAvailabilityFunc
-	hookMutation     toolspkg.NativeAvailabilityFunc
-	automation       toolspkg.NativeAvailabilityFunc
-	extensions       toolspkg.NativeAvailabilityFunc
-	mcpAuth          toolspkg.NativeAvailabilityFunc
+	registry            toolspkg.NativeAvailabilityFunc
+	skills              toolspkg.NativeAvailabilityFunc
+	network             toolspkg.NativeAvailabilityFunc
+	networkRead         toolspkg.NativeAvailabilityFunc
+	sessions            toolspkg.NativeAvailabilityFunc
+	sessionHealth       toolspkg.NativeAvailabilityFunc
+	heartbeatStatus     toolspkg.NativeAvailabilityFunc
+	heartbeatWake       toolspkg.NativeAvailabilityFunc
+	workspaces          toolspkg.NativeAvailabilityFunc
+	workspaceDetails    toolspkg.NativeAvailabilityFunc
+	providerModels      toolspkg.NativeAvailabilityFunc
+	tasks               toolspkg.NativeAvailabilityFunc
+	taskNotifications   toolspkg.NativeAvailabilityFunc
+	memory              toolspkg.NativeAvailabilityFunc
+	memoryAdminStore    toolspkg.NativeAvailabilityFunc
+	memoryExtractor     toolspkg.NativeAvailabilityFunc
+	memoryProviders     toolspkg.NativeAvailabilityFunc
+	memorySessionLedger toolspkg.NativeAvailabilityFunc
+	observe             toolspkg.NativeAvailabilityFunc
+	bridges             toolspkg.NativeAvailabilityFunc
+	config              toolspkg.NativeAvailabilityFunc
+	hookRead            toolspkg.NativeAvailabilityFunc
+	hookMutation        toolspkg.NativeAvailabilityFunc
+	automation          toolspkg.NativeAvailabilityFunc
+	extensions          toolspkg.NativeAvailabilityFunc
+	mcpAuth             toolspkg.NativeAvailabilityFunc
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
@@ -405,10 +423,17 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		),
 	)
 	addNativeToolBindings(bindings, n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails))
+	addNativeToolBindings(bindings, n.providerModelToolBindings(availability.providerModels))
 	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
+	addNativeToolBindings(bindings, n.memoryAdminToolBindings(memoryAdminAvailabilitySet{
+		store:         availability.memoryAdminStore,
+		extractor:     availability.memoryExtractor,
+		providers:     availability.memoryProviders,
+		sessionLedger: availability.memorySessionLedger,
+	}))
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
 	addNativeToolBindings(bindings, n.bridgeToolBindings(availability.bridges))
-	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
+	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks, availability.taskNotifications))
 	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
@@ -445,7 +470,17 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		workspaceDetails: n.dependencyAvailability(func() bool {
 			return n.deps.Workspaces != nil && n.deps.Sessions != nil
 		}),
-		memory: n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
+		providerModels: n.dependencyAvailability(func() bool { return n.deps.ModelCatalog != nil }),
+		taskNotifications: n.dependencyAvailability(func() bool {
+			return n.deps.Tasks != nil && n.deps.Bridges != nil
+		}),
+		memory:           n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
+		memoryAdminStore: n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
+		memoryExtractor:  n.dependencyAvailability(func() bool { return n.deps.MemoryExtractor != nil }),
+		memoryProviders:  n.dependencyAvailability(func() bool { return n.deps.MemoryProviders != nil }),
+		memorySessionLedger: n.dependencyAvailability(func() bool {
+			return n.deps.MemorySessionLedger != nil
+		}),
 		observe: n.dependencyAvailability(func() bool {
 			return n.deps.Observer != nil
 		}),
@@ -703,6 +738,7 @@ func (n *daemonNativeTools) bridgeToolBindings(
 
 func (n *daemonNativeTools) taskToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
+	notificationAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskList: {
@@ -756,6 +792,22 @@ func (n *daemonNativeTools) taskToolBindings(
 		toolspkg.ToolIDTaskExecutionProfileDelete: {
 			call:         n.taskExecutionProfileDelete,
 			availability: availability,
+		},
+		toolspkg.ToolIDTaskNotificationSubscribe: {
+			call:         n.taskNotificationSubscribe,
+			availability: notificationAvailability,
+		},
+		toolspkg.ToolIDTaskNotificationList: {
+			call:         n.taskNotificationList,
+			availability: notificationAvailability,
+		},
+		toolspkg.ToolIDTaskNotificationShow: {
+			call:         n.taskNotificationShow,
+			availability: notificationAvailability,
+		},
+		toolspkg.ToolIDTaskNotificationDelete: {
+			call:         n.taskNotificationDelete,
+			availability: notificationAvailability,
 		},
 	}
 }

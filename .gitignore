@@ -29,6 +29,7 @@ ai-docs/
 .firecrawl
 .kodebase
 .compozy/tasks/final-qa/_runs
+.peer-reviews
 
 # Ephemeral QA artifacts under .compozy/tasks/<slug>/qa/
 # Keep only markdown deliverables (test-plans, test-cases, issues, bug-reports,
