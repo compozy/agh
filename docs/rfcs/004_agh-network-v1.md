@@ -1,13 +1,18 @@
 # RFC: AGH Network v1
 
-- **Status:** Draft
+- **Status:** Superseded profile
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Updated:** 2026-05-05
+- **Updated:** 2026-05-13
 - **Depends on:** `003_agh-network-v0`
 - **Primary addition:** `AGH Network Baseline Trust Profile`
+- **Superseded by:** [RFC 006: AGH Network v2](006_agh-network-v2.md) for current workspace-qualified runtime identity and NATS subjects
 
 ---
+
+> This RFC remains the trust-profile design reference. Its channel-only NATS examples are historical.
+> Current runtime and transport identity are defined by [RFC 006](006_agh-network-v2.md): every
+> envelope and NATS subject is scoped by a stable `workspace_id`.
 
 ## Abstract
 

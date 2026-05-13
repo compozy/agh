@@ -1,12 +1,17 @@
 # RFC: AGH Network v0
 
-- **Status:** Draft
+- **Status:** Superseded
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Updated:** 2026-05-05
-- **Superseded by:** `AGH Network v1` for trust, formal conformance, and extension-key enforcement
+- **Updated:** 2026-05-13
+- **Superseded by:** `AGH Network v1` for trust, formal conformance, and extension-key enforcement; [RFC 006: AGH Network v2](006_agh-network-v2.md) for the current workspace-qualified runtime and NATS binding
 
 ---
+
+> This RFC is historical. It remains useful for the original envelope and conversation-container
+> rationale, but current AGH Runtime traffic uses `agh-network/v2`, requires `workspace_id`, and
+> uses workspace-qualified subjects. Use [RFC 006](006_agh-network-v2.md) for current implementation
+> work.
 
 ## Abstract
 

@@ -18,7 +18,7 @@ implementers and future compatibility.
 | Area                  | Current AGH Runtime                                                                                                   | Protocol docs                                          |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | Protocol identifier   | `agh-network/v2`                                                                                                      | v2 core pages plus v1 trust pages                      |
-| Message kinds         | `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`                                                   | [Message Kinds](/protocol/message-kinds)               |
+| Message kinds         | `greet`, `whois`, `say`, `capability`, `receipt`, `trace`                                                             | [Message Kinds](/protocol/message-kinds)               |
 | Envelope validation   | Implemented for v2 core fields, freshness, IDs, routing, body shape, and lifecycle requirements                       | [Envelope](/protocol/envelope)                         |
 | Peer discovery        | Implemented through Peer Cards, `greet`, `whois`, and capability projections                                          | [Peer Discovery](/protocol/peer-discovery)             |
 | Capability discovery  | Implemented for brief Peer Card projection, rich catalog retrieval, and capability transfer semantics                 | [Capability Discovery](/protocol/capability-discovery) |
@@ -32,9 +32,9 @@ implementers and future compatibility.
 
 The shipped runtime validates and routes v2 envelopes. It supports:
 
-- the seven core message kinds
+- the six core message kinds
 - channel-scoped peer discovery
-- directed work through `direct`
+- directed work through `surface:"direct"` on conversation-bearing messages
 - admission and progress through `receipt` and `trace`
 - capability advertisement and transfer
 - duplicate, expiry, unsupported-kind, not-target, not-found, busy, and internal rejection reasons
@@ -64,14 +64,14 @@ Read these when you need the implemented wire model:
     href="/protocol/message-kinds"
     label="v2 Core"
     title="Message Kinds"
-    description="The seven message kinds, their required body fields, and examples with `proof: null`."
+    description="The six message kinds, their required body fields, and examples with `proof: null`."
     meta="Implemented core"
   />
   <RouteRow
     href="/protocol/interactions"
     label="v2 Core"
     title="Interaction Lifecycle"
-    description="How `direct`, `receipt`, and `trace` correlate delegated work and progress."
+    description="How direct-room surfaces, `receipt`, and `trace` correlate delegated work and progress."
     meta="Implemented core"
   />
   <RouteRow

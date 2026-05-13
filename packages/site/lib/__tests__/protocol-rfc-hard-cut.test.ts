@@ -9,6 +9,7 @@ const repoRoot = resolve(siteRoot, "../..");
 const activeProtocolDocs = [
   "docs/rfcs/003_agh-network-v0.md",
   "docs/rfcs/004_agh-network-v1.md",
+  "docs/rfcs/006_agh-network-v2.md",
   "docs/_memory/glossary.md",
 ] as const;
 
@@ -24,6 +25,7 @@ function listMDXDocs(dir: string): string[] {
 }
 
 const workspaceQualifiedProtocolDocs = [
+  "docs/rfcs/006_agh-network-v2.md",
   ...listMDXDocs(resolve(siteRoot, "content/protocol")),
   ...listMDXDocs(resolve(siteRoot, "content/runtime/core/network")),
   "packages/site/content/runtime/guides/coordinate-agents-over-network.mdx",
@@ -156,10 +158,19 @@ describe("protocol RFC hard cut", () => {
     expect(violations).toEqual([]);
   });
 
+  it("marks historical Network RFCs as superseded by the workspace-qualified v2 RFC", () => {
+    for (const path of ["docs/rfcs/003_agh-network-v0.md", "docs/rfcs/004_agh-network-v1.md"]) {
+      const content = readRepoFile(path);
+      expect(content).toContain("006_agh-network-v2.md");
+      expect(content).toMatch(/workspace-qualified/i);
+    }
+  });
+
   it("requires conversation-bearing examples to use one explicit surface container", () => {
     const envelopes = activeEnvelopeExamples([
       "docs/rfcs/003_agh-network-v0.md",
       "docs/rfcs/004_agh-network-v1.md",
+      "docs/rfcs/006_agh-network-v2.md",
     ]);
 
     const violations = envelopes.flatMap(example => {
@@ -200,6 +211,7 @@ describe("protocol RFC hard cut", () => {
     const envelopes = activeEnvelopeExamples([
       "docs/rfcs/003_agh-network-v0.md",
       "docs/rfcs/004_agh-network-v1.md",
+      "docs/rfcs/006_agh-network-v2.md",
     ]);
 
     const violations = envelopes.flatMap(example => {
