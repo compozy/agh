@@ -102,7 +102,7 @@ func TestValidateEnvelopeAndDecodeBodyErrors(t *testing.T) {
 
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	valid := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_direct_01",
 		Kind:        KindSay,
@@ -146,7 +146,7 @@ func TestAdditionalBodyValidationBranches(t *testing.T) {
 		"type": "request",
 		"peer_card": map[string]any{
 			"peer_id":               "reviewer.sess-xyz",
-			"profiles_supported":    []string{"agh-network/v2"},
+			"profiles_supported":    []string{"agh-network/v0"},
 			"capabilities":          []string{"chat.review"},
 			"artifacts_supported":   []string{"capability"},
 			"trust_modes_supported": []string{"unverified"},
@@ -201,7 +201,7 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 	}
 
 	openErrEnv := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_trace_01",
 		Kind:        KindTrace,
@@ -300,7 +300,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 
 	greetMismatch := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_greet_01",
 		Kind:        KindGreet,
@@ -310,7 +310,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Body: mustRawJSON(t, map[string]any{
 			"peer_card": map[string]any{
 				"peer_id":               "reviewer.sess-xyz",
-				"profiles_supported":    []string{"agh-network/v2"},
+				"profiles_supported":    []string{"agh-network/v0"},
 				"capabilities":          []string{"workspace.patch.apply"},
 				"artifacts_supported":   []string{"capability"},
 				"trust_modes_supported": []string{"unverified"},
@@ -322,7 +322,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	}
 
 	receiptMissingWork := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_receipt_01",
 		Kind:        KindReceipt,
@@ -368,7 +368,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	}
 
 	traceEnv := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_trace_01",
 		Kind:        KindTrace,
@@ -393,7 +393,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		UpdatedAt: now,
 	}
 	receiptEnv := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_receipt_02",
 		Kind:        KindReceipt,

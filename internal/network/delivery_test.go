@@ -65,7 +65,7 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-direct-01",
 		Kind:        KindSay,
@@ -229,7 +229,7 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 			Body: mustRawJSON(t, GreetBody{
 				PeerCard: PeerCard{
 					PeerID:            "reviewer.sess-xyz",
-					ProfilesSupported: []string{ProtocolV2},
+					ProfilesSupported: []string{ProtocolV0},
 				},
 				Summary: "available",
 			}),
@@ -257,7 +257,7 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-direct-raw",
 		Kind:        KindSay,
@@ -324,7 +324,7 @@ func TestFormatNetworkMessageSayGuidanceKeepsCurrentThreadByDefault(t *testing.T
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-say-01",
 		Kind:        KindSay,
@@ -779,7 +779,7 @@ func TestDeliveryCoordinatorDeliversSemanticallyInvalidBodiesUsingRawFallback(t 
 	}
 
 	malformed := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-malformed",
 		Kind:        KindSay,
@@ -1008,7 +1008,7 @@ func testDeliveryEnvelope(t *testing.T, id string, text string) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          id,
 		Kind:        KindSay,

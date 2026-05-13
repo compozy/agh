@@ -1,10 +1,10 @@
 ---
 title: Delivery Guarantees
-description: Reference for AGH Network v2 delivery expectations, ordering, deduplication, expiry, transport independence, and the NATS profile.
+description: Reference for AGH Network v0 delivery expectations, ordering, deduplication, expiry, transport independence, and the NATS profile.
 icon: Send
 ---
 
-AGH Network v2 defines message semantics, not exactly-once transport guarantees. Implementations
+AGH Network v0 defines message semantics, not exactly-once transport guarantees. Implementations
 must assume that distributed delivery can duplicate, reorder, expire, or fail.
 
 This page is normative unless a section is marked as an example.
@@ -14,7 +14,7 @@ This page is normative unless a section is marked as an example.
 The core protocol guarantees only what is inside the envelope and lifecycle rules. It does not
 guarantee broker durability or global ordering.
 
-| Topic                  | v2 behavior                                                                                             |
+| Topic                  | v0 behavior                                                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------------------- |
 | Exactly-once delivery  | Not guaranteed.                                                                                         |
 | At-most-once delivery  | Not guaranteed by the core protocol. A transport profile MAY provide best-effort at-most-once behavior. |
@@ -59,15 +59,15 @@ reopen it.
 Within one runtime queue, an implementation MAY preserve FIFO order as a local behavior. That is not
 a cross-runtime protocol guarantee.
 
-## NATS v2 transport profile
+## NATS v0 transport profile
 
 The AGH reference implementation binds the core protocol to NATS Core.
 
 | Setting                   | Value                                                                                    |
 | ------------------------- | ---------------------------------------------------------------------------------------- |
-| Subject prefix            | `agh.network.v2`                                                                         |
-| Broadcast subject         | `agh.network.v2.<workspace_id>.<channel>.broadcast`                                      |
-| Direct subject            | `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>`                             |
+| Subject prefix            | `agh.network.v0`                                                                         |
+| Broadcast subject         | `agh.network.v0.<workspace_id>.<channel>.broadcast`                                      |
+| Direct subject            | `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>`                             |
 | Route token               | First 16 bytes of SHA-256 over the UTF-8 Peer ID, hex encoded as 32 lowercase characters |
 | Listener host             | `127.0.0.1`                                                                              |
 | Default port              | `-1`, meaning auto-select a local port                                                   |
@@ -83,13 +83,13 @@ The route token is derived from the canonical Peer ID, not the display name.
 ```text
 peer_id: reviewer.sess-xyz
 sha256 first 16 bytes as hex: 790dd5515558f7784877abcbca51c5ba
-direct subject: agh.network.v2.ws_alpha.builders.peer.790dd5515558f7784877abcbca51c5ba
+direct subject: agh.network.v0.ws_alpha.builders.peer.790dd5515558f7784877abcbca51c5ba
 ```
 
 ### Broadcast subject example
 
 ```text
-agh.network.v2.ws_alpha.builders.broadcast
+agh.network.v0.ws_alpha.builders.broadcast
 ```
 
 ## Local delivery queues
@@ -161,5 +161,5 @@ message kinds.
   and work progress inside one conversation container.
 - [Runtime Delivery and Safety](/runtime/core/network/delivery-and-safety) shows how AGH Runtime
   queues accepted messages for local sessions.
-- [Protocol Implementation Status](/protocol/implementation-status) explains the gap between v2
+- [Protocol Implementation Status](/protocol/implementation-status) explains the gap between v0
   runtime behavior and future transport/trust profiles.

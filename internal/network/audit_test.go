@@ -442,7 +442,7 @@ func testAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_direct_01",
 		Kind:        KindSay,
@@ -461,7 +461,7 @@ func testSayAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_say_01",
 		Kind:        KindSay,
@@ -478,7 +478,7 @@ func testInvalidSayAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_say_invalid_01",
 		Kind:        KindSay,
@@ -495,7 +495,7 @@ func testCapabilityAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_01",
 		Kind:        KindCapability,
@@ -522,7 +522,7 @@ func testGreetAuditEnvelope(t *testing.T, recordedAt time.Time, messageID string
 
 	displayName := "Reviewer"
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          messageID,
 		Kind:        KindGreet,
@@ -533,7 +533,7 @@ func testGreetAuditEnvelope(t *testing.T, recordedAt time.Time, messageID string
 			PeerCard: PeerCard{
 				PeerID:              "reviewer.sess-audit",
 				DisplayName:         &displayName,
-				ProfilesSupported:   []string{ProtocolV2},
+				ProfilesSupported:   []string{ProtocolV0},
 				Capabilities:        []string{"review-pr", "draft-spec"},
 				ArtifactsSupported:  []string{string(KindCapability)},
 				TrustModesSupported: []string{},

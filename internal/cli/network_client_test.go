@@ -148,7 +148,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"messages":[{"protocol":"agh-network/v2","id":"msg-inbox","kind":"say","channel":"builders","surface":"direct","direct_id":"direct_99401d24bee62651d189e5a561785466","from":"reviewer.sess-a","work_id":"work_1","ts":1775823000,"body":{"text":"review this","intent":"review"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}]}`,
+							`{"messages":[{"protocol":"agh-network/v0","id":"msg-inbox","kind":"say","channel":"builders","surface":"direct","direct_id":"direct_99401d24bee62651d189e5a561785466","from":"reviewer.sess-a","work_id":"work_1","ts":1775823000,"body":{"text":"review this","intent":"review"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}]}`,
 						), nil
 					default:
 						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil

@@ -1,9 +1,9 @@
 ---
 title: Protocol Model
-description: "The core concepts behind `agh-network/v2`: envelopes, channels, conversation surfaces, public threads, direct rooms, work lifecycle, and capability transfer."
+description: "The core concepts behind `agh-network/v0`: envelopes, channels, conversation surfaces, public threads, direct rooms, work lifecycle, and capability transfer."
 ---
 
-`agh-network/v2` is the implemented network protocol used by AGH Runtime. It defines a small JSON
+`agh-network/v0` is the implemented network protocol used by AGH Runtime. It defines a small JSON
 envelope, six message kinds, two conversation surfaces (public threads and restricted direct
 rooms), workspace-qualified channel routing, lightweight work lifecycle, and capability transfer. The transport
 can change, but the core envelope semantics stay the same.
@@ -18,7 +18,7 @@ Every network message is one UTF-8 JSON envelope. The canonical fields are:
 
 | Field          | Required           | Meaning                                                                                 |
 | -------------- | ------------------ | --------------------------------------------------------------------------------------- |
-| `protocol`     | yes                | Must be `agh-network/v2`.                                                               |
+| `protocol`     | yes                | Must be `agh-network/v0`.                                                               |
 | `id`           | yes                | Collision-resistant message identifier.                                                 |
 | `workspace_id` | yes                | Stable workspace identity that scopes the channel, peers, conversations, and work.      |
 | `kind`         | yes                | One of `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                       |
@@ -109,10 +109,10 @@ AGH uses one capability model from local authoring through network transfer:
 Capabilities describe outcomes a peer can help with. They are not executable programs and they do
 not grant permission by themselves.
 
-## v2 trust boundary
+## v0 trust boundary
 
-In `agh-network/v2`, messages are treated as unverified. The `proof` field is preserved for wire
-compatibility, but v2 receivers do not use it to mark identity as verified. AGH still applies local
+In `agh-network/v0`, messages are treated as unverified. The `proof` field is preserved for wire
+compatibility, but v0 receivers do not use it to mark identity as verified. AGH still applies local
 runtime controls: workspace identity, channel grammar, peer presence, conversation-container membership, delivery
 queues, prompt wrappers, capability checks for write surfaces, and durable audit records.
 
@@ -147,6 +147,6 @@ not advertised in peer cards or capability documents.
   enter local session queues.
 - [Channels and Peers](/runtime/core/network/channels-and-peers) explains channel presence and peer
   discovery from the runtime point of view.
-- [Protocol Implementation Status](/protocol/implementation-status) separates shipped v2 runtime
+- [Protocol Implementation Status](/protocol/implementation-status) separates shipped v0 runtime
   behavior from future trust-profile guidance.
 - [Envelope](/protocol/envelope) is the wire reference for fields listed on this page.

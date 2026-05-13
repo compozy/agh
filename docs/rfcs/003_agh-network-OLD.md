@@ -4,14 +4,15 @@
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
 - **Archived:** 2026-05-13
-- **Superseded by:** [RFC 006: AGH Network v2](006_agh-network-v2.md)
+- **Superseded by:** [RFC 003: AGH Network v0](003_agh-network-v0.md)
 - **Primary profiles in this RFC:** `AGH Network Core`, `AGH Network over NATS`, `AGH Network Baseline Trust Profile`
 
 ---
 
 > This file is retained as historical design input only. It predates the public-thread/direct-room
-> model in RFC 003, the v1 trust-profile split in RFC 004, and the workspace-qualified v2 hard cut in
-> RFC 006. Do not use its channel-only subject examples or `recipe` terminology for current
+> model in current RFC 003, the future v1 trust-profile split in RFC 004, and the
+> workspace-qualified v0 hard cut. Do not use its channel-only subject examples or `recipe`
+> terminology for current
 > implementation work.
 
 ## Abstract

@@ -5,11 +5,11 @@ icon: Network
 ---
 
 This tutorial adds a real transport to the minimal sender. You will publish and receive AGH Network
-envelopes over NATS Core using the v2 subject mapping.
+envelopes over NATS Core using the v0 subject mapping.
 
 Normative details live in the [NATS binding reference](/protocol/nats/) and
 [delivery reference](/protocol/delivery/). The current AGH Runtime embeds NATS Core with
-`agh.network.v2` subjects, so this page starts there.
+`agh.network.v0` subjects, so this page starts there.
 
 ## What you'll build
 
@@ -30,12 +30,12 @@ By the end, you will have a small NATS peer that:
 
 ## Map envelopes to subjects
 
-AGH Network v2 uses two subject shapes:
+AGH Network v0 uses two subject shapes:
 
 | Intent                 | Subject                                                      |
 | ---------------------- | ------------------------------------------------------------ |
-| Broadcast to a channel | `agh.network.v2.<workspace_id>.<channel>.broadcast`          |
-| Direct to a peer       | `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>` |
+| Broadcast to a channel | `agh.network.v0.<workspace_id>.<channel>.broadcast`          |
+| Direct to a peer       | `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>` |
 
 The route token is the first 32 lowercase hex characters of `SHA-256(peer_id UTF-8 bytes)`. The
 envelope still uses the canonical peer ID in `to`; the route token is only for NATS subjects.
@@ -45,9 +45,9 @@ envelope still uses the canonical peer ID in `to`; the route token is only for N
     participant A as sender.demo
     participant N as NATS
     participant B as echo.demo
-    A->>N: PUB agh.network.v2.ws_alpha.builders.broadcast
+    A->>N: PUB agh.network.v0.ws_alpha.builders.broadcast
     N-->>B: say envelope
-    A->>N: REQ agh.network.v2.ws_alpha.builders.peer.<echo route>
+    A->>N: REQ agh.network.v0.ws_alpha.builders.peer.<echo route>
     N-->>B: whois request envelope
     B-->>A: whois response envelope`}
   caption="The subject routes traffic; the envelope still carries protocol identity and correlation."
@@ -129,7 +129,7 @@ func main() {
 		"peer_card": map[string]any{
 			"peer_id":               senderID,
 			"display_name":          "Sender Demo",
-			"profiles_supported":    []string{"agh-network/v2"},
+			"profiles_supported":    []string{"agh-network/v0"},
 			"capabilities":          []string{},
 			"artifacts_supported":   []string{},
 			"trust_modes_supported": []string{"unverified"},
@@ -206,7 +206,7 @@ func subscribeEchoPeer(conn *nats.Conn, workspaceID string, channel string, peer
 			"peer_card": map[string]any{
 				"peer_id":                peerID,
 				"display_name":           "Echo Demo",
-				"profiles_supported":     []string{"agh-network/v2"},
+				"profiles_supported":     []string{"agh-network/v0"},
 				"capabilities":           []string{"echo"},
 				"artifacts_supported":    []string{},
 				"trust_modes_supported":  []string{},
@@ -225,7 +225,7 @@ func subscribeEchoPeer(conn *nats.Conn, workspaceID string, channel string, peer
 
 func envelope(id, kind, workspaceID, channel, from string, to *string, body map[string]any) Envelope {
 	return Envelope{
-		Protocol:    "agh-network/v2",
+		Protocol:    "agh-network/v0",
 		ID:          id,
 		WorkspaceID: workspaceID,
 		Kind:        kind,
@@ -258,11 +258,11 @@ func requestEnvelope(ctx context.Context, conn *nats.Conn, subject string, env E
 }
 
 func broadcastSubject(workspaceID string, channel string) string {
-	return "agh.network.v2." + workspaceID + "." + channel + ".broadcast"
+	return "agh.network.v0." + workspaceID + "." + channel + ".broadcast"
 }
 
 func directSubject(workspaceID string, channel string, peerID string) string {
-	return "agh.network.v2." + workspaceID + "." + channel + ".peer." + routeToken(peerID)
+	return "agh.network.v0." + workspaceID + "." + channel + ".peer." + routeToken(peerID)
 }
 
 func routeToken(peerID string) string {
@@ -291,17 +291,17 @@ sender_id = "sender.demo"
 echo_id = "echo.demo"
 
 echo subscribes to:
-  "agh.network.v2.ws_alpha.builders.broadcast"
-  "agh.network.v2.ws_alpha.builders.peer." + route_token(echo_id)
+  "agh.network.v0.ws_alpha.builders.broadcast"
+  "agh.network.v0.ws_alpha.builders.peer." + route_token(echo_id)
 
 sender publishes greet envelope to:
-  "agh.network.v2.ws_alpha.builders.broadcast"
+  "agh.network.v0.ws_alpha.builders.broadcast"
 
 sender publishes say envelope (surface=thread, thread_id=thread_nats_demo) to:
-  "agh.network.v2.ws_alpha.builders.broadcast"
+  "agh.network.v0.ws_alpha.builders.broadcast"
 
 sender sends whois request envelope to:
-  "agh.network.v2.ws_alpha.builders.peer." + route_token(echo_id)
+  "agh.network.v0.ws_alpha.builders.peer." + route_token(echo_id)
 
 echo receives whois request:
   build whois response envelope
@@ -327,9 +327,9 @@ reply subject as the protocol correlation model. AGH Network still relies on:
 | `work_id`      | Lifecycle correlation inside one conversation container.    |
 | `trace_id`     | Larger operational flow, when one exists.                   |
 
-For peers using the v1 trust profile, the route token changes to the verified fingerprint and the prefix becomes
-`agh.network.v2`; see the [NATS binding reference](/protocol/nats/). The core envelope correlation
-fields stay authoritative.
+For future peers using the v1 trust profile, the route token changes to the verified fingerprint and
+the subject hierarchy remains workspace-qualified; see the [NATS binding reference](/protocol/nats/).
+The core envelope correlation fields stay authoritative.
 
 ## Verify it works
 

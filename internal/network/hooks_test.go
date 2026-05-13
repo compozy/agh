@@ -372,7 +372,7 @@ func (d *recordingNetworkHookDispatcher) commitFailures() int {
 func networkHookTestEnvelope(t *testing.T) Envelope {
 	t.Helper()
 	return Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-hook",
 		Kind:        KindSay,

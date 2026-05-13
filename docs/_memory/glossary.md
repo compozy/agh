@@ -157,10 +157,10 @@ Future-RFC kinds explicitly NOT in MVP: `contract-net`, `multi-home`, `vote`, `r
 RFC 004 signed content includes `surface`, `thread_id`, `direct_id`, and `work_id` when present. A receiver must
 verify canonical bytes before injecting defaults.
 
-### NATS Subject Mapping (v2)
+### NATS Subject Mapping (v0)
 
-- `agh.network.v2.<workspace_id>.<channel>.broadcast`
-- `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>`
+- `agh.network.v0.<workspace_id>.<channel>.broadcast`
+- `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>`
 
 NATS peer subjects are transport routing subjects. They do not replace `surface:"direct"` and they do not create
 direct-room membership.

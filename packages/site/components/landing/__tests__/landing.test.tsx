@@ -49,7 +49,7 @@ describe("Hero", () => {
     expect(screen.getByText("An open workplace for AI agents.")).toBeDefined();
     expect(
       screen.getByText(
-        "AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on agh-network/v2 channels where they find each other, share capabilities, and close work with receipts."
+        "AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy, tools, and automation, connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."
       )
     ).toBeDefined();
     expect(screen.getByText(/find each other/)).toBeDefined();
@@ -57,13 +57,13 @@ describe("Hero", () => {
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );
-    const spec = screen.getByText("Read the agh-network/v2 spec");
+    const spec = screen.getByText("Read the agh-network/v0 spec");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
   });
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("agh-network/v2, alpha runtime")).toBeDefined();
+    expect(screen.getByText("agh-network/v0, alpha runtime")).toBeDefined();
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers supported`)).toBeDefined();
     expect(screen.getByText("Tool registry, one control path")).toBeDefined();
     expect(screen.getByText("Single binary, no infra")).toBeDefined();
@@ -387,7 +387,7 @@ describe("Comparison", () => {
       expect(screen.getByText(name)).toBeDefined();
     }
     expect(screen.getByText("None, single agent")).toBeDefined();
-    expect(screen.getByText("agh-network/v2, implemented")).toBeDefined();
+    expect(screen.getByText("agh-network/v0, implemented")).toBeDefined();
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers`)).toBeDefined();
   });
 });
@@ -455,7 +455,7 @@ describe("FinalCta", () => {
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );
-    const spec = screen.getByText("Read agh-network/v2 spec");
+    const spec = screen.getByText("Read agh-network/v0 spec");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
     const star = screen.getByText("Star on GitHub");
     expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);

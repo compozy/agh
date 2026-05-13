@@ -199,7 +199,7 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		}
 
 		threadEnvelope := withThreadSurface(Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg-thread-runtime",
 			Kind:        KindSay,
@@ -224,7 +224,7 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 			t.Fatalf("DirectRoomIdentity(inbound) error = %v", err)
 		}
 		directEnvelope := Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg-direct-runtime",
 			Kind:        KindSay,

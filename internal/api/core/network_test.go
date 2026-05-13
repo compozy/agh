@@ -334,7 +334,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		causationID := "cause-1"
 		replyTo := "msg-root"
 		envelope := network.Envelope{
-			Protocol:    network.ProtocolV2,
+			Protocol:    network.ProtocolV0,
 			ID:          "msg-1",
 			Kind:        network.KindSay,
 			Channel:     "builders",
@@ -425,7 +425,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			Local:   true,
 			PeerCard: network.PeerCard{
 				PeerID:              "reviewer.sess-b",
-				ProfilesSupported:   []string{network.ProtocolV2},
+				ProfilesSupported:   []string{network.ProtocolV0},
 				Capabilities:        []string{"review-pr"},
 				ArtifactsSupported:  []string{},
 				TrustModesSupported: []string{},
@@ -1011,7 +1011,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			traceID := "trace-1"
 			proof := network.Proof{"sig": json.RawMessage(`"abc123"`)}
 			return []network.Envelope{{
-				Protocol: network.ProtocolV2,
+				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
 				Kind:     network.KindSay,
 				Channel:  "builders",
@@ -4460,7 +4460,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 					PeerCard: network.PeerCard{
 						PeerID:              "coder.sess-coder",
 						Capabilities:        []string{"review-pr"},
-						ProfilesSupported:   []string{network.ProtocolV2},
+						ProfilesSupported:   []string{network.ProtocolV0},
 						ArtifactsSupported:  []string{},
 						TrustModesSupported: []string{},
 						Ext: network.ExtensionMap{
@@ -4562,7 +4562,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 			t.Fatal("payload.Peer.PeerCard.ProfilesSupported = nil, want slice")
 		}
 		if got, want := payload.Peer.PeerCard.ProfilesSupported, []string{
-			network.ProtocolV2,
+			network.ProtocolV0,
 		}; !reflect.DeepEqual(
 			got,
 			want,
@@ -4636,7 +4636,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						PeerID:              "reviewer.sess-remote",
 						DisplayName:         &remoteDisplayName,
 						Capabilities:        []string{"review-pr"},
-						ProfilesSupported:   []string{network.ProtocolV2},
+						ProfilesSupported:   []string{network.ProtocolV0},
 						ArtifactsSupported:  []string{},
 						TrustModesSupported: []string{},
 						Ext: network.ExtensionMap{
@@ -4730,7 +4730,7 @@ func greetBodyJSON(peerID string, displayName string, capabilitySummary string, 
 		peerID +
 		`","display_name":"` +
 		displayName +
-		`","profiles_supported":["agh-network/v2"],"capabilities":["review-pr"],"artifacts_supported":["capability"],"trust_modes_supported":[],"ext":{"agh.capabilities_brief":[{"id":"review-pr","summary":"` +
+		`","profiles_supported":["agh-network/v0"],"capabilities":["review-pr"],"artifacts_supported":["capability"],"trust_modes_supported":[],"ext":{"agh.capabilities_brief":[{"id":"review-pr","summary":"` +
 		capabilitySummary +
 		`"}]}},"summary":"` +
 		summary +

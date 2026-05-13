@@ -440,7 +440,7 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		}
 
 		payload, err := json.Marshal(withThreadSurface(Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg-store-receive",
 			Kind:        KindSay,
@@ -913,7 +913,7 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 
 		const floodCount = 10_000
 		bogusWhoisPayload, err := json.Marshal(Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg-bogus-whois",
 			Kind:        KindWhois,
@@ -1422,7 +1422,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("DefaultPeerCard() error = %v", err)
 	}
 	greetPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-greet-remote",
 		Kind:        KindGreet,
@@ -1464,7 +1464,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 	}
 
 	sayPayload, err := json.Marshal(withThreadSurface(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-say-remote",
 		Kind:        KindSay,
@@ -1548,7 +1548,7 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 		t.Fatalf("DefaultPeerCard() error = %v", err)
 	}
 	greetPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-greet-control-audit",
 		Kind:        KindGreet,
@@ -1570,7 +1570,7 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 
 	auditor.reset()
 	whoisPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-whois-control-audit",
 		Kind:        KindWhois,

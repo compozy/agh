@@ -35,7 +35,7 @@ func TestTransportSubjectHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BroadcastSubject() error = %v", err)
 	}
-	if got, want := broadcast, "agh.network.v2.wks_test.builders.broadcast"; got != want {
+	if got, want := broadcast, "agh.network.v0.wks_test.builders.broadcast"; got != want {
 		t.Fatalf("BroadcastSubject() = %q, want %q", got, want)
 	}
 
@@ -43,7 +43,7 @@ func TestTransportSubjectHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DirectSubject() error = %v", err)
 	}
-	if !strings.HasPrefix(direct, "agh.network.v2.wks_test.builders.peer.") {
+	if !strings.HasPrefix(direct, "agh.network.v0.wks_test.builders.peer.") {
 		t.Fatalf("DirectSubject() = %q, want peer subject", direct)
 	}
 

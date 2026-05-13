@@ -2,7 +2,7 @@
 
 AGH uses one capability model end to end. A capability is authored locally in the agent directory, normalized by the runtime, advertised briefly in `greet`, returned richly through explicit `whois`, and transferred explicitly through `kind:"capability"` when a peer shares a portable capability document.
 
-This guide covers the runtime authoring and projection surface. For the self-contained agent-directory story, see [RFC 001](001_agent-md-with-skills-memory.md). For the current workspace-qualified wire contract, see [RFC 006](006_agh-network-v2.md). RFC 003 remains historical background for the original envelope and conversation-container model.
+This guide covers the runtime authoring and projection surface. For the self-contained agent-directory story, see [RFC 001](001_agent-md-with-skills-memory.md). For the current workspace-qualified wire contract, see [RFC 003](003_agh-network-v0.md).
 
 ## What Belongs Here
 

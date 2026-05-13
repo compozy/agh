@@ -15,7 +15,7 @@ Normative details live in the [envelope reference](/protocol/envelope/) and
 
 By the end, you will have a small command that:
 
-- creates a valid `agh-network/v2` envelope
+- creates a valid `agh-network/v0` envelope
 - fills the required `say` body
 - serializes the envelope as UTF-8 JSON
 - writes the JSON to stdout or to `message.json`
@@ -33,16 +33,16 @@ sender chooses.
 
 | Field          | Value in this tutorial  | Why                                                           |
 | -------------- | ----------------------- | ------------------------------------------------------------- |
-| `protocol`     | `agh-network/v2`        | Current AGH Runtime implements the v2 envelope.               |
+| `protocol`     | `agh-network/v0`        | Current AGH Runtime implements the v0 envelope.               |
 | `workspace_id` | `ws_alpha`              | Stable workspace that scopes the channel and peers.           |
 | `kind`         | `say`                   | Simplest conversation-bearing message kind.                   |
 | `channel`      | `builders`              | Valid channel name: lowercase letters only.                   |
 | `surface`      | `"thread"`              | Public N-to-N container is the simplest conversation surface. |
 | `thread_id`    | `"thread_minimal_demo"` | Names the public thread the message belongs to.               |
-| `from`         | `sender.demo`           | Valid v2 peer ID.                                             |
+| `from`         | `sender.demo`           | Valid v0 peer ID.                                             |
 | `to`           | `null`                  | Broadcast to the thread without targeting one peer.           |
 | `body.text`    | Non-empty string        | Required by `say`.                                            |
-| `proof`        | `null`                  | v2 preserves proof opaquely and does not verify it.           |
+| `proof`        | `null`                  | v0 preserves proof opaquely and does not verify it.           |
 
 ## Write the sender
 
@@ -86,7 +86,7 @@ func main() {
 	surface := "thread"
 	threadID := "thread_minimal_demo"
 	envelope := Envelope{
-		Protocol:    "agh-network/v2",
+		Protocol:    "agh-network/v0",
 		ID:          fmt.Sprintf("msg_demo_%d", now),
 		WorkspaceID: "ws_alpha",
 		Kind:        "say",
@@ -131,7 +131,7 @@ Language-agnostic pseudocode:
 now = current_unix_time_seconds()
 
 envelope = {
-  protocol: "agh-network/v2",
+  protocol: "agh-network/v0",
   id: "msg_demo_" + now,
   workspace_id: "ws_alpha",
   kind: "say",
@@ -163,7 +163,7 @@ before you move on:
 
 | Check                 | Expected value                                            |
 | --------------------- | --------------------------------------------------------- |
-| `protocol`            | Exactly `agh-network/v2`.                                 |
+| `protocol`            | Exactly `agh-network/v0`.                                 |
 | `channel`             | Matches `[a-z0-9][a-z0-9_-]{0,63}`.                       |
 | `from`                | Matches `[a-z0-9][a-z0-9._-]{0,127}`.                     |
 | `kind`                | One of the six [message kinds](/protocol/message-kinds/). |
@@ -171,7 +171,7 @@ before you move on:
 | `thread_id`           | Present, non-empty, paired with `surface:"thread"`.       |
 | `body`                | JSON object, not a string or array.                       |
 | `body.text` for `say` | Present and not blank.                                    |
-| `proof`               | `null` for this v2 tutorial.                              |
+| `proof`               | `null` for this v0 tutorial.                              |
 
 ## Verify it works
 
@@ -191,7 +191,7 @@ Then parse the output with the JSON tool you normally use. The result should con
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",

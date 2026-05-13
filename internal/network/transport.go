@@ -20,7 +20,7 @@ import (
 const (
 	defaultTransportReadyTimeout   = 5 * time.Second
 	defaultTransportPublishTimeout = 5 * time.Second
-	subjectPrefix                  = "agh.network.v2"
+	subjectPrefix                  = "agh.network.v0"
 	maxNATSPayloadBytes            = int(^uint32(0) >> 1)
 )
 

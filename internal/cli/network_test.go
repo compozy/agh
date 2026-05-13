@@ -110,7 +110,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				traceID := "trace-1"
 				causationID := "cause-1"
 				return []NetworkEnvelopeRecord{{
-					Protocol:    "agh-network/v2",
+					Protocol:    "agh-network/v0",
 					ID:          "msg-inbox",
 					Kind:        "say",
 					Channel:     "builders",

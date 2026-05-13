@@ -103,7 +103,7 @@ Cross-checked: `/Users/pedronauck/Dev/compozy/agh/internal/skills/` confirms `ve
 - **Six lifecycle states**: `submitted → working → needs_input → completed | failed | canceled`. Post-terminal regression is forbidden — terminal state is authoritative.
 - **Cancellation duality**: `receipt(canceled)` = initiator-side withdrawal; `trace(canceled)` = worker-side abort.
 - **Trust states**: `verified` / `unverified` / `rejected`. **Proof-stripping defense**: a verified-format identity (`nickname@fingerprint`) without `proof` is `rejected`, not `unverified`.
-- **NATS subject mapping**: `agh.network.v2.<workspace_id>.<channel>.broadcast` and `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>`. Route token = first 32 hex of `SHA-256(peer_id)` for unverified peers, fingerprint suffix for verified.
+- **NATS subject mapping**: `agh.network.v0.<workspace_id>.<channel>.broadcast` and `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>`. Route token = first 32 hex of `SHA-256(peer_id)` for unverified peers, fingerprint suffix for verified.
 - **Replay defense**: bounded replay window via `id`; recommended 300-second clock-skew rejection when `expires_at` is null.
 - **Conformance combinations**: Core Sender / Core Receiver / Core Peer / + NATS Peer / + Verified Peer (additive).
 
@@ -227,7 +227,7 @@ Concrete, evidence-backed lineage:
 
 Skills that would help apply RFC/reference knowledge to current AGH work:
 
-1. **`agh-network-rfc-author`** — encapsulates the layered RFC structure (Core / Transport / Trust), the v0/v1 wire-compat constraint, the seven canonical message kinds, lifecycle state machine, NATS subject grammar, and JCS+Ed25519 verification steps. Use when authoring new transport profiles (JetStream, WebSocket) or trust profiles. Pulls from RFC 003-v0 + RFC 004 + `agent-networks/agent-to-agent-protocol-landscape.md`.
+1. **`agh-network-rfc-author`** — encapsulates the layered RFC structure (Core / Transport / Trust), the v0/v1 wire-compat constraint, the six canonical message kinds, lifecycle state machine, NATS subject grammar, and JCS+Ed25519 verification steps. Use when authoring new transport profiles (JetStream, WebSocket) or trust profiles. Pulls from RFC 003-v0 + RFC 004 + `agent-networks/agent-to-agent-protocol-landscape.md`.
 2. **`agh-skills-runtime-extension`** — captures RFC 002's `metadata.agh.*` namespace pattern, the five-layer precedence, `VerifyContent` severity tiers, hook contract (stdin JSON + fail-open + alphabetical+precedence ordering), and consent gates for marketplace MCP. Use when adding new lifecycle events or trust tiers.
 3. **`agh-memory-consolidation-design`** — encodes the AutoDream gate cascade (Time → Sessions → Lock), forked-agent execution, four-type memory taxonomy (`user/feedback/project/reference`), three-scope writes (`agent/workspace/global`), and the path-security pattern (`sanitizePathKey`, `realpathDeepestExisting`). Use when extending `internal/memory/consolidation/`.
 4. **`agh-agent-md-author`** — RFC 001's frontmatter schema, skills/memory inheritance and disable patterns, `extra_sources` precedence, portability invariants ("directory is the unit of portability"). Use when scaffolding new agent definitions or designing CLI commands like `agh agent create`.

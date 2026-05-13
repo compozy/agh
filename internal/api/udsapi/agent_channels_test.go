@@ -488,7 +488,7 @@ func agentChannelEnvelopeWithExt(
 	ext network.ExtensionMap,
 ) network.Envelope {
 	return network.Envelope{
-		Protocol:    network.ProtocolV2,
+		Protocol:    network.ProtocolV0,
 		WorkspaceID: "ws-1",
 		ID:          messageID,
 		Kind:        network.KindSay,

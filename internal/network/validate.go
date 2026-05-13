@@ -230,7 +230,7 @@ func DirectRoomIdentity(
 	}
 
 	sum := sha256.Sum256([]byte(
-		"agh-network/direct-room/v2\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" + peerA + "\x00" + peerB,
+		"agh-network/direct-room/v0\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" + peerA + "\x00" + peerB,
 	))
 	return "direct_" + hex.EncodeToString(sum[:])[:32], peerA, peerB, nil
 }
@@ -407,7 +407,7 @@ func validateEnvelopeHeader(env Envelope) error {
 	if env.Protocol == "" {
 		return fmt.Errorf("%w: protocol is required", ErrMissingField)
 	}
-	if env.Protocol != ProtocolV2 {
+	if env.Protocol != ProtocolV0 {
 		return fmt.Errorf("%w: protocol=%q", ErrInvalidField, env.Protocol)
 	}
 	if env.ID == "" {

@@ -153,7 +153,7 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 
 #### S-M14. `agh-network-rfc-author`
 
-- **Mandate**: layered RFC structure (Core / Transport / Trust); v0/v1 wire-compat; seven canonical message kinds; six lifecycle states; NATS subject grammar; JCS+Ed25519 verification steps; proof-stripping defense (verified-format without proof = `rejected`, not `unverified`).
+- **Mandate**: layered RFC structure (Core / Transport / Trust); v0/v1 wire-compat; six canonical message kinds; six lifecycle states; NATS subject grammar; JCS+Ed25519 verification steps; proof-stripping defense (verified-format without proof = `rejected`, not `unverified`).
 - **Evidence**: qmd_collections (RFC 003-v0, RFC 004 already implement this).
 
 #### S-M15. `agh-ecosystem-positioning`

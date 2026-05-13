@@ -17,7 +17,7 @@ func TestOpenWork(t *testing.T) {
 		{
 			name: "direct opener",
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_01",
 				Kind:        KindSay,
@@ -32,7 +32,7 @@ func TestOpenWork(t *testing.T) {
 		{
 			name: "capability opener",
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_capability_01",
 				Kind:        KindCapability,
@@ -105,7 +105,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "open from nil work",
 			current: nil,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_01",
 				Kind:        KindSay,
@@ -123,7 +123,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "open capability from nil work",
 			current: nil,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_capability_01",
 				Kind:        KindCapability,
@@ -148,7 +148,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "trace working advances state",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_01",
 				Kind:        KindTrace,
@@ -174,7 +174,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				UpdatedAt: at,
 			},
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_02",
 				Kind:        KindSay,
@@ -192,7 +192,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "direct without target is rejected",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_missing_to",
 				Kind:        KindSay,
@@ -208,7 +208,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "capability outside participant pair is rejected",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_capability_bad_target",
 				Kind:        KindCapability,
@@ -232,7 +232,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "receipt rejected fails work",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_receipt_01",
 				Kind:        KindReceipt,
@@ -262,7 +262,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				UpdatedAt: at,
 			},
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_02",
 				Kind:        KindTrace,
@@ -289,7 +289,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				UpdatedAt: at,
 			},
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_03",
 				Kind:        KindSay,
@@ -308,7 +308,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "third party actor rejected",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_bad",
 				Kind:        KindTrace,
@@ -325,7 +325,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "cross container continuation is rejected",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_wrong_container",
 				Kind:        KindTrace,
@@ -344,7 +344,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name:    "invalid submitted regression rejected",
 			current: &work,
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_bad_state",
 				Kind:        KindTrace,
@@ -406,7 +406,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 	}
 
 	receiptCanceled := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_receipt_cancel",
 		Kind:        KindReceipt,
@@ -433,7 +433,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 	}
 
 	traceCanceled := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_trace_cancel",
 		Kind:        KindTrace,

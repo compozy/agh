@@ -1,35 +1,36 @@
 # RFC: AGH Network v0
 
-- **Status:** Superseded
+- **Status:** Current runtime contract
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
 - **Updated:** 2026-05-13
-- **Superseded by:** `AGH Network v1` for trust, formal conformance, and extension-key enforcement; [RFC 006: AGH Network v2](006_agh-network-v2.md) for the current workspace-qualified runtime and NATS binding
+- **Future profile:** [RFC 004: AGH Network v1](004_agh-network-v1.md) adds auth/proofs/trust-profile behavior; it is not implemented by the current runtime.
 
 ---
 
-> This RFC is historical. It remains useful for the original envelope and conversation-container
-> rationale, but current AGH Runtime traffic uses `agh-network/v2`, requires `workspace_id`, and
-> uses workspace-qualified subjects. Use [RFC 006](006_agh-network-v2.md) for current implementation
-> work.
+> This RFC is the current AGH Runtime Network contract. The workspace isolation hard cut lives in
+> `agh-network/v0`: every envelope carries `workspace_id`, every channel is scoped by that
+> workspace, and every NATS subject is workspace-qualified.
 
 ## Abstract
 
-`AGH Network v0` is the first implementable iteration of the AGH Network protocol. It defines the core
-envelope, six message kinds, channel-scoped conversation containers, work lifecycle signaling, NATS
-transport binding, and operational delivery semantics.
+`AGH Network v0` is the first implementable iteration of the AGH Network protocol and remains the
+current runtime contract. It defines the core envelope, six message kinds, workspace-scoped channels,
+conversation containers, work lifecycle signaling, NATS transport binding, and operational delivery
+semantics.
 
 The conversation model is explicit:
 
-- `channel` is the audience, discovery, and permission scope.
+- `workspace_id` is the top-level isolation boundary.
+- `channel` is the audience, discovery, and permission scope inside one workspace.
 - `public_thread` is the public N-to-N conversation container inside a channel.
 - `direct_room` is the restricted two-party conversation container inside a channel.
 - `work_id` identifies lifecycle-bearing work inside exactly one conversation container.
 - `reply_to`, `trace_id`, and `causation_id` express message-level and operational lineage; they do not
   replace container identity.
 
-v0 does not include cryptographic identity verification. That trust layer is defined by v1. The v0
-envelope reserves `proof` so a v0 peer can receive v1 envelopes and treat proofs as opaque.
+v0 does not include cryptographic identity verification. That trust layer is future v1 work. The v0
+envelope reserves `proof` so a v0 peer can preserve future proof payloads as opaque data.
 
 ---
 
@@ -45,15 +46,15 @@ telemetry platform.
 
 v0 delivers:
 
-1. The complete core envelope schema shared with v1.
+1. The complete core envelope schema, including required `workspace_id`.
 2. The reduced core message-kind set: `greet`, `whois`, `say`, `capability`, `receipt`, and `trace`.
 3. `surface:"thread"|"direct"` conversation routing with `thread_id` and `direct_id`.
-4. Public threads as channel-scoped N-to-N containers.
-5. Direct rooms as channel-scoped two-party restricted-visibility containers.
+4. Public threads as workspace-channel-scoped N-to-N containers.
+5. Direct rooms as workspace-channel-scoped two-party restricted-visibility containers.
 6. A lightweight work lifecycle keyed by `work_id`.
 7. Minimal discovery through `greet` and `whois`.
 8. Peer Card, capability discovery, and capability transfer signaling.
-9. The normative NATS transport binding.
+9. The normative workspace-qualified NATS transport binding.
 10. Delivery semantics, error model, and reason codes.
 
 v0 does not deliver:
@@ -68,9 +69,9 @@ v0 does not deliver:
 8. Private group threads or direct rooms with more than two peers.
 9. Cryptographic privacy for direct rooms.
 
-### 1.3 Upgrade path to v1
+### 1.3 Future path to v1
 
-v0 is the functional core that v1 extends. A v0 implementation upgrades to v1 by:
+v0 is the functional core that future v1 work extends. A v1 implementation is expected to add:
 
 1. Implementing the Baseline Trust Profile (Ed25519 + JCS signing and verification).
 2. Supporting `verified` and `rejected` trust states in the processing model.
@@ -79,7 +80,8 @@ v0 is the functional core that v1 extends. A v0 implementation upgrades to v1 by
 5. Enforcing normative extension-key namespacing.
 6. Optionally claiming formal conformance levels.
 
-The conversation fields, message kinds, and lifecycle rules in this RFC remain normative for v1.
+The conversation fields, message kinds, workspace scoping, and lifecycle rules in this RFC remain the
+base contract for that future v1 profile.
 
 ---
 
@@ -118,55 +120,66 @@ A `Peer` is any implementation that can emit, receive, or both emit and receive 
 
 A `peer_id` value used in `from`, `to`, and Peer Card MUST match `[a-z0-9][a-z0-9._-]{0,127}`.
 
-### 3.2 Channel
+### 3.2 Workspace ID
 
-A `channel` is a logical communication namespace. It is the audience, discovery, and permission scope above
-public threads and direct rooms. A transport profile decides how channels map to transport primitives.
+A `workspace_id` is the stable workspace identifier from `.agh/workspace.toml`. It scopes every
+Network channel, conversation container, work unit, peer listing, recent item, pin, last-read marker,
+and transport subject. It is not the daemon registry row ID, a filesystem path, or a display name.
+
+A `workspace_id` MUST be non-empty and MUST NOT contain dots, spaces, NATS wildcards (`*`, `>`), or
+control characters. These restrictions make the value safe for JSON envelopes and NATS subjects.
+
+### 3.3 Channel
+
+A `channel` is a logical communication namespace inside one workspace. It is the audience, discovery,
+and permission scope above public threads and direct rooms. The same channel slug in two different
+workspaces denotes two different channels. A transport profile decides how workspace channels map to
+transport primitives.
 
 A `channel` value MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Characters outside this set, including dots,
 whitespace, and NATS wildcard tokens (`>`, `*`), are forbidden because channel values are interpolated into
 transport subjects.
 
-### 3.3 Public thread
+### 3.4 Public thread
 
 A `public_thread` is a public N-to-N conversation container inside one channel. It is represented on the wire
 by `surface:"thread"` and `thread_id`.
 
 Rules:
 
-- `thread_id` is scoped by `channel`.
+- `thread_id` is scoped by `workspace_id` and `channel`.
 - `thread_id` MUST match `^thread_[a-z0-9][a-z0-9_-]{2,95}$`.
 - Any peer with access to the channel MAY observe public-thread messages.
 - A public thread can contain zero, one, or many work units.
 
-### 3.4 Direct room
+### 3.5 Direct room
 
 A `direct_room` is a restricted two-party conversation container inside one channel. It is represented on the
 wire by `surface:"direct"` and `direct_id`.
 
 Rules:
 
-- `direct_id` is scoped by `channel`.
+- `direct_id` is scoped by `workspace_id` and `channel`.
 - `direct_id` MUST match `^direct_[a-f0-9]{32}$`.
 - A direct room has exactly two peers in this version.
-- The room identity is derived from `(channel, sorted(peer_a, peer_b))` using a domain-separated SHA-256 hash.
+- The room identity is derived from `(workspace_id, channel, sorted(peer_a, peer_b))` using a domain-separated SHA-256 hash.
 - Direct-room visibility is a routing and runtime access rule. It is not cryptographic privacy.
 
-### 3.5 Work
+### 3.6 Work
 
 `work_id` identifies lifecycle-bearing work inside exactly one conversation container. It is not a conversation
 identifier, task-run identifier, claim token, queue lease, or routing key.
 
 Rules:
 
-- A work unit is bound to exactly one `(channel, surface, thread_id|direct_id)` container.
+- A work unit is bound to exactly one `(workspace_id, channel, surface, thread_id|direct_id)` container.
 - A work unit never spans multiple containers.
 - `work_id` SHOULD use a `work_` prefix.
 - `work_id` values MUST NOT be empty, whitespace-only, contain path separators or control characters, or exceed
   128 bytes.
 - `work_id` MUST NOT appear on `greet` or `whois`.
 
-### 3.6 Reply and correlation edges
+### 3.7 Reply and correlation edges
 
 - `reply_to` points at the specific message being answered.
 - `trace_id` correlates operational activity across messages, handoffs, and task ingress.
@@ -174,18 +187,18 @@ Rules:
 
 None of these fields substitute for `thread_id`, `direct_id`, or `work_id`.
 
-### 3.7 Capability
+### 3.8 Capability
 
 A `Capability` is the reusable AGH delegation artifact. The same structured capability concept is used for
 authored catalogs, brief discovery, rich discovery, and explicit `kind:"capability"` transfer. It is
 interpretive, not a deterministic workflow program.
 
-### 3.8 Claimed identity
+### 3.9 Claimed identity
 
 The sender identity present in `from`. v0 treats claimed identity at face value. v1 adds proof-backed verified
 identity.
 
-### 3.9 Profile
+### 3.10 Profile
 
 A named extension of the core that defines transport behavior, trust mechanics, or another interoperability
 layer.
@@ -269,26 +282,27 @@ serialized as UTF-8 JSON.
 
 #### 5.1.1 Canonical fields
 
-| Field          | Type            | Required | Notes                                                  |
-| -------------- | --------------- | -------- | ------------------------------------------------------ |
-| `protocol`     | string          | yes      | MUST be `agh-network/v0`                               |
-| `id`           | string          | yes      | collision-resistant message identifier                 |
-| `kind`         | string          | yes      | one of the six normative core kinds                    |
-| `channel`      | string          | yes      | logical communication namespace                        |
-| `surface`      | string or null  | no       | `thread` or `direct` for conversation-bearing messages |
-| `thread_id`    | string or null  | no       | required when `surface:"thread"`                       |
-| `direct_id`    | string or null  | no       | required when `surface:"direct"`                       |
-| `from`         | string          | yes      | claimed sender identity                                |
-| `to`           | string or null  | no       | target peer for directed communication                 |
-| `work_id`      | string or null  | no       | lifecycle-bearing work identifier                      |
-| `reply_to`     | string or null  | no       | message identifier being replied to                    |
-| `trace_id`     | string or null  | no       | distributed correlation identifier                     |
-| `causation_id` | string or null  | no       | parent causal message or event identifier              |
-| `ts`           | integer         | yes      | Unix epoch seconds                                     |
-| `expires_at`   | integer or null | no       | sender-declared TTL boundary                           |
-| `body`         | object          | yes      | kind-specific payload                                  |
-| `proof`        | object or null  | no       | reserved for v1 trust profile                          |
-| `ext`          | object          | no       | extension map for implementation-specific data         |
+| Field          | Type            | Required | Notes                                                   |
+| -------------- | --------------- | -------- | ------------------------------------------------------- |
+| `protocol`     | string          | yes      | MUST be `agh-network/v0`                                |
+| `id`           | string          | yes      | collision-resistant message identifier                  |
+| `workspace_id` | string          | yes      | stable workspace ID that scopes the channel and routing |
+| `kind`         | string          | yes      | one of the six normative core kinds                     |
+| `channel`      | string          | yes      | logical communication namespace                         |
+| `surface`      | string or null  | no       | `thread` or `direct` for conversation-bearing messages  |
+| `thread_id`    | string or null  | no       | required when `surface:"thread"`                        |
+| `direct_id`    | string or null  | no       | required when `surface:"direct"`                        |
+| `from`         | string          | yes      | claimed sender identity                                 |
+| `to`           | string or null  | no       | target peer for directed communication                  |
+| `work_id`      | string or null  | no       | lifecycle-bearing work identifier                       |
+| `reply_to`     | string or null  | no       | message identifier being replied to                     |
+| `trace_id`     | string or null  | no       | distributed correlation identifier                      |
+| `causation_id` | string or null  | no       | parent causal message or event identifier               |
+| `ts`           | integer         | yes      | Unix epoch seconds                                      |
+| `expires_at`   | integer or null | no       | sender-declared TTL boundary                            |
+| `body`         | object          | yes      | kind-specific payload                                   |
+| `proof`        | object or null  | no       | reserved for v1 trust profile                           |
+| `ext`          | object          | no       | extension map for implementation-specific data          |
 
 #### 5.1.2 Conversation field requirements by kind
 
@@ -322,8 +336,8 @@ When a receiver processes a core envelope it MUST, in this order:
 2. Reject malformed messages.
 3. Reject unsupported message kinds.
 4. Evaluate expiration if `expires_at` is present.
-5. Route discovery messages by `kind`, `channel`, and `to`.
-6. Route conversation messages by `channel`, `surface`, matching container ID, and `to`.
+5. Route discovery messages by `kind`, `workspace_id`, `channel`, and `to`.
+6. Route conversation messages by `workspace_id`, `channel`, `surface`, matching container ID, and `to`.
 7. Apply work lifecycle semantics if `work_id` is present.
 8. Apply extension-specific handling only after successful core validation.
 
@@ -879,10 +893,10 @@ inventing an out-of-band artifact format.
 
 ### 10.4 Subject mapping
 
-| Core intent                      | NATS subject                                  |
-| -------------------------------- | --------------------------------------------- |
-| Broadcast to a channel           | `agh.network.v0.<channel>.broadcast`          |
-| Peer-targeted transport delivery | `agh.network.v0.<channel>.peer.<route_token>` |
+| Core intent                      | NATS subject                                                 |
+| -------------------------------- | ------------------------------------------------------------ |
+| Broadcast to a workspace channel | `agh.network.v0.<workspace_id>.<channel>.broadcast`          |
+| Peer-targeted transport delivery | `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>` |
 
 ```mermaid
 sequenceDiagram
@@ -891,15 +905,15 @@ sequenceDiagram
     participant B as Peer B
     participant C as Peer C
 
-    Note over A,NATS: example channel = builders
-    A->>NATS: PUB agh.network.v0.builders.broadcast
+    Note over A,NATS: workspace = ws_alpha, channel = builders
+    A->>NATS: PUB agh.network.v0.ws_alpha.builders.broadcast
     NATS-->>B: deliver greet
     NATS-->>C: deliver greet
 
-    A->>NATS: PUB agh.network.v0.builders.peer.b_token
+    A->>NATS: PUB agh.network.v0.ws_alpha.builders.peer.b_token
     NATS-->>B: deliver say in direct room
 
-    B->>NATS: PUB agh.network.v0.builders.peer.a_token
+    B->>NATS: PUB agh.network.v0.ws_alpha.builders.peer.a_token
     NATS-->>A: deliver trace
 ```
 
@@ -909,10 +923,10 @@ conversation-bearing.
 
 ### 10.5 Joining a channel
 
-A peer joins a channel by subscribing to the required NATS subjects and announcing its presence:
+A peer joins a workspace channel by subscribing to the required NATS subjects and announcing its presence:
 
-1. Subscribe to `agh.network.v0.<channel>.broadcast`.
-2. Subscribe to its own peer-targeted subject `agh.network.v0.<channel>.peer.<own_route_token>`.
+1. Subscribe to `agh.network.v0.<workspace_id>.<channel>.broadcast`.
+2. Subscribe to its own peer-targeted subject `agh.network.v0.<workspace_id>.<channel>.peer.<own_route_token>`.
 3. SHOULD send a `greet` message to the broadcast subject.
 
 A peer SHOULD send `greet` upon joining a channel and after reconnecting to NATS following a connection loss.
@@ -1020,9 +1034,9 @@ v1 adds:
 - normative extension namespacing
 - NATS request/reply correlation
 - fingerprint-based route token for verified peers
-- new NATS subject prefix `agh.network.v1`
+- a v1 protocol/profile identifier for verified-mode peers
 
-The `protocol` field changes from `agh-network/v0` to `agh-network/v1`.
+The current AGH Runtime protocol remains `agh-network/v0` until that future v1 profile ships.
 
 ---
 
@@ -1055,6 +1069,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_thread_request_01",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -1082,6 +1097,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_direct_request_01",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "direct",
@@ -1110,6 +1126,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_receipt_01",
+  "workspace_id": "ws_alpha",
   "kind": "receipt",
   "channel": "builders",
   "surface": "direct",
@@ -1139,6 +1156,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_trace_02",
+  "workspace_id": "ws_alpha",
   "kind": "trace",
   "channel": "builders",
   "surface": "direct",
@@ -1170,6 +1188,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_thread_summary_01",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -1214,6 +1233,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_greet_10",
+  "workspace_id": "ws_alpha",
   "kind": "greet",
   "channel": "builders",
   "from": "capability-curator",
@@ -1227,7 +1247,7 @@ sequenceDiagram
     "peer_card": {
       "peer_id": "capability-curator",
       "display_name": "Capability Curator",
-      "profiles_supported": ["agh-network-over-nats/v0"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["fix-go-migration-tests"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
@@ -1252,6 +1272,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_whois_11",
+  "workspace_id": "ws_alpha",
   "kind": "whois",
   "channel": "builders",
   "from": "release-bot",
@@ -1279,6 +1300,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_capability_13",
+  "workspace_id": "ws_alpha",
   "kind": "capability",
   "channel": "builders",
   "surface": "thread",
@@ -1312,6 +1334,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_direct_work_20",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "direct",
@@ -1340,6 +1363,7 @@ sequenceDiagram
 {
   "protocol": "agh-network/v0",
   "id": "msg_trace_21",
+  "workspace_id": "ws_alpha",
   "kind": "trace",
   "channel": "builders",
   "surface": "direct",

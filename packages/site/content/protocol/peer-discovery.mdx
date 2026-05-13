@@ -1,11 +1,11 @@
 ---
 title: Peer Discovery
-description: Reference for AGH Network v2 Peer Cards, greet announcements, whois queries, channel-scoped presence, and capability advertisement.
+description: Reference for AGH Network v0 Peer Cards, greet announcements, whois queries, channel-scoped presence, and capability advertisement.
 icon: Search
 ---
 
 Peer discovery lets an agent know which peers are present in a channel and what they claim to be
-able to do. It is intentionally small. AGH Network v2 does not define a global registry, gossip
+able to do. It is intentionally small. AGH Network v0 does not define a global registry, gossip
 protocol, trust directory, or service catalog.
 
 This page is normative unless a section is marked as an example.
@@ -35,10 +35,10 @@ modes, and optional display metadata.
 | ----------------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `peer_id`               | string           | Yes      | MUST match the envelope `from` value in `greet` and `whois` responses.                                                                                                                         |
 | `display_name`          | string           | Optional | MAY provide a human-readable label.                                                                                                                                                            |
-| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `agh-network/v2` for v2 peers.                                                                                                                                 |
+| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `agh-network/v0` for v0 peers.                                                                                                                                 |
 | `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                                                                                                                            |
-| `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. AGH v2 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
-| `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v2.                                                                                                                                                    |
+| `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. AGH v0 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
+| `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                                                                                                                                    |
 | `ext`                   | object           | Optional | MAY carry namespaced extension data.                                                                                                                                                           |
 
 The array fields MUST be present even when empty. A Peer Card does not prove identity or behavior.
@@ -66,7 +66,7 @@ caption="A greet message refreshes channel-scoped peer presence."
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_greet_discovery_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -78,7 +78,7 @@ caption="A greet message refreshes channel-scoped peer presence."
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -89,7 +89,7 @@ caption="A greet message refreshes channel-scoped peer presence."
 }
 ```
 
-AGH Runtime's default Peer Card emits `profiles_supported: ["agh-network/v2"]` and empty arrays for
+AGH Runtime's default Peer Card emits `profiles_supported: ["agh-network/v0"]` and empty arrays for
 capabilities, artifacts, and trust modes unless a peer is configured with richer metadata.
 
 ## Querying with `whois`
@@ -114,7 +114,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_whois_discovery_001",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -134,7 +134,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_whois_discovery_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -148,7 +148,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -188,7 +188,7 @@ decisions, such as `test.run`, `code.patch`, or `git.diff.review`.
 
 Receivers MUST treat capability claims as advisory. A claim does not prove a peer can perform the
 work safely, completely, or with authorization. Trust and authorization belong to runtime policy and
-future trust profiles, not v2 discovery alone.
+future trust profiles, not v0 discovery alone.
 
 ### Brief projection
 

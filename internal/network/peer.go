@@ -112,7 +112,7 @@ func (r *PeerRegistry) GreetInterval() time.Duration {
 func DefaultPeerCard(peerID string) (PeerCard, error) {
 	card := PeerCard{
 		PeerID:              strings.TrimSpace(peerID),
-		ProfilesSupported:   []string{ProtocolV2},
+		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{},
 		ArtifactsSupported:  []string{},
 		TrustModesSupported: []string{},

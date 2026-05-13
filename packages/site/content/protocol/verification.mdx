@@ -10,7 +10,7 @@ uses this step to classify each message as `verified`, `unverified`, or `rejecte
 This page is normative unless a section is marked as an example.
 
 <OperatorNote label="Implementation status">
-  The current AGH Runtime implementation validates v2 envelopes and routes opaque `proof` values.
+  The current AGH Runtime implementation validates v0 envelopes and routes opaque `proof` values.
   The trust-state algorithm below is the RFC 004 v1 contract for implementers.
 </OperatorNote>
 
@@ -122,7 +122,7 @@ Unsigned handling depends on the `from` shape and `proof` value.
 
 | Envelope condition                                                                      | Trust state  | Rule                                                               |
 | --------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------ |
-| `proof` absent or `null`, `from` is a normal v2 Peer ID                                 | `unverified` | Receiver MAY route under unverified policy.                        |
+| `proof` absent or `null`, `from` is a normal v0 Peer ID                                 | `unverified` | Receiver MAY route under unverified policy.                        |
 | `proof` absent or `null`, `from` matches `nickname@fingerprint`                         | `rejected`   | Receiver MUST treat this as proof stripping.                       |
 | `proof.profile` is unsupported but the proof object is otherwise opaque and well-formed | `unverified` | Receiver MAY route under unverified or unsupported-profile policy. |
 | Baseline `proof` is present but malformed                                               | `rejected`   | Receiver MUST stop normal routing.                                 |

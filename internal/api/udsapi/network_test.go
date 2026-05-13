@@ -91,7 +91,7 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 			},
 			InboxFn: func(_ context.Context, _ string) ([]network.Envelope, error) {
 				return []network.Envelope{{
-					Protocol: network.ProtocolV2,
+					Protocol: network.ProtocolV0,
 					ID:       "msg-inbox",
 					Kind:     network.KindSay,
 					Channel:  "builders",
@@ -249,7 +249,7 @@ func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
 					PeerCard: network.PeerCard{
 						PeerID:              "reviewer.sess-a",
 						Capabilities:        []string{"review-pr"},
-						ProfilesSupported:   []string{network.ProtocolV2},
+						ProfilesSupported:   []string{network.ProtocolV0},
 						ArtifactsSupported:  []string{"capability"},
 						TrustModesSupported: []string{"untrusted"},
 						Ext: network.ExtensionMap{

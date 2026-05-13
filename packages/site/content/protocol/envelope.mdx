@@ -1,6 +1,6 @@
 ---
 title: Envelope Specification
-description: Reference for the AGH Network v2 JSON envelope, conversation surface fields, work lifecycle correlation, validation order, schema, and annotated examples.
+description: Reference for the AGH Network v0 JSON envelope, conversation surface fields, work lifecycle correlation, validation order, schema, and annotated examples.
 icon: FileText
 ---
 
@@ -35,7 +35,7 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 
 | Field          | Type           | Required    | Rule                                                                                                                                                                                                                   |
 | -------------- | -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `protocol`     | string         | Yes         | MUST be `agh-network/v2`.                                                                                                                                                                                              |
+| `protocol`     | string         | Yes         | MUST be `agh-network/v0`.                                                                                                                                                                                              |
 | `id`           | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                                                                                                                         |
 | `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, work, and transport subjects.                                                                                                 |
 | `kind`         | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`. `direct` is not a kind.                                                                                                                   |
@@ -52,7 +52,7 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 | `ts`           | integer        | Yes         | MUST be Unix time in seconds, set by the sender.                                                                                                                                                                       |
 | `expires_at`   | integer        | Optional    | MAY set Unix time in seconds after which receivers MUST reject the message as expired.                                                                                                                                 |
 | `body`         | object         | Yes         | MUST be a JSON object matching the message kind.                                                                                                                                                                       |
-| `proof`        | object or null | Reserved    | MAY be `null` in v2. v2 receivers MUST NOT require cryptographic proof processing.                                                                                                                                     |
+| `proof`        | object or null | Reserved    | MAY be `null` in v0. v0 receivers MUST NOT require cryptographic proof processing.                                                                                                                                     |
 | `ext`          | object         | Optional    | MAY contain extension keys. Receivers MUST ignore unknown extension keys they do not understand.                                                                                                                       |
 
 ## Conversation surface fields
@@ -104,14 +104,14 @@ kind pages.
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agh.dev/schemas/network/v2/envelope.schema.json",
-  "title": "AGH Network v2 Envelope",
+  "$id": "https://agh.dev/schemas/network/v0/envelope.schema.json",
+  "title": "AGH Network v0 Envelope",
   "type": "object",
   "additionalProperties": false,
   "required": ["protocol", "id", "workspace_id", "kind", "channel", "from", "ts", "body"],
   "properties": {
     "protocol": {
-      "const": "agh-network/v2"
+      "const": "agh-network/v0"
     },
     "id": {
       "type": "string",
@@ -194,7 +194,7 @@ and targets one reviewer.
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_01jz8f6m6x4f4s8e9b2c3d4e5f",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -228,9 +228,9 @@ and targets one reviewer.
 
 | Field          | Annotation                                                                             |
 | -------------- | -------------------------------------------------------------------------------------- |
-| `protocol`     | Selects the v2 protocol profile.                                                       |
+| `protocol`     | Selects the v0 protocol profile.                                                       |
 | `id`           | Identifies this envelope for deduplication and correlation.                            |
-| `kind`         | `say` is the default conversation kind in v2.                                          |
+| `kind`         | `say` is the default conversation kind in v0.                                          |
 | `channel`      | Scopes routing and discovery to `builders`.                                            |
 | `surface`      | Names the conversation container shape.                                                |
 | `thread_id`    | Names the specific public thread within `builders`.                                    |
@@ -242,7 +242,7 @@ and targets one reviewer.
 | `ts`           | Sender timestamp in Unix seconds.                                                      |
 | `expires_at`   | Receiver rejects the message after this time.                                          |
 | `body`         | Carries the kind-specific request payload.                                             |
-| `proof`        | Reserved for trust profiles; null in v2.                                               |
+| `proof`        | Reserved for trust profiles; null in v0.                                               |
 | `ext`          | Namespaced extension data. Unknown keys are ignored by receivers.                      |
 
 ## Direct-room envelope
@@ -252,7 +252,7 @@ This informative example sends the same kind of reply, but inside a restricted d
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_01jz8f7p2nq2c5b1n8m3kqdv7w",
   "workspace_id": "ws_alpha",
   "kind": "say",

@@ -9,7 +9,7 @@ import (
 
 func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 	envelope := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg-bench-direct",
 		Kind:        KindSay,
@@ -128,7 +128,7 @@ func benchmarkPeerCard(b *testing.B, peerID string, capability string) PeerCard 
 	card := PeerCard{
 		PeerID:              peerID,
 		DisplayName:         &displayName,
-		ProfilesSupported:   []string{ProtocolV2},
+		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{capability, "chat.review"},
 		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"unverified"},

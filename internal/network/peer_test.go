@@ -88,7 +88,7 @@ func TestPeerRegistryAccessorsAndChannelSummaries(t *testing.T) {
 	local := PeerCard{
 		PeerID:              "reviewer.sess-b",
 		DisplayName:         &displayName,
-		ProfilesSupported:   []string{ProtocolV2},
+		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{"chat.review"},
 		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"unverified"},
@@ -264,7 +264,7 @@ func TestPeerRegistryRefreshRemoteKeepsRichCatalogCoherentWithBriefDiscovery(t *
 
 	card := PeerCard{
 		PeerID:              "reviewer.sess-remote",
-		ProfilesSupported:   []string{ProtocolV2},
+		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{"review-pr"},
 		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"untrusted"},

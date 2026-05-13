@@ -10,7 +10,7 @@ additive: a higher level includes the requirements below it.
 This page is normative unless a section is marked as an example.
 
 <OperatorNote label="Implementation status">
-  The current repository has package tests for the v2 AGH Runtime implementation, but it does not
+  The current repository has package tests for the v0 AGH Runtime implementation, but it does not
   yet ship a standalone third-party AGH Network conformance runner.
 </OperatorNote>
 
@@ -20,7 +20,7 @@ This page is normative unless a section is marked as an example.
 | ----- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | Core  | Core Sender plus Core Receiver behavior for envelopes, message kinds, lifecycle, delivery, and extension handling. | Any runtime, bridge, test harness, or library that exchanges AGH Network messages. |
 | Trust | Core plus the v1 baseline Ed25519 + JCS trust profile.                                                             | Implementations that claim cryptographic sender verification.                      |
-| Full  | Trust plus the NATS transport binding.                                                                             | Peers that interoperate over AGH Network v2 on NATS.                               |
+| Full  | Trust plus the NATS transport binding.                                                                             | Peers that interoperate over AGH Network v0 on NATS.                               |
 
 Implementations MAY make narrower role claims such as `Core Sender` or `Core Receiver` when they do
 not implement both directions.
@@ -33,6 +33,7 @@ not implement both directions.
 | Receive and validate valid envelopes                               | MUST   | MUST   | MUST   |
 | Support all six message kinds                                      | MUST   | MUST   | MUST   |
 | Enforce kind-specific required fields                              | MUST   | MUST   | MUST   |
+| Require `workspace_id` on every envelope                           | MUST   | MUST   | MUST   |
 | Reject `kind:"direct"` and `interaction_id` envelopes              | MUST   | MUST   | MUST   |
 | Enforce `surface`, `thread_id`, and `direct_id` rules              | MUST   | MUST   | MUST   |
 | Enforce `work_id` lifecycle and container-binding rules            | MUST   | MUST   | MUST   |
@@ -48,7 +49,7 @@ not implement both directions.
 | Reject proof-stripped verified handles                             | MAY    | MUST   | MUST   |
 | Emit valid baseline proofs for messages expected to be verified    | MAY    | MUST   | MUST   |
 | Advertise trust support in Peer Cards                              | MAY    | MUST   | MUST   |
-| Implement NATS v2 subject mapping                                  | MAY    | MAY    | MUST   |
+| Implement NATS v0 subject mapping                                  | MAY    | MAY    | MUST   |
 | Subscribe to broadcast and direct NATS subjects                    | MAY    | MAY    | MUST   |
 | Preserve core correlation when using NATS request-reply            | MAY    | MAY    | MUST   |
 | Treat NATS and JetStream acknowledgements as transport-level only  | SHOULD | SHOULD | MUST   |
@@ -116,9 +117,9 @@ A Full implementation MUST satisfy Trust conformance and the [NATS transport bin
 
 A Full NATS Peer MUST:
 
-- use the `agh.network.v2` subject prefix for v2 traffic
-- subscribe to `agh.network.v2.<workspace_id>.<channel>.broadcast` for each joined channel
-- subscribe to `agh.network.v2.<workspace_id>.<channel>.peer.<own_route_token>` for each joined channel
+- use the `agh.network.v0` subject prefix for v0 traffic
+- subscribe to `agh.network.v0.<workspace_id>.<channel>.broadcast` for each joined channel
+- subscribe to `agh.network.v0.<workspace_id>.<channel>.peer.<own_route_token>` for each joined channel
 - publish broadcast envelopes to the broadcast subject
 - publish directed envelopes to the target direct subject
 - derive verified-mode direct route tokens from the verified handle fingerprint
@@ -140,7 +141,7 @@ requirements:
 | `Core Peer`     | Can send and receive core messages.                                        |
 | `Trust Peer`    | Can send and receive core messages and verify baseline trust proofs.       |
 | `NATS Peer`     | Can send and receive core messages over the NATS binding.                  |
-| `Full Peer`     | Can send and receive verified core messages over the NATS v2 binding.      |
+| `Full Peer`     | Can send and receive verified core messages over the NATS v0 binding.      |
 
 The RFC 004 role vocabulary also permits additive claims such as `Core Peer + NATS Peer` or
 `Core Peer + Verified Peer`. Public documentation SHOULD map those to `NATS Peer`, `Trust Peer`,
@@ -157,8 +158,8 @@ Example:
   "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
   "display_name": "Patch Worker",
   "profiles_supported": [
-    "agh-network/v2",
-    "agh-network.nats/v2",
+    "agh-network/v0",
+    "agh-network.nats/v0",
     "agh-network.trust.ed25519-jcs/v1"
   ],
   "capabilities": ["code.patch", "test.run"],
@@ -210,8 +211,8 @@ Example self-certification record:
   "implementation": "example-runtime",
   "version": "0.4.0",
   "claim": "Full Peer",
-  "protocol": "agh-network/v2",
-  "profiles": ["agh-network.trust.ed25519-jcs/v1", "agh-network.nats/v2"],
+  "protocol": "agh-network/v0",
+  "profiles": ["agh-network.trust.ed25519-jcs/v1", "agh-network.nats/v0"],
   "fixture_suite": "agh-network-conformance@2026-04-16",
   "passed": [
     "core.envelope",

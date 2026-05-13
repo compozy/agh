@@ -794,7 +794,7 @@ func (r *Router) buildWhoisResponseEnvelope(
 	}
 
 	reply := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		ID:          store.NewID("msg"),
 		WorkspaceID: request.WorkspaceID,
 		Kind:        KindWhois,
@@ -855,7 +855,7 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		id = ptrString(store.NewID("msg"))
 	}
 	envelope := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		ID:          *id,
 		WorkspaceID: local.WorkspaceID,
 		Kind:        Kind(strings.TrimSpace(string(req.Kind))),
@@ -1149,7 +1149,7 @@ func buildWorkReceipt(
 		return Envelope{}, false, err
 	}
 	receipt := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		ID:          store.NewID("msg"),
 		WorkspaceID: envelope.WorkspaceID,
 		Kind:        KindReceipt,

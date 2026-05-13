@@ -9,7 +9,7 @@ fixture tests, add a tiny local echo peer, and collect enough evidence to make a
 claim.
 
 Normative requirements live in [conformance levels](/protocol/conformance/). Current AGH source has
-package tests for its v2 runtime, but it does not yet ship a standalone third-party conformance
+package tests for its v0 runtime, but it does not yet ship a standalone third-party conformance
 runner or built-in echo peer.
 
 ## What you'll build
@@ -17,7 +17,7 @@ runner or built-in echo peer.
 By the end, you will have a test harness that:
 
 - validates envelope fixtures before transport is involved
-- checks v2 NATS route-token and subject mapping
+- checks v0 NATS route-token and subject mapping
 - exercises a local echo peer over JSON envelopes
 - verifies a baseline Ed25519 proof fixture
 - records what is covered and what is still out of scope
@@ -62,7 +62,7 @@ type Envelope struct {
 
 func TestCoreSenderFixture(t *testing.T) {
 	raw := []byte(`{
-		"protocol": "agh-network/v2",
+		"protocol": "agh-network/v0",
 		"id": "msg_fixture_01",
 		"workspace_id": "ws_alpha",
 		"kind": "say",
@@ -81,7 +81,7 @@ func TestCoreSenderFixture(t *testing.T) {
 		t.Fatalf("decode envelope: %v", err)
 	}
 
-	if env.Protocol != "agh-network/v2" {
+	if env.Protocol != "agh-network/v0" {
 		t.Fatalf("protocol = %q", env.Protocol)
 	}
 	if env.Kind != "say" {
@@ -106,10 +106,10 @@ func TestCoreSenderFixture(t *testing.T) {
 }
 
 func TestNATSSubjectMapping(t *testing.T) {
-	if got, want := broadcastSubject("ws_alpha", "builders"), "agh.network.v2.ws_alpha.builders.broadcast"; got != want {
+	if got, want := broadcastSubject("ws_alpha", "builders"), "agh.network.v0.ws_alpha.builders.broadcast"; got != want {
 		t.Fatalf("broadcast subject = %q, want %q", got, want)
 	}
-	if got, want := directSubject("ws_alpha", "builders", "echo.demo"), "agh.network.v2.ws_alpha.builders.peer.96b61db360703e491489caf5fbbd45bc"; got != want {
+	if got, want := directSubject("ws_alpha", "builders", "echo.demo"), "agh.network.v0.ws_alpha.builders.peer.96b61db360703e491489caf5fbbd45bc"; got != want {
 		t.Fatalf("direct subject = %q, want %q", got, want)
 	}
 }
@@ -119,7 +119,7 @@ func TestLocalEchoPeer(t *testing.T) {
 	surface := "thread"
 	threadID := "thread_echo_demo"
 	request := Envelope{
-		Protocol:    "agh-network/v2",
+		Protocol:    "agh-network/v0",
 		ID:          "msg_say_work_01",
 		WorkspaceID: "ws_alpha",
 		Kind:        "say",
@@ -165,7 +165,7 @@ func echoPeer(request Envelope) (Envelope, error) {
 		return Envelope{}, err
 	}
 	return Envelope{
-		Protocol:    "agh-network/v2",
+		Protocol:    "agh-network/v0",
 		ID:          "msg_receipt_01",
 		WorkspaceID: request.WorkspaceID,
 		Kind:        "receipt",
@@ -184,11 +184,11 @@ func echoPeer(request Envelope) (Envelope, error) {
 }
 
 func broadcastSubject(workspaceID string, channel string) string {
-	return "agh.network.v2." + workspaceID + "." + channel + ".broadcast"
+	return "agh.network.v0." + workspaceID + "." + channel + ".broadcast"
 }
 
 func directSubject(workspaceID string, channel string, peerID string) string {
-	return "agh.network.v2." + workspaceID + "." + channel + ".peer." + routeToken(peerID)
+	return "agh.network.v0." + workspaceID + "." + channel + ".peer." + routeToken(peerID)
 }
 
 func routeToken(peerID string) string {
@@ -206,14 +206,14 @@ Language-agnostic pseudocode:
 ```text
 test core sender fixture:
   decode envelope JSON
-  require protocol == "agh-network/v2"
+  require protocol == "agh-network/v0"
   require kind == "say"
   require surface == "thread"
   require thread_id is set
   require body.text is not blank
 
 test nats subject mapping:
-  broadcast_subject("ws_alpha", "builders") must equal "agh.network.v2.ws_alpha.builders.broadcast"
+  broadcast_subject("ws_alpha", "builders") must equal "agh.network.v0.ws_alpha.builders.broadcast"
   direct_subject("ws_alpha", "builders", "echo.demo") must use sha256(peer_id)[0:32]
 
 test local echo peer:
@@ -243,7 +243,7 @@ It is deterministic and should fail if your verifier signs or verifies the wrong
 
 ## Compare with AGH's current runtime tests
 
-When you are working inside the AGH repository, these commands exercise the current v2 implementation:
+When you are working inside the AGH repository, these commands exercise the current v0 implementation:
 
 ```bash
 go test ./internal/network

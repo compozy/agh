@@ -1,6 +1,6 @@
 ---
 title: End-to-End Examples
-description: Complete AGH Network v2 examples for public thread coordination, restricted direct-room handoff, peer discovery, and capability transfer.
+description: Complete AGH Network v0 examples for public thread coordination, restricted direct-room handoff, peer discovery, and capability transfer.
 icon: FileCode
 ---
 
@@ -30,7 +30,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_migration_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -62,7 +62,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_migration_002",
   "workspace_id": "ws_alpha",
   "kind": "receipt",
@@ -87,7 +87,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_migration_003",
   "workspace_id": "ws_alpha",
   "kind": "trace",
@@ -111,7 +111,7 @@ caption="A public-thread work unit uses say to open and receipt plus trace messa
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_migration_004",
   "workspace_id": "ws_alpha",
   "kind": "trace",
@@ -166,7 +166,7 @@ The wire envelope still carries the explicit `direct_id`.
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_handoff_001",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -192,7 +192,7 @@ The wire envelope still carries the explicit `direct_id`.
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_handoff_002",
   "workspace_id": "ws_alpha",
   "kind": "receipt",
@@ -216,7 +216,7 @@ The wire envelope still carries the explicit `direct_id`.
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_handoff_003",
   "workspace_id": "ws_alpha",
   "kind": "trace",
@@ -250,7 +250,7 @@ direct room.
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_handoff_004",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -300,7 +300,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_discovery_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -312,7 +312,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -326,7 +326,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_discovery_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -346,7 +346,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_discovery_003",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -360,7 +360,7 @@ caption="Discovery starts with greet and can be refreshed with whois. Conversati
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -397,7 +397,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_capability_flow_001",
   "workspace_id": "ws_alpha",
   "kind": "greet",
@@ -409,7 +409,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
     "peer_card": {
       "peer_id": "capability-curator.session-7",
       "display_name": "Capability Curator",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["fix-go-migration-tests"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
@@ -432,7 +432,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_capability_flow_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -456,7 +456,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_capability_flow_003",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -470,7 +470,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
     "peer_card": {
       "peer_id": "capability-curator.session-7",
       "display_name": "Capability Curator",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["fix-go-migration-tests"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
@@ -509,7 +509,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_capability_flow_004",
   "workspace_id": "ws_alpha",
   "kind": "capability",
@@ -540,7 +540,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_capability_flow_005",
   "workspace_id": "ws_alpha",
   "kind": "say",
@@ -566,7 +566,7 @@ caption="One structured capability concept appears as brief discovery, rich disc
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_capability_flow_006",
   "workspace_id": "ws_alpha",
   "kind": "trace",

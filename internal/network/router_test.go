@@ -126,7 +126,7 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	if err != nil {
 		t.Fatalf("Send(say) error = %v", err)
 	}
-	if got, want := sayResult.Subject, "agh.network.v2.wks_test.builders.broadcast"; got != want {
+	if got, want := sayResult.Subject, "agh.network.v0.wks_test.builders.broadcast"; got != want {
 		t.Fatalf("Send(say).Subject = %q, want %q", got, want)
 	}
 
@@ -225,7 +225,7 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 			t.Fatalf("NewRouter() error = %v", err)
 		}
 		payload, err := json.Marshal(Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg_direct_room_broadcast",
 			Kind:        KindSay,
@@ -293,7 +293,7 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 		}
 
 		payload, err := json.Marshal(Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg_direct_room_mismatch",
 			Kind:        KindSay,
@@ -416,7 +416,7 @@ func TestRouterIgnoresDirectedWhoisRequestToSender(t *testing.T) {
 			t.Fatalf("NewRouter() error = %v", err)
 		}
 		payload, err := json.Marshal(Envelope{
-			Protocol:    ProtocolV2,
+			Protocol:    ProtocolV0,
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg_whois_self",
 			Kind:        KindWhois,
@@ -469,7 +469,7 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 	}
 
 	directPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_direct_dup",
 		Kind:        KindSay,
@@ -492,7 +492,7 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 	}
 
 	receiptPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_receipt_cancel",
 		Kind:        KindReceipt,
@@ -564,7 +564,7 @@ func TestRouterWhoisRequestGeneratesResponse(t *testing.T) {
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_request",
 		Kind:        KindWhois,
@@ -664,7 +664,7 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_rich_request",
 		Kind:        KindWhois,
@@ -789,7 +789,7 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_filtered_request",
 		Kind:        KindWhois,
@@ -918,7 +918,7 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsEmptyCatalogForUnknownIDsOrMis
 			}
 
 			requestPayload, err := json.Marshal(Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_whois_empty_request",
 				Kind:        KindWhois,
@@ -985,7 +985,7 @@ func TestRouterWhoisRequestIgnoresUnknownAGHExtKeys(t *testing.T) {
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_unknown_ext",
 		Kind:        KindWhois,
@@ -1046,7 +1046,7 @@ func TestRouterWhoisRichCapabilityDiscoveryRejectsOversizedResponse(t *testing.T
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_oversized_request",
 		Kind:        KindWhois,
@@ -1096,7 +1096,7 @@ func TestRouterWhoisResponseRefreshesRemotePresenceAndDeliversToRequester(t *tes
 
 	remote := mustPeerCard(t, "reviewer.sess-b")
 	responsePayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_response",
 		Kind:        KindWhois,
@@ -1161,7 +1161,7 @@ func TestRouterHeartbeatPublishAndLeaveHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PublishGreet() error = %v", err)
 	}
-	if got, want := greet.Subject, "agh.network.v2.wks_test.builders.broadcast"; got != want {
+	if got, want := greet.Subject, "agh.network.v0.wks_test.builders.broadcast"; got != want {
 		t.Fatalf("PublishGreet().Subject = %q, want %q", got, want)
 	}
 	firstMessage := transport.Message(0)
@@ -1239,7 +1239,7 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 	}
 
 	notTargetPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_not_target",
 		Kind:        KindSay,
@@ -1261,7 +1261,7 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 		t.Fatalf("not target result = %#v, want reason %q", notTarget, ReasonCodeNotTarget)
 	}
 
-	malformed, err := router.Receive(context.Background(), []byte(`{"protocol":"agh-network/v2","kind":"direct"`))
+	malformed, err := router.Receive(context.Background(), []byte(`{"protocol":"agh-network/v0","kind":"direct"`))
 	if err != nil {
 		t.Fatalf("Receive(malformed JSON) error = %v", err)
 	}
@@ -1270,7 +1270,7 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 	}
 
 	unsupported, err := router.Receive(context.Background(), []byte(`{
-		"protocol":"agh-network/v2",
+		"protocol":"agh-network/v0",
 		"workspace_id":"wks_test",
 		"id":"msg_bad_kind",
 		"kind":"mystery",
@@ -1312,7 +1312,7 @@ func TestRouterReceiveRejectsCapabilityDigestMismatchBeforeDelivery(t *testing.T
 	}
 
 	payload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_bad_digest",
 		Kind:        KindCapability,
@@ -1376,7 +1376,7 @@ func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
 
 	expiredAt := now.Add(-time.Second).Unix()
 	payload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_expired_direct",
 		Kind:        KindSay,
@@ -1443,7 +1443,7 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 
 	remote := mustPeerCard(t, "coder.sess-a")
 	greetPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_greet_remote",
 		Kind:        KindGreet,
@@ -1466,7 +1466,7 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 	}
 
 	whoisPayload, err := json.Marshal(Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_whois_direct",
 		Kind:        KindWhois,
@@ -1573,7 +1573,7 @@ func TestWorkValidationErrors(t *testing.T) {
 	}
 
 	nonOpener := withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_trace_non_opener",
 		Kind:        KindTrace,
@@ -1617,7 +1617,7 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 
 	capabilityPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_open",
 		Kind:        KindCapability,
@@ -1651,7 +1651,7 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 
 	receiptPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_receipt",
 		Kind:        KindReceipt,
@@ -1685,7 +1685,7 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 
 	tracePayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_trace",
 		Kind:        KindTrace,
@@ -1768,7 +1768,7 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 	}
 
 	tracePayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_trace_needs_input",
 		Kind:        KindTrace,
@@ -1802,7 +1802,7 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 	}
 
 	completedPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_capability_trace_completed",
 		Kind:        KindTrace,
@@ -1872,7 +1872,7 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 	}
 
 	directPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_direct_invalid_trace",
 		Kind:        KindSay,
@@ -1891,7 +1891,7 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 	}
 
 	tracePayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_trace_invalid_state",
 		Kind:        KindTrace,
@@ -1943,7 +1943,7 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 	}
 
 	directPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_direct_cross_container",
 		Kind:        KindSay,
@@ -1962,7 +1962,7 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 	}
 
 	threadTrace := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_trace_cross_container",
 		Kind:        KindTrace,

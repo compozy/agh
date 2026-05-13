@@ -1220,7 +1220,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Local:       true,
 				PeerCard: aghcontract.NetworkPeerCardPayload{
 					PeerID:            "coder.sess-1",
-					ProfilesSupported: []string{"agh-network/v2"},
+					ProfilesSupported: []string{"agh-network/v0"},
 					Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
 						ID:      "chat.review",
 						Summary: "Reviews chat requests.",
@@ -1278,7 +1278,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Local:       true,
 					PeerCard: aghcontract.NetworkPeerCardPayload{
 						PeerID:            "coder.sess-1",
-						ProfilesSupported: []string{"agh-network/v2"},
+						ProfilesSupported: []string{"agh-network/v0"},
 						Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
 							ID:      "chat.review",
 							Summary: "Reviews chat requests.",
@@ -1303,7 +1303,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		writeJSON(w, aghcontract.NetworkInboxResponse{
 			Messages: []aghcontract.NetworkEnvelopePayload{{
-				Protocol: "agh-network/v2",
+				Protocol: "agh-network/v0",
 				ID:       "msg-inbox-1",
 				Kind:     "say",
 				Channel:  "builders",

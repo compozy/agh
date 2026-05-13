@@ -112,7 +112,7 @@ export const WrappedLongLine: Story = {
     code: JSON.stringify(
       {
         event: "receipt",
-        channel: "agh-network/v2",
+        channel: "agh-network/v0",
         summary:
           "This deliberately long value wraps inside the block without forcing a horizontal scroll.",
       },

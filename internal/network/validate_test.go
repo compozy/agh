@@ -32,7 +32,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize greet envelopes",
 			envelope: Envelope{
-				Protocol:    " agh-network/v2 ",
+				Protocol:    " agh-network/v0 ",
 				WorkspaceID: " wks_test ",
 				ID:          " msg_greet_01 ",
 				Kind:        " greet ",
@@ -43,7 +43,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Body: mustRawJSON(t, map[string]any{
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v2"},
+						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{"workspace.patch.apply"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -57,7 +57,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize whois response envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v2",
+				Protocol:    "agh-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_whois_01",
 				Kind:        KindWhois,
@@ -70,7 +70,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 					"type": "response",
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v2"},
+						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{"chat.translate"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -83,7 +83,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize say envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v2",
+				Protocol:    "agh-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_say_01",
 				Kind:        KindSay,
@@ -104,7 +104,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize direct envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v2",
+				Protocol:    "agh-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_direct_01",
 				Kind:        KindSay,
@@ -127,7 +127,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize capability envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v2",
+				Protocol:    "agh-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_capability_01",
 				Kind:        KindCapability,
@@ -152,7 +152,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize receipt envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v2",
+				Protocol:    "agh-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_receipt_01",
 				Kind:        KindReceipt,
@@ -175,7 +175,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize trace envelopes",
 			envelope: Envelope{
-				Protocol:    "agh-network/v2",
+				Protocol:    "agh-network/v0",
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_01",
 				Kind:        KindTrace,
@@ -233,7 +233,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 
 	base := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_direct_01",
 		Kind:        KindSay,
@@ -343,7 +343,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 					"type": "response",
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v2"},
+						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{"chat.translate"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -395,7 +395,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 				env.Body = mustRawJSON(t, map[string]any{
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v2"},
+						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{networkTaskWriteCapability},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -561,7 +561,7 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 	base := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_surface_01",
 		Kind:        KindSay,
@@ -693,7 +693,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 	base := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_greet_01",
 		Kind:        KindGreet,
@@ -832,7 +832,7 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 		{
 			name: "Should reject legacy interaction_id",
 			raw: []byte(`{
-			  "protocol": "agh-network/v2",
+			  "protocol": "agh-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_legacy_interaction",
 			  "kind": "say",
@@ -850,7 +850,7 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 		{
 			name: "Should reject legacy direct kind",
 			raw: []byte(`{
-			  "protocol": "agh-network/v2",
+			  "protocol": "agh-network/v0",
 			  "workspace_id": "wks_test",
 			  "id": "msg_legacy_direct_kind",
 			  "kind": "direct",
@@ -892,7 +892,7 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 		{
 			name: "Should require work_id for capability",
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_capability_missing_work",
 				Kind:        KindCapability,
@@ -912,7 +912,7 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 		{
 			name: "Should require work_id for receipt",
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_receipt_missing_work",
 				Kind:        KindReceipt,
@@ -931,7 +931,7 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 		{
 			name: "Should require work_id for trace",
 			env: Envelope{
-				Protocol:    ProtocolV2,
+				Protocol:    ProtocolV0,
 				WorkspaceID: testWorkspaceID,
 				ID:          "msg_trace_missing_work",
 				Kind:        KindTrace,
@@ -967,7 +967,7 @@ func TestRFC004SignedContentConversationFieldsAffectCanonicalBytes(t *testing.T)
 	t.Parallel()
 
 	base := Envelope{
-		Protocol:    ProtocolV2,
+		Protocol:    ProtocolV0,
 		WorkspaceID: testWorkspaceID,
 		ID:          "msg_signed_01",
 		Kind:        KindSay,
@@ -1044,7 +1044,7 @@ func TestNormalizeEnvelopeAllowsWhitespaceOnlyStrings(t *testing.T) {
 		opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 
 		envelope := Envelope{
-			Protocol:    "agh-network/v2",
+			Protocol:    "agh-network/v0",
 			WorkspaceID: testWorkspaceID,
 			ID:          "msg_say_whitespace_01",
 			Kind:        KindSay,
@@ -1121,7 +1121,7 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity(reverse) error = %v", err)
 	}
-	if got, want := forwardID, "direct_89d9ad59cc4d7a145f79f345c0e26bb7"; got != want {
+	if got, want := forwardID, "direct_fd3aece517c733f67bb4f4c6505a66dc"; got != want {
 		t.Fatalf("DirectRoomIdentity() = %q, want known vector %q", got, want)
 	}
 	if forwardID != reverseID || peerA != reverseA || peerB != reverseB {
@@ -1187,7 +1187,7 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 
 		now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		raw := []byte(`{
-	  "protocol": "agh-network/v2",
+	  "protocol": "agh-network/v0",
 	  "workspace_id": "wks_test",
 	  "id": "msg_direct_ext_01",
 		  "kind": "say",

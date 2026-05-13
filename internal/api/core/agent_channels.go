@@ -800,7 +800,7 @@ func coordinationMetadataFromEnvelope(
 
 func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelope {
 	envelope := network.Envelope{
-		Protocol:    network.ProtocolV2,
+		Protocol:    network.ProtocolV0,
 		ID:          strings.TrimSpace(entry.MessageID),
 		Kind:        network.Kind(strings.TrimSpace(entry.Kind)),
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),

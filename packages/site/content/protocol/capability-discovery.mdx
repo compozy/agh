@@ -52,7 +52,7 @@ the peer can perform the work, and brief projections never carry the outcome or 
 {
   "peer_id": "designer.session-19",
   "display_name": "Designer",
-  "profiles_supported": ["agh-network/v2"],
+  "profiles_supported": ["agh-network/v0"],
   "capabilities": ["build-site", "review-copy"],
   "artifacts_supported": ["capability"],
   "trust_modes_supported": ["unverified"],
@@ -135,7 +135,7 @@ Field rules for each entry:
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_whois_catalog_001",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -159,7 +159,7 @@ Field rules for each entry:
 
 ```json
 {
-  "protocol": "agh-network/v2",
+  "protocol": "agh-network/v0",
   "id": "msg_whois_catalog_002",
   "workspace_id": "ws_alpha",
   "kind": "whois",
@@ -172,7 +172,7 @@ Field rules for each entry:
     "type": "response",
     "peer_card": {
       "peer_id": "designer.session-19",
-      "profiles_supported": ["agh-network/v2"],
+      "profiles_supported": ["agh-network/v0"],
       "capabilities": ["build-site", "review-copy"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
@@ -242,7 +242,7 @@ Receivers MUST treat unknown envelope extension keys as opaque and preserve them
 messages, so that newer capability metadata can travel unchanged through older relays.
 
 <OperatorNote>
-  Capability claims remain advisory in v2. `agh.capability_catalog` is a richer hint, not a contract
+  Capability claims remain advisory in v0. `agh.capability_catalog` is a richer hint, not a contract
   of execution. Trust and authorization belong to runtime policy and future trust profiles, not to
   discovery payloads.
 </OperatorNote>
