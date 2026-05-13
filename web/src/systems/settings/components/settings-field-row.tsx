@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, type ReactNode, useId } from "react";
+import { cloneElement, isValidElement, useId, type ReactNode } from "react";
 
 import {
   Eyebrow,
@@ -134,7 +134,7 @@ function SettingsFieldRow({
       orientation="vertical"
       data-variant={variant}
       className={cn(
-        "grid gap-3 border-t border-line pt-5 first:border-t-0 first:pt-0",
+        "grid gap-3 border-t border-line pt-5 first:border-t-0 first:pt-0 pb-5",
         !isModal && "lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
         className
       )}

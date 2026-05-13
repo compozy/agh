@@ -4,7 +4,91 @@ import { http, HttpResponse } from "msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { primarySessionFixture } from "@/systems/session/mocks";
+import type { TranscriptMessage } from "@/systems/session/types";
 import { SessionThread } from "../session-thread";
+
+const mixedStreamingTranscript: TranscriptMessage[] = [
+  {
+    id: "story_user_mixed",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Check the launch note, then summarize the risk.",
+        state: "done",
+      },
+    ],
+  },
+  {
+    id: "story_assistant_mixed",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "I will inspect the current launch note first.",
+        state: "done",
+      },
+      {
+        type: "reasoning",
+        text: "Need the live note and the latest verification output before giving the operator a final answer.",
+        state: "streaming",
+      },
+      {
+        type: "data-provider-note",
+        data: {
+          title: "Provider note",
+          detail: "Unregistered data event kept inline.",
+        },
+      },
+      {
+        type: "tool-WebSearch",
+        toolCallId: "story_tool_web",
+        state: "output-available",
+        input: {
+          query: "launch note risk",
+        },
+        output: {
+          type: "tool_result",
+          title: "WebSearch",
+          raw: {
+            content: "Found launch note reference.",
+          },
+        },
+      },
+      {
+        type: "tool-Bash",
+        toolCallId: "story_tool_bash",
+        state: "output-available",
+        input: {
+          command: "bunx turbo run test --filter=./web",
+        },
+        output: {
+          type: "tool_result",
+          title: "Bash",
+          raw: {
+            stdout: "web tests passed\n",
+          },
+        },
+      },
+      {
+        type: "text",
+        text: [
+          "The launch note is present and the web checks are green.",
+          "",
+          "| Area | Status |",
+          "| --- | --- |",
+          "| Chat stream | Fixed |",
+          "| Tool timeline | Inline |",
+          "",
+          "```ts",
+          'const nextAction = "keep monitoring";',
+          "```",
+        ].join("\n"),
+        state: "streaming",
+      },
+    ],
+  },
+];
 
 /**
  * Storybook stories for the assistant-ui session thread shell.
@@ -87,5 +171,26 @@ export const Disabled: Story = {
     agentName: primarySessionFixture.agent_name,
     canPrompt: false,
     onCancelPrompt: () => undefined,
+  },
+};
+
+/**
+ * Mixed streaming turn — reasoning, unregistered and registered tool calls, then later markdown text.
+ */
+export const MixedStreaming: Story = {
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    onCancelPrompt: () => undefined,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ messages: mixedStreamingTranscript })
+        ),
+      ],
+    }),
   },
 };

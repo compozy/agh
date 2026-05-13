@@ -27,6 +27,7 @@ import type { SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
+import { RestartDaemonButton } from "./restart-daemon-button";
 
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
@@ -166,6 +167,15 @@ function computeAgentsCount(
   return { live, total };
 }
 
+function countActiveSessions(sessions: SessionPayload[] | undefined): number {
+  if (!sessions) return 0;
+  let count = 0;
+  for (const session of sessions) {
+    if (session.state === "active") count += 1;
+  }
+  return count;
+}
+
 interface NavSlotProps {
   agents: AgentPayload[] | undefined;
   agentsLoading: boolean;
@@ -267,18 +277,14 @@ function WorkspaceSwitcher({ workspace }: WorkspaceSwitcherProps) {
 }
 
 interface FooterSlotProps {
-  health: { version: string } | undefined;
+  activeSessionCount: number;
 }
 
-function FooterSlot({ health }: FooterSlotProps) {
+function FooterSlot({ activeSessionCount }: FooterSlotProps) {
   return (
     <div data-testid="sidebar-footer" className="flex items-center gap-2 px-2">
       <RuntimeConnectionIndicator />
-      {health && (
-        <span data-testid="sidebar-version" className="ml-auto font-mono text-badge text-subtle">
-          v{health.version}
-        </span>
-      )}
+      <RestartDaemonButton activeSessionCount={activeSessionCount} />
     </div>
   );
 }
@@ -291,7 +297,6 @@ export interface AppSidebarProps {
   activeWorkspace: WorkspacePayload | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
-  health: { version: string } | undefined;
   agents: AgentPayload[] | undefined;
   agentsLoading: boolean;
   agentsError: boolean;
@@ -307,13 +312,13 @@ function AppSidebar({
   activeWorkspace,
   onSelectWorkspace,
   onAddWorkspace,
-  health,
   agents,
   agentsLoading,
   agentsError,
   sessions,
   className,
 }: AppSidebarProps) {
+  const activeSessionCount = countActiveSessions(sessions);
   return (
     <Sidebar
       data-testid="app-sidebar"
@@ -337,7 +342,7 @@ function AppSidebar({
           sessions={sessions}
         />
       }
-      footer={<FooterSlot health={health} />}
+      footer={<FooterSlot activeSessionCount={activeSessionCount} />}
     />
   );
 }

@@ -9,7 +9,7 @@ import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 function useAppLayout() {
   const collapsed = useSidebarStore(state => state.collapsed);
   const setCollapsed = useSidebarStore(state => state.setCollapsed);
-  const { health, connectionStatus } = useDaemonHealth();
+  const { connectionStatus } = useDaemonHealth();
   const {
     workspaces,
     hasWorkspaces,
@@ -49,7 +49,6 @@ function useAppLayout() {
   return {
     collapsed,
     setCollapsed,
-    health,
     connectionStatus,
     workspaces,
     hasWorkspaces,

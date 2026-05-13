@@ -10,6 +10,7 @@
  * utility classes used by @agh/ui primitives such as Button.
  */
 @source "../../packages/ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/streamdown/dist/*.js";
 
 #app {
   min-height: 100%;

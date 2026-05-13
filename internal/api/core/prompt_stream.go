@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,18 +101,20 @@ type promptErrorPayload struct {
 // PromptStreamEncoder converts raw ACP agent events into the typed public
 // prompt stream envelope used by HTTP, UDS, and CLI streaming surfaces.
 type PromptStreamEncoder struct {
-	now              func() string
-	messageID        string
-	textBlockID      string
-	reasoningBlockID string
-	messageStarted   bool
-	textStarted      bool
-	reasoningStarted bool
-	toolStarted      map[string]struct{}
-	toolInputsReady  map[string]struct{}
-	toolInputPending map[string]struct{}
-	toolNames        map[string]string
-	finished         bool
+	now               func() string
+	messageID         string
+	textBlockID       string
+	reasoningBlockID  string
+	textBlockSeq      int
+	reasoningBlockSeq int
+	messageStarted    bool
+	textStarted       bool
+	reasoningStarted  bool
+	toolStarted       map[string]struct{}
+	toolInputsReady   map[string]struct{}
+	toolInputPending  map[string]struct{}
+	toolNames         map[string]string
+	finished          bool
 }
 
 // NewPromptStreamEncoder constructs a prompt-stream encoder with deterministic
@@ -208,6 +211,9 @@ func (e *PromptStreamEncoder) emitThought(writer FlushWriter, event acp.AgentEve
 }
 
 func (e *PromptStreamEncoder) emitToolCall(writer FlushWriter, event acp.AgentEvent) error {
+	if err := e.closeOpenBlocks(writer); err != nil {
+		return err
+	}
 	toolCallID := e.toolCallID(event)
 	if err := e.ensureToolCallStarted(writer, toolCallID, event); err != nil {
 		return err
@@ -221,6 +227,9 @@ func (e *PromptStreamEncoder) emitToolCall(writer FlushWriter, event acp.AgentEv
 }
 
 func (e *PromptStreamEncoder) emitToolResult(writer FlushWriter, event acp.AgentEvent) error {
+	if err := e.closeOpenBlocks(writer); err != nil {
+		return err
+	}
 	toolCallID := e.toolCallID(event)
 	if err := e.ensureToolCallStarted(writer, toolCallID, event); err != nil {
 		return err
@@ -238,6 +247,9 @@ func (e *PromptStreamEncoder) emitToolResult(writer FlushWriter, event acp.Agent
 }
 
 func (e *PromptStreamEncoder) emitPermission(writer FlushWriter, event acp.AgentEvent) error {
+	if err := e.closeOpenBlocks(writer); err != nil {
+		return err
+	}
 	return WriteSSE(writer, SSEMessage{
 		Data: promptDataEventEnvelope{
 			Type: "data-agh-permission",
@@ -260,6 +272,9 @@ func (e *PromptStreamEncoder) emitError(writer FlushWriter, event acp.AgentEvent
 }
 
 func (e *PromptStreamEncoder) emitGenericEvent(writer FlushWriter, event acp.AgentEvent) error {
+	if err := e.closeOpenBlocks(writer); err != nil {
+		return err
+	}
 	return WriteSSE(writer, SSEMessage{
 		Data: promptDataEventEnvelope{Type: "data-agh-event", Data: promptAgentEventPayloadFromEvent(event)},
 	})
@@ -382,8 +397,6 @@ func (e *PromptStreamEncoder) ensureMessageStarted(writer FlushWriter, event acp
 		messageID = "msg-" + strings.ReplaceAll(e.now(), ":", "-")
 	}
 	e.messageID = messageID
-	e.textBlockID = messageID + "-text"
-	e.reasoningBlockID = messageID + "-reasoning"
 	e.messageStarted = true
 
 	return WriteSSE(writer, SSEMessage{
@@ -395,6 +408,11 @@ func (e *PromptStreamEncoder) ensureTextStarted(writer FlushWriter) error {
 	if e.textStarted {
 		return nil
 	}
+	if err := e.closeReasoningBlock(writer); err != nil {
+		return err
+	}
+	e.textBlockSeq++
+	e.textBlockID = e.messageID + "-text-" + strconv.Itoa(e.textBlockSeq)
 	e.textStarted = true
 	return WriteSSE(writer, SSEMessage{
 		Data: promptBlockPayload{Type: "text-start", ID: e.textBlockID},
@@ -405,21 +423,32 @@ func (e *PromptStreamEncoder) ensureReasoningStarted(writer FlushWriter) error {
 	if e.reasoningStarted {
 		return nil
 	}
+	if err := e.closeTextBlock(writer); err != nil {
+		return err
+	}
+	e.reasoningBlockSeq++
+	e.reasoningBlockID = e.messageID + "-reasoning-" + strconv.Itoa(e.reasoningBlockSeq)
 	e.reasoningStarted = true
 	return WriteSSE(writer, SSEMessage{
 		Data: promptBlockPayload{Type: "reasoning-start", ID: e.reasoningBlockID},
 	})
 }
 
-func (e *PromptStreamEncoder) closeOpenBlocks(writer FlushWriter) error {
-	if e.textStarted {
-		if err := WriteSSE(writer, SSEMessage{
-			Data: promptBlockPayload{Type: "text-end", ID: e.textBlockID},
-		}); err != nil {
-			return err
-		}
-		e.textStarted = false
+func (e *PromptStreamEncoder) closeTextBlock(writer FlushWriter) error {
+	if !e.textStarted {
+		return nil
 	}
+	if err := WriteSSE(writer, SSEMessage{
+		Data: promptBlockPayload{Type: "text-end", ID: e.textBlockID},
+	}); err != nil {
+		return err
+	}
+	e.textStarted = false
+	e.textBlockID = ""
+	return nil
+}
+
+func (e *PromptStreamEncoder) closeReasoningBlock(writer FlushWriter) error {
 	if e.reasoningStarted {
 		if err := WriteSSE(writer, SSEMessage{
 			Data: promptBlockPayload{Type: "reasoning-end", ID: e.reasoningBlockID},
@@ -427,8 +456,16 @@ func (e *PromptStreamEncoder) closeOpenBlocks(writer FlushWriter) error {
 			return err
 		}
 		e.reasoningStarted = false
+		e.reasoningBlockID = ""
 	}
 	return nil
+}
+
+func (e *PromptStreamEncoder) closeOpenBlocks(writer FlushWriter) error {
+	if err := e.closeTextBlock(writer); err != nil {
+		return err
+	}
+	return e.closeReasoningBlock(writer)
 }
 
 func (e *PromptStreamEncoder) finish(writer FlushWriter, event acp.AgentEvent) error {

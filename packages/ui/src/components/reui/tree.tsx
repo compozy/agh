@@ -116,7 +116,7 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
     type: "button" as const,
     style: mergedStyle,
     className: cn(
-      "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",
+      "z-10 ps-(--tree-padding) outline-hidden select-none focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",
       className
     ),
     "data-focus": focused,
@@ -177,7 +177,7 @@ function TreeItemLabel<T>({
             <PlusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
           )
         ) : (
-          <ChevronDownIcon className="text-muted size-4 in-aria-[expanded=false]:-rotate-90" />
+          <ChevronDownIcon className="text-muted size-3 in-aria-[expanded=false]:-rotate-90" />
         ))}
       {children ?? item.getItemName()}
     </span>

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
@@ -204,5 +205,115 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(screen.getAllByTestId("permission-prompt")).toHaveLength(1);
     expect(screen.getByTestId("permission-prompt")).toHaveTextContent("pending.txt");
+  }, 10_000);
+
+  it("renders mixed text, reasoning, and unregistered tool parts inline in order", async () => {
+    const user = userEvent.setup();
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_mixed_parts_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Before search.",
+            state: "done",
+          },
+          {
+            type: "reasoning",
+            text: "Need the current launch note before answering.",
+            state: "streaming",
+          },
+          {
+            type: "tool-WebSearch",
+            toolCallId: "tool_web_001",
+            state: "output-available",
+            input: {
+              query: "launch note",
+            },
+            output: {
+              type: "tool_result",
+              title: "WebSearch",
+              raw: {
+                content: "Launch note found.",
+              },
+            },
+          },
+          {
+            type: "text",
+            text: "After search.",
+            state: "done",
+          },
+        ],
+      },
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tool-call-card")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("thinking-trigger"));
+
+    const chat = screen.getByTestId("chat-view");
+    const chatText = chat.textContent ?? "";
+    const beforeIndex = chatText.indexOf("Before search.");
+    const reasoningIndex = chatText.indexOf("Need the current launch note before answering.");
+    const toolIndex = chatText.indexOf("WebSearch");
+    const afterIndex = chatText.indexOf("After search.");
+
+    expect(beforeIndex).toBeGreaterThanOrEqual(0);
+    expect(reasoningIndex).toBeGreaterThan(beforeIndex);
+    expect(toolIndex).toBeGreaterThan(reasoningIndex);
+    expect(afterIndex).toBeGreaterThan(toolIndex);
+    expect(within(chat).getByTestId("tool-call-card")).toHaveTextContent("WebSearch");
+  }, 10_000);
+
+  it("renders unregistered data parts inline instead of dropping them", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_unknown_data_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Before data.",
+            state: "done",
+          },
+          {
+            type: "data-provider-note",
+            data: {
+              title: "Provider note",
+              detail: "Unregistered data event",
+            },
+          },
+          {
+            type: "text",
+            text: "After data.",
+            state: "done",
+          },
+        ],
+      },
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-data-part")).toBeInTheDocument();
+    });
+
+    const chat = screen.getByTestId("chat-view");
+    const chatText = chat.textContent ?? "";
+    const beforeIndex = chatText.indexOf("Before data.");
+    const dataIndex = chatText.indexOf("provider-note");
+    const afterIndex = chatText.indexOf("After data.");
+
+    expect(beforeIndex).toBeGreaterThanOrEqual(0);
+    expect(dataIndex).toBeGreaterThan(beforeIndex);
+    expect(afterIndex).toBeGreaterThan(dataIndex);
+    expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("Provider note");
   }, 10_000);
 });

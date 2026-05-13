@@ -54,7 +54,6 @@ function AppLayout() {
           activeWorkspaceId={page.activeWorkspaceId}
           onSelectWorkspace={page.setActiveWorkspaceId}
           onAddWorkspace={page.openWorkspaceSetup}
-          health={page.health}
           agents={page.agents}
           agentsLoading={page.agentsLoading}
           agentsError={page.agentsError}

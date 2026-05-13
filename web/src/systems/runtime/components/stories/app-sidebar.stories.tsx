@@ -61,7 +61,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus four labeled sections (Agents with whole-tree live count, Operate, Catalog, System); the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) and the daemon version badge. The wordmark lives in the app-shell header one level up.",
+          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus four labeled sections (Agents with whole-tree live count, Operate, Catalog, System); the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) alongside the Restart-daemon control. The wordmark lives in the app-shell header one level up.",
       },
     },
   },
@@ -69,7 +69,6 @@ const meta: Meta<typeof AppSidebarHarness> = {
     workspaces: workspaceFixtures,
     activeWorkspaceId: workspaceFixtures[1].id,
     onAddWorkspace: () => undefined,
-    health: { version: "0.4.1" },
     agents: agentFixtures,
     agentsLoading: false,
     agentsError: false,

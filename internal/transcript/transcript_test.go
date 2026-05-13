@@ -2,6 +2,8 @@ package transcript
 
 import (
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -800,6 +802,135 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 	})
 }
 
+func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
+	t.Run("ShouldPreserveTextToolTextOrderInsideOneAssistantMessage", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
+		events := []store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-text-1", 1, timestamp, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-mixed",
+				TurnID:    "turn-mixed",
+				Timestamp: timestamp,
+				Text:      "text 1",
+			}),
+			mustUIAgentSessionEvent(t, "ev-tool-2", 2, timestamp.Add(time.Second), acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				SessionID:  "sess-mixed",
+				TurnID:     "turn-mixed",
+				Timestamp:  timestamp.Add(time.Second),
+				Title:      "Bash",
+				ToolCallID: "tool-2",
+				Raw:        json.RawMessage("{\"rawInput\":{\"command\":\"pwd\"}}"),
+			}),
+			mustUIAgentSessionEvent(t, "ev-tool-3", 3, timestamp.Add(2*time.Second), acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				SessionID:  "sess-mixed",
+				TurnID:     "turn-mixed",
+				Timestamp:  timestamp.Add(2 * time.Second),
+				Title:      "Read",
+				ToolCallID: "tool-3",
+				Raw:        json.RawMessage("{\"rawInput\":{\"file_path\":\"README.md\"}}"),
+			}),
+			mustUIAgentSessionEvent(t, "ev-text-4", 4, timestamp.Add(3*time.Second), acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-mixed",
+				TurnID:    "turn-mixed",
+				Timestamp: timestamp.Add(3 * time.Second),
+				Text:      "text 4",
+			}),
+			mustUIAgentSessionEvent(t, "ev-text-5", 5, timestamp.Add(4*time.Second), acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-mixed",
+				TurnID:    "turn-mixed",
+				Timestamp: timestamp.Add(4 * time.Second),
+				Text:      "text 5",
+			}),
+			mustUIAgentSessionEvent(t, "ev-done", 6, timestamp.Add(5*time.Second), acp.AgentEvent{
+				Type:       acp.EventTypeDone,
+				SessionID:  "sess-mixed",
+				TurnID:     "turn-mixed",
+				Timestamp:  timestamp.Add(5 * time.Second),
+				StopReason: "end_turn",
+			}),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+
+		got := uiVisiblePartSignatures(messages[0].Parts)
+		want := []string{
+			"text:turn-mixed-text-1:text 1:done",
+			"tool-Bash:tool-2:input-available",
+			"tool-Read:tool-3:input-available",
+			"text:turn-mixed-text-2:text 4text 5:done",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("visible part signatures = %#v, want %#v; parts=%#v", got, want, messages[0].Parts)
+		}
+	})
+
+	t.Run("ShouldPreserveReasoningAsASeparateOrderedPart", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 5, 13, 11, 0, 0, 0, time.UTC)
+		events := []store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-text-1", 1, timestamp, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-reasoning",
+				TurnID:    "turn-reasoning",
+				Timestamp: timestamp,
+				Text:      "visible",
+			}),
+			mustUIAgentSessionEvent(t, "ev-thought-1", 2, timestamp.Add(time.Second), acp.AgentEvent{
+				Type:      acp.EventTypeThought,
+				SessionID: "sess-reasoning",
+				TurnID:    "turn-reasoning",
+				Timestamp: timestamp.Add(time.Second),
+				Text:      "checking",
+			}),
+			mustUIAgentSessionEvent(t, "ev-text-2", 3, timestamp.Add(2*time.Second), acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-reasoning",
+				TurnID:    "turn-reasoning",
+				Timestamp: timestamp.Add(2 * time.Second),
+				Text:      "answer",
+			}),
+			mustUIAgentSessionEvent(t, "ev-done", 4, timestamp.Add(3*time.Second), acp.AgentEvent{
+				Type:       acp.EventTypeDone,
+				SessionID:  "sess-reasoning",
+				TurnID:     "turn-reasoning",
+				Timestamp:  timestamp.Add(3 * time.Second),
+				StopReason: "end_turn",
+			}),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+
+		got := uiVisiblePartSignatures(messages[0].Parts)
+		want := []string{
+			"text:turn-reasoning-text-1:visible:done",
+			"reasoning:turn-reasoning-reasoning-1:checking:done",
+			"text:turn-reasoning-text-2:answer:done",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("visible part signatures = %#v, want %#v; parts=%#v", got, want, messages[0].Parts)
+		}
+	})
+}
+
 func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 	t.Parallel()
 
@@ -823,6 +954,46 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 			t.Fatal("StructuredPatch = empty, want preserved patch payload")
 		}
 	})
+}
+
+func mustUIAgentSessionEvent(
+	t *testing.T,
+	id string,
+	sequence int64,
+	timestamp time.Time,
+	event acp.AgentEvent,
+) store.SessionEvent {
+	t.Helper()
+
+	content, err := MarshalAgentEvent(event)
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent(%s) error = %v", event.Type, err)
+	}
+
+	return store.SessionEvent{
+		ID:        id,
+		SessionID: event.SessionID,
+		TurnID:    event.TurnID,
+		Sequence:  sequence,
+		Type:      event.Type,
+		Content:   content,
+		Timestamp: timestamp,
+	}
+}
+
+func uiVisiblePartSignatures(parts []UIMessagePart) []string {
+	signatures := make([]string, 0, len(parts))
+	for _, part := range parts {
+		switch {
+		case part.Type == uiPartText:
+			signatures = append(signatures, part.Type+":"+part.ID+":"+part.Text+":"+part.State)
+		case part.Type == uiPartReasoning:
+			signatures = append(signatures, part.Type+":"+part.ID+":"+part.Text+":"+part.State)
+		case part.Type == uiPartDynamicTool || strings.HasPrefix(part.Type, "tool-"):
+			signatures = append(signatures, part.Type+":"+part.ToolCallID+":"+part.State)
+		}
+	}
+	return signatures
 }
 
 func mustPermissionSessionEvent(

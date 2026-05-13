@@ -299,6 +299,7 @@ export {
   STREAMDOWN_SAFE_CONFIG,
   type DescriptionCardProps,
 } from "./components/custom/description-card";
+export { StreamMarkdown, type StreamMarkdownProps } from "./components/custom/stream-markdown";
 export {
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
