@@ -80,7 +80,7 @@ next-env.d.ts
 
 # >>> skeeper ignored specs >>>
 .skeeper/
-.compozy/tasks/**
+.compozy/tasks/**/*.md
 docs/rfcs/**
 docs/_refacs/**
 docs/prs/**
@@ -88,4 +88,14 @@ docs/ideas/**
 docs/proposals/**
 .codex/ledger/**
 .codex/plans/**
+.compozy/tasks/*/state.yaml
+.compozy/tasks/**/qa/*.json
+.compozy/tasks/**/qa/*.yaml
+.compozy/tasks/**/qa/*.jsonl
+.compozy/tasks/**/_evidence/**
+.compozy/tasks/**/*.html
+.compozy/tasks/**/*.md.backup
+.compozy/tasks/**/.gitkeep
+.compozy/tasks/**/.empty
+.codex/loop/**
 # <<< skeeper ignored specs <<<

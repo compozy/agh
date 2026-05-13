@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "tools-missing",
+  "source_branch": "workspace-fix",
   "namespaces": [
     {
       "name": "agh",
-      "sidecar_branch": "agh/__branches__/tools-missing",
-      "commit": "8a71879fa21e56af290a22c72e52692f59f1a323",
-      "digest": "sha256:946de89435ba15c13939e3156f918eb4eb5d5e5ca58aa0ec9acc4d54913852c5",
-      "files": 5706,
-      "bytes": 56176070
+      "sidecar_branch": "agh/__branches__/workspace-fix",
+      "commit": "ca58d78691ab6bf29c4a802f31e882cfa9c1cef6",
+      "digest": "sha256:0278cb81249d7346419192818dc86001ddbdf17af01f047e3034c6a682f47b6d",
+      "files": 5776,
+      "bytes": 57927615
     }
   ]
 }
