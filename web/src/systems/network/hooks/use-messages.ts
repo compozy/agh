@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { networkDirectMessagesOptions, networkThreadMessagesOptions } from "../lib/query-options";
 import type {
   NetworkConversationMessage,
@@ -30,10 +32,18 @@ export function useNetworkMessages({
   query = {},
   enabled = true,
 }: UseNetworkMessagesArgs): UseNetworkMessagesResult {
-  const isReady = Boolean(channel) && Boolean(surface) && Boolean(containerId) && enabled;
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
+  const isReady =
+    Boolean(channel) &&
+    Boolean(surface) &&
+    Boolean(containerId) &&
+    enabled &&
+    activeWorkspaceId != null;
 
   const threadQuery = useQuery(
     networkThreadMessagesOptions(
+      workspaceId,
       channel ?? "",
       containerId ?? "",
       query,
@@ -42,6 +52,7 @@ export function useNetworkMessages({
   );
   const directQuery = useQuery(
     networkDirectMessagesOptions(
+      workspaceId,
       channel ?? "",
       containerId ?? "",
       query,

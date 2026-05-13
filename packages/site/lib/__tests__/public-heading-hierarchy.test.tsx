@@ -29,6 +29,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+vi.mock("@/components/landing/hero-player", () => ({
+  HeroPlayer: () => <div data-testid="hero-player" />,
+}));
+
 afterEach(() => cleanup());
 
 function expectSingleH1(name: string | RegExp): void {

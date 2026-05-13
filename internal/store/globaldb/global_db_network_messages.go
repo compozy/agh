@@ -47,9 +47,10 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO network_timeline_log (
-			message_id,
-			session_id,
-			channel,
+				message_id,
+				session_id,
+				workspace_id,
+				channel,
 			surface,
 			thread_id,
 			direct_id,
@@ -66,10 +67,11 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 			preview_text,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(message_id) DO NOTHING`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(workspace_id, message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
+		entry.WorkspaceID,
 		entry.Channel,
 		store.NullableString(entry.Surface),
 		store.NullableString(entry.ThreadID),
@@ -142,9 +144,10 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 	query store.NetworkMessageQuery,
 ) (string, []any, bool, error) {
 	sqlQuery := `SELECT
-		message_id,
-		session_id,
-		channel,
+			message_id,
+			session_id,
+			workspace_id,
+			channel,
 		surface,
 		thread_id,
 		direct_id,
@@ -200,6 +203,7 @@ func networkMessageFilterClauses(query store.NetworkMessageQuery, includeMessage
 		messageID = query.MessageID
 	}
 	where, args := store.BuildClauses(
+		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("channel", query.Channel),
 		store.StringClause("peer_from", query.PeerFrom),
@@ -277,6 +281,7 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 	if err := scanner.Scan(
 		&entry.MessageID,
 		&nullable.sessionID,
+		&entry.WorkspaceID,
 		&entry.Channel,
 		&nullable.surface,
 		&nullable.threadID,

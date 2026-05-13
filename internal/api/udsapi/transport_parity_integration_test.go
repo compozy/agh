@@ -82,7 +82,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 				t,
 				clients.UDSClient,
 				http.MethodPost,
-				clients.UDSBaseURL+"/api/sessions/"+url.PathEscape(session.ID)+"/approve",
+				clients.UDSBaseURL+"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(session.ID)+"/approve",
 				[]byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, payload.RequestID)),
 				nil,
 			)
@@ -167,7 +167,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(created.Session.ID),
+		"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID),
 		nil,
 		&udsDetail,
 	); err != nil {
@@ -185,7 +185,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	if err := runtimeHarness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(created.Session.ID),
+		"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID),
 		nil,
 		&httpDetail,
 	); err != nil {
@@ -240,7 +240,7 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 		t,
 		runtimeHarness.UDSClient,
 		http.MethodPost,
-		runtimeHarness.UDSURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
+		runtimeHarness.UDSURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
 		nil,
 		nil,
 	)
@@ -263,7 +263,7 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 		t,
 		runtimeHarness.UDSClient,
 		http.MethodPost,
-		runtimeHarness.UDSURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
+		runtimeHarness.UDSURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
 		nil,
 		nil,
 	)
@@ -435,7 +435,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 			err := runtimeHarness.HTTPJSON(
 				fetchCtx,
 				http.MethodGet,
-				"/api/observe/events?session_id="+url.QueryEscape(session.ID)+"&limit=20",
+				"/api/workspaces/ws-workspace/observe/events?session_id="+url.QueryEscape(session.ID)+"&limit=20",
 				nil,
 				&response,
 			)
@@ -452,7 +452,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 			err := runtimeHarness.UDSJSON(
 				fetchCtx,
 				http.MethodGet,
-				"/api/observe/events?session_id="+url.QueryEscape(session.ID)+"&limit=20",
+				"/api/workspaces/ws-workspace/observe/events?session_id="+url.QueryEscape(session.ID)+"&limit=20",
 				nil,
 				&response,
 			)

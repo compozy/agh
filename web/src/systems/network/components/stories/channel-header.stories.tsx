@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import { networkChannelFixture, networkChannelsFixture } from "@/systems/network/mocks";
 import { ChannelHeader } from "@/systems/network/components/shell";
@@ -27,6 +28,7 @@ export const Default: Story = {
   render: () => (
     <PanelSurface className="min-h-[120px]">
       <ChannelHeader
+        workspaceId={storyDefaultWorkspaceId}
         channel={heroChannel}
         detail={networkChannelFixture}
         inspectorOpen={false}
@@ -41,6 +43,7 @@ export const NoPeers: Story = {
   render: () => (
     <PanelSurface className="min-h-[120px]">
       <ChannelHeader
+        workspaceId={storyDefaultWorkspaceId}
         channel={heroChannel}
         detail={null}
         inspectorOpen={false}
@@ -55,6 +58,7 @@ export const InspectorOpen: Story = {
   render: () => (
     <PanelSurface className="min-h-[120px]">
       <ChannelHeader
+        workspaceId={storyDefaultWorkspaceId}
         channel={heroChannel}
         detail={networkChannelFixture}
         inspectorOpen

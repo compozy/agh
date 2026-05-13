@@ -10,9 +10,9 @@ import {
 
 describe("bridgesListOptions", () => {
   it("uses the expected timings and list query key", () => {
-    const options = bridgesListOptions();
+    const options = bridgesListOptions({ scope: "all", workspace_id: "ws_alpha" });
 
-    expect(options.queryKey).toEqual(["bridges", "list", "all"]);
+    expect(options.queryKey).toEqual(["bridges", "list", "all", "ws_alpha", ""]);
     expect(options.staleTime).toBe(15_000);
     expect(options.refetchInterval).toBe(30_000);
   });

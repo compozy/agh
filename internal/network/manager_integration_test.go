@@ -48,7 +48,7 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 		}
 	}()
 
-	subject, err := BroadcastSubject("builders")
+	subject, err := BroadcastSubject(testWorkspaceID, "builders")
 	if err != nil {
 		t.Fatalf("BroadcastSubject() error = %v", err)
 	}
@@ -131,7 +131,7 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 
 	assertPublishedBriefGreet("initial")
 
-	peers, err := manager.ListPeers(ctx, "builders")
+	peers, err := manager.ListPeers(ctx, testWorkspaceID, "builders")
 	if err != nil {
 		t.Fatalf("ListPeers() error = %v", err)
 	}
@@ -192,20 +192,21 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DefaultPeerCard(remote) error = %v", err)
 		}
-		if _, stored, err := manager.peers.RefreshRemote("builders", remoteCard, fixedNow); err != nil {
+		if _, stored, err := manager.peers.RefreshRemote(testWorkspaceID, "builders", remoteCard, fixedNow); err != nil {
 			t.Fatalf("RefreshRemote(remote) error = %v", err)
 		} else if !stored {
 			t.Fatal("RefreshRemote(remote) stored = false, want true")
 		}
 
 		threadEnvelope := withThreadSurface(Envelope{
-			Protocol: ProtocolV0,
-			ID:       "msg-thread-runtime",
-			Kind:     KindSay,
-			Channel:  "builders",
-			From:     remotePeerID,
-			TS:       fixedNow.Unix(),
-			Body:     mustRawJSON(t, SayBody{Text: "public thread request"}),
+			Protocol:    ProtocolV2,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-thread-runtime",
+			Kind:        KindSay,
+			Channel:     "builders",
+			From:        remotePeerID,
+			TS:          fixedNow.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "public thread request"}),
 		})
 		deliverInboundEnvelope(t, manager, threadEnvelope)
 		prompter.waitForCalls(t, 1)
@@ -218,12 +219,13 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		}
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
 
-		directID, _, _, err := DirectRoomIdentity("builders", remotePeerID, localPeerID)
+		directID, _, _, err := DirectRoomIdentity(testWorkspaceID, "builders", remotePeerID, localPeerID)
 		if err != nil {
 			t.Fatalf("DirectRoomIdentity(inbound) error = %v", err)
 		}
 		directEnvelope := Envelope{
-			Protocol:    ProtocolV0,
+			Protocol:    ProtocolV2,
+			WorkspaceID: testWorkspaceID,
 			ID:          "msg-direct-runtime",
 			Kind:        KindSay,
 			Channel:     "builders",

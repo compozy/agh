@@ -287,20 +287,22 @@ func agentChannelReplySendRequest(
 	ext map[string]json.RawMessage,
 ) (network.SendRequest, error) {
 	callerPeerID := agentCallerPeerID(caller)
-	directID, _, _, err := network.DirectRoomIdentity(source.Channel, callerPeerID, source.From)
+	workspaceID := strings.TrimSpace(caller.Session.WorkspaceID)
+	directID, _, _, err := network.DirectRoomIdentity(workspaceID, source.Channel, callerPeerID, source.From)
 	if err != nil {
 		return network.SendRequest{}, err
 	}
 	sendReq := network.SendRequest{
-		SessionID: strings.TrimSpace(caller.Session.ID),
-		Channel:   strings.TrimSpace(source.Channel),
-		Surface:   networkSurfacePtr(network.SurfaceDirect),
-		DirectID:  ptrString(directID),
-		Kind:      network.KindSay,
-		To:        ptrString(strings.TrimSpace(source.From)),
-		ReplyTo:   ptrString(req.ReplyToMessageID),
-		Body:      cloneRawMessage(req.Body),
-		Ext:       ext,
+		SessionID:   strings.TrimSpace(caller.Session.ID),
+		WorkspaceID: workspaceID,
+		Channel:     strings.TrimSpace(source.Channel),
+		Surface:     networkSurfacePtr(network.SurfaceDirect),
+		DirectID:    ptrString(directID),
+		Kind:        network.KindSay,
+		To:          ptrString(strings.TrimSpace(source.From)),
+		ReplyTo:     ptrString(req.ReplyToMessageID),
+		Body:        cloneRawMessage(req.Body),
+		Ext:         ext,
 	}
 	if source.WorkID != nil && strings.TrimSpace(*source.WorkID) != "" {
 		sendReq.WorkID = ptrString(*source.WorkID)
@@ -391,7 +393,7 @@ func (h *BaseHandlers) agentChannelPayloads(
 	caller agentidentity.Caller,
 	service NetworkService,
 ) ([]contract.CoordinationChannelPayload, error) {
-	infos, err := service.ListChannels(ctx)
+	infos, err := service.ListChannels(ctx, strings.TrimSpace(caller.Session.WorkspaceID))
 	if err != nil {
 		return nil, err
 	}
@@ -559,9 +561,10 @@ func (h *BaseHandlers) resolveAgentReplySource(
 
 	if h != nil && h.NetworkStore != nil {
 		entries, lookupErr := h.NetworkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{
-			SessionID: strings.TrimSpace(caller.Session.ID),
-			MessageID: messageID,
-			Limit:     1,
+			WorkspaceID: strings.TrimSpace(caller.Session.WorkspaceID),
+			SessionID:   strings.TrimSpace(caller.Session.ID),
+			MessageID:   messageID,
+			Limit:       1,
 		})
 		if lookupErr != nil {
 			return network.Envelope{}, sourceCoordinationMetadata{}, lookupErr
@@ -580,6 +583,9 @@ func (h *BaseHandlers) resolveAgentReplySource(
 }
 
 func validateReplySource(envelope network.Envelope) error {
+	if strings.TrimSpace(envelope.WorkspaceID) == "" {
+		return NewNetworkValidationError(errors.New("source message workspace_id is required"))
+	}
 	if strings.TrimSpace(envelope.Channel) == "" {
 		return NewNetworkValidationError(errors.New("source message channel is required"))
 	}
@@ -794,9 +800,10 @@ func coordinationMetadataFromEnvelope(
 
 func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelope {
 	envelope := network.Envelope{
-		Protocol:    network.ProtocolV0,
+		Protocol:    network.ProtocolV2,
 		ID:          strings.TrimSpace(entry.MessageID),
 		Kind:        network.Kind(strings.TrimSpace(entry.Kind)),
+		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		Channel:     strings.TrimSpace(entry.Channel),
 		From:        strings.TrimSpace(entry.PeerFrom),
 		WorkID:      optionalStringPtr(entry.WorkID),

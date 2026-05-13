@@ -210,7 +210,7 @@ func TestAgentChannelsListsCallerVisibleChannels(t *testing.T) {
 	t.Parallel()
 
 	handlers := newAgentChannelHandlers(t, stubNetworkService{
-		ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
+		ListChannelsFn: func(context.Context, string) ([]network.ChannelInfo, error) {
 			return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
 		},
 	})
@@ -338,7 +338,7 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 	directID := "direct_reply_01"
 	source.Surface = ptrNetworkSurface(network.SurfaceDirect)
 	source.DirectID = &directID
-	wantDirectID, _, _, err := network.DirectRoomIdentity("builders", "coder.sess-agent", source.From)
+	wantDirectID, _, _, err := network.DirectRoomIdentity("ws-1", "builders", "coder.sess-agent", source.From)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
@@ -488,14 +488,15 @@ func agentChannelEnvelopeWithExt(
 	ext network.ExtensionMap,
 ) network.Envelope {
 	return network.Envelope{
-		Protocol: network.ProtocolV0,
-		ID:       messageID,
-		Kind:     network.KindSay,
-		Channel:  channel,
-		From:     "coder.sess-peer",
-		TS:       time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
-		Body:     json.RawMessage(`{"text":"coordination"}`),
-		Ext:      ext,
+		Protocol:    network.ProtocolV2,
+		WorkspaceID: "ws-1",
+		ID:          messageID,
+		Kind:        network.KindSay,
+		Channel:     channel,
+		From:        "coder.sess-peer",
+		TS:          time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
+		Body:        json.RawMessage(`{"text":"coordination"}`),
+		Ext:         ext,
 	}
 }
 

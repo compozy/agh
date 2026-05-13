@@ -75,7 +75,7 @@ func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
 
 // GetWorkspace returns one resolved workspace with related sessions, agents, and skills.
 func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
-	resolved, err := h.Workspaces.Resolve(c.Request.Context(), c.Param("id"))
+	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRefFromRoute(c))
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return
@@ -95,7 +95,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
 		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
-		Sessions:  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.ID)),
+		Sessions:  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.WorkspaceID)),
 		Agents:    AgentPayloadsFromDefs(agents),
 		Skills:    WorkspaceSkillPayloads(resolved.Skills),
 		Providers: SessionProviderOptionPayloadsFromConfig(&resolved.Config),
@@ -153,7 +153,7 @@ func (h *BaseHandlers) workspaceDetailAgents(
 
 // UpdateWorkspace updates a registered workspace.
 func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
-	workspace, err := h.Workspaces.Get(c.Request.Context(), c.Param("id"))
+	workspace, err := h.Workspaces.Get(c.Request.Context(), workspaceRefFromRoute(c))
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return
@@ -213,7 +213,7 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 
 // DeleteWorkspace unregisters a workspace.
 func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
-	workspace, err := h.Workspaces.Get(c.Request.Context(), c.Param("id"))
+	workspace, err := h.Workspaces.Get(c.Request.Context(), workspaceRefFromRoute(c))
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return

@@ -1631,16 +1631,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		tasks[idx].DependencyCount = dependencyCounts[taskID]
 	}
 
-	tasksByID := make(map[string]taskpkg.Summary, len(tasks))
-	taskIDs := make(map[string]struct{}, len(tasks))
-	for _, item := range tasks {
-		taskID := strings.TrimSpace(item.ID)
-		if taskID == "" {
-			continue
-		}
-		tasksByID[taskID] = item
-		taskIDs[taskID] = struct{}{}
-	}
+	tasksByID, taskIDs := taskSummaryIndex(tasks)
 
 	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
 	if err != nil {
@@ -1663,10 +1654,12 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	}
 	events = filterEventsForTasks(events, taskIDs)
 
-	audits, err := o.registry.ListNetworkAudit(
-		ctx,
-		store.NetworkAuditQuery{Channel: strings.TrimSpace(query.NetworkChannel)},
-	)
+	workspaceID := strings.TrimSpace(query.WorkspaceID)
+	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		WorkspaceID: workspaceID,
+		Global:      workspaceID == "",
+		Channel:     strings.TrimSpace(query.NetworkChannel),
+	})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list network audit for summary: %w", err)
 	}
@@ -1679,6 +1672,22 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		tasksByID: tasksByID,
 		runsByID:  runsByID,
 	}, nil
+}
+
+func taskSummaryIndex(
+	tasks []taskpkg.Summary,
+) (map[string]taskpkg.Summary, map[string]struct{}) {
+	tasksByID := make(map[string]taskpkg.Summary, len(tasks))
+	taskIDs := make(map[string]struct{}, len(tasks))
+	for _, item := range tasks {
+		taskID := strings.TrimSpace(item.ID)
+		if taskID == "" {
+			continue
+		}
+		tasksByID[taskID] = item
+		taskIDs[taskID] = struct{}{}
+	}
+	return tasksByID, taskIDs
 }
 
 func (o *Observer) loadTaskDependencyCounts(

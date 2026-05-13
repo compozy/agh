@@ -38,7 +38,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.get("/api/sessions/:id", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/sessions/:id", ({ params }) => {
     const id = String(params.id);
     const session = sessionById.get(id);
 
@@ -48,7 +48,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ session });
   }),
-  http.delete("/api/sessions/:id", ({ params }) => {
+  http.delete("/api/workspaces/:workspace_id/sessions/:id", ({ params }) => {
     const id = String(params.id);
 
     if (!sessionById.has(id)) {
@@ -57,7 +57,7 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  http.post("/api/sessions/:id/resume", ({ params }) => {
+  http.post("/api/workspaces/:workspace_id/sessions/:id/resume", ({ params }) => {
     const id = String(params.id);
     const session = sessionById.get(id);
 
@@ -72,7 +72,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/sessions/:id/repair", ({ params, request }) => {
+  http.post("/api/workspaces/:workspace_id/sessions/:id/repair", ({ params, request }) => {
     const id = String(params.id);
 
     if (!sessionById.has(id)) {
@@ -94,7 +94,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/sessions/:id/approve", ({ params }) => {
+  http.post("/api/workspaces/:workspace_id/sessions/:id/approve", ({ params }) => {
     const id = String(params.id);
 
     if (!sessionById.has(id)) {
@@ -103,7 +103,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(sessionApprovalFixture);
   }),
-  http.get("/api/sessions/:id/events", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/sessions/:id/events", ({ params }) => {
     const id = String(params.id);
 
     if (!sessionById.has(id)) {
@@ -112,7 +112,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ events: sessionEventsFixture });
   }),
-  http.get("/api/sessions/:id/history", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/sessions/:id/history", ({ params }) => {
     const id = String(params.id);
 
     if (!sessionById.has(id)) {
@@ -121,7 +121,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ history: sessionHistoryFixture });
   }),
-  http.get("/api/sessions/:id/transcript", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", ({ params }) => {
     const id = String(params.id);
 
     if (!sessionById.has(id)) {

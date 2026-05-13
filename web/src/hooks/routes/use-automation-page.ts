@@ -33,6 +33,7 @@ import type {
   CreateAutomationTriggerRequest,
 } from "@/systems/automation";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { workspaceFilterForActiveScope } from "./workspace-scope-filter";
 
 type JobEditorState =
   | {
@@ -109,8 +110,7 @@ function useAutomationPageBase() {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const scopedWorkspaceId =
-    scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
+  const scopedWorkspaceId = workspaceFilterForActiveScope(scopeFilter, activeWorkspaceId);
 
   const listFilters = useMemo(
     () => ({

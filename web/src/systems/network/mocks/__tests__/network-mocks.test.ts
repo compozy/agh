@@ -2,6 +2,7 @@ import { getResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import {
+  storyDefaultWorkspaceId,
   storyHeroNetworkChannel,
   storyPeerIds,
   storySessionIds,
@@ -15,6 +16,10 @@ import {
   networkThreadsFixture,
 } from "../fixtures";
 import { handlers } from "../handlers";
+
+function networkUrl(path: string): string {
+  return `http://localhost/api/workspaces/${storyDefaultWorkspaceId}/network${path}`;
+}
 
 describe("network mock contracts", () => {
   it("keeps thread message fixtures aligned with the conversation contract", () => {
@@ -47,7 +52,7 @@ describe("network mock contracts", () => {
   it("returns the thread list with surface-aligned summary rows", async () => {
     const response = await getResponse(
       handlers,
-      new Request(`http://localhost/api/network/channels/${storyHeroNetworkChannel}/threads`),
+      new Request(networkUrl(`/channels/${storyHeroNetworkChannel}/threads`)),
       { baseUrl: "http://localhost" }
     );
 
@@ -63,7 +68,7 @@ describe("network mock contracts", () => {
   it("returns the direct room list with two-party membership", async () => {
     const response = await getResponse(
       handlers,
-      new Request(`http://localhost/api/network/channels/${storyHeroNetworkChannel}/directs`),
+      new Request(networkUrl(`/channels/${storyHeroNetworkChannel}/directs`)),
       { baseUrl: "http://localhost" }
     );
 
@@ -83,7 +88,7 @@ describe("network mock contracts", () => {
     const response = await getResponse(
       handlers,
       new Request(
-        `http://localhost/api/network/channels/${storyHeroNetworkChannel}/threads/${thread.thread_id}/messages`
+        networkUrl(`/channels/${storyHeroNetworkChannel}/threads/${thread.thread_id}/messages`)
       ),
       { baseUrl: "http://localhost" }
     );
@@ -100,12 +105,12 @@ describe("network mock contracts", () => {
   it("keeps peer detail mocks aligned with the truthful local-vs-remote payload shape", async () => {
     const localResponse = await getResponse(
       handlers,
-      new Request(`http://localhost/api/network/peers/${storyPeerIds.local}`),
+      new Request(networkUrl(`/peers/${storyPeerIds.local}`)),
       { baseUrl: "http://localhost" }
     );
     const remoteResponse = await getResponse(
       handlers,
-      new Request(`http://localhost/api/network/peers/${storyPeerIds.remote}`),
+      new Request(networkUrl(`/peers/${storyPeerIds.remote}`)),
       { baseUrl: "http://localhost" }
     );
 
@@ -133,12 +138,13 @@ describe("network mock contracts", () => {
   it("rejects legacy direct kind sends and returns the canonical error", async () => {
     const response = await getResponse(
       handlers,
-      new Request("http://localhost/api/network/send", {
+      new Request(networkUrl("/send"), {
         body: JSON.stringify({
           channel: storyHeroNetworkChannel,
           kind: "direct",
           session_id: storySessionIds.product,
           to: storyPeerIds.remote,
+          workspace_id: storyDefaultWorkspaceId,
         }),
         method: "POST",
       }),
@@ -152,7 +158,7 @@ describe("network mock contracts", () => {
   it("handles network send requests without falling through to the real daemon", async () => {
     const response = await getResponse(
       handlers,
-      new Request("http://localhost/api/network/send", {
+      new Request(networkUrl("/send"), {
         body: JSON.stringify({
           body: { text: "Please confirm whether the BR timeout copy is still blocked." },
           channel: storyHeroNetworkChannel,
@@ -160,6 +166,7 @@ describe("network mock contracts", () => {
           session_id: storySessionIds.product,
           surface: "thread",
           thread_id: "thread_launch_command",
+          workspace_id: storyDefaultWorkspaceId,
         }),
         method: "POST",
       }),
@@ -184,11 +191,12 @@ describe("network mock contracts", () => {
   it("returns a validation response for malformed network send requests", async () => {
     const response = await getResponse(
       handlers,
-      new Request("http://localhost/api/network/send", {
+      new Request(networkUrl("/send"), {
         body: JSON.stringify({
           channel: 123,
           kind: "say",
           session_id: storySessionIds.product,
+          workspace_id: storyDefaultWorkspaceId,
         }),
         method: "POST",
       }),

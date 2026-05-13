@@ -1,3 +1,5 @@
+import type { BridgeListFilter } from "../types";
+
 function normalizeText(value?: string) {
   return value ?? "";
 }
@@ -5,7 +7,13 @@ function normalizeText(value?: string) {
 export const bridgeKeys = {
   all: ["bridges"] as const,
   lists: () => [...bridgeKeys.all, "list"] as const,
-  list: () => [...bridgeKeys.lists(), "all"] as const,
+  list: (filters: BridgeListFilter = {}) =>
+    [
+      ...bridgeKeys.lists(),
+      filters.scope ?? "all",
+      normalizeText(filters.workspace_id),
+      normalizeText(filters.workspace),
+    ] as const,
   providers: () => [...bridgeKeys.all, "providers"] as const,
   details: () => [...bridgeKeys.all, "detail"] as const,
   detail: (id: string) => [...bridgeKeys.details(), normalizeText(id)] as const,

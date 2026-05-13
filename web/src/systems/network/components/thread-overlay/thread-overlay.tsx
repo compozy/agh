@@ -8,14 +8,20 @@ import { ThreadOverlayRoot } from "./thread-overlay-root";
 import { useThreadOverlayView } from "./use-thread-overlay-view";
 
 export interface ThreadOverlayProps {
+  workspaceId: string;
   channel: string;
   threadId: string;
   /** Render in full-page mode (no fixed width / no border-left) for `<1024px` or `?view=full`. */
   fullPage?: boolean;
 }
 
-export function ThreadOverlay({ channel, threadId, fullPage = false }: ThreadOverlayProps) {
-  const view = useThreadOverlayView({ channel, fullPage, threadId });
+export function ThreadOverlay({
+  workspaceId,
+  channel,
+  threadId,
+  fullPage = false,
+}: ThreadOverlayProps) {
+  const view = useThreadOverlayView({ workspaceId, channel, fullPage, threadId });
   const { overlay, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const detailError = overlay.detailError;
   const isResolvingDetail = !detailError && !overlay.detail;
@@ -27,7 +33,12 @@ export function ThreadOverlay({ channel, threadId, fullPage = false }: ThreadOve
       data-fullpage={fullPage ? "true" : "false"}
       data-testid="network-thread-overlay"
     >
-      <ThreadOverlayHeader channel={channel} detail={overlay.detail} threadId={threadId} />
+      <ThreadOverlayHeader
+        workspaceId={workspaceId}
+        channel={channel}
+        detail={overlay.detail}
+        threadId={threadId}
+      />
       {detailError ? (
         <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">
           <ConversationError

@@ -37,6 +37,8 @@ vi.mock("@agh/ui", async () => {
 
 import { ChannelThreadComposer } from "../channel-thread-composer";
 
+const WORKSPACE_ID = "ws_alpha";
+
 function renderComposer() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -45,6 +47,7 @@ function renderComposer() {
     createElement(QueryClientProvider, { client }, children);
   return render(
     <ChannelThreadComposer
+      workspaceId={WORKSPACE_ID}
       channel="ops"
       displayName="Codex"
       peerFrom="peer-self"
@@ -78,7 +81,8 @@ describe("ChannelThreadComposer", () => {
     await user.click(screen.getByTestId("network-composer-send-channel-thread"));
 
     await waitFor(() => expect(sendNetworkMessageMock).toHaveBeenCalledTimes(1));
-    const sent = sendNetworkMessageMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(sendNetworkMessageMock.mock.calls[0]?.[0]).toBe(WORKSPACE_ID);
+    const sent = sendNetworkMessageMock.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(sent.surface).toBe("thread");
     expect(typeof sent.thread_id).toBe("string");
     expect((sent.thread_id as string).startsWith("thread_")).toBe(true);
@@ -87,7 +91,8 @@ describe("ChannelThreadComposer", () => {
 
     await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1));
     expect(navigateMock.mock.calls[0]?.[0]).toMatchObject({
-      to: "/network/$channel/threads/$threadId",
+      to: "/network/$workspaceId/$channel/threads/$threadId",
+      params: { workspaceId: WORKSPACE_ID, channel: "ops" },
     });
   });
 

@@ -160,8 +160,8 @@ describe("useNetworkCreateChannelAction", () => {
       workspace_id: "ws_123",
     });
     expect(navigateMock).toHaveBeenCalledWith({
-      params: { channel: "deployments" },
-      to: "/network/$channel/threads",
+      params: { workspaceId: "ws_123", channel: "deployments" },
+      to: "/network/$workspaceId/$channel/threads",
     });
     expect(screen.getByTestId("network-create-channel-dialog-props")).toHaveAttribute(
       "data-open",

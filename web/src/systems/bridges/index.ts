@@ -8,6 +8,7 @@ export type {
   BridgeHealth,
   BridgeHealthMap,
   BridgeHealthStreamSnapshot,
+  BridgeListFilter,
   BridgeProvider,
   BridgeProviderConfig,
   BridgeProviderConfigSchemaHint,

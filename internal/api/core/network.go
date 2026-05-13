@@ -50,8 +50,12 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 
-	peers, err := service.ListPeers(c.Request.Context(), strings.TrimSpace(c.Query("channel")))
+	peers, err := service.ListPeers(c.Request.Context(), scope.ID, strings.TrimSpace(c.Query("channel")))
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -124,8 +128,12 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 
-	channels, err := h.networkChannelPayloads(c.Request.Context(), service)
+	channels, err := h.networkChannelPayloads(c.Request.Context(), service, scope.ID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -140,6 +148,10 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 
 	var req contract.NetworkSendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -148,6 +160,27 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 			http.StatusBadRequest,
 			fmt.Errorf("%s: decode network send request: %w", h.transportName(), err),
 		)
+		return
+	}
+	if bodyWorkspaceID := strings.TrimSpace(req.WorkspaceID); bodyWorkspaceID != "" && bodyWorkspaceID != scope.ID {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewNetworkValidationError(errors.New("workspace_id does not match path")),
+		)
+		return
+	}
+	req.WorkspaceID = scope.ID
+	if strings.TrimSpace(req.SessionID) == "" {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("session_id is required")))
+		return
+	}
+	if _, err := h.requireSessionInWorkspace(
+		c.Request.Context(),
+		scope.SessionWorkspaceID(),
+		req.SessionID,
+	); err != nil {
+		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
 		return
 	}
 
@@ -172,6 +205,10 @@ func (h *BaseHandlers) NetworkInbox(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 
 	sessionID := strings.TrimSpace(c.Query("session_id"))
 	if sessionID == "" {
@@ -179,6 +216,10 @@ func (h *BaseHandlers) NetworkInbox(c *gin.Context) {
 	}
 	if sessionID == "" {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("session_id query is required")))
+		return
+	}
+	if _, err := h.requireSessionInWorkspace(c.Request.Context(), scope.SessionWorkspaceID(), sessionID); err != nil {
+		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
 		return
 	}
 
@@ -240,6 +281,9 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	if strings.TrimSpace(req.SessionID) == "" {
 		return network.SendRequest{}, NewNetworkValidationError(errors.New("session_id is required"))
 	}
+	if strings.TrimSpace(req.WorkspaceID) == "" {
+		return network.SendRequest{}, NewNetworkValidationError(errors.New("workspace_id is required"))
+	}
 	if strings.TrimSpace(req.Channel) == "" {
 		return network.SendRequest{}, NewNetworkValidationError(errors.New("channel is required"))
 	}
@@ -260,12 +304,13 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	}
 
 	sendReq := network.SendRequest{
-		SessionID: strings.TrimSpace(req.SessionID),
-		Channel:   strings.TrimSpace(req.Channel),
-		Kind:      network.Kind(strings.TrimSpace(req.Kind)),
-		Body:      cloneRawMessage(req.Body),
-		ExpiresAt: cloneInt64Ptr(req.ExpiresAt),
-		Ext:       cloneRawMap(req.Ext),
+		SessionID:   strings.TrimSpace(req.SessionID),
+		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
+		Channel:     strings.TrimSpace(req.Channel),
+		Kind:        network.Kind(strings.TrimSpace(req.Kind)),
+		Body:        cloneRawMessage(req.Body),
+		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
+		Ext:         cloneRawMap(req.Ext),
 	}
 	if to := strings.TrimSpace(req.To); to != "" {
 		sendReq.To = ptrString(to)
@@ -324,10 +369,11 @@ func validateNetworkSendConversation(req contract.NetworkSendRequest) error {
 		return NewNetworkValidationError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
 	}
 	ref := network.ConversationRef{
-		Channel:  strings.TrimSpace(req.Channel),
-		Surface:  network.Surface(surface),
-		ThreadID: threadID,
-		DirectID: directID,
+		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
+		Channel:     strings.TrimSpace(req.Channel),
+		Surface:     network.Surface(surface),
+		ThreadID:    threadID,
+		DirectID:    directID,
 	}
 	if err := ref.Validate(); err != nil {
 		return NewNetworkValidationError(err)
@@ -369,6 +415,7 @@ func validateNetworkSendNoRawClaimToken(req contract.NetworkSendRequest) error {
 func NetworkSendPayloadFromRequest(id string, req contract.NetworkSendRequest) contract.NetworkSendPayload {
 	return contract.NetworkSendPayload{
 		ID:          strings.TrimSpace(id),
+		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
 		SessionID:   strings.TrimSpace(req.SessionID),
 		Channel:     strings.TrimSpace(req.Channel),
 		Surface:     strings.TrimSpace(req.Surface),
@@ -447,6 +494,7 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 		}
 	}
 	return contract.NetworkPeerPayload{
+		WorkspaceID: strings.TrimSpace(peer.WorkspaceID),
 		SessionID:   peer.SessionID,
 		PeerID:      peer.PeerID,
 		DisplayName: displayName,
@@ -618,8 +666,9 @@ func NetworkChannelPayloadsFromInfos(channels []network.ChannelInfo) []contract.
 	payload := make([]contract.NetworkChannelPayload, 0, len(channels))
 	for _, channel := range channels {
 		payload = append(payload, contract.NetworkChannelPayload{
-			Channel:   channel.Channel,
-			PeerCount: channel.PeerCount,
+			WorkspaceID: strings.TrimSpace(channel.WorkspaceID),
+			Channel:     channel.Channel,
+			PeerCount:   channel.PeerCount,
 		})
 	}
 	return payload
@@ -640,6 +689,7 @@ func NetworkEnvelopePayloadFromEnvelope(envelope network.Envelope) contract.Netw
 		Protocol:    envelope.Protocol,
 		ID:          envelope.ID,
 		Kind:        string(envelope.Kind),
+		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
 		Channel:     envelope.Channel,
 		Surface:     cloneSurfacePtr(envelope.Surface),
 		ThreadID:    cloneStringPtr(envelope.ThreadID),

@@ -6,7 +6,7 @@ import { PROVIDERS } from "./supported-agents";
 
 const signalItems = [
   {
-    label: "agh-network/v0, alpha runtime",
+    label: "agh-network/v2, alpha runtime",
     detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
   },
   {
@@ -48,7 +48,7 @@ export function Hero() {
 
             <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted md:text-lg">
               AGH runs the agent CLIs you already use as durable sessions, with memory, autonomy,
-              tools, and automation, connected on agh-network/v0 channels where they find each
+              tools, and automation, connected on agh-network/v2 channels where they find each
               other, share capabilities, and close work with receipts.
             </p>
 
@@ -57,7 +57,7 @@ export function Hero() {
                 Install the runtime
               </CtaButton>
               <CtaButton href="/protocol" variant="ghost">
-                Read the agh-network/v0 spec
+                Read the agh-network/v2 spec
               </CtaButton>
             </div>
           </div>

@@ -10,6 +10,7 @@ import {
 } from "@/systems/network/adapters/network-api";
 import { networkKeys } from "@/systems/network/lib/query-keys";
 import { sessionKeys } from "@/systems/session";
+import { useActiveWorkspace } from "@/systems/workspace";
 import type {
   CreateNetworkChannelRequest,
   NetworkConversationMessage,
@@ -46,7 +47,8 @@ function generateClientMessageId(): string {
 
 function buildSendRequest(
   input: SendNetworkMessageInput,
-  clientMessageId: string
+  clientMessageId: string,
+  workspaceId: string
 ): NetworkSendRequest {
   const base: NetworkSendRequest = {
     body: { text: input.text },
@@ -55,6 +57,7 @@ function buildSendRequest(
     kind: "say",
     session_id: input.sessionId,
     surface: input.surface,
+    workspace_id: workspaceId,
   };
   if (input.surface === "thread" && input.threadId) {
     return { ...base, thread_id: input.threadId };
@@ -98,20 +101,20 @@ function buildOptimisticMessage(
   return base;
 }
 
-function activeContainerKey(input: SendNetworkMessageInput) {
+function activeContainerKey(workspaceId: string, input: SendNetworkMessageInput) {
   if (input.surface === "thread") {
-    return networkKeys.threadMessages(input.channel, input.threadId);
+    return networkKeys.threadMessages(workspaceId, input.channel, input.threadId);
   }
-  return networkKeys.directMessages(input.channel, input.directId);
+  return networkKeys.directMessages(workspaceId, input.channel, input.directId);
 }
 
 function applyOptimistic(
   queryClient: QueryClient,
-  input: SendNetworkMessageInput,
+  input: ScopedSendNetworkMessageInput,
   optimistic: OptimisticConversationMessage
 ) {
   queryClient.setQueriesData<NetworkConversationMessage[] | undefined>(
-    { queryKey: activeContainerKey(input) },
+    { queryKey: activeContainerKey(input.workspaceId, input) },
     previous => {
       if (!previous) {
         return previous;
@@ -123,12 +126,12 @@ function applyOptimistic(
 
 function replaceOptimisticOnSuccess(
   queryClient: QueryClient,
-  input: SendNetworkMessageInput,
+  input: ScopedSendNetworkMessageInput,
   clientMessageId: string,
   timestamp: string
 ) {
   queryClient.setQueriesData<NetworkConversationMessage[] | undefined>(
-    { queryKey: activeContainerKey(input) },
+    { queryKey: activeContainerKey(input.workspaceId, input) },
     previous => {
       if (!previous) {
         return previous;
@@ -152,11 +155,11 @@ function replaceOptimisticOnSuccess(
 
 function markOptimisticFailed(
   queryClient: QueryClient,
-  input: SendNetworkMessageInput,
+  input: ScopedSendNetworkMessageInput,
   clientMessageId: string
 ) {
   queryClient.setQueriesData<NetworkConversationMessage[] | undefined>(
-    { queryKey: activeContainerKey(input) },
+    { queryKey: activeContainerKey(input.workspaceId, input) },
     previous => {
       if (!previous) {
         return previous;
@@ -176,11 +179,11 @@ function markOptimisticFailed(
 
 function discardOptimistic(
   queryClient: QueryClient,
-  input: SendNetworkMessageInput,
+  input: ScopedSendNetworkMessageInput,
   clientMessageId: string
 ) {
   queryClient.setQueriesData<NetworkConversationMessage[] | undefined>(
-    { queryKey: activeContainerKey(input) },
+    { queryKey: activeContainerKey(input.workspaceId, input) },
     previous => {
       if (!previous) {
         return previous;
@@ -215,6 +218,7 @@ export interface SendNetworkMessageDirectInput {
 }
 
 export type SendNetworkMessageInput = SendNetworkMessageThreadInput | SendNetworkMessageDirectInput;
+type ScopedSendNetworkMessageInput = SendNetworkMessageInput & { workspaceId: string };
 
 export interface SendNetworkMessageResult {
   clientMessageId: string;
@@ -231,38 +235,42 @@ export interface UseSendNetworkMessageResult {
   isSending: boolean;
 }
 
-function invalidateContainerQueries(queryClient: QueryClient, input: SendNetworkMessageInput) {
+function invalidateContainerQueries(
+  queryClient: QueryClient,
+  input: ScopedSendNetworkMessageInput
+) {
   if (input.surface === "thread") {
     return Promise.all([
       queryClient.invalidateQueries({
-        queryKey: networkKeys.threadMessages(input.channel, input.threadId),
+        queryKey: networkKeys.threadMessages(input.workspaceId, input.channel, input.threadId),
       }),
       queryClient.invalidateQueries({
-        queryKey: networkKeys.threadDetail(input.channel, input.threadId),
+        queryKey: networkKeys.threadDetail(input.workspaceId, input.channel, input.threadId),
       }),
       queryClient.invalidateQueries({
-        queryKey: networkKeys.threadsList(input.channel),
+        queryKey: networkKeys.threadsList(input.workspaceId, input.channel),
       }),
     ]);
   }
   return Promise.all([
     queryClient.invalidateQueries({
-      queryKey: networkKeys.directMessages(input.channel, input.directId),
+      queryKey: networkKeys.directMessages(input.workspaceId, input.channel, input.directId),
     }),
     queryClient.invalidateQueries({
-      queryKey: networkKeys.directDetail(input.channel, input.directId),
+      queryKey: networkKeys.directDetail(input.workspaceId, input.channel, input.directId),
     }),
     queryClient.invalidateQueries({
-      queryKey: networkKeys.directsList(input.channel),
+      queryKey: networkKeys.directsList(input.workspaceId, input.channel),
     }),
   ]);
 }
 
 export function useSendNetworkMessage(): UseSendNetworkMessageResult {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
 
-  const mutation = useMutation<SendNetworkMessageResult, Error, SendNetworkMessageInput>({
-    mutationFn: async (input: SendNetworkMessageInput) => {
+  const mutation = useMutation<SendNetworkMessageResult, Error, ScopedSendNetworkMessageInput>({
+    mutationFn: async (input: ScopedSendNetworkMessageInput) => {
       const clientMessageId = input.clientMessageId ?? generateClientMessageId();
       const isRetry = input.clientMessageId != null;
       const timestamp = new Date().toISOString();
@@ -273,7 +281,7 @@ export function useSendNetworkMessage(): UseSendNetworkMessageResult {
         // it back to "pending" so the danger-tint and inline retry/discard
         // disappear while the second attempt is in flight.
         queryClient.setQueriesData<NetworkConversationMessage[] | undefined>(
-          { queryKey: activeContainerKey(input) },
+          { queryKey: activeContainerKey(input.workspaceId, input) },
           previous => {
             if (!previous) {
               return previous;
@@ -291,8 +299,8 @@ export function useSendNetworkMessage(): UseSendNetworkMessageResult {
       }
 
       try {
-        const request = buildSendRequest(input, clientMessageId);
-        const response = await sendNetworkMessage(request);
+        const request = buildSendRequest(input, clientMessageId, input.workspaceId);
+        const response = await sendNetworkMessage(input.workspaceId, request);
         replaceOptimisticOnSuccess(queryClient, input, clientMessageId, timestamp);
         return { clientMessageId, response };
       } catch (error) {
@@ -307,19 +315,29 @@ export function useSendNetworkMessage(): UseSendNetworkMessageResult {
   });
 
   const send = useCallback(
-    (input: SendNetworkMessageInput) => mutation.mutateAsync(input),
-    [mutation]
+    (input: SendNetworkMessageInput) => {
+      if (!activeWorkspaceId) {
+        return Promise.reject(new NetworkApiError("No active workspace selected", 400));
+      }
+      return mutation.mutateAsync({ ...input, workspaceId: activeWorkspaceId });
+    },
+    [activeWorkspaceId, mutation]
   );
   const retry = useCallback(
     (input: SendNetworkMessageInput, clientMessageId: string) =>
-      mutation.mutateAsync({ ...input, clientMessageId }),
-    [mutation]
+      activeWorkspaceId
+        ? mutation.mutateAsync({ ...input, clientMessageId, workspaceId: activeWorkspaceId })
+        : Promise.reject(new NetworkApiError("No active workspace selected", 400)),
+    [activeWorkspaceId, mutation]
   );
   const discard = useCallback(
     (input: SendNetworkMessageInput, clientMessageId: string) => {
-      discardOptimistic(queryClient, input, clientMessageId);
+      if (!activeWorkspaceId) {
+        return;
+      }
+      discardOptimistic(queryClient, { ...input, workspaceId: activeWorkspaceId }, clientMessageId);
     },
-    [queryClient]
+    [activeWorkspaceId, queryClient]
   );
 
   return useMemo(
@@ -351,8 +369,13 @@ export interface UseCreateNetworkThreadResult {
   isCreating: boolean;
 }
 
+export interface UseCreateNetworkThreadOptions {
+  workspaceId?: string | null;
+}
+
 interface CreateThreadAttemptArgs extends CreateNetworkThreadInput {
   threadId: string;
+  workspaceId: string;
 }
 
 async function attemptCreateThread(
@@ -361,7 +384,7 @@ async function attemptCreateThread(
 ): Promise<CreateNetworkThreadResult> {
   const clientMessageId = generateClientMessageId();
   const timestamp = new Date().toISOString();
-  const input: SendNetworkMessageThreadInput = {
+  const input: ScopedSendNetworkMessageInput = {
     surface: "thread",
     channel: args.channel,
     threadId: args.threadId,
@@ -369,6 +392,7 @@ async function attemptCreateThread(
     text: args.text,
     peerFrom: args.peerFrom,
     displayName: args.displayName,
+    workspaceId: args.workspaceId,
   };
 
   // Seed the per-thread message cache so when we navigate to the new
@@ -376,8 +400,8 @@ async function attemptCreateThread(
   applyOptimistic(queryClient, input, buildOptimisticMessage(input, clientMessageId, timestamp));
 
   try {
-    const request = buildSendRequest(input, clientMessageId);
-    await sendNetworkMessage(request);
+    const request = buildSendRequest(input, clientMessageId, args.workspaceId);
+    await sendNetworkMessage(args.workspaceId, request);
     replaceOptimisticOnSuccess(queryClient, input, clientMessageId, timestamp);
     return { threadId: args.threadId, rootMessageId: clientMessageId };
   } catch (error) {
@@ -386,10 +410,18 @@ async function attemptCreateThread(
   }
 }
 
-export function useCreateNetworkThread(): UseCreateNetworkThreadResult {
+export function useCreateNetworkThread(
+  options: UseCreateNetworkThreadOptions = {}
+): UseCreateNetworkThreadResult {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options.workspaceId ?? activeWorkspaceId ?? null;
 
-  const mutation = useMutation<CreateNetworkThreadResult, Error, CreateNetworkThreadInput>({
+  const mutation = useMutation<
+    CreateNetworkThreadResult,
+    Error,
+    CreateNetworkThreadInput & { workspaceId: string }
+  >({
     mutationFn: async input => {
       const firstAttemptThreadId = `thread_${generateClientMessageId().replace(/-/g, "")}`;
       try {
@@ -409,19 +441,26 @@ export function useCreateNetworkThread(): UseCreateNetworkThreadResult {
       }
     },
     onSettled: (_data, _error, variables) => {
-      void queryClient.invalidateQueries({ queryKey: networkKeys.threadsList(variables.channel) });
       void queryClient.invalidateQueries({
-        queryKey: networkKeys.channelDetail(variables.channel),
+        queryKey: networkKeys.threadsList(variables.workspaceId, variables.channel),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: networkKeys.channelDetail(variables.workspaceId, variables.channel),
       });
     },
   });
 
   return useMemo(
     () => ({
-      createThread: (input: CreateNetworkThreadInput) => mutation.mutateAsync(input),
+      createThread: (input: CreateNetworkThreadInput) => {
+        if (!workspaceId) {
+          return Promise.reject(new NetworkApiError("No active workspace selected", 400));
+        }
+        return mutation.mutateAsync({ ...input, workspaceId });
+      },
       isCreating: mutation.isPending,
     }),
-    [mutation]
+    [workspaceId, mutation]
   );
 }
 
@@ -440,19 +479,27 @@ export interface UseResolveNetworkDirectRoomResult {
 
 export function useResolveNetworkDirectRoom(): UseResolveNetworkDirectRoomResult {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
 
   const mutation = useMutation({
-    mutationFn: async (input: ResolveNetworkDirectRoomInput) => {
-      return resolveNetworkDirectRoom(input.channel, input.body);
+    mutationFn: async (input: ResolveNetworkDirectRoomInput & { workspaceId: string }) => {
+      return resolveNetworkDirectRoom(input.workspaceId, input.channel, input.body);
     },
     onSettled: (_data, _error, variables) => {
-      void queryClient.invalidateQueries({ queryKey: networkKeys.directsList(variables.channel) });
+      void queryClient.invalidateQueries({
+        queryKey: networkKeys.directsList(variables.workspaceId, variables.channel),
+      });
     },
   });
 
   const resolveRoom = useCallback(
-    (input: ResolveNetworkDirectRoomInput) => mutation.mutateAsync(input),
-    [mutation]
+    (input: ResolveNetworkDirectRoomInput) => {
+      if (!activeWorkspaceId) {
+        return Promise.reject(new NetworkApiError("No active workspace selected", 400));
+      }
+      return mutation.mutateAsync({ ...input, workspaceId: activeWorkspaceId });
+    },
+    [activeWorkspaceId, mutation]
   );
 
   return useMemo(
@@ -467,9 +514,16 @@ export function useResolveNetworkDirectRoom(): UseResolveNetworkDirectRoomResult
 
 export function useCreateNetworkChannel() {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
 
   return useMutation({
-    mutationFn: (data: CreateNetworkChannelRequest) => createNetworkChannel(data),
+    mutationFn: (data: CreateNetworkChannelRequest) => {
+      const workspaceId = activeWorkspaceId ?? data.workspace_id;
+      if (!workspaceId) {
+        return Promise.reject(new NetworkApiError("No active workspace selected", 400));
+      }
+      return createNetworkChannel(workspaceId, data);
+    },
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: networkKeys.all }),

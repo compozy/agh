@@ -19,6 +19,7 @@ import type { NetworkThreadSummary } from "../../types";
 import { ThreadsEmpty } from "../empty-states/threads-empty";
 
 export interface ThreadsListProps {
+  workspaceId: string;
   channel: string;
   threads: ReadonlyArray<NetworkThreadSummary>;
   activeThreadId: string | null;
@@ -29,6 +30,7 @@ export interface ThreadsListProps {
 }
 
 interface ThreadsListRowProps {
+  workspaceId: string;
   channel: string;
   thread: NetworkThreadSummary;
   active: boolean;
@@ -47,7 +49,7 @@ function ThreadWorkPill({ openWorkCount }: { openWorkCount: number }) {
   );
 }
 
-function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
+function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRowProps) {
   const messageCount = thread.message_count ?? 0;
   const replyCount = Math.max(0, messageCount - 1); // root + replies - guard against historical zero.
   const peerCount = thread.participant_count ?? 0;
@@ -66,8 +68,8 @@ function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
       indicator={active ? "rail" : "none"}
       render={
         <Link
-          params={{ channel, threadId: thread.thread_id }}
-          to="/network/$channel/threads/$threadId"
+          params={{ workspaceId, channel, threadId: thread.thread_id }}
+          to="/network/$workspaceId/$channel/threads/$threadId"
         />
       }
       selectable
@@ -121,6 +123,7 @@ function ThreadsListSkeleton() {
 }
 
 export function ThreadsList({
+  workspaceId,
   channel,
   threads,
   activeThreadId,
@@ -157,6 +160,7 @@ export function ThreadsList({
           channel={channel}
           key={thread.thread_id}
           thread={thread}
+          workspaceId={workspaceId}
         />
       ))}
     </div>

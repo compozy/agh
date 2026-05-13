@@ -1,6 +1,6 @@
 ---
 title: NATS Transport Binding
-description: Reference for the AGH Network v1 NATS binding, including subjects, route tokens, delivery semantics, request-reply, and persistence.
+description: Reference for the AGH Network v2 NATS binding, including subjects, route tokens, delivery semantics, request-reply, and persistence.
 icon: Network
 ---
 
@@ -11,9 +11,9 @@ defined by [envelopes](/protocol/envelope/), [message kinds](/protocol/message-k
 This page is normative unless a section is marked as an example.
 
 <OperatorNote label="Implementation status">
-  The current AGH Runtime embeds NATS Core for v0 with subject prefix `agh.network.v0`. It does not
-  currently expose the v1 prefix, verified route tokens, external NATS configuration, or JetStream
-  persistence as a public interoperability surface.
+  The current AGH Runtime embeds NATS Core for v2 with subject prefix `agh.network.v2`. It does not
+  currently expose verified route tokens, external NATS configuration, or JetStream persistence as a
+  public interoperability surface.
 </OperatorNote>
 
 ## Binding scope
@@ -23,35 +23,37 @@ The baseline binding uses NATS Core subjects and JSON envelope payloads.
 | Topic             | Requirement                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------- |
 | Payload           | MUST be one complete AGH Network envelope encoded as UTF-8 JSON.                        |
-| Subject prefix    | MUST be `agh.network.v1` for v1 peers.                                                  |
+| Subject prefix    | MUST be `agh.network.v2` for v2 peers.                                                  |
 | Broadcast routing | MUST use a channel broadcast subject.                                                   |
 | Directed routing  | MUST use a peer direct subject.                                                         |
 | Persistence       | Not required by the baseline binding. JetStream MAY be added as an operational profile. |
 | Request-reply     | MAY be used, but MUST NOT replace core correlation fields.                              |
 
-Peers that support both v0 and v1 MUST subscribe to both `agh.network.v0` and `agh.network.v1`
-prefixes for the channels they join.
+Peers MUST include the stable workspace ID in every subject. Channel-only subjects are obsolete and
+MUST NOT be accepted by v2 peers.
 
 ## Subject grammar
 
 Subjects use this hierarchy:
 
 ```text
-agh.network.v1.<channel>.broadcast
-agh.network.v1.<channel>.peer.<route_token>
+agh.network.v2.<workspace_id>.<channel>.broadcast
+agh.network.v2.<workspace_id>.<channel>.peer.<route_token>
 ```
 
-| Segment          | Rule                                                                             |
-| ---------------- | -------------------------------------------------------------------------------- |
-| `agh.network.v1` | Fixed protocol binding prefix.                                                   |
-| `<channel>`      | MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Dots, spaces, `*`, and `>` are forbidden. |
-| `broadcast`      | Receives channel-wide messages.                                                  |
-| `peer`           | Direct routing namespace.                                                        |
-| `<route_token>`  | MUST be subject-safe and derived as described below.                             |
+| Segment          | Rule                                                                              |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `agh.network.v2` | Fixed protocol binding prefix.                                                    |
+| `<workspace_id>` | Stable workspace ID from `.agh/workspace.toml`; dots, `*`, and `>` are forbidden. |
+| `<channel>`      | MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Dots, spaces, `*`, and `>` are forbidden.  |
+| `broadcast`      | Receives channel-wide messages.                                                   |
+| `peer`           | Direct routing namespace.                                                         |
+| `<route_token>`  | MUST be subject-safe and derived as described below.                              |
 
 <Mermaid
   chart={`flowchart LR
-    Root[agh.network.v1] --> Channel[channel]
+    Root[agh.network.v2] --> Workspace[workspace_id]
+    Workspace --> Channel[channel]
     Channel --> Broadcast[broadcast]
     Channel --> Peer[peer]
     Peer --> Token[route_token]
@@ -74,15 +76,15 @@ For a verified sender:
 ```text
 from: patch-worker@56475aa75463474c0285df5dbf2bcab7
 route token: 56475aa75463474c0285df5dbf2bcab7
-direct subject: agh.network.v1.builders.peer.56475aa75463474c0285df5dbf2bcab7
+direct subject: agh.network.v2.ws_alpha.builders.peer.56475aa75463474c0285df5dbf2bcab7
 ```
 
-For an unverified v0-style peer:
+For an unverified v2-style peer:
 
 ```text
 peer_id: reviewer.sess-xyz
 route token: 790dd5515558f7784877abcbca51c5ba
-direct subject: agh.network.v1.builders.peer.790dd5515558f7784877abcbca51c5ba
+direct subject: agh.network.v2.ws_alpha.builders.peer.790dd5515558f7784877abcbca51c5ba
 ```
 
 The `to` field in a directed envelope MUST still contain the target peer identity, not the route
@@ -95,10 +97,10 @@ means a NATS subject targeted at one peer; it is distinct from the AGH Network c
 `surface:"direct"` (a restricted two-party room). A `surface:"thread"` envelope addressed to one
 peer also publishes to a peer direct NATS subject.
 
-| Envelope condition | NATS subject                                  | Notes                                                                                                                |
-| ------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `to = null`        | `agh.network.v1.<channel>.broadcast`          | Used for `greet`, broadcast `whois`, public-thread `say`, and broadcast `capability`.                                |
-| `to != null`       | `agh.network.v1.<channel>.peer.<route_token>` | Used for targeted `whois`, targeted `say` (thread or direct surface), targeted `capability`, `receipt`, and `trace`. |
+| Envelope condition | NATS subject                                                 | Notes                                                                                                                |
+| ------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `to = null`        | `agh.network.v2.<workspace_id>.<channel>.broadcast`          | Used for `greet`, broadcast `whois`, public-thread `say`, and broadcast `capability`.                                |
+| `to != null`       | `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>` | Used for targeted `whois`, targeted `say` (thread or direct surface), targeted `capability`, `receipt`, and `trace`. |
 
 Sending rules:
 
@@ -114,8 +116,8 @@ Sending rules:
 
 A NATS Peer joins a channel by subscribing to the required subjects and announcing presence:
 
-1. Subscribe to `agh.network.v1.<channel>.broadcast`.
-2. Subscribe to `agh.network.v1.<channel>.peer.<own_route_token>`.
+1. Subscribe to `agh.network.v2.<workspace_id>.<channel>.broadcast`.
+2. Subscribe to `agh.network.v2.<workspace_id>.<channel>.peer.<own_route_token>`.
 3. SHOULD publish a `greet` envelope to the broadcast subject.
 4. SHOULD publish `greet` again after reconnecting.
 
@@ -132,7 +134,7 @@ effective settings:
 | Server URLs     | MUST identify one or more NATS servers.                                                                   |
 | Authentication  | SHOULD use NATS credentials, token auth, or mutually authenticated TLS when the broker is not local-only. |
 | TLS             | SHOULD be enabled for networked brokers.                                                                  |
-| Subject prefix  | MUST be `agh.network.v1` for v1 traffic.                                                                  |
+| Subject prefix  | MUST be `agh.network.v2` for v2 traffic.                                                                  |
 | Joined channels | MUST be known before subscriptions are created.                                                           |
 | Peer identity   | MUST be the same identity used in envelope `from`.                                                        |
 | Maximum payload | MUST support at least 1 MiB serialized envelopes.                                                         |
@@ -197,8 +199,8 @@ delivery, but doing so MUST NOT change AGH Network core semantics.
 Recommended stream shape:
 
 ```text
-stream name: AGH_NETWORK_V1
-subjects: agh.network.v1.>
+stream name: AGH_NETWORK_V2
+subjects: agh.network.v2.>
 retention: limits or workqueue, according to deployment policy
 max message size: at least 1048576 bytes
 discard policy: deployment-defined
@@ -219,15 +221,11 @@ JetStream-specific requirements:
 
 ## Version interop
 
-| Peer capability | Required subscriptions                                          |
-| --------------- | --------------------------------------------------------------- |
-| v0 only         | `agh.network.v0.<channel>.broadcast` and its v0 direct subject. |
-| v1 only         | `agh.network.v1.<channel>.broadcast` and its v1 direct subject. |
-| v0 plus v1      | Both prefixes for each joined channel.                          |
-
-The v1 NATS prefix prevents ambiguous routing between untrusted v0 identities and verified-mode v1
-identities. A bridge between prefixes MUST preserve envelope semantics and MUST NOT rewrite proofs
-unless it re-signs as a new sender.
+AGH Runtime v2 is a hard cut from channel-only subjects. A v2 peer subscribes to exactly the
+workspace-qualified broadcast subject and its own workspace-qualified peer subject for every
+`(workspace_id, channel)` membership. Bridges from older channel-only experiments must republish as
+new v2 senders after validating the workspace boundary; they MUST NOT forward channel-only subjects
+directly into a v2 runtime.
 
 ## Security notes
 
@@ -237,5 +235,6 @@ Transport security and message verification solve different problems.
 - The Ed25519 trust profile verifies the envelope and sender handle.
 - Neither one by itself grants application authorization.
 
-Receivers MUST verify v1 proofs according to [signature verification](/protocol/verification/)
+Receivers that opt into the v1 trust profile MUST verify proofs according to
+[signature verification](/protocol/verification/)
 before treating an envelope as `verified`, even if the message arrived over authenticated NATS.

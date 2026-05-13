@@ -871,13 +871,19 @@ func (h *HostAPIHandler) createBridgeSession(
 
 	agentName, err := aghconfig.ResolveAgentName("", resolved.Config.Defaults)
 	if err != nil {
-		return nil, unavailableRPCError(fmt.Errorf("resolve default agent for workspace %q: %w", resolved.ID, err))
+		return nil, unavailableRPCError(
+			fmt.Errorf("resolve default agent for workspace %q: %w", resolved.WorkspaceID, err),
+		)
+	}
+	workspaceID, err := hostAPIResolvedWorkspaceID(&resolved)
+	if err != nil {
+		return nil, unavailableRPCError(err)
 	}
 
 	created, err := h.sessions.Create(ctx, session.CreateOpts{
 		AgentName: agentName,
 		Provider:  "",
-		Workspace: resolved.ID,
+		Workspace: workspaceID,
 		Type:      session.SessionTypeUser,
 	})
 	if err != nil {

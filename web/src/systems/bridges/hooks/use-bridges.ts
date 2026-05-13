@@ -7,9 +7,10 @@ import {
   bridgeRoutesOptions,
   bridgesListOptions,
 } from "../lib/query-options";
+import type { BridgeListFilter } from "../types";
 
-export function useBridges() {
-  return useQuery(bridgesListOptions());
+export function useBridges(filters: BridgeListFilter = {}, options?: { enabled?: boolean }) {
+  return useQuery(bridgesListOptions(filters, options?.enabled ?? true));
 }
 
 export function useBridgeProviders() {

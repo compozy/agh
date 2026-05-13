@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,17 +31,17 @@ type stubClient struct {
 	deleteVaultSecretFn         func(context.Context, string) error
 	networkStatusFn             func(context.Context) (NetworkStatusRecord, error)
 	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	networkChannelsFn           func(context.Context) ([]NetworkChannelRecord, error)
+	networkChannelsFn           func(context.Context, string) ([]NetworkChannelRecord, error)
 	networkThreadsFn            func(context.Context, NetworkThreadsQuery) ([]NetworkThreadRecord, error)
-	networkThreadFn             func(context.Context, string, string) (NetworkThreadRecord, error)
+	networkThreadFn             func(context.Context, string, string, string) (NetworkThreadRecord, error)
 	networkThreadMessagesFn     func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
 	networkDirectsFn            func(context.Context, NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error)
-	networkDirectResolveFn      func(context.Context, string, NetworkDirectResolveRequest) (NetworkDirectRoomRecord, error)
-	networkDirectFn             func(context.Context, string, string) (NetworkDirectRoomRecord, error)
+	networkDirectResolveFn      func(context.Context, string, string, NetworkDirectResolveRequest) (NetworkDirectRoomRecord, error)
+	networkDirectFn             func(context.Context, string, string, string) (NetworkDirectRoomRecord, error)
 	networkDirectMessagesFn     func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
-	networkWorkFn               func(context.Context, string) (NetworkWorkRecord, error)
+	networkWorkFn               func(context.Context, string, string) (NetworkWorkRecord, error)
 	networkSendFn               func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
-	networkInboxFn              func(context.Context, string) ([]NetworkEnvelopeRecord, error)
+	networkInboxFn              func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
 	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
 	installExtensionFn          func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
 	enableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
@@ -364,9 +365,9 @@ func (s *stubClient) NetworkPeers(
 	return nil, errors.New("unexpected NetworkPeers call")
 }
 
-func (s *stubClient) NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error) {
+func (s *stubClient) NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
 	if s.networkChannelsFn != nil {
-		return s.networkChannelsFn(ctx)
+		return s.networkChannelsFn(ctx, workspaceRef)
 	}
 	return nil, errors.New("unexpected NetworkChannels call")
 }
@@ -383,11 +384,12 @@ func (s *stubClient) NetworkThreads(
 
 func (s *stubClient) NetworkThread(
 	ctx context.Context,
+	workspaceRef string,
 	channel string,
 	threadID string,
 ) (NetworkThreadRecord, error) {
 	if s.networkThreadFn != nil {
-		return s.networkThreadFn(ctx, channel, threadID)
+		return s.networkThreadFn(ctx, workspaceRef, channel, threadID)
 	}
 	return NetworkThreadRecord{}, errors.New("unexpected NetworkThread call")
 }
@@ -414,22 +416,24 @@ func (s *stubClient) NetworkDirects(
 
 func (s *stubClient) NetworkDirectResolve(
 	ctx context.Context,
+	workspaceRef string,
 	channel string,
 	request NetworkDirectResolveRequest,
 ) (NetworkDirectRoomRecord, error) {
 	if s.networkDirectResolveFn != nil {
-		return s.networkDirectResolveFn(ctx, channel, request)
+		return s.networkDirectResolveFn(ctx, workspaceRef, channel, request)
 	}
 	return NetworkDirectRoomRecord{}, errors.New("unexpected NetworkDirectResolve call")
 }
 
 func (s *stubClient) NetworkDirect(
 	ctx context.Context,
+	workspaceRef string,
 	channel string,
 	directID string,
 ) (NetworkDirectRoomRecord, error) {
 	if s.networkDirectFn != nil {
-		return s.networkDirectFn(ctx, channel, directID)
+		return s.networkDirectFn(ctx, workspaceRef, channel, directID)
 	}
 	return NetworkDirectRoomRecord{}, errors.New("unexpected NetworkDirect call")
 }
@@ -444,9 +448,9 @@ func (s *stubClient) NetworkDirectMessages(
 	return nil, errors.New("unexpected NetworkDirectMessages call")
 }
 
-func (s *stubClient) NetworkWork(ctx context.Context, workID string) (NetworkWorkRecord, error) {
+func (s *stubClient) NetworkWork(ctx context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error) {
 	if s.networkWorkFn != nil {
-		return s.networkWorkFn(ctx, workID)
+		return s.networkWorkFn(ctx, workspaceRef, workID)
 	}
 	return NetworkWorkRecord{}, errors.New("unexpected NetworkWork call")
 }
@@ -463,10 +467,11 @@ func (s *stubClient) NetworkSend(
 
 func (s *stubClient) NetworkInbox(
 	ctx context.Context,
+	workspaceRef string,
 	sessionID string,
 ) ([]NetworkEnvelopeRecord, error) {
 	if s.networkInboxFn != nil {
-		return s.networkInboxFn(ctx, sessionID)
+		return s.networkInboxFn(ctx, workspaceRef, sessionID)
 	}
 	return nil, errors.New("unexpected NetworkInbox call")
 }
@@ -1196,8 +1201,15 @@ func (s *stubClient) HookCatalog(
 	return nil, errors.New("unexpected HookCatalog call")
 }
 
-func (s *stubClient) HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error) {
+func (s *stubClient) HookRuns(
+	ctx context.Context,
+	workspaceRef string,
+	query HookRunsQuery,
+) ([]HookRunRecord, error) {
 	if s.hookRunsFn != nil {
+		if strings.TrimSpace(workspaceRef) == "" {
+			return nil, errors.New("stub: workspaceRef is required")
+		}
 		return s.hookRunsFn(ctx, query)
 	}
 	return nil, errors.New("unexpected HookRuns call")

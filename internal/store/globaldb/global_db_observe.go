@@ -17,6 +17,9 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSum
 	if err := g.checkReady(ctx, "write event summary"); err != nil {
 		return err
 	}
+	if err := g.populateEventSummaryWorkspace(ctx, &summary); err != nil {
+		return err
+	}
 	if err := summary.Validate(); err != nil {
 		return err
 	}
@@ -31,13 +34,14 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSum
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO event_summaries (
-			id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id, claim_token_hash,
+			id, session_id, workspace_id, type, agent_name, content_json, task_id, run_id, workflow_id, claim_token_hash,
 			lease_until, coordinator_session_id, scheduler_reason, hook_event, hook_name,
 			actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
 			spawn_depth, summary, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		summary.ID,
 		summary.SessionID,
+		summary.WorkspaceID,
 		summary.Type,
 		summary.AgentName,
 		string(summary.Content),
@@ -73,11 +77,13 @@ func (g *GlobalDB) ListEventSummaries(
 		return nil, err
 	}
 
-	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, type, agent_name, content_json,
-		task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,
+	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, workspace_id,` +
+		` type, agent_name, content_json, task_id, run_id, workflow_id, claim_token_hash,` +
+		` lease_until, coordinator_session_id,
 		scheduler_reason, hook_event, hook_name, actor_kind, actor_id, release_reason,
 		parent_session_id, root_session_id, spawn_depth, summary, timestamp FROM event_summaries`
 	eventWhere, args := store.BuildClauses(
+		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("type", query.Type),
@@ -125,6 +131,7 @@ func memoryEventSummaryQuery(query store.EventSummaryQuery) (string, []any) {
 		rowid AS source_rowid,
 		'memevt-' || id AS id,
 		'' AS session_id,
+		COALESCE(json_extract(metadata, '$.workspace_id'), '') AS workspace_id,
 		op AS type,
 		COALESCE(agent_name, '') AS agent_name,
 		'' AS content_json,
@@ -137,6 +144,7 @@ func memoryEventSummaryQuery(query store.EventSummaryQuery) (string, []any) {
 			(ts_ms % 1000) * 1000000) AS timestamp
 		FROM memory_events`
 	memoryWhere, memoryArgs := store.BuildClauses(
+		store.StringClause("json_extract(metadata, '$.workspace_id')", query.WorkspaceID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("op", query.Type),
 		store.Int64Clause("ts_ms", ">=", timestampMillis(query.Since)),
@@ -144,9 +152,30 @@ func memoryEventSummaryQuery(query store.EventSummaryQuery) (string, []any) {
 	return store.AppendWhere(memoryQuery, memoryWhere), memoryArgs
 }
 
+func (g *GlobalDB) populateEventSummaryWorkspace(ctx context.Context, summary *store.EventSummary) error {
+	if summary == nil || strings.TrimSpace(summary.WorkspaceID) != "" || strings.TrimSpace(summary.SessionID) == "" {
+		return nil
+	}
+	var workspaceID string
+	err := g.db.QueryRowContext(
+		ctx,
+		`SELECT workspace_id FROM sessions WHERE id = ?`,
+		strings.TrimSpace(summary.SessionID),
+	).Scan(&workspaceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store: resolve event summary workspace: %w", err)
+	}
+	summary.WorkspaceID = strings.TrimSpace(workspaceID)
+	return nil
+}
+
 func eventSummaryListQuery(combinedQuery string, limit int) string {
-	baseSelect := `SELECT source_rowid, id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
-		claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
+	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, type, agent_name, content_json,` +
+		` task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,` +
+		` scheduler_reason, hook_event,
 		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
 		spawn_depth, summary, timestamp`
 	if limit <= 0 {
@@ -358,6 +387,7 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 		&summary.Sequence,
 		&summary.ID,
 		&summary.SessionID,
+		&summary.WorkspaceID,
 		&summary.Type,
 		&summary.AgentName,
 		&contentJSONRaw,

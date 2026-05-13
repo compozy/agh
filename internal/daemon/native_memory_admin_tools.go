@@ -142,10 +142,12 @@ type memoryAdminProviderLifecycleInput struct {
 }
 
 type memoryAdminSessionIDInput struct {
-	SessionID string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
 }
 
 type memoryAdminSessionReplayInput struct {
+	WorkspaceID       string `json:"workspace_id"`
 	SessionID         string `json:"session_id"`
 	IncludeToolEvents bool   `json:"include_tool_events,omitempty"`
 	IncludeMemory     bool   `json:"include_memory,omitempty"`
@@ -1028,7 +1030,7 @@ func (n *daemonNativeTools) memoryAdminProviderDisable(
 
 func (n *daemonNativeTools) memoryAdminSessionLedger(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input memoryAdminSessionIDInput
@@ -1037,6 +1039,13 @@ func (n *daemonNativeTools) memoryAdminSessionLedger(
 	}
 	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
 	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	response, err := n.deps.MemorySessionLedger.Get(ctx, sessionID)
@@ -1048,7 +1057,7 @@ func (n *daemonNativeTools) memoryAdminSessionLedger(
 
 func (n *daemonNativeTools) memoryAdminSessionReplay(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input memoryAdminSessionReplayInput
@@ -1057,6 +1066,13 @@ func (n *daemonNativeTools) memoryAdminSessionReplay(
 	}
 	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
 	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	response, err := n.deps.MemorySessionLedger.Replay(ctx, sessionID, contract.MemorySessionReplayRequest{

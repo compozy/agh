@@ -29,7 +29,7 @@ func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuer
 		return events, nil
 	}
 
-	workspaces, err := o.memoryEventWorkspaces(ctx)
+	workspaces, err := o.memoryEventWorkspaces(ctx, query.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +48,18 @@ func (o *Observer) QueryTokenStats(ctx context.Context, query store.TokenStatsQu
 	return o.registry.ListTokenStats(ctx, query)
 }
 
-func (o *Observer) memoryEventWorkspaces(ctx context.Context) ([]string, error) {
+func (o *Observer) memoryEventWorkspaces(ctx context.Context, workspaceID string) ([]string, error) {
 	if o.workspaceResolver == nil {
+		return nil, nil
+	}
+	if trimmedWorkspaceID := strings.TrimSpace(workspaceID); trimmedWorkspaceID != "" {
+		resolved, err := o.workspaceResolver.Resolve(ctx, trimmedWorkspaceID)
+		if err != nil {
+			return nil, fmt.Errorf("observe: resolve memory event workspace %q: %w", trimmedWorkspaceID, err)
+		}
+		if root := strings.TrimSpace(resolved.RootDir); root != "" {
+			return []string{root}, nil
+		}
 		return nil, nil
 	}
 	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})

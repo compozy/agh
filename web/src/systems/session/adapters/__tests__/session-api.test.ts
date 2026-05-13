@@ -35,6 +35,7 @@ const mockSession = {
   created_at: "2026-04-01T00:00:00Z",
   updated_at: "2026-04-01T01:00:00Z",
 };
+const WORKSPACE_ID = mockSession.workspace_id;
 
 const mockRepair = {
   session_id: "sess-001",
@@ -205,24 +206,26 @@ describe("fetchSession", () => {
   it("returns single SessionPayload on success", async () => {
     mockJsonResponse({ session: mockSession });
 
-    const result = await fetchSession("sess-001");
+    const result = await fetchSession(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual(mockSession);
-    await expectFetchRequest({ path: "/api/sessions/sess-001" });
+    await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/sess-001" });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(fetchSession("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(fetchSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 
   it("encodes session id in URL", async () => {
     mockJsonResponse({ session: mockSession });
 
-    await fetchSession("id with spaces");
+    await fetchSession(WORKSPACE_ID, "id with spaces");
 
-    await expectFetchRequest({ path: "/api/sessions/id%20with%20spaces" });
+    await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces" });
   });
 });
 
@@ -230,24 +233,28 @@ describe("stopSession", () => {
   it("calls POST stop endpoint", async () => {
     mockEmptyResponse();
 
-    await stopSession("sess-001");
+    await stopSession(WORKSPACE_ID, "sess-001");
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(stopSession("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(stopSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 
   it("throws generic error for other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(stopSession("sess-001")).rejects.toThrow('Failed to stop session "sess-001": 500');
+    await expect(stopSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
+      'Failed to stop session "sess-001": 500'
+    );
   });
 });
 
@@ -255,24 +262,26 @@ describe("deleteSession", () => {
   it("calls DELETE endpoint", async () => {
     mockEmptyResponse();
 
-    await deleteSession("sess-001");
+    await deleteSession(WORKSPACE_ID, "sess-001");
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/sessions/sess-001",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(deleteSession("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(deleteSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 
   it("throws generic error for other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(deleteSession("sess-001")).rejects.toThrow(
+    await expect(deleteSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
       'Failed to delete session "sess-001": 500'
     );
   });
@@ -282,29 +291,31 @@ describe("cancelSessionPrompt", () => {
   it("calls POST prompt cancel endpoint", async () => {
     mockEmptyResponse();
 
-    await cancelSessionPrompt("sess-001");
+    await cancelSessionPrompt(WORKSPACE_ID, "sess-001");
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/prompt/cancel",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/cancel",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(cancelSessionPrompt("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(cancelSessionPrompt(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 
   it("passes abort signal to fetch", async () => {
     mockEmptyResponse();
 
     const controller = new AbortController();
-    await cancelSessionPrompt("sess-001", controller.signal);
+    await cancelSessionPrompt(WORKSPACE_ID, "sess-001", controller.signal);
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/prompt/cancel",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/cancel",
       signal: controller.signal,
     });
   });
@@ -314,19 +325,21 @@ describe("resumeSession", () => {
   it("calls POST resume endpoint", async () => {
     mockJsonResponse({ session: { ...mockSession, state: "active" } });
 
-    const result = await resumeSession("sess-001");
+    const result = await resumeSession(WORKSPACE_ID, "sess-001");
 
     expect(result.state).toBe("active");
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/resume",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/resume",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(resumeSession("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(resumeSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 });
 
@@ -334,13 +347,16 @@ describe("repairSession", () => {
   it("calls POST repair endpoint with query flags and returns the repair payload", async () => {
     mockJsonResponse({ repair: mockRepair });
 
-    const result = await repairSession("sess-001", { dry_run: true, force: true });
+    const result = await repairSession(WORKSPACE_ID, "sess-001", {
+      dry_run: true,
+      force: true,
+    });
 
     expect(result).toEqual(mockRepair);
     const request = fetchRequest();
     const url = new URL(request.url);
     expect(request.method).toBe("POST");
-    expect(url.pathname).toBe("/api/sessions/sess-001/repair");
+    expect(url.pathname).toBe("/api/workspaces/ws_alpha/sessions/sess-001/repair");
     expect(url.searchParams.get("dry_run")).toBe("true");
     expect(url.searchParams.get("force")).toBe("true");
   });
@@ -348,15 +364,19 @@ describe("repairSession", () => {
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(repairSession("unknown")).rejects.toBeInstanceOf(SessionNotFoundError);
-    await expect(repairSession("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(repairSession(WORKSPACE_ID, "unknown")).rejects.toBeInstanceOf(
+      SessionNotFoundError
+    );
+    await expect(repairSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 
   it("throws typed adapter error for non-404 failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(repairSession("sess-001")).rejects.toBeInstanceOf(SessionApiError);
-    await expect(repairSession("sess-001")).rejects.toMatchObject({
+    await expect(repairSession(WORKSPACE_ID, "sess-001")).rejects.toBeInstanceOf(SessionApiError);
+    await expect(repairSession(WORKSPACE_ID, "sess-001")).rejects.toMatchObject({
       message: 'Failed to repair session "sess-001": 500',
       status: 500,
       sessionId: "sess-001",
@@ -367,11 +387,11 @@ describe("repairSession", () => {
     mockJsonResponse({ repair: mockRepair });
 
     const controller = new AbortController();
-    await repairSession("sess-001", {}, controller.signal);
+    await repairSession(WORKSPACE_ID, "sess-001", {}, controller.signal);
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/repair",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/repair",
       signal: controller.signal,
     });
   });
@@ -381,19 +401,19 @@ describe("clearSessionConversation", () => {
   it("calls POST clear endpoint and returns the refreshed session payload", async () => {
     mockJsonResponse({ session: mockSession });
 
-    const result = await clearSessionConversation("sess-001");
+    const result = await clearSessionConversation(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual(mockSession);
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/clear",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/clear",
     });
   });
 
   it("throws 409 when a prompt is still running", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
 
-    await expect(clearSessionConversation("sess-001")).rejects.toThrow(
+    await expect(clearSessionConversation(WORKSPACE_ID, "sess-001")).rejects.toThrow(
       'Cannot clear session "sess-001" while a prompt is still running'
     );
   });
@@ -401,7 +421,7 @@ describe("clearSessionConversation", () => {
   it("throws on invalid response payload", async () => {
     mockJsonResponse({ nope: true });
 
-    await expect(clearSessionConversation("sess-001")).rejects.toThrow(
+    await expect(clearSessionConversation(WORKSPACE_ID, "sess-001")).rejects.toThrow(
       'Failed to clear session "sess-001": invalid response payload'
     );
   });
@@ -424,16 +444,16 @@ describe("fetchSessionEvents", () => {
   it("returns parsed events array", async () => {
     mockJsonResponse({ events: mockEvents });
 
-    const result = await fetchSessionEvents("sess-001");
+    const result = await fetchSessionEvents(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual(mockEvents);
-    await expectFetchRequest({ path: "/api/sessions/sess-001/events" });
+    await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/sess-001/events" });
   });
 
   it("passes query params correctly", async () => {
     mockJsonResponse({ events: [] });
 
-    await fetchSessionEvents("sess-001", {
+    await fetchSessionEvents(WORKSPACE_ID, "sess-001", {
       since: "2026-04-01T00:00:00Z",
       limit: 50,
       after_sequence: 10,
@@ -444,7 +464,7 @@ describe("fetchSessionEvents", () => {
 
     const request = fetchRequest();
     const url = new URL(request.url);
-    expect(url.pathname).toBe("/api/sessions/sess-001/events");
+    expect(url.pathname).toBe("/api/workspaces/ws_alpha/sessions/sess-001/events");
     expect(url.searchParams.get("since")).toBe("2026-04-01T00:00:00Z");
     expect(url.searchParams.get("limit")).toBe("50");
     expect(url.searchParams.get("after_sequence")).toBe("10");
@@ -456,7 +476,7 @@ describe("fetchSessionEvents", () => {
   it("omits undefined params", async () => {
     mockJsonResponse({ events: [] });
 
-    await fetchSessionEvents("sess-001", { limit: 10 });
+    await fetchSessionEvents(WORKSPACE_ID, "sess-001", { limit: 10 });
 
     const request = fetchRequest();
     const url = new URL(request.url);
@@ -468,7 +488,9 @@ describe("fetchSessionEvents", () => {
   it("throws 404 for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(fetchSessionEvents("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(fetchSessionEvents(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 });
 
@@ -495,19 +517,19 @@ describe("fetchSessionLedger", () => {
   it("returns the materialized ledger response on success", async () => {
     mockJsonResponse(mockLedger);
 
-    const result = await fetchSessionLedger("sess-001");
+    const result = await fetchSessionLedger("ws-alpha", "sess-001");
 
     expect(result).toEqual(mockLedger);
-    await expectFetchRequest({ path: "/api/memory/sessions/sess-001/ledger" });
+    await expectFetchRequest({ path: "/api/workspaces/ws-alpha/memory/sessions/sess-001/ledger" });
   });
 
   it("throws SessionLedgerUnavailableError when the ledger has not materialized (404)", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(fetchSessionLedger("sess-001")).rejects.toBeInstanceOf(
+    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toBeInstanceOf(
       SessionLedgerUnavailableError
     );
-    await expect(fetchSessionLedger("sess-001")).rejects.toMatchObject({
+    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toMatchObject({
       message: "Session ledger not materialized: sess-001",
       status: 404,
       sessionId: "sess-001",
@@ -517,8 +539,10 @@ describe("fetchSessionLedger", () => {
   it("throws a typed adapter error for non-404 failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(fetchSessionLedger("sess-001")).rejects.toBeInstanceOf(SessionApiError);
-    await expect(fetchSessionLedger("sess-001")).rejects.toMatchObject({
+    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toBeInstanceOf(
+      SessionApiError
+    );
+    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toMatchObject({
       message: 'Failed to fetch session ledger "sess-001": 500',
       status: 500,
       sessionId: "sess-001",
@@ -529,10 +553,10 @@ describe("fetchSessionLedger", () => {
     mockJsonResponse(mockLedger);
 
     const controller = new AbortController();
-    await fetchSessionLedger("sess-001", controller.signal);
+    await fetchSessionLedger("ws-alpha", "sess-001", controller.signal);
 
     await expectFetchRequest({
-      path: "/api/memory/sessions/sess-001/ledger",
+      path: "/api/workspaces/ws-alpha/memory/sessions/sess-001/ledger",
       signal: controller.signal,
     });
   });
@@ -569,24 +593,30 @@ describe("fetchSessionTranscript", () => {
   it("returns parsed transcript messages", async () => {
     mockJsonResponse(mockTranscript);
 
-    const result = await fetchSessionTranscript("sess-001");
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual(mockTranscript.messages);
-    await expectFetchRequest({ path: "/api/sessions/sess-001/transcript" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
+    });
   });
 
   it("returns an empty transcript without treating it as an invalid AI SDK message list", async () => {
     mockJsonResponse({ messages: [] });
 
-    const result = await fetchSessionTranscript("sess-001");
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual([]);
-    await expectFetchRequest({ path: "/api/sessions/sess-001/transcript" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
+    });
   });
 
   it("throws 404 for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(fetchSessionTranscript("unknown")).rejects.toThrow("Session not found: unknown");
+    await expect(fetchSessionTranscript(WORKSPACE_ID, "unknown")).rejects.toThrow(
+      "Session not found: unknown"
+    );
   });
 });

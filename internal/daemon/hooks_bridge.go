@@ -1661,14 +1661,18 @@ func skillDeclarationProvider(
 			if len(resolved.Agents) == 0 {
 				activeSkills, err := skillsRegistry.ForWorkspace(ctx, resolved)
 				if err != nil {
-					return nil, fmt.Errorf("daemon: resolve active skills for workspace %q: %w", resolved.ID, err)
+					return nil, fmt.Errorf(
+						"daemon: resolve active skills for workspace %q: %w",
+						resolved.WorkspaceID,
+						err,
+					)
 				}
 				for _, skill := range activeSkills {
 					if !marketplaceHookAllowed(skill, allowed) {
 						logger.Warn(
 							"daemon: blocked hook",
 							"skill_name", skill.Meta.Name,
-							"workspace_id", resolved.ID,
+							"workspace_id", resolved.WorkspaceID,
 							"source", skills.SkillSourceName(skill.Source),
 						)
 						continue
@@ -1683,7 +1687,7 @@ func skillDeclarationProvider(
 				if err != nil {
 					return nil, fmt.Errorf(
 						"daemon: resolve active skills for workspace %q agent %q: %w",
-						resolved.ID,
+						resolved.WorkspaceID,
 						agent.Name,
 						err,
 					)
@@ -1694,7 +1698,7 @@ func skillDeclarationProvider(
 						logger.Warn(
 							"daemon: blocked hook",
 							"skill_name", skill.Meta.Name,
-							"workspace_id", resolved.ID,
+							"workspace_id", resolved.WorkspaceID,
 							"agent_name", agent.Name,
 							"source", skills.SkillSourceName(skill.Source),
 						)
@@ -1725,7 +1729,7 @@ func workspaceHookDeclarations(
 		resolved := &workspaces[idx]
 		workspaceDecls, err := aghconfig.HookDeclarations(resolved.Config.Hooks, resolved.Agents)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: load hook declarations for workspace %q: %w", resolved.ID, err)
+			return nil, fmt.Errorf("daemon: load hook declarations for workspace %q: %w", resolved.WorkspaceID, err)
 		}
 		decls = append(decls, scopeWorkspaceHookDecls(workspaceDecls, resolved)...)
 	}
@@ -1797,7 +1801,7 @@ func scopeWorkspaceHookDecls(
 				cloned.WorkingDir = strings.TrimSpace(resolved.RootDir)
 			}
 			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_id") {
-				cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.ID)
+				cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
 			}
 			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_root") {
 				cloned.Matcher.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)

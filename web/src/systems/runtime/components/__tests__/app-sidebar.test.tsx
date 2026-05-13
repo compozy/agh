@@ -58,6 +58,14 @@ vi.mock("@/systems/daemon/hooks/use-daemon-connection-status", () => ({
   useDaemonConnectionStatus: () => mockConnectionStatus,
 }));
 
+vi.mock("@/systems/runtime/hooks/use-nav-counts", () => ({
+  useNavCounts: () => ({
+    counts: {},
+    refresh: () => {},
+    status: "connected",
+  }),
+}));
+
 let mockConnectionStatus: "connected" | "connecting" | "disconnected" | "error" = "connected";
 
 function renderSidebar(props: AppSidebarProps) {

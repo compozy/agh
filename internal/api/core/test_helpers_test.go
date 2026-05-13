@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/session"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type stubDreamTrigger struct {
@@ -47,6 +51,74 @@ type handlerFixture struct {
 
 func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
 	return testutil.ConfigWithDisabledNetwork(homePaths)
+}
+
+func defaultCoreWorkspaceService(workspaces testutil.StubWorkspaceService) testutil.StubWorkspaceService {
+	originalResolve := workspaces.ResolveFn
+	workspaces.ResolveFn = func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+		if originalResolve != nil {
+			resolved, err := originalResolve(ctx, ref)
+			if err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			return normalizeCoreResolvedWorkspace(ref, &resolved), nil
+		}
+		return normalizeCoreResolvedWorkspace(ref, nil), nil
+	}
+	return workspaces
+}
+
+func normalizeCoreResolvedWorkspace(
+	ref string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) workspacepkg.ResolvedWorkspace {
+	if resolved == nil {
+		resolved = &workspacepkg.ResolvedWorkspace{}
+	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(ref)
+	}
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(resolved.ID)
+	}
+	if workspaceID == "" {
+		return workspacepkg.ResolvedWorkspace{}
+	}
+	resolved.WorkspaceID = workspaceID
+	if strings.TrimSpace(resolved.ID) == "" {
+		resolved.ID = workspaceID
+	}
+	if strings.TrimSpace(resolved.Name) == "" {
+		resolved.Name = workspaceID
+	}
+	if strings.TrimSpace(resolved.RootDir) == "" {
+		if filepath.IsAbs(strings.TrimSpace(ref)) {
+			resolved.RootDir = strings.TrimSpace(ref)
+		} else {
+			resolved.RootDir = "/workspace"
+		}
+	}
+	return *resolved
+}
+
+func defaultCoreSessionManager(manager testutil.StubSessionManager) testutil.StubSessionManager {
+	if manager.StatusFn != nil || manager.ListAllFn == nil {
+		return manager
+	}
+	manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+		infos, err := manager.ListAllFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, info := range infos {
+			if info != nil && strings.TrimSpace(info.ID) == strings.TrimSpace(id) {
+				return info, nil
+			}
+		}
+		return nil, session.ErrSessionNotFound
+	}
+	return manager
 }
 
 func newHandlerFixture(
@@ -169,6 +241,8 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	dream core.DreamTrigger,
 ) handlerFixture {
 	t.Helper()
+	manager = defaultCoreSessionManager(manager)
+	workspaces = defaultCoreWorkspaceService(workspaces)
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
@@ -204,22 +278,22 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.Use(gin.Recovery())
 	engine.GET("/sessions", handlers.ListSessions)
 	engine.POST("/sessions", handlers.CreateSession)
-	engine.GET("/sessions/:id", handlers.GetSession)
-	engine.DELETE("/sessions/:id", handlers.DeleteSession)
-	engine.POST("/sessions/:id/stop", handlers.StopSession)
-	engine.POST("/sessions/:id/resume", handlers.ResumeSession)
-	engine.POST("/sessions/:id/repair", handlers.RepairSession)
-	engine.GET("/sessions/:id/events", handlers.SessionEvents)
-	engine.GET("/sessions/:id/history", handlers.SessionHistory)
-	engine.GET("/sessions/:id/transcript", handlers.SessionTranscript)
-	engine.GET("/sessions/:id/stream", handlers.StreamSession)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id", handlers.GetSession)
+	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id", handlers.DeleteSession)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/stop", handlers.StopSession)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/resume", handlers.ResumeSession)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/repair", handlers.RepairSession)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id/events", handlers.SessionEvents)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id/history", handlers.SessionHistory)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id/transcript", handlers.SessionTranscript)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id/stream", handlers.StreamSession)
 	engine.GET("/agents", handlers.ListAgents)
 	engine.GET("/agents/:name", handlers.GetAgent)
 	engine.GET("/hooks/catalog", handlers.HookCatalog)
-	engine.GET("/hooks/runs", handlers.HookRuns)
+	engine.GET("/workspaces/:workspace_id/hooks/runs", handlers.HookRuns)
 	engine.GET("/hooks/events", handlers.HookEvents)
-	engine.GET("/observe/events", handlers.ObserveEvents)
-	engine.GET("/observe/events/stream", handlers.StreamObserveEvents)
+	engine.GET("/workspaces/:workspace_id/observe/events", handlers.ObserveEvents)
+	engine.GET("/workspaces/:workspace_id/observe/events/stream", handlers.StreamObserveEvents)
 	engine.GET("/observe/health", handlers.Health)
 	engine.GET("/automation/jobs", handlers.ListAutomationJobs)
 	engine.POST("/automation/jobs", handlers.CreateAutomationJob)
@@ -240,23 +314,32 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/webhooks/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 	engine.GET("/daemon/status", handlers.DaemonStatus)
 	engine.GET("/network/status", handlers.NetworkStatus)
-	engine.GET("/network/peers", handlers.NetworkPeers)
-	engine.GET("/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
-	engine.GET("/network/peers/:peer_id", handlers.NetworkPeer)
-	engine.GET("/network/channels", handlers.NetworkChannels)
-	engine.POST("/network/channels", handlers.CreateNetworkChannel)
-	engine.GET("/network/channels/:channel", handlers.NetworkChannel)
-	engine.GET("/network/channels/:channel/messages", handlers.NetworkChannelMessages)
-	engine.GET("/network/channels/:channel/threads", handlers.NetworkThreads)
-	engine.GET("/network/channels/:channel/threads/:thread_id", handlers.NetworkThread)
-	engine.GET("/network/channels/:channel/threads/:thread_id/messages", handlers.NetworkThreadMessages)
-	engine.GET("/network/channels/:channel/directs", handlers.NetworkDirectRooms)
-	engine.POST("/network/channels/:channel/directs/resolve", handlers.ResolveNetworkDirectRoom)
-	engine.GET("/network/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
-	engine.GET("/network/channels/:channel/directs/:direct_id/messages", handlers.NetworkDirectRoomMessages)
-	engine.GET("/network/work/:work_id", handlers.NetworkWork)
-	engine.POST("/network/send", handlers.NetworkSend)
-	engine.GET("/network/inbox", handlers.NetworkInbox)
+	engine.GET("/workspaces/:workspace_id/network/peers", handlers.NetworkPeers)
+	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
+	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id", handlers.NetworkPeer)
+	engine.GET("/workspaces/:workspace_id/network/channels", handlers.NetworkChannels)
+	engine.POST("/workspaces/:workspace_id/network/channels", handlers.CreateNetworkChannel)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel", handlers.NetworkChannel)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel/messages", handlers.NetworkChannelMessages)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel/threads", handlers.NetworkThreads)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id", handlers.NetworkThread)
+	engine.GET(
+		"/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
+		handlers.NetworkThreadMessages,
+	)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel/directs", handlers.NetworkDirectRooms)
+	engine.POST(
+		"/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
+		handlers.ResolveNetworkDirectRoom,
+	)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
+	engine.GET(
+		"/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
+		handlers.NetworkDirectRoomMessages,
+	)
+	engine.GET("/workspaces/:workspace_id/network/work/:work_id", handlers.NetworkWork)
+	engine.POST("/workspaces/:workspace_id/network/send", handlers.NetworkSend)
+	engine.GET("/workspaces/:workspace_id/network/inbox", handlers.NetworkInbox)
 	engine.GET("/tasks", handlers.ListTasks)
 	engine.POST("/tasks", handlers.CreateTask)
 	engine.GET("/tasks/:id", handlers.GetTask)
@@ -333,8 +416,8 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/memory/providers/:provider_name/enable", handlers.EnableMemoryProvider)
 	engine.POST("/memory/providers/:provider_name/disable", handlers.DisableMemoryProvider)
 	engine.POST("/memory/ad-hoc", handlers.CreateMemoryAdhocNote)
-	engine.GET("/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
-	engine.POST("/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
+	engine.GET("/workspaces/:workspace_id/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
+	engine.POST("/workspaces/:workspace_id/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
 	engine.POST("/memory/sessions/prune", handlers.PruneMemorySessions)
 	engine.POST("/memory/sessions/repair", handlers.RepairMemorySessions)
 	engine.GET("/memory/:filename", handlers.ReadMemory)
@@ -342,9 +425,9 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.DELETE("/memory/:filename", handlers.DeleteMemory)
 	engine.POST("/workspaces", handlers.CreateWorkspace)
 	engine.GET("/workspaces", handlers.ListWorkspaces)
-	engine.GET("/workspaces/:id", handlers.GetWorkspace)
-	engine.PATCH("/workspaces/:id", handlers.UpdateWorkspace)
-	engine.DELETE("/workspaces/:id", handlers.DeleteWorkspace)
+	engine.GET("/workspaces/:workspace_id", handlers.GetWorkspace)
+	engine.PATCH("/workspaces/:workspace_id", handlers.UpdateWorkspace)
+	engine.DELETE("/workspaces/:workspace_id", handlers.DeleteWorkspace)
 	engine.POST("/workspaces/resolve", handlers.ResolveWorkspace)
 
 	return handlerFixture{

@@ -72,7 +72,7 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/sessions/sess-123/stream",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -106,7 +106,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/sessions/sess-123/stream",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -157,7 +157,7 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/observe/events/stream",
+		"/api/workspaces/ws-workspace/observe/events/stream",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -196,7 +196,7 @@ func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/observe/events/stream?session_id=sess-harness",
+		"/api/workspaces/ws-workspace/observe/events/stream?session_id=sess-harness",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)

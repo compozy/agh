@@ -22,6 +22,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/heartbeat"
+	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/soul"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -241,7 +242,13 @@ func TestAuthoredContextCoreRouteBehavior(t *testing.T) {
 
 		fixture := newAuthoredContextFixture(t)
 		engine := newUDSAuthoredContextEngine(t, fixture)
-		response := performAuthoredRequest(engine, http.MethodGet, "/api/sessions/sess-1/health", "", nil)
+		response := performAuthoredRequest(
+			engine,
+			http.MethodGet,
+			"/api/workspaces/ws-1/sessions/sess-1/health",
+			"",
+			nil,
+		)
 		if response.status != http.StatusOK {
 			t.Fatalf("status = %d, body = %s, want %d", response.status, response.body, http.StatusOK)
 		}
@@ -302,9 +309,10 @@ func newAuthoredContextFixture(t *testing.T) *authoredContextFixture {
 	cfg.Agents.Soul = aghconfig.DefaultSoulConfig()
 	cfg.Agents.Heartbeat = aghconfig.DefaultHeartbeatConfig()
 	workspace := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: root, Name: "workspace"},
-		Config:    cfg,
-		Agents:    []aghconfig.AgentDef{{Name: "coder", Provider: "test", SourcePath: agentPath}},
+		Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root, Name: "workspace"},
+		WorkspaceID: "ws-1",
+		Config:      cfg,
+		Agents:      []aghconfig.AgentDef{{Name: "coder", Provider: "test", SourcePath: agentPath}},
 	}
 	resolvedSoul := parseTestSoul(t, root, filepath.Join(agentDir, soul.FileName), cfg.Agents.Soul)
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
@@ -380,7 +388,7 @@ func newHTTPAuthoredContextEngine(t *testing.T, fixture *authoredContextFixture)
 	engine := gin.New()
 	_, err := httpapi.New(
 		httpapi.WithEngine(engine),
-		httpapi.WithSessionManager(testutil.StubSessionManager{}),
+		httpapi.WithSessionManager(authoredContextSessionManager()),
 		httpapi.WithTaskService(testutil.StubTaskManager{}),
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(workspaceResolverForFixture(fixture)),
@@ -411,7 +419,7 @@ func newUDSAuthoredContextEngine(t *testing.T, fixture *authoredContextFixture) 
 	_, err := udsapi.New(
 		udsapi.WithEngine(engine),
 		udsapi.WithSocketPath(socketPath),
-		udsapi.WithSessionManager(testutil.StubSessionManager{}),
+		udsapi.WithSessionManager(authoredContextSessionManager()),
 		udsapi.WithTaskService(testutil.StubTaskManager{}),
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(workspaceResolverForFixture(fixture)),
@@ -436,6 +444,20 @@ func workspaceResolverForFixture(fixture *authoredContextFixture) testutil.StubW
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return fixture.workspace, nil
+		},
+	}
+}
+
+func authoredContextSessionManager() testutil.StubSessionManager {
+	return testutil.StubSessionManager{
+		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if strings.TrimSpace(id) != "sess-1" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{ID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}, nil
 		},
 	}
 }

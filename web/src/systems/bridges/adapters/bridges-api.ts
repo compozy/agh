@@ -7,6 +7,7 @@ import {
 
 import type {
   BridgeDetailResponse,
+  BridgeListFilter,
   BridgeRoute,
   BridgeSecretBinding,
   BridgeProvider,
@@ -34,8 +35,31 @@ export class BridgesApiError extends Error {
   }
 }
 
-export async function listBridges(signal?: AbortSignal): Promise<BridgesListResponse> {
-  const { data, error, response } = await apiClient.GET("/api/bridges", { signal });
+function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
+function normalizeBridgeListFilter(filters: BridgeListFilter = {}): BridgeListFilter {
+  return {
+    scope: filters.scope,
+    workspace_id: normalizeOptionalText(filters.workspace_id),
+    workspace: normalizeOptionalText(filters.workspace),
+  };
+}
+
+export async function listBridges(
+  filters: BridgeListFilter = {},
+  signal?: AbortSignal
+): Promise<BridgesListResponse> {
+  const { data, error, response } = await apiClient.GET("/api/bridges", {
+    params: { query: normalizeBridgeListFilter(filters) },
+    signal,
+  });
 
   if (apiRequestFailed(response, error)) {
     throw new BridgesApiError(

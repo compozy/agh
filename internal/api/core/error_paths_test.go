@@ -62,7 +62,13 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 		},
-		ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if ref == "ws-workspace" {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: ref, RootDir: "/workspace", Name: "Workspace"},
+					WorkspaceID: ref,
+				}, nil
+			}
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
 		},
 		ResolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -90,11 +96,15 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			body:   []byte(`{"agent_name":"coder","workspace":"alpha"}`),
 			want:   http.StatusNotFound,
 		},
-		{method: http.MethodGet, path: "/sessions/missing", want: http.StatusNotFound},
-		{method: http.MethodPost, path: "/sessions/missing/resume", want: http.StatusNotFound},
-		{method: http.MethodDelete, path: "/sessions/missing", want: http.StatusNotFound},
-		{method: http.MethodGet, path: "/sessions/missing/events?since=bad", want: http.StatusBadRequest},
-		{method: http.MethodGet, path: "/observe/events", want: http.StatusInternalServerError},
+		{method: http.MethodGet, path: "/workspaces/ws-workspace/sessions/missing", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/workspaces/ws-workspace/sessions/missing/resume", want: http.StatusNotFound},
+		{method: http.MethodDelete, path: "/workspaces/ws-workspace/sessions/missing", want: http.StatusNotFound},
+		{
+			method: http.MethodGet,
+			path:   "/workspaces/ws-workspace/sessions/missing/events?since=bad",
+			want:   http.StatusBadRequest,
+		},
+		{method: http.MethodGet, path: "/workspaces/ws-workspace/observe/events", want: http.StatusInternalServerError},
 		{method: http.MethodGet, path: "/observe/health", want: http.StatusInternalServerError},
 		{method: http.MethodGet, path: "/daemon/status", want: http.StatusInternalServerError},
 		{
@@ -149,9 +159,9 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
 	for _, path := range []string{
-		"/sessions/sess-a/events",
-		"/sessions/sess-a/history",
-		"/sessions/sess-a/transcript",
+		"/workspaces/ws-workspace/sessions/sess-a/events",
+		"/workspaces/ws-workspace/sessions/sess-a/history",
+		"/workspaces/ws-workspace/sessions/sess-a/transcript",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
 		if resp.Code != http.StatusNotFound {
@@ -176,7 +186,13 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 	}
 	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
-	badStream := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/stream", nil)
+	badStream := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/workspaces/ws-workspace/sessions/sess-a/stream",
+		nil,
+	)
 	if badStream.Code != http.StatusOK {
 		t.Fatalf("stream stopped status = %d, want %d", badStream.Code, http.StatusOK)
 	}
@@ -185,7 +201,7 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/sessions/sess-a/stream",
+		"/workspaces/ws-workspace/sessions/sess-a/stream",
 		nil,
 		map[string]string{"Last-Event-ID": "bad"},
 	)
@@ -205,7 +221,7 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 		t,
 		observeFixture.Engine,
 		http.MethodGet,
-		"/observe/events/stream",
+		"/workspaces/ws-workspace/observe/events/stream",
 		nil,
 		map[string]string{"Last-Event-ID": "bad"},
 	)

@@ -2227,8 +2227,13 @@ export interface NetworkChannelPayload {
   last_message_preview?: string;
 }
 
+export interface NetworkChannelsParams {
+  workspace_id: string;
+}
+
 export interface NetworkConversationMessagePayload {
   message_id: string;
+  workspace_id?: string;
   channel: string;
   surface?: string;
   thread_id?: string;
@@ -2255,6 +2260,7 @@ export interface NetworkConversationMessagePayload {
 }
 
 export interface NetworkDirectMessagesParams {
+  workspace_id: string;
   channel: string;
   direct_id: string;
   before?: string;
@@ -2265,6 +2271,7 @@ export interface NetworkDirectMessagesParams {
 }
 
 export interface NetworkDirectResolveParams {
+  workspace_id: string;
   channel: string;
   session_id: string;
   peer_id: string;
@@ -2290,6 +2297,7 @@ export interface NetworkDirectRoomOpenedPayload {
 }
 
 export interface NetworkDirectRoomPayload {
+  workspace_id?: string;
   channel: string;
   direct_id: string;
   peer_a: string;
@@ -2302,6 +2310,7 @@ export interface NetworkDirectRoomPayload {
 }
 
 export interface NetworkDirectsParams {
+  workspace_id: string;
   channel: string;
   peer_id?: string;
   limit?: number;
@@ -2374,6 +2383,7 @@ export interface NetworkPeerCardPayload {
 }
 
 export interface NetworkPeerPayload {
+  workspace_id?: string;
   session_id?: string;
   peer_id: string;
   display_name?: string;
@@ -2386,10 +2396,12 @@ export interface NetworkPeerPayload {
 }
 
 export interface NetworkPeersParams {
+  workspace_id: string;
   channel?: string;
 }
 
 export interface NetworkSendParams {
+  workspace_id?: string;
   session_id: string;
   channel: string;
   surface?: string;
@@ -2409,6 +2421,7 @@ export interface NetworkSendParams {
 
 export interface NetworkSendPayload {
   id: string;
+  workspace_id?: string;
   session_id: string;
   channel: string;
   surface?: string;
@@ -2475,6 +2488,7 @@ export interface NetworkStatusPayload {
 }
 
 export interface NetworkThreadMessagesParams {
+  workspace_id: string;
   channel: string;
   thread_id: string;
   before?: string;
@@ -2504,6 +2518,7 @@ export interface NetworkThreadOpenedPayload {
 }
 
 export interface NetworkThreadSummaryPayload {
+  workspace_id?: string;
   channel: string;
   thread_id: string;
   root_message_id: string;
@@ -2519,11 +2534,13 @@ export interface NetworkThreadSummaryPayload {
 }
 
 export interface NetworkThreadTargetParams {
+  workspace_id: string;
   channel: string;
   thread_id: string;
 }
 
 export interface NetworkThreadsParams {
+  workspace_id: string;
   channel: string;
   limit?: number;
   after?: string;
@@ -2549,6 +2566,7 @@ export interface NetworkWorkClosedPayload {
 }
 
 export interface NetworkWorkGetParams {
+  workspace_id: string;
   work_id: string;
 }
 
@@ -2573,6 +2591,7 @@ export interface NetworkWorkOpenedPayload {
 
 export interface NetworkWorkPayload {
   work_id: string;
+  workspace_id?: string;
   channel: string;
   surface: string;
   thread_id?: string;
@@ -2606,6 +2625,7 @@ export interface NetworkWorkTransitionedPayload {
 }
 
 export interface ObserveEventsParams {
+  workspace_id: string;
   session_id?: string;
   agent_name?: string;
   type?: string;
@@ -3089,6 +3109,7 @@ export interface Run {
 }
 
 export interface SandboxExecParams {
+  workspace_id: string;
   session_id: string;
   command: string;
   timeout?: number;
@@ -3101,6 +3122,7 @@ export interface SandboxExecResult {
 }
 
 export interface SandboxInfoParams {
+  workspace_id: string;
   session_id: string;
 }
 
@@ -3338,6 +3360,7 @@ export interface SessionEvent {
 }
 
 export interface SessionEventsParams {
+  workspace_id: string;
   session_id: string;
   type?: string;
   agent_name?: string;
@@ -3348,6 +3371,7 @@ export interface SessionEventsParams {
 }
 
 export interface SessionHealthGetParams {
+  workspace_id: string;
   session_id: string;
 }
 
@@ -3592,6 +3616,7 @@ export interface SessionPromptResult {
 }
 
 export interface SessionSoulRefreshParams {
+  workspace_id: string;
   session_id: string;
   expected_digest: string;
   idempotency_key?: string;
@@ -3632,6 +3657,7 @@ export interface SessionStatus {
 }
 
 export interface SessionStatusGetParams {
+  workspace_id: string;
   session_id: string;
 }
 
@@ -3660,6 +3686,7 @@ export interface SessionSummary {
 }
 
 export interface SessionTargetParams {
+  workspace_id: string;
   session_id: string;
 }
 
@@ -3677,6 +3704,7 @@ export interface SessionsListParams {
 }
 
 export interface SessionsPromptParams {
+  workspace_id: string;
   session_id: string;
   message: string;
 }
@@ -5457,11 +5485,11 @@ export interface HostAPIMethodMap {
     result: NetworkStatusPayload;
   };
   "network/channels": {
-    params: undefined;
+    params: NetworkChannelsParams;
     result: NetworkChannelPayload[];
   };
   "network/peers": {
-    params: NetworkPeersParams | undefined;
+    params: NetworkPeersParams;
     result: NetworkPeerPayload[];
   };
   "network/threads": {

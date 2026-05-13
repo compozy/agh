@@ -33,10 +33,15 @@ export function useSessionDetailPage({
   session,
   onDeleteSuccess,
 }: UseSessionDetailPageInput): UseSessionDetailPageResult {
-  const controls = useSessionPageControls(sessionId, session.state, { onDeleteSuccess });
+  const controls = useSessionPageControls(sessionId, session.state, {
+    onDeleteSuccess,
+    workspaceId: session.workspace_id,
+  });
   const sessionVault = useSessionVaultSecrets(sessionId);
   const ledgerEnabled = session.state === "stopped";
-  const sessionLedger = useSessionLedger(sessionId, { enabled: ledgerEnabled });
+  const sessionLedger = useSessionLedger(sessionId, session.workspace_id, {
+    enabled: ledgerEnabled,
+  });
   const inspectorMemory = useMemo<InspectorMemoryState>(
     () => ({
       ledger: sessionLedger.data ?? null,

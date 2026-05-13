@@ -1050,7 +1050,7 @@ func TestNetworkPeerPayloadJSONShape(t *testing.T) {
 					ID:      "review-pr",
 					Summary: "Review pull requests",
 				}},
-				ProfilesSupported:   []string{"agh-network/v0"},
+				ProfilesSupported:   []string{"agh-network/v2"},
 				ArtifactsSupported:  []string{"capability"},
 				TrustModesSupported: []string{"untrusted"},
 				Ext: map[string]json.RawMessage{
@@ -1100,7 +1100,7 @@ func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
 					ID:      "review-pr",
 					Summary: "Review pull requests",
 				}},
-				ProfilesSupported:   []string{"agh-network/v0"},
+				ProfilesSupported:   []string{"agh-network/v2"},
 				ArtifactsSupported:  []string{"capability"},
 				TrustModesSupported: []string{"untrusted"},
 			},

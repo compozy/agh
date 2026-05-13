@@ -73,9 +73,9 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 		if got, want := len(records), len(globalSchemaMigrations); got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
-		if got := records[len(records)-1]; got.Version != modelCatalogSourceConstraintMigrationVersion ||
+		if got := records[modelCatalogSourceConstraintMigrationVersion-1]; got.Version != modelCatalogSourceConstraintMigrationVersion ||
 			got.Name != "rebuild_model_catalog_source_constraints" {
-			t.Fatalf("tail migration = %#v, want model catalog source constraint v24", got)
+			t.Fatalf("migration v24 = %#v, want model catalog source constraint v24", got)
 		}
 		for index, before := range beforeRecords {
 			if !records[index].AppliedAt.Equal(before.AppliedAt) {
@@ -214,7 +214,7 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep model catalog migration identity at global registry tail", func(t *testing.T) {
+	t.Run("Should keep model catalog migration identity before later workspace migrations", func(t *testing.T) {
 		t.Parallel()
 
 		if len(globalSchemaMigrations) < modelCatalogSourceConstraintMigrationVersion {
@@ -224,18 +224,18 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 				modelCatalogSourceConstraintMigrationVersion,
 			)
 		}
-		tail := globalSchemaMigrations[len(globalSchemaMigrations)-1]
-		if tail.Version != modelCatalogSourceConstraintMigrationVersion ||
-			tail.Name != "rebuild_model_catalog_source_constraints" ||
-			tail.Checksum != "2026-05-07-rebuild-model-catalog-source-constraints" {
+		migration := globalSchemaMigrations[modelCatalogSourceConstraintMigrationVersion-1]
+		if migration.Version != modelCatalogSourceConstraintMigrationVersion ||
+			migration.Name != "rebuild_model_catalog_source_constraints" ||
+			migration.Checksum != "2026-05-07-rebuild-model-catalog-source-constraints" {
 			t.Fatalf(
-				"tail migration = version %d name %q checksum %q, want model catalog source constraint v24",
-				tail.Version,
-				tail.Name,
-				tail.Checksum,
+				"migration v24 = version %d name %q checksum %q, want model catalog source constraint v24",
+				migration.Version,
+				migration.Name,
+				migration.Checksum,
 			)
 		}
-		if previous := globalSchemaMigrations[len(globalSchemaMigrations)-2]; previous.Version != modelCatalogMigrationVersion {
+		if previous := globalSchemaMigrations[modelCatalogSourceConstraintMigrationVersion-2]; previous.Version != modelCatalogMigrationVersion {
 			t.Fatalf("previous migration version = %d, want %d", previous.Version, modelCatalogMigrationVersion)
 		}
 	})

@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import {
   sessionDetailOptions,
   sessionLedgerOptions,
@@ -17,8 +19,10 @@ export function useSessions(workspace: string | null = null, options?: UseSessio
   });
 }
 
-export function useSession(id: string) {
-  return useQuery(sessionDetailOptions(id));
+export function useSession(id: string, workspace?: string | null) {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  return useQuery(sessionDetailOptions(workspaceId, id));
 }
 
 export interface UseSessionLedgerOptions {
@@ -31,6 +35,12 @@ export interface UseSessionLedgerOptions {
  * causes a 404 path that lingers as the cached state and prevents the query
  * from naturally fetching when the session later transitions to stopped.
  */
-export function useSessionLedger(id: string, options?: UseSessionLedgerOptions) {
-  return useQuery(sessionLedgerOptions(id, options));
+export function useSessionLedger(
+  id: string,
+  workspace?: string | null,
+  options?: UseSessionLedgerOptions
+) {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  return useQuery(sessionLedgerOptions(workspaceId, id, options));
 }

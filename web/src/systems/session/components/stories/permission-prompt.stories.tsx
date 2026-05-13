@@ -19,6 +19,15 @@ type Story = StoryObj<typeof meta>;
 
 type AutoDecision = "allow-once" | "reject-once" | null;
 
+function requireStoryWorkspaceId(): string {
+  if (!primarySessionFixture.workspace_id) {
+    throw new Error("PermissionPrompt stories require a workspace_id fixture");
+  }
+  return primarySessionFixture.workspace_id;
+}
+
+const storyWorkspaceId = requireStoryWorkspaceId();
+
 function PermissionPromptHarness({
   autoDecision,
   permission = permissionRequestFixture,
@@ -61,6 +70,7 @@ function PermissionPromptHarness({
             onResolved={() => setResolvedState(autoDecision ?? "allow-once")}
             permission={permission}
             sessionId={primarySessionFixture.id}
+            workspaceId={storyWorkspaceId}
           />
         )}
       </div>

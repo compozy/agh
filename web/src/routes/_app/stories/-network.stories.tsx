@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
-import { storyHeroNetworkChannel } from "@/storybook/fintech-scenario";
+import { storyDefaultWorkspaceId, storyHeroNetworkChannel } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -28,7 +28,9 @@ type Story = StoryObj<typeof meta>;
  */
 export const ThreadsTab: Story = {
   args: {},
-  parameters: appRouteParameters(`/network/${storyHeroNetworkChannel}/threads`),
+  parameters: appRouteParameters(
+    `/network/${storyDefaultWorkspaceId}/${storyHeroNetworkChannel}/threads`
+  ),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -37,7 +39,9 @@ export const ThreadsTab: Story = {
  */
 export const DirectsTab: Story = {
   args: {},
-  parameters: appRouteParameters(`/network/${storyHeroNetworkChannel}/directs`),
+  parameters: appRouteParameters(
+    `/network/${storyDefaultWorkspaceId}/${storyHeroNetworkChannel}/directs`
+  ),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -46,7 +50,9 @@ export const DirectsTab: Story = {
  */
 export const ActivityTab: Story = {
   args: {},
-  parameters: appRouteParameters(`/network/${storyHeroNetworkChannel}/activity`),
+  parameters: appRouteParameters(
+    `/network/${storyDefaultWorkspaceId}/${storyHeroNetworkChannel}/activity`
+  ),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -59,8 +65,12 @@ export const EmptyChannels: Story = {
     ...appRouteParameters("/network"),
     ...storybookMswParameters({
       network: [
-        http.get("/api/network/channels", () => HttpResponse.json({ channels: [] })),
-        http.get("/api/network/peers", () => HttpResponse.json({ peers: [] })),
+        http.get("/api/workspaces/:workspace_id/network/channels", () =>
+          HttpResponse.json({ channels: [] })
+        ),
+        http.get("/api/workspaces/:workspace_id/network/peers", () =>
+          HttpResponse.json({ peers: [] })
+        ),
       ],
     }),
   },

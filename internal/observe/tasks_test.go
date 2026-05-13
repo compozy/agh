@@ -305,51 +305,56 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Timestamp: h.now.Add(2 * time.Minute),
 		Payload:   mustJSON(t, map[string]any{"network_channel": "ops", "idempotency_key": "idem-1"}),
 	})
+	createObserveNetworkChannel(t, h, "ops")
 	createObserveAudit(t, h, store.NetworkAuditEntry{
-		ID:        "naud-accepted-1",
-		SessionID: "netpeer:peer-ops",
-		Direction: "received",
-		Kind:      taskIngressAuditEnqueueAction,
-		Channel:   "ops",
-		PeerFrom:  "peer-ops",
-		MessageID: "req-1",
-		Size:      32,
-		Timestamp: h.now.Add(2 * time.Minute),
+		ID:          "naud-accepted-1",
+		SessionID:   "netpeer:peer-ops",
+		Direction:   "received",
+		Kind:        taskIngressAuditEnqueueAction,
+		WorkspaceID: h.workspaceID,
+		Channel:     "ops",
+		PeerFrom:    "peer-ops",
+		MessageID:   "req-1",
+		Size:        32,
+		Timestamp:   h.now.Add(2 * time.Minute),
 	})
 	createObserveAudit(t, h, store.NetworkAuditEntry{
-		ID:        "naud-accepted-2",
-		SessionID: "netpeer:peer-ops",
-		Direction: "received",
-		Kind:      taskIngressAuditEnqueueAction,
-		Channel:   "ops",
-		PeerFrom:  "peer-ops",
-		MessageID: "req-2",
-		Size:      32,
-		Timestamp: h.now.Add(3 * time.Minute),
+		ID:          "naud-accepted-2",
+		SessionID:   "netpeer:peer-ops",
+		Direction:   "received",
+		Kind:        taskIngressAuditEnqueueAction,
+		WorkspaceID: h.workspaceID,
+		Channel:     "ops",
+		PeerFrom:    "peer-ops",
+		MessageID:   "req-2",
+		Size:        32,
+		Timestamp:   h.now.Add(3 * time.Minute),
 	})
 	createObserveAudit(t, h, store.NetworkAuditEntry{
-		ID:        "naud-rejected-mismatch",
-		SessionID: "netpeer:peer-ops",
-		Direction: "rejected",
-		Kind:      taskIngressAuditEnqueueAction,
-		Channel:   "ops",
-		PeerFrom:  "peer-ops",
-		MessageID: "req-3",
-		Reason:    taskIngressChannelMismatch,
-		Size:      32,
-		Timestamp: h.now.Add(4 * time.Minute),
+		ID:          "naud-rejected-mismatch",
+		SessionID:   "netpeer:peer-ops",
+		Direction:   "rejected",
+		Kind:        taskIngressAuditEnqueueAction,
+		WorkspaceID: h.workspaceID,
+		Channel:     "ops",
+		PeerFrom:    "peer-ops",
+		MessageID:   "req-3",
+		Reason:      taskIngressChannelMismatch,
+		Size:        32,
+		Timestamp:   h.now.Add(4 * time.Minute),
 	})
 	createObserveAudit(t, h, store.NetworkAuditEntry{
-		ID:        "naud-rejected-stale",
-		SessionID: "netpeer:peer-ops",
-		Direction: "rejected",
-		Kind:      taskIngressAuditEnqueueAction,
-		Channel:   "ops",
-		PeerFrom:  "peer-ops",
-		MessageID: "req-4",
-		Reason:    "stale_channel",
-		Size:      32,
-		Timestamp: h.now.Add(5 * time.Minute),
+		ID:          "naud-rejected-stale",
+		SessionID:   "netpeer:peer-ops",
+		Direction:   "rejected",
+		Kind:        taskIngressAuditEnqueueAction,
+		WorkspaceID: h.workspaceID,
+		Channel:     "ops",
+		PeerFrom:    "peer-ops",
+		MessageID:   "req-4",
+		Reason:      "stale_channel",
+		Size:        32,
+		Timestamp:   h.now.Add(5 * time.Minute),
 	})
 
 	metrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
@@ -1195,6 +1200,20 @@ func createObserveEvent(t *testing.T, h *harness, event taskpkg.Event) {
 	t.Helper()
 	if err := h.registry.CreateTaskEvent(testutil.Context(t), event); err != nil {
 		t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+	}
+}
+
+func createObserveNetworkChannel(t *testing.T, h *harness, channel string) {
+	t.Helper()
+	if err := h.registry.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		WorkspaceID: h.workspaceID,
+		Channel:     channel,
+		Purpose:     "observe task test",
+		CreatedBy:   "test",
+		CreatedAt:   h.now,
+		UpdatedAt:   h.now,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel(%q) error = %v", channel, err)
 	}
 }
 

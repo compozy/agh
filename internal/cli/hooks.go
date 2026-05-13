@@ -118,8 +118,9 @@ func newHooksEventsCommand(deps commandDeps) *cobra.Command {
 
 func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	var (
-		query    HookRunsQuery
-		sinceRaw string
+		query        HookRunsQuery
+		sinceRaw     string
+		workspaceRef string
 	)
 
 	cmd := &cobra.Command{
@@ -142,7 +143,11 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 				query.Since = since.UTC().Format(time.RFC3339Nano)
 			}
 
-			runs, err := client.HookRuns(cmd.Context(), query)
+			workspace, err := resolveCLIWorkspaceRouteRef(cmd.Context(), deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			runs, err := client.HookRuns(cmd.Context(), workspace, query)
 			if err != nil {
 				return err
 			}
@@ -155,6 +160,7 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Outcome, "outcome", "", "Filter by hook outcome")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&query.Last, "last", 0, "Show only the most recent N runs")
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace name, ID, or path")
 	return cmd
 }
 

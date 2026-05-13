@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { networkDirectDetailOptions, networkDirectsOptions } from "../lib/query-options";
 import type { NetworkDirectRoomDetail, NetworkDirectRoomSummary } from "../types";
 
@@ -19,10 +21,13 @@ export function useNetworkDirects(
   channel: string | null | undefined,
   options: UseNetworkDirectsOptions = {}
 ): UseNetworkDirectsResult {
-  const enabled = options.enabled !== false && Boolean(channel);
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
+  const enabled = options.enabled !== false && Boolean(channel) && activeWorkspaceId != null;
   const channelKey = channel ?? "";
   const query = useQuery(
     networkDirectsOptions(
+      workspaceId,
       channelKey,
       {
         ...(options.limit ? { limit: options.limit } : {}),
@@ -50,8 +55,13 @@ export function useNetworkDirectDetail(
   directId: string | null | undefined,
   options: { enabled?: boolean } = {}
 ): UseNetworkDirectDetailResult {
-  const enabled = options.enabled !== false && Boolean(channel) && Boolean(directId);
-  const query = useQuery(networkDirectDetailOptions(channel ?? "", directId ?? "", enabled));
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
+  const enabled =
+    options.enabled !== false && Boolean(channel) && Boolean(directId) && activeWorkspaceId != null;
+  const query = useQuery(
+    networkDirectDetailOptions(workspaceId, channel ?? "", directId ?? "", enabled)
+  );
 
   return {
     direct: query.data ?? null,

@@ -111,8 +111,8 @@ type BundleService interface {
 // NetworkService is the runtime network surface exposed to daemon transports.
 type NetworkService interface {
 	Send(ctx context.Context, req network.SendRequest) (string, error)
-	ListPeers(ctx context.Context, channel string) ([]network.PeerInfo, error)
-	ListChannels(ctx context.Context) ([]network.ChannelInfo, error)
+	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
+	ListChannels(ctx context.Context, workspaceID string) ([]network.ChannelInfo, error)
 	Status(ctx context.Context) (*network.Status, error)
 	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
 	WaitInbox(ctx context.Context, sessionID string, channel string) ([]network.Envelope, error)
@@ -171,10 +171,10 @@ type CoordinatorConfigResolver interface {
 type NetworkStore interface {
 	store.NetworkConversationStore
 	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
-	GetNetworkChannel(ctx context.Context, channel string) (store.NetworkChannelEntry, error)
+	GetNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error)
 	ListNetworkChannels(ctx context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
 	WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error
-	DeleteNetworkChannel(ctx context.Context, channel string) error
+	DeleteNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) error
 	ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
 }
 

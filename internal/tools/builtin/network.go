@@ -22,7 +22,7 @@ var networkTools = []toolspkg.Descriptor{
 		"network_channels",
 		"Network Channels",
 		"List active AGH network channels through the existing network manager.",
-		emptyInputSchema,
+		networkWorkspaceInputSchema,
 		toolspkg.RiskRead,
 		true,
 		false,
@@ -171,9 +171,20 @@ func networkDescriptors() []toolspkg.Descriptor {
 	return networkTools
 }
 
+const networkWorkspaceInputSchema = `{
+	"type":"object",
+	"required":["workspace_id"],
+	"properties":{
+		"workspace_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
 const networkPeersInputSchema = `{
 	"type":"object",
+	"required":["workspace_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -181,7 +192,9 @@ const networkPeersInputSchema = `{
 
 const networkInboxInputSchema = `{
 	"type":"object",
+	"required":["workspace_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -189,8 +202,9 @@ const networkInboxInputSchema = `{
 
 const networkSendInputSchema = `{
 	"type":"object",
-	"required":["channel","kind","body"],
+	"required":["workspace_id","channel","kind","body"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
@@ -212,8 +226,9 @@ const networkSendInputSchema = `{
 
 const networkThreadsInputSchema = `{
 	"type":"object",
-	"required":["channel"],
+	"required":["workspace_id","channel"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"limit":{"type":"integer"},
 		"after":{"type":"string"}
@@ -223,8 +238,9 @@ const networkThreadsInputSchema = `{
 
 const networkThreadMessagesInputSchema = `{
 	"type":"object",
-	"required":["channel","thread_id"],
+	"required":["workspace_id","channel","thread_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"before":{"type":"string"},
@@ -238,8 +254,9 @@ const networkThreadMessagesInputSchema = `{
 
 const networkDirectsInputSchema = `{
 	"type":"object",
-	"required":["channel"],
+	"required":["workspace_id","channel"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"peer_id":{"type":"string"},
 		"limit":{"type":"integer"},
@@ -250,8 +267,9 @@ const networkDirectsInputSchema = `{
 
 const networkDirectResolveInputSchema = `{
 	"type":"object",
-	"required":["channel","peer_id"],
+	"required":["workspace_id","channel","peer_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"peer_id":{"type":"string"}
@@ -261,8 +279,9 @@ const networkDirectResolveInputSchema = `{
 
 const networkDirectMessagesInputSchema = `{
 	"type":"object",
-	"required":["channel","direct_id"],
+	"required":["workspace_id","channel","direct_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"direct_id":{"type":"string"},
 		"before":{"type":"string"},
@@ -276,8 +295,9 @@ const networkDirectMessagesInputSchema = `{
 
 const networkWorkInputSchema = `{
 	"type":"object",
-	"required":["work_id"],
+	"required":["workspace_id","work_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"work_id":{"type":"string"}
 	},
 	"additionalProperties":false

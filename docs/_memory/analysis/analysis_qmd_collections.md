@@ -103,7 +103,7 @@ Cross-checked: `/Users/pedronauck/Dev/compozy/agh/internal/skills/` confirms `ve
 - **Six lifecycle states**: `submitted → working → needs_input → completed | failed | canceled`. Post-terminal regression is forbidden — terminal state is authoritative.
 - **Cancellation duality**: `receipt(canceled)` = initiator-side withdrawal; `trace(canceled)` = worker-side abort.
 - **Trust states**: `verified` / `unverified` / `rejected`. **Proof-stripping defense**: a verified-format identity (`nickname@fingerprint`) without `proof` is `rejected`, not `unverified`.
-- **NATS subject mapping**: `agh.network.v1.<channel>.broadcast` and `agh.network.v1.<channel>.peer.<route_token>`. Route token = first 32 hex of `SHA-256(peer_id)` for unverified peers, fingerprint suffix for verified.
+- **NATS subject mapping**: `agh.network.v2.<workspace_id>.<channel>.broadcast` and `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>`. Route token = first 32 hex of `SHA-256(peer_id)` for unverified peers, fingerprint suffix for verified.
 - **Replay defense**: bounded replay window via `id`; recommended 300-second clock-skew rejection when `expires_at` is null.
 - **Conformance combinations**: Core Sender / Core Receiver / Core Peer / + NATS Peer / + Verified Peer (additive).
 

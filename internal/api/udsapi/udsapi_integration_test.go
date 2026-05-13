@@ -68,6 +68,9 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	if created.Session.ID == "" {
 		t.Fatal("expected created session id")
 	}
+	if created.Session.WorkspaceID == "" {
+		t.Fatal("expected created session workspace id")
+	}
 
 	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
 	if listResp.StatusCode != http.StatusOK {
@@ -107,7 +110,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		"http://unix/api/sessions/"+created.Session.ID+"/prompt",
+		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, "/prompt"),
 		[]byte(`{"message":"hello"}`),
 		nil,
 	)
@@ -162,7 +165,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/sessions/"+created.Session.ID+"/events",
+		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, "/events"),
 		nil,
 		nil,
 	)
@@ -181,7 +184,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodDelete,
-		"http://unix/api/sessions/"+created.Session.ID,
+		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, ""),
 		nil,
 		nil,
 	)
@@ -195,7 +198,8 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 
 func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	sessionID := createIntegrationSession(t, runtime)
+	created := createIntegrationSessionPayload(t, runtime)
+	sessionID := created.ID
 
 	const promptTimeout = 5 * time.Second
 
@@ -229,7 +233,7 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/sessions/"+sessionID+"/transcript",
+		sessionAPIPath(created.WorkspaceID, sessionID, "/transcript"),
 		nil,
 		nil,
 	)
@@ -1022,6 +1026,10 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 	}
 	var resolved contract.WorkspaceResponse
 	decodeHTTPJSON(t, resolveResp, &resolved)
+	if resolved.Workspace.ID == "" {
+		t.Fatal("expected resolved workspace id")
+	}
+	createdSession := createIntegrationSessionPayload(t, runtime)
 
 	createResp := mustUnixRequest(
 		t,
@@ -1029,7 +1037,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		http.MethodPost,
 		"http://unix/api/automation/triggers",
 		[]byte(
-			`{"scope":"workspace","workspace_id":"`+resolved.Workspace.ID+`","name":"session-stop-review","agent_name":"coder","prompt":"review {{ index .Data \"session_id\" }}","event":"session.stopped","filter":{"data.session_type":"user"}}`,
+			`{"scope":"workspace","workspace_id":"`+createdSession.WorkspaceID+`","name":"session-stop-review","agent_name":"coder","prompt":"review {{ index .Data \"session_id\" }}","event":"session.stopped","filter":{"data.session_type":"user"}}`,
 		),
 		nil,
 	)
@@ -1068,8 +1076,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		t.Fatalf("updated trigger prompt = %q", updated.Trigger.Prompt)
 	}
 
-	sessionID := createIntegrationSession(t, runtime)
-	stopIntegrationSession(t, runtime, sessionID)
+	stopIntegrationSession(t, runtime, createdSession.WorkspaceID, createdSession.ID)
 
 	var runs contract.RunsResponse
 	deadline := time.After(2 * time.Second)
@@ -1159,15 +1166,16 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 
 func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	sessionID := createIntegrationSession(t, runtime)
-	sendPrompt(t, runtime, sessionID, "hello")
-	stopIntegrationSession(t, runtime, sessionID)
+	created := createIntegrationSessionPayload(t, runtime)
+	sessionID := created.ID
+	sendPrompt(t, runtime, created.WorkspaceID, sessionID, "hello")
+	stopIntegrationSession(t, runtime, created.WorkspaceID, sessionID)
 
 	streamResp := mustUnixRequest(
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/sessions/"+sessionID+"/stream",
+		sessionAPIPath(created.WorkspaceID, sessionID, "/stream"),
 		nil,
 		nil,
 	)
@@ -1190,7 +1198,7 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/sessions/"+sessionID+"/stream",
+		sessionAPIPath(created.WorkspaceID, sessionID, "/stream"),
 		nil,
 		headers,
 	)
@@ -1338,6 +1346,9 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 	if created.Session.Channel != "builders" {
 		t.Fatalf("created.Session.Channel = %q, want %q", created.Session.Channel, "builders")
 	}
+	if created.Session.WorkspaceID == "" {
+		t.Fatal("expected created session workspace id")
+	}
 
 	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
 	if listResp.StatusCode != http.StatusOK {
@@ -1356,13 +1367,13 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 		t.Fatalf("listed.Sessions[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
 	}
 
-	stopIntegrationSession(t, runtime, created.Session.ID)
+	stopIntegrationSession(t, runtime, created.Session.WorkspaceID, created.Session.ID)
 
 	statusResp := mustUnixRequest(
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/sessions/"+created.Session.ID,
+		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, ""),
 		nil,
 		nil,
 	)
@@ -1383,7 +1394,7 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		"http://unix/api/sessions/"+created.Session.ID+"/resume",
+		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, "/resume"),
 		nil,
 		nil,
 	)
@@ -2981,6 +2992,12 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
 
+	return createIntegrationSessionPayload(t, runtime).ID
+}
+
+func createIntegrationSessionPayload(t *testing.T, runtime integrationRuntime) sessionPayload {
+	t.Helper()
+
 	body, err := json.Marshal(map[string]string{
 		"agent_name":     "coder",
 		"workspace_path": runtime.workspace,
@@ -3006,7 +3023,13 @@ func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, resp, &created)
-	return created.Session.ID
+	if created.Session.ID == "" {
+		t.Fatal("expected created session id")
+	}
+	if created.Session.WorkspaceID == "" {
+		t.Fatal("expected created session workspace id")
+	}
+	return created.Session
 }
 
 func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {
@@ -3100,7 +3123,11 @@ func udsInboxGroupHasTask(group contract.TaskInboxLaneGroupPayload, taskID strin
 	return false
 }
 
-func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, message string) {
+func sessionAPIPath(workspaceID string, sessionID string, suffix string) string {
+	return fmt.Sprintf("http://unix/api/workspaces/%s/sessions/%s%s", workspaceID, sessionID, suffix)
+}
+
+func sendPrompt(t *testing.T, runtime integrationRuntime, workspaceID string, sessionID string, message string) {
 	t.Helper()
 
 	body, err := json.Marshal(map[string]string{"message": message})
@@ -3112,7 +3139,7 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		t,
 		runtime.client,
 		http.MethodPost,
-		"http://unix/api/sessions/"+sessionID+"/prompt",
+		sessionAPIPath(workspaceID, sessionID, "/prompt"),
 		body,
 		nil,
 	)
@@ -3169,10 +3196,10 @@ Loop:
 	return collected
 }
 
-func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID string) {
+func stopIntegrationSession(t *testing.T, runtime integrationRuntime, workspaceID string, sessionID string) {
 	t.Helper()
 
-	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions/"+sessionID+"/stop", nil, nil)
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, sessionAPIPath(workspaceID, sessionID, "/stop"), nil, nil)
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

@@ -435,6 +435,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "rebuild_model_catalog_source_constraints",
 			checksum: "2026-05-07-rebuild-model-catalog-source-constraints",
 		},
+		{
+			version:  25,
+			name:     "workspace_qualified_network_identity",
+			checksum: "2026-05-12-workspace-qualified-network-identity",
+		},
 	}
 }
 
@@ -1898,6 +1903,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 		[]string{
 			"id",
 			"session_id",
+			"workspace_id",
 			"type",
 			"agent_name",
 			"content_json",
@@ -1967,11 +1973,8 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}
-	if got, want := len(summaries), 1; got != want {
+	if got, want := len(summaries), 0; got != want {
 		t.Fatalf("len(summaries) = %d, want %d", got, want)
-	}
-	if summaries[0].RootSessionID != "sess-legacy-a" || summaries[0].SpawnDepth != 0 {
-		t.Fatalf("migrated event summary lineage = %#v", summaries[0])
 	}
 }
 
@@ -2946,26 +2949,28 @@ func openTestGlobalDB(t *testing.T) *GlobalDB {
 	return globalDB
 }
 
-func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID string) {
+func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID string) string {
 	t.Helper()
 
 	now := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		sessionID+"-workspace",
+		filepath.Join(t.TempDir(), sessionID),
+	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:        sessionID,
-		AgentName: "coder",
-		Provider:  "claude",
-		WorkspaceID: registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			sessionID+"-workspace",
-			filepath.Join(t.TempDir(), sessionID),
-		),
-		State:     "active",
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          sessionID,
+		AgentName:   "coder",
+		Provider:    "claude",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}
+	return workspaceID
 }
 
 func insertWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, ws aghworkspace.Workspace) aghworkspace.Workspace {

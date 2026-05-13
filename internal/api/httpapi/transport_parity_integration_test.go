@@ -104,7 +104,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 		t,
 		clients.HTTPClient,
 		http.MethodGet,
-		runtimeHarness.HTTPURL("/api/sessions/"+url.PathEscape(session.ID)),
+		runtimeHarness.HTTPURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(session.ID)),
 		nil,
 		nil,
 	)
@@ -162,7 +162,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		if err := runtimeHarness.HTTPJSON(
 			ctx,
 			http.MethodGet,
-			"/api/sessions/"+url.PathEscape(created.Session.ID),
+			"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID),
 			nil,
 			&detail,
 		); err != nil {
@@ -199,7 +199,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			t,
 			runtimeHarness.HTTPClient,
 			http.MethodPost,
-			runtimeHarness.HTTPURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
+			runtimeHarness.HTTPURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
 			nil,
 			nil,
 		)
@@ -227,7 +227,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			t,
 			runtimeHarness.HTTPClient,
 			http.MethodPost,
-			runtimeHarness.HTTPURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
+			runtimeHarness.HTTPURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
 			nil,
 			nil,
 		)
@@ -347,7 +347,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	if err := runtimeHarness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(session.ID)+"/events",
+		"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(session.ID)+"/events",
 		nil,
 		&eventsResp,
 	); err != nil {

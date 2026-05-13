@@ -53,7 +53,9 @@ func observeDescriptors() []toolspkg.Descriptor {
 
 const observeEventsInputSchema = `{
 	"type":"object",
+	"required":["workspace_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"type":{"type":"string"},
@@ -65,8 +67,9 @@ const observeEventsInputSchema = `{
 
 const observeSearchInputSchema = `{
 	"type":"object",
-	"required":["query"],
+	"required":["workspace_id","query"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"query":{"type":"string"},
 		"session_id":{"type":"string"},
 		"agent_name":{"type":"string"},

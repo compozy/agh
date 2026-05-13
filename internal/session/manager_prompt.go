@@ -495,6 +495,10 @@ func (m *Manager) pumpPrompt(
 			session.clearCurrentPromptMeta()
 			session.clearCurrentPromptCancel()
 		}
+		notifier := m.currentTurnEndNotifier()
+		if notifier != nil && session != nil {
+			notifier(session.ID)
+		}
 		close(out)
 		if session != nil {
 			if fatalPromptFailure != nil {
@@ -502,10 +506,6 @@ func (m *Manager) pumpPrompt(
 			} else {
 				m.startNextQueuedSyntheticPrompt(session.ID)
 			}
-		}
-		notifier := m.currentTurnEndNotifier()
-		if notifier != nil && session != nil {
-			notifier(session.ID)
 		}
 	}()
 

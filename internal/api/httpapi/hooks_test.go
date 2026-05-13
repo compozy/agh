@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,7 @@ func TestHookCatalogHandlerReturnsResolvedHooksAndWorkspaceFilter(t *testing.T) 
 					ID:      "ws-alpha",
 					RootDir: "/workspace/alpha",
 				},
+				WorkspaceID: "ws-alpha",
 			}, nil
 		},
 	}
@@ -162,7 +164,7 @@ func TestHookRunsHandlerReturnsExecutionHistoryWithPatchDiffs(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/hooks/runs?session=sess-hook&event=permission.request&outcome=denied&since=2026-04-09T17:59:00Z&last=20",
+		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&event=permission.request&outcome=denied&since=2026-04-09T17:59:00Z&last=20",
 		nil,
 	)
 	if recorder.Code != http.StatusOK {
@@ -191,9 +193,42 @@ func TestHookRunsHandlerRejectsMissingSession(t *testing.T) {
 	t.Parallel()
 
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/hooks/runs", nil)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+}
+
+func TestHookRunsHandlerRejectsForeignWorkspaceSession(t *testing.T) {
+	t.Parallel()
+
+	manager := stubSessionManager{
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			info := newSessionInfo(id)
+			info.WorkspaceID = "ws-other"
+			return info, nil
+		},
+	}
+	observer := stubObserver{
+		QueryHookRunsFn: func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error) {
+			t.Fatal("QueryHookRuns() called for foreign workspace session")
+			return nil, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlers(t, manager, observer, newTestHomePaths(t)))
+
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook",
+		nil,
+	)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "sess-hook") {
+		t.Fatalf("body = %s, want no foreign session id disclosure", recorder.Body.String())
 	}
 }
 
@@ -208,7 +243,13 @@ func TestHookRunsHandlerRejectsInvalidEvent(t *testing.T) {
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session=sess-hook&event=not-a-hook", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&event=not-a-hook",
+		nil,
+	)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 	}
@@ -245,7 +286,13 @@ func TestHookRunsHandlerRejectsInvalidOutcome(t *testing.T) {
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session=sess-hook&outcome=nope", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&outcome=nope",
+		nil,
+	)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 	}
@@ -262,7 +309,13 @@ func TestHookRunsHandlerRejectsInvalidSince(t *testing.T) {
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session=sess-hook&since=not-a-time", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&since=not-a-time",
+		nil,
+	)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 	}
@@ -279,7 +332,13 @@ func TestHookRunsHandlerRejectsInvalidLast(t *testing.T) {
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session=sess-hook&last=-1", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&last=-1",
+		nil,
+	)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 	}

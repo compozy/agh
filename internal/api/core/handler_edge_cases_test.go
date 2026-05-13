@@ -757,7 +757,13 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{}, nil, nil)
 	fixture.Handlers.SetStreamDone(done)
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/events/stream?agent_name=coder", nil)
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/workspaces/ws-workspace/observe/events/stream?agent_name=coder",
+		nil,
+	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("observe stream status = %d, want %d", resp.Code, http.StatusOK)
 	}

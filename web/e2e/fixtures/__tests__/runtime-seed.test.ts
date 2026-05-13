@@ -282,7 +282,7 @@ describe("browser runtime seed helpers", () => {
 
   it("materializes deterministic network channel, peer, and timeline state through public runtime surfaces", async () => {
     const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
-      if (pathname === "/api/network/channels/browser-builders") {
+      if (pathname === "/api/workspaces/ws_browser/network/channels/browser-builders") {
         return {
           channel: {
             channel: "browser-builders",
@@ -304,7 +304,7 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
-      if (pathname === "/api/network/peers?channel=browser-builders") {
+      if (pathname === "/api/workspaces/ws_browser/network/peers?channel=browser-builders") {
         return {
           peers: [
             {
@@ -321,7 +321,7 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
-      if (pathname === "/api/network/send") {
+      if (pathname === "/api/workspaces/ws_browser/network/send") {
         return {
           message: {
             id: JSON.parse(init?.body as string).id,
@@ -329,7 +329,9 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
-      if (pathname === "/api/network/channels/browser-builders/directs/resolve") {
+      if (
+        pathname === "/api/workspaces/ws_browser/network/channels/browser-builders/directs/resolve"
+      ) {
         expect(JSON.parse(init?.body as string)).toEqual({
           session_id: "sess_patch",
           peer_id: "peer_ops",
@@ -343,7 +345,7 @@ describe("browser runtime seed helpers", () => {
 
       if (
         pathname ===
-        `/api/network/channels/browser-builders/threads/${browserNetworkOperatorFlowScenario.threadId}/messages`
+        `/api/workspaces/ws_browser/network/channels/browser-builders/threads/${browserNetworkOperatorFlowScenario.threadId}/messages`
       ) {
         return {
           messages: [
@@ -362,7 +364,8 @@ describe("browser runtime seed helpers", () => {
       }
 
       if (
-        pathname === "/api/network/channels/browser-builders/directs/direct_browser_patch/messages"
+        pathname ===
+        "/api/workspaces/ws_browser/network/channels/browser-builders/directs/direct_browser_patch/messages"
       ) {
         return {
           messages: [
@@ -410,6 +413,7 @@ describe("browser runtime seed helpers", () => {
         channel: "browser-builders",
         initiatorAgentName: "mock-ops-coordinator",
         responderAgentName: "mock-patch-worker",
+        workspaceId: "ws_browser",
       }
     );
 
@@ -434,10 +438,11 @@ describe("browser runtime seed helpers", () => {
       threadId: browserNetworkOperatorFlowScenario.threadId,
       traceId: browserNetworkOperatorFlowScenario.traceId,
       workId: browserNetworkOperatorFlowScenario.workId,
+      workspaceId: "ws_browser",
     });
 
     const sendBodies = requestJSON.mock.calls
-      .filter(([pathname]) => pathname === "/api/network/send")
+      .filter(([pathname]) => pathname === "/api/workspaces/ws_browser/network/send")
       .map(([, init]) => JSON.parse(init?.body as string));
 
     expect(sendBodies).toEqual([
@@ -548,6 +553,7 @@ describe("browser runtime seed helpers", () => {
             id: "run_browser_deploy_001",
             job_id: "job_browser_deploy_review",
             session_id: "sess_browser_automation_01",
+            workspace_id: "ws_browser_automation",
             status: "completed",
             attempt: 1,
             started_at: "2026-04-17T10:02:00Z",
@@ -563,6 +569,7 @@ describe("browser runtime seed helpers", () => {
               id: "run_browser_deploy_001",
               job_id: "job_browser_deploy_review",
               session_id: "sess_browser_automation_01",
+              workspace_id: "ws_browser_automation",
               status: "completed",
               attempt: 1,
               started_at: "2026-04-17T10:02:00Z",
@@ -572,7 +579,10 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
-      if (pathname === "/api/sessions/sess_browser_automation_01/transcript") {
+      if (
+        pathname ===
+        "/api/workspaces/ws_browser_automation/sessions/sess_browser_automation_01/transcript"
+      ) {
         return {
           messages: [
             {
@@ -625,7 +635,9 @@ describe("browser runtime seed helpers", () => {
     expect(requestJSON).toHaveBeenCalledWith(
       "/api/automation/jobs/job_browser_deploy_review/runs?limit=10"
     );
-    expect(requestJSON).toHaveBeenCalledWith("/api/sessions/sess_browser_automation_01/transcript");
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/workspaces/ws_browser_automation/sessions/sess_browser_automation_01/transcript"
+    );
   });
 
   it("seeds deterministic task list, dashboard, inbox, and linked run-detail state through public runtime surfaces", async () => {

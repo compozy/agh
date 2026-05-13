@@ -76,6 +76,7 @@ interface SessionEnvelope {
   session: {
     acp_session_id?: string;
     id: string;
+    workspace_id: string;
   };
 }
 
@@ -252,7 +253,11 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await sessionUI.composerTextarea.fill("remember me");
   await sessionUI.composerTextarea.press("Enter");
   await expect(sessionUI.chatView).toContainText("qa-memory acknowledged", { timeout: 30_000 });
-  const recalledACPSessionID = await acpSessionIDForSession(runtime, recalledSession.session.id);
+  const recalledACPSessionID = await acpSessionIDForSession(
+    runtime,
+    recalledSession.session.workspace_id,
+    recalledSession.session.id
+  );
   const recalledPrompt = await promptForSession(
     runtime,
     memoryRecallAgentName,
@@ -263,7 +268,11 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   expect(recalledPrompt).toContain(marker);
   expect(recalledPrompt).toContain("\n\nUser message:\nremember me");
   expect(recalledPrompt).not.toMatch(sensitivePattern);
-  await assertStoredUserMessageClean(runtime, recalledSession.session.id);
+  await assertStoredUserMessageClean(
+    runtime,
+    recalledSession.session.workspace_id,
+    recalledSession.session.id
+  );
 
   await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
   await knowledgeUI.tabWorkspace.click();
@@ -308,6 +317,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(sessionUI.chatView).toContainText("qa-memory acknowledged", { timeout: 30_000 });
   const postDeleteACPSessionID = await acpSessionIDForSession(
     runtime,
+    postDeleteSession.session.workspace_id,
     postDeleteSession.session.id
   );
   const postDeletePrompt = await promptForSession(
@@ -559,12 +569,16 @@ async function promptForSession(
   return prompt;
 }
 
-async function acpSessionIDForSession(runtime: BrowserRuntime, sessionID: string): Promise<string> {
+async function acpSessionIDForSession(
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  sessionID: string
+): Promise<string> {
   let acpSessionID = "";
   await expect
     .poll(async () => {
       const detail = await runtime.requestJSON<SessionEnvelope>(
-        `/api/sessions/${encodeURIComponent(sessionID)}`
+        sessionAPIPath(workspaceID, sessionID)
       );
       acpSessionID = detail.session.acp_session_id ?? "";
       return acpSessionID !== "";
@@ -575,13 +589,14 @@ async function acpSessionIDForSession(runtime: BrowserRuntime, sessionID: string
 
 async function assertStoredUserMessageClean(
   runtime: BrowserRuntime,
+  workspaceID: string,
   sessionID: string
 ): Promise<void> {
   let userMessage: TranscriptMessage | undefined;
   await expect
     .poll(async () => {
       const transcript = await runtime.requestJSON<{ messages: TranscriptMessage[] }>(
-        `/api/sessions/${encodeURIComponent(sessionID)}/transcript`
+        sessionAPIPath(workspaceID, sessionID, "/transcript")
       );
       userMessage = transcript.messages.find(message => message.role === "user");
       return transcriptMessageText(userMessage);
@@ -590,6 +605,12 @@ async function assertStoredUserMessageClean(
   const serialized = JSON.stringify(userMessage ?? {});
   expect(serialized).not.toContain("Relevant durable memory for this turn:");
   expect(serialized).not.toMatch(sensitivePattern);
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
 }
 
 function transcriptMessageText(message: TranscriptMessage | undefined): string {

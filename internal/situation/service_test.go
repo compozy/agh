@@ -1179,7 +1179,7 @@ func TestSelectionPreviewAndBoundingHelpers(t *testing.T) {
 	greet := envelopeWithBody(t, network.KindGreet, network.GreetBody{
 		PeerCard: network.PeerCard{
 			PeerID:              "peer",
-			ProfilesSupported:   []string{network.ProtocolV0},
+			ProfilesSupported:   []string{network.ProtocolV2},
 			Capabilities:        []string{},
 			ArtifactsSupported:  []string{},
 			TrustModesSupported: []string{},
@@ -1333,7 +1333,7 @@ func coordinationEnvelope(
 		t.Fatalf("marshal coordination metadata: %v", err)
 	}
 	return network.Envelope{
-		Protocol: network.ProtocolV0,
+		Protocol: network.ProtocolV2,
 		ID:       id,
 		Kind:     network.KindSay,
 		Channel:  channel,
@@ -1352,7 +1352,7 @@ func envelopeWithBody(t *testing.T, kind network.Kind, bodyValue network.Body) n
 		t.Fatalf("marshal %s body: %v", kind, err)
 	}
 	return network.Envelope{
-		Protocol: network.ProtocolV0,
+		Protocol: network.ProtocolV2,
 		ID:       "preview",
 		Kind:     kind,
 		Channel:  "coord",
@@ -1680,7 +1680,7 @@ func (s networkStub) Inbox(_ context.Context, _ string) ([]network.Envelope, err
 	return slices.Clone(s.envelopes), nil
 }
 
-func (s networkStub) ListPeers(_ context.Context, _ string) ([]network.PeerInfo, error) {
+func (s networkStub) ListPeers(_ context.Context, _ string, _ string) ([]network.PeerInfo, error) {
 	return slices.Clone(s.peers), nil
 }
 

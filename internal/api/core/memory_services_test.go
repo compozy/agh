@@ -10,6 +10,8 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	"github.com/pedronauck/agh/internal/session"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
@@ -210,7 +212,7 @@ func TestMemorySessionLedgerHandlersUseInjectedService(t *testing.T) {
 	}
 	engine := newMemoryServiceRouter(t, &core.BaseHandlerConfig{MemorySessionLedger: ledger})
 
-	getResp := performRequest(t, engine, http.MethodGet, "/memory/sessions/sess-1/ledger", nil)
+	getResp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-workspace/memory/sessions/sess-1/ledger", nil)
 	if getResp.Code != http.StatusOK {
 		t.Fatalf("ledger status code = %d, want %d", getResp.Code, http.StatusOK)
 	}
@@ -224,7 +226,7 @@ func TestMemorySessionLedgerHandlersUseInjectedService(t *testing.T) {
 		t,
 		engine,
 		http.MethodPost,
-		"/memory/sessions/sess-1/replay",
+		"/workspaces/ws-workspace/memory/sessions/sess-1/replay",
 		[]byte(`{"include_tool_events":true}`),
 	)
 	if replayResp.Code != http.StatusOK {
@@ -235,6 +237,54 @@ func TestMemorySessionLedgerHandlersUseInjectedService(t *testing.T) {
 	if replayPayload.SessionID != "sess-1" || !ledger.replayReq.IncludeToolEvents {
 		t.Fatalf("replay payload=%#v request=%#v, want include tool events", replayPayload, ledger.replayReq)
 	}
+}
+
+func TestMemorySessionLedgerHandlersRejectForeignWorkspaceSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject foreign workspace before ledger service access", func(t *testing.T) {
+		ledger := &stubMemorySessionLedgerService{}
+		foreign := testutil.NewSessionInfo("sess-foreign")
+		foreign.WorkspaceID = "ws-other"
+		engine := newMemoryServiceRouter(t, &core.BaseHandlerConfig{
+			MemorySessionLedger: ledger,
+			Sessions: testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, _ string) (*session.Info, error) {
+					return foreign, nil
+				},
+			},
+		})
+
+		tests := []struct {
+			name   string
+			method string
+			path   string
+			body   []byte
+		}{
+			{
+				name:   "Should reject ledger read",
+				method: http.MethodGet,
+				path:   "/workspaces/ws-workspace/memory/sessions/sess-foreign/ledger",
+			},
+			{
+				name:   "Should reject replay",
+				method: http.MethodPost,
+				path:   "/workspaces/ws-workspace/memory/sessions/sess-foreign/replay",
+				body:   []byte(`{"include_tool_events":true}`),
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				resp := performRequest(t, engine, tc.method, tc.path, tc.body)
+				if resp.Code != http.StatusNotFound {
+					t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusNotFound, resp.Body.String())
+				}
+			})
+		}
+		if ledger.totalCalls() != 0 {
+			t.Fatalf("ledger calls = %d, want 0", ledger.totalCalls())
+		}
+	})
 }
 
 func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engine {
@@ -248,6 +298,26 @@ func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engi
 	cfg.Now = func() time.Time {
 		return time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 	}
+	if cfg.Sessions == nil {
+		cfg.Sessions = testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+		}
+	}
+	if cfg.Workspaces == nil {
+		cfg.Workspaces = testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-workspace" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", RootDir: "/workspace", Name: "Workspace"},
+					WorkspaceID: "ws-workspace",
+				}, nil
+			},
+		}
+	}
 	handlers := core.NewBaseHandlers(cfg)
 	engine := gin.New()
 	engine.GET("/memory/extractor/status", handlers.GetMemoryExtractorStatus)
@@ -258,8 +328,8 @@ func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engi
 	engine.POST("/memory/providers/select", handlers.SelectMemoryProvider)
 	engine.POST("/memory/providers/:provider_name/enable", handlers.EnableMemoryProvider)
 	engine.POST("/memory/providers/:provider_name/disable", handlers.DisableMemoryProvider)
-	engine.GET("/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
-	engine.POST("/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
+	engine.GET("/workspaces/:workspace_id/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
+	engine.POST("/workspaces/:workspace_id/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
 	return engine
 }
 
@@ -354,16 +424,19 @@ func (s *stubMemoryProviderService) Disable(
 }
 
 type stubMemorySessionLedgerService struct {
-	response  contract.MemorySessionLedgerResponse
-	replay    contract.MemorySessionReplayResponse
-	sessionID string
-	replayReq contract.MemorySessionReplayRequest
+	response    contract.MemorySessionLedgerResponse
+	replay      contract.MemorySessionReplayResponse
+	sessionID   string
+	replayReq   contract.MemorySessionReplayRequest
+	getCalls    int
+	replayCalls int
 }
 
 func (s *stubMemorySessionLedgerService) Get(
 	_ context.Context,
 	sessionID string,
 ) (contract.MemorySessionLedgerResponse, error) {
+	s.getCalls++
 	s.sessionID = sessionID
 	return s.response, nil
 }
@@ -373,9 +446,14 @@ func (s *stubMemorySessionLedgerService) Replay(
 	sessionID string,
 	req contract.MemorySessionReplayRequest,
 ) (contract.MemorySessionReplayResponse, error) {
+	s.replayCalls++
 	s.sessionID = sessionID
 	s.replayReq = req
 	return s.replay, nil
+}
+
+func (s *stubMemorySessionLedgerService) totalCalls() int {
+	return s.getCalls + s.replayCalls
 }
 
 func (s *stubMemorySessionLedgerService) Prune(

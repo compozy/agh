@@ -30,10 +30,13 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { ActivityFeed } from "../activity-feed";
 
+const WORKSPACE_ID = "ws_alpha";
+
 describe("ActivityFeed", () => {
   it("Should sort entries by last_activity_at across both surfaces", () => {
     render(
       <ActivityFeed
+        workspaceId={WORKSPACE_ID}
         channel="ops"
         directs={[
           {
@@ -78,6 +81,7 @@ describe("ActivityFeed", () => {
   it("Should render the kind tag prefixes [TH] and [DM]", () => {
     render(
       <ActivityFeed
+        workspaceId={WORKSPACE_ID}
         channel="ops"
         directs={[
           {

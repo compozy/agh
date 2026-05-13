@@ -262,6 +262,7 @@ export interface BrowserNetworkOperatorFlowSeed {
   initiatorAgentName: string;
   responderAgentName: string;
   timeoutMs?: number;
+  workspaceId: string;
 }
 
 interface BrowserNetworkOperatorFlowParticipant extends SeededSessionPayload {
@@ -277,6 +278,7 @@ export interface BrowserNetworkOperatorFlowResult {
   threadId: string;
   traceId: string;
   workId: string;
+  workspaceId: string;
 }
 
 export interface BrowserRuntimeSeedResult {
@@ -706,6 +708,7 @@ export async function seedBrowserNetworkOperatorFlow(
   const channel = seed.channel.trim();
   const initiatorAgentName = seed.initiatorAgentName.trim();
   const responderAgentName = seed.responderAgentName.trim();
+  const workspaceId = requireSeedWorkspaceID(seed.workspaceId, "network operator flow seed");
 
   if (channel === "") {
     throw new Error("network operator flow seed requires a non-empty channel");
@@ -719,7 +722,7 @@ export async function seedBrowserNetworkOperatorFlow(
   const channelState = await waitForSeedCondition(
     async () => {
       const payload = await runtime.requestJSON<{ channel: NetworkChannelSeedPayload }>(
-        `/api/network/channels/${encodeURIComponent(channel)}`
+        workspaceNetworkPath(workspaceId, `/channels/${encodeURIComponent(channel)}`)
       );
       const sessions = payload.channel.sessions ?? [];
       const initiatorSession = sessions.find(session => session.agent_name === initiatorAgentName);
@@ -741,7 +744,7 @@ export async function seedBrowserNetworkOperatorFlow(
   const peerState = await waitForSeedCondition(
     async () => {
       const payload = await runtime.requestJSON<{ peers: NetworkPeerSeedPayload[] }>(
-        `/api/network/peers?channel=${encodeURIComponent(channel)}`
+        workspaceNetworkPath(workspaceId, `/peers?channel=${encodeURIComponent(channel)}`)
       );
       const initiatorPeer = payload.peers.find(
         peer => peer.session_id === channelState.initiatorSession.id
@@ -764,7 +767,7 @@ export async function seedBrowserNetworkOperatorFlow(
   );
 
   const directRoom = await runtime.requestJSON<{ direct: { direct_id: string } }>(
-    `/api/network/channels/${encodeURIComponent(channel)}/directs/resolve`,
+    workspaceNetworkPath(workspaceId, `/channels/${encodeURIComponent(channel)}/directs/resolve`),
     {
       method: "POST",
       body: JSON.stringify({
@@ -778,7 +781,7 @@ export async function seedBrowserNetworkOperatorFlow(
     throw new Error("network operator flow seed direct resolve returned an empty direct_id");
   }
 
-  await sendNetworkSeedMessage(runtime, {
+  await sendNetworkSeedMessage(runtime, workspaceId, {
     session_id: channelState.initiatorSession.id,
     channel,
     kind: "say",
@@ -793,7 +796,7 @@ export async function seedBrowserNetworkOperatorFlow(
     },
   });
 
-  await sendNetworkSeedMessage(runtime, {
+  await sendNetworkSeedMessage(runtime, workspaceId, {
     session_id: channelState.responderSession.id,
     channel,
     kind: "say",
@@ -812,7 +815,7 @@ export async function seedBrowserNetworkOperatorFlow(
     },
   });
 
-  await sendNetworkSeedMessage(runtime, {
+  await sendNetworkSeedMessage(runtime, workspaceId, {
     session_id: channelState.responderSession.id,
     channel,
     kind: "trace",
@@ -834,7 +837,7 @@ export async function seedBrowserNetworkOperatorFlow(
     },
   });
 
-  await sendNetworkSeedMessage(runtime, {
+  await sendNetworkSeedMessage(runtime, workspaceId, {
     session_id: channelState.responderSession.id,
     channel,
     kind: "say",
@@ -854,9 +857,12 @@ export async function seedBrowserNetworkOperatorFlow(
   await waitForSeedCondition(
     async () => {
       const payload = await runtime.requestJSON<{ messages: NetworkMessageSeedPayload[] }>(
-        `/api/network/channels/${encodeURIComponent(channel)}/threads/${encodeURIComponent(
-          browserNetworkOperatorFlowScenario.threadId
-        )}/messages`
+        workspaceNetworkPath(
+          workspaceId,
+          `/channels/${encodeURIComponent(channel)}/threads/${encodeURIComponent(
+            browserNetworkOperatorFlowScenario.threadId
+          )}/messages`
+        )
       );
       const messageIds = new Set(payload.messages.map(message => message.message_id));
 
@@ -872,9 +878,10 @@ export async function seedBrowserNetworkOperatorFlow(
   await waitForSeedCondition(
     async () => {
       const payload = await runtime.requestJSON<{ messages: NetworkMessageSeedPayload[] }>(
-        `/api/network/channels/${encodeURIComponent(channel)}/directs/${encodeURIComponent(
-          directId
-        )}/messages`
+        workspaceNetworkPath(
+          workspaceId,
+          `/channels/${encodeURIComponent(channel)}/directs/${encodeURIComponent(directId)}/messages`
+        )
       );
       const messageIds = new Set(payload.messages.map(message => message.message_id));
 
@@ -924,6 +931,7 @@ export async function seedBrowserNetworkOperatorFlow(
     threadId: browserNetworkOperatorFlowScenario.threadId,
     traceId: browserNetworkOperatorFlowScenario.traceId,
     workId: browserNetworkOperatorFlowScenario.workId,
+    workspaceId,
   };
 }
 
@@ -1003,8 +1011,12 @@ export async function seedBrowserAutomationOperatorFlow(
 
   await waitForSeedCondition(
     async () => {
+      const workspaceId = requireSeedWorkspaceID(
+        (baselineRun as { workspace_id?: string }).workspace_id,
+        `automation run ${baselineRun.id}`
+      );
       const payload = await runtime.requestJSON<{ messages: unknown[] }>(
-        `/api/sessions/${encodeURIComponent(baselineRun.session_id ?? "")}/transcript`
+        workspaceSessionPath(workspaceId, baselineRun.session_id ?? "", "/transcript")
       );
       const transcript = JSON.stringify(payload.messages);
 
@@ -1748,8 +1760,12 @@ export async function triggerBrowserBridgeIngress(
 
   const transcriptPayload = await waitForSeedCondition(
     async () => {
+      const workspaceId = requireSeedWorkspaceID(
+        (routes[0] as { workspace_id?: string } | undefined)?.workspace_id,
+        `bridge route for session ${sessionId}`
+      );
       const payload = await runtime.requestJSON<{ messages: unknown[] }>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/transcript`
+        workspaceSessionPath(workspaceId, sessionId, "/transcript")
       );
       const transcript = JSON.stringify(payload.messages);
       const assistantText =
@@ -1877,12 +1893,41 @@ function renderMockAgentDef(name: string, agent: MockFixtureAgent, command: stri
 
 async function sendNetworkSeedMessage(
   runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
+  workspaceId: string,
   body: Record<string, unknown>
 ): Promise<void> {
-  await runtime.requestJSON("/api/network/send", {
+  await runtime.requestJSON(workspaceNetworkPath(workspaceId, "/send"), {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+function requireSeedWorkspaceID(workspaceId: string | undefined, context: string): string {
+  const normalized = workspaceId?.trim() ?? "";
+  if (normalized === "") {
+    throw new Error(`${context} requires a workspace_id`);
+  }
+  return normalized;
+}
+
+function workspaceNetworkPath(workspaceId: string, suffix: string): string {
+  return workspacePath(workspaceId, `/network${suffix.startsWith("/") ? suffix : `/${suffix}`}`);
+}
+
+function workspaceSessionPath(workspaceId: string, sessionId: string, suffix: string): string {
+  const normalizedSessionID = sessionId.trim();
+  if (normalizedSessionID === "") {
+    throw new Error("workspace session path requires a session_id");
+  }
+  return workspacePath(
+    workspaceId,
+    `/sessions/${encodeURIComponent(normalizedSessionID)}${suffix.startsWith("/") ? suffix : `/${suffix}`}`
+  );
+}
+
+function workspacePath(workspaceId: string, suffix: string): string {
+  const normalizedWorkspaceID = requireSeedWorkspaceID(workspaceId, "workspace-scoped path");
+  return `/api/workspaces/${encodeURIComponent(normalizedWorkspaceID)}${suffix}`;
 }
 
 async function createAutomationOperatorJob(

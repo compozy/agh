@@ -21,8 +21,8 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			{path: "/api/agents/{agent_name}/heartbeat", method: "GET", status: 200},
 			{path: "/api/agents/{agent_name}/heartbeat/status", method: "GET", status: 200},
 			{path: "/api/agents/{agent_name}/heartbeat/wake", method: "POST", status: 200},
-			{path: "/api/sessions/{session_id}/health", method: "GET", status: 200},
-			{path: "/api/sessions/{session_id}/inspect", method: "GET", status: 200},
+			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/health", method: "GET", status: 200},
+			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect", method: "GET", status: 200},
 		} {
 			operation := operationFor(t, doc, target.path, target.method)
 			assertResponseStatus(t, operation, target.status)
@@ -106,7 +106,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			"error",
 		)
 
-		healthOperation := operationFor(t, doc, "/api/sessions/{session_id}/health", "GET")
+		healthOperation := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/health", "GET")
 		healthResponseSchema := jsonResponseSchema(t, healthOperation, 200)
 		healthSchema := propertySchema(t, healthResponseSchema, "health")
 		assertEnumValues(t, propertySchema(t, healthSchema, "state"),
@@ -171,7 +171,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 		}{
 			{path: "/api/agent/soul", method: "GET"},
 			{path: "/api/agents/{agent_name}/heartbeat/status", method: "GET"},
-			{path: "/api/sessions/{session_id}/inspect", method: "GET"},
+			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect", method: "GET"},
 		} {
 			operation := operationFor(t, doc, target.path, target.method)
 			assertOperationTransports(t, operation, TransportHTTP, TransportUDS)

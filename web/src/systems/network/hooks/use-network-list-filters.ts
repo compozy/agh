@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createFilter, type Filter as ReuiFilter } from "@agh/ui/components/reui/filters";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useActiveNetworkSession } from "./use-active-session";
-import { useLastRead, type NetworkLastReadKey } from "./use-last-read";
+import { useLastRead, type NetworkLastReadLookupKey } from "./use-last-read";
 import type { NetworkDirectRoomSummary, NetworkSurface, NetworkThreadSummary } from "../types";
 
 const PINNED_STORAGE_KEY = "network:pinned-items";
@@ -31,8 +32,13 @@ export type NetworkChipFilter = ReuiFilter<boolean>;
 
 type PinnedStore = Record<string, true>;
 
-function pinnedKey(channel: string, surface: NetworkSurface, id: string): string {
-  return `${channel}:${surface}:${id}`;
+function pinnedKey(
+  workspaceId: string,
+  channel: string,
+  surface: NetworkSurface,
+  id: string
+): string {
+  return `${workspaceId}:${channel}:${surface}:${id}`;
 }
 
 function readPinned(): PinnedStore {
@@ -166,6 +172,7 @@ export function useNetworkListFilters({
   threads,
   directs,
 }: UseNetworkListFiltersArgs): UseNetworkListFiltersResult {
+  const { activeWorkspaceId } = useActiveWorkspace();
   const [filters, setFilters] = useState<NetworkChipFilter[]>([]);
   const [sort, setSort] = useState<NetworkListSort>("recent_activity");
   const [pinnedStore, setPinnedStore] = useState<PinnedStore>(() => readPinned());
@@ -187,14 +194,19 @@ export function useNetworkListFilters({
   }, []);
 
   const isPinned = useCallback(
-    (surface: NetworkSurface, id: string) => pinnedStore[pinnedKey(channel, surface, id)] === true,
-    [channel, pinnedStore]
+    (surface: NetworkSurface, id: string) =>
+      activeWorkspaceId != null &&
+      pinnedStore[pinnedKey(activeWorkspaceId, channel, surface, id)] === true,
+    [activeWorkspaceId, channel, pinnedStore]
   );
 
   const togglePinned = useCallback(
     (surface: NetworkSurface, id: string, on: boolean) => {
+      if (!activeWorkspaceId) {
+        return;
+      }
       setPinnedStore(current => {
-        const key = pinnedKey(channel, surface, id);
+        const key = pinnedKey(activeWorkspaceId, channel, surface, id);
         const isCurrentlyOn = current[key] === true;
         if (isCurrentlyOn === on) {
           return current;
@@ -209,7 +221,7 @@ export function useNetworkListFilters({
         return next;
       });
     },
-    [channel]
+    [activeWorkspaceId, channel]
   );
 
   const pin = useCallback(
@@ -347,7 +359,7 @@ export function useNetworkListFilters({
       if (!thread.last_activity_at) {
         continue;
       }
-      const key: NetworkLastReadKey = {
+      const key: NetworkLastReadLookupKey = {
         channel,
         surface: "thread",
         containerId: thread.thread_id,
@@ -358,7 +370,7 @@ export function useNetworkListFilters({
       if (!direct.last_activity_at) {
         continue;
       }
-      const key: NetworkLastReadKey = {
+      const key: NetworkLastReadLookupKey = {
         channel,
         surface: "direct",
         containerId: direct.direct_id,

@@ -18,6 +18,8 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
+const hostAPINetworkWorkspaceID = "ws-host-network"
+
 func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -37,6 +39,7 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 			name:   "ShouldRejectSendWithoutNetworkWrite",
 			method: string(extensioncontract.HostAPIMethodNetworkSend),
 			params: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"surface":"thread",
@@ -50,6 +53,7 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 			name:   "ShouldRejectDirectResolveWithoutNetworkWrite",
 			method: string(extensioncontract.HostAPIMethodNetworkDirectResolve),
 			params: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"channel":"builders",
 				"session_id":"sess-local",
 				"peer_id":"peer.remote"
@@ -85,6 +89,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		{
 			name: "ShouldRejectLegacyInteractionID",
 			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"surface":"thread",
@@ -98,6 +103,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		{
 			name: "ShouldRejectDirectKind",
 			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"surface":"direct",
@@ -110,6 +116,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		{
 			name: "ShouldRejectRawClaimTokenFields",
 			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"surface":"thread",
@@ -122,6 +129,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		{
 			name: "ShouldRejectConversationFieldsWithoutSurface",
 			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"thread_id":"thread_alpha01",
@@ -133,6 +141,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		{
 			name: "ShouldRejectGreetWithConversationFields",
 			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"surface":"thread",
@@ -145,6 +154,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		{
 			name: "ShouldRejectCapabilityWithoutWorkID",
 			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"session_id":"sess-local",
 				"channel":"builders",
 				"surface":"thread",
@@ -197,8 +207,9 @@ func TestHostAPIHandlerNetworkSendShouldForwardValidPayload(t *testing.T) {
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkSend),
 		json.RawMessage(`{
-			"session_id":"sess-local",
-			"channel":"builders",
+				"workspace_id":"ws-host-network",
+				"session_id":"sess-local",
+				"channel":"builders",
 			"surface":"thread",
 			"thread_id":"thread_alpha01",
 			"kind":"say",
@@ -242,9 +253,10 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkSend),
 		json.RawMessage(fmt.Sprintf(`{
-			"id":"msg-client",
-			"session_id":"sess-local",
-			"channel":"builders",
+				"id":"msg-client",
+				"workspace_id":"ws-host-network",
+				"session_id":"sess-local",
+				"channel":"builders",
 			"surface":"direct",
 			"direct_id":"direct_0123456789abcdef0123456789abcdef",
 			"kind":"receipt",
@@ -290,6 +302,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	_, err := storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
 		MessageID:   "msg-thread-root",
 		SessionID:   "sess-local",
+		WorkspaceID: hostAPINetworkWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    "thread_alpha01",
@@ -306,13 +319,19 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 	}
-	directID, _, _, err := network.DirectRoomIdentity("builders", "agent.local", "peer.remote")
+	directID, _, _, err := network.DirectRoomIdentity(
+		hostAPINetworkWorkspaceID,
+		"builders",
+		"agent.local",
+		"peer.remote",
+	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
 	_, err = storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
 		MessageID:   "msg-direct-one",
 		SessionID:   "sess-local",
+		WorkspaceID: hostAPINetworkWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceDirect,
 		DirectID:    directID,
@@ -402,7 +421,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkChannels),
-		nil,
+		json.RawMessage(`{"workspace_id":"ws-host-network"}`),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/channels) error = %v, want nil", err)
@@ -417,7 +436,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkPeers),
-		json.RawMessage(`{"channel":"builders"}`),
+		json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders"}`),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/peers) error = %v, want nil", err)
@@ -432,7 +451,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkThreads),
-		json.RawMessage(`{"channel":"builders","limit":10}`),
+		json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders","limit":10}`),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/threads) error = %v, want nil", err)
@@ -447,7 +466,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkThreadGet),
-		json.RawMessage(`{"channel":"builders","thread_id":"thread_alpha01"}`),
+		json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders","thread_id":"thread_alpha01"}`),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/thread/get) error = %v, want nil", err)
@@ -462,7 +481,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkDirects),
-		json.RawMessage(`{"channel":"builders","peer_id":"peer.remote","limit":10}`),
+		json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders","peer_id":"peer.remote","limit":10}`),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/directs) error = %v, want nil", err)
@@ -477,7 +496,9 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkDirectMessages),
-		json.RawMessage(fmt.Sprintf(`{"channel":"builders","direct_id":%q,"limit":10}`, directID)),
+		json.RawMessage(
+			fmt.Sprintf(`{"workspace_id":"ws-host-network","channel":"builders","direct_id":%q,"limit":10}`, directID),
+		),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/direct/messages) error = %v, want nil", err)
@@ -492,7 +513,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ctx,
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkWorkGet),
-		json.RawMessage(`{"work_id":"work-alpha"}`),
+		json.RawMessage(`{"workspace_id":"ws-host-network","work_id":"work-alpha"}`),
 	)
 	if err != nil {
 		t.Fatalf("Handle(network/work/get) error = %v, want nil", err)
@@ -533,22 +554,25 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectInvalidReadParams(t *testing.T)
 		{
 			name:   "ShouldRejectPeerChannelTraversal",
 			method: string(extensioncontract.HostAPIMethodNetworkPeers),
-			params: json.RawMessage(`{"channel":"bad/channel"}`),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network","channel":"bad/channel"}`),
 		},
 		{
 			name:   "ShouldRejectThreadsLimit",
 			method: string(extensioncontract.HostAPIMethodNetworkThreads),
-			params: json.RawMessage(`{"channel":"builders","limit":-1}`),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders","limit":-1}`),
 		},
 		{
 			name:   "ShouldRejectThreadID",
 			method: string(extensioncontract.HostAPIMethodNetworkThreadGet),
-			params: json.RawMessage(`{"channel":"builders","thread_id":"provider-thread"}`),
+			params: json.RawMessage(
+				`{"workspace_id":"ws-host-network","channel":"builders","thread_id":"provider-thread"}`,
+			),
 		},
 		{
 			name:   "ShouldRejectConflictingMessageCursors",
 			method: string(extensioncontract.HostAPIMethodNetworkThreadMessages),
 			params: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
 				"channel":"builders",
 				"thread_id":"thread_alpha01",
 				"before":"msg-before",
@@ -558,17 +582,19 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectInvalidReadParams(t *testing.T)
 		{
 			name:   "ShouldRejectDirectsLimit",
 			method: string(extensioncontract.HostAPIMethodNetworkDirects),
-			params: json.RawMessage(`{"channel":"builders","limit":-1}`),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders","limit":-1}`),
 		},
 		{
 			name:   "ShouldRejectDirectID",
 			method: string(extensioncontract.HostAPIMethodNetworkDirectMessages),
-			params: json.RawMessage(`{"channel":"builders","direct_id":"thread_alpha01"}`),
+			params: json.RawMessage(
+				`{"workspace_id":"ws-host-network","channel":"builders","direct_id":"thread_alpha01"}`,
+			),
 		},
 		{
 			name:   "ShouldRejectWorkID",
 			method: string(extensioncontract.HostAPIMethodNetworkWorkGet),
-			params: json.RawMessage(`{"work_id":"bad/work"}`),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network","work_id":"bad/work"}`),
 		},
 	}
 
@@ -618,7 +644,7 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingDependencies(t *testing.
 			testutil.Context(t),
 			"ext-network",
 			string(extensioncontract.HostAPIMethodNetworkThreads),
-			json.RawMessage(`{"channel":"builders"}`),
+			json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders"}`),
 		)
 		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
 	})
@@ -664,6 +690,7 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 				"ext-network",
 				string(extensioncontract.HostAPIMethodNetworkDirectResolve),
 				json.RawMessage(`{
+					"workspace_id":"ws-host-network",
 					"channel":"builders",
 					"session_id":"sess-local",
 					"peer_id":"peer.remote"
@@ -685,7 +712,12 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 	for err := range errs {
 		t.Fatalf("Handle(network/direct/resolve concurrent) error = %v", err)
 	}
-	expectedID, _, _, err := network.DirectRoomIdentity("builders", "agent.local", "peer.remote")
+	expectedID, _, _, err := network.DirectRoomIdentity(
+		hostAPINetworkWorkspaceID,
+		"builders",
+		"agent.local",
+		"peer.remote",
+	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
@@ -695,7 +727,10 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 		}
 	}
 
-	directs, err := storeDB.ListDirectRooms(testutil.Context(t), "builders", store.NetworkDirectRoomQuery{Limit: 10})
+	directs, err := storeDB.ListDirectRooms(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: hostAPINetworkWorkspaceID,
+		Channel:     "builders",
+	}, store.NetworkDirectRoomQuery{Limit: 10})
 	if err != nil {
 		t.Fatalf("ListDirectRooms() error = %v", err)
 	}
@@ -710,18 +745,19 @@ func TestHostAPIHandlerNetworkThreadMessagesShouldUseConversationStore(t *testin
 	storeDB := openHostAPINetworkTestStore(t)
 	baseTime := time.Date(2026, 4, 10, 18, 30, 0, 0, time.UTC)
 	_, err := storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
-		MessageID: "msg-thread-root",
-		SessionID: "sess-local",
-		Channel:   "builders",
-		Surface:   store.NetworkSurfaceThread,
-		ThreadID:  "thread_alpha01",
-		Direction: "sent",
-		PeerFrom:  "agent.local",
-		PeerTo:    "peer.remote",
-		Kind:      store.NetworkKindSay,
-		Text:      "hello thread",
-		Body:      json.RawMessage(`{"text":"hello thread"}`),
-		Timestamp: baseTime,
+		MessageID:   "msg-thread-root",
+		SessionID:   "sess-local",
+		WorkspaceID: hostAPINetworkWorkspaceID,
+		Channel:     "builders",
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    "thread_alpha01",
+		Direction:   "sent",
+		PeerFrom:    "agent.local",
+		PeerTo:      "peer.remote",
+		Kind:        store.NetworkKindSay,
+		Text:        "hello thread",
+		Body:        json.RawMessage(`{"text":"hello thread"}`),
+		Timestamp:   baseTime,
 	})
 	if err != nil {
 		t.Fatalf("WriteConversationMessage() error = %v", err)
@@ -739,6 +775,7 @@ func TestHostAPIHandlerNetworkThreadMessagesShouldUseConversationStore(t *testin
 		"ext-network",
 		string(extensioncontract.HostAPIMethodNetworkThreadMessages),
 		json.RawMessage(`{
+			"workspace_id":"ws-host-network",
 			"channel":"builders",
 			"thread_id":"thread_alpha01",
 			"limit":10
@@ -820,12 +857,20 @@ func (s *hostAPINetworkServiceStub) Send(_ context.Context, req network.SendRequ
 	return "msg-network-stub", nil
 }
 
-func (s *hostAPINetworkServiceStub) ListPeers(_ context.Context, channel string) ([]network.PeerInfo, error) {
+func (s *hostAPINetworkServiceStub) ListPeers(
+	_ context.Context,
+	workspaceID string,
+	channel string,
+) ([]network.PeerInfo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	trimmedChannel := strings.TrimSpace(channel)
 	peers := make([]network.PeerInfo, 0, len(s.peers))
 	for _, peer := range s.peers {
+		if trimmedWorkspaceID != "" && peer.WorkspaceID != "" && peer.WorkspaceID != trimmedWorkspaceID {
+			continue
+		}
 		if trimmedChannel != "" && peer.Channel != trimmedChannel {
 			continue
 		}
@@ -834,10 +879,18 @@ func (s *hostAPINetworkServiceStub) ListPeers(_ context.Context, channel string)
 	return peers, nil
 }
 
-func (s *hostAPINetworkServiceStub) ListChannels(context.Context) ([]network.ChannelInfo, error) {
+func (s *hostAPINetworkServiceStub) ListChannels(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]network.ChannelInfo(nil), s.channels...), nil
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	channels := make([]network.ChannelInfo, 0, len(s.channels))
+	for _, channel := range s.channels {
+		if trimmedWorkspaceID != "" && channel.WorkspaceID != "" && channel.WorkspaceID != trimmedWorkspaceID {
+			continue
+		}
+		channels = append(channels, channel)
+	}
+	return channels, nil
 }
 
 func (s *hostAPINetworkServiceStub) Status(context.Context) (*network.Status, error) {

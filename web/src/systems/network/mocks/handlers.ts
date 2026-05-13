@@ -49,8 +49,10 @@ function readOptionalString(
 
 export const handlers: HttpHandler[] = [
   http.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
-  http.get("/api/network/channels", () => HttpResponse.json(networkChannelsFixture)),
-  http.get("/api/network/channels/:channel", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/network/channels", () =>
+    HttpResponse.json(networkChannelsFixture)
+  ),
+  http.get("/api/workspaces/:workspace_id/network/channels/:channel", ({ params }) => {
     const channel = String(params.channel);
 
     if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
@@ -64,7 +66,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.get("/api/network/channels/:channel/threads", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/network/channels/:channel/threads", ({ params }) => {
     const channel = String(params.channel);
 
     if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
@@ -75,40 +77,46 @@ export const handlers: HttpHandler[] = [
       threads: networkThreadsFixture.map(thread => ({ ...thread, channel })),
     });
   }),
-  http.get("/api/network/channels/:channel/threads/:thread_id", ({ params }) => {
-    const channel = String(params.channel);
-    const threadId = String(params.thread_id);
+  http.get(
+    "/api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id",
+    ({ params }) => {
+      const channel = String(params.channel);
+      const threadId = String(params.thread_id);
 
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({
+        thread: {
+          ...networkThreadDetailFixture,
+          channel,
+          thread_id: threadId,
+        },
+      });
     }
+  ),
+  http.get(
+    "/api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
+    ({ params }) => {
+      const channel = String(params.channel);
+      const threadId = String(params.thread_id);
 
-    return HttpResponse.json({
-      thread: {
-        ...networkThreadDetailFixture,
-        channel,
-        thread_id: threadId,
-      },
-    });
-  }),
-  http.get("/api/network/channels/:channel/threads/:thread_id/messages", ({ params }) => {
-    const channel = String(params.channel);
-    const threadId = String(params.thread_id);
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
 
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      return HttpResponse.json({
+        messages: networkThreadMessagesFixture.map(message => ({
+          ...message,
+          channel,
+          surface: "thread",
+          thread_id: threadId,
+        })),
+      });
     }
-
-    return HttpResponse.json({
-      messages: networkThreadMessagesFixture.map(message => ({
-        ...message,
-        channel,
-        surface: "thread",
-        thread_id: threadId,
-      })),
-    });
-  }),
-  http.get("/api/network/channels/:channel/directs", ({ params }) => {
+  ),
+  http.get("/api/workspaces/:workspace_id/network/channels/:channel/directs", ({ params }) => {
     const channel = String(params.channel);
 
     if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
@@ -119,64 +127,73 @@ export const handlers: HttpHandler[] = [
       directs: networkDirectRoomsFixture.map(direct => ({ ...direct, channel })),
     });
   }),
-  http.post("/api/network/channels/:channel/directs/resolve", async ({ params, request }) => {
-    const channel = String(params.channel);
-    const body = readRecord(await request.json());
-    const peerId = readRequiredString(body, "peer_id");
-    const sessionId = readRequiredString(body, "session_id");
+  http.post(
+    "/api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
+    async ({ params, request }) => {
+      const channel = String(params.channel);
+      const body = readRecord(await request.json());
+      const peerId = readRequiredString(body, "peer_id");
+      const sessionId = readRequiredString(body, "session_id");
 
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
+
+      if (!peerId || !sessionId) {
+        return HttpResponse.json(
+          { error: "peer_id and session_id are required to resolve a direct room." },
+          { status: 400 }
+        );
+      }
+
+      return HttpResponse.json({
+        direct: {
+          ...networkDirectRoomDetailFixture,
+          channel,
+        },
+      });
     }
+  ),
+  http.get(
+    "/api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id",
+    ({ params }) => {
+      const channel = String(params.channel);
+      const directId = String(params.direct_id);
 
-    if (!peerId || !sessionId) {
-      return HttpResponse.json(
-        { error: "peer_id and session_id are required to resolve a direct room." },
-        { status: 400 }
-      );
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({
+        direct: {
+          ...networkDirectRoomDetailFixture,
+          channel,
+          direct_id: directId,
+        },
+      });
     }
+  ),
+  http.get(
+    "/api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
+    ({ params }) => {
+      const channel = String(params.channel);
+      const directId = String(params.direct_id);
 
-    return HttpResponse.json({
-      direct: {
-        ...networkDirectRoomDetailFixture,
-        channel,
-      },
-    });
-  }),
-  http.get("/api/network/channels/:channel/directs/:direct_id", ({ params }) => {
-    const channel = String(params.channel);
-    const directId = String(params.direct_id);
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
 
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      return HttpResponse.json({
+        messages: networkDirectRoomMessagesFixture.map(message => ({
+          ...message,
+          channel,
+          surface: "direct",
+          direct_id: directId,
+        })),
+      });
     }
-
-    return HttpResponse.json({
-      direct: {
-        ...networkDirectRoomDetailFixture,
-        channel,
-        direct_id: directId,
-      },
-    });
-  }),
-  http.get("/api/network/channels/:channel/directs/:direct_id/messages", ({ params }) => {
-    const channel = String(params.channel);
-    const directId = String(params.direct_id);
-
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({
-      messages: networkDirectRoomMessagesFixture.map(message => ({
-        ...message,
-        channel,
-        surface: "direct",
-        direct_id: directId,
-      })),
-    });
-  }),
-  http.get("/api/network/work/:work_id", ({ params }) => {
+  ),
+  http.get("/api/workspaces/:workspace_id/network/work/:work_id", ({ params }) => {
     const workId = String(params.work_id);
     return HttpResponse.json({
       work: {
@@ -185,7 +202,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.get("/api/network/peers", ({ request }) => {
+  http.get("/api/workspaces/:workspace_id/network/peers", ({ request }) => {
     const channel = new URL(request.url).searchParams.get("channel");
     const peers = channel
       ? networkPeersFixture.filter(peer => peer.channel === channel)
@@ -193,7 +210,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ peers });
   }),
-  http.get("/api/network/peers/:peer_id", ({ params }) => {
+  http.get("/api/workspaces/:workspace_id/network/peers/:peer_id", ({ params }) => {
     const peerId = String(params.peer_id);
     const peerSummary = networkPeersFixture.find(peer => peer.peer_id === peerId);
 
@@ -217,7 +234,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/network/channels", async ({ request }) => {
+  http.post("/api/workspaces/:workspace_id/network/channels", async ({ request }) => {
     const body = (await request.json()) as {
       agent_names?: string[];
       channel?: string;
@@ -249,7 +266,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.post("/api/network/send", async ({ request }) => {
+  http.post("/api/workspaces/:workspace_id/network/send", async ({ request }) => {
     const body = readRecord(await request.json());
     const sessionId = readRequiredString(body, "session_id");
     const channel = readRequiredString(body, "channel");

@@ -305,7 +305,7 @@ func mustHTTPSession(
 	if err := harness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(sessionID),
+		"/api/workspaces/"+url.PathEscape(harness.WorkspaceID)+"/sessions/"+url.PathEscape(sessionID),
 		nil,
 		&response,
 	); err != nil {

@@ -1,10 +1,10 @@
 ---
 title: Message Kinds
-description: Reference for the six AGH Network v0 message kinds, their conversation surface and work rules, required body fields, and JSON examples.
+description: Reference for the six AGH Network v2 message kinds, their conversation surface and work rules, required body fields, and JSON examples.
 icon: MessageSquare
 ---
 
-AGH Network v0 defines six message kinds. The envelope selects the kind with the top-level `kind`
+AGH Network v2 defines six message kinds. The envelope selects the kind with the top-level `kind`
 field. Conversation-bearing kinds also select an explicit conversation surface and matching
 container ID; lifecycle-bearing kinds also carry a `work_id`. The `body` object then follows the
 schema for that kind.
@@ -53,8 +53,9 @@ reject envelopes that try to set `kind:"direct"`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_greet_001",
+  "workspace_id": "ws_alpha",
   "kind": "greet",
   "channel": "builders",
   "from": "patch-worker.session-19",
@@ -64,7 +65,7 @@ reject envelopes that try to set `kind:"direct"`.
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["agh-network/v2"],
       "capabilities": ["code.patch", "test.run", "git.diff.review"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -107,8 +108,9 @@ body forms: `request` and `response`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_whois_req_001",
+  "workspace_id": "ws_alpha",
   "kind": "whois",
   "channel": "builders",
   "from": "ops-coordinator.session-42",
@@ -126,8 +128,9 @@ body forms: `request` and `response`.
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_whois_res_001",
+  "workspace_id": "ws_alpha",
   "kind": "whois",
   "channel": "builders",
   "from": "patch-worker.session-19",
@@ -139,7 +142,7 @@ body forms: `request` and `response`.
     "peer_card": {
       "peer_id": "patch-worker.session-19",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v0"],
+      "profiles_supported": ["agh-network/v2"],
       "capabilities": ["code.patch", "test.run", "git.diff.review"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
@@ -181,8 +184,9 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_say_thread_001",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -209,8 +213,9 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_say_direct_001",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "direct",
@@ -233,8 +238,9 @@ Annotation: a normal text message in a direct room is `kind:"say"` with `surface
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_say_work_001",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -304,8 +310,9 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_capability_001",
+  "workspace_id": "ws_alpha",
   "kind": "capability",
   "channel": "builders",
   "surface": "thread",
@@ -316,6 +323,7 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
   "body": {
     "capability": {
       "id": "fix-go-migration-tests",
+      "workspace_id": "ws_alpha",
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",
@@ -367,8 +375,9 @@ acceptance, rejection, duplicate detection, expiration, unsupported behavior, or
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_receipt_001",
+  "workspace_id": "ws_alpha",
   "kind": "receipt",
   "channel": "builders",
   "surface": "thread",
@@ -418,8 +427,9 @@ Annotation: an accepted receipt confirms responsibility. It does not mean the wo
 
 ```json
 {
-  "protocol": "agh-network/v0",
+  "protocol": "agh-network/v2",
   "id": "msg_trace_001",
+  "workspace_id": "ws_alpha",
   "kind": "trace",
   "channel": "builders",
   "surface": "thread",

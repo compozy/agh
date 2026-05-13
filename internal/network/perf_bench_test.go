@@ -9,7 +9,8 @@ import (
 
 func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 	envelope := Envelope{
-		Protocol:    ProtocolV0,
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
 		ID:          "msg-bench-direct",
 		Kind:        KindSay,
 		Channel:     "builders",
@@ -67,7 +68,7 @@ func BenchmarkPeerRegistryListPeersFiltered(b *testing.B) {
 			peerID := fmt.Sprintf("local.%02d.%02d", channelIdx, localIdx)
 			card := benchmarkPeerCard(b, peerID, "bench-local")
 			sessionID := fmt.Sprintf("sess-%02d-%02d", channelIdx, localIdx)
-			if _, err := registry.RegisterLocal(sessionID, channel, card, now); err != nil {
+			if _, err := registry.RegisterLocal(sessionID, testWorkspaceID, channel, card, now); err != nil {
 				b.Fatalf("RegisterLocal(%q, %q) error = %v", sessionID, channel, err)
 			}
 		}
@@ -75,7 +76,7 @@ func BenchmarkPeerRegistryListPeersFiltered(b *testing.B) {
 		for remoteIdx := range remotePerChannel {
 			peerID := fmt.Sprintf("remote.%02d.%02d", channelIdx, remoteIdx)
 			card := benchmarkPeerCard(b, peerID, "bench-remote")
-			if _, stored, err := registry.RefreshRemote(channel, card, now); err != nil {
+			if _, stored, err := registry.RefreshRemote(testWorkspaceID, channel, card, now); err != nil {
 				b.Fatalf("RefreshRemote(%q, %q) error = %v", channel, peerID, err)
 			} else if !stored {
 				b.Fatalf("RefreshRemote(%q, %q) stored = false, want true", channel, peerID)
@@ -86,7 +87,7 @@ func BenchmarkPeerRegistryListPeersFiltered(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		peers := registry.ListPeers(targetChannel, now)
+		peers := registry.ListPeers(testWorkspaceID, targetChannel, now)
 		if len(peers) != expectedPeerCount {
 			b.Fatalf("len(ListPeers(%q)) = %d, want %d", targetChannel, len(peers), expectedPeerCount)
 		}
@@ -127,7 +128,7 @@ func benchmarkPeerCard(b *testing.B, peerID string, capability string) PeerCard 
 	card := PeerCard{
 		PeerID:              peerID,
 		DisplayName:         &displayName,
-		ProfilesSupported:   []string{ProtocolV0},
+		ProfilesSupported:   []string{ProtocolV2},
 		Capabilities:        []string{capability, "chat.review"},
 		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"unverified"},

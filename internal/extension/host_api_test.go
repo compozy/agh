@@ -138,8 +138,9 @@ func TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents(t *testing.T
 
 	sess := env.createSession(t)
 	result, err := env.call(t, "ext-prompt", "sessions/prompt", map[string]string{
-		"session_id": sess.ID,
-		"message":    "hello from extension",
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+		"message":      "hello from extension",
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/prompt) error = %v", err)
@@ -170,7 +171,10 @@ func TestHostAPIHandlerSessionsStopStopsSession(t *testing.T) {
 	env.grant("ext-stop", []string{"sessions/stop"}, []string{"session.write"})
 
 	sess := env.createSession(t)
-	if _, err := env.call(t, "ext-stop", "sessions/stop", map[string]string{"session_id": sess.ID}); err != nil {
+	if _, err := env.call(t, "ext-stop", "sessions/stop", map[string]string{
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+	}); err != nil {
 		t.Fatalf("Handle(sessions/stop) error = %v", err)
 	}
 
@@ -190,7 +194,10 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	env.grant("ext-status", []string{"sessions/status"}, []string{"session.read"})
 
 	sess := env.createSession(t)
-	result, err := env.call(t, "ext-status", "sessions/status", map[string]string{"session_id": sess.ID})
+	result, err := env.call(t, "ext-status", "sessions/status", map[string]string{
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/status) error = %v", err)
 	}
@@ -206,6 +213,19 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	if status.Provider != sess.Info().Provider {
 		t.Fatalf("sessions/status provider = %q, want %q", status.Provider, sess.Info().Provider)
 	}
+
+	foreign := env.workspace
+	foreign.ID = "ws-foreign-registry"
+	foreign.WorkspaceID = "ws-foreign"
+	foreign.ID = "ws-foreign-registry"
+	foreign.RootDir = t.TempDir()
+	foreign.Name = "foreign"
+	env.workspaces.upsert(&foreign)
+	_, err = env.call(t, "ext-status", "sessions/status", map[string]string{
+		"workspace_id": foreign.WorkspaceID,
+		"session_id":   sess.ID,
+	})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
 func TestHostAPIHandlerCreateBridgeSessionUsesExplicitEmptyProvider(t *testing.T) {
@@ -324,7 +344,10 @@ func TestHostAPIHandlerSandboxInfoReturnsRuntimeState(t *testing.T) {
 		return
 	}
 
-	result, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{"session_id": sess.ID})
+	result, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+	})
 	if err != nil {
 		t.Fatalf("Handle(sandbox/info) error = %v", err)
 	}
@@ -356,7 +379,25 @@ func TestHostAPIHandlerSandboxInfoReturnsNotFoundForInvalidSession(t *testing.T)
 	env := newHostAPITestEnv(t)
 	env.grant("ext-env-info", []string{"sandbox/info"}, nil)
 
-	_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{"session_id": "missing"})
+	_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
+		"workspace_id": env.workspaceID,
+		"session_id":   "missing",
+	})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+}
+
+func TestHostAPIHandlerSandboxInfoRejectsForeignWorkspace(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-info", []string{"sandbox/info"}, nil)
+	sess := env.createSession(t)
+	foreign := env.addForeignWorkspace(t)
+
+	_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
+		"workspace_id": foreign.WorkspaceID,
+		"session_id":   sess.ID,
+	})
 	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
@@ -462,9 +503,10 @@ func TestHostAPIHandlerSandboxExecRequiresExecCapability(t *testing.T) {
 	sess := env.createSession(t)
 
 	_, err := env.call(t, "ext-env-exec-denied", "sandbox/exec", map[string]any{
-		"session_id": sess.ID,
-		"command":    "printf denied",
-		"timeout":    1,
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+		"command":      "printf denied",
+		"timeout":      1,
 	})
 	assertCapabilityDenied(t, err, "sandbox/exec")
 }
@@ -477,9 +519,10 @@ func TestHostAPIHandlerSandboxExecRunsCommandInSandbox(t *testing.T) {
 	sess := env.createSession(t)
 
 	result, err := env.call(t, "ext-env-exec", "sandbox/exec", map[string]any{
-		"session_id": sess.ID,
-		"command":    "printf host-api-env",
-		"timeout":    5,
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+		"command":      "printf host-api-env",
+		"timeout":      5,
 	})
 	if err != nil {
 		t.Fatalf("Handle(sandbox/exec) error = %v", err)
@@ -498,6 +541,23 @@ func TestHostAPIHandlerSandboxExecRunsCommandInSandbox(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerSandboxExecRejectsForeignWorkspace(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-exec", []string{"sandbox/exec"}, []string{"sandbox.exec"})
+	sess := env.createSession(t)
+	foreign := env.addForeignWorkspace(t)
+
+	_, err := env.call(t, "ext-env-exec", "sandbox/exec", map[string]any{
+		"workspace_id": foreign.WorkspaceID,
+		"session_id":   sess.ID,
+		"command":      "printf should-not-run",
+		"timeout":      5,
+	})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+}
+
 func TestHostAPIHandlerSandboxExecValidatesParams(t *testing.T) {
 	t.Parallel()
 
@@ -514,14 +574,15 @@ func TestHostAPIHandlerSandboxExecValidatesParams(t *testing.T) {
 		},
 		{
 			name:   "missing command",
-			params: map[string]any{"session_id": "sess-1"},
+			params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"},
 		},
 		{
 			name: "negative timeout",
 			params: map[string]any{
-				"session_id": "sess-1",
-				"command":    "pwd",
-				"timeout":    -1,
+				"workspace_id": env.workspaceID,
+				"session_id":   "sess-1",
+				"command":      "pwd",
+				"timeout":      -1,
 			},
 		},
 	}
@@ -542,8 +603,9 @@ func TestHostAPIHandlerSessionsEventsSupportsSinceFilter(t *testing.T) {
 
 	sess := env.createSession(t)
 	if _, err := env.call(t, "ext-events", "sessions/events", map[string]any{
-		"session_id": sess.ID,
-		"limit":      10,
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+		"limit":        10,
 	}); err != nil {
 		t.Fatalf("Handle(sessions/events baseline) error = %v", err)
 	}
@@ -554,9 +616,10 @@ func TestHostAPIHandlerSessionsEventsSupportsSinceFilter(t *testing.T) {
 	}
 
 	result, err := env.call(t, "ext-events", "sessions/events", map[string]any{
-		"session_id": sess.ID,
-		"since":      since,
-		"limit":      10,
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+		"since":        since,
+		"limit":        10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/events) error = %v", err)
@@ -597,17 +660,17 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 		{
 			name:   "ShouldRejectStopWithoutManager",
 			method: "sessions/stop",
-			params: map[string]any{"session_id": "sess-1"},
+			params: map[string]any{"workspace_id": "ws-1", "session_id": "sess-1"},
 		},
 		{
 			name:   "ShouldRejectStatusWithoutManager",
 			method: "sessions/status",
-			params: map[string]any{"session_id": "sess-1"},
+			params: map[string]any{"workspace_id": "ws-1", "session_id": "sess-1"},
 		},
 		{
 			name:   "ShouldRejectEventsWithoutManager",
 			method: "sessions/events",
-			params: map[string]any{"session_id": "sess-1"},
+			params: map[string]any{"workspace_id": "ws-1", "session_id": "sess-1"},
 		},
 	}
 
@@ -1007,9 +1070,10 @@ func TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince(t *testing.T)
 	}
 
 	result, err := env.call(t, "ext-observe", "observe/events", map[string]any{
-		"session_id": sess.ID,
-		"since":      since,
-		"limit":      20,
+		"workspace_id": env.workspaceID,
+		"session_id":   sess.ID,
+		"since":        since,
+		"limit":        20,
 	})
 	if err != nil {
 		t.Fatalf("Handle(observe/events) error = %v", err)
@@ -2190,10 +2254,13 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 	}{
 		{method: "sessions/list", params: nil},
 		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": env.workspaceID}},
-		{method: "sessions/prompt", params: map[string]any{"session_id": "sess-1", "message": "hello"}},
-		{method: "sessions/stop", params: map[string]any{"session_id": "sess-1"}},
-		{method: "sessions/status", params: map[string]any{"session_id": "sess-1"}},
-		{method: "sessions/events", params: map[string]any{"session_id": "sess-1"}},
+		{
+			method: "sessions/prompt",
+			params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1", "message": "hello"},
+		},
+		{method: "sessions/stop", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
+		{method: "sessions/status", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
+		{method: "sessions/events", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
 		{method: "memory/recall", params: map[string]any{"query": "needle"}},
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},
@@ -4810,6 +4877,7 @@ Review the workspace changes carefully.
 			RootDir: workspaceRoot,
 			Name:    "host-api-workspace",
 		},
+		WorkspaceID: "ws-host-api",
 		Config: aghconfig.Config{
 			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
 			Providers: map[string]aghconfig.ProviderConfig{
@@ -4975,7 +5043,7 @@ Review the workspace changes carefully.
 		WithHostAPIRateLimit(1000, 1000),
 	)
 
-	env.workspaceID = resolvedWorkspace.ID
+	env.workspaceID = resolvedWorkspace.WorkspaceID
 	env.workspace = resolvedWorkspace
 	env.registry = registry
 	env.bridges = bridgeRegistry
@@ -5242,8 +5310,9 @@ func (e *hostAPITestEnv) submitPrompt(
 	t.Helper()
 
 	result, err := e.call(t, extName, "sessions/prompt", map[string]string{
-		"session_id": sessionID,
-		"message":    message,
+		"workspace_id": e.workspaceID,
+		"session_id":   sessionID,
+		"message":      message,
 	})
 	if err != nil {
 		return hostAPISessionPromptResult{}, err
@@ -5251,6 +5320,19 @@ func (e *hostAPITestEnv) submitPrompt(
 	var prompt hostAPISessionPromptResult
 	decodeResult(t, result, &prompt)
 	return prompt, nil
+}
+
+func (e *hostAPITestEnv) addForeignWorkspace(t testing.TB) workspacepkg.ResolvedWorkspace {
+	t.Helper()
+
+	foreign := e.workspace
+	foreign.ID = "ws-foreign-registry"
+	foreign.WorkspaceID = "ws-foreign"
+	foreign.ID = "ws-foreign-registry"
+	foreign.RootDir = t.TempDir()
+	foreign.Name = "foreign"
+	e.workspaces.upsert(&foreign)
+	return foreign
 }
 
 func (e *hostAPITestEnv) createSession(t *testing.T) *session.Session {
@@ -5530,7 +5612,13 @@ func (r *hostAPIFakeWorkspaceResolver) upsert(workspace *workspacepkg.ResolvedWo
 		return
 	}
 	cloned := cloneResolvedWorkspaceForHostAPITests(workspace)
+	if strings.TrimSpace(cloned.WorkspaceID) == "" {
+		cloned.WorkspaceID = strings.TrimSpace(cloned.ID)
+	}
 	r.resolved[cloned.ID] = cloned
+	if workspaceID := strings.TrimSpace(cloned.WorkspaceID); workspaceID != "" {
+		r.resolved[workspaceID] = cloned
+	}
 	if name := strings.TrimSpace(cloned.Name); name != "" {
 		r.resolved[name] = cloned
 	}

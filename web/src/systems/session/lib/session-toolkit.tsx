@@ -95,10 +95,12 @@ export const sessionToolkit: Toolkit = {
   },
 };
 
-export function createAghPermissionDataUI(sessionId: string) {
+export function createAghPermissionDataUI(workspaceId: string, sessionId: string) {
   return makeAssistantDataUI<AghPermissionData>({
     name: "agh-permission",
-    render: ({ data }) => <PermissionDataPart data={data} sessionId={sessionId} />,
+    render: ({ data }) => (
+      <PermissionDataPart data={data} sessionId={sessionId} workspaceId={workspaceId} />
+    ),
   });
 }
 

@@ -374,11 +374,12 @@ type TokenUsagePayload struct {
 
 // ObserveEventPayload is the shared observability event response payload.
 type ObserveEventPayload struct {
-	ID        string          `json:"id"`
-	SessionID string          `json:"session_id"`
-	Type      string          `json:"type"`
-	AgentName string          `json:"agent_name"`
-	Content   json.RawMessage `json:"content,omitempty"`
+	ID          string          `json:"id"`
+	SessionID   string          `json:"session_id"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Type        string          `json:"type"`
+	AgentName   string          `json:"agent_name"`
+	Content     json.RawMessage `json:"content,omitempty"`
 	store.EventCorrelation
 	ParentSessionID string    `json:"parent_session_id,omitempty"`
 	RootSessionID   string    `json:"root_session_id,omitempty"`
@@ -606,6 +607,7 @@ type NetworkKindMetricPayload struct {
 
 // NetworkSendRequest is the shared daemon network send request payload.
 type NetworkSendRequest struct {
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
 	SessionID   string                     `json:"session_id"`
 	Channel     string                     `json:"channel"`
 	Surface     string                     `json:"surface,omitempty"`
@@ -648,6 +650,7 @@ func (r *NetworkSendRequest) UnmarshalJSON(data []byte) error {
 // NetworkSendPayload is the shared daemon network send response payload.
 type NetworkSendPayload struct {
 	ID          string                     `json:"id"`
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
 	SessionID   string                     `json:"session_id"`
 	Channel     string                     `json:"channel"`
 	Surface     string                     `json:"surface,omitempty"`
@@ -713,6 +716,7 @@ type NetworkPeerCardPayload struct {
 
 // NetworkPeerPayload is the shared JSON representation of one visible peer.
 type NetworkPeerPayload struct {
+	WorkspaceID string                 `json:"workspace_id,omitempty"`
 	SessionID   *string                `json:"session_id,omitempty"`
 	PeerID      string                 `json:"peer_id"`
 	DisplayName string                 `json:"display_name,omitempty"`
@@ -749,6 +753,7 @@ type NetworkEnvelopePayload struct {
 	Protocol    string                     `json:"protocol"`
 	ID          string                     `json:"id"`
 	Kind        string                     `json:"kind"`
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
 	Channel     string                     `json:"channel"`
 	Surface     *string                    `json:"surface,omitempty"`
 	ThreadID    *string                    `json:"thread_id,omitempty"`
@@ -797,6 +802,7 @@ type NetworkChannelKindCountPayload struct {
 // NetworkConversationMessagePayload is the shared network conversation timeline payload.
 type NetworkConversationMessagePayload struct {
 	MessageID          string          `json:"message_id"`
+	WorkspaceID        string          `json:"workspace_id,omitempty"`
 	Channel            string          `json:"channel"`
 	Surface            string          `json:"surface,omitempty"`
 	ThreadID           string          `json:"thread_id,omitempty"`
@@ -824,6 +830,7 @@ type NetworkConversationMessagePayload struct {
 
 // NetworkThreadSummaryPayload is the public-thread list/detail projection.
 type NetworkThreadSummaryPayload struct {
+	WorkspaceID        string     `json:"workspace_id,omitempty"`
 	Channel            string     `json:"channel"`
 	ThreadID           string     `json:"thread_id"`
 	RootMessageID      string     `json:"root_message_id"`
@@ -840,6 +847,7 @@ type NetworkThreadSummaryPayload struct {
 
 // NetworkDirectRoomPayload is the direct-room list/detail projection.
 type NetworkDirectRoomPayload struct {
+	WorkspaceID        string     `json:"workspace_id,omitempty"`
 	Channel            string     `json:"channel"`
 	DirectID           string     `json:"direct_id"`
 	PeerA              string     `json:"peer_a"`
@@ -854,6 +862,7 @@ type NetworkDirectRoomPayload struct {
 // NetworkWorkPayload is the public network work lookup projection.
 type NetworkWorkPayload struct {
 	WorkID          string     `json:"work_id"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
 	Channel         string     `json:"channel"`
 	Surface         string     `json:"surface"`
 	ThreadID        string     `json:"thread_id,omitempty"`

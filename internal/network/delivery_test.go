@@ -65,7 +65,8 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol:    ProtocolV0,
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
 		ID:          "msg-direct-01",
 		Kind:        KindSay,
 		Channel:     "builders",
@@ -228,7 +229,7 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 			Body: mustRawJSON(t, GreetBody{
 				PeerCard: PeerCard{
 					PeerID:            "reviewer.sess-xyz",
-					ProfilesSupported: []string{ProtocolV0},
+					ProfilesSupported: []string{ProtocolV2},
 				},
 				Summary: "available",
 			}),
@@ -256,16 +257,17 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-direct-raw",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-		From:     "coder.sess-abc",
-		To:       stringPtr("reviewer.sess-xyz"),
-		TS:       time.Date(2026, 4, 11, 13, 5, 0, 0, time.UTC).Unix(),
-		Body:     json.RawMessage(`["unexpected"]`),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-direct-raw",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		TS:          time.Date(2026, 4, 11, 13, 5, 0, 0, time.UTC).Unix(),
+		Body:        json.RawMessage(`["unexpected"]`),
 	}
 
 	rendered, err := formatNetworkMessage(envelope)
@@ -322,16 +324,17 @@ func TestFormatNetworkMessageSayGuidanceKeepsCurrentThreadByDefault(t *testing.T
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-say-01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceThread),
-		ThreadID: stringPtr("thread_summary_01"),
-		From:     "coordinator.sess-abc",
-		WorkID:   stringPtr("work_summary_01"),
-		TraceID:  stringPtr("trace-summary-01"),
-		TS:       time.Date(2026, 4, 11, 13, 10, 0, 0, time.UTC).Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-say-01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceThread),
+		ThreadID:    stringPtr("thread_summary_01"),
+		From:        "coordinator.sess-abc",
+		WorkID:      stringPtr("work_summary_01"),
+		TraceID:     stringPtr("trace-summary-01"),
+		TS:          time.Date(2026, 4, 11, 13, 10, 0, 0, time.UTC).Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text":   "Please acknowledge the summary.",
 			"intent": "summary",
@@ -776,14 +779,15 @@ func TestDeliveryCoordinatorDeliversSemanticallyInvalidBodiesUsingRawFallback(t 
 	}
 
 	malformed := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-malformed",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     "coder.sess-abc",
-		To:       stringPtr("reviewer.sess-xyz"),
-		TS:       time.Date(2026, 4, 11, 16, 0, 0, 0, time.UTC).Unix(),
-		Body:     json.RawMessage(`["bad"]`),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-malformed",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		TS:          time.Date(2026, 4, 11, 16, 0, 0, 0, time.UTC).Unix(),
+		Body:        json.RawMessage(`["bad"]`),
 	}
 
 	if err := coordinator.acceptOne(context.Background(), Delivery{
@@ -1004,15 +1008,16 @@ func testDeliveryEnvelope(t *testing.T, id string, text string) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol: ProtocolV0,
-		ID:       id,
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-		From:     "coder.sess-abc",
-		To:       stringPtr("reviewer.sess-xyz"),
-		TS:       time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          id,
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		TS:          time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text": text,
 		}),

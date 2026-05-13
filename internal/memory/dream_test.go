@@ -405,6 +405,57 @@ func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
 	})
 }
 
+func TestServiceRunDreamSignalGateUsesStableWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should promote workspace signals when registration id differs from stable identity", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		env := newDreamSeedEnv(t, now)
+		seedDreamRecallSignals(t, env.workspaceStore, memcontract.ScopeWorkspace, env.workspaceID, 5, now)
+		registrationID := "ws-registration"
+		lock := &stubLock{
+			tryAcquireFn: func() (time.Time, bool, error) {
+				return now.Add(-48 * time.Hour), true, nil
+			},
+		}
+		service := NewService(
+			WithMemoryStore(env.baseStore),
+			WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
+				resolved: workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      registrationID,
+						RootDir: env.workspaceRoot,
+					},
+					WorkspaceID: env.workspaceID,
+				},
+			}),
+			WithMinHours(0),
+			WithMinSessions(0),
+			WithDreamGateConfig(DreamGateConfig{MinCandidates: 5, MinRecallCount: 2, MinScore: 0.75}),
+			withLock(lock),
+			withNow(func() time.Time { return now }),
+		)
+
+		gotWorkspace := ""
+		err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string) error {
+			gotWorkspace = workspace
+			return nil
+		}, registrationID)
+
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if gotWorkspace != env.workspaceID {
+			t.Fatalf("spawn workspace = %q, want stable identity %q", gotWorkspace, env.workspaceID)
+		}
+		assertDreamPromotedCount(t, env.workspaceStore, 5)
+		assertDreamConsolidationStatus(t, env.workspaceStore, "completed", 5)
+		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamPromoted, 1)
+	})
+}
+
 func TestServiceRunDreamFailureWritesDLQAndDoesNotMarkPromoted(t *testing.T) {
 	t.Parallel()
 

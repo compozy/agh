@@ -131,7 +131,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
+				approveSession := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+					"POST",
+				)
 				approveSchema := jsonRequestSchema(t, approveSession)
 				assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
 			},
@@ -393,6 +398,11 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
+				listBridges := operationFor(t, doc, "/api/bridges", "GET")
+				assertParameter(t, listBridges, "scope", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "workspace_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "workspace", openapi3.ParameterInQuery, false)
+
 				providers := operationFor(t, doc, "/api/bridges/providers", "GET")
 				providersSchema := jsonResponseSchema(t, providers, 200)
 				assertRequired(t, providersSchema, "providers")
@@ -534,12 +544,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"input_digest",
 				)
 
-				sessionTools := operationFor(t, doc, "/api/sessions/{id}/tools", "GET")
+				sessionTools := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
+					"GET",
+				)
 				assertTagsContain(t, sessionTools, "sessions", "tools")
 				assertResponseStatus(t, sessionTools, 200)
-				sessionSearch := operationFor(t, doc, "/api/sessions/{id}/tools/search", "POST")
+				sessionSearch := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
+					"POST",
+				)
 				assertTagsContain(t, sessionSearch, "sessions", "tools")
-				assertParameter(t, sessionSearch, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, sessionSearch, "workspace_id", openapi3.ParameterInPath, true)
+				assertParameter(t, sessionSearch, "session_id", openapi3.ParameterInPath, true)
 				sessionSearchRequest := jsonRequestSchema(t, sessionSearch)
 				assertRequired(t, sessionSearchRequest, "query")
 				assertNotRequired(t, sessionSearchRequest, "limit", "workspace_id", "session_id", "agent_name")

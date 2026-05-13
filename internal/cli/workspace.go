@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -168,6 +169,37 @@ func resolveWorkspaceInfoRef(deps commandDeps, args []string, workspaceFlag stri
 		return workspaceInfoRef{}, err
 	}
 	return workspaceInfoRef{Ref: cwd, Source: "cwd"}, nil
+}
+
+func resolveCLIWorkspaceRouteRef(
+	ctx context.Context,
+	deps commandDeps,
+	client DaemonClient,
+	workspaceRef string,
+) (string, error) {
+	trimmed := strings.TrimSpace(workspaceRef)
+	if trimmed == "" {
+		trimmed = strings.TrimSpace(deps.getenv("AGH_WORKSPACE"))
+	}
+	if trimmed == "" {
+		cwd, err := currentWorkingDirectory(deps)
+		if err != nil {
+			return "", err
+		}
+		trimmed = cwd
+	}
+	if !workspaceRefLooksLikePath(trimmed) {
+		return trimmed, nil
+	}
+	detail, err := client.GetWorkspace(ctx, trimmed)
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve workspace %q: %w", trimmed, err)
+	}
+	workspaceID := strings.TrimSpace(detail.Workspace.ID)
+	if workspaceID == "" {
+		return "", fmt.Errorf("cli: resolve workspace %q: missing workspace id", trimmed)
+	}
+	return workspaceID, nil
 }
 
 func isPathLikeWorkspaceRef(ref string) bool {

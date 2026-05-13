@@ -26,6 +26,11 @@ type taskNotificationCursorReader interface {
 	GetCursor(ctx context.Context, key notifications.CursorKey) (notifications.Cursor, error)
 }
 
+type bridgeListQuery struct {
+	scope       string
+	workspaceID string
+}
+
 // ListBridges returns all persisted bridge instances.
 func (h *BaseHandlers) ListBridges(c *gin.Context) {
 	bridges, ok := h.bridgeService()
@@ -34,11 +39,17 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 		return
 	}
 
+	query, err := h.parseBridgeListQuery(c.Request.Context(), c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
 	instances, err := bridges.ListInstances(c.Request.Context())
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
+	instances = filterBridgeInstances(instances, query)
 	bridgeHealth, err := h.bridgeHealthMap(c.Request.Context())
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
@@ -46,17 +57,89 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 	}
 
 	payloads := make([]contract.BridgePayload, 0, len(instances))
+	var filteredHealth map[string]contract.BridgeHealthPayload
+	if bridgeHealth != nil {
+		filteredHealth = make(map[string]contract.BridgeHealthPayload, len(instances))
+	}
 	for _, instance := range instances {
 		payloads = append(payloads, BridgePayloadFromBridgeInstance(instance))
-		if bridgeHealth != nil {
+		if filteredHealth != nil {
 			key := strings.TrimSpace(instance.ID)
 			health := bridgeHealth[key]
 			health.Degradation = cloneBridgeDegradation(instance.Degradation)
-			bridgeHealth[key] = health
+			filteredHealth[key] = health
 		}
 	}
 
-	c.JSON(http.StatusOK, contract.BridgesResponse{Bridges: payloads, BridgeHealth: bridgeHealth})
+	c.JSON(http.StatusOK, contract.BridgesResponse{Bridges: payloads, BridgeHealth: filteredHealth})
+}
+
+func (h *BaseHandlers) parseBridgeListQuery(ctx context.Context, c *gin.Context) (bridgeListQuery, error) {
+	scope := strings.ToLower(strings.TrimSpace(c.Query("scope")))
+	switch scope {
+	case "", "all", string(bridgepkg.ScopeGlobal), string(bridgepkg.ScopeWorkspace):
+	default:
+		return bridgeListQuery{}, fmt.Errorf("%s: unsupported bridge list scope %q", h.transportName(), scope)
+	}
+
+	workspaceID, err := h.bridgeListWorkspaceID(ctx, c)
+	if err != nil {
+		return bridgeListQuery{}, err
+	}
+	if scope == string(bridgepkg.ScopeGlobal) && workspaceID != "" {
+		return bridgeListQuery{}, fmt.Errorf(
+			"%s: global bridge list scope cannot include workspace id",
+			h.transportName(),
+		)
+	}
+	if scope == string(bridgepkg.ScopeWorkspace) && workspaceID == "" {
+		return bridgeListQuery{}, fmt.Errorf("%s: workspace bridge list scope requires workspace id", h.transportName())
+	}
+	return bridgeListQuery{scope: scope, workspaceID: workspaceID}, nil
+}
+
+func (h *BaseHandlers) bridgeListWorkspaceID(ctx context.Context, c *gin.Context) (string, error) {
+	if workspaceID := strings.TrimSpace(c.Query("workspace_id")); workspaceID != "" {
+		return workspaceID, nil
+	}
+	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		id, err := h.lookupWorkspaceID(ctx, workspaceRef)
+		if err != nil {
+			return "", err
+		}
+		return id, nil
+	}
+	return "", nil
+}
+
+func filterBridgeInstances(instances []bridgepkg.BridgeInstance, query bridgeListQuery) []bridgepkg.BridgeInstance {
+	if query.scope == "" && query.workspaceID == "" {
+		return instances
+	}
+
+	filtered := make([]bridgepkg.BridgeInstance, 0, len(instances))
+	for _, instance := range instances {
+		if bridgeInstanceMatchesListQuery(instance, query) {
+			filtered = append(filtered, instance)
+		}
+	}
+	return filtered
+}
+
+func bridgeInstanceMatchesListQuery(instance bridgepkg.BridgeInstance, query bridgeListQuery) bool {
+	scope := instance.Scope.Normalize()
+	workspaceID := strings.TrimSpace(instance.WorkspaceID)
+	switch query.scope {
+	case string(bridgepkg.ScopeGlobal):
+		return scope == bridgepkg.ScopeGlobal
+	case string(bridgepkg.ScopeWorkspace):
+		return scope == bridgepkg.ScopeWorkspace && workspaceID == query.workspaceID
+	default:
+		if query.workspaceID == "" {
+			return true
+		}
+		return scope == bridgepkg.ScopeGlobal || (scope == bridgepkg.ScopeWorkspace && workspaceID == query.workspaceID)
+	}
 }
 
 // ListBridgeProviders returns installed bridge-capable providers.
@@ -197,7 +280,13 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 		return
 	}
 
-	snapshot, err := h.bridgeHealthStreamSnapshot(c.Request.Context())
+	query, err := h.parseBridgeListQuery(c.Request.Context(), c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	snapshot, err := h.bridgeHealthStreamSnapshot(c.Request.Context(), query)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -227,7 +316,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
-			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(c.Request.Context())
+			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(c.Request.Context(), query)
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
 					Name: "error",
@@ -828,8 +917,15 @@ func (h *BaseHandlers) bridgeResponse(
 	}, nil
 }
 
-func (h *BaseHandlers) bridgeHealthStreamSnapshot(ctx context.Context) (contract.BridgeHealthStreamPayload, error) {
+func (h *BaseHandlers) bridgeHealthStreamSnapshot(
+	ctx context.Context,
+	query bridgeListQuery,
+) (contract.BridgeHealthStreamPayload, error) {
 	health, err := h.bridgeHealthMap(ctx)
+	if err != nil {
+		return contract.BridgeHealthStreamPayload{}, err
+	}
+	health, err = h.filterBridgeHealthMap(ctx, health, query)
 	if err != nil {
 		return contract.BridgeHealthStreamPayload{}, err
 	}
@@ -841,6 +937,42 @@ func (h *BaseHandlers) bridgeHealthStreamSnapshot(ctx context.Context) (contract
 		GeneratedAt:  h.Now().UTC(),
 		BridgeHealth: health,
 	}, nil
+}
+
+func (h *BaseHandlers) filterBridgeHealthMap(
+	ctx context.Context,
+	health map[string]contract.BridgeHealthPayload,
+	query bridgeListQuery,
+) (map[string]contract.BridgeHealthPayload, error) {
+	if query.scope == "" && query.workspaceID == "" {
+		return health, nil
+	}
+
+	bridges, ok := h.bridgeService()
+	if !ok {
+		return nil, errBridgeServiceUnavailable
+	}
+	instances, err := bridges.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	instances = filterBridgeInstances(instances, query)
+
+	visibleIDs := make(map[string]struct{}, len(instances))
+	for _, instance := range instances {
+		bridgeID := strings.TrimSpace(instance.ID)
+		if bridgeID == "" {
+			continue
+		}
+		visibleIDs[bridgeID] = struct{}{}
+	}
+	filtered := make(map[string]contract.BridgeHealthPayload, len(visibleIDs))
+	for bridgeID := range visibleIDs {
+		if item, ok := health[bridgeID]; ok {
+			filtered[bridgeID] = item
+		}
+	}
+	return filtered, nil
 }
 
 func (h *BaseHandlers) writeBridgeHealthSnapshot(

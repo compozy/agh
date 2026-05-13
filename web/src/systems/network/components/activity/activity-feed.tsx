@@ -9,6 +9,7 @@ import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkDirectRoomSummary, NetworkThreadSummary } from "../../types";
 
 export interface ActivityFeedProps {
+  workspaceId: string;
   channel: string;
   threads: ReadonlyArray<NetworkThreadSummary>;
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
@@ -21,8 +22,8 @@ type ThreadEntry = {
   preview: string;
   title: string;
   timestamp: string | null;
-  to: "/network/$channel/threads/$threadId";
-  params: { channel: string; threadId: string };
+  to: "/network/$workspaceId/$channel/threads/$threadId";
+  params: { workspaceId: string; channel: string; threadId: string };
 };
 
 type DirectEntry = {
@@ -31,13 +32,14 @@ type DirectEntry = {
   preview: string;
   title: string;
   timestamp: string | null;
-  to: "/network/$channel/directs/$directId";
-  params: { channel: string; directId: string };
+  to: "/network/$workspaceId/$channel/directs/$directId";
+  params: { workspaceId: string; channel: string; directId: string };
 };
 
 type ActivityEntry = ThreadEntry | DirectEntry;
 
 function buildEntries(
+  workspaceId: string,
   channel: string,
   threads: ReadonlyArray<NetworkThreadSummary>,
   directs: ReadonlyArray<NetworkDirectRoomSummary>
@@ -47,22 +49,22 @@ function buildEntries(
     entries.push({
       id: `thread:${thread.thread_id}`,
       kind: "thread",
-      params: { channel, threadId: thread.thread_id },
+      params: { workspaceId, channel, threadId: thread.thread_id },
       preview: thread.last_message_preview ?? "No messages yet.",
       timestamp: thread.last_activity_at ?? null,
       title: thread.title ?? "Untitled thread",
-      to: "/network/$channel/threads/$threadId",
+      to: "/network/$workspaceId/$channel/threads/$threadId",
     });
   }
   for (const direct of directs) {
     entries.push({
       id: `direct:${direct.direct_id}`,
       kind: "direct",
-      params: { channel, directId: direct.direct_id },
+      params: { workspaceId, channel, directId: direct.direct_id },
       preview: direct.last_message_preview ?? "No messages yet.",
       timestamp: direct.last_activity_at ?? null,
       title: `${direct.peer_a} ↔ ${direct.peer_b}`,
-      to: "/network/$channel/directs/$directId",
+      to: "/network/$workspaceId/$channel/directs/$directId",
     });
   }
 
@@ -87,8 +89,14 @@ function ActivityFeedSkeleton() {
   );
 }
 
-export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityFeedProps) {
-  const entries = buildEntries(channel, threads, directs);
+export function ActivityFeed({
+  workspaceId,
+  channel,
+  threads,
+  directs,
+  isLoading,
+}: ActivityFeedProps) {
+  const entries = buildEntries(workspaceId, channel, threads, directs);
 
   if (isLoading && entries.length === 0) {
     return <ActivityFeedSkeleton />;

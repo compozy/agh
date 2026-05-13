@@ -215,10 +215,12 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		}
 
 		var reindexEvents aghcontract.ObserveEventsResponse
+		reindexEventsPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+			"/observe/events?type=memory.write.reindex&limit=10"
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
-			"/api/observe/events?type=memory.write.reindex&limit=10",
+			reindexEventsPath,
 			nil,
 			&reindexEvents,
 		); err != nil {
@@ -229,10 +231,12 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		}
 
 		var searchEvents aghcontract.ObserveEventsResponse
+		searchEventsPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+			"/observe/events?type=memory.recall.executed&limit=10"
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
-			"/api/observe/events?type=memory.recall.executed&limit=10",
+			searchEventsPath,
 			nil,
 			&searchEvents,
 		); err != nil {

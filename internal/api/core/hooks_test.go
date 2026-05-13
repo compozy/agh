@@ -160,7 +160,9 @@ func TestHookHandlers(t *testing.T) {
 			if id != "sess-1" {
 				t.Fatalf("Status() id = %q, want sess-1", id)
 			}
-			return testutil.NewSessionInfo(id), nil
+			info := testutil.NewSessionInfo(id)
+			info.WorkspaceID = "ws-alpha"
+			return info, nil
 		},
 	}
 	observer := testutil.StubObserver{
@@ -230,6 +232,7 @@ func TestHookHandlers(t *testing.T) {
 					ID:      "ws-alpha",
 					RootDir: "/workspace/alpha",
 				},
+				WorkspaceID: "ws-alpha",
 			}, nil
 		},
 	}
@@ -262,7 +265,7 @@ func TestHookHandlers(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/hooks/runs?session=sess-1&event="+eventValue+"&outcome=applied&since=2026-04-03T12:00:00Z&last=2",
+		"/workspaces/alpha/hooks/runs?session=sess-1&event="+eventValue+"&outcome=applied&since=2026-04-03T12:00:00Z&last=2",
 		nil,
 	)
 	if runsResp.Code != http.StatusOK {
@@ -314,8 +317,8 @@ func TestHookHandlersRejectInvalidRequests(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
-			name: "runs missing session",
-			path: "/hooks/runs?event=" + hookspkg.HookToolPreCall.String() + "&outcome=applied&last=1",
+			name: "Should reject runs missing session",
+			path: "/workspaces/ws-workspace/hooks/runs?event=" + hookspkg.HookToolPreCall.String() + "&outcome=applied&last=1",
 			want: http.StatusBadRequest,
 		},
 		{

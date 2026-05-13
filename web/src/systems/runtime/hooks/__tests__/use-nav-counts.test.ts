@@ -1,6 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
+}));
+
 import {
   type NavCountFetchers,
   type NavCountKey,
@@ -101,6 +105,7 @@ function createStoreHarness(overrides: StoreHarnessOverrides = {}) {
   const { fetchers, callCounts } = createFakeFetchers(overrides.fetcherSpec);
   const store = createNavCountsStore({
     eventSourceFactory: () => eventSource,
+    observeStreamUrl: "/api/workspaces/ws_alpha/observe/events/stream",
     fetchers,
     pollIntervalMs: overrides.pollIntervalMs ?? 5_000,
     heartbeatWindowMs: overrides.heartbeatWindowMs ?? 5_000,
@@ -387,6 +392,7 @@ describe("useNavCounts contract", () => {
     const { fetchers } = createFakeFetchers({ tasks: { count: 1 } });
     const store = createNavCountsStore({
       eventSourceFactory: factory,
+      observeStreamUrl: "/api/workspaces/ws_alpha/observe/events/stream",
       fetchers,
       pollIntervalMs: 5_000,
       heartbeatWindowMs: 5_000,

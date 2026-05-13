@@ -402,6 +402,37 @@ describe("BridgesPage", () => {
     expect(screen.getByTestId("bridge-route-sess_123")).toBeInTheDocument();
   });
 
+  it("keeps the All scope bound to global and active-workspace bridges", () => {
+    mockBridgesData = {
+      bridge_health: {
+        brg_global: makeHealth({ bridge_instance_id: "brg_global" }),
+        brg_other: makeHealth({ bridge_instance_id: "brg_other" }),
+        brg_support: makeHealth(),
+      },
+      bridges: [
+        makeBridge({
+          display_name: "Global Telegram",
+          id: "brg_global",
+          scope: "global",
+          workspace_id: undefined,
+        }),
+        makeBridge(),
+        makeBridge({
+          display_name: "Other Workspace Telegram",
+          id: "brg_other",
+          workspace_id: "ws_other",
+        }),
+      ],
+    };
+
+    render(<BridgesPage />);
+
+    expect(screen.getByTestId("bridge-item-brg_global")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
+    expect(screen.queryByTestId("bridge-item-brg_other")).not.toBeInTheDocument();
+    expect(screen.getByTestId("bridge-list-summary")).toHaveTextContent("2 bridges visible");
+  });
+
   it("renders the no routes detail variant when the selected bridge has no routes", () => {
     mockBridgeRoutes = [];
 

@@ -732,8 +732,8 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
 				t.Helper()
 
-				if scoped[0].Matcher.WorkspaceID != resolved.ID {
-					t.Fatalf("session WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.ID)
+				if scoped[0].Matcher.WorkspaceID != resolved.WorkspaceID {
+					t.Fatalf("session WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.WorkspaceID)
 				}
 				if scoped[0].Matcher.WorkspaceRoot != resolved.RootDir {
 					t.Fatalf("session WorkspaceRoot = %q, want %q", scoped[0].Matcher.WorkspaceRoot, resolved.RootDir)
@@ -748,8 +748,8 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
 				t.Helper()
 
-				if scoped[1].Matcher.WorkspaceID != resolved.ID {
-					t.Fatalf("task-run WorkspaceID = %q, want %q", scoped[1].Matcher.WorkspaceID, resolved.ID)
+				if scoped[1].Matcher.WorkspaceID != resolved.WorkspaceID {
+					t.Fatalf("task-run WorkspaceID = %q, want %q", scoped[1].Matcher.WorkspaceID, resolved.WorkspaceID)
 				}
 				if scoped[1].Matcher.WorkspaceRoot != "" {
 					t.Fatalf(
@@ -1087,5 +1087,6 @@ func workspaceResolvedForTest(id string, root string) workspacepkg.ResolvedWorks
 			ID:      id,
 			RootDir: root,
 		},
+		WorkspaceID: id,
 	}
 }

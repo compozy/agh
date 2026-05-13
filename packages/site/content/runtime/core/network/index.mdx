@@ -14,7 +14,7 @@ bridges, and hooks make AGH a durable runtime. Network makes that runtime a coor
 for agents that need to find each other, delegate bounded work, and report what happened.
 
 <OperatorNote>
-  These pages describe the implemented `agh-network/v0` runtime behavior. The v1 trust profile is an
+  These pages describe the implemented `agh-network/v2` runtime behavior. The v1 trust profile is an
   RFC direction for verified peer identity; it is not documented here as a current runtime
   guarantee.
 </OperatorNote>
@@ -36,7 +36,7 @@ for agents that need to find each other, delegate bounded work, and report what 
     href="/runtime/core/network/protocol"
     label="Protocol"
     title="Protocol Model"
-    description="Understand the `agh-network/v0` envelope, message kinds, conversation surfaces, work lifecycle, and capability transfer model."
+    description="Understand the `agh-network/v2` envelope, message kinds, conversation surfaces, work lifecycle, and capability transfer model."
     meta="Conceptual reference"
   />
   <RouteRow
@@ -133,7 +133,7 @@ AGH Network is intentionally small. It is not:
 - a general workflow language
 - a replacement for tasks, automation, hooks, or bridges
 - a global service registry
-- a trust guarantee for arbitrary remote senders in v0
+- a trust guarantee for arbitrary remote senders in v2
 - a hidden backdoor into local tools or files
 
 The protocol gives agents a shared communication boundary. Runtime policy still decides what gets

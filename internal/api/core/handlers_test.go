@@ -157,21 +157,33 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("ShouldGetSession", func(t *testing.T) {
-		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a", nil)
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
 		}
 	})
 
 	t.Run("ShouldReturnNotFoundForMissingSession", func(t *testing.T) {
-		notFoundResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/missing", nil)
+		notFoundResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/missing",
+			nil,
+		)
 		if notFoundResp.Code != http.StatusNotFound {
 			t.Fatalf("get missing status = %d, want %d", notFoundResp.Code, http.StatusNotFound)
 		}
 	})
 
 	t.Run("ShouldDeleteSession", func(t *testing.T) {
-		deleteResp := performRequest(t, fixture.Engine, http.MethodDelete, "/sessions/sess-a", nil)
+		deleteResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodDelete,
+			"/workspaces/ws-workspace/sessions/sess-a",
+			nil,
+		)
 		if deleteResp.Code != http.StatusNoContent {
 			t.Fatalf("delete status = %d, want %d", deleteResp.Code, http.StatusNoContent)
 		}
@@ -181,7 +193,13 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("ShouldStopSession", func(t *testing.T) {
-		stopResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/stop", nil)
+		stopResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/stop",
+			nil,
+		)
 		if stopResp.Code != http.StatusNoContent {
 			t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNoContent)
 		}
@@ -191,7 +209,13 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("ShouldResumeSession", func(t *testing.T) {
-		resumeResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/resume", nil)
+		resumeResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/resume",
+			nil,
+		)
 		if resumeResp.Code != http.StatusOK {
 			t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusOK)
 		}
@@ -202,7 +226,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodPost,
-			"/sessions/sess-a/repair?dry_run=true&force=true",
+			"/workspaces/ws-workspace/sessions/sess-a/repair?dry_run=true&force=true",
 			nil,
 		)
 		if repairResp.Code != http.StatusOK {
@@ -241,7 +265,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodPost,
-			"/sessions/sess-a/repair?dry_run=true&dry-run=false",
+			"/workspaces/ws-workspace/sessions/sess-a/repair?dry_run=true&dry-run=false",
 			nil,
 		)
 		if repairResp.Code != http.StatusBadRequest {
@@ -257,7 +281,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/sessions/sess-a/events?limit=10&after_sequence=5",
+			"/workspaces/ws-workspace/sessions/sess-a/events?limit=10&after_sequence=5",
 			nil,
 		)
 		if eventsResp.Code != http.StatusOK {
@@ -266,14 +290,26 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("ShouldReturnSessionHistory", func(t *testing.T) {
-		historyResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/history", nil)
+		historyResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/history",
+			nil,
+		)
 		if historyResp.Code != http.StatusOK {
 			t.Fatalf("history status = %d, want %d", historyResp.Code, http.StatusOK)
 		}
 	})
 
 	t.Run("ShouldReturnSessionTranscript", func(t *testing.T) {
-		transcriptResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/transcript", nil)
+		transcriptResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/transcript",
+			nil,
+		)
 		if transcriptResp.Code != http.StatusOK {
 			t.Fatalf("transcript status = %d, want %d", transcriptResp.Code, http.StatusOK)
 		}
@@ -354,7 +390,13 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
 	fixture.Handlers.SetStreamDone(done)
 
-	streamResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/stream", nil)
+	streamResp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/workspaces/ws-workspace/sessions/sess-a/stream",
+		nil,
+	)
 	if streamResp.Code != http.StatusOK {
 		t.Fatalf("stream status = %d, want %d", streamResp.Code, http.StatusOK)
 	}
@@ -362,7 +404,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		t.Fatalf("stream records = %d, want at least 2", len(records))
 	}
 
-	observeResp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/events", nil)
+	observeResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/observe/events", nil)
 	if observeResp.Code != http.StatusOK {
 		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusOK)
 	}

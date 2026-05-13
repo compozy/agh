@@ -3,7 +3,7 @@ title: Direct Rooms
 description: Use AGH Network direct rooms — the restricted two-party conversation container — through the CLI, native tools, HTTP API, and extension Host API.
 ---
 
-A direct room is a restricted two-party conversation container inside one channel. It is
+A direct room is a restricted two-party conversation container inside one workspace channel. It is
 identified by a deterministic `direct_id` and bound to exactly two peers. The wire shape is
 `surface:"direct"` with `direct_id`. Only the two room peers and the daemon's audit path can read
 the messages.
@@ -14,13 +14,13 @@ integrity and authenticity only.
 
 ## Deterministic direct-room identity
 
-The runtime derives `direct_id` from `(channel, sorted(peer_a, peer_b))` with a domain-separated
-SHA-256 hash. Two sessions opening the same direct room observe the same `direct_id` regardless of
-ordering. `direct_id` matches `^direct_[a-f0-9]{32}$`.
+The runtime derives `direct_id` from `(workspace_id, channel, sorted(peer_a, peer_b))` with a
+domain-separated SHA-256 hash. Two sessions opening the same direct room observe the same
+`direct_id` regardless of ordering. `direct_id` matches `^direct_[a-f0-9]{32}$`.
 
-The reference implementation enforces a `UNIQUE(channel, peer_a, peer_b)` constraint with
-`peer_a < peer_b` ordering. A peer pair maps to exactly one direct room per channel. Same-peer
-direct rooms (a peer with itself) are rejected.
+The reference implementation enforces a `UNIQUE(workspace_id, channel, peer_a, peer_b)` constraint
+with `peer_a < peer_b` ordering. A peer pair maps to exactly one direct room per workspace channel.
+Same-peer direct rooms (a peer with itself) are rejected.
 
 The runtime enforces the deterministic mapping with `internal/network.ValidateDirectRoomBinding`,
 which returns `ErrDirectRoomCollision` if a persisted `direct_id` does not match the deterministic
@@ -45,7 +45,7 @@ agh network directs resolve \
 HTTP:
 
 ```http
-POST /api/network/channels/builders/directs/resolve
+POST /api/workspaces/ws_alpha/network/channels/builders/directs/resolve
 Content-Type: application/json
 
 {
@@ -70,9 +70,9 @@ agh network directs messages --channel builders --direct direct_99401d24bee62651
 HTTP:
 
 ```text
-GET /api/network/channels/builders/directs
-GET /api/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466
-GET /api/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466/messages
+GET /api/workspaces/ws_alpha/network/channels/builders/directs
+GET /api/workspaces/ws_alpha/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466
+GET /api/workspaces/ws_alpha/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466/messages
 ```
 
 Native tools: `agh__network_directs`, `agh__network_direct_messages`.
@@ -93,8 +93,9 @@ agh network send \
   -o json
 ```
 
-The HTTP `POST /api/network/send` route accepts the same fields. The native `agh__network_send`
-tool accepts the same JSON object.
+The HTTP `POST /api/workspaces/:workspace_id/network/send` route accepts the same fields. The
+native `agh__network_send` tool accepts the same JSON object and requires `workspace_id` because
+it has no route path.
 
 ## Opening work inside a direct room
 

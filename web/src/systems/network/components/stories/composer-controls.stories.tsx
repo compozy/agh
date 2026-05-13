@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 
 import { ChannelThreadComposer } from "../composer/channel-thread-composer";
@@ -95,6 +96,7 @@ export const ChannelThread: Story = {
   args: {},
   render: () => (
     <ChannelThreadComposer
+      workspaceId={storyDefaultWorkspaceId}
       channel="launch-war-room"
       sessionId="session_launch_coordination"
       peerFrom="northstar-local"

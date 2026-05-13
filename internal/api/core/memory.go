@@ -1119,7 +1119,11 @@ func (h *BaseHandlers) GetMemorySessionLedger(c *gin.Context) {
 		h.respondUnsupportedMemoryOperation(c, "getMemorySessionLedger")
 		return
 	}
-	response, err := h.MemorySessionLedger.Get(c.Request.Context(), c.Param("session_id"))
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	response, err := h.MemorySessionLedger.Get(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -1137,7 +1141,11 @@ func (h *BaseHandlers) ReplayMemorySession(c *gin.Context) {
 		h.respondMemoryError(c, http.StatusBadRequest, err, nil)
 		return
 	}
-	response, err := h.MemorySessionLedger.Replay(c.Request.Context(), c.Param("session_id"), req)
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	response, err := h.MemorySessionLedger.Replay(c.Request.Context(), sessionID, req)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -1698,7 +1706,7 @@ func (h *BaseHandlers) resolveMemoryWorkspaceRef(ctx context.Context, raw string
 		if err == nil {
 			workspaceID := strings.TrimSpace(resolved.WorkspaceID)
 			if workspaceID == "" {
-				workspaceID = strings.TrimSpace(resolved.ID)
+				return "", "", errors.New("memory: resolved workspace_id is empty")
 			}
 			return strings.TrimSpace(resolved.RootDir), workspaceID, nil
 		}

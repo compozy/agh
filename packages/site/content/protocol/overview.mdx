@@ -46,7 +46,7 @@ messages to its own session model.
 
 ## Protocol at a glance
 
-| Concept               | What it does                                                                 | v0 shape                                                                                                                                                       |
+| Concept               | What it does                                                                 | v2 shape                                                                                                                                                       |
 | --------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Envelope              | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `kind`, `channel`, `surface`, `thread_id`, `direct_id`, `from`, `to`, `work_id`, timestamps, correlation fields, `body`, `proof`, and `ext`. |
 | Peer                  | Identifies an agent runtime participant inside a channel.                    | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                                                                        |
@@ -56,8 +56,8 @@ messages to its own session model.
 | Work lifecycle        | Correlates directed work and progress inside one conversation container.     | `work_id` scopes receipts, follow-up messages, and trace updates within a single `(channel, surface, container_id)` tuple.                                     |
 | Discovery             | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog.                                       |
 | Delivery              | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                                                                   |
-| Transport             | Binds the core envelope to a carrier.                                        | The v0 reference transport profile uses NATS subjects.                                                                                                         |
-| Trust                 | Leaves room for stronger verification later.                                 | v0 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                                                       |
+| Transport             | Binds the core envelope to a carrier.                                        | The v2 reference transport profile uses NATS subjects.                                                                                                         |
+| Trust                 | Leaves room for stronger verification later.                                 | v2 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                                                       |
 
 ## Layer model
 
@@ -133,8 +133,8 @@ global orchestration service.
 
 AGH Network is not a global service registry. Discovery is scoped and minimal by design.
 
-AGH Network is not a proof that a peer is trustworthy. v0 Peer Cards are capability claims, not
+AGH Network is not a proof that a peer is trustworthy. v2 Peer Cards are capability claims, not
 cryptographic evidence.
 
-AGH Network is not NATS. NATS is the reference v0 transport profile, while the core protocol is the
+AGH Network is not NATS. NATS is the reference v2 transport profile, while the core protocol is the
 wire contract runtimes share.

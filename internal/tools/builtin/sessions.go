@@ -90,8 +90,9 @@ const sessionListInputSchema = `{
 
 const sessionIDInputSchema = `{
 	"type":"object",
-	"required":["session_id"],
+	"required":["workspace_id","session_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -99,8 +100,9 @@ const sessionIDInputSchema = `{
 
 const sessionEventQueryInputSchema = `{
 	"type":"object",
-	"required":["session_id"],
+	"required":["workspace_id","session_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"},
 		"type":{"type":"string"},
 		"agent_name":{"type":"string"},

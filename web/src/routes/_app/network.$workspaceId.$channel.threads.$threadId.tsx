@@ -8,7 +8,7 @@ interface ThreadDetailSearch {
   view?: "full";
 }
 
-export const Route = createFileRoute("/_app/network/$channel/threads/$threadId")({
+export const Route = createFileRoute("/_app/network/$workspaceId/$channel/threads/$threadId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `#${params.channel} · Thread`, icon: NetworkIcon },
   }),
@@ -19,10 +19,17 @@ export const Route = createFileRoute("/_app/network/$channel/threads/$threadId")
 });
 
 function NetworkChannelThreadDetailRoute() {
-  const { channel, threadId } = Route.useParams();
+  const { workspaceId, channel, threadId } = Route.useParams();
   const search = Route.useSearch();
   const viewMode = useThreadViewMode();
   const fullPage = search.view === "full" || viewMode === "fullpage";
 
-  return <ThreadOverlay channel={channel} fullPage={fullPage} threadId={threadId} />;
+  return (
+    <ThreadOverlay
+      workspaceId={workspaceId}
+      channel={channel}
+      fullPage={fullPage}
+      threadId={threadId}
+    />
+  );
 }

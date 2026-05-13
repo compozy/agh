@@ -20,7 +20,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "greet",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_greet_01",
 			  "kind": "greet",
 			  "channel": "builders",
@@ -30,7 +30,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "body": {
 			    "peer_card": {
 			      "peer_id": "coder.sess-abc",
-			      "profiles_supported": ["agh-network/v0"],
+			      "profiles_supported": ["agh-network/v2"],
 			      "capabilities": ["workspace.patch.apply"],
 			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
@@ -41,7 +41,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "whois response",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_whois_01",
 			  "kind": "whois",
 			  "channel": "builders",
@@ -53,7 +53,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			    "type": "response",
 			    "peer_card": {
 			      "peer_id": "reviewer.sess-xyz",
-			      "profiles_supported": ["agh-network/v0"],
+			      "profiles_supported": ["agh-network/v2"],
 			      "capabilities": ["chat.review"],
 			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
@@ -64,7 +64,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "say",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_say_01",
 			  "kind": "say",
 			  "channel": "builders",
@@ -82,7 +82,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "direct room say",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_direct_01",
 			  "kind": "say",
 			  "channel": "builders",
@@ -109,7 +109,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "capability",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_capability_01",
 			  "kind": "capability",
 			  "channel": "builders",
@@ -136,7 +136,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "receipt",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_receipt_01",
 			  "kind": "receipt",
 			  "channel": "builders",
@@ -157,7 +157,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 		{
 			name: "trace",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
 			  "id": "msg_trace_01",
 			  "kind": "trace",
 			  "channel": "builders",

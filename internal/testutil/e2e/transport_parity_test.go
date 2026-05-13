@@ -70,8 +70,9 @@ func TestRuntimeHarnessPromptSessionWithEventsInvokesCallback(t *testing.T) {
 	defer server.Close()
 
 	harness := &RuntimeHarness{
-		UDSBaseURL: server.URL,
-		UDSClient:  server.Client(),
+		WorkspaceID: "ws-1",
+		UDSBaseURL:  server.URL,
+		UDSClient:   server.Client(),
 	}
 
 	seen := make([]SSEEvent, 0, 2)

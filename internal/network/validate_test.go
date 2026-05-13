@@ -32,17 +32,18 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize greet envelopes",
 			envelope: Envelope{
-				Protocol: " agh-network/v0 ",
-				ID:       " msg_greet_01 ",
-				Kind:     " greet ",
-				Channel:  " builders ",
-				From:     " coder.sess-abc ",
-				To:       nil,
-				TS:       now.Unix(),
+				Protocol:    " agh-network/v2 ",
+				WorkspaceID: " wks_test ",
+				ID:          " msg_greet_01 ",
+				Kind:        " greet ",
+				Channel:     " builders ",
+				From:        " coder.sess-abc ",
+				To:          nil,
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"agh-network/v2"},
 						"capabilities":          []string{"workspace.patch.apply"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -56,19 +57,20 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize whois response envelopes",
 			envelope: Envelope{
-				Protocol: "agh-network/v0",
-				ID:       "msg_whois_01",
-				Kind:     KindWhois,
-				Channel:  "builders",
-				From:     "coder.sess-abc",
-				To:       &target,
-				ReplyTo:  &replyTo,
-				TS:       now.Unix(),
+				Protocol:    "agh-network/v2",
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_whois_01",
+				Kind:        KindWhois,
+				Channel:     "builders",
+				From:        "coder.sess-abc",
+				To:          &target,
+				ReplyTo:     &replyTo,
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"type": "response",
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"agh-network/v2"},
 						"capabilities":          []string{"chat.translate"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -81,15 +83,16 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize say envelopes",
 			envelope: Envelope{
-				Protocol: "agh-network/v0",
-				ID:       "msg_say_01",
-				Kind:     KindSay,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceThread),
-				ThreadID: stringPtr("thread_patch_42"),
-				From:     "coder.sess-abc",
-				WorkID:   stringPtr(workID),
-				TS:       now.Unix(),
+				Protocol:    "agh-network/v2",
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_say_01",
+				Kind:        KindSay,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceThread),
+				ThreadID:    stringPtr("thread_patch_42"),
+				From:        "coder.sess-abc",
+				WorkID:      stringPtr(workID),
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"text":   "working through it",
 					"intent": "status_update",
@@ -101,17 +104,18 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize direct envelopes",
 			envelope: Envelope{
-				Protocol: "agh-network/v0",
-				ID:       "msg_direct_01",
-				Kind:     KindSay,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-				From:     "coder.sess-abc",
-				To:       &target,
-				WorkID:   &workID,
-				TraceID:  &traceID,
-				TS:       now.Unix(),
+				Protocol:    "agh-network/v2",
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_direct_01",
+				Kind:        KindSay,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceDirect),
+				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				From:        "coder.sess-abc",
+				To:          &target,
+				WorkID:      &workID,
+				TraceID:     &traceID,
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"text":   "please review auth.go",
 					"intent": "review_request",
@@ -123,15 +127,16 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize capability envelopes",
 			envelope: Envelope{
-				Protocol: "agh-network/v0",
-				ID:       "msg_capability_01",
-				Kind:     KindCapability,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceThread),
-				ThreadID: stringPtr("thread_patch_42"),
-				From:     "coder.sess-abc",
-				WorkID:   stringPtr(workID),
-				TS:       now.Unix(),
+				Protocol:    "agh-network/v2",
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_capability_01",
+				Kind:        KindCapability,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceThread),
+				ThreadID:    stringPtr("thread_patch_42"),
+				From:        "coder.sess-abc",
+				WorkID:      stringPtr(workID),
+				TS:          now.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
 					Summary:          "Review fix flow",
@@ -147,16 +152,17 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize receipt envelopes",
 			envelope: Envelope{
-				Protocol: "agh-network/v0",
-				ID:       "msg_receipt_01",
-				Kind:     KindReceipt,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-				From:     "reviewer.sess-xyz",
-				To:       stringPtr(target),
-				WorkID:   stringPtr(workID),
-				TS:       now.Unix(),
+				Protocol:    "agh-network/v2",
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_receipt_01",
+				Kind:        KindReceipt,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceDirect),
+				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				From:        "reviewer.sess-xyz",
+				To:          stringPtr(target),
+				WorkID:      stringPtr(workID),
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"for_id": "msg_direct_01",
 					"status": "accepted",
@@ -169,16 +175,17 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		{
 			name: "Should normalize trace envelopes",
 			envelope: Envelope{
-				Protocol: "agh-network/v0",
-				ID:       "msg_trace_01",
-				Kind:     KindTrace,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-				From:     "reviewer.sess-xyz",
-				To:       stringPtr("coder.sess-abc"),
-				WorkID:   stringPtr(workID),
-				TS:       now.Unix(),
+				Protocol:    "agh-network/v2",
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_trace_01",
+				Kind:        KindTrace,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceDirect),
+				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				From:        "reviewer.sess-xyz",
+				To:          stringPtr("coder.sess-abc"),
+				WorkID:      stringPtr(workID),
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"state":   "working",
 					"message": "started",
@@ -226,16 +233,17 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 
 	base := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_direct_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-		From:     "coder.sess-abc",
-		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_direct_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text": "please review auth.go",
 		}),
@@ -335,7 +343,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 					"type": "response",
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"agh-network/v2"},
 						"capabilities":          []string{"chat.translate"},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -387,7 +395,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 				env.Body = mustRawJSON(t, map[string]any{
 					"peer_card": map[string]any{
 						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
+						"profiles_supported":    []string{"agh-network/v2"},
 						"capabilities":          []string{networkTaskWriteCapability},
 						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
@@ -553,15 +561,16 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 	base := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_surface_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceThread),
-		ThreadID: stringPtr("thread_patch_42"),
-		From:     "coder.sess-abc",
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "thread update"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_surface_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceThread),
+		ThreadID:    stringPtr("thread_patch_42"),
+		From:        "coder.sess-abc",
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "thread update"}),
 	}
 
 	cases := []struct {
@@ -684,12 +693,13 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 	base := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_greet_01",
-		Kind:     KindGreet,
-		Channel:  "builders",
-		From:     "coder.sess-abc",
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_greet_01",
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        "coder.sess-abc",
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, GreetBody{
 			PeerCard: mustPeerCard(t, "coder.sess-abc"),
 		}),
@@ -822,7 +832,8 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 		{
 			name: "Should reject legacy interaction_id",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
+			  "workspace_id": "wks_test",
 			  "id": "msg_legacy_interaction",
 			  "kind": "say",
 			  "channel": "builders",
@@ -839,7 +850,8 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 		{
 			name: "Should reject legacy direct kind",
 			raw: []byte(`{
-			  "protocol": "agh-network/v0",
+			  "protocol": "agh-network/v2",
+			  "workspace_id": "wks_test",
 			  "id": "msg_legacy_direct_kind",
 			  "kind": "direct",
 			  "channel": "builders",
@@ -880,15 +892,16 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 		{
 			name: "Should require work_id for capability",
 			env: Envelope{
-				Protocol: ProtocolV0,
-				ID:       "msg_capability_missing_work",
-				Kind:     KindCapability,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-				From:     "reviewer.sess-xyz",
-				To:       stringPtr("coder.sess-abc"),
-				TS:       now.Unix(),
+				Protocol:    ProtocolV2,
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_capability_missing_work",
+				Kind:        KindCapability,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceDirect),
+				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				From:        "reviewer.sess-xyz",
+				To:          stringPtr("coder.sess-abc"),
+				TS:          now.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:      "capability-review",
 					Summary: "Review capability",
@@ -899,15 +912,16 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 		{
 			name: "Should require work_id for receipt",
 			env: Envelope{
-				Protocol: ProtocolV0,
-				ID:       "msg_receipt_missing_work",
-				Kind:     KindReceipt,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-				From:     "reviewer.sess-xyz",
-				To:       stringPtr("coder.sess-abc"),
-				TS:       now.Unix(),
+				Protocol:    ProtocolV2,
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_receipt_missing_work",
+				Kind:        KindReceipt,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceDirect),
+				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				From:        "reviewer.sess-xyz",
+				To:          stringPtr("coder.sess-abc"),
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, ReceiptBody{
 					ForID:  "msg_direct_01",
 					Status: ReceiptStatusAccepted,
@@ -917,15 +931,16 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 		{
 			name: "Should require work_id for trace",
 			env: Envelope{
-				Protocol: ProtocolV0,
-				ID:       "msg_trace_missing_work",
-				Kind:     KindTrace,
-				Channel:  "builders",
-				Surface:  surfacePtr(SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-				From:     "reviewer.sess-xyz",
-				To:       stringPtr("coder.sess-abc"),
-				TS:       now.Unix(),
+				Protocol:    ProtocolV2,
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_trace_missing_work",
+				Kind:        KindTrace,
+				Channel:     "builders",
+				Surface:     surfacePtr(SurfaceDirect),
+				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				From:        "reviewer.sess-xyz",
+				To:          stringPtr("coder.sess-abc"),
+				TS:          now.Unix(),
 				Body: mustRawJSON(t, TraceBody{
 					State: WorkStateWorking,
 				}),
@@ -952,13 +967,14 @@ func TestRFC004SignedContentConversationFieldsAffectCanonicalBytes(t *testing.T)
 	t.Parallel()
 
 	base := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_signed_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     "coder.sess-abc",
-		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "signed content"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_signed_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-abc",
+		TS:          time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "signed content"}),
 	}
 	baseBytes := mustMarshalEnvelopeBytes(t, base)
 
@@ -1028,14 +1044,15 @@ func TestNormalizeEnvelopeAllowsWhitespaceOnlyStrings(t *testing.T) {
 		opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 
 		envelope := Envelope{
-			Protocol: "agh-network/v0",
-			ID:       "msg_say_whitespace_01",
-			Kind:     KindSay,
-			Channel:  "builders",
-			Surface:  surfacePtr(SurfaceThread),
-			ThreadID: stringPtr("thread_patch_42"),
-			From:     "coder.sess-abc",
-			TS:       now.Unix(),
+			Protocol:    "agh-network/v2",
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_say_whitespace_01",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     surfacePtr(SurfaceThread),
+			ThreadID:    stringPtr("thread_patch_42"),
+			From:        "coder.sess-abc",
+			TS:          now.Unix(),
 			Body: mustRawJSON(t, map[string]any{
 				"text":    "progress update",
 				"summary": "   ",
@@ -1086,15 +1103,25 @@ func TestRouteTokenKnownVectors(t *testing.T) {
 func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 	t.Parallel()
 
-	forwardID, peerA, peerB, err := DirectRoomIdentity("builders", "coder.sess-abc", "reviewer.sess-xyz")
+	forwardID, peerA, peerB, err := DirectRoomIdentity(
+		testWorkspaceID,
+		"builders",
+		"coder.sess-abc",
+		"reviewer.sess-xyz",
+	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity(forward) error = %v", err)
 	}
-	reverseID, reverseA, reverseB, err := DirectRoomIdentity(" builders ", " reviewer.sess-xyz ", " coder.sess-abc ")
+	reverseID, reverseA, reverseB, err := DirectRoomIdentity(
+		testWorkspaceID,
+		" builders ",
+		" reviewer.sess-xyz ",
+		" coder.sess-abc ",
+	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity(reverse) error = %v", err)
 	}
-	if got, want := forwardID, "direct_99401d24bee62651d189e5a561785466"; got != want {
+	if got, want := forwardID, "direct_89d9ad59cc4d7a145f79f345c0e26bb7"; got != want {
 		t.Fatalf("DirectRoomIdentity() = %q, want known vector %q", got, want)
 	}
 	if forwardID != reverseID || peerA != reverseA || peerB != reverseB {
@@ -1111,7 +1138,7 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 	if err := ValidateConversationID(forwardID, "direct_id"); err != nil {
 		t.Fatalf("ValidateConversationID(%q, direct_id) error = %v", forwardID, err)
 	}
-	otherChannelID, _, _, err := DirectRoomIdentity("reviews", "coder.sess-abc", "reviewer.sess-xyz")
+	otherChannelID, _, _, err := DirectRoomIdentity(testWorkspaceID, "reviews", "coder.sess-abc", "reviewer.sess-xyz")
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity(other channel) error = %v", err)
 	}
@@ -1119,6 +1146,7 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 		t.Fatalf("DirectRoomIdentity() returned same id across channels: %q", forwardID)
 	}
 	if _, _, _, err := DirectRoomIdentity(
+		testWorkspaceID,
 		"builders",
 		"coder.sess-abc",
 		"coder.sess-abc",
@@ -1132,6 +1160,7 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 		t.Fatalf("ValidateDirectRoomPeers() error = %v", err)
 	}
 	if err := ValidateDirectRoomBinding(
+		testWorkspaceID,
 		"builders",
 		forwardID,
 		"reviewer.sess-xyz",
@@ -1140,6 +1169,7 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 		t.Fatalf("ValidateDirectRoomBinding(reversed peers) error = %v", err)
 	}
 	if err := ValidateDirectRoomBinding(
+		testWorkspaceID,
 		"builders",
 		forwardID,
 		"coder.sess-abc",
@@ -1157,7 +1187,8 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 
 		now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		raw := []byte(`{
-	  "protocol": "agh-network/v0",
+	  "protocol": "agh-network/v2",
+	  "workspace_id": "wks_test",
 	  "id": "msg_direct_ext_01",
 		  "kind": "say",
 		  "channel": "builders",
@@ -1269,17 +1300,19 @@ func surfacePtr(value Surface) *Surface {
 
 func testThreadRef() ConversationRef {
 	return ConversationRef{
-		Channel:  "builders",
-		Surface:  SurfaceThread,
-		ThreadID: "thread_patch_42",
+		WorkspaceID: testWorkspaceID,
+		Channel:     "builders",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_patch_42",
 	}
 }
 
 func testDirectRef() ConversationRef {
 	return ConversationRef{
-		Channel:  "builders",
-		Surface:  SurfaceDirect,
-		DirectID: "direct_0123456789abcdef0123456789abcdef",
+		WorkspaceID: testWorkspaceID,
+		Channel:     "builders",
+		Surface:     SurfaceDirect,
+		DirectID:    "direct_0123456789abcdef0123456789abcdef",
 	}
 }
 

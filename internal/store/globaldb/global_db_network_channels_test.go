@@ -12,6 +12,8 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
+const networkStoreTestWorkspaceID = "ws-network-store"
+
 func TestNetworkChannels(t *testing.T) {
 	tests := []struct {
 		name string
@@ -62,8 +64,8 @@ func assertOpenGlobalDBCreatesNetworkChannelsSchema(t *testing.T) {
 
 	assertTablesPresent(t, globalDB.db, "network_channels")
 	assertTableColumns(t, globalDB.db, "network_channels", []string{
-		"channel",
 		"workspace_id",
+		"channel",
 		"purpose",
 		"created_by",
 		"created_at",
@@ -121,7 +123,10 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 		t.Fatalf("WriteNetworkChannel(second) error = %v", err)
 	}
 
-	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), "coord.core")
+	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	})
 	if err != nil {
 		t.Fatalf("GetNetworkChannel() error = %v", err)
 	}
@@ -157,7 +162,10 @@ func assertGlobalDBGetNetworkChannelNotFound(t *testing.T) {
 	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
-	_, err := globalDB.GetNetworkChannel(testutil.Context(t), "missing")
+	_, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: networkStoreTestWorkspaceID,
+		Channel:     "missing",
+	})
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("GetNetworkChannel(missing) error = %v, want sql.ErrNoRows", err)
 	}
@@ -181,10 +189,16 @@ func assertGlobalDBDeleteNetworkChannel(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteNetworkChannel() error = %v", err)
 	}
-	if err := globalDB.DeleteNetworkChannel(testutil.Context(t), "coord.core"); err != nil {
+	if err := globalDB.DeleteNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	}); err != nil {
 		t.Fatalf("DeleteNetworkChannel() error = %v", err)
 	}
-	if _, err := globalDB.GetNetworkChannel(testutil.Context(t), "coord.core"); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	}); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("GetNetworkChannel(after delete) error = %v, want sql.ErrNoRows", err)
 	}
 }
@@ -211,7 +225,10 @@ func assertGlobalDBDeleteWorkspaceCascadesNetworkChannels(t *testing.T) {
 	if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
 		t.Fatalf("DeleteWorkspace() error = %v", err)
 	}
-	if _, err := globalDB.GetNetworkChannel(testutil.Context(t), "coord.core"); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	}); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("GetNetworkChannel(after workspace delete) error = %v, want sql.ErrNoRows", err)
 	}
 }
@@ -246,7 +263,9 @@ func assertGlobalDBListNetworkChannelsWrapsTimestampParseFailures(t *testing.T) 
 		t.Fatalf("ExecContext(insert invalid network channel) error = %v", err)
 	}
 
-	_, err := globalDB.ListNetworkChannels(testutil.Context(t), store.NetworkChannelQuery{})
+	_, err := globalDB.ListNetworkChannels(testutil.Context(t), store.NetworkChannelQuery{
+		WorkspaceID: workspaceID,
+	})
 	if err == nil {
 		t.Fatal("ListNetworkChannels(invalid timestamp) error = nil, want non-nil")
 	}

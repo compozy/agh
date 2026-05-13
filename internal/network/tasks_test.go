@@ -146,12 +146,13 @@ func TestEnqueueRunFromPeerRejectsChannelMismatchAndAudits(t *testing.T) {
 	}
 
 	_, err := manager.EnqueueRunFromPeer(context.Background(), TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-enqueue-1",
-		Surface:   SurfaceThread,
-		ThreadID:  "thread_task_ingress",
-		WorkID:    "work_task_ingress",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-enqueue-1",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_task_ingress",
+		WorkID:      "work_task_ingress",
 	}, taskpkg.EnqueueRun{
 		TaskID:         "task-1",
 		IdempotencyKey: "idem-1",
@@ -168,7 +169,7 @@ func TestEnqueueRunFromPeerRejectsChannelMismatchAndAudits(t *testing.T) {
 	if got, want := getActor.Actor.Ref, peerID; got != want {
 		t.Fatalf("GetTask actor ref = %q, want %q", got, want)
 	}
-	if got, want := getActor.Origin.Ref, "peer:"+peerID+"/channel:ops"; got != want {
+	if got, want := getActor.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
 		t.Fatalf("GetTask origin ref = %q, want %q", got, want)
 	}
 
@@ -227,6 +228,7 @@ func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 		}
 
 		run, err := manager.EnqueueRunFromPeer(context.Background(), TaskIngressContext{
+			WorkspaceID: testWorkspaceID,
 			PeerID:      peerID,
 			Channel:     "ops",
 			RequestID:   "msg-enqueue-task",
@@ -302,9 +304,10 @@ func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.
 	}
 
 	record, err := manager.CreateTaskFromPeer(context.Background(), TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-create-1",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-create-1",
 	}, taskpkg.CreateTask{
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Peer task",
@@ -316,7 +319,7 @@ func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.
 	if got, want := createActor.Actor.Kind, taskpkg.ActorKindNetworkPeer; got != want {
 		t.Fatalf("CreateTask actor kind = %q, want %q", got, want)
 	}
-	if got, want := createActor.Origin.Ref, "peer:"+peerID+"/channel:ops"; got != want {
+	if got, want := createActor.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
 		t.Fatalf("CreateTask origin ref = %q, want %q", got, want)
 	}
 	if got, want := record.CreatedBy.Ref, peerID; got != want {
@@ -378,9 +381,10 @@ func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
 
 		clearChannel := ""
 		record, err := manager.UpdateTaskFromPeer(context.Background(), TaskIngressContext{
-			PeerID:    peerID,
-			Channel:   "ops",
-			RequestID: "req-update-clear",
+			WorkspaceID: testWorkspaceID,
+			PeerID:      peerID,
+			Channel:     "ops",
+			RequestID:   "req-update-clear",
 		}, "task-1", taskpkg.Patch{NetworkChannel: &clearChannel})
 		if err != nil {
 			t.Fatalf("UpdateTaskFromPeer(clear stale channel) error = %v", err)
@@ -431,9 +435,10 @@ func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
 
 		title := "Renamed"
 		_, err := manager.UpdateTaskFromPeer(context.Background(), TaskIngressContext{
-			PeerID:    peerID,
-			Channel:   "ops",
-			RequestID: "req-update-title",
+			WorkspaceID: testWorkspaceID,
+			PeerID:      peerID,
+			Channel:     "ops",
+			RequestID:   "req-update-title",
 		}, "task-1", taskpkg.Patch{Title: &title})
 		if !errors.Is(err, ErrTaskChannelStale) {
 			t.Fatalf("UpdateTaskFromPeer(unrelated stale update) error = %v, want %v", err, ErrTaskChannelStale)
@@ -476,9 +481,10 @@ func TestCancelTaskFromPeerRejectsPeerWithoutTaskWriteCapability(t *testing.T) {
 	}
 
 	_, err := manager.CancelTaskFromPeer(context.Background(), TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-cancel-1",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-cancel-1",
 	}, "task-1", taskpkg.CancelTask{})
 	if !errors.Is(err, ErrTaskIngressCapabilityDenied) {
 		t.Fatalf("CancelTaskFromPeer() error = %v, want %v", err, ErrTaskIngressCapabilityDenied)
@@ -568,7 +574,7 @@ func newRemotePeerRegistry(
 		t.Fatalf("DefaultPeerCard(%q) error = %v", peerID, err)
 	}
 	card.Capabilities = append([]string(nil), capabilities...)
-	if _, stored, err := registry.RefreshRemote(channel, card, now); err != nil {
+	if _, stored, err := registry.RefreshRemote(testWorkspaceID, channel, card, now); err != nil {
 		t.Fatalf("RefreshRemote(%q, %q) error = %v", channel, peerID, err)
 	} else if !stored {
 		t.Fatalf("RefreshRemote(%q, %q) stored = false, want true", channel, peerID)

@@ -5,11 +5,11 @@ icon: Network
 ---
 
 This tutorial adds a real transport to the minimal sender. You will publish and receive AGH Network
-envelopes over NATS Core using the v0 subject mapping.
+envelopes over NATS Core using the v2 subject mapping.
 
 Normative details live in the [NATS binding reference](/protocol/nats/) and
 [delivery reference](/protocol/delivery/). The current AGH Runtime embeds NATS Core with
-`agh.network.v0` subjects, so this page starts there.
+`agh.network.v2` subjects, so this page starts there.
 
 ## What you'll build
 
@@ -30,12 +30,12 @@ By the end, you will have a small NATS peer that:
 
 ## Map envelopes to subjects
 
-AGH Network v0 uses two subject shapes:
+AGH Network v2 uses two subject shapes:
 
-| Intent                 | Subject                                       |
-| ---------------------- | --------------------------------------------- |
-| Broadcast to a channel | `agh.network.v0.<channel>.broadcast`          |
-| Direct to a peer       | `agh.network.v0.<channel>.peer.<route_token>` |
+| Intent                 | Subject                                                      |
+| ---------------------- | ------------------------------------------------------------ |
+| Broadcast to a channel | `agh.network.v2.<workspace_id>.<channel>.broadcast`          |
+| Direct to a peer       | `agh.network.v2.<workspace_id>.<channel>.peer.<route_token>` |
 
 The route token is the first 32 lowercase hex characters of `SHA-256(peer_id UTF-8 bytes)`. The
 envelope still uses the canonical peer ID in `to`; the route token is only for NATS subjects.
@@ -45,9 +45,9 @@ envelope still uses the canonical peer ID in `to`; the route token is only for N
     participant A as sender.demo
     participant N as NATS
     participant B as echo.demo
-    A->>N: PUB agh.network.v0.builders.broadcast
+    A->>N: PUB agh.network.v2.ws_alpha.builders.broadcast
     N-->>B: say envelope
-    A->>N: REQ agh.network.v0.builders.peer.<echo route>
+    A->>N: REQ agh.network.v2.ws_alpha.builders.peer.<echo route>
     N-->>B: whois request envelope
     B-->>A: whois response envelope`}
   caption="The subject routes traffic; the envelope still carries protocol identity and correlation."
@@ -74,9 +74,10 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-type Envelope struct {
+	type Envelope struct {
 	Protocol    string         `json:"protocol"`
 	ID          string         `json:"id"`
+	WorkspaceID string         `json:"workspace_id"`
 	Kind        string         `json:"kind"`
 	Channel     string         `json:"channel"`
 	Surface     *string        `json:"surface,omitempty"`
@@ -114,46 +115,47 @@ func main() {
 	}
 	defer echo.Close()
 
+	workspaceID := "ws_alpha"
 	channel := "builders"
 	senderID := "sender.demo"
 	echoID := "echo.demo"
 	threadID := "thread_nats_demo"
 
-	if err := subscribeEchoPeer(echo, channel, echoID); err != nil {
+	if err := subscribeEchoPeer(echo, workspaceID, channel, echoID); err != nil {
 		log.Fatalf("subscribe echo peer: %v", err)
 	}
 
-	greet := envelope("msg_greet_01", "greet", channel, senderID, nil, map[string]any{
+	greet := envelope("msg_greet_01", "greet", workspaceID, channel, senderID, nil, map[string]any{
 		"peer_card": map[string]any{
 			"peer_id":               senderID,
 			"display_name":          "Sender Demo",
-			"profiles_supported":    []string{"agh-network/v0"},
+			"profiles_supported":    []string{"agh-network/v2"},
 			"capabilities":          []string{},
 			"artifacts_supported":   []string{},
 			"trust_modes_supported": []string{"unverified"},
 		},
 	})
-	if err := publish(sender, broadcastSubject(channel), greet); err != nil {
+	if err := publish(sender, broadcastSubject(workspaceID, channel), greet); err != nil {
 		log.Fatalf("publish greet: %v", err)
 	}
 
-	threadSay := envelope("msg_say_01", "say", channel, senderID, nil, map[string]any{
+	threadSay := envelope("msg_say_01", "say", workspaceID, channel, senderID, nil, map[string]any{
 		"text":   "hello inside thread_nats_demo",
 		"intent": "demo",
 	})
 	threadSurface := "thread"
 	threadSay.Surface = &threadSurface
 	threadSay.ThreadID = &threadID
-	if err := publish(sender, broadcastSubject(channel), threadSay); err != nil {
+	if err := publish(sender, broadcastSubject(workspaceID, channel), threadSay); err != nil {
 		log.Fatalf("publish thread say: %v", err)
 	}
 
-	request := envelope("msg_whois_01", "whois", channel, senderID, &echoID, map[string]any{
+	request := envelope("msg_whois_01", "whois", workspaceID, channel, senderID, &echoID, map[string]any{
 		"type":  "request",
 		"query": echoID,
 	})
 
-	msg, err := requestEnvelope(ctx, sender, directSubject(channel, echoID), request)
+	msg, err := requestEnvelope(ctx, sender, directSubject(workspaceID, channel, echoID), request)
 	if err != nil {
 		log.Fatalf("request whois: %v", err)
 	}
@@ -181,8 +183,8 @@ func startNATS() (*server.Server, string) {
 	return ns, ns.ClientURL()
 }
 
-func subscribeEchoPeer(conn *nats.Conn, channel string, peerID string) error {
-	if _, err := conn.Subscribe(broadcastSubject(channel), func(msg *nats.Msg) {
+func subscribeEchoPeer(conn *nats.Conn, workspaceID string, channel string, peerID string) error {
+	if _, err := conn.Subscribe(broadcastSubject(workspaceID, channel), func(msg *nats.Msg) {
 		var env Envelope
 		if err := json.Unmarshal(msg.Data, &env); err == nil {
 			fmt.Printf("echo saw broadcast %s from=%s\n", env.Kind, env.From)
@@ -191,7 +193,7 @@ func subscribeEchoPeer(conn *nats.Conn, channel string, peerID string) error {
 		return err
 	}
 
-	_, err := conn.Subscribe(directSubject(channel, peerID), func(msg *nats.Msg) {
+	_, err := conn.Subscribe(directSubject(workspaceID, channel, peerID), func(msg *nats.Msg) {
 		var req Envelope
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return
@@ -199,19 +201,21 @@ func subscribeEchoPeer(conn *nats.Conn, channel string, peerID string) error {
 		if req.Kind != "whois" || msg.Reply == "" {
 			return
 		}
-		response := envelope("msg_whois_response_01", "whois", req.Channel, peerID, &req.From, map[string]any{
+		response := envelope("msg_whois_response_01", "whois", req.WorkspaceID, req.Channel, peerID, &req.From, map[string]any{
 			"type": "response",
 			"peer_card": map[string]any{
 				"peer_id":                peerID,
 				"display_name":           "Echo Demo",
-				"profiles_supported":     []string{"agh-network/v0"},
+				"profiles_supported":     []string{"agh-network/v2"},
 				"capabilities":           []string{"echo"},
 				"artifacts_supported":    []string{},
 				"trust_modes_supported":  []string{},
 			},
 		})
 		response.ReplyTo = &req.ID
-		_ = publish(conn, msg.Reply, response)
+		if err := publish(conn, msg.Reply, response); err != nil {
+			return
+		}
 	})
 	if err != nil {
 		return err
@@ -219,17 +223,18 @@ func subscribeEchoPeer(conn *nats.Conn, channel string, peerID string) error {
 	return conn.Flush()
 }
 
-func envelope(id, kind, channel, from string, to *string, body map[string]any) Envelope {
+func envelope(id, kind, workspaceID, channel, from string, to *string, body map[string]any) Envelope {
 	return Envelope{
-		Protocol: "agh-network/v0",
-		ID:       id,
-		Kind:     kind,
-		Channel:  channel,
-		From:     from,
-		To:       to,
-		TS:       time.Now().UTC().Unix(),
-		Body:     body,
-		Proof:    nil,
+		Protocol:    "agh-network/v2",
+		ID:          id,
+		WorkspaceID: workspaceID,
+		Kind:        kind,
+		Channel:     channel,
+		From:        from,
+		To:          to,
+		TS:          time.Now().UTC().Unix(),
+		Body:        body,
+		Proof:       nil,
 	}
 }
 
@@ -252,12 +257,12 @@ func requestEnvelope(ctx context.Context, conn *nats.Conn, subject string, env E
 	return conn.RequestWithContext(ctx, subject, payload)
 }
 
-func broadcastSubject(channel string) string {
-	return "agh.network.v0." + channel + ".broadcast"
+func broadcastSubject(workspaceID string, channel string) string {
+	return "agh.network.v2." + workspaceID + "." + channel + ".broadcast"
 }
 
-func directSubject(channel string, peerID string) string {
-	return "agh.network.v0." + channel + ".peer." + routeToken(peerID)
+func directSubject(workspaceID string, channel string, peerID string) string {
+	return "agh.network.v2." + workspaceID + "." + channel + ".peer." + routeToken(peerID)
 }
 
 func routeToken(peerID string) string {
@@ -281,21 +286,22 @@ connect sender client
 connect echo client
 
 channel = "builders"
+workspace_id = "ws_alpha"
 sender_id = "sender.demo"
 echo_id = "echo.demo"
 
 echo subscribes to:
-  "agh.network.v0.builders.broadcast"
-  "agh.network.v0.builders.peer." + route_token(echo_id)
+  "agh.network.v2.ws_alpha.builders.broadcast"
+  "agh.network.v2.ws_alpha.builders.peer." + route_token(echo_id)
 
 sender publishes greet envelope to:
-  "agh.network.v0.builders.broadcast"
+  "agh.network.v2.ws_alpha.builders.broadcast"
 
 sender publishes say envelope (surface=thread, thread_id=thread_nats_demo) to:
-  "agh.network.v0.builders.broadcast"
+  "agh.network.v2.ws_alpha.builders.broadcast"
 
 sender sends whois request envelope to:
-  "agh.network.v0.builders.peer." + route_token(echo_id)
+  "agh.network.v2.ws_alpha.builders.peer." + route_token(echo_id)
 
 echo receives whois request:
   build whois response envelope
@@ -321,8 +327,8 @@ reply subject as the protocol correlation model. AGH Network still relies on:
 | `work_id`      | Lifecycle correlation inside one conversation container.    |
 | `trace_id`     | Larger operational flow, when one exists.                   |
 
-For v1 verified peers, the route token changes to the verified fingerprint and the prefix becomes
-`agh.network.v1`; see the [NATS binding reference](/protocol/nats/). The core envelope correlation
+For peers using the v1 trust profile, the route token changes to the verified fingerprint and the prefix becomes
+`agh.network.v2`; see the [NATS binding reference](/protocol/nats/). The core envelope correlation
 fields stay authoritative.
 
 ## Verify it works

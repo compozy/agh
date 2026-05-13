@@ -136,8 +136,8 @@ type hostAPIPromptingSessionManager interface {
 
 type hostAPINetworkService interface {
 	Send(ctx context.Context, req network.SendRequest) (string, error)
-	ListPeers(ctx context.Context, channel string) ([]network.PeerInfo, error)
-	ListChannels(ctx context.Context) ([]network.ChannelInfo, error)
+	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
+	ListChannels(ctx context.Context, workspaceID string) ([]network.ChannelInfo, error)
 	Status(ctx context.Context) (*network.Status, error)
 }
 
@@ -841,7 +841,10 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
-			filterWorkspaceID = strings.TrimSpace(resolved.ID)
+			filterWorkspaceID, resolveErr = hostAPIResolvedWorkspaceID(&resolved)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
 			filterWorkspaceRoot = strings.TrimSpace(resolved.RootDir)
 		} else {
 			filterWorkspaceID = workspaceRef
@@ -921,6 +924,9 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 	if strings.TrimSpace(params.Message) == "" {
 		return nil, invalidParamsRPCError(errors.New("message is required"))
 	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
+	}
 
 	submission, err := h.submitPrompt(ctx, params.SessionID, params.Message)
 	if err != nil {
@@ -941,6 +947,9 @@ func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMes
 	if strings.TrimSpace(params.SessionID) == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
 	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
+	}
 	if err := h.sessions.Stop(ctx, params.SessionID); err != nil {
 		return nil, err
 	}
@@ -959,7 +968,7 @@ func (h *HostAPIHandler) handleSessionsStatus(ctx context.Context, raw json.RawM
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
 	}
 
-	info, err := h.sessions.Status(ctx, params.SessionID)
+	info, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -976,6 +985,9 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 	}
 	if strings.TrimSpace(params.SessionID) == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
+		return nil, err
 	}
 
 	events, err := h.sessions.Events(ctx, params.SessionID, store.EventQuery{
@@ -1057,11 +1069,8 @@ func (h *HostAPIHandler) handleSandboxInfo(ctx context.Context, raw json.RawMess
 	if sessionID == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
 	}
-	info, err := h.sessions.Status(ctx, sessionID)
+	info, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, sessionID)
 	if err != nil {
-		if errors.Is(err, session.ErrSessionNotFound) {
-			return nil, notFoundRPCError("session", sessionID, err)
-		}
 		return nil, err
 	}
 	if info == nil || info.Sandbox == nil {
@@ -1097,6 +1106,9 @@ func (h *HostAPIHandler) handleSandboxExec(ctx context.Context, raw json.RawMess
 	}
 	if params.Timeout < 0 {
 		return nil, invalidParamsRPCError(errors.New("timeout must be non-negative"))
+	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, sessionID); err != nil {
+		return nil, err
 	}
 	result, err := h.sessions.ExecSandbox(ctx, session.SandboxExecRequest{
 		SessionID: sessionID,
@@ -1134,7 +1146,11 @@ func (h *HostAPIHandler) resolveSandboxWorkspaceFilter(
 	if err != nil {
 		return "", "", err
 	}
-	return strings.TrimSpace(resolved.ID), strings.TrimSpace(resolved.RootDir), nil
+	workspaceID, err := hostAPIResolvedWorkspaceID(&resolved)
+	if err != nil {
+		return "", "", err
+	}
+	return workspaceID, strings.TrimSpace(resolved.RootDir), nil
 }
 
 func hostAPISandboxSyncState(meta *store.SessionSandboxMeta) string {
@@ -1255,13 +1271,18 @@ func (h *HostAPIHandler) handleObserveEvents(ctx context.Context, raw json.RawMe
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
+	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
 
 	events, err := h.observer.QueryEvents(ctx, store.EventSummaryQuery{
-		SessionID: strings.TrimSpace(params.SessionID),
-		AgentName: strings.TrimSpace(params.AgentName),
-		Type:      strings.TrimSpace(params.Type),
-		Since:     params.Since,
-		Limit:     params.Limit,
+		WorkspaceID: workspaceID,
+		SessionID:   strings.TrimSpace(params.SessionID),
+		AgentName:   strings.TrimSpace(params.AgentName),
+		Type:        strings.TrimSpace(params.Type),
+		Since:       params.Since,
+		Limit:       params.Limit,
 	})
 	if err != nil {
 		return nil, err
@@ -1273,9 +1294,10 @@ func (h *HostAPIHandler) handleObserveEvents(ctx context.Context, raw json.RawMe
 			Type:      event.Type,
 			Timestamp: event.Timestamp,
 			Data: map[string]any{
-				"session_id": event.SessionID,
-				"agent_name": event.AgentName,
-				"summary":    event.Summary,
+				"workspace_id": event.WorkspaceID,
+				"session_id":   event.SessionID,
+				"agent_name":   event.AgentName,
+				"summary":      event.Summary,
 			},
 		})
 	}
@@ -2020,7 +2042,51 @@ func (h *HostAPIHandler) resolveWorkspaceID(ctx context.Context, rawWorkspace st
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(resolved.ID), nil
+	return hostAPIResolvedWorkspaceID(&resolved)
+}
+
+func (h *HostAPIHandler) resolveRequiredWorkspaceID(ctx context.Context, rawWorkspace string) (string, error) {
+	workspaceID, err := h.resolveWorkspaceID(ctx, rawWorkspace)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(workspaceID) == "" {
+		return "", invalidParamsRPCError(errors.New("workspace_id is required"))
+	}
+	return strings.TrimSpace(workspaceID), nil
+}
+
+func (h *HostAPIHandler) requireHostAPISessionWorkspace(
+	ctx context.Context,
+	workspaceRef string,
+	sessionID string,
+) (*session.Info, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+	id := strings.TrimSpace(sessionID)
+	if id == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	workspaceID, err := h.resolveRequiredWorkspaceID(ctx, workspaceRef)
+	if err != nil {
+		return nil, err
+	}
+	info, err := h.sessions.Status(ctx, id)
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return nil, notFoundRPCError("session", id, err)
+		}
+		return nil, err
+	}
+	if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
+		return nil, notFoundRPCError(
+			"session",
+			id,
+			fmt.Errorf("%w: session=%q workspace_id=%q", session.ErrSessionNotFound, id, workspaceID),
+		)
+	}
+	return info, nil
 }
 
 func (h *HostAPIHandler) automationManager() (HostAPIAutomationManager, error) {
@@ -2050,7 +2116,18 @@ func (h *HostAPIHandler) resolveAutomationWorkspaceID(ctx context.Context, rawWo
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(resolved.ID), nil
+	return hostAPIResolvedWorkspaceID(&resolved)
+}
+
+func hostAPIResolvedWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
+	if resolved == nil {
+		return "", errors.New("extension: resolved workspace is required")
+	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		return "", errors.New("extension: resolved workspace_id is empty")
+	}
+	return workspaceID, nil
 }
 
 func (h *HostAPIHandler) jobFromCreateParams(

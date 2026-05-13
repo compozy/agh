@@ -141,7 +141,7 @@ A handful of CLAUDE.md statements no longer match the codebase or how Pedro curr
 **1. Phase ordering**
 
 - CLAUDE.md says phases are 1) Agent core (current) → 2) Memory/Skills/State → 3) Agent network protocol.
-- Reality (per recent commits and the user-memory `project_site_docs.md`): network protocol exists today (`agh-network/v0`, seven-kind wire), channels are first-class, network workspace was redesigned in `feat: redesign network workspace (#59)`. The current major effort is the autonomy kernel (situation surface, claim/lease, coordinator), which doesn't cleanly map to any of the three named phases.
+- Reality (per recent commits and the user-memory `project_site_docs.md`): network protocol exists today (`agh-network/v2`, seven-kind wire), channels are first-class, network workspace was redesigned in `feat: redesign network workspace (#59)`. The current major effort is the autonomy kernel (situation surface, claim/lease, coordinator), which doesn't cleanly map to any of the three named phases.
 - Phase labels are stale; they predate the autonomous mode.
 
 **2. Package layout table**
@@ -273,7 +273,7 @@ The build commands list `make verify`, `fmt`, `lint`, `test`, `build`, `deps` �
 CLAUDE.md says 80% coverage minimum and `make test` = unit only. Per `_techspec.md`, autonomy work requires a layered test pyramid: unit → integration (`-tags integration`) → daemon/web e2e (`make test-e2e-web`, `make test-e2e-nightly`). The 80% rule applies per package, but the e2e layer is what catches the manual-first/coordination-channel regressions. CLAUDE.md doesn't mention `make test-e2e-*`.
 
 **15. The "spaces → channels" rename is recent**
-`refactor: rename spaces to channels (#17)` happened relatively recently (~mid-history). If any user memory, skill, or doc still says "spaces," that's stale. The `agh-network/v0` wire kinds, `coordination_channel_id`, and `agh ch` verbs are the post-rename names.
+`refactor: rename spaces to channels (#17)` happened relatively recently (~mid-history). If any user memory, skill, or doc still says "spaces," that's stale. The `agh-network/v2` wire kinds, `coordination_channel_id`, and `agh ch` verbs are the post-rename names.
 
 **16. Two "hermes" references in commits/dirs**
 `refactor: hermes adjustments (#69)` and the `_tasks.md` mentions "the same QA planning/execution handoff pattern used by `.compozy/tasks/hermes`" — there is or was a hermes feature whose QA handoff pattern is the prototype `task_17`/`task_18` + `real-scenario-qa` extends. Synthesis should look at hermes if it needs prior art for the QA pattern (out of scope for this analysis, just a pointer).

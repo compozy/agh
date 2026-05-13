@@ -8,7 +8,7 @@ This tutorial adds the v1 baseline trust profile. You will generate an Ed25519 i
 envelope over deterministic JSON bytes, and verify the incoming proof before routing.
 
 Normative details live in [Ed25519 + JCS](/protocol/ed25519-jcs/) and
-[signature verification](/protocol/verification/). The current AGH Runtime is still a v0
+[signature verification](/protocol/verification/). The current AGH Runtime is still a v2
 implementation, so this page is for implementers building a v1-compatible participant.
 
 ## What you'll build
@@ -22,7 +22,7 @@ By the end, you will have a small verifier that:
 - rejects tampering before normal routing
 
 <OperatorNote label="Current AGH behavior">
-  Current `internal/network` validates v0 envelopes and preserves `proof` as opaque JSON. It does
+  Current `internal/network` validates v2 envelopes and preserves `proof` as opaque JSON. It does
   not yet verify Ed25519 proofs. Treat this tutorial as the protocol-side implementation path for
   third-party peers and future AGH v1 support.
 </OperatorNote>
@@ -80,7 +80,7 @@ func main() {
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
 	envelope := map[string]any{
-		"protocol":     "agh-network/v1",
+		"protocol":     "agh-network/v2",
 		"id":           "msg_trust_01",
 		"kind":         "say",
 		"channel":      "builders",

@@ -312,6 +312,7 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 
 	jsonOut, _, err := executeRootCommand(t, deps,
 		"hooks", "runs",
+		"--workspace", "ws-workspace",
 		"--session", "sess-1",
 		"--event", "permission.request",
 		"--outcome", "failed",
@@ -338,7 +339,18 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 		t.Fatalf("len(decoded) = %d, want %d", got, want)
 	}
 
-	humanOut, _, err := executeRootCommand(t, deps, "hooks", "runs", "--session", "sess-1", "-o", "human")
+	humanOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"hooks",
+		"runs",
+		"--workspace",
+		"ws-workspace",
+		"--session",
+		"sess-1",
+		"-o",
+		"human",
+	)
 	if err != nil {
 		t.Fatalf("executeRootCommand(hooks runs human) error = %v", err)
 	}
@@ -347,7 +359,18 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 		t.Fatalf("human output = %q, want runs table", humanOut)
 	}
 
-	toonOut, _, err := executeRootCommand(t, deps, "hooks", "runs", "--session", "sess-1", "-o", "toon")
+	toonOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"hooks",
+		"runs",
+		"--workspace",
+		"ws-workspace",
+		"--session",
+		"sess-1",
+		"-o",
+		"toon",
+	)
 	if err != nil {
 		t.Fatalf("executeRootCommand(hooks runs toon) error = %v", err)
 	}

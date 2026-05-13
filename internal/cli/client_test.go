@@ -976,7 +976,13 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 			socketPath: "/tmp/agh.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-					if req.Method != http.MethodGet || req.URL.Path != "/api/sessions/sess-1/stream" {
+					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions" {
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+						), nil
+					}
+					if req.Method != http.MethodGet || req.URL.Path != "/api/workspaces/ws-1/sessions/sess-1/stream" {
 						t.Fatalf("request = %s %s, want GET session stream", req.Method, req.URL.Path)
 					}
 					if req.Header.Get("Last-Event-ID") != "evt-0" {
@@ -1164,8 +1170,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions":
-					if got := req.URL.Query().Get("workspace"); got != "ws-1" {
-						t.Fatalf("session workspace query = %q, want %q", got, "ws-1")
+					if got := req.URL.Query().Get("workspace"); got != "" && got != "ws-1" {
+						t.Fatalf("session workspace query = %q, want empty or ws-1", got)
 					}
 					return newHTTPResponse(
 						http.StatusOK,
@@ -1183,19 +1189,19 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusCreated,
 						`{"session":{"id":"sess-new","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1":
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/stop":
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/stop":
 					return newHTTPResponse(http.StatusNoContent, ``), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/resume":
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/resume":
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/repair":
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/repair":
 					if got := req.URL.Query().Get("dry_run"); got != "true" {
 						t.Fatalf("repair dry_run query = %q, want true", got)
 					}
@@ -1206,7 +1212,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"repair":{"session_id":"sess-1","persisted":false,"issues":[],"actions":[{"code":"append_terminal_error","turn_id":"turn-1","persisted":false}]}}`,
 					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/prompt":
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
 					body, err := io.ReadAll(req.Body)
 					if err != nil {
 						t.Fatalf("io.ReadAll(prompt body) error = %v", err)
@@ -1223,7 +1229,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`data: {"session_id":"sess-1","turn_id":"turn-1","type":"agent_message","timestamp":"2026-04-03T12:00:00Z","text":"hello back"}`,
 						"",
 					}, "\n")), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/events":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/events":
 					if got := req.URL.Query().Get("type"); got != "tool_call" {
 						t.Fatalf("session events type query = %q, want %q", got, "tool_call")
 					}
@@ -1231,7 +1237,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"events":[{"id":"evt-1","session_id":"sess-1","sequence":1,"turn_id":"turn-1","type":"tool_call","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/history":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/history":
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("history limit query = %q, want %q", got, "2")
 					}
@@ -1337,7 +1343,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess"}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/hooks/runs":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/hooks/runs":
 					if got := req.URL.Query().Get("session"); got != "sess-1" {
 						t.Fatalf("hook runs session query = %q, want %q", got, "sess-1")
 					}
@@ -1368,7 +1374,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"events":[{"event":"tool.pre_call","family":"tool","sync_eligible":true,"payload_schema":"ToolPreCallPayload","patch_schema":"ToolCallPatch"}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/observe/events":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/observe/events":
 					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
 						t.Fatalf("observe session_id query = %q, want %q", got, "sess-1")
 					}
@@ -1376,7 +1382,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"events":[{"id":"sum-1","session_id":"sess-1","type":"agent_message","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/observe/events/stream":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/observe/events/stream":
 					if got := req.Header.Get("Last-Event-ID"); got != "cursor-1" {
 						t.Fatalf("Last-Event-ID = %q, want %q", got, "cursor-1")
 					}
@@ -1593,7 +1599,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("HookCatalog() = %#v, %v", hookCatalog, err)
 	}
 
-	hookRuns, err := client.HookRuns(ctx, HookRunsQuery{
+	hookRuns, err := client.HookRuns(ctx, "ws-1", HookRunsQuery{
 		Session: "sess-1",
 		Event:   "permission.request",
 		Outcome: "failed",
@@ -1641,16 +1647,21 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("DeleteWorkspace() error = %v", err)
 	}
 
-	events, err := client.ObserveEvents(ctx, ObserveEventQuery{SessionID: "sess-1"})
+	events, err := client.ObserveEvents(ctx, ObserveEventQuery{WorkspaceRef: "ws-1", SessionID: "sess-1"})
 	if err != nil || len(events) != 1 {
 		t.Fatalf("ObserveEvents() = %#v, %v", events, err)
 	}
 
 	var streamed []SSEEvent
-	if err := client.StreamObserveEvents(ctx, ObserveEventQuery{}, "cursor-1", func(event SSEEvent) error {
-		streamed = append(streamed, event)
-		return nil
-	}); err != nil {
+	if err := client.StreamObserveEvents(
+		ctx,
+		ObserveEventQuery{WorkspaceRef: "ws-1"},
+		"cursor-1",
+		func(event SSEEvent) error {
+			streamed = append(streamed, event)
+			return nil
+		},
+	); err != nil {
 		t.Fatalf("StreamObserveEvents() error = %v", err)
 	}
 	if len(streamed) != 1 || streamed[0].Event != "agent_message" {
@@ -1745,7 +1756,13 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 			socketPath: "/tmp/agh.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-					if req.Method != http.MethodPost || req.URL.Path != "/api/sessions/sess-1/repair" {
+					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions" {
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"stopped","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+						), nil
+					}
+					if req.Method != http.MethodPost || req.URL.Path != "/api/workspaces/ws-1/sessions/sess-1/repair" {
 						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
 					}
 					if got := req.URL.Query().Get("dry_run"); got != "true" {
@@ -3107,7 +3124,7 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	err := client.doSSE(
 		context.Background(),
 		http.MethodGet,
-		"/api/observe/events/stream",
+		"/api/workspaces/ws-1/observe/events/stream",
 		observeEventValues(ObserveEventQuery{Since: time.Now().UTC()}),
 		nil,
 		"cursor-9",

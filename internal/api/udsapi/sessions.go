@@ -32,7 +32,11 @@ func (h *Handlers) approveSession(c *gin.Context) {
 		return
 	}
 
-	if err := h.Sessions.ApprovePermission(c.Request.Context(), c.Param("id"), approve); err != nil {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	if err := h.Sessions.ApprovePermission(c.Request.Context(), sessionID, approve); err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
 	}
@@ -41,7 +45,11 @@ func (h *Handlers) approveSession(c *gin.Context) {
 }
 
 func (h *Handlers) cancelSessionPrompt(c *gin.Context) {
-	if err := h.Sessions.CancelPrompt(c.Request.Context(), c.Param("id")); err != nil {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	if err := h.Sessions.CancelPrompt(c.Request.Context(), sessionID); err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
 	}

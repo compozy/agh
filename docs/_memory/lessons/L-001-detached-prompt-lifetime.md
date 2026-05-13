@@ -19,7 +19,7 @@ Tying execution lifetime to request lifetime. A `c.Request.Context()` is bound t
 
 ## Rule
 
-> Any work that outlives an HTTP/UDS request MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime. Expose explicit cancel endpoints (e.g., `POST /api/sessions/:id/prompt/cancel`).
+> Any work that outlives an HTTP/UDS request MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime. Expose explicit cancel endpoints (e.g., `POST /api/workspaces/:workspace_id/sessions/:id/prompt/cancel`).
 
 ## Caveats
 

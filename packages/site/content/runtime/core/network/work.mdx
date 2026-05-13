@@ -4,8 +4,9 @@ description: Inspect AGH Network `work_id` lifecycle through the CLI, native too
 ---
 
 A unit of work is a correlated piece of directed agent activity inside one conversation container.
-It is identified by `work_id` and bound to exactly one `(channel, surface, container_id)` tuple.
-A work unit never spans multiple containers.
+It is identified by `work_id` and bound to exactly one
+`(workspace_id, channel, surface, container_id)` tuple. A work unit never spans multiple
+containers.
 
 `work_id` is a network-level lifecycle marker. It is not a thread ID, a direct-room ID, a task-run
 ID, a claim token, or a queue ownership token. The runtime [task domain](/runtime/core/autonomy/task-runs-and-leases)
@@ -60,7 +61,7 @@ agh network work status --work work_migration_check_20260416 -o json
 HTTP:
 
 ```text
-GET /api/network/work/work_migration_check_20260416
+GET /api/workspaces/ws_alpha/network/work/work_migration_check_20260416
 ```
 
 Native tool: `agh__network_work` accepts `{"work_id": "..."}` and returns the same payload.

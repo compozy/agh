@@ -30,9 +30,13 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		core.RespondError(c, http.StatusBadRequest, errors.New("message is required"), false)
 		return
 	}
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
 
 	if strings.EqualFold(strings.TrimSpace(c.Query("format")), promptStreamFormatRaw) {
-		h.promptSessionRaw(c, req.Message)
+		h.promptSessionRaw(c, sessionID, req.Message)
 		return
 	}
 
@@ -43,7 +47,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 			cancelOnReturn()
 		}
 	}()
-	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), req.Message)
+	events, err := h.Sessions.Prompt(promptCtx, sessionID, req.Message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
@@ -81,7 +85,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 }
 
-func (h *Handlers) promptSessionRaw(c *gin.Context, message string) {
+func (h *Handlers) promptSessionRaw(c *gin.Context, sessionID string, message string) {
 	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
 	cancelOnReturn := cancelPrompt
 	defer func() {
@@ -89,7 +93,7 @@ func (h *Handlers) promptSessionRaw(c *gin.Context, message string) {
 			cancelOnReturn()
 		}
 	}()
-	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), message)
+	events, err := h.Sessions.Prompt(promptCtx, sessionID, message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return

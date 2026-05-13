@@ -52,13 +52,13 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/settings/hooks/:name",
 		"DELETE /api/settings/mcp-servers/:name",
 		"DELETE /api/settings/providers/:name",
-		"DELETE /api/sessions/:id",
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id",
 		"DELETE /api/tasks/:id",
 		"DELETE /api/tasks/:id/notifications/bridges/:subscription_id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
 		"DELETE /api/tasks/:id/execution-profile",
 		"DELETE /api/vault/secrets",
-		"DELETE /api/workspaces/:id",
+		"DELETE /api/workspaces/:workspace_id",
 		"GET /api/agent/channels",
 		"GET /api/agent/channels/:channel/recv",
 		"GET /api/agent/context",
@@ -95,7 +95,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/extensions/:name",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
-		"GET /api/hooks/runs",
+		"GET /api/workspaces/:workspace_id/hooks/runs",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
 		"GET /api/memory/config",
@@ -113,37 +113,37 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/memory/providers/:provider_name",
 		"GET /api/memory/recall-traces/:session_id/:turn_seq",
 		"GET /api/memory/scope-show",
-		"GET /api/memory/sessions/:session_id/ledger",
-		"GET /api/network/inbox",
-		"GET /api/network/peers",
-		"GET /api/network/peers/:peer_id",
-		"GET /api/network/channels",
-		"GET /api/network/channels/:channel",
-		"GET /api/network/channels/:channel/directs",
-		"GET /api/network/channels/:channel/directs/:direct_id",
-		"GET /api/network/channels/:channel/directs/:direct_id/messages",
-		"GET /api/network/channels/:channel/threads",
-		"GET /api/network/channels/:channel/threads/:thread_id",
-		"GET /api/network/channels/:channel/threads/:thread_id/messages",
+		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
+		"GET /api/workspaces/:workspace_id/network/inbox",
+		"GET /api/workspaces/:workspace_id/network/peers",
+		"GET /api/workspaces/:workspace_id/network/peers/:peer_id",
+		"GET /api/workspaces/:workspace_id/network/channels",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel/directs",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id",
+		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
 		"GET /api/network/status",
-		"GET /api/network/work/:work_id",
-		"GET /api/observe/events",
-		"GET /api/observe/events/stream",
+		"GET /api/workspaces/:workspace_id/network/work/:work_id",
+		"GET /api/workspaces/:workspace_id/observe/events",
+		"GET /api/workspaces/:workspace_id/observe/events/stream",
 		"GET /api/observe/health",
 		"GET /api/observe/tasks/dashboard",
 		"GET /api/observe/tasks/inbox",
 		"GET /api/openai/v1/models",
 		"GET /api/providers/*catalog_path",
 		"GET /api/sessions",
-		"GET /api/sessions/:id",
-		"GET /api/sessions/:id/events",
-		"GET /api/sessions/:id/health",
-		"GET /api/sessions/:id/history",
-		"GET /api/sessions/:id/inspect",
-		"GET /api/sessions/:id/status",
-		"GET /api/sessions/:id/transcript",
-		"GET /api/sessions/:id/stream",
-		"GET /api/sessions/:id/tools",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/tools",
 		"GET /api/settings/actions/restart/:operation_id",
 		"GET /api/settings/automation",
 		"GET /api/settings/sandboxes",
@@ -183,7 +183,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/vault/secrets",
 		"GET /api/vault/secrets/metadata",
 		"GET /api/workspaces",
-		"GET /api/workspaces/:id",
+		"GET /api/workspaces/:workspace_id",
 		"PATCH /api/automation/jobs/:id",
 		"PATCH /api/automation/triggers/:id",
 		"PATCH /api/bridges/:id",
@@ -197,7 +197,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PATCH /api/settings/observability",
 		"PATCH /api/settings/skills",
 		"PATCH /api/tasks/:id",
-		"PATCH /api/workspaces/:id",
+		"PATCH /api/workspaces/:workspace_id",
 		"POST /api/agent/channels/:channel/send",
 		"POST /api/agent/channels/reply",
 		"POST /api/agent/soul/validate",
@@ -232,10 +232,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/memory/search",
 		"POST /api/memory/sessions/prune",
 		"POST /api/memory/sessions/repair",
-		"POST /api/memory/sessions/:session_id/replay",
+		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 		"POST /api/providers/*catalog_path",
-		"POST /api/network/channels",
-		"POST /api/network/channels/:channel/directs/resolve",
+		"POST /api/workspaces/:workspace_id/network/channels",
+		"POST /api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
 		"POST /api/bridges",
 		"POST /api/bridges/:id/disable",
 		"POST /api/bridges/:id/enable",
@@ -246,17 +246,17 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/extensions",
 		"POST /api/extensions/:name/disable",
 		"POST /api/extensions/:name/enable",
-		"POST /api/network/send",
+		"POST /api/workspaces/:workspace_id/network/send",
 		"POST /api/sessions",
-		"POST /api/sessions/:id/approve",
-		"POST /api/sessions/:id/clear",
-		"POST /api/sessions/:id/prompt",
-		"POST /api/sessions/:id/prompt/cancel",
-		"POST /api/sessions/:id/repair",
-		"POST /api/sessions/:id/resume",
-		"POST /api/sessions/:id/soul/refresh",
-		"POST /api/sessions/:id/stop",
-		"POST /api/sessions/:id/tools/search",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/resume",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/tools/search",
 		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
 		"POST /api/skills/:name/enable",
@@ -332,7 +332,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"DELETE /api/tasks/:id":                                        "DeleteTask",
 		"DELETE /api/tasks/:id/notifications/bridges/:subscription_id": "DeleteTaskBridgeNotificationSubscription",
 		"DELETE /api/tasks/:id/execution-profile":                      "DeleteTaskExecutionProfile",
-		"POST /api/sessions/:id/stop":                                  "StopSession",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop": "StopSession",
 		"POST /api/tasks/:id/approve":                                  "ApproveTask",
 		"POST /api/tasks/:id/notifications/bridges":                    "CreateTaskBridgeNotificationSubscription",
 		"POST /api/tasks/:id/publish":                                  "PublishTask",
@@ -1028,6 +1028,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		},
+		WorkspaceID: "ws_alpha",
 		Config: aghconfig.Config{
 			Providers: map[string]aghconfig.ProviderConfig{
 				"alpha": {Command: "alpha --acp"},
@@ -1217,6 +1218,7 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 					CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 					UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 				},
+				WorkspaceID: "ws_alpha",
 			}, nil
 		},
 	}
@@ -1261,7 +1263,7 @@ func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 		engine := newTestRouter(t, handlers)
 
-		recorder := performRequest(t, engine, http.MethodDelete, "/api/sessions/sess-123", nil)
+		recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws-workspace/sessions/sess-123", nil)
 		if recorder.Code != http.StatusNoContent {
 			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
 		}
@@ -1284,7 +1286,7 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/stop", nil)
+	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/stop", nil)
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
 	}
@@ -1334,7 +1336,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		t,
 		engine,
 		http.MethodPost,
-		"/api/sessions/sess-123/prompt",
+		"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 		[]byte(`{"messages":[{"role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
 	)
 	if recorder.Code != http.StatusOK {
@@ -1455,7 +1457,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-123/prompt",
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 			[]byte(`{"messages":[{"role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
 		)
 		if recorder.Code != http.StatusOK {
@@ -1537,7 +1539,7 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 		req := httptest.NewRequestWithContext(
 			requestCtx,
 			http.MethodPost,
-			"/api/sessions/sess-123/prompt",
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 			strings.NewReader(`{"message":"hello"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -1600,7 +1602,13 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt/cancel", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/workspaces/ws-workspace/sessions/sess-123/prompt/cancel",
+		nil,
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -1652,7 +1660,7 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/sessions/sess-123/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z",
+		"/api/workspaces/ws-workspace/sessions/sess-123/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z",
 		nil,
 	)
 	if eventsResp.Code != http.StatusOK {
@@ -1675,7 +1683,13 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 		t.Fatalf("event workspace = %#v", events.Events[0])
 	}
 
-	historyResp := performRequest(t, engine, http.MethodGet, "/api/sessions/sess-123/history", nil)
+	historyResp := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/sessions/sess-123/history",
+		nil,
+	)
 	if historyResp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", historyResp.Code, http.StatusOK, historyResp.Body.String())
 	}
@@ -1712,7 +1726,13 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions/sess-123/transcript", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/sessions/sess-123/transcript",
+		nil,
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -1791,7 +1811,13 @@ func TestObserveEventsAndApproveHandlers(t *testing.T) {
 	}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	observeResp := performRequest(t, engine, http.MethodGet, "/api/observe/events?session_id=sess-1", nil)
+	observeResp := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/observe/events?session_id=sess-1",
+		nil,
+	)
 	if observeResp.Code != http.StatusOK {
 		t.Fatalf("observe status = %d, want %d; body=%s", observeResp.Code, http.StatusOK, observeResp.Body.String())
 	}
@@ -1803,7 +1829,13 @@ func TestObserveEventsAndApproveHandlers(t *testing.T) {
 		t.Fatalf("events = %#v", observed.Events)
 	}
 
-	approveResp := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", nil)
+	approveResp := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/workspaces/ws-workspace/sessions/sess-1/approve",
+		nil,
+	)
 	if approveResp.Code != http.StatusBadRequest {
 		t.Fatalf("approve status = %d, want %d", approveResp.Code, http.StatusBadRequest)
 	}
@@ -1818,7 +1850,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-1/approve",
+			"/api/workspaces/ws-workspace/sessions/sess-1/approve",
 			[]byte(`{"turn_id":"turn-1"}`),
 		)
 		if recorder.Code != http.StatusBadRequest {
@@ -1832,7 +1864,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-1/approve",
+			"/api/workspaces/ws-workspace/sessions/sess-1/approve",
 			[]byte(`{"turn_id":"turn-1","decision":"maybe"}`),
 		)
 		if recorder.Code != http.StatusBadRequest {
@@ -1850,7 +1882,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/missing/approve",
+			"/api/workspaces/ws-workspace/sessions/missing/approve",
 			[]byte(`{"turn_id":"turn-1","decision":"allow-once"}`),
 		)
 		if recorder.Code != http.StatusNotFound {
@@ -1868,7 +1900,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-1/approve",
+			"/api/workspaces/ws-workspace/sessions/sess-1/approve",
 			[]byte(`{"turn_id":"turn-1","decision":"reject-once"}`),
 		)
 		if recorder.Code != http.StatusConflict {
@@ -1886,7 +1918,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-1/approve",
+			"/api/workspaces/ws-workspace/sessions/sess-1/approve",
 			[]byte(`{"turn_id":"turn-1","decision":"reject-once"}`),
 		)
 		if recorder.Code != http.StatusBadRequest {
@@ -1910,7 +1942,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-1/approve",
+			"/api/workspaces/ws-workspace/sessions/sess-1/approve",
 			[]byte(`{"request_id":"req-1","turn_id":"turn-1","decision":"allow-always"}`),
 		)
 		if recorder.Code != http.StatusOK {

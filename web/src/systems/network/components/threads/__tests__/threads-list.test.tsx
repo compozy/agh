@@ -31,6 +31,8 @@ vi.mock("@tanstack/react-router", () => ({
 import { ThreadsList } from "../threads-list";
 import type { NetworkThreadSummary } from "../../../types";
 
+const WORKSPACE_ID = "ws_alpha";
+
 const threads: NetworkThreadSummary[] = [
   {
     channel: "ops",
@@ -50,7 +52,15 @@ const threads: NetworkThreadSummary[] = [
 
 describe("ThreadsList", () => {
   it("Should render rows with title, preview, and metadata", () => {
-    render(<ThreadsList activeThreadId={null} channel="ops" isLoading={false} threads={threads} />);
+    render(
+      <ThreadsList
+        activeThreadId={null}
+        channel="ops"
+        isLoading={false}
+        threads={threads}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
 
     expect(screen.getByTestId("network-thread-list-row-thread-1")).toBeInTheDocument();
     expect(screen.getByText("Launch pricing decision")).toBeInTheDocument();
@@ -59,7 +69,13 @@ describe("ThreadsList", () => {
 
   it("Should mark the active thread row with aria-current", () => {
     render(
-      <ThreadsList activeThreadId="thread-1" channel="ops" isLoading={false} threads={threads} />
+      <ThreadsList
+        activeThreadId="thread-1"
+        channel="ops"
+        isLoading={false}
+        threads={threads}
+        workspaceId={WORKSPACE_ID}
+      />
     );
 
     const row = screen.getByTestId("network-thread-list-row-thread-1");
@@ -67,12 +83,28 @@ describe("ThreadsList", () => {
   });
 
   it("Should render the loading skeleton when no threads are available yet", () => {
-    render(<ThreadsList activeThreadId={null} channel="ops" isLoading threads={[]} />);
+    render(
+      <ThreadsList
+        activeThreadId={null}
+        channel="ops"
+        isLoading
+        threads={[]}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
     expect(screen.getByTestId("network-thread-list-skeleton")).toBeInTheDocument();
   });
 
   it("Should render the empty state when no threads exist", () => {
-    render(<ThreadsList activeThreadId={null} channel="ops" isLoading={false} threads={[]} />);
+    render(
+      <ThreadsList
+        activeThreadId={null}
+        channel="ops"
+        isLoading={false}
+        threads={[]}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
     expect(screen.getByText("No threads yet.")).toBeInTheDocument();
   });
 
@@ -84,6 +116,7 @@ describe("ThreadsList", () => {
         dim
         isLoading={false}
         threads={threads}
+        workspaceId={WORKSPACE_ID}
       />
     );
     expect(screen.getByTestId("network-thread-list")).toHaveAttribute("data-dim", "true");

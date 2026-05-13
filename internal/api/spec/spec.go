@@ -516,15 +516,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{id}/tools",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
 		OperationID: "listSessionTools",
 		Summary:     "List session-callable registry tools",
 		Tags:        []string{"sessions", "tools"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
-			queryParam("workspace_id", "Effective workspace id", false),
-			queryParam("workspace", "Effective workspace reference", false),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 			queryParam("agent_name", "Effective agent name", false),
 		},
 		Responses: []ResponseSpec{
@@ -535,13 +534,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/sessions/{id}/tools/search",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
 		OperationID: "searchSessionTools",
 		Summary:     "Search session-callable registry tools",
 		Tags:        []string{"sessions", "tools"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 		},
 		RequestBody: contract.ToolSearchRequest{},
 		Responses: []ResponseSpec{
@@ -960,8 +960,14 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List persisted bridge instances",
 		Tags:        []string{"bridges"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Filter by bridge scope", []string{"all", "global", "workspace"}),
+			queryParam("workspace_id", "Filter by active workspace id", false),
+			queryParam("workspace", "Filter by workspace id, name, or path", false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.BridgesResponse{}},
+			{Status: 400, Description: "Invalid bridge list filter", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1208,12 +1214,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/peers",
+		Path:        "/api/workspaces/{workspace_id}/network/peers",
 		OperationID: "listNetworkPeers",
 		Summary:     "List visible network peers",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			queryParam("channel", "Filter peers by channel", false),
 		},
 		Responses: []ResponseSpec{
@@ -1225,12 +1232,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/peers/{peer_id}",
+		Path:        "/api/workspaces/{workspace_id}/network/peers/{peer_id}",
 		OperationID: "getNetworkPeer",
 		Summary:     "Get one visible network peer detail",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("peer_id", "Network peer id"),
 		},
 		Responses: []ResponseSpec{
@@ -1242,11 +1250,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels",
+		Path:        "/api/workspaces/{workspace_id}/network/channels",
 		OperationID: "listNetworkChannels",
 		Summary:     "List materialized network channels",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkChannelsResponse{}},
 			{Status: 503, Description: "Network runtime is not configured", Body: contract.ErrorPayload{}},
@@ -1255,11 +1266,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/network/channels",
+		Path:        "/api/workspaces/{workspace_id}/network/channels",
 		OperationID: "createNetworkChannel",
 		Summary:     "Create a network channel by spawning agent sessions",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+		},
 		RequestBody: contract.CreateNetworkChannelRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.CreateNetworkChannelResponse{}},
@@ -1271,12 +1285,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}",
 		OperationID: "getNetworkChannel",
 		Summary:     "Get one network channel detail",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 		},
 		Responses: []ResponseSpec{
@@ -1289,12 +1304,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}/threads",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/threads",
 		OperationID: "listNetworkThreads",
 		Summary:     "List public threads in one network channel",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			queryParam("after", "Return threads after the specified thread id", false),
 			intQueryParam("limit", "Maximum number of public threads to return"),
@@ -1308,12 +1324,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}/threads/{thread_id}",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
 		OperationID: "getNetworkThread",
 		Summary:     "Get one public-thread summary",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("thread_id", "Public thread id"),
 		},
@@ -1327,12 +1344,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}/threads/{thread_id}/messages",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages",
 		OperationID: "listNetworkThreadMessages",
 		Summary:     "List messages in one public thread",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("thread_id", "Public thread id"),
 			queryParam("before", "Return messages before the specified message id", false),
@@ -1351,12 +1369,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}/directs",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/directs",
 		OperationID: "listNetworkDirectRooms",
 		Summary:     "List direct rooms in one network channel",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			queryParam("peer_id", "Filter direct rooms by peer id", false),
 			queryParam("after", "Return direct rooms after the specified direct id", false),
@@ -1371,12 +1390,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/network/channels/{channel}/directs/resolve",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve",
 		OperationID: "resolveNetworkDirectRoom",
 		Summary:     "Create or return a deterministic direct room",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 		},
 		RequestBody: contract.NetworkDirectResolveRequest{},
@@ -1391,12 +1411,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}/directs/{direct_id}",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}",
 		OperationID: "getNetworkDirectRoom",
 		Summary:     "Get one direct-room summary",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("direct_id", "Direct-room id"),
 		},
@@ -1410,12 +1431,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/channels/{channel}/directs/{direct_id}/messages",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages",
 		OperationID: "listNetworkDirectRoomMessages",
 		Summary:     "List messages in one direct room",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("direct_id", "Direct-room id"),
 			queryParam("before", "Return messages before the specified message id", false),
@@ -1434,12 +1456,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/work/{work_id}",
+		Path:        "/api/workspaces/{workspace_id}/network/work/{work_id}",
 		OperationID: "getNetworkWork",
 		Summary:     "Get one network work item",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("work_id", "Network work id"),
 		},
 		Responses: []ResponseSpec{
@@ -1452,11 +1475,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/network/send",
+		Path:        "/api/workspaces/{workspace_id}/network/send",
 		OperationID: "sendNetworkMessage",
 		Summary:     "Send one network message",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+		},
 		RequestBody: contract.NetworkSendRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkSendResponse{}},
@@ -1468,12 +1494,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/network/inbox",
+		Path:        "/api/workspaces/{workspace_id}/network/inbox",
 		OperationID: "listNetworkInbox",
 		Summary:     "List queued network inbox messages for one local session",
 		Tags:        []string{"network"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			queryParam("session_id", "Target local session id", true),
 		},
 		Responses: []ResponseSpec{
@@ -1726,12 +1753,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/hooks/runs",
+		Path:        "/api/workspaces/{workspace_id}/hooks/runs",
 		OperationID: "getHookRuns",
 		Summary:     "List hook run history for one session",
 		Tags:        []string{"hooks"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			queryParam("session", "Session id", true),
 			enumQueryParam("event", "Hook event name", hookEventValues()),
 			enumQueryParam("outcome", "Hook execution outcome", hookOutcomeValues()),
@@ -2608,12 +2636,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/memory/sessions/{session_id}/ledger",
+		Path:        "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger",
 		OperationID: "getMemorySessionLedger",
 		Summary:     "Get one materialized Memory v2 session ledger",
 		Tags:        []string{"memory", "sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
@@ -2624,12 +2653,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/memory/sessions/{session_id}/replay",
+		Path:        "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay",
 		OperationID: "replayMemorySession",
 		Summary:     "Replay one materialized Memory v2 session ledger",
 		Tags:        []string{"memory", "sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
 		RequestBody: contract.MemorySessionReplayRequest{},
@@ -2668,12 +2698,13 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/observe/events",
+		Path:        "/api/workspaces/{workspace_id}/observe/events",
 		OperationID: "listObserveEvents",
 		Summary:     "List observability events",
 		Tags:        []string{"observe"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			queryParam("session_id", "Session id", false),
 			queryParam("agent_name", "Agent name", false),
 			queryParam("type", "Event type", false),
@@ -2733,13 +2764,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{id}",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}",
 		OperationID: "getSession",
 		Summary:     "Get one session snapshot",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 			boolQueryParam("include_health", "Include metadata-only session health when available"),
 		},
 		Responses: []ResponseSpec{
@@ -2750,13 +2782,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "DELETE",
-		Path:        "/api/sessions/{id}",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}",
 		OperationID: "deleteSession",
 		Summary:     "Delete one session and remove it from persisted history",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 204, Description: "No Content"},
@@ -2766,13 +2799,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/sessions/{id}/stop",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
 		OperationID: "stopSession",
 		Summary:     "Stop a session without deleting persisted history",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 204, Description: "No Content"},
@@ -2782,13 +2816,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/sessions/{id}/resume",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/resume",
 		OperationID: "resumeSession",
 		Summary:     "Resume a stopped session",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
@@ -2798,13 +2833,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/sessions/{id}/repair",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
 		OperationID: "repairSession",
 		Summary:     "Inspect and repair an interrupted session transcript",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 			boolQueryParam("dry_run", "Report planned repairs without persisting new events"),
 			boolQueryParam("force", "Allow repair for stopped sessions whose stop reason is not crash or error"),
 		},
@@ -2817,13 +2853,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{id}/events",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
 		OperationID: "listSessionEvents",
 		Summary:     "List persisted session events",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
 			intQueryParam("limit", "Maximum number of records to return"),
 			afterSequenceQueryParam("Only return events after this sequence number"),
@@ -2840,13 +2877,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{id}/history",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
 		OperationID: "getSessionHistory",
 		Summary:     "List grouped session turn history",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
 			intQueryParam("limit", "Maximum number of records to return"),
 			afterSequenceQueryParam("Only return events after this sequence number"),
@@ -2863,13 +2901,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{id}/transcript",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
 		OperationID: "getSessionTranscript",
 		Summary:     "Get the canonical transcript for one session",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionTranscriptResponse{}},
@@ -2879,13 +2918,14 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/sessions/{id}/approve",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
 		OperationID: "approveSession",
 		Summary:     "Approve or deny an interactive permission request",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("id", "Session id"),
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
 		},
 		RequestBody: contract.ApproveSessionRequest{},
 		Responses: []ResponseSpec{

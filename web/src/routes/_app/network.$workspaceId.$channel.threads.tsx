@@ -13,7 +13,7 @@ interface ThreadsRouteSearch {
   view?: "full";
 }
 
-export const Route = createFileRoute("/_app/network/$channel/threads")({
+export const Route = createFileRoute("/_app/network/$workspaceId/$channel/threads")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `#${params.channel} · Threads`, icon: NetworkIcon },
   }),
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_app/network/$channel/threads")({
 });
 
 function NetworkChannelThreadsRoute() {
-  const { channel } = Route.useParams();
+  const { workspaceId, channel } = Route.useParams();
   const search = Route.useSearch();
   const route = useNetworkChannelThreadsRoute({ channel, view: search.view });
   const { activeThreadId, isFullPage, showOverlay, showList, threadsQuery, activeSession } = route;
@@ -39,6 +39,7 @@ function NetworkChannelThreadsRoute() {
       <div className="flex min-h-0 flex-1">
         {showList ? (
           <ThreadsList
+            workspaceId={workspaceId}
             activeThreadId={activeThreadId}
             channel={channel}
             dim={showOverlay && !isFullPage}
@@ -59,6 +60,7 @@ function NetworkChannelThreadsRoute() {
 
       {showList && !showOverlay ? (
         <ChannelThreadComposer
+          workspaceId={workspaceId}
           channel={channel}
           disabledReason={activeSession.disabledReason ?? undefined}
           displayName={activeSession.session?.displayName}

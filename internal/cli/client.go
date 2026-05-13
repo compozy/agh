@@ -52,9 +52,14 @@ type DaemonClient interface {
 	DeleteVaultSecret(ctx context.Context, ref string) error
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error)
+	NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error)
 	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error)
-	NetworkThread(ctx context.Context, channel string, threadID string) (NetworkThreadRecord, error)
+	NetworkThread(
+		ctx context.Context,
+		workspaceRef string,
+		channel string,
+		threadID string,
+	) (NetworkThreadRecord, error)
 	NetworkThreadMessages(
 		ctx context.Context,
 		query NetworkConversationMessagesQuery,
@@ -62,17 +67,23 @@ type DaemonClient interface {
 	NetworkDirects(ctx context.Context, query NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error)
 	NetworkDirectResolve(
 		ctx context.Context,
+		workspaceRef string,
 		channel string,
 		request NetworkDirectResolveRequest,
 	) (NetworkDirectRoomRecord, error)
-	NetworkDirect(ctx context.Context, channel string, directID string) (NetworkDirectRoomRecord, error)
+	NetworkDirect(
+		ctx context.Context,
+		workspaceRef string,
+		channel string,
+		directID string,
+	) (NetworkDirectRoomRecord, error)
 	NetworkDirectMessages(
 		ctx context.Context,
 		query NetworkConversationMessagesQuery,
 	) ([]NetworkConversationMessageRecord, error)
-	NetworkWork(ctx context.Context, workID string) (NetworkWorkRecord, error)
+	NetworkWork(ctx context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error)
 	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
-	NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error)
+	NetworkInbox(ctx context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
 	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
@@ -211,7 +222,7 @@ type DaemonClient interface {
 	ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error)
 	GetToolset(ctx context.Context, id string, query ToolQuery) (ToolsetResponseRecord, error)
 	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
-	HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error)
+	HookRuns(ctx context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error)
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
 	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
 	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
@@ -596,11 +607,12 @@ type ObserveEventRecord = contract.ObserveEventPayload
 
 // ObserveEventQuery captures the CLI filters for cross-session observability queries.
 type ObserveEventQuery struct {
-	SessionID string
-	AgentName string
-	Type      string
-	Since     time.Time
-	Last      int
+	WorkspaceRef string
+	SessionID    string
+	AgentName    string
+	Type         string
+	Since        time.Time
+	Last         int
 }
 
 // MemoryHealthRecord is the shared daemon memory health payload.
@@ -1038,34 +1050,38 @@ type NetworkEnvelopeRecord = contract.NetworkEnvelopePayload
 
 // NetworkPeersQuery captures CLI filters for peer listing.
 type NetworkPeersQuery struct {
-	Channel string
+	WorkspaceRef string
+	Channel      string
 }
 
 // NetworkThreadsQuery captures CLI filters for public-thread listing.
 type NetworkThreadsQuery struct {
-	Channel string
-	Limit   int
-	After   string
+	WorkspaceRef string
+	Channel      string
+	Limit        int
+	After        string
 }
 
 // NetworkDirectsQuery captures CLI filters for direct-room listing.
 type NetworkDirectsQuery struct {
-	Channel string
-	PeerID  string
-	Limit   int
-	After   string
+	WorkspaceRef string
+	Channel      string
+	PeerID       string
+	Limit        int
+	After        string
 }
 
 // NetworkConversationMessagesQuery captures CLI filters for conversation messages.
 type NetworkConversationMessagesQuery struct {
-	Channel  string
-	ThreadID string
-	DirectID string
-	Limit    int
-	Before   string
-	After    string
-	Kind     string
-	WorkID   string
+	WorkspaceRef string
+	Channel      string
+	ThreadID     string
+	DirectID     string
+	Limit        int
+	Before       string
+	After        string
+	Kind         string
+	WorkID       string
 }
 
 // InstallExtensionRequest captures the shared extension install payload.
@@ -1335,10 +1351,14 @@ func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQ
 	var response struct {
 		Peers []NetworkPeerRecord `json:"peers"`
 	}
+	path, err := networkBasePath(query.WorkspaceRef)
+	if err != nil {
+		return nil, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/peers",
+		path+"/peers",
 		networkPeersValues(query),
 		nil,
 		&response,
@@ -1348,11 +1368,15 @@ func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQ
 	return response.Peers, nil
 }
 
-func (c *unixSocketClient) NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error) {
+func (c *unixSocketClient) NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
 	var response struct {
 		Channels []NetworkChannelRecord `json:"channels"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/network/channels", nil, nil, &response); err != nil {
+	path, err := networkBasePath(workspaceRef)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path+"/channels", nil, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Channels, nil
@@ -1369,7 +1393,11 @@ func (c *unixSocketClient) NetworkThreads(
 	var response struct {
 		Threads []NetworkThreadRecord `json:"threads"`
 	}
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	path, err := networkChannelPath(query.WorkspaceRef, channel)
+	if err != nil {
+		return nil, err
+	}
+	path += "/threads"
 	if err := c.doJSON(ctx, http.MethodGet, path, networkThreadsValues(query), nil, &response); err != nil {
 		return nil, err
 	}
@@ -1378,10 +1406,11 @@ func (c *unixSocketClient) NetworkThreads(
 
 func (c *unixSocketClient) NetworkThread(
 	ctx context.Context,
+	workspaceRef string,
 	channel string,
 	threadID string,
 ) (NetworkThreadRecord, error) {
-	path, err := networkThreadPath(channel, threadID)
+	path, err := networkThreadPath(workspaceRef, channel, threadID)
 	if err != nil {
 		return NetworkThreadRecord{}, err
 	}
@@ -1398,7 +1427,7 @@ func (c *unixSocketClient) NetworkThreadMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
 ) ([]NetworkConversationMessageRecord, error) {
-	path, err := networkThreadMessagesPath(query.Channel, query.ThreadID)
+	path, err := networkThreadMessagesPath(query.WorkspaceRef, query.Channel, query.ThreadID)
 	if err != nil {
 		return nil, err
 	}
@@ -1429,7 +1458,11 @@ func (c *unixSocketClient) NetworkDirects(
 	var response struct {
 		Directs []NetworkDirectRoomRecord `json:"directs"`
 	}
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	path, err := networkChannelPath(query.WorkspaceRef, channel)
+	if err != nil {
+		return nil, err
+	}
+	path += "/directs"
 	if err := c.doJSON(ctx, http.MethodGet, path, networkDirectsValues(query), nil, &response); err != nil {
 		return nil, err
 	}
@@ -1438,6 +1471,7 @@ func (c *unixSocketClient) NetworkDirects(
 
 func (c *unixSocketClient) NetworkDirectResolve(
 	ctx context.Context,
+	workspaceRef string,
 	channel string,
 	request NetworkDirectResolveRequest,
 ) (NetworkDirectRoomRecord, error) {
@@ -1448,7 +1482,11 @@ func (c *unixSocketClient) NetworkDirectResolve(
 	var response struct {
 		Direct NetworkDirectRoomRecord `json:"direct"`
 	}
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/resolve"
+	path, err := networkChannelPath(workspaceRef, channel)
+	if err != nil {
+		return NetworkDirectRoomRecord{}, err
+	}
+	path += "/directs/resolve"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return NetworkDirectRoomRecord{}, err
 	}
@@ -1457,10 +1495,11 @@ func (c *unixSocketClient) NetworkDirectResolve(
 
 func (c *unixSocketClient) NetworkDirect(
 	ctx context.Context,
+	workspaceRef string,
 	channel string,
 	directID string,
 ) (NetworkDirectRoomRecord, error) {
-	path, err := networkDirectPath(channel, directID)
+	path, err := networkDirectPath(workspaceRef, channel, directID)
 	if err != nil {
 		return NetworkDirectRoomRecord{}, err
 	}
@@ -1477,7 +1516,7 @@ func (c *unixSocketClient) NetworkDirectMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
 ) ([]NetworkConversationMessageRecord, error) {
-	path, err := networkDirectMessagesPath(query.Channel, query.DirectID)
+	path, err := networkDirectMessagesPath(query.WorkspaceRef, query.Channel, query.DirectID)
 	if err != nil {
 		return nil, err
 	}
@@ -1497,7 +1536,11 @@ func (c *unixSocketClient) NetworkDirectMessages(
 	return response.Messages, nil
 }
 
-func (c *unixSocketClient) NetworkWork(ctx context.Context, workID string) (NetworkWorkRecord, error) {
+func (c *unixSocketClient) NetworkWork(
+	ctx context.Context,
+	workspaceRef string,
+	workID string,
+) (NetworkWorkRecord, error) {
 	workID, err := requireNetworkPathValue("work_id", workID)
 	if err != nil {
 		return NetworkWorkRecord{}, err
@@ -1505,7 +1548,11 @@ func (c *unixSocketClient) NetworkWork(ctx context.Context, workID string) (Netw
 	var response struct {
 		Work NetworkWorkRecord `json:"work"`
 	}
-	path := "/api/network/work/" + url.PathEscape(workID)
+	path, err := networkBasePath(workspaceRef)
+	if err != nil {
+		return NetworkWorkRecord{}, err
+	}
+	path += "/work/" + url.PathEscape(workID)
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return NetworkWorkRecord{}, err
 	}
@@ -1516,20 +1563,34 @@ func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendR
 	var response struct {
 		Message NetworkSendRecord `json:"message"`
 	}
-	if err := c.doJSON(ctx, http.MethodPost, "/api/network/send", nil, request, &response); err != nil {
+	path, err := networkBasePath(request.WorkspaceID)
+	if err != nil {
+		return NetworkSendRecord{}, err
+	}
+	body := request
+	body.WorkspaceID = ""
+	if err := c.doJSON(ctx, http.MethodPost, path+"/send", nil, body, &response); err != nil {
 		return NetworkSendRecord{}, err
 	}
 	return response.Message, nil
 }
 
-func (c *unixSocketClient) NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error) {
+func (c *unixSocketClient) NetworkInbox(
+	ctx context.Context,
+	workspaceRef string,
+	sessionID string,
+) ([]NetworkEnvelopeRecord, error) {
 	var response struct {
 		Messages []NetworkEnvelopeRecord `json:"messages"`
+	}
+	path, err := networkBasePath(workspaceRef)
+	if err != nil {
+		return nil, err
 	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/inbox",
+		path+"/inbox",
 		networkInboxValues(sessionID),
 		nil,
 		&response,
@@ -1803,6 +1864,37 @@ func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQu
 	return response.Sessions, nil
 }
 
+func (c *unixSocketClient) sessionScopedPath(ctx context.Context, id string, suffix string) (string, error) {
+	sessionID, err := requireNetworkPathValue("session_id", id)
+	if err != nil {
+		return "", err
+	}
+	workspaceRef, err := c.sessionWorkspaceRef(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/sessions/" +
+		url.PathEscape(sessionID) + suffix, nil
+}
+
+func (c *unixSocketClient) sessionWorkspaceRef(ctx context.Context, sessionID string) (string, error) {
+	sessions, err := c.ListSessions(ctx, SessionListQuery{})
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve session %q workspace: %w", sessionID, err)
+	}
+	for _, record := range sessions {
+		if strings.TrimSpace(record.ID) != sessionID {
+			continue
+		}
+		workspaceID := strings.TrimSpace(record.WorkspaceID)
+		if workspaceID == "" {
+			return "", fmt.Errorf("cli: session %q has no workspace_id", sessionID)
+		}
+		return workspaceID, nil
+	}
+	return "", fmt.Errorf("cli: session %q not found", sessionID)
+}
+
 func (c *unixSocketClient) CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error) {
 	var response struct {
 		Session SessionRecord `json:"session"`
@@ -1817,10 +1909,14 @@ func (c *unixSocketClient) GetSession(ctx context.Context, id string) (SessionRe
 	var response struct {
 		Session SessionRecord `json:"session"`
 	}
+	path, err := c.sessionScopedPath(ctx, id, "")
+	if err != nil {
+		return SessionRecord{}, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id)),
+		path,
 		nil,
 		nil,
 		&response,
@@ -1834,7 +1930,10 @@ func (c *unixSocketClient) GetSessionHealth(ctx context.Context, id string) (Ses
 	var response struct {
 		Health SessionHealthRecord `json:"health"`
 	}
-	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/health"
+	path, err := c.sessionScopedPath(ctx, id, "/health")
+	if err != nil {
+		return SessionHealthRecord{}, err
+	}
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return SessionHealthRecord{}, err
 	}
@@ -1843,7 +1942,10 @@ func (c *unixSocketClient) GetSessionHealth(ctx context.Context, id string) (Ses
 
 func (c *unixSocketClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
 	var response SessionStatusRecord
-	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/status"
+	path, err := c.sessionScopedPath(ctx, id, "/status")
+	if err != nil {
+		return SessionStatusRecord{}, err
+	}
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return SessionStatusRecord{}, err
 	}
@@ -1856,7 +1958,10 @@ func (c *unixSocketClient) InspectSession(
 	query SessionInspectQuery,
 ) (SessionInspectRecord, error) {
 	var response SessionInspectRecord
-	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/inspect"
+	path, err := c.sessionScopedPath(ctx, id, "/inspect")
+	if err != nil {
+		return SessionInspectRecord{}, err
+	}
 	if err := c.doJSON(ctx, http.MethodGet, path, sessionInspectValues(query), nil, &response); err != nil {
 		return SessionInspectRecord{}, err
 	}
@@ -1869,7 +1974,10 @@ func (c *unixSocketClient) RefreshSessionSoul(
 	request SessionSoulRefreshRequest,
 ) (AgentSoulRecord, error) {
 	var response AgentSoulRecord
-	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/soul/refresh"
+	path, err := c.sessionScopedPath(ctx, id, "/soul/refresh")
+	if err != nil {
+		return AgentSoulRecord{}, err
+	}
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return AgentSoulRecord{}, err
 	}
@@ -1877,10 +1985,14 @@ func (c *unixSocketClient) RefreshSessionSoul(
 }
 
 func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
+	path, err := c.sessionScopedPath(ctx, id, "/stop")
+	if err != nil {
+		return err
+	}
 	return c.doJSON(
 		ctx,
 		http.MethodPost,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/stop",
+		path,
 		nil,
 		nil,
 		nil,
@@ -1891,10 +2003,14 @@ func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (Sessio
 	var response struct {
 		Session SessionRecord `json:"session"`
 	}
+	path, err := c.sessionScopedPath(ctx, id, "/resume")
+	if err != nil {
+		return SessionRecord{}, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodPost,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/resume",
+		path,
 		nil,
 		nil,
 		&response,
@@ -1912,10 +2028,14 @@ func (c *unixSocketClient) RepairSession(
 	var response struct {
 		Repair SessionRepairRecord `json:"repair"`
 	}
+	path, err := c.sessionScopedPath(ctx, id, "/repair")
+	if err != nil {
+		return SessionRepairRecord{}, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodPost,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/repair",
+		path,
 		sessionRepairValues(query),
 		nil,
 		&response,
@@ -1931,7 +2051,10 @@ func (c *unixSocketClient) ApproveSession(
 	request SessionApprovalRequest,
 ) (SessionApprovalRecord, error) {
 	var response SessionApprovalRecord
-	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/approve"
+	path, err := c.sessionScopedPath(ctx, id, "/approve")
+	if err != nil {
+		return SessionApprovalRecord{}, err
+	}
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return SessionApprovalRecord{}, err
 	}
@@ -1942,10 +2065,14 @@ func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message
 	var events []AgentEventRecord
 	query := url.Values{}
 	query.Set("format", "raw")
-	err := c.doSSE(
+	path, err := c.sessionScopedPath(ctx, id, "/prompt")
+	if err != nil {
+		return nil, err
+	}
+	err = c.doSSE(
 		ctx,
 		http.MethodPost,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/prompt",
+		path,
 		query,
 		map[string]string{"message": message},
 		"",
@@ -1975,10 +2102,14 @@ func (c *unixSocketClient) StreamPromptSession(
 	message string,
 	handler SSEHandler,
 ) error {
+	path, err := c.sessionScopedPath(ctx, id, "/prompt")
+	if err != nil {
+		return err
+	}
 	return c.doSSE(
 		ctx,
 		http.MethodPost,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/prompt",
+		path,
 		nil,
 		map[string]string{"message": message},
 		"",
@@ -1994,10 +2125,14 @@ func (c *unixSocketClient) SessionEvents(
 	var response struct {
 		Events []SessionEventRecord `json:"events"`
 	}
+	path, err := c.sessionScopedPath(ctx, id, "/events")
+	if err != nil {
+		return nil, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/events",
+		path,
 		sessionEventValues(query),
 		nil,
 		&response,
@@ -2014,10 +2149,14 @@ func (c *unixSocketClient) StreamSessionEvents(
 	lastEventID string,
 	handler SSEHandler,
 ) error {
+	path, err := c.sessionScopedPath(ctx, id, "/stream")
+	if err != nil {
+		return err
+	}
 	return c.doSSE(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/stream",
+		path,
 		sessionEventValues(query),
 		nil,
 		lastEventID,
@@ -2033,10 +2172,14 @@ func (c *unixSocketClient) SessionHistory(
 	var response struct {
 		History []TurnHistoryRecord `json:"history"`
 	}
+	path, err := c.sessionScopedPath(ctx, id, "/history")
+	if err != nil {
+		return nil, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/history",
+		path,
 		sessionEventValues(query),
 		nil,
 		&response,
@@ -2567,11 +2710,19 @@ func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQue
 	return response.Hooks, nil
 }
 
-func (c *unixSocketClient) HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error) {
+func (c *unixSocketClient) HookRuns(
+	ctx context.Context,
+	workspaceRef string,
+	query HookRunsQuery,
+) ([]HookRunRecord, error) {
 	var response struct {
 		Runs []HookRunRecord `json:"runs"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/hooks/runs", hookRunsValues(query), nil, &response); err != nil {
+	path, err := hooksBasePath(workspaceRef)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path+"/runs", hookRunsValues(query), nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Runs, nil
@@ -2591,10 +2742,14 @@ func (c *unixSocketClient) ObserveEvents(ctx context.Context, query ObserveEvent
 	var response struct {
 		Events []ObserveEventRecord `json:"events"`
 	}
+	path, err := observeBasePath(query.WorkspaceRef)
+	if err != nil {
+		return nil, err
+	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		"/api/observe/events",
+		path+"/events",
 		observeEventValues(query),
 		nil,
 		&response,
@@ -2610,10 +2765,14 @@ func (c *unixSocketClient) StreamObserveEvents(
 	lastEventID string,
 	handler SSEHandler,
 ) error {
+	path, err := observeBasePath(query.WorkspaceRef)
+	if err != nil {
+		return err
+	}
 	return c.doSSE(
 		ctx,
 		http.MethodGet,
-		"/api/observe/events/stream",
+		path+"/events/stream",
 		observeEventValues(query),
 		nil,
 		lastEventID,
@@ -4134,8 +4293,44 @@ func networkListValues(limit int, after string) url.Values {
 	return values
 }
 
-func networkThreadPath(channel string, threadID string) (string, error) {
-	channel, err := requireNetworkPathValue("channel", channel)
+func networkBasePath(workspaceRef string) (string, error) {
+	workspaceRef, err := requireNetworkPathValue("workspace_id", workspaceRef)
+	if err != nil {
+		return "", err
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/network", nil
+}
+
+func observeBasePath(workspaceRef string) (string, error) {
+	workspaceRef, err := requireNetworkPathValue("workspace_id", workspaceRef)
+	if err != nil {
+		return "", err
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/observe", nil
+}
+
+func hooksBasePath(workspaceRef string) (string, error) {
+	workspaceRef, err := requireNetworkPathValue("workspace_id", workspaceRef)
+	if err != nil {
+		return "", err
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/hooks", nil
+}
+
+func networkChannelPath(workspaceRef string, channel string) (string, error) {
+	base, err := networkBasePath(workspaceRef)
+	if err != nil {
+		return "", err
+	}
+	channel, err = requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return "", err
+	}
+	return base + "/channels/" + url.PathEscape(channel), nil
+}
+
+func networkThreadPath(workspaceRef string, channel string, threadID string) (string, error) {
+	path, err := networkChannelPath(workspaceRef, channel)
 	if err != nil {
 		return "", err
 	}
@@ -4143,19 +4338,19 @@ func networkThreadPath(channel string, threadID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID), nil
+	return path + "/threads/" + url.PathEscape(threadID), nil
 }
 
-func networkThreadMessagesPath(channel string, threadID string) (string, error) {
-	path, err := networkThreadPath(channel, threadID)
+func networkThreadMessagesPath(workspaceRef string, channel string, threadID string) (string, error) {
+	path, err := networkThreadPath(workspaceRef, channel, threadID)
 	if err != nil {
 		return "", err
 	}
 	return path + "/messages", nil
 }
 
-func networkDirectPath(channel string, directID string) (string, error) {
-	channel, err := requireNetworkPathValue("channel", channel)
+func networkDirectPath(workspaceRef string, channel string, directID string) (string, error) {
+	path, err := networkChannelPath(workspaceRef, channel)
 	if err != nil {
 		return "", err
 	}
@@ -4163,11 +4358,11 @@ func networkDirectPath(channel string, directID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID), nil
+	return path + "/directs/" + url.PathEscape(directID), nil
 }
 
-func networkDirectMessagesPath(channel string, directID string) (string, error) {
-	path, err := networkDirectPath(channel, directID)
+func networkDirectMessagesPath(workspaceRef string, channel string, directID string) (string, error) {
+	path, err := networkDirectPath(workspaceRef, channel, directID)
 	if err != nil {
 		return "", err
 	}

@@ -401,6 +401,7 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 	return contract.ObserveEventPayload{
 		ID:               event.ID,
 		SessionID:        event.SessionID,
+		WorkspaceID:      event.WorkspaceID,
 		Type:             event.Type,
 		AgentName:        event.AgentName,
 		Content:          ssepkg.ScrubMemoryContextBytes(append([]byte(nil), event.Content...)),

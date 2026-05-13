@@ -24,7 +24,13 @@ func TestClearSessionConversationHandler(t *testing.T) {
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/clear", nil)
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/clear",
+			nil,
+		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 		}
@@ -47,7 +53,13 @@ func TestClearSessionConversationHandler(t *testing.T) {
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/clear", nil)
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/clear",
+			nil,
+		)
 		if recorder.Code != http.StatusConflict {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
 		}

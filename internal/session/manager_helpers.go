@@ -153,6 +153,7 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabil
 		newNetworkPeerJoin(
 			info.ID,
 			networkPeerID(info.AgentName, info.ID),
+			info.WorkspaceID,
 			firstNonEmpty(strings.TrimSpace(info.Name), strings.TrimSpace(info.AgentName)),
 			info.Channel,
 			capabilities,

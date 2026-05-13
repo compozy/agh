@@ -78,7 +78,10 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 					ExpiresAt: &expires,
 				}}, nil
 			},
-			networkChannelsFn: func(context.Context) ([]NetworkChannelRecord, error) {
+			networkChannelsFn: func(_ context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
+				if workspaceRef != "ws-alpha" {
+					t.Fatalf("NetworkChannels() workspace = %q, want ws-alpha", workspaceRef)
+				}
 				return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
 			},
 			networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
@@ -99,12 +102,15 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 					Ext:         request.Ext,
 				}, nil
 			},
-			networkInboxFn: func(_ context.Context, _ string) ([]NetworkEnvelopeRecord, error) {
+			networkInboxFn: func(_ context.Context, workspaceRef string, _ string) ([]NetworkEnvelopeRecord, error) {
+				if workspaceRef != "ws-alpha" {
+					t.Fatalf("NetworkInbox() workspace = %q, want ws-alpha", workspaceRef)
+				}
 				replyTo := "msg-root"
 				traceID := "trace-1"
 				causationID := "cause-1"
 				return []NetworkEnvelopeRecord{{
-					Protocol:    "agh-network/v0",
+					Protocol:    "agh-network/v2",
 					ID:          "msg-inbox",
 					Kind:        "say",
 					Channel:     "builders",
@@ -126,7 +132,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		}
 		deps := newTestDeps(t, client)
 
-		statusOut, _, err := executeRootCommand(t, deps, "network", "status", "-o", "human")
+		statusOut, _, err := executeRootCommand(t, deps, "network", "--workspace", "ws-alpha", "status", "-o", "human")
 		if err != nil {
 			t.Fatalf("network status error = %v", err)
 		}
@@ -135,12 +141,22 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("network status output = %q, want summary and metrics", statusOut)
 		}
 
-		peersOut, _, err := executeRootCommand(t, deps, "network", "peers", "builders", "-o", "json")
+		peersOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"peers",
+			"builders",
+			"-o",
+			"json",
+		)
 		if err != nil {
 			t.Fatalf("network peers error = %v", err)
 		}
-		if seenPeersQuery.Channel != "builders" {
-			t.Fatalf("seenPeersQuery.Channel = %q, want builders", seenPeersQuery.Channel)
+		if seenPeersQuery.WorkspaceRef != "ws-alpha" || seenPeersQuery.Channel != "builders" {
+			t.Fatalf("seenPeersQuery = %#v, want ws-alpha/builders", seenPeersQuery)
 		}
 		var peers []NetworkPeerRecord
 		if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
@@ -150,7 +166,16 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("peers = %#v, want one reviewer peer", peers)
 		}
 
-		channelsOut, _, err := executeRootCommand(t, deps, "network", "channels", "-o", "toon")
+		channelsOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"channels",
+			"-o",
+			"toon",
+		)
 		if err != nil {
 			t.Fatalf("network channels error = %v", err)
 		}
@@ -159,7 +184,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		}
 
 		sendOut, _, err := executeRootCommand(t, deps,
-			"network", "send",
+			"network", "--workspace", "ws-alpha", "send",
 			"--session", "sess-a",
 			"--channel", "builders",
 			"--surface", "thread",
@@ -187,9 +212,10 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			string(seenSendRequest.Ext["agh.handoff_version"]) != `3` {
 			t.Fatalf("seenSendRequest.Ext = %#v, want workflow metadata", seenSendRequest.Ext)
 		}
-		if seenSendRequest.Surface != "thread" || seenSendRequest.ThreadID != "thread_1" ||
+		if seenSendRequest.WorkspaceID != "ws-alpha" || seenSendRequest.Surface != "thread" ||
+			seenSendRequest.ThreadID != "thread_1" ||
 			seenSendRequest.WorkID != "work_1" {
-			t.Fatalf("seenSendRequest = %#v, want thread surface payload", seenSendRequest)
+			t.Fatalf("seenSendRequest = %#v, want workspace-qualified thread surface payload", seenSendRequest)
 		}
 		var sent NetworkSendRecord
 		if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
@@ -200,7 +226,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		}
 
 		sendOut, _, err = executeRootCommand(t, deps,
-			"network", "send",
+			"network", "--workspace", "ws-alpha", "send",
 			"--session", "sess-a",
 			"--channel", "builders",
 			"--surface", "direct",
@@ -214,9 +240,11 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network send direct error = %v", err)
 		}
-		if seenSendRequest.Surface != "direct" || seenSendRequest.DirectID != directID ||
-			seenSendRequest.WorkID != "work_2" || seenSendRequest.To != "reviewer.sess-a" {
-			t.Fatalf("seenSendRequest = %#v, want direct surface payload", seenSendRequest)
+		if seenSendRequest.WorkspaceID != "ws-alpha" || seenSendRequest.Surface != "direct" ||
+			seenSendRequest.DirectID != directID ||
+			seenSendRequest.WorkID != "work_2" ||
+			seenSendRequest.To != "reviewer.sess-a" {
+			t.Fatalf("seenSendRequest = %#v, want workspace-qualified direct surface payload", seenSendRequest)
 		}
 		if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
 			t.Fatalf("json.Unmarshal(network send direct) error = %v", err)
@@ -225,7 +253,18 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("sent = %#v, want direct sent payload", sent)
 		}
 
-		inboxOut, _, err := executeRootCommand(t, deps, "network", "inbox", "--session", "sess-a", "-o", "human")
+		inboxOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"inbox",
+			"--session",
+			"sess-a",
+			"-o",
+			"human",
+		)
 		if err != nil {
 			t.Fatalf("network inbox error = %v", err)
 		}
@@ -320,6 +359,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"threads",
 			"list",
 			"--channel",
@@ -334,8 +375,9 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network threads list error = %v", err)
 		}
-		if seenQuery.Channel != "builders" || seenQuery.Limit != 2 || seenQuery.After != "thread_0" {
-			t.Fatalf("seenQuery = %#v, want channel/limit/after", seenQuery)
+		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
+			seenQuery.Limit != 2 || seenQuery.After != "thread_0" {
+			t.Fatalf("seenQuery = %#v, want workspace/channel/limit/after", seenQuery)
 		}
 		var response contract.NetworkThreadsResponse
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -350,9 +392,14 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			networkThreadFn: func(_ context.Context, channel string, threadID string) (NetworkThreadRecord, error) {
-				if channel != "builders" || threadID != "thread_launch" {
-					t.Fatalf("NetworkThread(%q, %q), want builders/thread_launch", channel, threadID)
+			networkThreadFn: func(_ context.Context, workspaceRef string, channel string, threadID string) (NetworkThreadRecord, error) {
+				if workspaceRef != "ws-alpha" || channel != "builders" || threadID != "thread_launch" {
+					t.Fatalf(
+						"NetworkThread(%q, %q, %q), want ws-alpha/builders/thread_launch",
+						workspaceRef,
+						channel,
+						threadID,
+					)
 				}
 				return thread, nil
 			},
@@ -361,6 +408,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"threads",
 			"show",
 			"--channel",
@@ -395,6 +444,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"threads",
 			"messages",
 			"--channel",
@@ -417,10 +468,14 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network threads messages error = %v", err)
 		}
-		if seenQuery.Channel != "builders" || seenQuery.ThreadID != "thread_launch" ||
-			seenQuery.Limit != 2 || seenQuery.Before != "msg-3" ||
-			seenQuery.After != "msg-1" || seenQuery.Kind != "say" || seenQuery.WorkID != "work_1" {
-			t.Fatalf("seenQuery = %#v, want thread message filters", seenQuery)
+		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
+			seenQuery.ThreadID != "thread_launch" ||
+			seenQuery.Limit != 2 ||
+			seenQuery.Before != "msg-3" ||
+			seenQuery.After != "msg-1" ||
+			seenQuery.Kind != "say" ||
+			seenQuery.WorkID != "work_1" {
+			t.Fatalf("seenQuery = %#v, want workspace thread message filters", seenQuery)
 		}
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		if len(lines) != 1 {
@@ -449,6 +504,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"directs",
 			"list",
 			"--channel",
@@ -463,8 +520,9 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network directs list error = %v", err)
 		}
-		if seenQuery.Channel != "builders" || seenQuery.PeerID != "reviewer.sess-b" || seenQuery.Limit != 2 {
-			t.Fatalf("seenQuery = %#v, want channel/peer/limit", seenQuery)
+		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
+			seenQuery.PeerID != "reviewer.sess-b" || seenQuery.Limit != 2 {
+			t.Fatalf("seenQuery = %#v, want workspace/channel/peer/limit", seenQuery)
 		}
 		var response contract.NetworkDirectRoomsResponse
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -481,12 +539,15 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		deps := newTestDeps(t, &stubClient{
 			networkDirectResolveFn: func(
 				_ context.Context,
+				workspaceRef string,
 				channel string,
 				request NetworkDirectResolveRequest,
 			) (NetworkDirectRoomRecord, error) {
-				if channel != "builders" || request.SessionID != "sess-a" || request.PeerID != "reviewer.sess-b" {
+				if workspaceRef != "ws-alpha" || channel != "builders" || request.SessionID != "sess-a" ||
+					request.PeerID != "reviewer.sess-b" {
 					t.Fatalf(
-						"NetworkDirectResolve(%q, %#v), want builders/sess-a/reviewer.sess-b",
+						"NetworkDirectResolve(%q, %q, %#v), want ws-alpha/builders/sess-a/reviewer.sess-b",
+						workspaceRef,
 						channel,
 						request,
 					)
@@ -498,6 +559,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"directs",
 			"resolve",
 			"--session",
@@ -525,9 +588,15 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			networkDirectFn: func(_ context.Context, channel string, gotDirectID string) (NetworkDirectRoomRecord, error) {
-				if channel != "builders" || gotDirectID != directID {
-					t.Fatalf("NetworkDirect(%q, %q), want builders/%s", channel, gotDirectID, directID)
+			networkDirectFn: func(_ context.Context, workspaceRef string, channel string, gotDirectID string) (NetworkDirectRoomRecord, error) {
+				if workspaceRef != "ws-alpha" || channel != "builders" || gotDirectID != directID {
+					t.Fatalf(
+						"NetworkDirect(%q, %q, %q), want ws-alpha/builders/%s",
+						workspaceRef,
+						channel,
+						gotDirectID,
+						directID,
+					)
 				}
 				return direct, nil
 			},
@@ -536,6 +605,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"directs",
 			"show",
 			"--channel",
@@ -570,6 +641,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"directs",
 			"messages",
 			"--channel",
@@ -586,9 +659,9 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network directs messages error = %v", err)
 		}
-		if seenQuery.Channel != "builders" || seenQuery.DirectID != directID ||
+		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" || seenQuery.DirectID != directID ||
 			seenQuery.Limit != 2 || seenQuery.WorkID != "work_1" {
-			t.Fatalf("seenQuery = %#v, want direct message filters", seenQuery)
+			t.Fatalf("seenQuery = %#v, want workspace direct message filters", seenQuery)
 		}
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		if len(lines) != 1 {
@@ -607,9 +680,9 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			networkWorkFn: func(_ context.Context, workID string) (NetworkWorkRecord, error) {
-				if workID != "work_1" {
-					t.Fatalf("NetworkWork(%q), want work_1", workID)
+			networkWorkFn: func(_ context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error) {
+				if workspaceRef != "ws-alpha" || workID != "work_1" {
+					t.Fatalf("NetworkWork(%q, %q), want ws-alpha/work_1", workspaceRef, workID)
 				}
 				return work, nil
 			},
@@ -618,6 +691,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"work",
 			"lookup",
 			"--work",
@@ -641,9 +716,9 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			networkWorkFn: func(_ context.Context, workID string) (NetworkWorkRecord, error) {
-				if workID != "work_1" {
-					t.Fatalf("NetworkWork(%q), want work_1", workID)
+			networkWorkFn: func(_ context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error) {
+				if workspaceRef != "ws-alpha" || workID != "work_1" {
+					t.Fatalf("NetworkWork(%q, %q), want ws-alpha/work_1", workspaceRef, workID)
 				}
 				return work, nil
 			},
@@ -652,6 +727,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t,
 			deps,
 			"network",
+			"--workspace",
+			"ws-alpha",
 			"work",
 			"status",
 			"--work",

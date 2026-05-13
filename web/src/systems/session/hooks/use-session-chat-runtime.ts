@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { sessionKeys } from "../lib/query-keys";
 import { createSessionHistoryAdapter } from "../lib/session-history-adapter";
 import { createSessionThreadListAdapter } from "../lib/session-thread-list-adapter";
@@ -15,20 +17,22 @@ export function useSessionChatRuntime({
   workspaceId?: string;
 }) {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? "";
   const history = useMemo(
-    () => createSessionHistoryAdapter(sessionId, queryClient),
-    [queryClient, sessionId]
+    () => createSessionHistoryAdapter(resolvedWorkspaceId, sessionId, queryClient),
+    [queryClient, resolvedWorkspaceId, sessionId]
   );
   const threadListAdapter = useMemo(
-    () => createSessionThreadListAdapter({ queryClient, workspaceId }),
-    [queryClient, workspaceId]
+    () => createSessionThreadListAdapter({ queryClient, workspaceId: resolvedWorkspaceId }),
+    [queryClient, resolvedWorkspaceId]
   );
   const transport = useMemo(
     () =>
       new AssistantChatTransport({
-        api: `/api/sessions/${sessionId}/prompt`,
+        api: `/api/workspaces/${encodeURIComponent(resolvedWorkspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
       }),
-    [sessionId]
+    [resolvedWorkspaceId, sessionId]
   );
 
   return useRemoteThreadListRuntime({
@@ -40,9 +44,15 @@ export function useSessionChatRuntime({
         adapters: { history },
         onFinish: () => {
           startTransition(() => {
-            void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
-            void queryClient.invalidateQueries({ queryKey: sessionKeys.history(sessionId) });
-            void queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(sessionId) });
+            void queryClient.invalidateQueries({
+              queryKey: sessionKeys.detail(resolvedWorkspaceId, sessionId),
+            });
+            void queryClient.invalidateQueries({
+              queryKey: sessionKeys.history(resolvedWorkspaceId, sessionId),
+            });
+            void queryClient.invalidateQueries({
+              queryKey: sessionKeys.transcript(resolvedWorkspaceId, sessionId),
+            });
             void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
           });
         },

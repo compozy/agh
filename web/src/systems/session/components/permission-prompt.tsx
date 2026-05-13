@@ -12,6 +12,7 @@ import type { AghPermissionData, PermissionRequest } from "../types";
 export interface PermissionPromptProps {
   permission: PermissionRequest;
   sessionId: string;
+  workspaceId: string;
   onResolved?: () => void;
 }
 
@@ -51,7 +52,12 @@ function normalizePermissionDecision(value: string | undefined): PermissionDecis
   }
 }
 
-export function PermissionPrompt({ permission, sessionId, onResolved }: PermissionPromptProps) {
+export function PermissionPrompt({
+  permission,
+  sessionId,
+  workspaceId,
+  onResolved,
+}: PermissionPromptProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResolved, setIsResolved] = useState(false);
 
@@ -59,7 +65,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
     async (decision: PermissionDecision) => {
       setIsSubmitting(true);
       try {
-        await approveSession(sessionId, {
+        await approveSession(workspaceId, sessionId, {
           request_id: permission.requestId,
           turn_id: permission.turnId ?? "",
           decision,
@@ -72,7 +78,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
         setIsSubmitting(false);
       }
     },
-    [sessionId, permission.requestId, permission.turnId, onResolved]
+    [sessionId, workspaceId, permission.requestId, permission.turnId, onResolved]
   );
 
   const tone = promptToneFor(permission.toolName);
@@ -208,9 +214,11 @@ function PermissionToneTile({ tone }: PermissionToneTileProps) {
 export function PermissionDataPart({
   data,
   sessionId,
+  workspaceId,
 }: {
   data: AghPermissionData;
   sessionId: string;
+  workspaceId: string;
 }) {
   const decision = normalizePermissionDecision(data.decision);
   const permission = toPermissionRequest(data);
@@ -222,7 +230,9 @@ export function PermissionDataPart({
     case "reject-always":
       return <PermissionRejectedNotice permission={permission} />;
     default:
-      return <PermissionPrompt permission={permission} sessionId={sessionId} />;
+      return (
+        <PermissionPrompt permission={permission} sessionId={sessionId} workspaceId={workspaceId} />
+      );
   }
 }
 

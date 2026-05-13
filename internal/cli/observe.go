@@ -12,7 +12,7 @@ import (
 func newObserveCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "observe",
-		Short: "Query global observability state",
+		Short: "Query observability state",
 	}
 
 	cmd.AddCommand(newObserveEventsCommand(deps))
@@ -22,12 +22,13 @@ func newObserveCommand(deps commandDeps) *cobra.Command {
 
 func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 	var (
-		session string
-		agent   string
-		typ     string
-		since   string
-		last    int
-		follow  bool
+		session      string
+		agent        string
+		typ          string
+		since        string
+		last         int
+		follow       bool
+		workspaceRef string
 	)
 
 	cmd := &cobra.Command{
@@ -38,17 +39,22 @@ func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveCLIWorkspaceRouteRef(cmd.Context(), deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 
 			sinceTime, err := parseSinceFlag(since, deps.now)
 			if err != nil {
 				return err
 			}
 			query := ObserveEventQuery{
-				SessionID: session,
-				AgentName: agent,
-				Type:      typ,
-				Since:     sinceTime,
-				Last:      last,
+				WorkspaceRef: workspace,
+				SessionID:    session,
+				AgentName:    agent,
+				Type:         typ,
+				Since:        sinceTime,
+				Last:         last,
 			}
 
 			if follow {
@@ -65,6 +71,7 @@ func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&session, "session", "", "Filter by session id")
 	cmd.Flags().StringVar(&agent, "agent", "", "Filter by agent name")
 	cmd.Flags().StringVar(&typ, "type", "", "Filter by event type")
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace root, name, or ID for scoped events")
 	cmd.Flags().StringVar(&since, "since", "", "Show events since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N events")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Stream new events over SSE")

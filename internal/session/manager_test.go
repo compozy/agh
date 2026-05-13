@@ -4219,6 +4219,9 @@ func (r *fakeWorkspaceResolver) ResolveOrRegister(
 
 func (r *fakeWorkspaceResolver) upsert(resolved *workspacepkg.ResolvedWorkspace) {
 	cloned := cloneResolvedWorkspaceForTests(resolved)
+	if strings.TrimSpace(cloned.WorkspaceID) == "" {
+		cloned.WorkspaceID = strings.TrimSpace(cloned.ID)
+	}
 	r.byRef[cloned.ID] = cloned
 	if name := strings.TrimSpace(cloned.Name); name != "" {
 		r.byRef[name] = cloned

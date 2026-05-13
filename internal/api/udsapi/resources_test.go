@@ -334,7 +334,7 @@ func TestRegisterRoutesKeepsOperationalRuntimeEndpointsFamilySpecific(t *testing
 
 	routes := udsRouteSet(engine)
 	for _, route := range []string{
-		"GET /api/hooks/runs",
+		"GET /api/workspaces/:workspace_id/hooks/runs",
 		"GET /api/bridges/health/stream",
 		"POST /api/bridges/:id/test-delivery",
 	} {

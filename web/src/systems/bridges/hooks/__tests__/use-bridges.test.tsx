@@ -66,7 +66,26 @@ describe("useBridges", () => {
       expect(result.current.data?.bridges).toEqual([]);
     });
 
-    expect(listBridges).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(listBridges).toHaveBeenCalledWith({}, expect.any(AbortSignal));
+  });
+
+  it("passes bridge list filters to the adapter", async () => {
+    vi.mocked(listBridges).mockResolvedValue({
+      bridges: [],
+    });
+
+    const { result } = renderHook(() => useBridges({ scope: "all", workspace_id: "ws_alpha" }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.bridges).toEqual([]);
+    });
+
+    expect(listBridges).toHaveBeenCalledWith(
+      { scope: "all", workspace_id: "ws_alpha" },
+      expect.any(AbortSignal)
+    );
   });
 });
 

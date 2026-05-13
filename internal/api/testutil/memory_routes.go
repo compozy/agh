@@ -12,7 +12,8 @@ import (
 func MemoryV2RouteKeysFromGin(routes gin.RoutesInfo) []string {
 	keys := make([]string, 0)
 	for _, route := range routes {
-		if strings.HasPrefix(route.Path, "/api/memory") {
+		if strings.HasPrefix(route.Path, "/api/memory") ||
+			(strings.HasPrefix(route.Path, "/api/workspaces/") && strings.Contains(route.Path, "/memory/")) {
 			keys = append(keys, route.Method+" "+route.Path)
 		}
 	}
@@ -41,7 +42,7 @@ func ExpectedMemoryV2RouteKeys() []string {
 		"GET /api/memory/providers/:provider_name",
 		"GET /api/memory/recall-traces/:session_id/:turn_seq",
 		"GET /api/memory/scope-show",
-		"GET /api/memory/sessions/:session_id/ledger",
+		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"PATCH /api/memory/:filename",
 		"POST /api/memory",
 		"POST /api/memory/ad-hoc",
@@ -60,7 +61,7 @@ func ExpectedMemoryV2RouteKeys() []string {
 		"POST /api/memory/search",
 		"POST /api/memory/sessions/prune",
 		"POST /api/memory/sessions/repair",
-		"POST /api/memory/sessions/:session_id/replay",
+		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 	}
 	sort.Strings(keys)
 	return keys

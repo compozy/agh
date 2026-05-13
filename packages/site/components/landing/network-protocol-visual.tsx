@@ -122,7 +122,7 @@ function directionGlyph(d: Direction, from: Lane, to: Lane) {
 
 export function NetworkProtocolVisual({ className }: { className?: string }) {
   return (
-    <AnimatedDiagram className={className} ariaLabel="agh-network/v0 protocol walkthrough">
+    <AnimatedDiagram className={className} ariaLabel="agh-network/v2 protocol walkthrough">
       {({ active, reducedMotion }) => <Inner active={active} reducedMotion={reducedMotion} />}
     </AnimatedDiagram>
   );
@@ -174,13 +174,13 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       tabIndex={0}
       role="group"
       aria-roledescription="protocol walkthrough"
-      aria-label="agh-network/v0 seven-step delegation sequence"
+      aria-label="agh-network/v2 seven-step delegation sequence"
       className="min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-line bg-rail outline-none focus:ring-1 focus:ring-accent"
     >
       {/* Header , lane labels */}
       <div className="grid grid-cols-3 gap-2 border-b border-line bg-canvas-soft p-3 sm:gap-4 sm:px-4 md:px-6">
         <LaneHeader title="Agent A" subtitle="coder · desk-01" />
-        <LaneHeader title="AGH Network" subtitle="agh-network/v0 · nats" accent />
+        <LaneHeader title="AGH Network" subtitle="agh-network/v2 · nats" accent />
         <LaneHeader title="Agent B" subtitle="deployer · ci-runner-03" />
       </div>
 

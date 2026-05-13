@@ -1007,23 +1007,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/hooks/runs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List hook run history for one session */
-    get: operations["getHookRuns"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/memory": {
     parameters: {
       query?: never;
@@ -1569,40 +1552,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/memory/sessions/{session_id}/ledger": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one materialized Memory v2 session ledger */
-    get: operations["getMemorySessionLedger"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/sessions/{session_id}/replay": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Replay one materialized Memory v2 session ledger */
-    post: operations["replayMemorySession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/memory/{filename}": {
     parameters: {
       query?: never;
@@ -1622,228 +1571,6 @@ export interface paths {
     patch: operations["editMemory"];
     trace?: never;
   };
-  "/api/network/channels": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List materialized network channels */
-    get: operations["listNetworkChannels"];
-    put?: never;
-    /** Create a network channel by spawning agent sessions */
-    post: operations["createNetworkChannel"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one network channel detail */
-    get: operations["getNetworkChannel"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/directs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List direct rooms in one network channel */
-    get: operations["listNetworkDirectRooms"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/directs/resolve": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create or return a deterministic direct room */
-    post: operations["resolveNetworkDirectRoom"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/directs/{direct_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one direct-room summary */
-    get: operations["getNetworkDirectRoom"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/directs/{direct_id}/messages": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List messages in one direct room */
-    get: operations["listNetworkDirectRoomMessages"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/threads": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List public threads in one network channel */
-    get: operations["listNetworkThreads"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/threads/{thread_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one public-thread summary */
-    get: operations["getNetworkThread"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/channels/{channel}/threads/{thread_id}/messages": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List messages in one public thread */
-    get: operations["listNetworkThreadMessages"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/inbox": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List queued network inbox messages for one local session */
-    get: operations["listNetworkInbox"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/peers": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List visible network peers */
-    get: operations["listNetworkPeers"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/peers/{peer_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one visible network peer detail */
-    get: operations["getNetworkPeer"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/send": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Send one network message */
-    post: operations["sendNetworkMessage"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/network/status": {
     parameters: {
       query?: never;
@@ -1853,40 +1580,6 @@ export interface paths {
     };
     /** Get the network runtime status snapshot */
     get: operations["getNetworkStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/network/work/{work_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one network work item */
-    get: operations["getNetworkWork"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/observe/events": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List observability events */
-    get: operations["listObserveEvents"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2130,245 +1823,6 @@ export interface paths {
     put?: never;
     /** Create a session */
     post: operations["createSession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one session snapshot */
-    get: operations["getSession"];
-    put?: never;
-    post?: never;
-    /** Delete one session and remove it from persisted history */
-    delete: operations["deleteSession"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/approve": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Approve or deny an interactive permission request */
-    post: operations["approveSession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/events": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List persisted session events */
-    get: operations["listSessionEvents"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/history": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List grouped session turn history */
-    get: operations["getSessionHistory"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/repair": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Inspect and repair an interrupted session transcript */
-    post: operations["repairSession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/resume": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Resume a stopped session */
-    post: operations["resumeSession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/stop": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Stop a session without deleting persisted history */
-    post: operations["stopSession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/tools": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List session-callable registry tools */
-    get: operations["listSessionTools"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/tools/search": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Search session-callable registry tools */
-    post: operations["searchSessionTools"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{id}/transcript": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the canonical transcript for one session */
-    get: operations["getSessionTranscript"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{session_id}/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read metadata-only session health and wake eligibility */
-    get: operations["getSessionHealth"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{session_id}/inspect": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Inspect session health, wake audit, and policy correlation metadata */
-    get: operations["inspectSession"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{session_id}/soul/refresh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Refresh an idle session's Soul snapshot through body-level CAS */
-    post: operations["refreshSessionSoul"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{session_id}/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read compact session status and wake eligibility */
-    get: operations["getSessionStatus"];
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3573,6 +3027,552 @@ export interface paths {
     head?: never;
     /** Update a registered workspace */
     patch: operations["updateWorkspace"];
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/hooks/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List hook run history for one session */
+    get: operations["getHookRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one materialized Memory v2 session ledger */
+    get: operations["getMemorySessionLedger"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Replay one materialized Memory v2 session ledger */
+    post: operations["replayMemorySession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List materialized network channels */
+    get: operations["listNetworkChannels"];
+    put?: never;
+    /** Create a network channel by spawning agent sessions */
+    post: operations["createNetworkChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one network channel detail */
+    get: operations["getNetworkChannel"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/directs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List direct rooms in one network channel */
+    get: operations["listNetworkDirectRooms"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create or return a deterministic direct room */
+    post: operations["resolveNetworkDirectRoom"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one direct-room summary */
+    get: operations["getNetworkDirectRoom"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List messages in one direct room */
+    get: operations["listNetworkDirectRoomMessages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/threads": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List public threads in one network channel */
+    get: operations["listNetworkThreads"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one public-thread summary */
+    get: operations["getNetworkThread"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List messages in one public thread */
+    get: operations["listNetworkThreadMessages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/inbox": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List queued network inbox messages for one local session */
+    get: operations["listNetworkInbox"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/peers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List visible network peers */
+    get: operations["listNetworkPeers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/peers/{peer_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one visible network peer detail */
+    get: operations["getNetworkPeer"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/send": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send one network message */
+    post: operations["sendNetworkMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/work/{work_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one network work item */
+    get: operations["getNetworkWork"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/observe/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List observability events */
+    get: operations["listObserveEvents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one session snapshot */
+    get: operations["getSession"];
+    put?: never;
+    post?: never;
+    /** Delete one session and remove it from persisted history */
+    delete: operations["deleteSession"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve or deny an interactive permission request */
+    post: operations["approveSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List persisted session events */
+    get: operations["listSessionEvents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read metadata-only session health and wake eligibility */
+    get: operations["getSessionHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List grouped session turn history */
+    get: operations["getSessionHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect session health, wake audit, and policy correlation metadata */
+    get: operations["inspectSession"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/repair": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Inspect and repair an interrupted session transcript */
+    post: operations["repairSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume a stopped session */
+    post: operations["resumeSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh an idle session's Soul snapshot through body-level CAS */
+    post: operations["refreshSessionSoul"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read compact session status and wake eligibility */
+    get: operations["getSessionStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop a session without deleting persisted history */
+    post: operations["stopSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/tools": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List session-callable registry tools */
+    get: operations["listSessionTools"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Search session-callable registry tools */
+    post: operations["searchSessionTools"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the canonical transcript for one session */
+    get: operations["getSessionTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
 }
@@ -11942,7 +11942,14 @@ export interface operations {
   };
   listBridges: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Filter by bridge scope */
+        scope?: "all" | "global" | "workspace";
+        /** @description Filter by active workspace id */
+        workspace_id?: string;
+        /** @description Filter by workspace id, name, or path */
+        workspace?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -12031,6 +12038,17 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
             }[];
+          };
+        };
+      };
+      /** @description Invalid bridge list filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
           };
         };
       };
@@ -15208,162 +15226,6 @@ export interface operations {
       };
       /** @description Invalid filter */
       400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getHookRuns: {
-    parameters: {
-      query: {
-        /** @description Session id */
-        session: string;
-        /** @description Hook event name */
-        event?:
-          | "session.pre_create"
-          | "session.post_create"
-          | "session.pre_resume"
-          | "session.post_resume"
-          | "session.pre_stop"
-          | "session.post_stop"
-          | "session.message_persisted"
-          | "sandbox.prepare"
-          | "sandbox.ready"
-          | "sandbox.sync.before"
-          | "sandbox.sync.after"
-          | "sandbox.stop"
-          | "input.pre_submit"
-          | "prompt.post_assemble"
-          | "event.pre_record"
-          | "event.post_record"
-          | "automation.job.pre_fire"
-          | "automation.job.post_fire"
-          | "automation.trigger.pre_fire"
-          | "automation.trigger.post_fire"
-          | "automation.run.completed"
-          | "automation.run.failed"
-          | "agent.pre_start"
-          | "agent.spawned"
-          | "agent.crashed"
-          | "agent.stopped"
-          | "agent.soul.snapshot.resolved"
-          | "agent.soul.mutation.after"
-          | "agent.heartbeat.policy.resolved"
-          | "agent.heartbeat.wake.before"
-          | "agent.heartbeat.wake.after"
-          | "session.health.update.after"
-          | "turn.start"
-          | "turn.end"
-          | "message.start"
-          | "message.delta"
-          | "message.end"
-          | "tool.pre_call"
-          | "tool.post_call"
-          | "tool.post_error"
-          | "permission.request"
-          | "permission.resolved"
-          | "permission.denied"
-          | "context.pre_compact"
-          | "context.post_compact"
-          | "coordinator.pre_spawn"
-          | "coordinator.spawned"
-          | "coordinator.decision"
-          | "coordinator.stopped"
-          | "coordinator.failed"
-          | "task.run.enqueued"
-          | "task.run.pre_claim"
-          | "task.run.post_claim"
-          | "task.run.lease_extended"
-          | "task.run.lease_expired"
-          | "task.run.lease_recovered"
-          | "task.run.released"
-          | "task.run.completed"
-          | "task.run.failed"
-          | "spawn.pre_create"
-          | "spawn.created"
-          | "spawn.parent_stopped"
-          | "spawn.ttl_expired"
-          | "spawn.reaped"
-          | "network.thread.opened"
-          | "network.direct_room.opened"
-          | "network.message.persisted"
-          | "network.work.opened"
-          | "network.work.transitioned"
-          | "network.work.closed";
-        /** @description Hook execution outcome */
-        outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
-        /** @description Only runs recorded since this timestamp */
-        since?: string;
-        /** @description Maximum number of records to return */
-        last?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            runs: {
-              dispatch_depth: number;
-              /** Format: int64 */
-              duration_ms: number;
-              error?: string;
-              event: string;
-              hook_name: string;
-              mode: string;
-              outcome: string;
-              patch_applied?: unknown;
-              /** Format: date-time */
-              recorded_at: string;
-              required?: boolean;
-              source: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -18663,184 +18525,6 @@ export interface operations {
       };
     };
   };
-  getMemorySessionLedger: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              /** Format: date-time */
-              emitted_at: string;
-              event_type: string;
-              payload?: {
-                [key: string]: unknown;
-              };
-              /** Format: int64 */
-              sequence: number;
-            }[];
-            meta: {
-              checksum: string;
-              /** Format: date-time */
-              created_at: string;
-              parent_session_id?: string;
-              path: string;
-              root_session_id?: string;
-              session_id: string;
-              spawn_depth: number;
-              /** Format: date-time */
-              stopped_at?: string | null;
-              version: number;
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Session ledger not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  replayMemorySession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          include_memory?: boolean;
-          include_tool_events?: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              /** Format: date-time */
-              emitted_at: string;
-              event_type: string;
-              payload?: {
-                [key: string]: unknown;
-              };
-              /** Format: int64 */
-              sequence: number;
-            }[];
-            session_id: string;
-          };
-        };
-      };
-      /** @description Invalid session replay request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Session ledger not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   readMemory: {
     parameters: {
       query?: {
@@ -19330,1715 +19014,6 @@ export interface operations {
       };
     };
   };
-  listNetworkChannels: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            channels: {
-              channel: string;
-              /** Format: date-time */
-              created_at?: string | null;
-              created_by?: string;
-              historical_participant_count?: number;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              /** Format: date-time */
-              last_presence_at?: string | null;
-              local_peer_count?: number;
-              message_count?: number;
-              peer_count: number;
-              presence_count?: number;
-              purpose?: string;
-              remote_peer_count?: number;
-              session_count?: number;
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  createNetworkChannel: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_names: string[];
-          channel: string;
-          purpose: string;
-          workspace_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            channel: {
-              channel: string;
-              /** Format: date-time */
-              created_at?: string | null;
-              created_by?: string;
-              historical_participant_count?: number;
-              kind_counts?: {
-                count: number;
-                kind: string;
-              }[];
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              /** Format: date-time */
-              last_presence_at?: string | null;
-              local_peer_count?: number;
-              message_count?: number;
-              peer_count: number;
-              peers?: {
-                channel: string;
-                display_name?: string;
-                /** Format: date-time */
-                expires_at?: string | null;
-                /** Format: date-time */
-                joined_at?: string | null;
-                /** Format: date-time */
-                last_seen?: string | null;
-                local: boolean;
-                peer_card: {
-                  artifacts_supported: string[];
-                  capabilities: {
-                    id: string;
-                    summary: string;
-                  }[];
-                  display_name?: string | null;
-                  ext?: {
-                    [key: string]: unknown;
-                  };
-                  peer_id: string;
-                  profiles_supported: string[];
-                  trust_modes_supported: string[];
-                };
-                peer_id: string;
-                session_id?: string | null;
-              }[];
-              presence_count?: number;
-              purpose?: string;
-              remote_peer_count?: number;
-              session_count?: number;
-              sessions?: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_models?: string[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
-                activity?: {
-                  current_tool?: string;
-                  /** Format: date-time */
-                  deadline_at?: string | null;
-                  /** Format: int64 */
-                  elapsed_ms: number;
-                  /** Format: int64 */
-                  elapsed_seconds: number;
-                  /** Format: int64 */
-                  idle_seconds: number;
-                  iteration_current: number;
-                  iteration_max: number;
-                  /** Format: date-time */
-                  last_activity_at?: string | null;
-                  last_activity_detail?: string;
-                  last_activity_kind?: string;
-                  /** Format: date-time */
-                  last_progress_at?: string | null;
-                  tool_call_id?: string;
-                  turn_id?: string;
-                  turn_source?: string;
-                  /** Format: date-time */
-                  turn_started_at?: string | null;
-                } | null;
-                agent_name: string;
-                channel?: string;
-                /** Format: date-time */
-                created_at: string;
-                failure?: {
-                  crash_bundle_path?: string;
-                  kind: string;
-                  summary?: string;
-                } | null;
-                health?: {
-                  active_prompt: boolean;
-                  agent_name: string;
-                  attachable: boolean;
-                  eligible_for_wake: boolean;
-                  /** @enum {string} */
-                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-                  /** @enum {string} */
-                  ineligibility_reason?:
-                    | "session_prompt_active"
-                    | "session_not_attachable"
-                    | "session_unhealthy"
-                    | "session_health_stale"
-                    | "session_health_hung"
-                    | "session_health_dead"
-                    | "session_health_unknown";
-                  /** Format: date-time */
-                  last_activity_at?: string | null;
-                  last_error?: string;
-                  /** Format: date-time */
-                  last_presence_at?: string | null;
-                  session_id: string;
-                  /** @enum {string} */
-                  state: "idle" | "prompting" | "stopped" | "detached";
-                  /** Format: date-time */
-                  updated_at: string;
-                  workspace_id: string;
-                } | null;
-                id: string;
-                lineage?: {
-                  auto_stop_on_parent: boolean;
-                  parent_session_id?: string;
-                  permission_policy: {
-                    mcp_servers: string[];
-                    network_channels: string[];
-                    sandbox_profiles: string[];
-                    skills: string[];
-                    tools: string[];
-                    workspace_paths: string[];
-                  };
-                  root_session_id?: string;
-                  spawn_budget: {
-                    max_active_per_workspace?: number;
-                    max_children: number;
-                    max_depth: number;
-                    /** Format: int64 */
-                    ttl_seconds: number;
-                  };
-                  spawn_depth: number;
-                  spawn_role?: string;
-                  /** Format: date-time */
-                  ttl_expires_at?: string | null;
-                } | null;
-                model?: string;
-                name?: string;
-                provider: string;
-                reasoning_effort?: string;
-                sandbox?: {
-                  backend?: string;
-                  instance_id?: string;
-                  last_sync_error?: string;
-                  profile?: string;
-                  provider_state_json?: unknown;
-                  sandbox_id?: string;
-                  state?: string;
-                } | null;
-                /** @enum {string} */
-                state: "starting" | "active" | "stopping" | "stopped";
-                stop_detail?: string;
-                /** @enum {string} */
-                stop_reason?:
-                  | "completed"
-                  | "user_canceled"
-                  | "max_iterations"
-                  | "loop_detected"
-                  | "timeout"
-                  | "budget_exceeded"
-                  | "error"
-                  | "agent_crashed"
-                  | "hook_stopped"
-                  | "shutdown";
-                type?: string;
-                /** Format: date-time */
-                updated_at: string;
-                workspace_id?: string;
-                workspace_path?: string;
-              }[];
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid network channel request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getNetworkChannel: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            channel: {
-              channel: string;
-              /** Format: date-time */
-              created_at?: string | null;
-              created_by?: string;
-              historical_participant_count?: number;
-              kind_counts?: {
-                count: number;
-                kind: string;
-              }[];
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              /** Format: date-time */
-              last_presence_at?: string | null;
-              local_peer_count?: number;
-              message_count?: number;
-              peer_count: number;
-              peers?: {
-                channel: string;
-                display_name?: string;
-                /** Format: date-time */
-                expires_at?: string | null;
-                /** Format: date-time */
-                joined_at?: string | null;
-                /** Format: date-time */
-                last_seen?: string | null;
-                local: boolean;
-                peer_card: {
-                  artifacts_supported: string[];
-                  capabilities: {
-                    id: string;
-                    summary: string;
-                  }[];
-                  display_name?: string | null;
-                  ext?: {
-                    [key: string]: unknown;
-                  };
-                  peer_id: string;
-                  profiles_supported: string[];
-                  trust_modes_supported: string[];
-                };
-                peer_id: string;
-                session_id?: string | null;
-              }[];
-              presence_count?: number;
-              purpose?: string;
-              remote_peer_count?: number;
-              session_count?: number;
-              sessions?: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_models?: string[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
-                activity?: {
-                  current_tool?: string;
-                  /** Format: date-time */
-                  deadline_at?: string | null;
-                  /** Format: int64 */
-                  elapsed_ms: number;
-                  /** Format: int64 */
-                  elapsed_seconds: number;
-                  /** Format: int64 */
-                  idle_seconds: number;
-                  iteration_current: number;
-                  iteration_max: number;
-                  /** Format: date-time */
-                  last_activity_at?: string | null;
-                  last_activity_detail?: string;
-                  last_activity_kind?: string;
-                  /** Format: date-time */
-                  last_progress_at?: string | null;
-                  tool_call_id?: string;
-                  turn_id?: string;
-                  turn_source?: string;
-                  /** Format: date-time */
-                  turn_started_at?: string | null;
-                } | null;
-                agent_name: string;
-                channel?: string;
-                /** Format: date-time */
-                created_at: string;
-                failure?: {
-                  crash_bundle_path?: string;
-                  kind: string;
-                  summary?: string;
-                } | null;
-                health?: {
-                  active_prompt: boolean;
-                  agent_name: string;
-                  attachable: boolean;
-                  eligible_for_wake: boolean;
-                  /** @enum {string} */
-                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-                  /** @enum {string} */
-                  ineligibility_reason?:
-                    | "session_prompt_active"
-                    | "session_not_attachable"
-                    | "session_unhealthy"
-                    | "session_health_stale"
-                    | "session_health_hung"
-                    | "session_health_dead"
-                    | "session_health_unknown";
-                  /** Format: date-time */
-                  last_activity_at?: string | null;
-                  last_error?: string;
-                  /** Format: date-time */
-                  last_presence_at?: string | null;
-                  session_id: string;
-                  /** @enum {string} */
-                  state: "idle" | "prompting" | "stopped" | "detached";
-                  /** Format: date-time */
-                  updated_at: string;
-                  workspace_id: string;
-                } | null;
-                id: string;
-                lineage?: {
-                  auto_stop_on_parent: boolean;
-                  parent_session_id?: string;
-                  permission_policy: {
-                    mcp_servers: string[];
-                    network_channels: string[];
-                    sandbox_profiles: string[];
-                    skills: string[];
-                    tools: string[];
-                    workspace_paths: string[];
-                  };
-                  root_session_id?: string;
-                  spawn_budget: {
-                    max_active_per_workspace?: number;
-                    max_children: number;
-                    max_depth: number;
-                    /** Format: int64 */
-                    ttl_seconds: number;
-                  };
-                  spawn_depth: number;
-                  spawn_role?: string;
-                  /** Format: date-time */
-                  ttl_expires_at?: string | null;
-                } | null;
-                model?: string;
-                name?: string;
-                provider: string;
-                reasoning_effort?: string;
-                sandbox?: {
-                  backend?: string;
-                  instance_id?: string;
-                  last_sync_error?: string;
-                  profile?: string;
-                  provider_state_json?: unknown;
-                  sandbox_id?: string;
-                  state?: string;
-                } | null;
-                /** @enum {string} */
-                state: "starting" | "active" | "stopping" | "stopped";
-                stop_detail?: string;
-                /** @enum {string} */
-                stop_reason?:
-                  | "completed"
-                  | "user_canceled"
-                  | "max_iterations"
-                  | "loop_detected"
-                  | "timeout"
-                  | "budget_exceeded"
-                  | "error"
-                  | "agent_crashed"
-                  | "hook_stopped"
-                  | "shutdown";
-                type?: string;
-                /** Format: date-time */
-                updated_at: string;
-                workspace_id?: string;
-                workspace_path?: string;
-              }[];
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid network channel */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network channel not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listNetworkDirectRooms: {
-    parameters: {
-      query?: {
-        /** @description Filter direct rooms by peer id */
-        peer_id?: string;
-        /** @description Return direct rooms after the specified direct id */
-        after?: string;
-        /** @description Maximum number of direct rooms to return */
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            directs: {
-              channel: string;
-              direct_id: string;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              message_count: number;
-              open_work_count: number;
-              /** Format: date-time */
-              opened_at?: string | null;
-              peer_a: string;
-              peer_b: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid direct-room request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  resolveNetworkDirectRoom: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          peer_id: string;
-          session_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            direct: {
-              channel: string;
-              direct_id: string;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              message_count: number;
-              open_work_count: number;
-              /** Format: date-time */
-              opened_at?: string | null;
-              peer_a: string;
-              peer_b: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid direct-room resolve request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network direct-room peer not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Direct-room collision */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getNetworkDirectRoom: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-        /** @description Direct-room id */
-        direct_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            direct: {
-              channel: string;
-              direct_id: string;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              message_count: number;
-              open_work_count: number;
-              /** Format: date-time */
-              opened_at?: string | null;
-              peer_a: string;
-              peer_b: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid direct room */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network direct room not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listNetworkDirectRoomMessages: {
-    parameters: {
-      query?: {
-        /** @description Return messages before the specified message id */
-        before?: string;
-        /** @description Return messages after the specified message id */
-        after?: string;
-        /** @description Filter messages by network kind */
-        kind?: string;
-        /** @description Filter messages by work id */
-        work_id?: string;
-        /** @description Maximum number of messages to return */
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-        /** @description Direct-room id */
-        direct_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            messages: {
-              body: unknown;
-              causation_id?: string;
-              channel: string;
-              direct_id?: string;
-              direction: string;
-              display_name?: string;
-              intent?: string;
-              kind: string;
-              local?: boolean;
-              message_id: string;
-              peer_from: string;
-              peer_to?: string;
-              presence_count?: number;
-              /** Format: date-time */
-              presence_last_seen_at?: string | null;
-              /** Format: date-time */
-              presence_started_at?: string | null;
-              preview_text?: string;
-              reply_to?: string;
-              session_id?: string;
-              surface?: string;
-              text?: string;
-              thread_id?: string;
-              /** Format: date-time */
-              timestamp: string;
-              trace_id?: string;
-              work_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid direct-room messages request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network direct room not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listNetworkThreads: {
-    parameters: {
-      query?: {
-        /** @description Return threads after the specified thread id */
-        after?: string;
-        /** @description Maximum number of public threads to return */
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            threads: {
-              channel: string;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              message_count: number;
-              open_work_count: number;
-              /** Format: date-time */
-              opened_at?: string | null;
-              opened_by_peer_id?: string;
-              opened_session_id?: string;
-              participant_count: number;
-              root_message_id: string;
-              thread_id: string;
-              title?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid public-thread request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getNetworkThread: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-        /** @description Public thread id */
-        thread_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            thread: {
-              channel: string;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_message_preview?: string;
-              message_count: number;
-              open_work_count: number;
-              /** Format: date-time */
-              opened_at?: string | null;
-              opened_by_peer_id?: string;
-              opened_session_id?: string;
-              participant_count: number;
-              root_message_id: string;
-              thread_id: string;
-              title?: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid public thread */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network thread not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listNetworkThreadMessages: {
-    parameters: {
-      query?: {
-        /** @description Return messages before the specified message id */
-        before?: string;
-        /** @description Return messages after the specified message id */
-        after?: string;
-        /** @description Filter messages by network kind */
-        kind?: string;
-        /** @description Filter messages by work id */
-        work_id?: string;
-        /** @description Maximum number of messages to return */
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Network channel */
-        channel: string;
-        /** @description Public thread id */
-        thread_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            messages: {
-              body: unknown;
-              causation_id?: string;
-              channel: string;
-              direct_id?: string;
-              direction: string;
-              display_name?: string;
-              intent?: string;
-              kind: string;
-              local?: boolean;
-              message_id: string;
-              peer_from: string;
-              peer_to?: string;
-              presence_count?: number;
-              /** Format: date-time */
-              presence_last_seen_at?: string | null;
-              /** Format: date-time */
-              presence_started_at?: string | null;
-              preview_text?: string;
-              reply_to?: string;
-              session_id?: string;
-              surface?: string;
-              text?: string;
-              thread_id?: string;
-              /** Format: date-time */
-              timestamp: string;
-              trace_id?: string;
-              work_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid public-thread messages request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network thread not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listNetworkInbox: {
-    parameters: {
-      query: {
-        /** @description Target local session id */
-        session_id: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            messages: {
-              body: unknown;
-              causation_id?: string | null;
-              channel: string;
-              direct_id?: string | null;
-              /** Format: int64 */
-              expires_at?: number | null;
-              ext?: {
-                [key: string]: unknown;
-              };
-              from: string;
-              id: string;
-              kind: string;
-              proof?: {
-                [key: string]: unknown;
-              };
-              protocol: string;
-              reply_to?: string | null;
-              surface?: string | null;
-              thread_id?: string | null;
-              to?: string | null;
-              trace_id?: string | null;
-              /** Format: int64 */
-              ts: number;
-              work_id?: string | null;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid inbox request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network target not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listNetworkPeers: {
-    parameters: {
-      query?: {
-        /** @description Filter peers by channel */
-        channel?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            peers: {
-              channel: string;
-              display_name?: string;
-              /** Format: date-time */
-              expires_at?: string | null;
-              /** Format: date-time */
-              joined_at?: string | null;
-              /** Format: date-time */
-              last_seen?: string | null;
-              local: boolean;
-              peer_card: {
-                artifacts_supported: string[];
-                capabilities: {
-                  id: string;
-                  summary: string;
-                }[];
-                display_name?: string | null;
-                ext?: {
-                  [key: string]: unknown;
-                };
-                peer_id: string;
-                profiles_supported: string[];
-                trust_modes_supported: string[];
-              };
-              peer_id: string;
-              session_id?: string | null;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid network filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getNetworkPeer: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Network peer id */
-        peer_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            peer: {
-              capability_catalog?: {
-                capabilities: {
-                  artifacts_expected?: string[];
-                  constraints?: string[];
-                  context_needed?: string[];
-                  digest?: string;
-                  examples?: string[];
-                  execution_outline?: string[];
-                  id: string;
-                  outcome: string;
-                  requirements?: string[];
-                  summary: string;
-                  version?: string;
-                }[];
-              } | null;
-              channel?: string;
-              display_name?: string;
-              /** Format: date-time */
-              expires_at?: string | null;
-              /** Format: date-time */
-              joined_at?: string | null;
-              /** Format: date-time */
-              last_seen?: string | null;
-              local?: boolean;
-              metrics: {
-                /** Format: int64 */
-                delivered?: number;
-                /** Format: int64 */
-                received?: number;
-                /** Format: int64 */
-                rejected?: number;
-                /** Format: int64 */
-                sent?: number;
-              };
-              peer_card: {
-                artifacts_supported: string[];
-                capabilities: {
-                  id: string;
-                  summary: string;
-                }[];
-                display_name?: string | null;
-                ext?: {
-                  [key: string]: unknown;
-                };
-                peer_id: string;
-                profiles_supported: string[];
-                trust_modes_supported: string[];
-              };
-              peer_id: string;
-              session_id?: string | null;
-            };
-          };
-        };
-      };
-      /** @description Network peer not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  sendNetworkMessage: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          body: unknown;
-          causation_id?: string;
-          channel: string;
-          direct_id?: string;
-          /** Format: int64 */
-          expires_at?: number | null;
-          ext?: {
-            [key: string]: unknown;
-          };
-          id?: string;
-          kind: string;
-          reply_to?: string;
-          session_id: string;
-          surface?: string;
-          thread_id?: string;
-          to?: string;
-          trace_id?: string;
-          work_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            message: {
-              causation_id?: string;
-              channel: string;
-              direct_id?: string;
-              /** Format: int64 */
-              expires_at?: number | null;
-              ext?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              kind: string;
-              reply_to?: string;
-              session_id: string;
-              surface?: string;
-              thread_id?: string;
-              to?: string;
-              trace_id?: string;
-              work_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid network send request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network target not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   getNetworkStatus: {
     parameters: {
       query?: never;
@@ -21116,183 +19091,6 @@ export interface operations {
               /** Format: int64 */
               workflow_tagged_events?: number;
             };
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getNetworkWork: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Network work id */
-        work_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            work: {
-              channel: string;
-              direct_id?: string;
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              /** Format: date-time */
-              opened_at?: string | null;
-              opened_by_peer_id?: string;
-              opened_session_id?: string;
-              state: string;
-              surface: string;
-              target_peer_id?: string;
-              /** Format: date-time */
-              terminal_at?: string | null;
-              thread_id?: string;
-              work_id: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid network work id */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network work not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listObserveEvents: {
-    parameters: {
-      query?: {
-        /** @description Session id */
-        session_id?: string;
-        /** @description Agent name */
-        agent_name?: string;
-        /** @description Event type */
-        type?: string;
-        /** @description Only events emitted since this timestamp */
-        since?: string;
-        /** @description Maximum number of records to return */
-        limit?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              actor_id?: string;
-              actor_kind?: string;
-              agent_name: string;
-              claim_token_hash?: string;
-              content?: unknown;
-              coordinator_session_id?: string;
-              hook_event?: string;
-              hook_name?: string;
-              id: string;
-              /** Format: date-time */
-              lease_until?: string | null;
-              parent_session_id?: string;
-              release_reason?: string;
-              root_session_id?: string;
-              run_id?: string;
-              scheduler_reason?: string;
-              session_id: string;
-              spawn_depth: number;
-              summary?: string;
-              task_id?: string;
-              /** Format: date-time */
-              timestamp: string;
-              type: string;
-              workflow_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
           };
         };
       };
@@ -23758,2195 +21556,6 @@ export interface operations {
       };
       /** @description Session creation conflict */
       409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getSession: {
-    parameters: {
-      query?: {
-        /** @description Include metadata-only session health when available */
-        include_health?: boolean;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_models?: string[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
-              activity?: {
-                current_tool?: string;
-                /** Format: date-time */
-                deadline_at?: string | null;
-                /** Format: int64 */
-                elapsed_ms: number;
-                /** Format: int64 */
-                elapsed_seconds: number;
-                /** Format: int64 */
-                idle_seconds: number;
-                iteration_current: number;
-                iteration_max: number;
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_activity_detail?: string;
-                last_activity_kind?: string;
-                /** Format: date-time */
-                last_progress_at?: string | null;
-                tool_call_id?: string;
-                turn_id?: string;
-                turn_source?: string;
-                /** Format: date-time */
-                turn_started_at?: string | null;
-              } | null;
-              agent_name: string;
-              channel?: string;
-              /** Format: date-time */
-              created_at: string;
-              failure?: {
-                crash_bundle_path?: string;
-                kind: string;
-                summary?: string;
-              } | null;
-              health?: {
-                active_prompt: boolean;
-                agent_name: string;
-                attachable: boolean;
-                eligible_for_wake: boolean;
-                /** @enum {string} */
-                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-                /** @enum {string} */
-                ineligibility_reason?:
-                  | "session_prompt_active"
-                  | "session_not_attachable"
-                  | "session_unhealthy"
-                  | "session_health_stale"
-                  | "session_health_hung"
-                  | "session_health_dead"
-                  | "session_health_unknown";
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_error?: string;
-                /** Format: date-time */
-                last_presence_at?: string | null;
-                session_id: string;
-                /** @enum {string} */
-                state: "idle" | "prompting" | "stopped" | "detached";
-                /** Format: date-time */
-                updated_at: string;
-                workspace_id: string;
-              } | null;
-              id: string;
-              lineage?: {
-                auto_stop_on_parent: boolean;
-                parent_session_id?: string;
-                permission_policy: {
-                  mcp_servers: string[];
-                  network_channels: string[];
-                  sandbox_profiles: string[];
-                  skills: string[];
-                  tools: string[];
-                  workspace_paths: string[];
-                };
-                root_session_id?: string;
-                spawn_budget: {
-                  max_active_per_workspace?: number;
-                  max_children: number;
-                  max_depth: number;
-                  /** Format: int64 */
-                  ttl_seconds: number;
-                };
-                spawn_depth: number;
-                spawn_role?: string;
-                /** Format: date-time */
-                ttl_expires_at?: string | null;
-              } | null;
-              model?: string;
-              name?: string;
-              provider: string;
-              reasoning_effort?: string;
-              sandbox?: {
-                backend?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                sandbox_id?: string;
-                state?: string;
-              } | null;
-              /** @enum {string} */
-              state: "starting" | "active" | "stopping" | "stopped";
-              stop_detail?: string;
-              /** @enum {string} */
-              stop_reason?:
-                | "completed"
-                | "user_canceled"
-                | "max_iterations"
-                | "loop_detected"
-                | "timeout"
-                | "budget_exceeded"
-                | "error"
-                | "agent_crashed"
-                | "hook_stopped"
-                | "shutdown";
-              type?: string;
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id?: string;
-              workspace_path?: string;
-            };
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  deleteSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description No Content */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  approveSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          decision: string;
-          request_id: string;
-          turn_id: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            status: string;
-          };
-        };
-      };
-      /** @description Invalid approval request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listSessionEvents: {
-    parameters: {
-      query?: {
-        /** @description Only events emitted since this timestamp */
-        since?: string;
-        /** @description Maximum number of records to return */
-        limit?: number;
-        /** @description Only return events after this sequence number */
-        after_sequence?: number;
-        /** @description Event type */
-        type?: string;
-        /** @description Agent name */
-        agent_name?: string;
-        /** @description Turn id */
-        turn_id?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              actor_id?: string;
-              actor_kind?: string;
-              agent_name: string;
-              claim_token_hash?: string;
-              content: unknown;
-              coordinator_session_id?: string;
-              failure?: {
-                crash_bundle_path?: string;
-                kind: string;
-                summary?: string;
-              } | null;
-              hook_event?: string;
-              hook_name?: string;
-              id: string;
-              /** Format: date-time */
-              lease_until?: string | null;
-              parent_session_id?: string;
-              release_reason?: string;
-              root_session_id?: string;
-              run_id?: string;
-              scheduler_reason?: string;
-              /** Format: int64 */
-              sequence: number;
-              session_id: string;
-              spawn_depth: number;
-              stop_detail?: string;
-              /** @enum {string} */
-              stop_reason?:
-                | "completed"
-                | "user_canceled"
-                | "max_iterations"
-                | "loop_detected"
-                | "timeout"
-                | "budget_exceeded"
-                | "error"
-                | "agent_crashed"
-                | "hook_stopped"
-                | "shutdown";
-              task_id?: string;
-              /** Format: date-time */
-              timestamp: string;
-              turn_id: string;
-              type: string;
-              workflow_id?: string;
-              workspace_id?: string;
-              workspace_path?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getSessionHistory: {
-    parameters: {
-      query?: {
-        /** @description Only events emitted since this timestamp */
-        since?: string;
-        /** @description Maximum number of records to return */
-        limit?: number;
-        /** @description Only return events after this sequence number */
-        after_sequence?: number;
-        /** @description Event type */
-        type?: string;
-        /** @description Agent name */
-        agent_name?: string;
-        /** @description Turn id */
-        turn_id?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            history: {
-              events: {
-                actor_id?: string;
-                actor_kind?: string;
-                agent_name: string;
-                claim_token_hash?: string;
-                content: unknown;
-                coordinator_session_id?: string;
-                failure?: {
-                  crash_bundle_path?: string;
-                  kind: string;
-                  summary?: string;
-                } | null;
-                hook_event?: string;
-                hook_name?: string;
-                id: string;
-                /** Format: date-time */
-                lease_until?: string | null;
-                parent_session_id?: string;
-                release_reason?: string;
-                root_session_id?: string;
-                run_id?: string;
-                scheduler_reason?: string;
-                /** Format: int64 */
-                sequence: number;
-                session_id: string;
-                spawn_depth: number;
-                stop_detail?: string;
-                /** @enum {string} */
-                stop_reason?:
-                  | "completed"
-                  | "user_canceled"
-                  | "max_iterations"
-                  | "loop_detected"
-                  | "timeout"
-                  | "budget_exceeded"
-                  | "error"
-                  | "agent_crashed"
-                  | "hook_stopped"
-                  | "shutdown";
-                task_id?: string;
-                /** Format: date-time */
-                timestamp: string;
-                turn_id: string;
-                type: string;
-                workflow_id?: string;
-                workspace_id?: string;
-                workspace_path?: string;
-              }[];
-              turn_id: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  repairSession: {
-    parameters: {
-      query?: {
-        /** @description Report planned repairs without persisting new events */
-        dry_run?: boolean;
-        /** @description Allow repair for stopped sessions whose stop reason is not crash or error */
-        force?: boolean;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            repair: {
-              actions: {
-                code: string;
-                event_id?: string;
-                persisted: boolean;
-                tool_call_id?: string;
-                tool_name?: string;
-                turn_id: string;
-              }[];
-              issues: {
-                code: string;
-                detail?: string;
-                event_id?: string;
-                severity: string;
-                turn_id?: string;
-              }[];
-              persisted: boolean;
-              session_id: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid repair options */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  resumeSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_models?: string[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
-              activity?: {
-                current_tool?: string;
-                /** Format: date-time */
-                deadline_at?: string | null;
-                /** Format: int64 */
-                elapsed_ms: number;
-                /** Format: int64 */
-                elapsed_seconds: number;
-                /** Format: int64 */
-                idle_seconds: number;
-                iteration_current: number;
-                iteration_max: number;
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_activity_detail?: string;
-                last_activity_kind?: string;
-                /** Format: date-time */
-                last_progress_at?: string | null;
-                tool_call_id?: string;
-                turn_id?: string;
-                turn_source?: string;
-                /** Format: date-time */
-                turn_started_at?: string | null;
-              } | null;
-              agent_name: string;
-              channel?: string;
-              /** Format: date-time */
-              created_at: string;
-              failure?: {
-                crash_bundle_path?: string;
-                kind: string;
-                summary?: string;
-              } | null;
-              health?: {
-                active_prompt: boolean;
-                agent_name: string;
-                attachable: boolean;
-                eligible_for_wake: boolean;
-                /** @enum {string} */
-                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-                /** @enum {string} */
-                ineligibility_reason?:
-                  | "session_prompt_active"
-                  | "session_not_attachable"
-                  | "session_unhealthy"
-                  | "session_health_stale"
-                  | "session_health_hung"
-                  | "session_health_dead"
-                  | "session_health_unknown";
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_error?: string;
-                /** Format: date-time */
-                last_presence_at?: string | null;
-                session_id: string;
-                /** @enum {string} */
-                state: "idle" | "prompting" | "stopped" | "detached";
-                /** Format: date-time */
-                updated_at: string;
-                workspace_id: string;
-              } | null;
-              id: string;
-              lineage?: {
-                auto_stop_on_parent: boolean;
-                parent_session_id?: string;
-                permission_policy: {
-                  mcp_servers: string[];
-                  network_channels: string[];
-                  sandbox_profiles: string[];
-                  skills: string[];
-                  tools: string[];
-                  workspace_paths: string[];
-                };
-                root_session_id?: string;
-                spawn_budget: {
-                  max_active_per_workspace?: number;
-                  max_children: number;
-                  max_depth: number;
-                  /** Format: int64 */
-                  ttl_seconds: number;
-                };
-                spawn_depth: number;
-                spawn_role?: string;
-                /** Format: date-time */
-                ttl_expires_at?: string | null;
-              } | null;
-              model?: string;
-              name?: string;
-              provider: string;
-              reasoning_effort?: string;
-              sandbox?: {
-                backend?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                sandbox_id?: string;
-                state?: string;
-              } | null;
-              /** @enum {string} */
-              state: "starting" | "active" | "stopping" | "stopped";
-              stop_detail?: string;
-              /** @enum {string} */
-              stop_reason?:
-                | "completed"
-                | "user_canceled"
-                | "max_iterations"
-                | "loop_detected"
-                | "timeout"
-                | "budget_exceeded"
-                | "error"
-                | "agent_crashed"
-                | "hook_stopped"
-                | "shutdown";
-              type?: string;
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id?: string;
-              workspace_path?: string;
-            };
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  stopSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description No Content */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listSessionTools: {
-    parameters: {
-      query?: {
-        /** @description Effective workspace id */
-        workspace_id?: string;
-        /** @description Effective workspace reference */
-        workspace?: string;
-        /** @description Effective agent name */
-        agent_name?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            tools: {
-              availability: {
-                authorized: boolean;
-                available: boolean;
-                conflicted: boolean;
-                enabled: boolean;
-                executable: boolean;
-                reason_codes?: (
-                  | "approval_canceled"
-                  | "approval_required"
-                  | "approval_timed_out"
-                  | "approval_token_expired"
-                  | "approval_token_mismatch"
-                  | "approval_token_missing"
-                  | "approval_token_replayed"
-                  | "approval_unreachable"
-                  | "backend_not_executable"
-                  | "backend_unhealthy"
-                  | "call_canceled"
-                  | "call_timed_out"
-                  | "conflicted_id"
-                  | "conflicted_sanitized_name"
-                  | "dependency_missing"
-                  | "extension_capability_missing"
-                  | "extension_inactive"
-                  | "extension_runtime_mismatch"
-                  | "handler_missing"
-                  | "hook_denied"
-                  | "id_empty"
-                  | "id_empty_segment"
-                  | "id_invalid_format"
-                  | "id_too_long"
-                  | "mcp_auth_expired"
-                  | "mcp_auth_invalid"
-                  | "mcp_auth_refresh_failed"
-                  | "mcp_auth_required"
-                  | "mcp_auth_unconfigured"
-                  | "mcp_unreachable"
-                  | "policy_denied"
-                  | "reserved_conflict"
-                  | "reserved_namespace"
-                  | "result_budget_exceeded"
-                  | "runtime_descriptor_mismatch"
-                  | "runtime_descriptor_missing"
-                  | "schema_invalid"
-                  | "secret_metadata"
-                  | "session_denied"
-                  | "source_disabled"
-                  | "tool_unknown"
-                  | "toolset_cycle"
-                  | "toolset_unknown"
-                  | "visibility_denied"
-                )[];
-                registered: boolean;
-              };
-              decision: {
-                agent_policy_result?: string;
-                approval_required: boolean;
-                availability_result?: string;
-                callable: boolean;
-                hook_result?: string;
-                reason_codes?: (
-                  | "approval_canceled"
-                  | "approval_required"
-                  | "approval_timed_out"
-                  | "approval_token_expired"
-                  | "approval_token_mismatch"
-                  | "approval_token_missing"
-                  | "approval_token_replayed"
-                  | "approval_unreachable"
-                  | "backend_not_executable"
-                  | "backend_unhealthy"
-                  | "call_canceled"
-                  | "call_timed_out"
-                  | "conflicted_id"
-                  | "conflicted_sanitized_name"
-                  | "dependency_missing"
-                  | "extension_capability_missing"
-                  | "extension_inactive"
-                  | "extension_runtime_mismatch"
-                  | "handler_missing"
-                  | "hook_denied"
-                  | "id_empty"
-                  | "id_empty_segment"
-                  | "id_invalid_format"
-                  | "id_too_long"
-                  | "mcp_auth_expired"
-                  | "mcp_auth_invalid"
-                  | "mcp_auth_refresh_failed"
-                  | "mcp_auth_required"
-                  | "mcp_auth_unconfigured"
-                  | "mcp_unreachable"
-                  | "policy_denied"
-                  | "reserved_conflict"
-                  | "reserved_namespace"
-                  | "result_budget_exceeded"
-                  | "runtime_descriptor_mismatch"
-                  | "runtime_descriptor_missing"
-                  | "schema_invalid"
-                  | "secret_metadata"
-                  | "session_denied"
-                  | "source_disabled"
-                  | "tool_unknown"
-                  | "toolset_cycle"
-                  | "toolset_unknown"
-                  | "visibility_denied"
-                )[];
-                registry_policy_result?: string;
-                session_policy_result?: string;
-                source_policy_result?: string;
-                system_permission_mode?: string;
-                visible_to_operator: boolean;
-                visible_to_session: boolean;
-              };
-              descriptor: {
-                backend: {
-                  extension_id?: string;
-                  handler?: string;
-                  /** @enum {string} */
-                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
-                  mcp_server?: string;
-                  mcp_tool?: string;
-                  native_name?: string;
-                  requires_capabilities?: string[];
-                };
-                concurrency_safe: boolean;
-                description: string;
-                destructive: boolean;
-                display_title?: string;
-                input_schema: unknown;
-                /** Format: int64 */
-                max_result_bytes?: number;
-                open_world: boolean;
-                output_schema?: unknown;
-                read_only: boolean;
-                requires_interaction: boolean;
-                /** @enum {string} */
-                risk: "read" | "mutating" | "open_world" | "destructive";
-                search_hints?: string[];
-                source: {
-                  /** @enum {string} */
-                  kind: "builtin" | "mcp" | "extension" | "dynamic";
-                  owner: string;
-                  raw_server_name?: string;
-                  raw_tool_name?: string;
-                  resource_id?: string;
-                  resource_version?: string;
-                  scope?: string;
-                  workspace_id?: string;
-                };
-                tags?: string[];
-                tool_id: string;
-                toolsets?: string[];
-                /** @enum {string} */
-                visibility: "internal" | "operator" | "session" | "model";
-              };
-            }[];
-          };
-        };
-      };
-      /** @description Internal daemon error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: {
-              /** @enum {string} */
-              code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
-                | "tool_result_too_large"
-                | "tool_backend_failed"
-                | "tool_canceled"
-                | "tool_timed_out";
-              details?: {
-                [key: string]: unknown;
-              };
-              layer?: string;
-              message: string;
-              reason_codes?: (
-                | "approval_canceled"
-                | "approval_required"
-                | "approval_timed_out"
-                | "approval_token_expired"
-                | "approval_token_mismatch"
-                | "approval_token_missing"
-                | "approval_token_replayed"
-                | "approval_unreachable"
-                | "backend_not_executable"
-                | "backend_unhealthy"
-                | "call_canceled"
-                | "call_timed_out"
-                | "conflicted_id"
-                | "conflicted_sanitized_name"
-                | "dependency_missing"
-                | "extension_capability_missing"
-                | "extension_inactive"
-                | "extension_runtime_mismatch"
-                | "handler_missing"
-                | "hook_denied"
-                | "id_empty"
-                | "id_empty_segment"
-                | "id_invalid_format"
-                | "id_too_long"
-                | "mcp_auth_expired"
-                | "mcp_auth_invalid"
-                | "mcp_auth_refresh_failed"
-                | "mcp_auth_required"
-                | "mcp_auth_unconfigured"
-                | "mcp_unreachable"
-                | "policy_denied"
-                | "reserved_conflict"
-                | "reserved_namespace"
-                | "result_budget_exceeded"
-                | "runtime_descriptor_mismatch"
-                | "runtime_descriptor_missing"
-                | "schema_invalid"
-                | "secret_metadata"
-                | "session_denied"
-                | "source_disabled"
-                | "tool_unknown"
-                | "toolset_cycle"
-                | "toolset_unknown"
-                | "visibility_denied"
-              )[];
-              tool_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Tool registry unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  searchSessionTools: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          limit?: number;
-          query: string;
-          session_id?: string;
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            tools: {
-              availability: {
-                authorized: boolean;
-                available: boolean;
-                conflicted: boolean;
-                enabled: boolean;
-                executable: boolean;
-                reason_codes?: (
-                  | "approval_canceled"
-                  | "approval_required"
-                  | "approval_timed_out"
-                  | "approval_token_expired"
-                  | "approval_token_mismatch"
-                  | "approval_token_missing"
-                  | "approval_token_replayed"
-                  | "approval_unreachable"
-                  | "backend_not_executable"
-                  | "backend_unhealthy"
-                  | "call_canceled"
-                  | "call_timed_out"
-                  | "conflicted_id"
-                  | "conflicted_sanitized_name"
-                  | "dependency_missing"
-                  | "extension_capability_missing"
-                  | "extension_inactive"
-                  | "extension_runtime_mismatch"
-                  | "handler_missing"
-                  | "hook_denied"
-                  | "id_empty"
-                  | "id_empty_segment"
-                  | "id_invalid_format"
-                  | "id_too_long"
-                  | "mcp_auth_expired"
-                  | "mcp_auth_invalid"
-                  | "mcp_auth_refresh_failed"
-                  | "mcp_auth_required"
-                  | "mcp_auth_unconfigured"
-                  | "mcp_unreachable"
-                  | "policy_denied"
-                  | "reserved_conflict"
-                  | "reserved_namespace"
-                  | "result_budget_exceeded"
-                  | "runtime_descriptor_mismatch"
-                  | "runtime_descriptor_missing"
-                  | "schema_invalid"
-                  | "secret_metadata"
-                  | "session_denied"
-                  | "source_disabled"
-                  | "tool_unknown"
-                  | "toolset_cycle"
-                  | "toolset_unknown"
-                  | "visibility_denied"
-                )[];
-                registered: boolean;
-              };
-              decision: {
-                agent_policy_result?: string;
-                approval_required: boolean;
-                availability_result?: string;
-                callable: boolean;
-                hook_result?: string;
-                reason_codes?: (
-                  | "approval_canceled"
-                  | "approval_required"
-                  | "approval_timed_out"
-                  | "approval_token_expired"
-                  | "approval_token_mismatch"
-                  | "approval_token_missing"
-                  | "approval_token_replayed"
-                  | "approval_unreachable"
-                  | "backend_not_executable"
-                  | "backend_unhealthy"
-                  | "call_canceled"
-                  | "call_timed_out"
-                  | "conflicted_id"
-                  | "conflicted_sanitized_name"
-                  | "dependency_missing"
-                  | "extension_capability_missing"
-                  | "extension_inactive"
-                  | "extension_runtime_mismatch"
-                  | "handler_missing"
-                  | "hook_denied"
-                  | "id_empty"
-                  | "id_empty_segment"
-                  | "id_invalid_format"
-                  | "id_too_long"
-                  | "mcp_auth_expired"
-                  | "mcp_auth_invalid"
-                  | "mcp_auth_refresh_failed"
-                  | "mcp_auth_required"
-                  | "mcp_auth_unconfigured"
-                  | "mcp_unreachable"
-                  | "policy_denied"
-                  | "reserved_conflict"
-                  | "reserved_namespace"
-                  | "result_budget_exceeded"
-                  | "runtime_descriptor_mismatch"
-                  | "runtime_descriptor_missing"
-                  | "schema_invalid"
-                  | "secret_metadata"
-                  | "session_denied"
-                  | "source_disabled"
-                  | "tool_unknown"
-                  | "toolset_cycle"
-                  | "toolset_unknown"
-                  | "visibility_denied"
-                )[];
-                registry_policy_result?: string;
-                session_policy_result?: string;
-                source_policy_result?: string;
-                system_permission_mode?: string;
-                visible_to_operator: boolean;
-                visible_to_session: boolean;
-              };
-              descriptor: {
-                backend: {
-                  extension_id?: string;
-                  handler?: string;
-                  /** @enum {string} */
-                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
-                  mcp_server?: string;
-                  mcp_tool?: string;
-                  native_name?: string;
-                  requires_capabilities?: string[];
-                };
-                concurrency_safe: boolean;
-                description: string;
-                destructive: boolean;
-                display_title?: string;
-                input_schema: unknown;
-                /** Format: int64 */
-                max_result_bytes?: number;
-                open_world: boolean;
-                output_schema?: unknown;
-                read_only: boolean;
-                requires_interaction: boolean;
-                /** @enum {string} */
-                risk: "read" | "mutating" | "open_world" | "destructive";
-                search_hints?: string[];
-                source: {
-                  /** @enum {string} */
-                  kind: "builtin" | "mcp" | "extension" | "dynamic";
-                  owner: string;
-                  raw_server_name?: string;
-                  raw_tool_name?: string;
-                  resource_id?: string;
-                  resource_version?: string;
-                  scope?: string;
-                  workspace_id?: string;
-                };
-                tags?: string[];
-                tool_id: string;
-                toolsets?: string[];
-                /** @enum {string} */
-                visibility: "internal" | "operator" | "session" | "model";
-              };
-            }[];
-          };
-        };
-      };
-      /** @description Malformed search request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: {
-              /** @enum {string} */
-              code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
-                | "tool_result_too_large"
-                | "tool_backend_failed"
-                | "tool_canceled"
-                | "tool_timed_out";
-              details?: {
-                [key: string]: unknown;
-              };
-              layer?: string;
-              message: string;
-              reason_codes?: (
-                | "approval_canceled"
-                | "approval_required"
-                | "approval_timed_out"
-                | "approval_token_expired"
-                | "approval_token_mismatch"
-                | "approval_token_missing"
-                | "approval_token_replayed"
-                | "approval_unreachable"
-                | "backend_not_executable"
-                | "backend_unhealthy"
-                | "call_canceled"
-                | "call_timed_out"
-                | "conflicted_id"
-                | "conflicted_sanitized_name"
-                | "dependency_missing"
-                | "extension_capability_missing"
-                | "extension_inactive"
-                | "extension_runtime_mismatch"
-                | "handler_missing"
-                | "hook_denied"
-                | "id_empty"
-                | "id_empty_segment"
-                | "id_invalid_format"
-                | "id_too_long"
-                | "mcp_auth_expired"
-                | "mcp_auth_invalid"
-                | "mcp_auth_refresh_failed"
-                | "mcp_auth_required"
-                | "mcp_auth_unconfigured"
-                | "mcp_unreachable"
-                | "policy_denied"
-                | "reserved_conflict"
-                | "reserved_namespace"
-                | "result_budget_exceeded"
-                | "runtime_descriptor_mismatch"
-                | "runtime_descriptor_missing"
-                | "schema_invalid"
-                | "secret_metadata"
-                | "session_denied"
-                | "source_disabled"
-                | "tool_unknown"
-                | "toolset_cycle"
-                | "toolset_unknown"
-                | "visibility_denied"
-              )[];
-              tool_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Internal daemon error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: {
-              /** @enum {string} */
-              code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
-                | "tool_result_too_large"
-                | "tool_backend_failed"
-                | "tool_canceled"
-                | "tool_timed_out";
-              details?: {
-                [key: string]: unknown;
-              };
-              layer?: string;
-              message: string;
-              reason_codes?: (
-                | "approval_canceled"
-                | "approval_required"
-                | "approval_timed_out"
-                | "approval_token_expired"
-                | "approval_token_mismatch"
-                | "approval_token_missing"
-                | "approval_token_replayed"
-                | "approval_unreachable"
-                | "backend_not_executable"
-                | "backend_unhealthy"
-                | "call_canceled"
-                | "call_timed_out"
-                | "conflicted_id"
-                | "conflicted_sanitized_name"
-                | "dependency_missing"
-                | "extension_capability_missing"
-                | "extension_inactive"
-                | "extension_runtime_mismatch"
-                | "handler_missing"
-                | "hook_denied"
-                | "id_empty"
-                | "id_empty_segment"
-                | "id_invalid_format"
-                | "id_too_long"
-                | "mcp_auth_expired"
-                | "mcp_auth_invalid"
-                | "mcp_auth_refresh_failed"
-                | "mcp_auth_required"
-                | "mcp_auth_unconfigured"
-                | "mcp_unreachable"
-                | "policy_denied"
-                | "reserved_conflict"
-                | "reserved_namespace"
-                | "result_budget_exceeded"
-                | "runtime_descriptor_mismatch"
-                | "runtime_descriptor_missing"
-                | "schema_invalid"
-                | "secret_metadata"
-                | "session_denied"
-                | "source_disabled"
-                | "tool_unknown"
-                | "toolset_cycle"
-                | "toolset_unknown"
-                | "visibility_denied"
-              )[];
-              tool_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Tool registry unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getSessionTranscript: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            messages: {
-              id: string;
-              metadata?: unknown;
-              parts: {
-                data?: unknown;
-                errorText?: string;
-                id?: string;
-                input?: unknown;
-                output?: unknown;
-                preliminary?: boolean;
-                rawInput?: unknown;
-                state?: string;
-                text?: string;
-                title?: string;
-                toolCallId?: string;
-                toolName?: string;
-                type: string;
-              }[];
-              role: string;
-            }[];
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getSessionHealth: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            health: {
-              active_prompt: boolean;
-              agent_name: string;
-              attachable: boolean;
-              eligible_for_wake: boolean;
-              /** @enum {string} */
-              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-              /** @enum {string} */
-              ineligibility_reason?:
-                | "session_prompt_active"
-                | "session_not_attachable"
-                | "session_unhealthy"
-                | "session_health_stale"
-                | "session_health_hung"
-                | "session_health_dead"
-                | "session_health_unknown";
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_error?: string;
-              /** Format: date-time */
-              last_presence_at?: string | null;
-              session_id: string;
-              /** @enum {string} */
-              state: "idle" | "prompting" | "stopped" | "detached";
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id: string;
-            };
-          };
-        };
-      };
-      /** @description Forbidden - workspace or permission mismatch */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  inspectSession: {
-    parameters: {
-      query?: {
-        /** @description Include recent wake audit rows */
-        include_recent_wake_events?: boolean;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            config_digest?: string;
-            diagnostics?: {
-              code: string;
-              column?: number;
-              field?: string;
-              line?: number;
-              message: string;
-              owner_surface?: string;
-              section?: string;
-              /** @enum {string} */
-              severity: "info" | "warning" | "error";
-              source_path?: string;
-            }[];
-            health: {
-              active_prompt: boolean;
-              agent_name: string;
-              attachable: boolean;
-              eligible_for_wake: boolean;
-              /** @enum {string} */
-              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-              /** @enum {string} */
-              ineligibility_reason?:
-                | "session_prompt_active"
-                | "session_not_attachable"
-                | "session_unhealthy"
-                | "session_health_stale"
-                | "session_health_hung"
-                | "session_health_dead"
-                | "session_health_unknown";
-              /** Format: date-time */
-              last_activity_at?: string | null;
-              last_error?: string;
-              /** Format: date-time */
-              last_presence_at?: string | null;
-              session_id: string;
-              /** @enum {string} */
-              state: "idle" | "prompting" | "stopped" | "detached";
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id: string;
-            };
-            policy_digest?: string;
-            session_id: string;
-            wake_events?: {
-              agent_name?: string;
-              /** Format: date-time */
-              created_at: string;
-              /** Format: date-time */
-              expires_at: string;
-              id: string;
-              policy_snapshot_id?: string;
-              /** @enum {string} */
-              reason:
-                | "wake_sent"
-                | "heartbeat_disabled"
-                | "heartbeat_invalid"
-                | "heartbeat_no_policy"
-                | "heartbeat_rate_limited"
-                | "heartbeat_no_eligible_session"
-                | "cooldown_active"
-                | "quiet_window"
-                | "session_not_found"
-                | "session_unhealthy"
-                | "session_not_attachable"
-                | "session_prompt_active"
-                | "session_prompt_active_race"
-                | "synthetic_prompt_failed"
-                | "wake_coalesced";
-              /** @enum {string} */
-              result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
-              session_id?: string;
-              /** @enum {string} */
-              source: "scheduler" | "manual" | "harness_reentry";
-              synthetic_prompt_id?: string;
-              workspace_id?: string;
-            }[];
-            wake_state?: {
-              agent_name?: string;
-              coalesced_count: number;
-              /** @enum {string} */
-              last_reason?:
-                | "wake_sent"
-                | "heartbeat_disabled"
-                | "heartbeat_invalid"
-                | "heartbeat_no_policy"
-                | "heartbeat_rate_limited"
-                | "heartbeat_no_eligible_session"
-                | "cooldown_active"
-                | "quiet_window"
-                | "session_not_found"
-                | "session_unhealthy"
-                | "session_not_attachable"
-                | "session_prompt_active"
-                | "session_prompt_active_race"
-                | "synthetic_prompt_failed"
-                | "wake_coalesced";
-              /** @enum {string} */
-              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
-              /** Format: date-time */
-              last_wake_at?: string | null;
-              /** Format: date-time */
-              next_allowed_at?: string | null;
-              policy_snapshot_id?: string;
-              session_id: string;
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id?: string;
-            } | null;
-          };
-        };
-      };
-      /** @description Forbidden - workspace or permission mismatch */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  refreshSessionSoul: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          expected_digest: string;
-          idempotency_key?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            active: boolean;
-            agent_name?: string;
-            body?: string;
-            config_provenance: {
-              /** Format: int64 */
-              context_projection_bytes: number;
-              digest: string;
-              enabled: boolean;
-              /** Format: int64 */
-              max_body_bytes: number;
-              source?: string;
-            };
-            /** Format: date-time */
-            created_at?: string | null;
-            diagnostics?: {
-              code: string;
-              column?: number;
-              field?: string;
-              line?: number;
-              message: string;
-              owner_surface?: string;
-              section?: string;
-              /** @enum {string} */
-              severity: "info" | "warning" | "error";
-              source_path?: string;
-            }[];
-            digest?: string;
-            enabled: boolean;
-            frontmatter: {
-              collaboration?: string[];
-              constraints?: string[];
-              memory_policy?: string[];
-              principles?: string[];
-              role?: string;
-              tags?: string[];
-              tone?: string[];
-              version?: string;
-            };
-            limits: {
-              /** Format: int64 */
-              context_projection_bytes?: number;
-              /** Format: int64 */
-              max_body_bytes: number;
-              /** Format: int64 */
-              max_bytes?: number;
-            };
-            present: boolean;
-            revision_id?: string;
-            snapshot_id?: string;
-            source_path?: string;
-            truncated?: boolean;
-            valid: boolean;
-            /** @enum {string} */
-            validation_status: "missing" | "inactive" | "valid" | "invalid";
-          };
-        };
-      };
-      /** @description Forbidden - workspace or permission mismatch */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session is not idle or Soul digest is stale */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Soul validation failed */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            active: boolean;
-            agent_name?: string;
-            body?: string;
-            config_provenance: {
-              /** Format: int64 */
-              context_projection_bytes: number;
-              digest: string;
-              enabled: boolean;
-              /** Format: int64 */
-              max_body_bytes: number;
-              source?: string;
-            };
-            /** Format: date-time */
-            created_at?: string | null;
-            diagnostics?: {
-              code: string;
-              column?: number;
-              field?: string;
-              line?: number;
-              message: string;
-              owner_surface?: string;
-              section?: string;
-              /** @enum {string} */
-              severity: "info" | "warning" | "error";
-              source_path?: string;
-            }[];
-            digest?: string;
-            enabled: boolean;
-            frontmatter: {
-              collaboration?: string[];
-              constraints?: string[];
-              memory_policy?: string[];
-              principles?: string[];
-              role?: string;
-              tags?: string[];
-              tone?: string[];
-              version?: string;
-            };
-            limits: {
-              /** Format: int64 */
-              context_projection_bytes?: number;
-              /** Format: int64 */
-              max_body_bytes: number;
-              /** Format: int64 */
-              max_bytes?: number;
-            };
-            present: boolean;
-            revision_id?: string;
-            snapshot_id?: string;
-            source_path?: string;
-            truncated?: boolean;
-            valid: boolean;
-            /** @enum {string} */
-            validation_status: "missing" | "inactive" | "valid" | "invalid";
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getSessionStatus: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            active_prompt: boolean;
-            agent_name: string;
-            attachable: boolean;
-            eligible_for_wake: boolean;
-            /** @enum {string} */
-            health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-            /** @enum {string} */
-            ineligibility_reason?:
-              | "session_prompt_active"
-              | "session_not_attachable"
-              | "session_unhealthy"
-              | "session_health_stale"
-              | "session_health_hung"
-              | "session_health_dead"
-              | "session_health_unknown";
-            session_id: string;
-            /** @enum {string} */
-            state: "idle" | "prompting" | "stopped" | "detached";
-            /** Format: date-time */
-            updated_at: string;
-            wake_state?: {
-              agent_name?: string;
-              coalesced_count: number;
-              /** @enum {string} */
-              last_reason?:
-                | "wake_sent"
-                | "heartbeat_disabled"
-                | "heartbeat_invalid"
-                | "heartbeat_no_policy"
-                | "heartbeat_rate_limited"
-                | "heartbeat_no_eligible_session"
-                | "cooldown_active"
-                | "quiet_window"
-                | "session_not_found"
-                | "session_unhealthy"
-                | "session_not_attachable"
-                | "session_prompt_active"
-                | "session_prompt_active_race"
-                | "synthetic_prompt_failed"
-                | "wake_coalesced";
-              /** @enum {string} */
-              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
-              /** Format: date-time */
-              last_wake_at?: string | null;
-              /** Format: date-time */
-              next_allowed_at?: string | null;
-              policy_snapshot_id?: string;
-              session_id: string;
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id?: string;
-            } | null;
-            workspace_id: string;
-          };
-        };
-      };
-      /** @description Forbidden - workspace or permission mismatch */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Session not found */
-      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -42909,6 +38518,4501 @@ export interface operations {
         };
       };
       /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getHookRuns: {
+    parameters: {
+      query: {
+        /** @description Session id */
+        session: string;
+        /** @description Hook event name */
+        event?:
+          | "session.pre_create"
+          | "session.post_create"
+          | "session.pre_resume"
+          | "session.post_resume"
+          | "session.pre_stop"
+          | "session.post_stop"
+          | "session.message_persisted"
+          | "sandbox.prepare"
+          | "sandbox.ready"
+          | "sandbox.sync.before"
+          | "sandbox.sync.after"
+          | "sandbox.stop"
+          | "input.pre_submit"
+          | "prompt.post_assemble"
+          | "event.pre_record"
+          | "event.post_record"
+          | "automation.job.pre_fire"
+          | "automation.job.post_fire"
+          | "automation.trigger.pre_fire"
+          | "automation.trigger.post_fire"
+          | "automation.run.completed"
+          | "automation.run.failed"
+          | "agent.pre_start"
+          | "agent.spawned"
+          | "agent.crashed"
+          | "agent.stopped"
+          | "agent.soul.snapshot.resolved"
+          | "agent.soul.mutation.after"
+          | "agent.heartbeat.policy.resolved"
+          | "agent.heartbeat.wake.before"
+          | "agent.heartbeat.wake.after"
+          | "session.health.update.after"
+          | "turn.start"
+          | "turn.end"
+          | "message.start"
+          | "message.delta"
+          | "message.end"
+          | "tool.pre_call"
+          | "tool.post_call"
+          | "tool.post_error"
+          | "permission.request"
+          | "permission.resolved"
+          | "permission.denied"
+          | "context.pre_compact"
+          | "context.post_compact"
+          | "coordinator.pre_spawn"
+          | "coordinator.spawned"
+          | "coordinator.decision"
+          | "coordinator.stopped"
+          | "coordinator.failed"
+          | "task.run.enqueued"
+          | "task.run.pre_claim"
+          | "task.run.post_claim"
+          | "task.run.lease_extended"
+          | "task.run.lease_expired"
+          | "task.run.lease_recovered"
+          | "task.run.released"
+          | "task.run.completed"
+          | "task.run.failed"
+          | "spawn.pre_create"
+          | "spawn.created"
+          | "spawn.parent_stopped"
+          | "spawn.ttl_expired"
+          | "spawn.reaped"
+          | "network.thread.opened"
+          | "network.direct_room.opened"
+          | "network.message.persisted"
+          | "network.work.opened"
+          | "network.work.transitioned"
+          | "network.work.closed";
+        /** @description Hook execution outcome */
+        outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
+        /** @description Only runs recorded since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return */
+        last?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            runs: {
+              dispatch_depth: number;
+              /** Format: int64 */
+              duration_ms: number;
+              error?: string;
+              event: string;
+              hook_name: string;
+              mode: string;
+              outcome: string;
+              patch_applied?: unknown;
+              /** Format: date-time */
+              recorded_at: string;
+              required?: boolean;
+              source: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getMemorySessionLedger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              /** Format: date-time */
+              emitted_at: string;
+              event_type: string;
+              payload?: {
+                [key: string]: unknown;
+              };
+              /** Format: int64 */
+              sequence: number;
+            }[];
+            meta: {
+              checksum: string;
+              /** Format: date-time */
+              created_at: string;
+              parent_session_id?: string;
+              path: string;
+              root_session_id?: string;
+              session_id: string;
+              spawn_depth: number;
+              /** Format: date-time */
+              stopped_at?: string | null;
+              version: number;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Session ledger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  replayMemorySession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          include_memory?: boolean;
+          include_tool_events?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              /** Format: date-time */
+              emitted_at: string;
+              event_type: string;
+              payload?: {
+                [key: string]: unknown;
+              };
+              /** Format: int64 */
+              sequence: number;
+            }[];
+            session_id: string;
+          };
+        };
+      };
+      /** @description Invalid session replay request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Session ledger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkChannels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channels: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              created_by?: string;
+              historical_participant_count?: number;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              local_peer_count?: number;
+              message_count?: number;
+              peer_count: number;
+              presence_count?: number;
+              purpose?: string;
+              remote_peer_count?: number;
+              session_count?: number;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createNetworkChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_names: string[];
+          channel: string;
+          purpose: string;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              created_by?: string;
+              historical_participant_count?: number;
+              kind_counts?: {
+                count: number;
+                kind: string;
+              }[];
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              local_peer_count?: number;
+              message_count?: number;
+              peer_count: number;
+              peers?: {
+                channel: string;
+                display_name?: string;
+                /** Format: date-time */
+                expires_at?: string | null;
+                /** Format: date-time */
+                joined_at?: string | null;
+                /** Format: date-time */
+                last_seen?: string | null;
+                local: boolean;
+                peer_card: {
+                  artifacts_supported: string[];
+                  capabilities: {
+                    id: string;
+                    summary: string;
+                  }[];
+                  display_name?: string | null;
+                  ext?: {
+                    [key: string]: unknown;
+                  };
+                  peer_id: string;
+                  profiles_supported: string[];
+                  trust_modes_supported: string[];
+                };
+                peer_id: string;
+                session_id?: string | null;
+                workspace_id?: string;
+              }[];
+              presence_count?: number;
+              purpose?: string;
+              remote_peer_count?: number;
+              session_count?: number;
+              sessions?: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_models?: string[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
+                  /** Format: int64 */
+                  elapsed_seconds: number;
+                  /** Format: int64 */
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
+                agent_name: string;
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
+                } | null;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    sandbox_profiles: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                model?: string;
+                name?: string;
+                provider: string;
+                reasoning_effort?: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                type?: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+                workspace_path?: string;
+              }[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network channel request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              created_by?: string;
+              historical_participant_count?: number;
+              kind_counts?: {
+                count: number;
+                kind: string;
+              }[];
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              local_peer_count?: number;
+              message_count?: number;
+              peer_count: number;
+              peers?: {
+                channel: string;
+                display_name?: string;
+                /** Format: date-time */
+                expires_at?: string | null;
+                /** Format: date-time */
+                joined_at?: string | null;
+                /** Format: date-time */
+                last_seen?: string | null;
+                local: boolean;
+                peer_card: {
+                  artifacts_supported: string[];
+                  capabilities: {
+                    id: string;
+                    summary: string;
+                  }[];
+                  display_name?: string | null;
+                  ext?: {
+                    [key: string]: unknown;
+                  };
+                  peer_id: string;
+                  profiles_supported: string[];
+                  trust_modes_supported: string[];
+                };
+                peer_id: string;
+                session_id?: string | null;
+                workspace_id?: string;
+              }[];
+              presence_count?: number;
+              purpose?: string;
+              remote_peer_count?: number;
+              session_count?: number;
+              sessions?: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_models?: string[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
+                  /** Format: int64 */
+                  elapsed_seconds: number;
+                  /** Format: int64 */
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
+                agent_name: string;
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
+                } | null;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    sandbox_profiles: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                model?: string;
+                name?: string;
+                provider: string;
+                reasoning_effort?: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                type?: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+                workspace_path?: string;
+              }[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network channel */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network channel not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkDirectRooms: {
+    parameters: {
+      query?: {
+        /** @description Filter direct rooms by peer id */
+        peer_id?: string;
+        /** @description Return direct rooms after the specified direct id */
+        after?: string;
+        /** @description Maximum number of direct rooms to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            directs: {
+              channel: string;
+              direct_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              peer_a: string;
+              peer_b: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid direct-room request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resolveNetworkDirectRoom: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          peer_id: string;
+          session_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            direct: {
+              channel: string;
+              direct_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              peer_a: string;
+              peer_b: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid direct-room resolve request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network direct-room peer not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Direct-room collision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkDirectRoom: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+        /** @description Direct-room id */
+        direct_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            direct: {
+              channel: string;
+              direct_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              peer_a: string;
+              peer_b: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid direct room */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network direct room not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkDirectRoomMessages: {
+    parameters: {
+      query?: {
+        /** @description Return messages before the specified message id */
+        before?: string;
+        /** @description Return messages after the specified message id */
+        after?: string;
+        /** @description Filter messages by network kind */
+        kind?: string;
+        /** @description Filter messages by work id */
+        work_id?: string;
+        /** @description Maximum number of messages to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+        /** @description Direct-room id */
+        direct_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              body: unknown;
+              causation_id?: string;
+              channel: string;
+              direct_id?: string;
+              direction: string;
+              display_name?: string;
+              intent?: string;
+              kind: string;
+              local?: boolean;
+              message_id: string;
+              peer_from: string;
+              peer_to?: string;
+              presence_count?: number;
+              /** Format: date-time */
+              presence_last_seen_at?: string | null;
+              /** Format: date-time */
+              presence_started_at?: string | null;
+              preview_text?: string;
+              reply_to?: string;
+              session_id?: string;
+              surface?: string;
+              text?: string;
+              thread_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              trace_id?: string;
+              work_id?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid direct-room messages request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network direct room not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkThreads: {
+    parameters: {
+      query?: {
+        /** @description Return threads after the specified thread id */
+        after?: string;
+        /** @description Maximum number of public threads to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            threads: {
+              channel: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              opened_by_peer_id?: string;
+              opened_session_id?: string;
+              participant_count: number;
+              root_message_id: string;
+              thread_id: string;
+              title?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid public-thread request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkThread: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+        /** @description Public thread id */
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            thread: {
+              channel: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              opened_by_peer_id?: string;
+              opened_session_id?: string;
+              participant_count: number;
+              root_message_id: string;
+              thread_id: string;
+              title?: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid public thread */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network thread not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkThreadMessages: {
+    parameters: {
+      query?: {
+        /** @description Return messages before the specified message id */
+        before?: string;
+        /** @description Return messages after the specified message id */
+        after?: string;
+        /** @description Filter messages by network kind */
+        kind?: string;
+        /** @description Filter messages by work id */
+        work_id?: string;
+        /** @description Maximum number of messages to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+        /** @description Public thread id */
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              body: unknown;
+              causation_id?: string;
+              channel: string;
+              direct_id?: string;
+              direction: string;
+              display_name?: string;
+              intent?: string;
+              kind: string;
+              local?: boolean;
+              message_id: string;
+              peer_from: string;
+              peer_to?: string;
+              presence_count?: number;
+              /** Format: date-time */
+              presence_last_seen_at?: string | null;
+              /** Format: date-time */
+              presence_started_at?: string | null;
+              preview_text?: string;
+              reply_to?: string;
+              session_id?: string;
+              surface?: string;
+              text?: string;
+              thread_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              trace_id?: string;
+              work_id?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid public-thread messages request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network thread not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkInbox: {
+    parameters: {
+      query: {
+        /** @description Target local session id */
+        session_id: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              body: unknown;
+              causation_id?: string | null;
+              channel: string;
+              direct_id?: string | null;
+              /** Format: int64 */
+              expires_at?: number | null;
+              ext?: {
+                [key: string]: unknown;
+              };
+              from: string;
+              id: string;
+              kind: string;
+              proof?: {
+                [key: string]: unknown;
+              };
+              protocol: string;
+              reply_to?: string | null;
+              surface?: string | null;
+              thread_id?: string | null;
+              to?: string | null;
+              trace_id?: string | null;
+              /** Format: int64 */
+              ts: number;
+              work_id?: string | null;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid inbox request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network target not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkPeers: {
+    parameters: {
+      query?: {
+        /** @description Filter peers by channel */
+        channel?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            peers: {
+              channel: string;
+              display_name?: string;
+              /** Format: date-time */
+              expires_at?: string | null;
+              /** Format: date-time */
+              joined_at?: string | null;
+              /** Format: date-time */
+              last_seen?: string | null;
+              local: boolean;
+              peer_card: {
+                artifacts_supported: string[];
+                capabilities: {
+                  id: string;
+                  summary: string;
+                }[];
+                display_name?: string | null;
+                ext?: {
+                  [key: string]: unknown;
+                };
+                peer_id: string;
+                profiles_supported: string[];
+                trust_modes_supported: string[];
+              };
+              peer_id: string;
+              session_id?: string | null;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid network filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkPeer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network peer id */
+        peer_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            peer: {
+              capability_catalog?: {
+                capabilities: {
+                  artifacts_expected?: string[];
+                  constraints?: string[];
+                  context_needed?: string[];
+                  digest?: string;
+                  examples?: string[];
+                  execution_outline?: string[];
+                  id: string;
+                  outcome: string;
+                  requirements?: string[];
+                  summary: string;
+                  version?: string;
+                }[];
+              } | null;
+              channel?: string;
+              display_name?: string;
+              /** Format: date-time */
+              expires_at?: string | null;
+              /** Format: date-time */
+              joined_at?: string | null;
+              /** Format: date-time */
+              last_seen?: string | null;
+              local?: boolean;
+              metrics: {
+                /** Format: int64 */
+                delivered?: number;
+                /** Format: int64 */
+                received?: number;
+                /** Format: int64 */
+                rejected?: number;
+                /** Format: int64 */
+                sent?: number;
+              };
+              peer_card: {
+                artifacts_supported: string[];
+                capabilities: {
+                  id: string;
+                  summary: string;
+                }[];
+                display_name?: string | null;
+                ext?: {
+                  [key: string]: unknown;
+                };
+                peer_id: string;
+                profiles_supported: string[];
+                trust_modes_supported: string[];
+              };
+              peer_id: string;
+              session_id?: string | null;
+            };
+          };
+        };
+      };
+      /** @description Network peer not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  sendNetworkMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          body: unknown;
+          causation_id?: string;
+          channel: string;
+          direct_id?: string;
+          /** Format: int64 */
+          expires_at?: number | null;
+          ext?: {
+            [key: string]: unknown;
+          };
+          id?: string;
+          kind: string;
+          reply_to?: string;
+          session_id: string;
+          surface?: string;
+          thread_id?: string;
+          to?: string;
+          trace_id?: string;
+          work_id?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            message: {
+              causation_id?: string;
+              channel: string;
+              direct_id?: string;
+              /** Format: int64 */
+              expires_at?: number | null;
+              ext?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              kind: string;
+              reply_to?: string;
+              session_id: string;
+              surface?: string;
+              thread_id?: string;
+              to?: string;
+              trace_id?: string;
+              work_id?: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network send request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network target not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkWork: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network work id */
+        work_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            work: {
+              channel: string;
+              direct_id?: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              /** Format: date-time */
+              opened_at?: string | null;
+              opened_by_peer_id?: string;
+              opened_session_id?: string;
+              state: string;
+              surface: string;
+              target_peer_id?: string;
+              /** Format: date-time */
+              terminal_at?: string | null;
+              thread_id?: string;
+              work_id: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network work id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network work not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listObserveEvents: {
+    parameters: {
+      query?: {
+        /** @description Session id */
+        session_id?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Event type */
+        type?: string;
+        /** @description Only events emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content?: unknown;
+              coordinator_session_id?: string;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              session_id: string;
+              spawn_depth: number;
+              summary?: string;
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSession: {
+    parameters: {
+      query?: {
+        /** @description Include metadata-only session health when available */
+        include_health?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            session: {
+              acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
+                supported_models?: string[];
+                supported_modes?: string[];
+                supports_load_session: boolean;
+              } | null;
+              acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              channel?: string;
+              /** Format: date-time */
+              created_at: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  sandbox_profiles: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              model?: string;
+              name?: string;
+              provider: string;
+              reasoning_effort?: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              type?: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  approveSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          decision: string;
+          request_id: string;
+          turn_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            status: string;
+          };
+        };
+      };
+      /** @description Invalid approval request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSessionEvents: {
+    parameters: {
+      query?: {
+        /** @description Only events emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+        /** @description Only return events after this sequence number */
+        after_sequence?: number;
+        /** @description Event type */
+        type?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Turn id */
+        turn_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content: unknown;
+              coordinator_session_id?: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              spawn_depth: number;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              turn_id: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSessionHealth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            health: {
+              active_prompt: boolean;
+              agent_name: string;
+              attachable: boolean;
+              eligible_for_wake: boolean;
+              /** @enum {string} */
+              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+              /** @enum {string} */
+              ineligibility_reason?:
+                | "session_prompt_active"
+                | "session_not_attachable"
+                | "session_unhealthy"
+                | "session_health_stale"
+                | "session_health_hung"
+                | "session_health_dead"
+                | "session_health_unknown";
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_error?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              session_id: string;
+              /** @enum {string} */
+              state: "idle" | "prompting" | "stopped" | "detached";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSessionHistory: {
+    parameters: {
+      query?: {
+        /** @description Only events emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+        /** @description Only return events after this sequence number */
+        after_sequence?: number;
+        /** @description Event type */
+        type?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Turn id */
+        turn_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            history: {
+              events: {
+                actor_id?: string;
+                actor_kind?: string;
+                agent_name: string;
+                claim_token_hash?: string;
+                content: unknown;
+                coordinator_session_id?: string;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
+                hook_event?: string;
+                hook_name?: string;
+                id: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                parent_session_id?: string;
+                release_reason?: string;
+                root_session_id?: string;
+                run_id?: string;
+                scheduler_reason?: string;
+                /** Format: int64 */
+                sequence: number;
+                session_id: string;
+                spawn_depth: number;
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                task_id?: string;
+                /** Format: date-time */
+                timestamp: string;
+                turn_id: string;
+                type: string;
+                workflow_id?: string;
+                workspace_id?: string;
+                workspace_path?: string;
+              }[];
+              turn_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  inspectSession: {
+    parameters: {
+      query?: {
+        /** @description Include recent wake audit rows */
+        include_recent_wake_events?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            config_digest?: string;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            health: {
+              active_prompt: boolean;
+              agent_name: string;
+              attachable: boolean;
+              eligible_for_wake: boolean;
+              /** @enum {string} */
+              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+              /** @enum {string} */
+              ineligibility_reason?:
+                | "session_prompt_active"
+                | "session_not_attachable"
+                | "session_unhealthy"
+                | "session_health_stale"
+                | "session_health_hung"
+                | "session_health_dead"
+                | "session_health_unknown";
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_error?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              session_id: string;
+              /** @enum {string} */
+              state: "idle" | "prompting" | "stopped" | "detached";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+            policy_digest?: string;
+            session_id: string;
+            wake_events?: {
+              agent_name?: string;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              expires_at: string;
+              id: string;
+              policy_snapshot_id?: string;
+              /** @enum {string} */
+              reason:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              session_id?: string;
+              /** @enum {string} */
+              source: "scheduler" | "manual" | "harness_reentry";
+              synthetic_prompt_id?: string;
+              workspace_id?: string;
+            }[];
+            wake_state?: {
+              agent_name?: string;
+              coalesced_count: number;
+              /** @enum {string} */
+              last_reason?:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              /** Format: date-time */
+              next_allowed_at?: string | null;
+              policy_snapshot_id?: string;
+              session_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  repairSession: {
+    parameters: {
+      query?: {
+        /** @description Report planned repairs without persisting new events */
+        dry_run?: boolean;
+        /** @description Allow repair for stopped sessions whose stop reason is not crash or error */
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            repair: {
+              actions: {
+                code: string;
+                event_id?: string;
+                persisted: boolean;
+                tool_call_id?: string;
+                tool_name?: string;
+                turn_id: string;
+              }[];
+              issues: {
+                code: string;
+                detail?: string;
+                event_id?: string;
+                severity: string;
+                turn_id?: string;
+              }[];
+              persisted: boolean;
+              session_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid repair options */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resumeSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            session: {
+              acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
+                supported_models?: string[];
+                supported_modes?: string[];
+                supports_load_session: boolean;
+              } | null;
+              acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              channel?: string;
+              /** Format: date-time */
+              created_at: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  sandbox_profiles: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              model?: string;
+              name?: string;
+              provider: string;
+              reasoning_effort?: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              type?: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  refreshSessionSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          expected_digest: string;
+          idempotency_key?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session is not idle or Soul digest is stale */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSessionStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_prompt: boolean;
+            agent_name: string;
+            attachable: boolean;
+            eligible_for_wake: boolean;
+            /** @enum {string} */
+            health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+            /** @enum {string} */
+            ineligibility_reason?:
+              | "session_prompt_active"
+              | "session_not_attachable"
+              | "session_unhealthy"
+              | "session_health_stale"
+              | "session_health_hung"
+              | "session_health_dead"
+              | "session_health_unknown";
+            session_id: string;
+            /** @enum {string} */
+            state: "idle" | "prompting" | "stopped" | "detached";
+            /** Format: date-time */
+            updated_at: string;
+            wake_state?: {
+              agent_name?: string;
+              coalesced_count: number;
+              /** @enum {string} */
+              last_reason?:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              /** Format: date-time */
+              next_allowed_at?: string | null;
+              policy_snapshot_id?: string;
+              session_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            } | null;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  stopSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSessionTools: {
+    parameters: {
+      query?: {
+        /** @description Effective agent name */
+        agent_name?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tools: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            }[];
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  searchSessionTools: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          limit?: number;
+          query: string;
+          session_id?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tools: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            }[];
+          };
+        };
+      };
+      /** @description Malformed search request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSessionTranscript: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              id: string;
+              metadata?: unknown;
+              parts: {
+                data?: unknown;
+                errorText?: string;
+                id?: string;
+                input?: unknown;
+                output?: unknown;
+                preliminary?: boolean;
+                rawInput?: unknown;
+                state?: string;
+                text?: string;
+                title?: string;
+                toolCallId?: string;
+                toolName?: string;
+                type: string;
+              }[];
+              role: string;
+            }[];
+          };
+        };
+      };
+      /** @description Session not found */
       404: {
         headers: {
           [name: string]: unknown;

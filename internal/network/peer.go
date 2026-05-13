@@ -14,6 +14,7 @@ import (
 type LocalPeer struct {
 	SessionID         string
 	PeerID            string
+	WorkspaceID       string
 	Channel           string
 	PeerCard          PeerCard
 	CapabilityCatalog []sessionpkg.NetworkPeerCapability
@@ -24,6 +25,7 @@ type LocalPeer struct {
 type RemotePeerEntry struct {
 	PeerID                 string
 	PeerCard               PeerCard
+	WorkspaceID            string
 	Channel                string
 	CapabilityCatalog      []sessionpkg.NetworkPeerCapability
 	CapabilityCatalogKnown bool
@@ -35,6 +37,7 @@ type RemotePeerEntry struct {
 type PeerInfo struct {
 	SessionID              *string
 	PeerID                 string
+	WorkspaceID            string
 	Channel                string
 	Local                  bool
 	PeerCard               PeerCard
@@ -47,8 +50,9 @@ type PeerInfo struct {
 
 // ChannelInfo summarizes one active runtime channel.
 type ChannelInfo struct {
-	Channel   string
-	PeerCount int
+	WorkspaceID string
+	Channel     string
+	PeerCount   int
 }
 
 // PeerRegistry tracks local session peers plus the remote peer cache.
@@ -104,11 +108,11 @@ func (r *PeerRegistry) GreetInterval() time.Duration {
 	return r.greetInterval
 }
 
-// DefaultPeerCard returns the minimal v0 peer card for one peer identifier.
+// DefaultPeerCard returns the minimal protocol peer card for one peer identifier.
 func DefaultPeerCard(peerID string) (PeerCard, error) {
 	card := PeerCard{
 		PeerID:              strings.TrimSpace(peerID),
-		ProfilesSupported:   []string{ProtocolV0},
+		ProfilesSupported:   []string{ProtocolV2},
 		Capabilities:        []string{},
 		ArtifactsSupported:  []string{},
 		TrustModesSupported: []string{},
@@ -123,11 +127,12 @@ func DefaultPeerCard(peerID string) (PeerCard, error) {
 // RegisterLocal upserts one local peer membership keyed by session ID.
 func (r *PeerRegistry) RegisterLocal(
 	sessionID string,
+	workspaceID string,
 	channel string,
 	card PeerCard,
 	joinedAt time.Time,
 ) (LocalPeer, error) {
-	return r.RegisterLocalWithCapabilityCatalog(sessionID, channel, card, nil, joinedAt)
+	return r.RegisterLocalWithCapabilityCatalog(sessionID, workspaceID, channel, card, nil, joinedAt)
 }
 
 // RegisterLocalWithCapabilityCatalog upserts one local peer membership keyed by
@@ -135,6 +140,7 @@ func (r *PeerRegistry) RegisterLocal(
 // explicit whois discovery.
 func (r *PeerRegistry) RegisterLocalWithCapabilityCatalog(
 	sessionID string,
+	workspaceID string,
 	channel string,
 	card PeerCard,
 	capabilityCatalog []sessionpkg.NetworkPeerCapability,
@@ -147,6 +153,10 @@ func (r *PeerRegistry) RegisterLocalWithCapabilityCatalog(
 	trimmedSessionID := strings.TrimSpace(sessionID)
 	if trimmedSessionID == "" {
 		return LocalPeer{}, fmt.Errorf("%w: session id is required", ErrMissingField)
+	}
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	if err := ValidateWorkspaceID(trimmedWorkspaceID); err != nil {
+		return LocalPeer{}, err
 	}
 	trimmedChannel := strings.TrimSpace(channel)
 	if err := ValidateChannel(trimmedChannel); err != nil {
@@ -164,6 +174,7 @@ func (r *PeerRegistry) RegisterLocalWithCapabilityCatalog(
 	local := LocalPeer{
 		SessionID:         trimmedSessionID,
 		PeerID:            normalizedCard.PeerID,
+		WorkspaceID:       trimmedWorkspaceID,
 		Channel:           trimmedChannel,
 		PeerCard:          normalizedCard,
 		CapabilityCatalog: cloneNetworkPeerCapabilityCatalog(capabilityCatalog),
@@ -173,10 +184,11 @@ func (r *PeerRegistry) RegisterLocalWithCapabilityCatalog(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, ok := r.localsByChannel[trimmedChannel]; !ok {
-		r.localsByChannel[trimmedChannel] = make(map[string]string)
+	key := peerChannelKey(trimmedWorkspaceID, trimmedChannel)
+	if _, ok := r.localsByChannel[key]; !ok {
+		r.localsByChannel[key] = make(map[string]string)
 	}
-	if owner, ok := r.localsByChannel[trimmedChannel][local.PeerID]; ok && owner != trimmedSessionID {
+	if owner, ok := r.localsByChannel[key][local.PeerID]; ok && owner != trimmedSessionID {
 		return LocalPeer{}, fmt.Errorf(
 			"%w: local peer_id already registered in channel: %s",
 			ErrInvalidField,
@@ -187,8 +199,8 @@ func (r *PeerRegistry) RegisterLocalWithCapabilityCatalog(
 		r.removeLocalIndexesLocked(current)
 	}
 	r.localsByID[trimmedSessionID] = local
-	r.localsByChannel[trimmedChannel][local.PeerID] = trimmedSessionID
-	r.deleteRemoteLocked(trimmedChannel, local.PeerID)
+	r.localsByChannel[key][local.PeerID] = trimmedSessionID
+	r.deleteRemoteLocked(trimmedWorkspaceID, trimmedChannel, local.PeerID)
 
 	return cloneLocalPeer(local), nil
 }
@@ -210,7 +222,7 @@ func (r *PeerRegistry) LeaveLocal(sessionID string) (LocalPeer, bool) {
 
 	delete(r.localsByID, trimmedSessionID)
 	r.removeLocalIndexesLocked(local)
-	r.deleteRemoteLocked(local.Channel, local.PeerID)
+	r.deleteRemoteLocked(local.WorkspaceID, local.Channel, local.PeerID)
 
 	return cloneLocalPeer(local), true
 }
@@ -231,8 +243,8 @@ func (r *PeerRegistry) LocalBySession(sessionID string) (LocalPeer, bool) {
 	return cloneLocalPeer(local), true
 }
 
-// LocalByPeer resolves one local peer by channel plus peer ID.
-func (r *PeerRegistry) LocalByPeer(channel string, peerID string) (LocalPeer, bool) {
+// LocalByPeer resolves one local peer by workspace, channel, and peer ID.
+func (r *PeerRegistry) LocalByPeer(workspaceID string, channel string, peerID string) (LocalPeer, bool) {
 	if r == nil {
 		return LocalPeer{}, false
 	}
@@ -240,15 +252,19 @@ func (r *PeerRegistry) LocalByPeer(channel string, peerID string) (LocalPeer, bo
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	local, ok := r.lookupLocalLocked(strings.TrimSpace(channel), strings.TrimSpace(peerID))
+	local, ok := r.lookupLocalLocked(
+		strings.TrimSpace(workspaceID),
+		strings.TrimSpace(channel),
+		strings.TrimSpace(peerID),
+	)
 	if !ok {
 		return LocalPeer{}, false
 	}
 	return cloneLocalPeer(local), true
 }
 
-// LocalPeers returns the local peers currently joined to one channel.
-func (r *PeerRegistry) LocalPeers(channel string) []LocalPeer {
+// LocalPeers returns the local peers currently joined to one workspace channel.
+func (r *PeerRegistry) LocalPeers(workspaceID string, channel string) []LocalPeer {
 	if r == nil {
 		return nil
 	}
@@ -256,8 +272,9 @@ func (r *PeerRegistry) LocalPeers(channel string) []LocalPeer {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	trimmedChannel := strings.TrimSpace(channel)
-	sessionIDs := r.localsByChannel[trimmedChannel]
+	sessionIDs := r.localsByChannel[peerChannelKey(trimmedWorkspaceID, trimmedChannel)]
 	if len(sessionIDs) == 0 {
 		return nil
 	}
@@ -273,8 +290,8 @@ func (r *PeerRegistry) LocalPeers(channel string) []LocalPeer {
 }
 
 // MatchLocalPeers returns local peers matching one whois query.
-func (r *PeerRegistry) MatchLocalPeers(channel string, query string) []LocalPeer {
-	peers := r.LocalPeers(channel)
+func (r *PeerRegistry) MatchLocalPeers(workspaceID string, channel string, query string) []LocalPeer {
+	peers := r.LocalPeers(workspaceID, channel)
 	if len(peers) == 0 {
 		return nil
 	}
@@ -289,14 +306,20 @@ func (r *PeerRegistry) MatchLocalPeers(channel string, query string) []LocalPeer
 }
 
 // RefreshRemote stores or refreshes one remote peer advertisement.
-func (r *PeerRegistry) RefreshRemote(channel string, card PeerCard, seenAt time.Time) (RemotePeerEntry, bool, error) {
-	return r.RefreshRemoteWithCapabilityCatalog(channel, card, nil, false, seenAt)
+func (r *PeerRegistry) RefreshRemote(
+	workspaceID string,
+	channel string,
+	card PeerCard,
+	seenAt time.Time,
+) (RemotePeerEntry, bool, error) {
+	return r.RefreshRemoteWithCapabilityCatalog(workspaceID, channel, card, nil, false, seenAt)
 }
 
 // RefreshRemoteWithCapabilityCatalog stores or refreshes one remote peer
 // advertisement plus optional rich capability discovery state learned via
 // explicit whois responses.
 func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
+	workspaceID string,
 	channel string,
 	card PeerCard,
 	capabilityCatalog []sessionpkg.NetworkPeerCapability,
@@ -307,6 +330,10 @@ func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
 		return RemotePeerEntry{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
 
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	if err := ValidateWorkspaceID(trimmedWorkspaceID); err != nil {
+		return RemotePeerEntry{}, false, err
+	}
 	trimmedChannel := strings.TrimSpace(channel)
 	if err := ValidateChannel(trimmedChannel); err != nil {
 		return RemotePeerEntry{}, false, err
@@ -324,15 +351,16 @@ func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
 	defer r.mu.Unlock()
 
 	r.expireRemotesLocked(seenAt)
-	if _, ok := r.lookupLocalLocked(trimmedChannel, normalizedCard.PeerID); ok {
-		r.deleteRemoteLocked(trimmedChannel, normalizedCard.PeerID)
+	if _, ok := r.lookupLocalLocked(trimmedWorkspaceID, trimmedChannel, normalizedCard.PeerID); ok {
+		r.deleteRemoteLocked(trimmedWorkspaceID, trimmedChannel, normalizedCard.PeerID)
 		return RemotePeerEntry{}, false, nil
 	}
 
-	if _, ok := r.remotesByChannel[trimmedChannel]; !ok {
-		r.remotesByChannel[trimmedChannel] = make(map[string]RemotePeerEntry)
+	key := peerChannelKey(trimmedWorkspaceID, trimmedChannel)
+	if _, ok := r.remotesByChannel[key]; !ok {
+		r.remotesByChannel[key] = make(map[string]RemotePeerEntry)
 	}
-	existing, hasExisting := r.remotesByChannel[trimmedChannel][normalizedCard.PeerID]
+	existing, hasExisting := r.remotesByChannel[key][normalizedCard.PeerID]
 	storedCatalog, storedCatalogKnown := nextRemoteCapabilityCatalog(
 		existing,
 		hasExisting,
@@ -344,19 +372,25 @@ func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
 	entry := RemotePeerEntry{
 		PeerID:                 normalizedCard.PeerID,
 		PeerCard:               normalizedCard,
+		WorkspaceID:            trimmedWorkspaceID,
 		Channel:                trimmedChannel,
 		CapabilityCatalog:      storedCatalog,
 		CapabilityCatalogKnown: storedCatalogKnown,
 		LastSeen:               seenAt,
 		ExpiresAt:              seenAt.Add(2 * r.greetInterval),
 	}
-	r.remotesByChannel[trimmedChannel][entry.PeerID] = entry
+	r.remotesByChannel[key][entry.PeerID] = entry
 
 	return cloneRemotePeerEntry(entry), true, nil
 }
 
 // RemoteByPeer resolves one active remote peer entry.
-func (r *PeerRegistry) RemoteByPeer(channel string, peerID string, at time.Time) (RemotePeerEntry, bool) {
+func (r *PeerRegistry) RemoteByPeer(
+	workspaceID string,
+	channel string,
+	peerID string,
+	at time.Time,
+) (RemotePeerEntry, bool) {
 	if r == nil {
 		return RemotePeerEntry{}, false
 	}
@@ -370,7 +404,8 @@ func (r *PeerRegistry) RemoteByPeer(channel string, peerID string, at time.Time)
 	defer r.mu.Unlock()
 
 	r.expireRemotesLocked(at)
-	channelEntries := r.remotesByChannel[strings.TrimSpace(channel)]
+	key := peerChannelKey(strings.TrimSpace(workspaceID), strings.TrimSpace(channel))
+	channelEntries := r.remotesByChannel[key]
 	entry, ok := channelEntries[strings.TrimSpace(peerID)]
 	if !ok {
 		return RemotePeerEntry{}, false
@@ -379,11 +414,17 @@ func (r *PeerRegistry) RemoteByPeer(channel string, peerID string, at time.Time)
 }
 
 // LookupPresence resolves one peer from the local registry first, then the remote cache.
-func (r *PeerRegistry) LookupPresence(channel string, peerID string, at time.Time) (PeerInfo, bool) {
+func (r *PeerRegistry) LookupPresence(
+	workspaceID string,
+	channel string,
+	peerID string,
+	at time.Time,
+) (PeerInfo, bool) {
 	if r == nil {
 		return PeerInfo{}, false
 	}
 
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	trimmedChannel := strings.TrimSpace(channel)
 	trimmedPeerID := strings.TrimSpace(peerID)
 	if at.IsZero() {
@@ -394,24 +435,24 @@ func (r *PeerRegistry) LookupPresence(channel string, peerID string, at time.Tim
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if local, ok := r.lookupLocalLocked(trimmedChannel, trimmedPeerID); ok {
+	if local, ok := r.lookupLocalLocked(trimmedWorkspaceID, trimmedChannel, trimmedPeerID); ok {
 		return peerInfoFromLocal(local), true
 	}
 	r.expireRemotesLocked(at)
-	if entry, ok := r.remotesByChannel[trimmedChannel][trimmedPeerID]; ok {
+	if entry, ok := r.remotesByChannel[peerChannelKey(trimmedWorkspaceID, trimmedChannel)][trimmedPeerID]; ok {
 		return peerInfoFromRemote(entry), true
 	}
 	return PeerInfo{}, false
 }
 
 // HasPresence reports whether the peer is visible and unexpired in the given channel.
-func (r *PeerRegistry) HasPresence(channel string, peerID string, at time.Time) bool {
-	_, ok := r.LookupPresence(channel, peerID, at)
+func (r *PeerRegistry) HasPresence(workspaceID string, channel string, peerID string, at time.Time) bool {
+	_, ok := r.LookupPresence(workspaceID, channel, peerID, at)
 	return ok
 }
 
-// ListPeers returns visible peers, optionally filtered to one channel.
-func (r *PeerRegistry) ListPeers(channel string, at time.Time) []PeerInfo {
+// ListPeers returns visible peers, optionally filtered to one workspace channel.
+func (r *PeerRegistry) ListPeers(workspaceID string, channel string, at time.Time) []PeerInfo {
 	if r == nil {
 		return nil
 	}
@@ -425,21 +466,39 @@ func (r *PeerRegistry) ListPeers(channel string, at time.Time) []PeerInfo {
 	defer r.mu.Unlock()
 
 	r.expireRemotesLocked(at)
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	trimmedChannel := strings.TrimSpace(channel)
-	if trimmedChannel != "" {
-		return listPeersForChannelLocked(r, trimmedChannel)
+	if trimmedWorkspaceID != "" && trimmedChannel != "" {
+		return listPeersForChannelLocked(r, trimmedWorkspaceID, trimmedChannel)
 	}
 
-	total := len(r.localsByID)
-	for _, entries := range r.remotesByChannel {
+	total := 0
+	for _, local := range r.localsByID {
+		if trimmedWorkspaceID != "" && local.WorkspaceID != trimmedWorkspaceID {
+			continue
+		}
+		total++
+	}
+	for key, entries := range r.remotesByChannel {
+		workspace, _ := splitPeerChannelKey(key)
+		if trimmedWorkspaceID != "" && workspace != trimmedWorkspaceID {
+			continue
+		}
 		total += len(entries)
 	}
 
 	peers := make([]PeerInfo, 0, total)
 	for _, local := range r.localsByID {
+		if trimmedWorkspaceID != "" && local.WorkspaceID != trimmedWorkspaceID {
+			continue
+		}
 		peers = append(peers, peerInfoFromLocal(local))
 	}
-	for _, entries := range r.remotesByChannel {
+	for key, entries := range r.remotesByChannel {
+		workspace, _ := splitPeerChannelKey(key)
+		if trimmedWorkspaceID != "" && workspace != trimmedWorkspaceID {
+			continue
+		}
 		for _, entry := range entries {
 			peers = append(peers, peerInfoFromRemote(entry))
 		}
@@ -449,7 +508,7 @@ func (r *PeerRegistry) ListPeers(channel string, at time.Time) []PeerInfo {
 }
 
 // ListChannels returns active runtime channels plus current peer counts.
-func (r *PeerRegistry) ListChannels(at time.Time) []ChannelInfo {
+func (r *PeerRegistry) ListChannels(workspaceID string, at time.Time) []ChannelInfo {
 	if r == nil {
 		return nil
 	}
@@ -462,27 +521,39 @@ func (r *PeerRegistry) ListChannels(at time.Time) []ChannelInfo {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	r.expireRemotesLocked(at)
 	counts := make(map[string]int)
 	for _, local := range r.localsByID {
-		counts[local.Channel]++
+		if trimmedWorkspaceID != "" && local.WorkspaceID != trimmedWorkspaceID {
+			continue
+		}
+		counts[peerChannelKey(local.WorkspaceID, local.Channel)]++
 	}
-	for channel, entries := range r.remotesByChannel {
-		counts[channel] += len(entries)
+	for key, entries := range r.remotesByChannel {
+		workspace, _ := splitPeerChannelKey(key)
+		if trimmedWorkspaceID != "" && workspace != trimmedWorkspaceID {
+			continue
+		}
+		counts[key] += len(entries)
 	}
 
 	channels := make([]ChannelInfo, 0, len(counts))
-	for channel, count := range counts {
-		channels = append(channels, ChannelInfo{Channel: channel, PeerCount: count})
+	for key, count := range counts {
+		workspace, channel := splitPeerChannelKey(key)
+		channels = append(channels, ChannelInfo{WorkspaceID: workspace, Channel: channel, PeerCount: count})
 	}
 	sort.Slice(channels, func(i int, j int) bool {
+		if channels[i].WorkspaceID != channels[j].WorkspaceID {
+			return channels[i].WorkspaceID < channels[j].WorkspaceID
+		}
 		return channels[i].Channel < channels[j].Channel
 	})
 	return channels
 }
 
-func (r *PeerRegistry) lookupLocalLocked(channel string, peerID string) (LocalPeer, bool) {
-	sessionIDs := r.localsByChannel[channel]
+func (r *PeerRegistry) lookupLocalLocked(workspaceID string, channel string, peerID string) (LocalPeer, bool) {
+	sessionIDs := r.localsByChannel[peerChannelKey(workspaceID, channel)]
 	sessionID, ok := sessionIDs[peerID]
 	if !ok {
 		return LocalPeer{}, false
@@ -495,24 +566,26 @@ func (r *PeerRegistry) lookupLocalLocked(channel string, peerID string) (LocalPe
 }
 
 func (r *PeerRegistry) removeLocalIndexesLocked(local LocalPeer) {
-	channelEntries := r.localsByChannel[local.Channel]
+	key := peerChannelKey(local.WorkspaceID, local.Channel)
+	channelEntries := r.localsByChannel[key]
 	if len(channelEntries) == 0 {
 		return
 	}
 	delete(channelEntries, local.PeerID)
 	if len(channelEntries) == 0 {
-		delete(r.localsByChannel, local.Channel)
+		delete(r.localsByChannel, key)
 	}
 }
 
-func (r *PeerRegistry) deleteRemoteLocked(channel string, peerID string) {
-	entries := r.remotesByChannel[channel]
+func (r *PeerRegistry) deleteRemoteLocked(workspaceID string, channel string, peerID string) {
+	key := peerChannelKey(workspaceID, channel)
+	entries := r.remotesByChannel[key]
 	if len(entries) == 0 {
 		return
 	}
 	delete(entries, peerID)
 	if len(entries) == 0 {
-		delete(r.remotesByChannel, channel)
+		delete(r.remotesByChannel, key)
 	}
 }
 
@@ -566,6 +639,7 @@ func cloneLocalPeer(local LocalPeer) LocalPeer {
 	return LocalPeer{
 		SessionID:         strings.TrimSpace(local.SessionID),
 		PeerID:            strings.TrimSpace(local.PeerID),
+		WorkspaceID:       strings.TrimSpace(local.WorkspaceID),
 		Channel:           strings.TrimSpace(local.Channel),
 		PeerCard:          clonePeerCard(local.PeerCard),
 		CapabilityCatalog: cloneNetworkPeerCapabilityCatalog(local.CapabilityCatalog),
@@ -577,6 +651,7 @@ func cloneRemotePeerEntry(entry RemotePeerEntry) RemotePeerEntry {
 	return RemotePeerEntry{
 		PeerID:                 strings.TrimSpace(entry.PeerID),
 		PeerCard:               clonePeerCard(entry.PeerCard),
+		WorkspaceID:            strings.TrimSpace(entry.WorkspaceID),
 		Channel:                strings.TrimSpace(entry.Channel),
 		CapabilityCatalog:      cloneNetworkPeerCapabilityCatalog(entry.CapabilityCatalog),
 		CapabilityCatalogKnown: entry.CapabilityCatalogKnown,
@@ -591,6 +666,7 @@ func peerInfoFromLocal(local LocalPeer) PeerInfo {
 	return PeerInfo{
 		SessionID:              &sessionID,
 		PeerID:                 local.PeerID,
+		WorkspaceID:            local.WorkspaceID,
 		Channel:                local.Channel,
 		Local:                  true,
 		PeerCard:               clonePeerCard(local.PeerCard),
@@ -605,6 +681,7 @@ func peerInfoFromRemote(entry RemotePeerEntry) PeerInfo {
 	expiresAt := entry.ExpiresAt.UTC()
 	return PeerInfo{
 		PeerID:                 entry.PeerID,
+		WorkspaceID:            entry.WorkspaceID,
 		Channel:                entry.Channel,
 		Local:                  false,
 		PeerCard:               clonePeerCard(entry.PeerCard),
@@ -677,9 +754,10 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-func listPeersForChannelLocked(r *PeerRegistry, channel string) []PeerInfo {
-	sessionIDs := r.localsByChannel[channel]
-	remoteEntries := r.remotesByChannel[channel]
+func listPeersForChannelLocked(r *PeerRegistry, workspaceID string, channel string) []PeerInfo {
+	key := peerChannelKey(workspaceID, channel)
+	sessionIDs := r.localsByChannel[key]
+	remoteEntries := r.remotesByChannel[key]
 	if len(sessionIDs) == 0 && len(remoteEntries) == 0 {
 		return nil
 	}
@@ -701,6 +779,9 @@ func listPeersForChannelLocked(r *PeerRegistry, channel string) []PeerInfo {
 
 func sortPeerInfos(peers []PeerInfo) {
 	sort.Slice(peers, func(i int, j int) bool {
+		if peers[i].WorkspaceID != peers[j].WorkspaceID {
+			return peers[i].WorkspaceID < peers[j].WorkspaceID
+		}
 		if peers[i].Channel != peers[j].Channel {
 			return peers[i].Channel < peers[j].Channel
 		}
@@ -709,4 +790,16 @@ func sortPeerInfos(peers []PeerInfo) {
 		}
 		return peers[i].PeerID < peers[j].PeerID
 	})
+}
+
+func peerChannelKey(workspaceID string, channel string) string {
+	return strings.TrimSpace(workspaceID) + "\x00" + strings.TrimSpace(channel)
+}
+
+func splitPeerChannelKey(key string) (string, string) {
+	workspaceID, channel, ok := strings.Cut(key, "\x00")
+	if !ok {
+		return "", strings.TrimSpace(key)
+	}
+	return strings.TrimSpace(workspaceID), strings.TrimSpace(channel)
 }

@@ -20,11 +20,18 @@ import type { NetworkRecentEntry } from "../../types";
 const RECENTS_HEADING = "Recents";
 
 export interface ChannelRailRecentsProps {
+  workspaceId: string;
   recents: ReadonlyArray<NetworkRecentEntry>;
   isLoading: boolean;
 }
 
-function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
+function RecentEntryRow({
+  workspaceId,
+  entry,
+}: {
+  workspaceId: string;
+  entry: NetworkRecentEntry;
+}) {
   const Icon = entry.surface === "thread" ? MessagesSquare : AtSign;
   const ariaLabel = entry.surface === "thread" ? "Thread" : "Direct room";
   const timestampLabel = entry.lastActivityAt
@@ -38,8 +45,8 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
         data-testid={`network-recents-thread-${entry.containerId}`}
         render={
           <Link
-            params={{ channel: entry.channel, threadId: entry.containerId }}
-            to="/network/$channel/threads/$threadId"
+            params={{ workspaceId, channel: entry.channel, threadId: entry.containerId }}
+            to="/network/$workspaceId/$channel/threads/$threadId"
           />
         }
         selectable
@@ -74,8 +81,8 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
       data-testid={`network-recents-direct-${entry.containerId}`}
       render={
         <Link
-          params={{ channel: entry.channel, directId: entry.containerId }}
-          to="/network/$channel/directs/$directId"
+          params={{ workspaceId, channel: entry.channel, directId: entry.containerId }}
+          to="/network/$workspaceId/$channel/directs/$directId"
         />
       }
       selectable
@@ -102,7 +109,7 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
   );
 }
 
-export function ChannelRailRecents({ recents, isLoading }: ChannelRailRecentsProps) {
+export function ChannelRailRecents({ workspaceId, recents, isLoading }: ChannelRailRecentsProps) {
   return (
     <section aria-label="Cross-channel recents" className="space-y-1" data-testid="network-recents">
       <SidebarSectionLabel>{RECENTS_HEADING}</SidebarSectionLabel>
@@ -121,7 +128,11 @@ export function ChannelRailRecents({ recents, isLoading }: ChannelRailRecentsPro
           </p>
         ) : (
           recents.map(entry => (
-            <RecentEntryRow entry={entry} key={`${entry.surface}:${entry.containerId}`} />
+            <RecentEntryRow
+              entry={entry}
+              key={`${entry.surface}:${entry.containerId}`}
+              workspaceId={workspaceId}
+            />
           ))
         )}
       </div>

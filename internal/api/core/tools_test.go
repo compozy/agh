@@ -28,10 +28,10 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
-			Sessions:           testutil.StubSessionManager{},
+			Sessions:           networkTestSessionManager("ws-workspace", "sess-1"),
 			Observer:           testutil.StubObserver{},
 			Tasks:              testutil.StubTaskManager{},
-			Workspaces:         testutil.StubWorkspaceService{},
+			Workspaces:         defaultCoreWorkspaceService(testutil.StubWorkspaceService{}),
 			Tools:              registry,
 			Toolsets:           registry,
 			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
@@ -61,7 +61,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t.Fatalf("operator tool count = %d, want %d", got, want)
 		}
 
-		sessionResp := performRequest(t, engine, http.MethodGet, "/sessions/sess-1/tools", nil)
+		sessionResp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-1/tools", nil)
 		if sessionResp.Code != http.StatusOK {
 			t.Fatalf("session list status = %d, want %d", sessionResp.Code, http.StatusOK)
 		}
@@ -88,8 +88,8 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/sessions/sess-1/tools/search",
-			[]byte(`{"query":"skill","limit":1,"workspace_id":"ws-1","session_id":"sess-other"}`),
+			"/workspaces/ws-workspace/sessions/sess-1/tools/search",
+			[]byte(`{"query":"skill","limit":1,"workspace_id":"ws-workspace","session_id":"sess-1"}`),
 		)
 		if sessionSearchResp.Code != http.StatusOK {
 			t.Fatalf("session search status = %d, want %d", sessionSearchResp.Code, http.StatusOK)
@@ -100,7 +100,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t.Fatalf("session search tool count = %d, want %d", got, want)
 		}
 		searchScope, searchQuery := registry.lastSearch()
-		if searchScope.SessionID != "sess-1" || searchScope.WorkspaceID != "ws-1" || searchScope.Operator {
+		if searchScope.SessionID != "sess-1" || searchScope.WorkspaceID != "ws-workspace" || searchScope.Operator {
 			t.Fatalf("session search scope = %#v, want session workspace scope", searchScope)
 		}
 		if searchQuery.Query != "skill" || searchQuery.Limit != 1 {
@@ -402,8 +402,8 @@ func newToolCoreEngine(t *testing.T, handlers *core.BaseHandlers) *gin.Engine {
 	engine.GET("/tools/:id", handlers.GetTool)
 	engine.POST("/tools/:id/approvals", handlers.CreateToolApproval)
 	engine.POST("/tools/:id/invoke", handlers.InvokeTool)
-	engine.GET("/sessions/:id/tools", handlers.ListSessionTools)
-	engine.POST("/sessions/:id/tools/search", handlers.SearchSessionTools)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id/tools", handlers.ListSessionTools)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/tools/search", handlers.SearchSessionTools)
 	engine.GET("/toolsets", handlers.ListToolsets)
 	engine.GET("/toolsets/:id", handlers.GetToolset)
 	return engine

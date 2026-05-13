@@ -17,6 +17,10 @@ vi.mock("@tanstack/react-router", () => ({
   useMatches: () => matchesMock(),
 }));
 
+vi.mock("@/systems/runtime", () => ({
+  useNavCounts: () => ({ counts: {}, refresh: vi.fn(), status: "ready" }),
+}));
+
 describe("TopbarShell", () => {
   it("Should render route icon, title, and count from the deepest match's topbar context", () => {
     matchesMock.mockReturnValue([

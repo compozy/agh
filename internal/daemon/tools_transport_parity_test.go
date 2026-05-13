@@ -16,7 +16,9 @@ import (
 	"github.com/pedronauck/agh/internal/api/httpapi"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	"github.com/pedronauck/agh/internal/api/udsapi"
+	"github.com/pedronauck/agh/internal/session"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
@@ -52,7 +54,9 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			name:   "ShouldInvokeSessionEventsTool",
 			method: http.MethodPost,
 			path:   "/api/tools/agh__session_events/invoke",
-			body:   []byte(`{"session_id":"sess-1","input":{"session_id":"sess-1","limit":1}}`),
+			body: []byte(
+				`{"session_id":"sess-1","workspace_id":"ws-1","input":{"workspace_id":"ws-1","session_id":"sess-1","limit":1}}`,
+			),
 		},
 		{
 			name:   "ShouldInvokeWorkspaceDescribeTool",
@@ -60,11 +64,11 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			path:   "/api/tools/agh__workspace_describe/invoke",
 			body:   []byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"workspace":"ws-1"}}`),
 		},
-		{name: "ShouldListSessionTools", method: http.MethodGet, path: "/api/sessions/sess-1/tools"},
+		{name: "ShouldListSessionTools", method: http.MethodGet, path: "/api/workspaces/ws-1/sessions/sess-1/tools"},
 		{
 			name:   "ShouldSearchSessionTools",
 			method: http.MethodPost,
-			path:   "/api/sessions/sess-1/tools/search",
+			path:   "/api/workspaces/ws-1/sessions/sess-1/tools/search",
 			body:   []byte(`{"query":"skill"}`),
 		},
 		{name: "ShouldListToolsets", method: http.MethodGet, path: "/api/toolsets"},
@@ -103,10 +107,10 @@ func newToolParityHTTPEngine(t *testing.T) *gin.Engine {
 		httpapi.WithConfig(&cfg),
 		httpapi.WithHost(cfg.HTTP.Host),
 		httpapi.WithPort(cfg.HTTP.Port),
-		httpapi.WithSessionManager(testutil.StubSessionManager{}),
+		httpapi.WithSessionManager(toolParitySessionManager()),
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithTaskService(testutil.StubTaskManager{}),
-		httpapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
+		httpapi.WithWorkspaceResolver(toolParityWorkspaceService(t)),
 		httpapi.WithToolRegistry(registry),
 		httpapi.WithToolsetRegistry(registry),
 		httpapi.WithLogger(testutil.DiscardLogger()),
@@ -131,10 +135,10 @@ func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
 	registry := newToolParityRegistry()
 	return core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName: "tool-parity-test",
-		Sessions:      testutil.StubSessionManager{},
+		Sessions:      toolParitySessionManager(),
 		Observer:      testutil.StubObserver{},
 		Tasks:         testutil.StubTaskManager{},
-		Workspaces:    testutil.StubWorkspaceService{},
+		Workspaces:    toolParityWorkspaceService(t),
 		Tools:         registry,
 		Toolsets:      registry,
 		HomePaths:     homePaths,
@@ -144,6 +148,44 @@ func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
 		Now:           func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
 		StreamDone:    make(chan struct{}),
 	})
+}
+
+func toolParitySessionManager() testutil.StubSessionManager {
+	return testutil.StubSessionManager{
+		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if strings.TrimSpace(id) != "sess-1" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{ID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}, nil
+		},
+	}
+}
+
+func toolParityWorkspaceService(t *testing.T) testutil.StubWorkspaceService {
+	t.Helper()
+
+	root := t.TempDir()
+	return testutil.StubWorkspaceService{
+		ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			if strings.TrimSpace(ref) != "ws-1" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{
+					ID:      "ws-1",
+					RootDir: root,
+					Name:    "ws-1",
+				},
+				WorkspaceID: "ws-1",
+			}, nil
+		},
+	}
 }
 
 type toolParityRegistry struct {

@@ -29,12 +29,12 @@ Do not store:
 
 ## Pick The Right Type
 
-| Type        | Good memory                                                                                                  | Weak memory               |
-| ----------- | ------------------------------------------------------------------------------------------------------------ | ------------------------- |
-| `user`      | "User prefers status updates that mention current command and next step."                                    | "User said thanks."       |
-| `feedback`  | "When tests fail, fix production behavior instead of weakening assertions."                                  | "A test failed today."    |
-| `project`   | "The site package is `@agh/site`; use the package selector for filtered builds."                             | "I ran a build."          |
-| `reference` | "Session events are persisted in each session's `events.db` and exposed through `/api/sessions/:id/stream`." | "Look up sessions later." |
+| Type        | Good memory                                                                                                                                   | Weak memory               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `user`      | "User prefers status updates that mention current command and next step."                                                                     | "User said thanks."       |
+| `feedback`  | "When tests fail, fix production behavior instead of weakening assertions."                                                                   | "A test failed today."    |
+| `project`   | "The site package is `@agh/site`; use the package selector for filtered builds."                                                              | "I ran a build."          |
+| `reference` | "Session events are persisted in each session's `events.db` and exposed through `/api/workspaces/:workspace_id/sessions/:session_id/stream`." | "Look up sessions later." |
 
 If a fact would mislead another repository, it is probably workspace memory. If it reflects a user
 preference that should follow the operator everywhere, it is probably global memory. If it is how a

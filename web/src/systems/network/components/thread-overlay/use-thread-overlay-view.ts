@@ -10,6 +10,7 @@ import { useOpenWork, type UseOpenWorkResult } from "../../hooks/use-work";
 import type { NetworkConversationMessage } from "../../types";
 
 export interface UseThreadOverlayViewArgs {
+  workspaceId: string;
   channel: string;
   threadId: string;
   fullPage: boolean;
@@ -25,12 +26,13 @@ export interface UseThreadOverlayViewResult {
 }
 
 export function useThreadOverlayView({
+  workspaceId,
   channel,
   threadId,
   fullPage,
 }: UseThreadOverlayViewArgs): UseThreadOverlayViewResult {
-  const overlay = useThreadOverlay({ channel, fullPage, threadId });
-  const session = useActiveNetworkSession(channel);
+  const overlay = useThreadOverlay({ workspaceId, channel, fullPage, threadId });
+  const session = useActiveNetworkSession(channel, { workspaceId });
   const openWork = useOpenWork({ channel, surface: "thread", containerId: threadId });
   const { retry, discard } = useSendNetworkMessage();
 

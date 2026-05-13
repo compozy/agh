@@ -10,6 +10,7 @@ import (
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	"github.com/pedronauck/agh/internal/heartbeat"
+	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/soul"
 )
 
@@ -94,13 +95,82 @@ func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerSessionsSoulRefreshRequiresWorkspaceOwnership(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	sess := env.createSession(t)
+	mutation := hostAPITestSoulMutationResult(env.workspaceID, "coder", env.workspace.RootDir)
+	refresher := &hostAPITestSoulRefresher{
+		result: session.SoulRefreshResult{
+			SessionID:  sess.ID,
+			AgentName:  "coder",
+			Snapshot:   &mutation.Snapshot,
+			Soul:       &mutation.Soul,
+			SoulDigest: mutation.Soul.Digest,
+		},
+	}
+	env.handler.soulRefresher = refresher
+	env.grant("ext-soul-refresh", []string{
+		string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+	}, []string{"soul.write"})
+
+	result, err := env.handler.Handle(
+		t.Context(),
+		"ext-soul-refresh",
+		string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+		mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
+			WorkspaceID: env.workspaceID,
+			SessionID:   sess.ID,
+			SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
+				ExpectedDigest: "soul-digest",
+			},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Handle(sessions/soul/refresh) error = %v", err)
+	}
+	var payload apicontract.AgentSoulPayload
+	decodeResult(t, result, &payload)
+	if payload.AgentName != "coder" || payload.Digest != "soul-digest" {
+		t.Fatalf("soul refresh payload = %#v, want coder soul digest", payload)
+	}
+	if refresher.calls != 1 || refresher.lastSessionID != sess.ID || refresher.lastDigest != "soul-digest" {
+		t.Fatalf(
+			"soul refresh call = (%d, %q, %q), want one owned session refresh",
+			refresher.calls,
+			refresher.lastSessionID,
+			refresher.lastDigest,
+		)
+	}
+
+	foreign := env.addForeignWorkspace(t)
+	_, err = env.handler.Handle(
+		t.Context(),
+		"ext-soul-refresh",
+		string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+		mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
+			WorkspaceID: foreign.WorkspaceID,
+			SessionID:   sess.ID,
+			SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
+				ExpectedDigest: "soul-digest",
+			},
+		}),
+	)
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+	if refresher.calls != 1 {
+		t.Fatalf("soul refresh calls = %d, want unchanged after foreign workspace rejection", refresher.calls)
+	}
+}
+
 func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
 	now := time.Date(2026, 4, 29, 15, 0, 0, 0, time.UTC)
+	sess := env.createSession(t)
 	health := heartbeat.SessionHealth{
-		SessionID:       "sess-health",
+		SessionID:       sess.ID,
 		WorkspaceID:     env.workspaceID,
 		AgentName:       "coder",
 		State:           heartbeat.SessionHealthStateIdle,
@@ -109,7 +179,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 		EligibleForWake: true,
 		UpdatedAt:       now,
 	}
-	env.handler.heartbeatStatus = &hostAPITestHeartbeatStatus{
+	heartbeatStatus := &hostAPITestHeartbeatStatus{
 		result: heartbeat.StatusResult{
 			AgentName:    "coder",
 			Enabled:      true,
@@ -123,7 +193,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 			WakeState: &heartbeat.WakeState{
 				WorkspaceID:      env.workspaceID,
 				AgentName:        "coder",
-				SessionID:        "sess-health",
+				SessionID:        sess.ID,
 				PolicySnapshotID: "hbs-1",
 				LastResult:       heartbeat.WakeResultSkipped,
 				LastReason:       heartbeat.WakeReasonQuietWindow,
@@ -132,6 +202,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 			SessionHealth: &health,
 		},
 	}
+	env.handler.heartbeatStatus = heartbeatStatus
 	wake := &hostAPITestHeartbeatWake{
 		decision: heartbeat.WakeDecision{
 			WakeEventID:      "hwe-host",
@@ -148,7 +219,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 		ID:               "hwe-history",
 		WorkspaceID:      env.workspaceID,
 		AgentName:        "coder",
-		SessionID:        "sess-health",
+		SessionID:        sess.ID,
 		PolicySnapshotID: "hbs-1",
 		Source:           heartbeat.WakeSourceManual,
 		Result:           heartbeat.WakeResultSkipped,
@@ -167,7 +238,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 		mustHostAPIAuthoredJSON(t, apicontract.HeartbeatWakeRequest{
 			WorkspaceID: env.workspaceID,
 			AgentName:   "coder",
-			SessionID:   "sess-health",
+			SessionID:   sess.ID,
 			Source:      apicontract.HeartbeatWakeSourceManual,
 		}),
 	)
@@ -183,7 +254,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 		mustHostAPIAuthoredJSON(t, apicontract.HeartbeatStatusRequest{
 			WorkspaceID:             env.workspaceID,
 			AgentName:               "coder",
-			SessionID:               "sess-health",
+			SessionID:               sess.ID,
 			IncludeSessionHealth:    true,
 			IncludeRecentWakeEvents: true,
 		}),
@@ -196,6 +267,27 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 	if status.SnapshotID != "hbs-1" || status.SessionHealth == nil || len(status.WakeEvents) != 1 {
 		t.Fatalf("heartbeat status = %#v, want policy, health, and wake audit", status)
 	}
+	if heartbeatStatus.calls != 1 {
+		t.Fatalf("heartbeat status calls = %d, want 1 after owned session status", heartbeatStatus.calls)
+	}
+
+	foreign := env.addForeignWorkspace(t)
+	_, err = env.handler.Handle(
+		t.Context(),
+		"ext-heartbeat-read",
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatStatus),
+		mustHostAPIAuthoredJSON(t, apicontract.HeartbeatStatusRequest{
+			WorkspaceID:             foreign.WorkspaceID,
+			AgentName:               "coder",
+			SessionID:               sess.ID,
+			IncludeSessionHealth:    true,
+			IncludeRecentWakeEvents: true,
+		}),
+	)
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+	if heartbeatStatus.calls != 1 {
+		t.Fatalf("heartbeat status calls = %d, want unchanged after foreign workspace rejection", heartbeatStatus.calls)
+	}
 
 	env.grant("ext-runtime-read", []string{
 		string(extensioncontract.HostAPIMethodSessionsHealthGet),
@@ -205,7 +297,10 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 		t.Context(),
 		"ext-runtime-read",
 		string(extensioncontract.HostAPIMethodSessionsHealthGet),
-		mustHostAPIAuthoredJSON(t, extensioncontract.SessionHealthGetParams{SessionID: "sess-health"}),
+		mustHostAPIAuthoredJSON(t, extensioncontract.SessionHealthGetParams{
+			WorkspaceID: env.workspaceID,
+			SessionID:   sess.ID,
+		}),
 	)
 	if err != nil {
 		t.Fatalf("Handle(sessions/health/get) error = %v", err)
@@ -214,6 +309,24 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 	decodeResult(t, healthResult, &healthResponse)
 	if !healthResponse.Health.EligibleForWake {
 		t.Fatalf("session health = %#v, want eligible managed health", healthResponse.Health)
+	}
+
+	statusGetResult, err := env.handler.Handle(
+		t.Context(),
+		"ext-runtime-read",
+		string(extensioncontract.HostAPIMethodSessionsStatusGet),
+		mustHostAPIAuthoredJSON(t, extensioncontract.SessionStatusGetParams{
+			WorkspaceID: env.workspaceID,
+			SessionID:   sess.ID,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Handle(sessions/status/get) error = %v", err)
+	}
+	var statusGetResponse apicontract.SessionStatusResponse
+	decodeResult(t, statusGetResult, &statusGetResponse)
+	if statusGetResponse.WorkspaceID != env.workspaceID || statusGetResponse.SessionID != sess.ID {
+		t.Fatalf("session status = %#v, want workspace-scoped session status", statusGetResponse)
 	}
 
 	env.grant("ext-heartbeat-wake", []string{
@@ -226,7 +339,7 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 		mustHostAPIAuthoredJSON(t, apicontract.HeartbeatWakeRequest{
 			WorkspaceID: env.workspaceID,
 			AgentName:   "coder",
-			SessionID:   "sess-health",
+			SessionID:   sess.ID,
 			Source:      apicontract.HeartbeatWakeSourceManual,
 			DryRun:      true,
 		}),
@@ -241,10 +354,29 @@ func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
 	}
 	if wake.last.WorkspaceID != env.workspaceID ||
 		wake.last.AgentName != "coder" ||
-		wake.last.SessionID != "sess-health" ||
+		wake.last.SessionID != sess.ID ||
 		wake.last.Source != heartbeat.WakeSourceManual ||
 		!wake.last.DryRun {
 		t.Fatalf("heartbeat wake request = %#v, want managed service request", wake.last)
+	}
+	if wake.calls != 1 {
+		t.Fatalf("heartbeat wake calls = %d, want 1 after owned session wake", wake.calls)
+	}
+	_, err = env.handler.Handle(
+		t.Context(),
+		"ext-heartbeat-wake",
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatWake),
+		mustHostAPIAuthoredJSON(t, apicontract.HeartbeatWakeRequest{
+			WorkspaceID: foreign.WorkspaceID,
+			AgentName:   "coder",
+			SessionID:   sess.ID,
+			Source:      apicontract.HeartbeatWakeSourceManual,
+			DryRun:      true,
+		}),
+	)
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+	if wake.calls != 1 {
+		t.Fatalf("heartbeat wake calls = %d, want unchanged after foreign workspace rejection", wake.calls)
 	}
 }
 
@@ -317,8 +449,27 @@ func (s *hostAPITestSoulAuthoring) Rollback(
 	return s.result, nil
 }
 
+type hostAPITestSoulRefresher struct {
+	result        session.SoulRefreshResult
+	calls         int
+	lastSessionID string
+	lastDigest    string
+}
+
+func (s *hostAPITestSoulRefresher) RefreshSoulWithExpectedDigest(
+	_ context.Context,
+	sessionID string,
+	expectedDigest string,
+) (session.SoulRefreshResult, error) {
+	s.calls++
+	s.lastSessionID = sessionID
+	s.lastDigest = expectedDigest
+	return s.result, nil
+}
+
 type hostAPITestHeartbeatStatus struct {
 	result heartbeat.StatusResult
+	calls  int
 	last   heartbeat.StatusRequest
 }
 
@@ -333,6 +484,7 @@ func (s *hostAPITestHeartbeatStatus) Status(
 	_ context.Context,
 	req heartbeat.StatusRequest,
 ) (heartbeat.StatusResult, error) {
+	s.calls++
 	s.last = req
 	return s.result, nil
 }

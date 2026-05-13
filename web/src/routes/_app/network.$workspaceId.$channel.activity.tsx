@@ -9,7 +9,7 @@ import {
   useNetworkThreads,
 } from "@/systems/network";
 
-export const Route = createFileRoute("/_app/network/$channel/activity")({
+export const Route = createFileRoute("/_app/network/$workspaceId/$channel/activity")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `#${params.channel} · Activity`, icon: NetworkIcon },
   }),
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/network/$channel/activity")({
 });
 
 function NetworkChannelActivityRoute() {
-  const { channel } = Route.useParams();
+  const { workspaceId, channel } = Route.useParams();
   const threadsQuery = useNetworkThreads(channel);
   const directsQuery = useNetworkDirects(channel);
   const { filteredThreads, filteredDirects } = useNetworkListFiltersContext();
@@ -29,6 +29,7 @@ function NetworkChannelActivityRoute() {
       data-testid="network-activity-tab"
     >
       <ActivityFeed
+        workspaceId={workspaceId}
         channel={channel}
         directs={filteredDirects}
         isLoading={threadsQuery.isLoading || directsQuery.isLoading}

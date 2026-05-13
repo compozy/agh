@@ -22,7 +22,9 @@ const meta: Meta<typeof SessionThread> = {
     layout: "fullscreen",
     ...storybookMswParameters({
       session: [
-        http.get("/api/sessions/:id/transcript", () => HttpResponse.json({ messages: [] })),
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ messages: [] })
+        ),
       ],
     }),
     docs: {

@@ -96,41 +96,66 @@ export async function createSession(
   return requireResponseData(data, response, "Failed to create session").session;
 }
 
-export async function fetchSession(id: string, signal?: AbortSignal): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.GET("/api/sessions/{id}", {
-    params: { path: { id } },
-    signal,
-  });
+export async function fetchSession(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to fetch session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
 }
 
-export async function deleteSession(id: string, signal?: AbortSignal): Promise<void> {
-  const { error, response } = await apiClient.DELETE("/api/sessions/{id}", {
-    params: { path: { id } },
-    signal,
-  });
+export async function deleteSession(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to delete session "${id}"`, id);
   }
 }
 
-export async function stopSession(id: string, signal?: AbortSignal): Promise<void> {
-  const { error, response } = await apiClient.POST("/api/sessions/{id}/stop", {
-    params: { path: { id } },
-    signal,
-  });
+export async function stopSession(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to stop session "${id}"`, id);
   }
 }
 
-export async function cancelSessionPrompt(id: string, signal?: AbortSignal): Promise<void> {
+export async function cancelSessionPrompt(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<void> {
   const request = new Request(
     new URL(
-      `/api/sessions/${encodeURIComponent(id)}/prompt/cancel`,
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/prompt/cancel`,
       typeof window === "undefined" ? "http://localhost" : window.location.origin
     ),
     {
@@ -151,11 +176,18 @@ export async function cancelSessionPrompt(id: string, signal?: AbortSignal): Pro
   }
 }
 
-export async function resumeSession(id: string, signal?: AbortSignal): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST("/api/sessions/{id}/resume", {
-    params: { path: { id } },
-    signal,
-  });
+export async function resumeSession(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/resume",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to resume session "${id}"`, id);
   }
@@ -163,17 +195,21 @@ export async function resumeSession(id: string, signal?: AbortSignal): Promise<S
 }
 
 export async function repairSession(
+  workspaceId: string,
   id: string,
   query: SessionRepairQuery = {},
   signal?: AbortSignal
 ): Promise<SessionRepairPayload> {
-  const { data, error, response } = await apiClient.POST("/api/sessions/{id}/repair", {
-    params: {
-      path: { id },
-      query,
-    },
-    signal,
-  });
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
+    {
+      params: {
+        path: { workspace_id: workspaceId, session_id: id },
+        query,
+      },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to repair session "${id}"`, id);
   }
@@ -194,12 +230,13 @@ function isSessionEnvelope(value: unknown): value is { session: SessionPayload }
 }
 
 export async function clearSessionConversation(
+  workspaceId: string,
   id: string,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const request = new Request(
     new URL(
-      `/api/sessions/${encodeURIComponent(id)}/clear`,
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/clear`,
       typeof window === "undefined" ? "http://localhost" : window.location.origin
     ),
     {
@@ -240,17 +277,21 @@ export async function clearSessionConversation(
 }
 
 export async function fetchSessionEvents(
+  workspaceId: string,
   id: string,
   params?: FetchSessionEventsParams,
   signal?: AbortSignal
 ): Promise<SessionEventPayload[]> {
-  const { data, error, response } = await apiClient.GET("/api/sessions/{id}/events", {
-    params: {
-      path: { id },
-      query: params,
-    },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+    {
+      params: {
+        path: { workspace_id: workspaceId, session_id: id },
+        query: params,
+      },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to fetch session events "${id}"`, id);
   }
@@ -258,28 +299,36 @@ export async function fetchSessionEvents(
 }
 
 export async function approveSession(
+  workspaceId: string,
   id: string,
   params: ApproveSessionParams,
   signal?: AbortSignal
 ): Promise<void> {
-  const { error, response } = await apiClient.POST("/api/sessions/{id}/approve", {
-    params: { path: { id } },
-    body: params,
-    signal,
-  });
+  const { error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      body: params,
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to approve permission", id);
   }
 }
 
 export async function fetchSessionHistory(
+  workspaceId: string,
   id: string,
   signal?: AbortSignal
 ): Promise<TurnHistoryPayload[]> {
-  const { data, error, response } = await apiClient.GET("/api/sessions/{id}/history", {
-    params: { path: { id } },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to fetch session history "${id}"`, id);
   }
@@ -294,13 +343,14 @@ export class SessionLedgerUnavailableError extends SessionApiError {
 }
 
 export async function fetchSessionLedger(
+  workspaceId: string,
   id: string,
   signal?: AbortSignal
 ): Promise<SessionLedgerResponse> {
   const { data, error, response } = await apiClient.GET(
-    "/api/memory/sessions/{session_id}/ledger",
+    "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger",
     {
-      params: { path: { session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id } },
       signal,
     }
   );
@@ -314,13 +364,17 @@ export async function fetchSessionLedger(
 }
 
 export async function fetchSessionTranscript(
+  workspaceId: string,
   id: string,
   signal?: AbortSignal
 ): Promise<SessionMessage[]> {
-  const { data, error, response } = await apiClient.GET("/api/sessions/{id}/transcript", {
-    params: { path: { id } },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to fetch session transcript "${id}"`, id);
   }

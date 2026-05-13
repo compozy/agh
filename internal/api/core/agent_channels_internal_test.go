@@ -28,7 +28,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 	source := agentCoreEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
 	source.From = "reviewer.sess-peer"
 	networkService := &agentCoreNetworkService{
-		ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
+		ListChannelsFn: func(context.Context, string) ([]network.ChannelInfo, error) {
 			return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
 		},
 		SendFn: func(_ context.Context, request network.SendRequest) (string, error) {
@@ -212,7 +212,7 @@ func TestAgentMeCoreHandlerEnrichesContextAndChannels(t *testing.T) {
 	t.Parallel()
 
 	engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{
-		ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
+		ListChannelsFn: func(context.Context, string) ([]network.ChannelInfo, error) {
 			return []network.ChannelInfo{{Channel: "builders", PeerCount: 1}}, nil
 		},
 	})
@@ -357,7 +357,7 @@ func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
 
 type agentCoreNetworkService struct {
 	SendFn         func(context.Context, network.SendRequest) (string, error)
-	ListChannelsFn func(context.Context) ([]network.ChannelInfo, error)
+	ListChannelsFn func(context.Context, string) ([]network.ChannelInfo, error)
 	InboxFn        func(context.Context, string) ([]network.Envelope, error)
 	WaitInboxFn    func(context.Context, string, string) ([]network.Envelope, error)
 }
@@ -369,13 +369,13 @@ func (s *agentCoreNetworkService) Send(ctx context.Context, req network.SendRequ
 	return "", nil
 }
 
-func (s *agentCoreNetworkService) ListPeers(context.Context, string) ([]network.PeerInfo, error) {
+func (s *agentCoreNetworkService) ListPeers(context.Context, string, string) ([]network.PeerInfo, error) {
 	return nil, nil
 }
 
-func (s *agentCoreNetworkService) ListChannels(ctx context.Context) ([]network.ChannelInfo, error) {
+func (s *agentCoreNetworkService) ListChannels(ctx context.Context, workspaceID string) ([]network.ChannelInfo, error) {
 	if s.ListChannelsFn != nil {
-		return s.ListChannelsFn(ctx)
+		return s.ListChannelsFn(ctx, workspaceID)
 	}
 	return nil, nil
 }
@@ -591,13 +591,14 @@ func agentCoreEnvelope(
 	t.Helper()
 
 	return network.Envelope{
-		Protocol: network.ProtocolV0,
-		ID:       messageID,
-		Kind:     network.KindSay,
-		Channel:  channel,
-		From:     "coder.sess-peer",
-		TS:       time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
-		Body:     json.RawMessage(`{"text":"coordination"}`),
+		Protocol:    network.ProtocolV2,
+		WorkspaceID: "ws-1",
+		ID:          messageID,
+		Kind:        network.KindSay,
+		Channel:     channel,
+		From:        "coder.sess-peer",
+		TS:          time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
+		Body:        json.RawMessage(`{"text":"coordination"}`),
 		Ext: network.ExtensionMap{
 			"coordination": agentCoreCoordinationMetadata(t, kind),
 		},

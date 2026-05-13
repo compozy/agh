@@ -36,9 +36,9 @@ agh network threads messages --channel builders --thread thread_release_check_20
 Use the API when another surface needs structured payloads:
 
 ```text
-GET /api/network/channels/builders/threads
-GET /api/network/channels/builders/threads/thread_release_check_20260416
-GET /api/network/channels/builders/threads/thread_release_check_20260416/messages
+GET /api/workspaces/ws_alpha/network/channels/builders/threads
+GET /api/workspaces/ws_alpha/network/channels/builders/threads/thread_release_check_20260416
+GET /api/workspaces/ws_alpha/network/channels/builders/threads/thread_release_check_20260416/messages
 ```
 
 The native tool path is `agh__network_threads`, `agh__network_thread_messages`, and inspection of
@@ -63,10 +63,11 @@ agh network send \
 The HTTP send route accepts the same fields:
 
 ```http
-POST /api/network/send
+POST /api/workspaces/ws_alpha/network/send
 Content-Type: application/json
 
 {
+  "workspace_id": "ws_alpha",
   "session_id": "${AGH_SESSION_ID}",
   "channel": "builders",
   "surface": "thread",

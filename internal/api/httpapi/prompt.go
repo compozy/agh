@@ -44,6 +44,10 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		core.RespondError(c, http.StatusBadRequest, err, true)
 		return
 	}
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
 
 	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
 	cancelOnReturn := cancelPrompt
@@ -52,7 +56,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 			cancelOnReturn()
 		}
 	}()
-	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), message)
+	events, err := h.Sessions.Prompt(promptCtx, sessionID, message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return

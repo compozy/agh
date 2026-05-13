@@ -108,15 +108,17 @@ test("operator verifies thread and direct network surfaces with final conversati
     agents: [initiatorAgentName, responderAgentName],
     channel: channelName,
     purpose: createdChannelPurpose,
+    workspaceId: workspace.id,
   });
 
   const operatorFlow = await seedBrowserNetworkOperatorFlow(runtime, {
     channel: channelName,
     initiatorAgentName,
     responderAgentName,
+    workspaceId: workspace.id,
   });
   await seedOpenNetworkWork(runtime, operatorFlow);
-  await appPage.goto(runtime.url(`/network/${channelName}/threads`), {
+  await appPage.goto(runtime.url(`/network/${workspace.id}/${channelName}/threads`), {
     waitUntil: "domcontentloaded",
   });
 
@@ -154,7 +156,7 @@ test("operator verifies thread and direct network surfaces with final conversati
   await ui.threadItem(operatorFlow.threadId).click();
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toContain(`/network/${channelName}/threads/${operatorFlow.threadId}`);
+    .toContain(`/network/${workspace.id}/${channelName}/threads/${operatorFlow.threadId}`);
   await expect(ui.threadOverlay).toBeVisible();
   await expect(ui.threadList).toHaveAttribute("data-dim", "true");
   await expect(ui.channelMessage(operatorFlow.messageIds.say)).toContainText(
@@ -181,7 +183,9 @@ test("operator verifies thread and direct network surfaces with final conversati
   await appPage.setViewportSize({ width: 1280, height: 900 });
 
   await appPage.getByTestId("network-tab-activity").click();
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/network/${channelName}/activity`);
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(`/network/${workspace.id}/${channelName}/activity`);
   await expect(ui.activityFeed).toHaveAttribute("aria-label", `Activity in #${channelName}`);
   await expect(
     appPage.getByTestId(`network-activity-entry-thread:${operatorFlow.threadId}`)
@@ -189,7 +193,9 @@ test("operator verifies thread and direct network surfaces with final conversati
   await browserArtifacts.captureScreenshot("network-activity", appPage);
 
   await ui.directTab.click();
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/network/${channelName}/directs`);
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(`/network/${workspace.id}/${channelName}/directs`);
   await expect(ui.directTab).toHaveAttribute("aria-selected", "true");
   await expect(ui.directsTab).toHaveAttribute("aria-label", `Direct rooms in #${channelName}`);
   await expect(ui.directList).toHaveAttribute("aria-label", `Direct rooms in #${channelName}`);
@@ -198,7 +204,7 @@ test("operator verifies thread and direct network surfaces with final conversati
   await ui.directItem(operatorFlow.directId).click();
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toBe(`/network/${channelName}/directs/${operatorFlow.directId}`);
+    .toBe(`/network/${workspace.id}/${channelName}/directs/${operatorFlow.directId}`);
   await expect(ui.directRoom).toBeVisible();
   await expect(ui.directRoom).toHaveAttribute("aria-label", /Direct room with @/);
   await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toContainText(
@@ -230,7 +236,7 @@ test("operator verifies thread and direct network surfaces with final conversati
   await ui.newDirectPeer(resolvePeerId).click();
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toBe(`/network/${channelName}/directs/${operatorFlow.directId}`);
+    .toBe(`/network/${workspace.id}/${channelName}/directs/${operatorFlow.directId}`);
 
   await ui.threadTab.click();
   await ui.threadItem(operatorFlow.threadId).click();
@@ -247,6 +253,7 @@ test("operator verifies thread and direct network surfaces with final conversati
     directId: operatorFlow.directId,
     threadId: operatorFlow.threadId,
     workId: openWorkId,
+    workspaceId: workspace.id,
   });
   assertNetworkParity(parity, {
     channel: channelName,
@@ -382,7 +389,7 @@ async function prepareNetworkRuntime(
 async function createChannelFromUI(
   page: import("@playwright/test").Page,
   ui: ReturnType<typeof networkOperatorSelectors>,
-  input: { agents: string[]; channel: string; purpose: string }
+  input: { agents: string[]; channel: string; purpose: string; workspaceId: string }
 ): Promise<void> {
   await expect(ui.openCreateDialog).toBeEnabled();
   await ui.openCreateDialog.click();
@@ -395,13 +402,18 @@ async function createChannelFromUI(
   }
   const createResponse = page.waitForResponse(
     response =>
-      response.request().method() === "POST" && response.url().endsWith("/api/network/channels")
+      response.request().method() === "POST" &&
+      response
+        .url()
+        .endsWith(`/api/workspaces/${encodeURIComponent(input.workspaceId)}/network/channels`)
   );
   await expect(ui.createSubmit).toBeEnabled();
   await ui.createSubmit.click();
   expect((await createResponse).status()).toBe(201);
   await expect(ui.createDialog).toBeHidden();
-  await expect.poll(() => new URL(page.url()).pathname).toBe(`/network/${input.channel}/threads`);
+  await expect
+    .poll(() => new URL(page.url()).pathname)
+    .toBe(`/network/${input.workspaceId}/${input.channel}/threads`);
 }
 
 async function seedOpenNetworkWork(
@@ -412,9 +424,10 @@ async function seedOpenNetworkWork(
     initiator: { peerId: string };
     messageIds: typeof browserNetworkOperatorFlowScenario.messageIds;
     responder: { id: string };
+    workspaceId: string;
   }
 ): Promise<void> {
-  await runtime.requestJSON("/api/network/send", {
+  await runtime.requestJSON(networkWorkspacePath(operatorFlow.workspaceId, "/send"), {
     method: "POST",
     body: JSON.stringify({
       id: openWorkRequestMessageId,
@@ -435,7 +448,7 @@ async function seedOpenNetworkWork(
       },
     }),
   });
-  await runtime.requestJSON("/api/network/send", {
+  await runtime.requestJSON(networkWorkspacePath(operatorFlow.workspaceId, "/send"), {
     method: "POST",
     body: JSON.stringify({
       id: openWorkMessageId,
@@ -459,9 +472,12 @@ async function seedOpenNetworkWork(
   await expect
     .poll(async () => {
       const payload = await runtime.requestJSON<NetworkMessagesEnvelope>(
-        `/api/network/channels/${encodeURIComponent(operatorFlow.channel)}/directs/${encodeURIComponent(
-          operatorFlow.directId
-        )}/messages?work_id=${encodeURIComponent(openWorkId)}`
+        networkWorkspacePath(
+          operatorFlow.workspaceId,
+          `/channels/${encodeURIComponent(operatorFlow.channel)}/directs/${encodeURIComponent(
+            operatorFlow.directId
+          )}/messages?work_id=${encodeURIComponent(openWorkId)}`
+        )
       );
       return payload.messages.map(message => message.message_id);
     })
@@ -470,25 +486,27 @@ async function seedOpenNetworkWork(
 
 async function captureNetworkParity(
   runtime: BrowserRuntime,
-  ids: { channel: string; directId: string; threadId: string; workId: string }
+  ids: { channel: string; directId: string; threadId: string; workId: string; workspaceId: string }
 ): Promise<NetworkParitySnapshot> {
   if (!runtime.requestOperatorJSON) {
     throw new Error("network parity requires launch-mode UDS access.");
   }
-  const threadPath = `/api/network/channels/${encodeURIComponent(ids.channel)}/threads/${encodeURIComponent(
-    ids.threadId
-  )}`;
-  const directPath = `/api/network/channels/${encodeURIComponent(ids.channel)}/directs/${encodeURIComponent(
-    ids.directId
-  )}`;
+  const threadPath = networkWorkspacePath(
+    ids.workspaceId,
+    `/channels/${encodeURIComponent(ids.channel)}/threads/${encodeURIComponent(ids.threadId)}`
+  );
+  const directPath = networkWorkspacePath(
+    ids.workspaceId,
+    `/channels/${encodeURIComponent(ids.channel)}/directs/${encodeURIComponent(ids.directId)}`
+  );
   const threadMessagesPath = `${threadPath}/messages`;
   const directMessagesPath = `${directPath}/messages?work_id=${encodeURIComponent(ids.workId)}`;
-  const workPath = `/api/network/work/${encodeURIComponent(ids.workId)}`;
+  const workPath = networkWorkspacePath(ids.workspaceId, `/work/${encodeURIComponent(ids.workId)}`);
   return {
     http: {
       status: await runtime.requestJSON<NetworkStatusEnvelope>("/api/network/status"),
       channel: await runtime.requestJSON<NetworkChannelEnvelope>(
-        `/api/network/channels/${encodeURIComponent(ids.channel)}`
+        networkWorkspacePath(ids.workspaceId, `/channels/${encodeURIComponent(ids.channel)}`)
       ),
       thread: await runtime.requestJSON<NetworkThreadEnvelope>(threadPath),
       threadMessages: await runtime.requestJSON<NetworkMessagesEnvelope>(threadMessagesPath),
@@ -499,7 +517,7 @@ async function captureNetworkParity(
     uds: {
       status: await runtime.requestOperatorJSON<NetworkStatusEnvelope>("/api/network/status"),
       channel: await runtime.requestOperatorJSON<NetworkChannelEnvelope>(
-        `/api/network/channels/${encodeURIComponent(ids.channel)}`
+        networkWorkspacePath(ids.workspaceId, `/channels/${encodeURIComponent(ids.channel)}`)
       ),
       thread: await runtime.requestOperatorJSON<NetworkThreadEnvelope>(threadPath),
       threadMessages:
@@ -511,9 +529,11 @@ async function captureNetworkParity(
     },
     cli: {
       status: await networkCLI(runtime, ["network", "status"]),
-      channels: await networkCLI(runtime, ["network", "channels"]),
+      channels: await networkCLI(runtime, ["network", "--workspace", ids.workspaceId, "channels"]),
       thread: await networkCLI(runtime, [
         "network",
+        "--workspace",
+        ids.workspaceId,
         "threads",
         "show",
         "--channel",
@@ -523,6 +543,8 @@ async function captureNetworkParity(
       ]),
       threadMessages: await networkCLI(runtime, [
         "network",
+        "--workspace",
+        ids.workspaceId,
         "threads",
         "messages",
         "--channel",
@@ -532,6 +554,8 @@ async function captureNetworkParity(
       ]),
       direct: await networkCLI(runtime, [
         "network",
+        "--workspace",
+        ids.workspaceId,
         "directs",
         "show",
         "--channel",
@@ -541,6 +565,8 @@ async function captureNetworkParity(
       ]),
       directMessages: await networkCLI(runtime, [
         "network",
+        "--workspace",
+        ids.workspaceId,
         "directs",
         "messages",
         "--channel",
@@ -550,9 +576,27 @@ async function captureNetworkParity(
         "--work",
         ids.workId,
       ]),
-      work: await networkCLI(runtime, ["network", "work", "lookup", "--work", ids.workId]),
+      work: await networkCLI(runtime, [
+        "network",
+        "--workspace",
+        ids.workspaceId,
+        "work",
+        "lookup",
+        "--work",
+        ids.workId,
+      ]),
     },
   };
+}
+
+function networkWorkspacePath(workspaceId: string, suffix: string): string {
+  const normalizedWorkspaceID = workspaceId.trim();
+  if (normalizedWorkspaceID === "") {
+    throw new Error("network workspace path requires a workspace_id");
+  }
+  return `/api/workspaces/${encodeURIComponent(normalizedWorkspaceID)}/network${
+    suffix.startsWith("/") ? suffix : `/${suffix}`
+  }`;
 }
 
 function assertNetworkParity(

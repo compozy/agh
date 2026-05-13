@@ -31,7 +31,7 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `select`/`ctx.Done()` discipline, no `time.Sleep` in orchestration) live in `agh-code-guidelines`. Architectural invariants below are load-bearing for design decisions:
 
 - **Goroutines spawned by `internal/session/manager_*.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown.** Never put goroutine-owned channels in a struct field that another goroutine mutates — use a per-run handle.
-- **Detached execution lifetime.** Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime. Expose explicit cancel endpoints (e.g., `POST /api/sessions/:id/prompt/cancel`).
+- **Detached execution lifetime.** Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`. Never tie execution lifetime to request lifetime. Expose explicit cancel endpoints (e.g., `POST /api/workspaces/:workspace_id/sessions/:id/prompt/cancel`).
 - **`context.WithoutCancel` does NOT preserve deadlines.** Re-attach a deadline if needed.
 - **Subprocess managed-stop** must respect `ctx.Done()` between Shutdown and Wait. Wrap `proc.Wait()` in `select { case <-proc.Done(): case <-ctx.Done(): }`.
 - **Process-group supervision parity.** Unix uses process groups; Windows uses forced-exit fallback. Always cross-build with `GOOS=windows GOARCH=amd64 go build` before claiming subprocess work complete. Centralize signaling helpers in `internal/procutil`.

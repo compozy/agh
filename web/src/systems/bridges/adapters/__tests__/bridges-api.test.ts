@@ -72,11 +72,19 @@ describe("listBridges", () => {
     await expectFetchRequest({ path: "/api/bridges" });
   });
 
+  it("sends bridge list scope filters", async () => {
+    mockJsonResponse({ bridges: [] });
+
+    await listBridges({ scope: "all", workspace_id: " ws_alpha " });
+
+    await expectFetchRequest({ path: "/api/bridges?scope=all&workspace_id=ws_alpha" });
+  });
+
   it("passes abort signal through to fetch", async () => {
     mockJsonResponse({ bridges: [] });
 
     const controller = new AbortController();
-    await listBridges(controller.signal);
+    await listBridges({}, controller.signal);
 
     await expectFetchRequest({
       path: "/api/bridges",

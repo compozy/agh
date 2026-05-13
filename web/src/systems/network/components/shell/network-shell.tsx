@@ -14,6 +14,7 @@ import type { ChannelTab } from "./channel-tabs-types";
 import { ChannelToolbar } from "./channel-toolbar";
 
 export interface NetworkShellProps {
+  workspaceId: string;
   pinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   unpinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   recents: ReadonlyArray<NetworkRecentEntry>;
@@ -43,6 +44,7 @@ export interface NetworkShellProps {
 }
 
 export function NetworkShell({
+  workspaceId,
   pinnedChannels,
   unpinnedChannels,
   recents,
@@ -69,6 +71,7 @@ export function NetworkShell({
   return (
     <div className="flex min-h-0 flex-1 bg-canvas" data-testid="network-shell">
       <ChannelRail
+        workspaceId={workspaceId}
         activeChannel={activeChannel?.channel ?? null}
         activeDirectId={activeDirectId}
         directs={directs}
@@ -86,6 +89,7 @@ export function NetworkShell({
         {activeChannel ? (
           <>
             <ChannelHeader
+              workspaceId={workspaceId}
               channel={activeChannel}
               detail={activeChannelDetail}
               inspectorOpen={inspectorOpen}
@@ -93,6 +97,7 @@ export function NetworkShell({
               openWorkCount={openWorkCount}
             />
             <ChannelToolbar
+              workspaceId={workspaceId}
               activeTab={activeTab}
               channel={activeChannel.channel}
               directCount={directCount}

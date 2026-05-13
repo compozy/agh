@@ -1049,6 +1049,13 @@ func mustHTTPNetworkStatus(
 	return response.Network
 }
 
+func httpWorkspaceNetworkPath(harness *e2etest.RuntimeHarness, suffix string) string {
+	if !strings.HasPrefix(suffix, "/") {
+		suffix = "/" + suffix
+	}
+	return "/api/workspaces/" + url.PathEscape(strings.TrimSpace(harness.WorkspaceID)) + "/network" + suffix
+}
+
 func mustHTTPNetworkPeers(
 	t testing.TB,
 	ctx context.Context,
@@ -1059,7 +1066,7 @@ func mustHTTPNetworkPeers(
 
 	peers, err := mustHTTPNetworkPeersMaybe(ctx, harness, channel)
 	if err != nil {
-		t.Fatalf("HTTPJSON(/api/network/peers) error = %v", err)
+		t.Fatalf("HTTPJSON(%s) error = %v", httpWorkspaceNetworkPath(harness, "/peers"), err)
 	}
 	return peers
 }
@@ -1070,7 +1077,7 @@ func mustHTTPNetworkPeersMaybe(
 	channel string,
 ) ([]aghcontract.NetworkPeerPayload, error) {
 	var response aghcontract.NetworkPeersResponse
-	path := "/api/network/peers"
+	path := httpWorkspaceNetworkPath(harness, "/peers")
 	if trimmed := strings.TrimSpace(channel); trimmed != "" {
 		path += "?channel=" + url.QueryEscape(trimmed)
 	}
@@ -1088,8 +1095,9 @@ func mustHTTPNetworkChannels(
 	t.Helper()
 
 	var response aghcontract.NetworkChannelsResponse
-	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/network/channels", nil, &response); err != nil {
-		t.Fatalf("HTTPJSON(/api/network/channels) error = %v", err)
+	path := httpWorkspaceNetworkPath(harness, "/channels")
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
 	return response.Channels
 }
@@ -1104,8 +1112,9 @@ func mustHTTPNetworkChannel(
 
 	var response aghcontract.NetworkChannelResponse
 	escapedChannel := url.PathEscape(channel)
-	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/network/channels/"+escapedChannel, nil, &response); err != nil {
-		t.Fatalf("HTTPJSON(/api/network/channels/%s) error = %v", channel, err)
+	path := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
 	return response.Channel
 }
@@ -1120,14 +1129,17 @@ func mustHTTPNetworkChannelMessages(
 
 	var threadsResponse aghcontract.NetworkThreadsResponse
 	escapedChannel := url.PathEscape(channel)
-	threadsPath := "/api/network/channels/" + escapedChannel + "/threads"
+	threadsPath := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel+"/threads")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", threadsPath, err)
 	}
 	messages := make([]aghcontract.NetworkConversationMessagePayload, 0)
 	for _, thread := range threadsResponse.Threads {
 		var response aghcontract.NetworkThreadMessagesResponse
-		messagesPath := "/api/network/channels/" + escapedChannel + "/threads/" + url.PathEscape(thread.ThreadID) + "/messages"
+		messagesPath := httpWorkspaceNetworkPath(
+			harness,
+			"/channels/"+escapedChannel+"/threads/"+url.PathEscape(thread.ThreadID)+"/messages",
+		)
 		if err := harness.HTTPJSON(ctx, http.MethodGet, messagesPath, nil, &response); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", messagesPath, err)
 		}
@@ -1145,7 +1157,7 @@ func mustHTTPNetworkThreads(
 	t.Helper()
 
 	var response aghcontract.NetworkThreadsResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	path := httpWorkspaceNetworkPath(harness, "/channels/"+url.PathEscape(channel)+"/threads")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1162,7 +1174,10 @@ func mustHTTPNetworkThread(
 	t.Helper()
 
 	var response aghcontract.NetworkThreadResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID)
+	path := httpWorkspaceNetworkPath(
+		harness,
+		"/channels/"+url.PathEscape(channel)+"/threads/"+url.PathEscape(threadID),
+	)
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1179,7 +1194,10 @@ func mustHTTPNetworkThreadMessages(
 	t.Helper()
 
 	var response aghcontract.NetworkThreadMessagesResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID) + "/messages"
+	path := httpWorkspaceNetworkPath(
+		harness,
+		"/channels/"+url.PathEscape(channel)+"/threads/"+url.PathEscape(threadID)+"/messages",
+	)
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1195,7 +1213,7 @@ func mustHTTPNetworkDirectRooms(
 	t.Helper()
 
 	var response aghcontract.NetworkDirectRoomsResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	path := httpWorkspaceNetworkPath(harness, "/channels/"+url.PathEscape(channel)+"/directs")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1212,7 +1230,10 @@ func mustHTTPNetworkDirectRoom(
 	t.Helper()
 
 	var response aghcontract.NetworkDirectRoomResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID)
+	path := httpWorkspaceNetworkPath(
+		harness,
+		"/channels/"+url.PathEscape(channel)+"/directs/"+url.PathEscape(directID),
+	)
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1229,7 +1250,10 @@ func mustHTTPNetworkDirectRoomMessages(
 	t.Helper()
 
 	var response aghcontract.NetworkDirectRoomMessagesResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID) + "/messages"
+	path := httpWorkspaceNetworkPath(
+		harness,
+		"/channels/"+url.PathEscape(channel)+"/directs/"+url.PathEscape(directID)+"/messages",
+	)
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1245,7 +1269,7 @@ func mustHTTPNetworkWork(
 	t.Helper()
 
 	var response aghcontract.NetworkWorkResponse
-	path := "/api/network/work/" + url.PathEscape(workID)
+	path := httpWorkspaceNetworkPath(harness, "/work/"+url.PathEscape(workID))
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
@@ -1260,14 +1284,17 @@ func channelHasMessageID(
 ) bool {
 	var threadsResponse aghcontract.NetworkThreadsResponse
 	escapedChannel := url.PathEscape(channel)
-	threadsPath := "/api/network/channels/" + escapedChannel + "/threads"
+	threadsPath := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel+"/threads")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
 		return false
 	}
 	target := strings.TrimSpace(messageID)
 	for _, thread := range threadsResponse.Threads {
 		var response aghcontract.NetworkThreadMessagesResponse
-		messagesPath := "/api/network/channels/" + escapedChannel + "/threads/" + url.PathEscape(thread.ThreadID) + "/messages"
+		messagesPath := httpWorkspaceNetworkPath(
+			harness,
+			"/channels/"+escapedChannel+"/threads/"+url.PathEscape(thread.ThreadID)+"/messages",
+		)
 		if err := harness.HTTPJSON(ctx, http.MethodGet, messagesPath, nil, &response); err != nil {
 			return false
 		}
@@ -1364,7 +1391,7 @@ func httpResolveNetworkDirectRoomMaybe(
 ) (string, error) {
 	var response aghcontract.NetworkDirectRoomResponse
 	escapedChannel := url.PathEscape(channel)
-	path := "/api/network/channels/" + escapedChannel + "/directs/resolve"
+	path := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel+"/directs/resolve")
 	request := aghcontract.NetworkDirectResolveRequest{
 		SessionID: sessionID,
 		PeerID:    peerID,

@@ -108,6 +108,19 @@ func ValidateChannel(channel string) error {
 	return nil
 }
 
+// ValidateWorkspaceID reports whether the workspace identity can safely occupy
+// one NATS subject token and one protocol envelope field.
+func ValidateWorkspaceID(workspaceID string) error {
+	trimmed := strings.TrimSpace(workspaceID)
+	if trimmed == "" {
+		return fmt.Errorf("%w: workspace_id is required", ErrMissingField)
+	}
+	if strings.ContainsAny(trimmed, ". *>") || containsControlCharacter(trimmed) {
+		return fmt.Errorf("%w: workspace_id=%q", ErrInvalidField, workspaceID)
+	}
+	return nil
+}
+
 // ValidateSurface reports whether the surface matches the RFC conversation values.
 func ValidateSurface(surface Surface) error {
 	return Surface(strings.TrimSpace(string(surface))).Validate()
@@ -196,8 +209,17 @@ func ValidateDirectRoomPeers(peerA string, peerB string) error {
 	return err
 }
 
-// DirectRoomIdentity derives the stable two-party direct room identity scoped to one channel.
-func DirectRoomIdentity(channel string, localPeer string, remotePeer string) (string, string, string, error) {
+// DirectRoomIdentity derives the stable two-party direct room identity scoped to one workspace channel.
+func DirectRoomIdentity(
+	workspaceID string,
+	channel string,
+	localPeer string,
+	remotePeer string,
+) (string, string, string, error) {
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	if err := ValidateWorkspaceID(trimmedWorkspaceID); err != nil {
+		return "", "", "", err
+	}
 	trimmedChannel := strings.TrimSpace(channel)
 	if err := ValidateChannel(trimmedChannel); err != nil {
 		return "", "", "", err
@@ -207,18 +229,20 @@ func DirectRoomIdentity(channel string, localPeer string, remotePeer string) (st
 		return "", "", "", err
 	}
 
-	sum := sha256.Sum256([]byte("agh-network/direct-room/v1\x00" + trimmedChannel + "\x00" + peerA + "\x00" + peerB))
+	sum := sha256.Sum256([]byte(
+		"agh-network/direct-room/v2\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" + peerA + "\x00" + peerB,
+	))
 	return "direct_" + hex.EncodeToString(sum[:])[:32], peerA, peerB, nil
 }
 
 // ValidateDirectRoomBinding proves that an existing direct room row matches
-// the deterministic identity for its channel-scoped peer pair.
-func ValidateDirectRoomBinding(channel string, directID string, peerA string, peerB string) error {
+// the deterministic identity for its workspace/channel-scoped peer pair.
+func ValidateDirectRoomBinding(workspaceID string, channel string, directID string, peerA string, peerB string) error {
 	trimmedDirectID := strings.TrimSpace(directID)
 	if err := ValidateConversationID(trimmedDirectID, "direct_id"); err != nil {
 		return err
 	}
-	expectedID, _, _, err := DirectRoomIdentity(channel, peerA, peerB)
+	expectedID, _, _, err := DirectRoomIdentity(workspaceID, channel, peerA, peerB)
 	if err != nil {
 		return err
 	}
@@ -284,8 +308,9 @@ func ConversationRefFromEnvelope(env Envelope) (ConversationRef, error) {
 	}
 
 	ref := ConversationRef{
-		Channel: env.Channel,
-		Surface: *env.Surface,
+		WorkspaceID: env.WorkspaceID,
+		Channel:     env.Channel,
+		Surface:     *env.Surface,
 	}
 	if env.ThreadID != nil {
 		ref.ThreadID = *env.ThreadID
@@ -358,6 +383,7 @@ func normalizeEnvelopeCopy(env Envelope) Envelope {
 	return Envelope{
 		Protocol:    strings.TrimSpace(env.Protocol),
 		ID:          strings.TrimSpace(env.ID),
+		WorkspaceID: strings.TrimSpace(env.WorkspaceID),
 		Kind:        Kind(strings.TrimSpace(string(env.Kind))),
 		Channel:     strings.TrimSpace(env.Channel),
 		Surface:     normalizeOptionalSurface(env.Surface),
@@ -381,11 +407,14 @@ func validateEnvelopeHeader(env Envelope) error {
 	if env.Protocol == "" {
 		return fmt.Errorf("%w: protocol is required", ErrMissingField)
 	}
-	if env.Protocol != ProtocolV0 {
+	if env.Protocol != ProtocolV2 {
 		return fmt.Errorf("%w: protocol=%q", ErrInvalidField, env.Protocol)
 	}
 	if env.ID == "" {
 		return fmt.Errorf("%w: id is required", ErrMissingField)
+	}
+	if err := ValidateWorkspaceID(env.WorkspaceID); err != nil {
+		return err
 	}
 	if err := env.Kind.Validate(); err != nil {
 		return err

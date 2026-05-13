@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -11,6 +11,24 @@ const activeProtocolDocs = [
   "docs/rfcs/004_agh-network-v1.md",
   "docs/_memory/glossary.md",
 ] as const;
+
+function listMDXDocs(dir: string): string[] {
+  return readdirSync(dir).flatMap(entry => {
+    const fullPath = resolve(dir, entry);
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) {
+      return listMDXDocs(fullPath);
+    }
+    return stat.isFile() && fullPath.endsWith(".mdx") ? [relative(repoRoot, fullPath)] : [];
+  });
+}
+
+const workspaceQualifiedProtocolDocs = [
+  ...listMDXDocs(resolve(siteRoot, "content/protocol")),
+  ...listMDXDocs(resolve(siteRoot, "content/runtime/core/network")),
+  "packages/site/content/runtime/guides/coordinate-agents-over-network.mdx",
+  "docs/_memory/glossary.md",
+];
 
 const envelopeKinds = new Set(["greet", "whois", "say", "capability", "receipt", "trace"]);
 const conversationKinds = new Set(["say", "capability", "receipt", "trace"]);
@@ -105,6 +123,33 @@ describe("protocol RFC hard cut", () => {
             )
           ),
         ].map(match => `${path}: ${match[0]}`)
+      );
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps active public protocol docs on workspace-qualified v2 network identity", () => {
+    const legacyPatterns = [
+      /agh-network\/v0/,
+      /agh\.network\.v0/,
+      /agh\.network\.v1\.<channel>/,
+      /agh\.network\.v2\.<channel>/,
+      /agh\.network\.v2\.builders\.(?:broadcast|peer)/,
+      /\/api\/network\/(?:channels|peers|send|work)/,
+    ];
+
+    const violations = workspaceQualifiedProtocolDocs.flatMap(path => {
+      const content = readRepoFile(path);
+      return legacyPatterns.flatMap(pattern =>
+        [
+          ...content.matchAll(
+            new RegExp(
+              pattern.source,
+              pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g"
+            )
+          ),
+        ].map(match => path + ": " + match[0])
       );
     });
 

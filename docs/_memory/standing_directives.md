@@ -158,7 +158,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 **Required behavior:**
 
 - Call long-lived work with `context.WithoutCancel(c.Request.Context())` so client disconnect stops streaming, not execution.
-- Expose explicit cancel endpoints (e.g., `POST /api/sessions/:id/prompt/cancel`).
+- Expose explicit cancel endpoints (e.g., `POST /api/workspaces/:workspace_id/sessions/:id/prompt/cancel`).
 - `context.WithoutCancel` does NOT preserve deadlines — re-attach a deadline if needed.
 - The four-cause prompt-stream-stall incident (2026-04-20) is the canonical illustration: HTTP request lifetime tied to prompt → tool_call closed stream → web stop using transport abort → metadata repair classifying `m.pending` as crashed. Each was a separate symptom of the same lifetime-coupling root cause.
 

@@ -131,7 +131,7 @@ export const TonesBySizeMatrix: Story = {
 
 export const MonoIdentifier: Story = {
   args: {},
-  render: () => <Pill mono>agh-network/v0</Pill>,
+  render: () => <Pill mono>agh-network/v2</Pill>,
   parameters: {
     docs: {
       description: {

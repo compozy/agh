@@ -21,8 +21,11 @@ func withCanonicalDirectedEnvelope(t *testing.T, env Envelope) Envelope {
 		t.Fatal("withCanonicalDirectedEnvelope() requires env.To")
 	}
 
+	if strings.TrimSpace(env.WorkspaceID) == "" {
+		env.WorkspaceID = testWorkspaceID
+	}
 	env = withDirectSurface(env)
-	directID, _, _, err := DirectRoomIdentity(env.Channel, env.From, *env.To)
+	directID, _, _, err := DirectRoomIdentity(env.WorkspaceID, env.Channel, env.From, *env.To)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
@@ -39,7 +42,7 @@ func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	sender := mustPeerCard(t, "coder.sess-a")
-	if _, err := registry.RegisterLocal("sess-a", "builders", sender, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "builders", sender, now); err != nil {
 		t.Fatalf("RegisterLocal(sender) error = %v", err)
 	}
 
@@ -65,7 +68,7 @@ func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
 	}
 
 	expiringPeer := mustPeerCard(t, "reviewer.sess-expired")
-	if _, stored, err := registry.RefreshRemote("builders", expiringPeer, now); err != nil {
+	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", expiringPeer, now); err != nil {
 		t.Fatalf("RefreshRemote(expiring) error = %v", err)
 	} else if !stored {
 		t.Fatal("RefreshRemote(expiring) stored = false, want true")
@@ -101,10 +104,10 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	}
 	sender := mustPeerCard(t, "coder.sess-a")
 	target := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-a", "builders", sender, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "builders", sender, now); err != nil {
 		t.Fatalf("RegisterLocal(sender) error = %v", err)
 	}
-	if _, err := registry.RegisterLocal("sess-b", "builders", target, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", target, now); err != nil {
 		t.Fatalf("RegisterLocal(target) error = %v", err)
 	}
 
@@ -123,11 +126,11 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	if err != nil {
 		t.Fatalf("Send(say) error = %v", err)
 	}
-	if got, want := sayResult.Subject, "agh.network.v0.builders.broadcast"; got != want {
+	if got, want := sayResult.Subject, "agh.network.v2.wks_test.builders.broadcast"; got != want {
 		t.Fatalf("Send(say).Subject = %q, want %q", got, want)
 	}
 
-	directID, _, _, err := DirectRoomIdentity("builders", sender.PeerID, target.PeerID)
+	directID, _, _, err := DirectRoomIdentity(testWorkspaceID, "builders", sender.PeerID, target.PeerID)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
@@ -144,7 +147,7 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	if err != nil {
 		t.Fatalf("Send(direct) error = %v", err)
 	}
-	wantDirectSubject, err := DirectSubject("builders", target.PeerID)
+	wantDirectSubject, err := DirectSubject(testWorkspaceID, "builders", target.PeerID)
 	if err != nil {
 		t.Fatalf("DirectSubject() error = %v", err)
 	}
@@ -192,6 +195,7 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 		}
 		if _, err := registry.RegisterLocal(
 			"sess-reviewer",
+			testWorkspaceID,
 			"builders",
 			mustPeerCard(t, "reviewer.sess-b"),
 			now,
@@ -200,13 +204,14 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 		}
 		if _, err := registry.RegisterLocal(
 			"sess-observer",
+			testWorkspaceID,
 			"builders",
 			mustPeerCard(t, "observer.sess-c"),
 			now,
 		); err != nil {
 			t.Fatalf("RegisterLocal(observer) error = %v", err)
 		}
-		directID, _, _, err := DirectRoomIdentity("builders", "coder.sess-remote", "reviewer.sess-b")
+		directID, _, _, err := DirectRoomIdentity(testWorkspaceID, "builders", "coder.sess-remote", "reviewer.sess-b")
 		if err != nil {
 			t.Fatalf("DirectRoomIdentity() error = %v", err)
 		}
@@ -220,15 +225,16 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 			t.Fatalf("NewRouter() error = %v", err)
 		}
 		payload, err := json.Marshal(Envelope{
-			Protocol: ProtocolV0,
-			ID:       "msg_direct_room_broadcast",
-			Kind:     KindSay,
-			Channel:  "builders",
-			Surface:  surfacePtr(SurfaceDirect),
-			DirectID: stringPtr(directID),
-			From:     "coder.sess-remote",
-			TS:       now.Unix(),
-			Body:     mustRawJSON(t, SayBody{Text: "room-only update"}),
+			Protocol:    ProtocolV2,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_direct_room_broadcast",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     surfacePtr(SurfaceDirect),
+			DirectID:    stringPtr(directID),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "room-only update"}),
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(direct room broadcast) error = %v", err)
@@ -255,18 +261,24 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
 		}
 		reviewer := mustPeerCard(t, "reviewer.sess-b")
-		if _, err := registry.RegisterLocal("sess-reviewer", "builders", reviewer, now); err != nil {
+		if _, err := registry.RegisterLocal("sess-reviewer", testWorkspaceID, "builders", reviewer, now); err != nil {
 			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
 		}
 		if _, err := registry.RegisterLocal(
 			"sess-observer",
+			testWorkspaceID,
 			"builders",
 			mustPeerCard(t, "observer.sess-c"),
 			now,
 		); err != nil {
 			t.Fatalf("RegisterLocal(observer) error = %v", err)
 		}
-		mismatchedDirectID, _, _, err := DirectRoomIdentity("builders", "coder.sess-remote", "observer.sess-c")
+		mismatchedDirectID, _, _, err := DirectRoomIdentity(
+			testWorkspaceID,
+			"builders",
+			"coder.sess-remote",
+			"observer.sess-c",
+		)
 		if err != nil {
 			t.Fatalf("DirectRoomIdentity(observer) error = %v", err)
 		}
@@ -281,16 +293,17 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 		}
 
 		payload, err := json.Marshal(Envelope{
-			Protocol: ProtocolV0,
-			ID:       "msg_direct_room_mismatch",
-			Kind:     KindSay,
-			Channel:  "builders",
-			Surface:  surfacePtr(SurfaceDirect),
-			DirectID: stringPtr(mismatchedDirectID),
-			From:     "coder.sess-remote",
-			To:       stringPtr(reviewer.PeerID),
-			TS:       now.Unix(),
-			Body:     mustRawJSON(t, SayBody{Text: "wrong room"}),
+			Protocol:    ProtocolV2,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_direct_room_mismatch",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     surfacePtr(SurfaceDirect),
+			DirectID:    stringPtr(mismatchedDirectID),
+			From:        "coder.sess-remote",
+			To:          stringPtr(reviewer.PeerID),
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "wrong room"}),
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(directed mismatch) error = %v", err)
@@ -318,7 +331,7 @@ func TestRouterDoesNotDeliverLocalEchoesToSender(t *testing.T) {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
 		}
 		sender := mustPeerCard(t, "coordinator.sess-a")
-		if _, err := registry.RegisterLocal("sess-a", "marketing", sender, now); err != nil {
+		if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "marketing", sender, now); err != nil {
 			t.Fatalf("RegisterLocal(sender) error = %v", err)
 		}
 
@@ -388,7 +401,7 @@ func TestRouterIgnoresDirectedWhoisRequestToSender(t *testing.T) {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
 		}
 		sender := mustPeerCard(t, "coordinator.sess-a")
-		if _, err := registry.RegisterLocal("sess-a", "marketing", sender, now); err != nil {
+		if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "marketing", sender, now); err != nil {
 			t.Fatalf("RegisterLocal(sender) error = %v", err)
 		}
 
@@ -403,13 +416,14 @@ func TestRouterIgnoresDirectedWhoisRequestToSender(t *testing.T) {
 			t.Fatalf("NewRouter() error = %v", err)
 		}
 		payload, err := json.Marshal(Envelope{
-			Protocol: ProtocolV0,
-			ID:       "msg_whois_self",
-			Kind:     KindWhois,
-			Channel:  "marketing",
-			From:     sender.PeerID,
-			To:       stringPtr(sender.PeerID),
-			TS:       now.Unix(),
+			Protocol:    ProtocolV2,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_whois_self",
+			Kind:        KindWhois,
+			Channel:     "marketing",
+			From:        sender.PeerID,
+			To:          stringPtr(sender.PeerID),
+			TS:          now.Unix(),
 			Body: mustRawJSON(t, WhoisBody{
 				Type:  WhoisTypeRequest,
 				Query: "self-directed",
@@ -444,7 +458,7 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	target := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", target, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", target, now); err != nil {
 		t.Fatalf("RegisterLocal(target) error = %v", err)
 	}
 
@@ -455,15 +469,16 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 	}
 
 	directPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_direct_dup",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(target.PeerID),
-		WorkID:   stringPtr("work_dup"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_direct_dup",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(target.PeerID),
+		WorkID:      stringPtr("work_dup"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(direct) error = %v", err)
@@ -477,15 +492,16 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 	}
 
 	receiptPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_receipt_cancel",
-		Kind:     KindReceipt,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(target.PeerID),
-		WorkID:   stringPtr("work_dup"),
-		ReplyTo:  stringPtr("msg_direct_dup"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_receipt_cancel",
+		Kind:        KindReceipt,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(target.PeerID),
+		WorkID:      stringPtr("work_dup"),
+		ReplyTo:     stringPtr("msg_direct_dup"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
 			ForID:  "msg_direct_dup",
 			Status: ReceiptStatusCanceled,
@@ -537,7 +553,7 @@ func TestRouterWhoisRequestGeneratesResponse(t *testing.T) {
 	}
 	responder := mustPeerCard(t, "reviewer.sess-b")
 	responder.Capabilities = []string{"chat.review"}
-	if _, err := registry.RegisterLocal("sess-b", "builders", responder, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", responder, now); err != nil {
 		t.Fatalf("RegisterLocal(responder) error = %v", err)
 	}
 
@@ -548,12 +564,13 @@ func TestRouterWhoisRequestGeneratesResponse(t *testing.T) {
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_request",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_request",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type:  WhoisTypeRequest,
 			Query: "chat.review",
@@ -631,6 +648,7 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 	}
 	if _, err := registry.RegisterLocalWithCapabilityCatalog(
 		"sess-rich",
+		testWorkspaceID,
 		"builders",
 		responder,
 		catalog,
@@ -646,13 +664,14 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_rich_request",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(responder.PeerID),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_rich_request",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(responder.PeerID),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type: WhoisTypeRequest,
 		}),
@@ -750,6 +769,7 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 	}
 	if _, err := registry.RegisterLocalWithCapabilityCatalog(
 		"sess-filtered",
+		testWorkspaceID,
 		"builders",
 		responder,
 		catalog,
@@ -769,14 +789,15 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_filtered_request",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(responder.PeerID),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_filtered_request",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(responder.PeerID),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 		Ext: ExtensionMap{
 			whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 			whoisCapabilityIDsExtKey: mustRawJSON(t, []string{"draft-spec"}),
@@ -841,6 +862,7 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsEmptyCatalogForUnknownIDsOrMis
 				responder := mustPeerCard(t, "reviewer.sess-unknown-id")
 				if _, err := registry.RegisterLocalWithCapabilityCatalog(
 					"sess-unknown-id",
+					testWorkspaceID,
 					"builders",
 					responder,
 					[]sessionpkg.NetworkPeerCapability{{
@@ -861,7 +883,13 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsEmptyCatalogForUnknownIDsOrMis
 				t.Helper()
 
 				responder := mustPeerCard(t, "reviewer.sess-no-catalog")
-				if _, err := registry.RegisterLocal("sess-no-catalog", "builders", responder, now); err != nil {
+				if _, err := registry.RegisterLocal(
+					"sess-no-catalog",
+					testWorkspaceID,
+					"builders",
+					responder,
+					now,
+				); err != nil {
 					t.Fatalf("RegisterLocal() error = %v", err)
 				}
 				return responder.PeerID
@@ -890,14 +918,15 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsEmptyCatalogForUnknownIDsOrMis
 			}
 
 			requestPayload, err := json.Marshal(Envelope{
-				Protocol: ProtocolV0,
-				ID:       "msg_whois_empty_request",
-				Kind:     KindWhois,
-				Channel:  "builders",
-				From:     "coder.sess-a",
-				To:       stringPtr(peerID),
-				TS:       now.Unix(),
-				Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+				Protocol:    ProtocolV2,
+				WorkspaceID: testWorkspaceID,
+				ID:          "msg_whois_empty_request",
+				Kind:        KindWhois,
+				Channel:     "builders",
+				From:        "coder.sess-a",
+				To:          stringPtr(peerID),
+				TS:          now.Unix(),
+				Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 				Ext: ExtensionMap{
 					whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 				},
@@ -941,7 +970,7 @@ func TestRouterWhoisRequestIgnoresUnknownAGHExtKeys(t *testing.T) {
 	}
 
 	responder := mustPeerCard(t, "reviewer.sess-unknown-ext")
-	if _, err := registry.RegisterLocal("sess-unknown-ext", "builders", responder, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-unknown-ext", testWorkspaceID, "builders", responder, now); err != nil {
 		t.Fatalf("RegisterLocal() error = %v", err)
 	}
 
@@ -956,14 +985,15 @@ func TestRouterWhoisRequestIgnoresUnknownAGHExtKeys(t *testing.T) {
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_unknown_ext",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(responder.PeerID),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_unknown_ext",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(responder.PeerID),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 		Ext: ExtensionMap{
 			"agh.unknown": mustRawJSON(t, map[string]any{"note": "ignored"}),
 		},
@@ -996,6 +1026,7 @@ func TestRouterWhoisRichCapabilityDiscoveryRejectsOversizedResponse(t *testing.T
 	responder := mustPeerCard(t, "reviewer.sess-oversized")
 	if _, err := registry.RegisterLocalWithCapabilityCatalog(
 		"sess-oversized",
+		testWorkspaceID,
 		"builders",
 		responder,
 		[]sessionpkg.NetworkPeerCapability{{
@@ -1015,14 +1046,15 @@ func TestRouterWhoisRichCapabilityDiscoveryRejectsOversizedResponse(t *testing.T
 	}
 
 	requestPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_oversized_request",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(responder.PeerID),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_oversized_request",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(responder.PeerID),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 		Ext: ExtensionMap{
 			whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 		},
@@ -1049,7 +1081,7 @@ func TestRouterWhoisResponseRefreshesRemotePresenceAndDeliversToRequester(t *tes
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "coder.sess-a")
-	if _, err := registry.RegisterLocal("sess-a", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 	router, err := NewRouter(
@@ -1064,14 +1096,15 @@ func TestRouterWhoisResponseRefreshesRemotePresenceAndDeliversToRequester(t *tes
 
 	remote := mustPeerCard(t, "reviewer.sess-b")
 	responsePayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_response",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     remote.PeerID,
-		To:       stringPtr(local.PeerID),
-		ReplyTo:  stringPtr("msg_whois_request"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_response",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        remote.PeerID,
+		To:          stringPtr(local.PeerID),
+		ReplyTo:     stringPtr("msg_whois_request"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type:     WhoisTypeResponse,
 			PeerCard: &remote,
@@ -1094,7 +1127,7 @@ func TestRouterWhoisResponseRefreshesRemotePresenceAndDeliversToRequester(t *tes
 	if got, want := result.Deliveries[0].SessionID, "sess-a"; got != want {
 		t.Fatalf("whois response delivery session = %q, want %q", got, want)
 	}
-	if _, ok := registry.RemoteByPeer("builders", remote.PeerID, now); !ok {
+	if _, ok := registry.RemoteByPeer(testWorkspaceID, "builders", remote.PeerID, now); !ok {
 		t.Fatalf("RemoteByPeer(%q) = missing after whois response", remote.PeerID)
 	}
 }
@@ -1114,7 +1147,7 @@ func TestRouterHeartbeatPublishAndLeaveHelpers(t *testing.T) {
 	}}); err != nil {
 		t.Fatalf("applyCapabilityBriefProjection() error = %v", err)
 	}
-	if _, err := registry.RegisterLocal("sess-a", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 
@@ -1128,7 +1161,7 @@ func TestRouterHeartbeatPublishAndLeaveHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PublishGreet() error = %v", err)
 	}
-	if got, want := greet.Subject, "agh.network.v0.builders.broadcast"; got != want {
+	if got, want := greet.Subject, "agh.network.v2.wks_test.builders.broadcast"; got != want {
 		t.Fatalf("PublishGreet().Subject = %q, want %q", got, want)
 	}
 	firstMessage := transport.Message(0)
@@ -1178,7 +1211,7 @@ func TestRouterHeartbeatPublishAndLeaveHelpers(t *testing.T) {
 	if got, want := left.SessionID, "sess-a"; got != want {
 		t.Fatalf("Leave(sess-a).SessionID = %q, want %q", got, want)
 	}
-	if _, present := registry.LookupPresence("builders", local.PeerID, now); present {
+	if _, present := registry.LookupPresence(testWorkspaceID, "builders", local.PeerID, now); present {
 		t.Fatalf("LookupPresence(builders, %q) = present after leave, want removed", local.PeerID)
 	}
 }
@@ -1192,7 +1225,7 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 	router, err := NewRouter(
@@ -1206,15 +1239,16 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 	}
 
 	notTargetPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_not_target",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr("reviewer.sess-other"),
-		WorkID:   stringPtr("work_not_target"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_not_target",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr("reviewer.sess-other"),
+		WorkID:      stringPtr("work_not_target"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(not_target) error = %v", err)
@@ -1227,7 +1261,7 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 		t.Fatalf("not target result = %#v, want reason %q", notTarget, ReasonCodeNotTarget)
 	}
 
-	malformed, err := router.Receive(context.Background(), []byte(`{"protocol":"agh-network/v0","kind":"direct"`))
+	malformed, err := router.Receive(context.Background(), []byte(`{"protocol":"agh-network/v2","kind":"direct"`))
 	if err != nil {
 		t.Fatalf("Receive(malformed JSON) error = %v", err)
 	}
@@ -1236,7 +1270,8 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 	}
 
 	unsupported, err := router.Receive(context.Background(), []byte(`{
-		"protocol":"agh-network/v0",
+		"protocol":"agh-network/v2",
+		"workspace_id":"wks_test",
 		"id":"msg_bad_kind",
 		"kind":"mystery",
 		"channel":"builders",
@@ -1261,7 +1296,7 @@ func TestRouterReceiveRejectsCapabilityDigestMismatchBeforeDelivery(t *testing.T
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 
@@ -1277,14 +1312,15 @@ func TestRouterReceiveRejectsCapabilityDigestMismatchBeforeDelivery(t *testing.T
 	}
 
 	payload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_bad_digest",
-		Kind:     KindCapability,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("work_capability_bad_digest"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_bad_digest",
+		Kind:        KindCapability,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(local.PeerID),
+		WorkID:      stringPtr("work_capability_bad_digest"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, CapabilityBody{
 			Capability: CapabilityEnvelopePayload{
 				ID:               "review-fix",
@@ -1328,7 +1364,7 @@ func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 
@@ -1340,16 +1376,17 @@ func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
 
 	expiredAt := now.Add(-time.Second).Unix()
 	payload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol:  ProtocolV0,
-		ID:        "msg_expired_direct",
-		Kind:      KindSay,
-		Channel:   "builders",
-		From:      "coder.sess-a",
-		To:        stringPtr(local.PeerID),
-		WorkID:    stringPtr("work_expired"),
-		TS:        now.Add(-2 * time.Second).Unix(),
-		ExpiresAt: &expiredAt,
-		Body:      mustRawJSON(t, SayBody{Text: "too late"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_expired_direct",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(local.PeerID),
+		WorkID:      stringPtr("work_expired"),
+		TS:          now.Add(-2 * time.Second).Unix(),
+		ExpiresAt:   &expiredAt,
+		Body:        mustRawJSON(t, SayBody{Text: "too late"}),
 	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(expired direct) error = %v", err)
@@ -1394,7 +1431,7 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 
@@ -1406,12 +1443,13 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 
 	remote := mustPeerCard(t, "coder.sess-a")
 	greetPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_greet_remote",
-		Kind:     KindGreet,
-		Channel:  "builders",
-		From:     remote.PeerID,
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_greet_remote",
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        remote.PeerID,
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, GreetBody{
 			PeerCard: remote,
 			Summary:  "hello",
@@ -1423,18 +1461,19 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 	if _, err := router.Receive(context.Background(), greetPayload); err != nil {
 		t.Fatalf("Receive(greet) error = %v", err)
 	}
-	if _, ok := registry.RemoteByPeer("builders", remote.PeerID, now); !ok {
+	if _, ok := registry.RemoteByPeer(testWorkspaceID, "builders", remote.PeerID, now); !ok {
 		t.Fatalf("RemoteByPeer(%q) = missing after greet", remote.PeerID)
 	}
 
 	whoisPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_whois_direct",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     remote.PeerID,
-		To:       stringPtr(local.PeerID),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_whois_direct",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        remote.PeerID,
+		To:          stringPtr(local.PeerID),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type:  WhoisTypeRequest,
 			Query: "not-a-match-but-directed",
@@ -1467,7 +1506,7 @@ func TestRouterConstructionAndHelperErrors(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "coder.sess-a")
-	if _, err := registry.RegisterLocal("sess-a", "builders", local, time.Now().UTC()); err != nil {
+	if _, err := registry.RegisterLocal("sess-a", testWorkspaceID, "builders", local, time.Now().UTC()); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 
@@ -1534,15 +1573,16 @@ func TestWorkValidationErrors(t *testing.T) {
 	}
 
 	nonOpener := withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_trace_non_opener",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     "reviewer.sess-xyz",
-		To:       stringPtr("coder.sess-abc"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       nowWithUnix(1775822400).Unix(),
-		Body:     mustRawJSON(t, TraceBody{State: WorkStateWorking}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_trace_non_opener",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        "reviewer.sess-xyz",
+		To:          stringPtr("coder.sess-abc"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          nowWithUnix(1775822400).Unix(),
+		Body:        mustRawJSON(t, TraceBody{State: WorkStateWorking}),
 	})
 	if _, err := OpenWork(nonOpener, time.Time{}); !errors.Is(err, ErrInvalidField) {
 		t.Fatalf("OpenWork(non-opener) error = %v, want ErrInvalidField", err)
@@ -1559,10 +1599,10 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 	alpha := mustPeerCard(t, "alpha.sess-a")
 	delta := mustPeerCard(t, "delta.sess-b")
-	if _, err := registry.RegisterLocal("sess-alpha", "builders", alpha, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-alpha", testWorkspaceID, "builders", alpha, now); err != nil {
 		t.Fatalf("RegisterLocal(alpha) error = %v", err)
 	}
-	if _, err := registry.RegisterLocal("sess-delta", "builders", delta, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-delta", testWorkspaceID, "builders", delta, now); err != nil {
 		t.Fatalf("RegisterLocal(delta) error = %v", err)
 	}
 
@@ -1577,14 +1617,15 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 
 	capabilityPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_open",
-		Kind:     KindCapability,
-		Channel:  "builders",
-		From:     alpha.PeerID,
-		To:       stringPtr(delta.PeerID),
-		WorkID:   stringPtr("work_capability_open"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_open",
+		Kind:        KindCapability,
+		Channel:     "builders",
+		From:        alpha.PeerID,
+		To:          stringPtr(delta.PeerID),
+		WorkID:      stringPtr("work_capability_open"),
+		TS:          now.Unix(),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
 			Summary:          "Review fix flow",
@@ -1610,15 +1651,16 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 
 	receiptPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_receipt",
-		Kind:     KindReceipt,
-		Channel:  "builders",
-		From:     delta.PeerID,
-		To:       stringPtr(alpha.PeerID),
-		WorkID:   stringPtr("work_capability_open"),
-		ReplyTo:  stringPtr("msg_capability_open"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_receipt",
+		Kind:        KindReceipt,
+		Channel:     "builders",
+		From:        delta.PeerID,
+		To:          stringPtr(alpha.PeerID),
+		WorkID:      stringPtr("work_capability_open"),
+		ReplyTo:     stringPtr("msg_capability_open"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
 			ForID:  "msg_capability_open",
 			Status: ReceiptStatusAccepted,
@@ -1643,15 +1685,16 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	}
 
 	tracePayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_trace",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     delta.PeerID,
-		To:       stringPtr(alpha.PeerID),
-		WorkID:   stringPtr("work_capability_open"),
-		ReplyTo:  stringPtr("msg_capability_open"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_trace",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        delta.PeerID,
+		To:          stringPtr(alpha.PeerID),
+		WorkID:      stringPtr("work_capability_open"),
+		ReplyTo:     stringPtr("msg_capability_open"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State: WorkStateWorking,
 		}),
@@ -1686,10 +1729,10 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 
 	sender := mustPeerCard(t, "alpha.sess-a")
 	remote := mustPeerCard(t, "delta.sess-b")
-	if _, err := registry.RegisterLocal("sess-alpha", "builders", sender, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-alpha", testWorkspaceID, "builders", sender, now); err != nil {
 		t.Fatalf("RegisterLocal(sender) error = %v", err)
 	}
-	if _, stored, err := registry.RefreshRemote("builders", remote, now); err != nil {
+	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remote, now); err != nil {
 		t.Fatalf("RefreshRemote(remote) error = %v", err)
 	} else if !stored {
 		t.Fatal("RefreshRemote(remote) stored = false, want true")
@@ -1725,15 +1768,16 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 	}
 
 	tracePayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_trace_needs_input",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     remote.PeerID,
-		To:       stringPtr(sender.PeerID),
-		WorkID:   stringPtr("work_capability_send"),
-		ReplyTo:  stringPtr(sent.ID),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_trace_needs_input",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        remote.PeerID,
+		To:          stringPtr(sender.PeerID),
+		WorkID:      stringPtr("work_capability_send"),
+		ReplyTo:     stringPtr(sent.ID),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State:   WorkStateNeedsInput,
 			Message: "need more detail",
@@ -1758,15 +1802,16 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 	}
 
 	completedPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_trace_completed",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     remote.PeerID,
-		To:       stringPtr(sender.PeerID),
-		WorkID:   stringPtr("work_capability_send"),
-		ReplyTo:  stringPtr(sent.ID),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_trace_completed",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        remote.PeerID,
+		To:          stringPtr(sender.PeerID),
+		WorkID:      stringPtr("work_capability_send"),
+		ReplyTo:     stringPtr(sent.ID),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State:   WorkStateCompleted,
 			Message: "completed",
@@ -1813,7 +1858,7 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 	router, err := NewRouter(
@@ -1827,15 +1872,16 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 	}
 
 	directPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_direct_invalid_trace",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("work_invalid_trace"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_direct_invalid_trace",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(local.PeerID),
+		WorkID:      stringPtr("work_invalid_trace"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(direct) error = %v", err)
@@ -1845,14 +1891,15 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 	}
 
 	tracePayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_trace_invalid_state",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("work_invalid_trace"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_trace_invalid_state",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(local.PeerID),
+		WorkID:      stringPtr("work_invalid_trace"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State: WorkStateSubmitted,
 		}),
@@ -1882,7 +1929,7 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
 	router, err := NewRouter(
@@ -1896,15 +1943,16 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 	}
 
 	directPayload, err := json.Marshal(withCanonicalDirectedEnvelope(t, Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_direct_cross_container",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     "coder.sess-a",
-		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("work_cross_container"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_direct_cross_container",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-a",
+		To:          stringPtr(local.PeerID),
+		WorkID:      stringPtr("work_cross_container"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(direct) error = %v", err)
@@ -1914,17 +1962,18 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 	}
 
 	threadTrace := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_trace_cross_container",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceThread),
-		ThreadID: stringPtr("thread_patch_42"),
-		From:     "coder.sess-a",
-		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("work_cross_container"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, TraceBody{State: WorkStateWorking}),
+		Protocol:    ProtocolV2,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_trace_cross_container",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceThread),
+		ThreadID:    stringPtr("thread_patch_42"),
+		From:        "coder.sess-a",
+		To:          stringPtr(local.PeerID),
+		WorkID:      stringPtr("work_cross_container"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, TraceBody{State: WorkStateWorking}),
 	}
 	tracePayload, err := json.Marshal(threadTrace)
 	if err != nil {

@@ -44,7 +44,10 @@ function renderSessionThread() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <SessionChatRuntimeProvider sessionId={primarySessionFixture.id}>
+      <SessionChatRuntimeProvider
+        sessionId={primarySessionFixture.id}
+        workspaceId={primarySessionFixture.workspace_id}
+      >
         <SessionThread
           sessionId={primarySessionFixture.id}
           agentName={primarySessionFixture.agent_name}
@@ -69,11 +72,17 @@ describe("SessionChatRuntimeProvider", () => {
         return jsonResponse({ sessions: [primarySessionFixture] });
       }
 
-      if (pathname === `/api/sessions/${primarySessionFixture.id}`) {
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`
+      ) {
         return jsonResponse({ session: primarySessionFixture });
       }
 
-      if (pathname === `/api/sessions/${primarySessionFixture.id}/transcript`) {
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
+      ) {
         return jsonResponse({ messages: transcriptMessages });
       }
 
@@ -112,7 +121,7 @@ describe("SessionChatRuntimeProvider", () => {
       fetchMock.mock.calls.filter(([input]) => {
         return (
           getPathname(input as RequestInfo | URL) ===
-          `/api/sessions/${primarySessionFixture.id}/transcript`
+          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
         );
       })
     ).toHaveLength(2);

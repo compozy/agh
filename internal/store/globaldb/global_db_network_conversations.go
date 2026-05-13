@@ -82,7 +82,12 @@ func (g *GlobalDB) WriteConversationMessage(
 			}
 			if !inserted {
 				result.Duplicate = true
-				result.LastActivityAt = lookupNetworkMessageTimestamp(ctx, exec, normalized.MessageID)
+				result.LastActivityAt = lookupNetworkMessageTimestamp(
+					ctx,
+					exec,
+					normalized.WorkspaceID,
+					normalized.MessageID,
+				)
 				return nil
 			}
 
@@ -125,14 +130,14 @@ func (g *GlobalDB) WriteConversationMessage(
 // ListThreads returns public-thread summaries for one channel.
 func (g *GlobalDB) ListThreads(
 	ctx context.Context,
-	channel string,
+	ref store.NetworkChannelRef,
 	query store.NetworkThreadQuery,
 ) (summaries []store.NetworkThreadSummary, err error) {
 	if err := g.checkReady(ctx, "list network threads"); err != nil {
 		return nil, err
 	}
-	trimmedChannel, err := normalizeRequiredNetworkField(channel, "network thread channel")
-	if err != nil {
+	normalizedRef := normalizeNetworkChannelRef(ref)
+	if err := normalizedRef.Validate(); err != nil {
 		return nil, err
 	}
 	if err := query.Validate(); err != nil {
@@ -140,13 +145,13 @@ func (g *GlobalDB) ListThreads(
 	}
 
 	sqlQuery := `SELECT
-		channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
+		workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
 		opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
 	FROM network_threads`
-	where := []string{"channel = ?"}
-	args := []any{trimmedChannel}
+	where := []string{"workspace_id = ?", "channel = ?"}
+	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
 	if after := strings.TrimSpace(query.After); after != "" {
-		cursor, cursorErr := g.lookupNetworkThreadCursor(ctx, trimmedChannel, after)
+		cursor, cursorErr := g.lookupNetworkThreadCursor(ctx, normalizedRef, after)
 		if cursorErr != nil {
 			return nil, cursorErr
 		}
@@ -177,14 +182,19 @@ func (g *GlobalDB) ListThreads(
 }
 
 // GetThread returns one public-thread summary.
-func (g *GlobalDB) GetThread(ctx context.Context, channel string, threadID string) (store.NetworkThreadSummary, error) {
+func (g *GlobalDB) GetThread(
+	ctx context.Context,
+	channelRef store.NetworkChannelRef,
+	threadID string,
+) (store.NetworkThreadSummary, error) {
 	if err := g.checkReady(ctx, "get network thread"); err != nil {
 		return store.NetworkThreadSummary{}, err
 	}
 	ref := store.NetworkConversationRef{
-		Channel:  strings.TrimSpace(channel),
-		Surface:  store.NetworkSurfaceThread,
-		ThreadID: strings.TrimSpace(threadID),
+		WorkspaceID: strings.TrimSpace(channelRef.WorkspaceID),
+		Channel:     strings.TrimSpace(channelRef.Channel),
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    strings.TrimSpace(threadID),
 	}
 	if err := ref.Validate(); err != nil {
 		return store.NetworkThreadSummary{}, err
@@ -193,10 +203,11 @@ func (g *GlobalDB) GetThread(ctx context.Context, channel string, threadID strin
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
+			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
 			opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
 		FROM network_threads
-		WHERE channel = ? AND thread_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
+		ref.WorkspaceID,
 		ref.Channel,
 		ref.ThreadID,
 	)
@@ -206,14 +217,14 @@ func (g *GlobalDB) GetThread(ctx context.Context, channel string, threadID strin
 // ListDirectRooms returns direct-room summaries for one channel.
 func (g *GlobalDB) ListDirectRooms(
 	ctx context.Context,
-	channel string,
+	ref store.NetworkChannelRef,
 	query store.NetworkDirectRoomQuery,
 ) (summaries []store.NetworkDirectRoomSummary, err error) {
 	if err := g.checkReady(ctx, "list network direct rooms"); err != nil {
 		return nil, err
 	}
-	trimmedChannel, err := normalizeRequiredNetworkField(channel, "network direct room channel")
-	if err != nil {
+	normalizedRef := normalizeNetworkChannelRef(ref)
+	if err := normalizedRef.Validate(); err != nil {
 		return nil, err
 	}
 	if err := query.Validate(); err != nil {
@@ -221,17 +232,17 @@ func (g *GlobalDB) ListDirectRooms(
 	}
 
 	sqlQuery := `SELECT
-		channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+		workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
 		message_count, open_work_count, last_message_preview
 	FROM network_direct_rooms`
-	where := []string{"channel = ?"}
-	args := []any{trimmedChannel}
+	where := []string{"workspace_id = ?", "channel = ?"}
+	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
 	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
 		where = append(where, "(peer_a = ? OR peer_b = ?)")
 		args = append(args, peerID, peerID)
 	}
 	if after := strings.TrimSpace(query.After); after != "" {
-		cursor, cursorErr := g.lookupNetworkDirectRoomCursor(ctx, trimmedChannel, after, query.PeerID)
+		cursor, cursorErr := g.lookupNetworkDirectRoomCursor(ctx, normalizedRef, after, query.PeerID)
 		if cursorErr != nil {
 			return nil, cursorErr
 		}
@@ -264,16 +275,17 @@ func (g *GlobalDB) ListDirectRooms(
 // GetDirectRoom returns one direct-room summary.
 func (g *GlobalDB) GetDirectRoom(
 	ctx context.Context,
-	channel string,
+	channelRef store.NetworkChannelRef,
 	directID string,
 ) (store.NetworkDirectRoomSummary, error) {
 	if err := g.checkReady(ctx, "get network direct room"); err != nil {
 		return store.NetworkDirectRoomSummary{}, err
 	}
 	ref := store.NetworkConversationRef{
-		Channel:  strings.TrimSpace(channel),
-		Surface:  store.NetworkSurfaceDirect,
-		DirectID: strings.TrimSpace(directID),
+		WorkspaceID: strings.TrimSpace(channelRef.WorkspaceID),
+		Channel:     strings.TrimSpace(channelRef.Channel),
+		Surface:     store.NetworkSurfaceDirect,
+		DirectID:    strings.TrimSpace(directID),
 	}
 	if err := ref.Validate(); err != nil {
 		return store.NetworkDirectRoomSummary{}, err
@@ -282,10 +294,11 @@ func (g *GlobalDB) GetDirectRoom(
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
 			message_count, open_work_count, last_message_preview
 		FROM network_direct_rooms
-		WHERE channel = ? AND direct_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
+		ref.WorkspaceID,
 		ref.Channel,
 		ref.DirectID,
 	)
@@ -362,23 +375,32 @@ func (g *GlobalDB) ListConversationMessages(
 	return entries, nil
 }
 
-// GetWork returns one network work row by work_id.
-func (g *GlobalDB) GetWork(ctx context.Context, workID string) (store.NetworkWorkEntry, error) {
+// GetWork returns one network work row by workspace_id and work_id.
+func (g *GlobalDB) GetWork(ctx context.Context, workspaceID string, workID string) (store.NetworkWorkEntry, error) {
 	if err := g.checkReady(ctx, "get network work"); err != nil {
+		return store.NetworkWorkEntry{}, err
+	}
+	trimmedWorkspaceID, err := normalizeRequiredNetworkField(workspaceID, "network work workspace_id")
+	if err != nil {
 		return store.NetworkWorkEntry{}, err
 	}
 	trimmed := strings.TrimSpace(workID)
 	if err := validateNetworkWorkID(trimmed); err != nil {
 		return store.NetworkWorkEntry{}, err
 	}
-	return getNetworkWorkWithExecutor(ctx, g.db, trimmed)
+	return getNetworkWorkWithExecutor(ctx, g.db, trimmedWorkspaceID, trimmed)
 }
 
 func (g *GlobalDB) normalizeDirectRoomEntry(
 	entry store.NetworkDirectRoomEntry,
 ) (store.NetworkDirectRoomEntry, error) {
 	now := g.now()
-	directID, peerA, peerB, err := store.NetworkDirectRoomIdentity(entry.Channel, entry.PeerA, entry.PeerB)
+	directID, peerA, peerB, err := store.NetworkDirectRoomIdentity(
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.PeerA,
+		entry.PeerB,
+	)
 	if err != nil {
 		return store.NetworkDirectRoomEntry{}, err
 	}
@@ -391,6 +413,7 @@ func (g *GlobalDB) normalizeDirectRoomEntry(
 		)
 	}
 	normalized := store.NetworkDirectRoomEntry{
+		WorkspaceID:    strings.TrimSpace(entry.WorkspaceID),
 		Channel:        strings.TrimSpace(entry.Channel),
 		DirectID:       directID,
 		PeerA:          peerA,
@@ -416,6 +439,7 @@ func (g *GlobalDB) normalizeConversationMessage(
 	normalized := store.NetworkConversationMessage{
 		MessageID:   strings.TrimSpace(entry.MessageID),
 		SessionID:   strings.TrimSpace(entry.SessionID),
+		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		Channel:     strings.TrimSpace(entry.Channel),
 		Surface:     strings.TrimSpace(entry.Surface),
 		ThreadID:    strings.TrimSpace(entry.ThreadID),
@@ -460,9 +484,10 @@ func resolveDirectRoomWithExecutor(
 	result, err := exec.ExecContext(
 		ctx,
 		`INSERT OR IGNORE INTO network_direct_rooms (
-			channel, direct_id, peer_a, peer_b, opened_at, last_activity_at, message_count, open_work_count,
+			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at, message_count, open_work_count,
 			last_message_preview
-		) VALUES (?, ?, ?, ?, ?, ?, 0, 0, '')`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, '')`,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.DirectID,
 		entry.PeerA,
@@ -478,7 +503,14 @@ func resolveDirectRoomWithExecutor(
 		return store.NetworkDirectRoomSummary{}, false, fmt.Errorf("store: inspect network direct room insert: %w", err)
 	}
 
-	summary, err := getDirectRoomByPeerPairWithExecutor(ctx, exec, entry.Channel, entry.PeerA, entry.PeerB)
+	summary, err := getDirectRoomByPeerPairWithExecutor(
+		ctx,
+		exec,
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.PeerA,
+		entry.PeerB,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return store.NetworkDirectRoomSummary{}, false, fmt.Errorf(
@@ -505,6 +537,7 @@ func resolveDirectRoomWithExecutor(
 func getDirectRoomByPeerPairWithExecutor(
 	ctx context.Context,
 	exec networkSQLExecutor,
+	workspaceID string,
 	channel string,
 	peerA string,
 	peerB string,
@@ -512,10 +545,11 @@ func getDirectRoomByPeerPairWithExecutor(
 	row := exec.QueryRowContext(
 		ctx,
 		`SELECT
-			channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
 			message_count, open_work_count, last_message_preview
 		FROM network_direct_rooms
-		WHERE channel = ? AND peer_a = ? AND peer_b = ?`,
+		WHERE workspace_id = ? AND channel = ? AND peer_a = ? AND peer_b = ?`,
+		workspaceID,
 		channel,
 		peerA,
 		peerB,
@@ -533,6 +567,7 @@ func insertNetworkTimelineMessageWithExecutor(
 		`INSERT INTO network_timeline_log (
 			message_id,
 			session_id,
+			workspace_id,
 			channel,
 			surface,
 			thread_id,
@@ -550,10 +585,11 @@ func insertNetworkTimelineMessageWithExecutor(
 			preview_text,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(message_id) DO NOTHING`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
+		entry.WorkspaceID,
 		entry.Channel,
 		store.NullableString(entry.Surface),
 		store.NullableString(entry.ThreadID),
@@ -582,11 +618,17 @@ func insertNetworkTimelineMessageWithExecutor(
 	return rowsAffected > 0, nil
 }
 
-func lookupNetworkMessageTimestamp(ctx context.Context, exec networkSQLExecutor, messageID string) time.Time {
+func lookupNetworkMessageTimestamp(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	workspaceID string,
+	messageID string,
+) time.Time {
 	var timestampRaw string
 	if err := exec.QueryRowContext(
 		ctx,
-		`SELECT timestamp FROM network_timeline_log WHERE message_id = ?`,
+		`SELECT timestamp FROM network_timeline_log WHERE workspace_id = ? AND message_id = ?`,
+		workspaceID,
 		messageID,
 	).Scan(&timestampRaw); err != nil {
 		return time.Time{}
@@ -621,9 +663,10 @@ func ensureNetworkThreadWithExecutor(
 	result, err := exec.ExecContext(
 		ctx,
 		`INSERT OR IGNORE INTO network_threads (
-			channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
+			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
 			opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '')`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '')`,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
 		entry.MessageID,
@@ -651,7 +694,12 @@ func ensureNetworkDirectRoomWithExecutor(
 	if strings.TrimSpace(entry.PeerTo) == "" {
 		return false, fmt.Errorf("store: network direct message peer_to is required")
 	}
-	directID, peerA, peerB, err := store.NetworkDirectRoomIdentity(entry.Channel, entry.PeerFrom, entry.PeerTo)
+	directID, peerA, peerB, err := store.NetworkDirectRoomIdentity(
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.PeerFrom,
+		entry.PeerTo,
+	)
 	if err != nil {
 		return false, err
 	}
@@ -664,6 +712,7 @@ func ensureNetworkDirectRoomWithExecutor(
 		)
 	}
 	_, opened, err := resolveDirectRoomWithExecutor(ctx, exec, store.NetworkDirectRoomEntry{
+		WorkspaceID:    entry.WorkspaceID,
 		Channel:        entry.Channel,
 		DirectID:       directID,
 		PeerA:          peerA,
@@ -683,7 +732,7 @@ func applyNetworkWorkMutation(
 		return networkWorkMutation{}, nil
 	}
 
-	current, err := getNetworkWorkWithExecutor(ctx, exec, entry.WorkID)
+	current, err := getNetworkWorkWithExecutor(ctx, exec, entry.WorkspaceID, entry.WorkID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return openNetworkWorkWithExecutor(ctx, exec, entry)
@@ -713,10 +762,11 @@ func applyNetworkWorkMutation(
 		ctx,
 		`UPDATE network_work
 		SET state = ?, last_activity_at = ?, terminal_at = ?
-		WHERE work_id = ?`,
+		WHERE workspace_id = ? AND work_id = ?`,
 		next,
 		store.FormatTimestamp(entry.Timestamp),
 		terminalAt,
+		entry.WorkspaceID,
 		entry.WorkID,
 	); err != nil {
 		return networkWorkMutation{}, fmt.Errorf("store: update network work: %w", err)
@@ -742,10 +792,11 @@ func openNetworkWorkWithExecutor(
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO network_work (
-			work_id, channel, surface, thread_id, direct_id, opened_by_peer_id, opened_session_id,
+			work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id, opened_session_id,
 			target_peer_id, state, opened_at, last_activity_at, terminal_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
 		entry.WorkID,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.Surface,
 		store.NullableString(entry.ThreadID),
@@ -765,22 +816,25 @@ func openNetworkWorkWithExecutor(
 func getNetworkWorkWithExecutor(
 	ctx context.Context,
 	exec networkSQLExecutor,
+	workspaceID string,
 	workID string,
 ) (store.NetworkWorkEntry, error) {
 	row := exec.QueryRowContext(
 		ctx,
 		`SELECT
-			work_id, channel, surface, thread_id, direct_id, opened_by_peer_id, opened_session_id,
+			work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id, opened_session_id,
 			target_peer_id, state, opened_at, last_activity_at, terminal_at
 		FROM network_work
-		WHERE work_id = ?`,
+		WHERE workspace_id = ? AND work_id = ?`,
+		workspaceID,
 		workID,
 	)
 	return scanNetworkWorkEntry(row)
 }
 
 func networkWorkMatchesMessage(work store.NetworkWorkEntry, entry store.NetworkConversationMessage) bool {
-	return work.Channel == entry.Channel &&
+	return work.WorkspaceID == entry.WorkspaceID &&
+		work.Channel == entry.Channel &&
 		work.Surface == entry.Surface &&
 		strings.TrimSpace(work.ThreadID) == strings.TrimSpace(entry.ThreadID) &&
 		strings.TrimSpace(work.DirectID) == strings.TrimSpace(entry.DirectID)
@@ -873,10 +927,11 @@ func upsertNetworkThreadParticipant(
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO network_thread_participants (
-			channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
-		) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(channel, thread_id, peer_id) DO UPDATE SET
+			workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
 			last_seen_at = excluded.last_seen_at`,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
 		entry.PeerFrom,
@@ -910,7 +965,14 @@ func refreshNetworkThreadSummary(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) error {
-	latest, err := latestNetworkConversationMessage(ctx, exec, entry.Channel, entry.Surface, entry.ThreadID)
+	latest, err := latestNetworkConversationMessage(
+		ctx,
+		exec,
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.Surface,
+		entry.ThreadID,
+	)
 	if err != nil {
 		return err
 	}
@@ -919,7 +981,8 @@ func refreshNetworkThreadSummary(
 		ctx,
 		`SELECT COUNT(*)
 		FROM network_timeline_log
-		WHERE channel = ? AND surface = 'thread' AND thread_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND surface = 'thread' AND thread_id = ?`,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
 	).Scan(&messageCount); err != nil {
@@ -930,13 +993,22 @@ func refreshNetworkThreadSummary(
 		ctx,
 		`SELECT COUNT(DISTINCT peer_from)
 		FROM network_timeline_log
-		WHERE channel = ? AND surface = 'thread' AND thread_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND surface = 'thread' AND thread_id = ?`,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
 	).Scan(&participantCount); err != nil {
 		return fmt.Errorf("store: count network thread participants: %w", err)
 	}
-	openWorkCount, err := countOpenNetworkWork(ctx, exec, entry.Channel, entry.Surface, entry.ThreadID, "")
+	openWorkCount, err := countOpenNetworkWork(
+		ctx,
+		exec,
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.Surface,
+		entry.ThreadID,
+		"",
+	)
 	if err != nil {
 		return err
 	}
@@ -945,12 +1017,13 @@ func refreshNetworkThreadSummary(
 		`UPDATE network_threads
 		SET last_activity_at = ?, message_count = ?, participant_count = ?, open_work_count = ?,
 			last_message_preview = ?
-		WHERE channel = ? AND thread_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
 		latest.timestamp,
 		messageCount,
 		participantCount,
 		openWorkCount,
 		latest.preview,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
 	); err != nil {
@@ -964,7 +1037,14 @@ func refreshNetworkDirectRoomSummary(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) error {
-	latest, err := latestNetworkConversationMessage(ctx, exec, entry.Channel, entry.Surface, entry.DirectID)
+	latest, err := latestNetworkConversationMessage(
+		ctx,
+		exec,
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.Surface,
+		entry.DirectID,
+	)
 	if err != nil {
 		return err
 	}
@@ -973,13 +1053,22 @@ func refreshNetworkDirectRoomSummary(
 		ctx,
 		`SELECT COUNT(*)
 		FROM network_timeline_log
-		WHERE channel = ? AND surface = 'direct' AND direct_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND surface = 'direct' AND direct_id = ?`,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.DirectID,
 	).Scan(&messageCount); err != nil {
 		return fmt.Errorf("store: count network direct messages: %w", err)
 	}
-	openWorkCount, err := countOpenNetworkWork(ctx, exec, entry.Channel, entry.Surface, "", entry.DirectID)
+	openWorkCount, err := countOpenNetworkWork(
+		ctx,
+		exec,
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.Surface,
+		"",
+		entry.DirectID,
+	)
 	if err != nil {
 		return err
 	}
@@ -987,11 +1076,12 @@ func refreshNetworkDirectRoomSummary(
 		ctx,
 		`UPDATE network_direct_rooms
 		SET last_activity_at = ?, message_count = ?, open_work_count = ?, last_message_preview = ?
-		WHERE channel = ? AND direct_id = ?`,
+		WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
 		latest.timestamp,
 		messageCount,
 		openWorkCount,
 		latest.preview,
+		entry.WorkspaceID,
 		entry.Channel,
 		entry.DirectID,
 	); err != nil {
@@ -1008,6 +1098,7 @@ type latestNetworkMessage struct {
 func latestNetworkConversationMessage(
 	ctx context.Context,
 	exec networkSQLExecutor,
+	workspaceID string,
 	channel string,
 	surface string,
 	containerID string,
@@ -1019,13 +1110,13 @@ func latestNetworkConversationMessage(
 	var latest latestNetworkMessage
 	query := fmt.Sprintf(
 		`SELECT timestamp, preview_text
-		FROM network_timeline_log
-		WHERE channel = ? AND surface = ? AND %s = ?
-		ORDER BY timestamp DESC, message_id DESC
-		LIMIT 1`,
+			FROM network_timeline_log
+			WHERE workspace_id = ? AND channel = ? AND surface = ? AND %s = ?
+			ORDER BY timestamp DESC, message_id DESC
+			LIMIT 1`,
 		column,
 	)
-	if err := exec.QueryRowContext(ctx, query, channel, surface, containerID).
+	if err := exec.QueryRowContext(ctx, query, workspaceID, channel, surface, containerID).
 		Scan(&latest.timestamp, &latest.preview); err != nil {
 		return latestNetworkMessage{}, fmt.Errorf("store: lookup latest network conversation message: %w", err)
 	}
@@ -1035,17 +1126,20 @@ func latestNetworkConversationMessage(
 func countOpenNetworkWork(
 	ctx context.Context,
 	exec networkSQLExecutor,
+	workspaceID string,
 	channel string,
 	surface string,
 	threadID string,
 	directID string,
 ) (int, error) {
 	where := []string{
+		"workspace_id = ?",
 		"channel = ?",
 		"surface = ?",
 		"state NOT IN (?, ?, ?)",
 	}
 	args := []any{
+		workspaceID,
 		channel,
 		surface,
 		store.NetworkWorkStateCompleted,
@@ -1073,34 +1167,36 @@ func countOpenNetworkWork(
 
 func auditEntryForConversationMessage(entry store.NetworkConversationMessage) store.NetworkAuditEntry {
 	return store.NetworkAuditEntry{
-		ID:        store.NewID("naud"),
-		SessionID: entry.SessionID,
-		Direction: entry.Direction,
-		Kind:      entry.Kind,
-		Channel:   entry.Channel,
-		Surface:   entry.Surface,
-		ThreadID:  entry.ThreadID,
-		DirectID:  entry.DirectID,
-		WorkID:    entry.WorkID,
-		PeerFrom:  entry.PeerFrom,
-		PeerTo:    entry.PeerTo,
-		MessageID: entry.MessageID,
-		Size:      len(entry.Body),
-		Timestamp: entry.Timestamp,
+		ID:          store.NewID("naud"),
+		SessionID:   entry.SessionID,
+		WorkspaceID: entry.WorkspaceID,
+		Direction:   entry.Direction,
+		Kind:        entry.Kind,
+		Channel:     entry.Channel,
+		Surface:     entry.Surface,
+		ThreadID:    entry.ThreadID,
+		DirectID:    entry.DirectID,
+		WorkID:      entry.WorkID,
+		PeerFrom:    entry.PeerFrom,
+		PeerTo:      entry.PeerTo,
+		MessageID:   entry.MessageID,
+		Size:        len(entry.Body),
+		Timestamp:   entry.Timestamp,
 	}
 }
 
 func (g *GlobalDB) lookupNetworkThreadCursor(
 	ctx context.Context,
-	channel string,
+	ref store.NetworkChannelRef,
 	threadID string,
 ) (networkThreadCursor, error) {
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT thread_id, last_activity_at
-		FROM network_threads
-		WHERE channel = ? AND thread_id = ?`,
-		channel,
+			FROM network_threads
+			WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
+		ref.WorkspaceID,
+		ref.Channel,
 		strings.TrimSpace(threadID),
 	)
 	var (
@@ -1120,12 +1216,12 @@ func (g *GlobalDB) lookupNetworkThreadCursor(
 
 func (g *GlobalDB) lookupNetworkDirectRoomCursor(
 	ctx context.Context,
-	channel string,
+	ref store.NetworkChannelRef,
 	directID string,
 	peerID string,
 ) (networkDirectRoomCursor, error) {
-	where := []string{"channel = ?", "direct_id = ?"}
-	args := []any{channel, strings.TrimSpace(directID)}
+	where := []string{"workspace_id = ?", "channel = ?", "direct_id = ?"}
+	args := []any{ref.WorkspaceID, ref.Channel, strings.TrimSpace(directID)}
 	if trimmedPeer := strings.TrimSpace(peerID); trimmedPeer != "" {
 		where = append(where, "(peer_a = ? OR peer_b = ?)")
 		args = append(args, trimmedPeer, trimmedPeer)
@@ -1180,8 +1276,9 @@ func (g *GlobalDB) lookupNetworkConversationMessageCursor(
 func networkConversationMessageSelect() string {
 	return `SELECT
 		message_id,
-		session_id,
-		channel,
+			session_id,
+			workspace_id,
+			channel,
 		surface,
 		thread_id,
 		direct_id,
@@ -1205,8 +1302,8 @@ func networkConversationMessageFilterClauses(
 	ref store.NetworkConversationRef,
 	query store.NetworkConversationMessageQuery,
 ) ([]string, []any) {
-	where := []string{"channel = ?", "surface = ?"}
-	args := []any{ref.Channel, ref.Surface}
+	where := []string{"workspace_id = ?", "channel = ?", "surface = ?"}
+	args := []any{ref.WorkspaceID, ref.Channel, ref.Surface}
 	if ref.Surface == store.NetworkSurfaceThread {
 		where = append(where, "thread_id = ?")
 		args = append(args, ref.ThreadID)
@@ -1227,10 +1324,18 @@ func networkConversationMessageFilterClauses(
 
 func normalizeNetworkConversationRef(ref store.NetworkConversationRef) store.NetworkConversationRef {
 	return store.NetworkConversationRef{
-		Channel:  strings.TrimSpace(ref.Channel),
-		Surface:  strings.TrimSpace(ref.Surface),
-		ThreadID: strings.TrimSpace(ref.ThreadID),
-		DirectID: strings.TrimSpace(ref.DirectID),
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
+		Surface:     strings.TrimSpace(ref.Surface),
+		ThreadID:    strings.TrimSpace(ref.ThreadID),
+		DirectID:    strings.TrimSpace(ref.DirectID),
+	}
+}
+
+func normalizeNetworkChannelRef(ref store.NetworkChannelRef) store.NetworkChannelRef {
+	return store.NetworkChannelRef{
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
 	}
 }
 
@@ -1259,6 +1364,7 @@ func scanNetworkThreadSummary(scanner rowScanner) (store.NetworkThreadSummary, e
 		activityRaw string
 	)
 	if err := scanner.Scan(
+		&summary.WorkspaceID,
 		&summary.Channel,
 		&summary.ThreadID,
 		&summary.RootMessageID,
@@ -1329,6 +1435,7 @@ func scanNetworkDirectRoomSummary(scanner rowScanner) (store.NetworkDirectRoomSu
 		activityRaw string
 	)
 	if err := scanner.Scan(
+		&summary.WorkspaceID,
 		&summary.Channel,
 		&summary.DirectID,
 		&summary.PeerA,
@@ -1383,6 +1490,7 @@ func scanNetworkWorkEntry(scanner rowScanner) (store.NetworkWorkEntry, error) {
 	)
 	if err := scanner.Scan(
 		&entry.WorkID,
+		&entry.WorkspaceID,
 		&entry.Channel,
 		&entry.Surface,
 		&threadID,

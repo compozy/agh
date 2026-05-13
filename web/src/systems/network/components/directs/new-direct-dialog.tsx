@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
+import { useActiveWorkspace } from "@/systems/workspace";
 import {
   Button,
   Command,
@@ -41,7 +42,9 @@ interface PickerProps {
 }
 
 function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disabled }: PickerProps) {
-  const peersQuery = useQuery(networkPeersOptions(channel));
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
+  const peersQuery = useQuery(networkPeersOptions(workspaceId, channel, activeWorkspaceId != null));
   const candidates = useMemo(() => {
     const peers = peersQuery.data ?? [];
     return peers.filter(peer => peer.peer_id !== selfPeerId);
@@ -94,6 +97,7 @@ export function NewDirectDialog({
   sessionId,
 }: NewDirectDialogProps) {
   const navigate = useNavigate();
+  const { activeWorkspaceId } = useActiveWorkspace();
   const { resolveRoom, isResolving, error } = useResolveNetworkDirectRoom();
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
 
@@ -114,10 +118,12 @@ export function NewDirectDialog({
         },
       });
       onOpenChange(false);
-      void navigate({
-        to: "/network/$channel/directs/$directId",
-        params: { channel, directId: direct.direct_id },
-      });
+      if (activeWorkspaceId) {
+        void navigate({
+          to: "/network/$workspaceId/$channel/directs/$directId",
+          params: { workspaceId: activeWorkspaceId, channel, directId: direct.direct_id },
+        });
+      }
     } catch {
       // Error message is rendered inline below; the dialog stays open.
     }

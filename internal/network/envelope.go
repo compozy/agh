@@ -1,4 +1,4 @@
-// Package network defines the AGH Network v0 protocol surface shared by the
+// Package network defines the AGH Network v2 protocol surface shared by the
 // transport, router, and delivery layers.
 package network
 
@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// ProtocolV0 is the RFC v0 wire protocol identifier.
-const ProtocolV0 = "agh-network/v0"
+// ProtocolV2 is the workspace-qualified wire protocol identifier.
+const ProtocolV2 = "agh-network/v2"
 
 // Kind identifies one normative AGH Network message kind.
 type Kind string
@@ -187,16 +187,17 @@ func (s WorkState) Validate() error {
 	return nil
 }
 
-// Proof preserves the opaque v0 proof payload for forward compatibility.
+// Proof preserves the opaque protocol proof payload for forward compatibility.
 type Proof map[string]json.RawMessage
 
 // ExtensionMap preserves opaque extension payloads without interpreting them.
 type ExtensionMap map[string]json.RawMessage
 
-// Envelope is the shared AGH Network v0 wire envelope.
+// Envelope is the shared AGH Network v2 wire envelope.
 type Envelope struct {
 	Protocol    string          `json:"protocol"`
 	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspace_id"`
 	Kind        Kind            `json:"kind"`
 	Channel     string          `json:"channel"`
 	Surface     *Surface        `json:"surface,omitempty"`
@@ -246,14 +247,22 @@ func (e Envelope) DecodeBody() (Body, error) {
 
 // ConversationRef identifies exactly one conversation container.
 type ConversationRef struct {
-	Channel  string
-	Surface  Surface
-	ThreadID string
-	DirectID string
+	WorkspaceID string
+	Channel     string
+	Surface     Surface
+	ThreadID    string
+	DirectID    string
 }
 
 // Validate reports whether the reference identifies exactly one container.
 func (r ConversationRef) Validate() error {
+	workspaceID := strings.TrimSpace(r.WorkspaceID)
+	if workspaceID == "" {
+		return fmt.Errorf("%w: workspace_id is required", ErrMissingField)
+	}
+	if err := ValidateWorkspaceID(workspaceID); err != nil {
+		return fmt.Errorf("validate conversation workspace_id: %w", err)
+	}
 	channel := strings.TrimSpace(r.Channel)
 	if channel == "" {
 		return fmt.Errorf("%w: channel is required", ErrMissingField)
@@ -286,17 +295,18 @@ func (r ConversationRef) Validate() error {
 	return nil
 }
 
-// ContainerKey returns a stable channel/surface/container key.
+// ContainerKey returns a stable workspace/channel/surface/container key.
 func (r ConversationRef) ContainerKey() string {
+	workspaceID := strings.TrimSpace(r.WorkspaceID)
 	channel := strings.TrimSpace(r.Channel)
 	surface := Surface(strings.TrimSpace(string(r.Surface)))
 	switch surface {
 	case SurfaceThread:
-		return channel + "\x00" + string(surface) + "\x00" + strings.TrimSpace(r.ThreadID)
+		return workspaceID + "\x00" + channel + "\x00" + string(surface) + "\x00" + strings.TrimSpace(r.ThreadID)
 	case SurfaceDirect:
-		return channel + "\x00" + string(surface) + "\x00" + strings.TrimSpace(r.DirectID)
+		return workspaceID + "\x00" + channel + "\x00" + string(surface) + "\x00" + strings.TrimSpace(r.DirectID)
 	default:
-		return channel + "\x00" + string(surface)
+		return workspaceID + "\x00" + channel + "\x00" + string(surface)
 	}
 }
 

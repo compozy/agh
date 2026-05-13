@@ -26,6 +26,7 @@ export const Route = createFileRoute("/_app/network")({
 function NetworkRouteShell() {
   const view = useNetworkRouteView();
   const { page, activeChannel, activeTab, activeThreadId, activeDirectId, hasUnread } = view;
+  const workspaceId = view.activeWorkspaceId ?? "";
   const {
     inspector,
     members: channelMembers,
@@ -98,6 +99,7 @@ function NetworkRouteShell() {
       <>
         <NetworkListFiltersProvider value={filters}>
           <NetworkShell
+            workspaceId={workspaceId}
             activeChannel={null}
             activeChannelDetail={null}
             activeDirectId={null}
@@ -139,7 +141,12 @@ function NetworkRouteShell() {
 
   const rightRailContent =
     view.showOverlayInRightRail && activeChannel && activeThreadId ? (
-      <ThreadOverlay channel={activeChannel.channel} fullPage={false} threadId={activeThreadId} />
+      <ThreadOverlay
+        workspaceId={workspaceId}
+        channel={activeChannel.channel}
+        fullPage={false}
+        threadId={activeThreadId}
+      />
     ) : showInspectorInRightRail && activeChannel ? (
       <NetworkInspector
         activeTab={inspector.tab}
@@ -164,6 +171,7 @@ function NetworkRouteShell() {
     <>
       <NetworkListFiltersProvider value={filters}>
         <NetworkShell
+          workspaceId={workspaceId}
           activeChannel={activeChannel}
           activeChannelDetail={null}
           activeDirectId={activeDirectId}

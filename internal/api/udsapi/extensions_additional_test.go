@@ -268,7 +268,7 @@ func TestApproveSessionHandler(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/sessions/sess-1/approve",
+			"/api/workspaces/ws-workspace/sessions/sess-1/approve",
 			[]byte(`{"request_id":"req-1","turn_id":"turn-1","decision":"allow-once"}`),
 		)
 		if recorder.Code != http.StatusOK {

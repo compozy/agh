@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { networkPeersOptions } from "../lib/query-options";
 import type { NetworkPeerSummary } from "../types";
 
@@ -35,10 +37,12 @@ function classifyPeer(peer: NetworkPeerSummary): ChannelMemberRole {
 
 export function useChannelMembers(
   channel: string | null | undefined,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean; workspaceId?: string | null }
 ): UseChannelMembersResult {
-  const enabled = (options?.enabled ?? true) && Boolean(channel);
-  const query = useQuery(networkPeersOptions(channel ?? undefined, enabled));
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options?.workspaceId ?? activeWorkspaceId ?? "";
+  const enabled = (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
+  const query = useQuery(networkPeersOptions(workspaceId, channel ?? undefined, enabled));
 
   return useMemo(() => {
     const peers: ReadonlyArray<NetworkPeerSummary> = query.data ?? [];
