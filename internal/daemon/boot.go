@@ -310,15 +310,16 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 
 	state.situationContext = d.buildSituationContext(state)
 	state.harnessResolver = NewHarnessContextResolver(HarnessRuntimeSignals{
-		SituationPromptSectionEnabled: state.situationContext != nil,
-		MemoryPromptSectionEnabled:    state.memoryStore != nil,
-		SkillsPromptSectionEnabled:    state.skillsRegistry != nil,
-		ToolsPromptSectionEnabled:     state.cfg.Tools.Enabled,
-		SkillsAugmenter:               state.skillsRegistry != nil,
-		SituationAugmenter:            state.situationContext != nil,
-		DurableMemoryAugmenter:        state.memoryStore != nil,
-		SyntheticTurnsEnabled:         true,
-		DetachedTaskRuntimeEnabled:    true,
+		RuntimeIdentityPromptSectionEnabled: true,
+		SituationPromptSectionEnabled:       state.situationContext != nil,
+		MemoryPromptSectionEnabled:          state.memoryStore != nil,
+		SkillsPromptSectionEnabled:          state.skillsRegistry != nil,
+		ToolsPromptSectionEnabled:           state.cfg.Tools.Enabled,
+		SkillsAugmenter:                     state.skillsRegistry != nil,
+		SituationAugmenter:                  state.situationContext != nil,
+		DurableMemoryAugmenter:              state.memoryStore != nil,
+		SyntheticTurnsEnabled:               true,
+		DetachedTaskRuntimeEnabled:          true,
 	})
 	state.harnessRecorder = newHarnessLifecycleRecorder(state.logger, d.now)
 	state.promptAssembler = NewComposedAssembler(
@@ -331,6 +332,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 			)...,
 		),
 	)
+	state.startupOverlay = aghRuntimePromptOverlay{}
 	promptAugmenter, err := newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,

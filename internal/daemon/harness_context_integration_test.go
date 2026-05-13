@@ -46,8 +46,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if _, ok := capturedDeps.PromptAssembler.(session.StartupPromptAssembler); !ok {
 		t.Fatal("boot() did not inject a startup-aware prompt assembler")
 	}
-	if capturedDeps.StartupPromptOverlay != nil {
-		t.Fatal("boot() unexpectedly injected a startup prompt overlay")
+	if capturedDeps.StartupPromptOverlay == nil {
+		t.Fatal("boot() did not inject the AGH runtime startup prompt overlay")
 	}
 	if capturedDeps.PromptInputAugmenter == nil {
 		t.Fatal("boot() did not inject the prompt input augmenter")
@@ -121,6 +121,9 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionTools) {
 		t.Fatalf("startup IncludeSections = %#v, want tools section", startupResolved.Policy.IncludeSections)
 	}
+	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionRuntimeIdentity) {
+		t.Fatalf("startup IncludeSections = %#v, want runtime identity section", startupResolved.Policy.IncludeSections)
+	}
 
 	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)
 	if err != nil {
@@ -158,9 +161,19 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, "<agh-situation-context>"); got != 1 {
 		t.Fatalf("situation context occurrences = %d, want 1", got)
 	}
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, aghRuntimeEnvelopeStart); got != 1 {
+		t.Fatalf("AGH runtime envelope occurrences = %d, want 1", got)
+	}
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "You are running inside AGH") ||
+		!strings.Contains(got, "AGH is a local-first daemon") ||
+		!strings.Contains(got, "- workspace_id: ws-harness") {
+		t.Fatalf("start system prompt = %q, want AGH runtime envelope with workspace facts", got)
+	}
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
+		aghRuntimeEnvelopeStart,
+		"# AGH Runtime",
 		"<agh-situation-context>",
 		"# Persistent Memory",
 		"You are a coding assistant.",
@@ -327,6 +340,9 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, nativeToolsGuide); got != 1 {
 		t.Fatalf("resume prompt native tools guide occurrences = %d, want 1", got)
 	}
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, aghRuntimeEnvelopeStart); got != 1 {
+		t.Fatalf("resume prompt AGH runtime envelope occurrences = %d, want 1", got)
+	}
 }
 
 func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
@@ -385,6 +401,8 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
+		aghRuntimeEnvelopeStart,
+		"# AGH Runtime",
 		"<agh-situation-context>",
 		"# Persistent Memory",
 		"You are a coding assistant.",
@@ -505,6 +523,7 @@ func newHarnessIntegrationManager(
 		session.WithLogger(discardLogger()),
 		session.WithSandboxRegistry(deps.SandboxRegistry),
 		session.WithPromptAssembler(deps.PromptAssembler),
+		session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
 		session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
 		session.WithSkillRegistry(deps.SkillRegistry),
 		session.WithMCPResolver(deps.MCPResolver),

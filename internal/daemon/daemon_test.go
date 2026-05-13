@@ -2891,8 +2891,8 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			if _, ok := capturedDeps.PromptAssembler.(session.StartupPromptAssembler); !ok {
 				t.Fatal("boot() did not inject a startup-aware prompt assembler")
 			}
-			if capturedDeps.StartupPromptOverlay != nil {
-				t.Fatal("boot() unexpectedly injected the deprecated startup prompt overlay")
+			if capturedDeps.StartupPromptOverlay == nil {
+				t.Fatal("boot() did not inject the AGH runtime startup prompt overlay")
 			}
 			if capturedDeps.PromptInputAugmenter == nil {
 				t.Fatal("boot() did not inject the prompt input augmenter")
@@ -3766,7 +3766,8 @@ func canonicalDaemonRoot(t *testing.T, root string) string {
 }
 
 func orderedFragments(wantMemory bool, wantSkills bool) []string {
-	fragments := make([]string, 0, 4)
+	fragments := make([]string, 0, 6)
+	fragments = append(fragments, aghRuntimeEnvelopeStart, "# AGH Runtime")
 	if wantMemory {
 		fragments = append(fragments, "# Persistent Memory")
 	}

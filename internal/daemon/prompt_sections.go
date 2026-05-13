@@ -18,12 +18,13 @@ const (
 	bundledNativeToolsReference = "references/native-tools.md"
 	bundledTaskReference        = "references/tasks-and-orchestration.md"
 
-	startupSituationSectionOrder = 50
-	startupMemorySectionOrder    = 100
-	startupSoulSectionOrder      = 50
-	startupSkillsSectionOrder    = 100
-	startupToolsSectionOrder     = 150
-	startupNetworkSectionOrder   = 200
+	startupRuntimeIdentitySectionOrder = 10
+	startupSituationSectionOrder       = 50
+	startupMemorySectionOrder          = 100
+	startupSoulSectionOrder            = 50
+	startupSkillsSectionOrder          = 100
+	startupToolsSectionOrder           = 150
+	startupNetworkSectionOrder         = 200
 
 	startupSituationSectionBudget = 20_000
 	startupMemorySectionBudget    = 24_000
@@ -80,7 +81,15 @@ func defaultStartupPromptSectionDescriptors(
 	skillsProvider session.PromptProvider,
 	situationProvider session.PromptProvider,
 ) []PromptSectionDescriptor {
-	descriptors := make([]PromptSectionDescriptor, 0, 5)
+	descriptors := make([]PromptSectionDescriptor, 0, 6)
+
+	descriptors = append(descriptors, PromptSectionDescriptor{
+		Name:      string(HarnessPromptSectionRuntimeIdentity),
+		Position:  PromptSectionPositionPrepend,
+		Order:     startupRuntimeIdentitySectionOrder,
+		Provider:  aghRuntimePromptProvider{},
+		Predicate: policyIncludesSection(HarnessPromptSectionRuntimeIdentity),
+	})
 
 	if situationProvider != nil {
 		descriptors = append(descriptors, PromptSectionDescriptor{

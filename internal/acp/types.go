@@ -53,21 +53,35 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	AgentName       string
-	Command         string
-	Cwd             string
-	AdditionalDirs  []string
-	Env             []string
-	MCPServers      []aghconfig.MCPServer
-	Permissions     aghconfig.PermissionMode
-	SystemPrompt    string
-	PreferredModel  string
-	ReasoningEffort string
-	ResumeSessionID string
-	Launcher        sandbox.Launcher
-	ToolHost        sandbox.ToolHost
-	ToolGateway     ToolExecutionGateway
+	AgentName            string
+	Command              string
+	Cwd                  string
+	AdditionalDirs       []string
+	Env                  []string
+	MCPServers           []aghconfig.MCPServer
+	Permissions          aghconfig.PermissionMode
+	SystemPrompt         string
+	SystemPromptDelivery SystemPromptDeliveryMode
+	PreferredModel       string
+	ReasoningEffort      string
+	ResumeSessionID      string
+	Launcher             sandbox.Launcher
+	ToolHost             sandbox.ToolHost
+	ToolGateway          ToolExecutionGateway
 }
+
+// SystemPromptDeliveryMode records how AGH delivered startup system guidance to
+// the provider harness.
+type SystemPromptDeliveryMode string
+
+const (
+	// SystemPromptDeliveryFirstTurnPrefix means AGH embedded startup system
+	// guidance in the first ACP prompt because generic ACP has no system role.
+	SystemPromptDeliveryFirstTurnPrefix SystemPromptDeliveryMode = "first_turn_prefix"
+	// SystemPromptDeliveryNative means the provider received startup system
+	// guidance through a provider-native system-prompt channel.
+	SystemPromptDeliveryNative SystemPromptDeliveryMode = "native"
+)
 
 // Validate ensures the start options are minimally usable.
 func (o StartOpts) Validate() error {
@@ -102,8 +116,12 @@ func (o StartOpts) Validate() error {
 			return err
 		}
 	}
-
-	return nil
+	switch o.SystemPromptDelivery {
+	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:
+		return nil
+	default:
+		return fmt.Errorf("acp: invalid system prompt delivery %q", o.SystemPromptDelivery)
+	}
 }
 
 // PromptRequest describes one prompt turn sent to an active ACP session.
@@ -159,6 +177,12 @@ type PromptMeta struct {
 	TurnSource string               `json:"turn_source,omitempty"`
 	Network    *PromptNetworkMeta   `json:"network,omitempty"`
 	Synthetic  *PromptSyntheticMeta `json:"synthetic,omitempty"`
+	System     *PromptSystemMeta    `json:"system,omitempty"`
+}
+
+// PromptSystemMeta captures daemon-owned prompt delivery metadata.
+type PromptSystemMeta struct {
+	PromptDelivery string `json:"prompt_delivery,omitempty"`
 }
 
 // PromptNetworkMeta captures stable AGH network envelope correlation fields.
@@ -210,13 +234,22 @@ func (m PromptMeta) Normalize() PromptMeta {
 			normalized.Synthetic = &synthetic
 		}
 	}
+	if m.System != nil {
+		system := m.System.Normalize()
+		if !system.IsZero() {
+			normalized.System = &system
+		}
+	}
 	return normalized
 }
 
 // IsZero reports whether the prompt metadata carries any fields.
 func (m PromptMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.TurnSource == "" && normalized.Network == nil && normalized.Synthetic == nil
+	return normalized.TurnSource == "" &&
+		normalized.Network == nil &&
+		normalized.Synthetic == nil &&
+		normalized.System == nil
 }
 
 // ToMap converts normalized prompt metadata to the ACP SDK extensibility map.
@@ -239,6 +272,11 @@ func (m PromptMeta) ToMap() (map[string]any, error) {
 // Validate ensures the metadata shape is internally consistent.
 func (m PromptMeta) Validate() error {
 	normalized := m.Normalize()
+	if normalized.System != nil {
+		if err := normalized.System.Validate(); err != nil {
+			return err
+		}
+	}
 	switch normalized.TurnSource {
 	case "", PromptTurnSourceUser:
 		if normalized.Network != nil || normalized.Synthetic != nil {
@@ -260,6 +298,30 @@ func (m PromptMeta) Validate() error {
 		return normalized.Synthetic.Validate()
 	default:
 		return fmt.Errorf("acp: invalid prompt turn source %q", normalized.TurnSource)
+	}
+}
+
+// Normalize returns a trimmed copy of the system metadata.
+func (m PromptSystemMeta) Normalize() PromptSystemMeta {
+	return PromptSystemMeta{
+		PromptDelivery: strings.TrimSpace(m.PromptDelivery),
+	}
+}
+
+// IsZero reports whether the system metadata carries any fields.
+func (m PromptSystemMeta) IsZero() bool {
+	normalized := m.Normalize()
+	return normalized == (PromptSystemMeta{})
+}
+
+// Validate ensures the system metadata shape is internally consistent.
+func (m PromptSystemMeta) Validate() error {
+	normalized := m.Normalize()
+	switch SystemPromptDeliveryMode(normalized.PromptDelivery) {
+	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:
+		return nil
+	default:
+		return fmt.Errorf("acp: invalid system prompt delivery %q", normalized.PromptDelivery)
 	}
 }
 
@@ -523,9 +585,10 @@ type AgentProcess struct {
 	permissionRequestSeq uint64
 	permissionTimeout    time.Duration
 
-	systemPromptMu   sync.Mutex
-	systemPrompt     string
-	systemPromptSent bool
+	systemPromptMu       sync.Mutex
+	systemPrompt         string
+	systemPromptSent     bool
+	systemPromptDelivery SystemPromptDeliveryMode
 
 	turnSourceProviderMu sync.RWMutex
 	turnSourceProvider   func() string
@@ -760,7 +823,7 @@ func (p *AgentProcess) isNetworkTurn() bool {
 	return p.currentTurnSource() == networkCommandName
 }
 
-func (p *AgentProcess) nextPromptText(message string) string {
+func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromptDeliveryMode) {
 	userMessage := strings.TrimSpace(message)
 
 	p.systemPromptMu.Lock()
@@ -768,16 +831,23 @@ func (p *AgentProcess) nextPromptText(message string) string {
 
 	systemPrompt := strings.TrimSpace(p.systemPrompt)
 	if p.systemPromptSent || systemPrompt == "" {
-		return userMessage
+		return userMessage, false, ""
 	}
 
 	p.systemPromptSent = true
+	delivery := p.systemPromptDelivery
+	if delivery == "" {
+		delivery = SystemPromptDeliveryFirstTurnPrefix
+	}
+	if delivery == SystemPromptDeliveryNative {
+		return userMessage, true, delivery
+	}
 	return strings.TrimSpace(
 		"Session instructions (treat as system guidance for this conversation):\n\n" +
 			systemPrompt +
 			"\n\nUser request:\n\n" +
 			userMessage,
-	)
+	), true, delivery
 }
 
 func (p *AgentProcess) emitPromptEvent(event AgentEvent) {

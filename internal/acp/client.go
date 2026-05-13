@@ -275,22 +275,23 @@ func (d *Driver) newAgentProcess(
 	policy permissionPolicy,
 ) *AgentProcess {
 	return &AgentProcess{
-		PID:                handle.PID(),
-		AgentName:          normalized.AgentName,
-		Command:            command,
-		Args:               append([]string(nil), args...),
-		Cwd:                normalized.Cwd,
-		StartedAt:          timeNowUTC(),
-		handle:             handle,
-		toolHost:           toolHost,
-		toolGateway:        normalized.ToolGateway,
-		processCtx:         procCtx,
-		cancelProcess:      cancelProcess,
-		permissions:        policy,
-		done:               make(chan struct{}),
-		pendingPermissions: make(map[string]*pendingPermission),
-		permissionTimeout:  d.permissionWait,
-		systemPrompt:       normalized.SystemPrompt,
+		PID:                  handle.PID(),
+		AgentName:            normalized.AgentName,
+		Command:              command,
+		Args:                 append([]string(nil), args...),
+		Cwd:                  normalized.Cwd,
+		StartedAt:            timeNowUTC(),
+		handle:               handle,
+		toolHost:             toolHost,
+		toolGateway:          normalized.ToolGateway,
+		processCtx:           procCtx,
+		cancelProcess:        cancelProcess,
+		permissions:          policy,
+		done:                 make(chan struct{}),
+		pendingPermissions:   make(map[string]*pendingPermission),
+		permissionTimeout:    d.permissionWait,
+		systemPrompt:         normalized.SystemPrompt,
+		systemPromptDelivery: normalized.SystemPromptDelivery,
 	}
 }
 
@@ -995,11 +996,24 @@ func (d *Driver) sendPromptCancellationNotification(
 }
 
 func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {
+	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(req.Message)
 	promptRequest := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(proc.nextPromptText(req.Message))},
+		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(promptText)},
 	}
-	if meta := req.Meta.Normalize(); !meta.IsZero() {
+	meta := req.Meta.Normalize()
+	if includedSystemPrompt {
+		if promptDelivery == "" {
+			promptDelivery = SystemPromptDeliveryFirstTurnPrefix
+		}
+		meta.System = &PromptSystemMeta{
+			PromptDelivery: string(promptDelivery),
+		}
+	}
+	if !meta.IsZero() {
+		if err := meta.Validate(); err != nil {
+			return acpsdk.PromptRequest{}, err
+		}
 		metaMap, err := meta.ToMap()
 		if err != nil {
 			return acpsdk.PromptRequest{}, err
@@ -1164,6 +1178,11 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.MCPServers = append([]aghconfig.MCPServer(nil), normalized.MCPServers...)
 	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
+	if strings.TrimSpace(normalized.SystemPrompt) == "" {
+		normalized.SystemPromptDelivery = ""
+	} else if normalized.SystemPromptDelivery == "" {
+		normalized.SystemPromptDelivery = SystemPromptDeliveryFirstTurnPrefix
+	}
 	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
 
