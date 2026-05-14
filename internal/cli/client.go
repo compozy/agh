@@ -1403,8 +1403,15 @@ func (c *unixSocketClient) CreateNetworkChannel(
 	if err != nil {
 		return NetworkChannelDetailRecord{}, err
 	}
-	body := request
-	body.WorkspaceID = ""
+	body := struct {
+		Channel    string   `json:"channel"`
+		Purpose    string   `json:"purpose"`
+		AgentNames []string `json:"agent_names"`
+	}{
+		Channel:    request.Channel,
+		Purpose:    request.Purpose,
+		AgentNames: request.AgentNames,
+	}
 	if err := c.doJSON(ctx, http.MethodPost, path+"/channels", nil, body, &response); err != nil {
 		return NetworkChannelDetailRecord{}, err
 	}

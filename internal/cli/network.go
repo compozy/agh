@@ -164,9 +164,13 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 			if len(agentNames) == 0 {
 				return errors.New("cli: at least one --agent is required")
 			}
+			purpose := strings.TrimSpace(flags.purpose)
+			if purpose == "" {
+				return errors.New("cli: --purpose cannot be empty")
+			}
 			created, err := client.CreateNetworkChannel(cmd.Context(), workspace, CreateNetworkChannelRequest{
 				Channel:    channel,
-				Purpose:    strings.TrimSpace(flags.purpose),
+				Purpose:    purpose,
 				AgentNames: agentNames,
 			})
 			if err != nil {

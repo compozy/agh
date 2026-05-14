@@ -660,7 +660,7 @@ func (h *BaseHandlers) GetAgentHeartbeatStatus(c *gin.Context) {
 	if sessionID != "" {
 		if _, err := h.requireSessionInWorkspace(
 			c.Request.Context(),
-			target.sessionWorkspaceID,
+			target.storageWorkspaceID(),
 			sessionID,
 		); err != nil {
 			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
@@ -725,7 +725,7 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 	if sessionID != "" {
 		if _, err := h.requireSessionInWorkspace(
 			c.Request.Context(),
-			target.sessionWorkspaceID,
+			target.storageWorkspaceID(),
 			sessionID,
 		); err != nil {
 			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)

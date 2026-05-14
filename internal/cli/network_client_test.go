@@ -47,7 +47,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						if err != nil {
 							t.Fatalf("io.ReadAll(network channels create body) error = %v", err)
 						}
-						if strings.Contains(string(body), `"workspace_id":"ws-alpha"`) ||
+						if strings.Contains(string(body), `"workspace_id"`) ||
 							!strings.Contains(string(body), `"channel":"launch_ops"`) ||
 							!strings.Contains(string(body), `"purpose":"Coordinate launch work"`) ||
 							!strings.Contains(string(body), `"agent_names":["site_copywriter","growth_marketer"]`) {

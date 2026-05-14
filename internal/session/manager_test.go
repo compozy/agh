@@ -2799,20 +2799,24 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 func TestCreateDoesNotEnforceSessionCap(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	const total = 12
-	for range total {
-		session := createSession(t, h)
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
-				!errors.Is(err, ErrSessionNotFound) {
-				t.Errorf("Stop(%q) error = %v", session.ID, err)
-			}
-		})
-	}
-	if list := h.manager.List(); len(list) != total {
-		t.Fatalf("List() = %d sessions, want %d", len(list), total)
-	}
+	t.Run("Should allow more sessions than the configured cap", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		const total = 12
+		for range total {
+			session := createSession(t, h)
+			t.Cleanup(func() {
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+					!errors.Is(err, ErrSessionNotFound) {
+					t.Errorf("Stop(%q) error = %v", session.ID, err)
+				}
+			})
+		}
+		if list := h.manager.List(); len(list) != total {
+			t.Fatalf("List() = %d sessions, want %d", len(list), total)
+		}
+	})
 }
 
 func TestCreatePassesMergedMCPServers(t *testing.T) {

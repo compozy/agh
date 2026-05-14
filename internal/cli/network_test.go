@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -224,7 +225,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("network channels create error = %v", err)
 		}
 		if seenCreateRequest.Channel != "launch_ops" || seenCreateRequest.Purpose != "Coordinate launch work" ||
-			len(seenCreateRequest.AgentNames) != 2 || seenCreateRequest.AgentNames[1] != "growth_marketer" {
+			!slices.Equal(seenCreateRequest.AgentNames, []string{"site_copywriter", "growth_marketer"}) {
 			t.Fatalf("seenCreateRequest = %#v, want launch channel with two agents", seenCreateRequest)
 		}
 		var created NetworkChannelDetailRecord
@@ -233,6 +234,24 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		}
 		if created.Channel != "launch_ops" || created.SessionCount != 2 {
 			t.Fatalf("created channel = %#v, want launch_ops with two sessions", created)
+		}
+
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"channels",
+			"create",
+			"launch_ops",
+			"--purpose",
+			"   ",
+			"--agent",
+			"site_copywriter",
+		)
+		if err == nil || err.Error() != "cli: --purpose cannot be empty" {
+			t.Fatalf("network channels create whitespace purpose error = %v, want cli purpose validation", err)
 		}
 
 		sendOut, _, err := executeRootCommand(t, deps,

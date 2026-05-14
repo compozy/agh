@@ -228,6 +228,9 @@ describe("AppLayout", () => {
     expect(screen.getByTestId("app-grid")).toHaveClass(
       "min-[880px]:grid-cols-[56px_220px_minmax(0,1fr)]"
     );
+    expect(screen.getByTestId("app-grid")).toHaveClass(
+      "min-[1100px]:grid-cols-[56px_244px_minmax(0,1fr)]"
+    );
     expect(screen.getByTestId("app-sidebar")).toHaveClass("col-span-1");
     expect(screen.getByTestId("app-sidebar")).toHaveClass("min-[880px]:col-span-2");
     expect(screen.getByTestId("app-content")).toHaveClass("col-start-2");

@@ -4443,8 +4443,8 @@ func TestBaseHandlersNetworkUsesRegistryWorkspaceIdentity(t *testing.T) {
 
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-				if ref != "ws-workspace" {
-					t.Fatalf("Resolve() ref = %q, want ws-workspace", ref)
+				if ref != "ws-stable" {
+					t.Fatalf("Resolve() ref = %q, want ws-stable", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
 					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
@@ -4498,7 +4498,7 @@ func TestBaseHandlersNetworkUsesRegistryWorkspaceIdentity(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/network/channels",
+			"/workspaces/ws-stable/network/channels",
 			nil,
 		)
 		if resp.Code != http.StatusOK {
@@ -4520,8 +4520,8 @@ func TestBaseHandlersNetworkUsesRegistryWorkspaceIdentity(t *testing.T) {
 
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-				if ref != "ws-workspace" {
-					t.Fatalf("Resolve() ref = %q, want ws-workspace", ref)
+				if ref != "ws-stable" {
+					t.Fatalf("Resolve() ref = %q, want ws-stable", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
 					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
@@ -4551,9 +4551,9 @@ func TestBaseHandlersNetworkUsesRegistryWorkspaceIdentity(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodPost,
-			"/workspaces/ws-workspace/network/send",
+			"/workspaces/ws-stable/network/send",
 			[]byte(
-				"{\"workspace_id\":\"ws-workspace\",\"session_id\":\"sess-a\",\"channel\":\"builders\",\"surface\":\"thread\",\"thread_id\":\"thread_launch_db\",\"kind\":\"say\",\"body\":{\"text\":\"hello\"}}",
+				"{\"workspace_id\":\"ws-stable\",\"session_id\":\"sess-a\",\"channel\":\"builders\",\"surface\":\"thread\",\"thread_id\":\"thread_launch_db\",\"kind\":\"say\",\"body\":{\"text\":\"hello\"}}",
 			),
 		)
 		if resp.Code != http.StatusOK {
