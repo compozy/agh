@@ -1030,6 +1030,13 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		t.Fatal("expected resolved workspace id")
 	}
 	createdSession := createIntegrationSessionPayload(t, runtime)
+	if createdSession.WorkspaceID != resolved.Workspace.ID {
+		t.Fatalf(
+			"created session workspace_id = %q, want resolved workspace id %q",
+			createdSession.WorkspaceID,
+			resolved.Workspace.ID,
+		)
+	}
 
 	createResp := mustUnixRequest(
 		t,

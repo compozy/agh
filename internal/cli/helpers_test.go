@@ -125,7 +125,7 @@ type stubClient struct {
 	listToolsetsFn                func(context.Context, ToolQuery) (ToolsetsResponseRecord, error)
 	getToolsetFn                  func(context.Context, string, ToolQuery) (ToolsetResponseRecord, error)
 	hookCatalogFn                 func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
-	hookRunsFn                    func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
+	hookRunsFn                    func(context.Context, string, HookRunsQuery) ([]HookRunRecord, error)
 	hookEventsFn                  func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
 	observeEventsFn               func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
 	streamObserveEventsFn         func(context.Context, ObserveEventQuery, string, SSEHandler) error
@@ -1210,7 +1210,7 @@ func (s *stubClient) HookRuns(
 		if strings.TrimSpace(workspaceRef) == "" {
 			return nil, errors.New("stub: workspaceRef is required")
 		}
-		return s.hookRunsFn(ctx, query)
+		return s.hookRunsFn(ctx, workspaceRef, query)
 	}
 	return nil, errors.New("unexpected HookRuns call")
 }

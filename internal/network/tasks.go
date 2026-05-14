@@ -356,6 +356,9 @@ func (m *Manager) resolveTaskPeerContext(
 	if m.peers == nil {
 		return resolvedTaskPeerContext{}, m.rejectTaskIngress(ctx, ingress, action, ErrTaskIngressPeerNotFound, nil)
 	}
+	ingress.WorkspaceID = strings.TrimSpace(ingress.WorkspaceID)
+	ingress.Channel = strings.TrimSpace(ingress.Channel)
+	ingress.PeerID = strings.TrimSpace(ingress.PeerID)
 
 	peer, ok := m.peers.RemoteByPeer(ingress.WorkspaceID, ingress.Channel, ingress.PeerID, m.now().UTC())
 	if !ok {

@@ -215,6 +215,9 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 		if got, want := recorder.Code, http.StatusNotFound; got != want {
 			t.Fatalf("heartbeat status code = %d, want %d body=%s", got, want, recorder.Body.String())
 		}
+		if !strings.Contains(recorder.Body.String(), `"error":"api: workspace-scoped resource not found"`) {
+			t.Fatalf("heartbeat status body = %s, want workspace-scoped resource error payload", recorder.Body.String())
+		}
 		if statusSpy.calls != 0 {
 			t.Fatalf("heartbeat status calls = %d, want 0 before ownership validation", statusSpy.calls)
 		}
@@ -236,6 +239,9 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 
 		if got, want := recorder.Code, http.StatusNotFound; got != want {
 			t.Fatalf("heartbeat wake code = %d, want %d body=%s", got, want, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), `"error":"api: workspace-scoped resource not found"`) {
+			t.Fatalf("heartbeat wake body = %s, want workspace-scoped resource error payload", recorder.Body.String())
 		}
 		if wakeSpy.calls != 0 {
 			t.Fatalf("heartbeat wake calls = %d, want 0 before ownership validation", wakeSpy.calls)

@@ -389,16 +389,21 @@ func TestHostAPIHandlerSandboxInfoReturnsNotFoundForInvalidSession(t *testing.T)
 func TestHostAPIHandlerSandboxInfoRejectsForeignWorkspace(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-info", []string{"sandbox/info"}, nil)
-	sess := env.createSession(t)
-	foreign := env.addForeignWorkspace(t)
+	t.Run("Should reject foreign workspace sandbox info requests", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
-		"workspace_id": foreign.WorkspaceID,
-		"session_id":   sess.ID,
+		env := newHostAPITestEnv(t)
+		env.grant("ext-env-info", []string{"sandbox/info"}, nil)
+		sess := env.createSession(t)
+		foreign := env.addForeignWorkspace(t)
+
+		_, err := env.call(t, "ext-env-info", "sandbox/info", map[string]string{
+			"workspace_id": foreign.WorkspaceID,
+			"session_id":   sess.ID,
+		})
+		assertRPCErrorCode(t, err, HostAPINotFoundCode)
+		assertErrorContains(t, err, "Not found")
 	})
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
 func TestHostAPIHandlerSandboxInfoValidatesSessionID(t *testing.T) {
@@ -544,18 +549,23 @@ func TestHostAPIHandlerSandboxExecRunsCommandInSandbox(t *testing.T) {
 func TestHostAPIHandlerSandboxExecRejectsForeignWorkspace(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-env-exec", []string{"sandbox/exec"}, []string{"sandbox.exec"})
-	sess := env.createSession(t)
-	foreign := env.addForeignWorkspace(t)
+	t.Run("Should reject foreign workspace sandbox exec requests", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := env.call(t, "ext-env-exec", "sandbox/exec", map[string]any{
-		"workspace_id": foreign.WorkspaceID,
-		"session_id":   sess.ID,
-		"command":      "printf should-not-run",
-		"timeout":      5,
+		env := newHostAPITestEnv(t)
+		env.grant("ext-env-exec", []string{"sandbox/exec"}, []string{"sandbox.exec"})
+		sess := env.createSession(t)
+		foreign := env.addForeignWorkspace(t)
+
+		_, err := env.call(t, "ext-env-exec", "sandbox/exec", map[string]any{
+			"workspace_id": foreign.WorkspaceID,
+			"session_id":   sess.ID,
+			"command":      "printf should-not-run",
+			"timeout":      5,
+		})
+		assertRPCErrorCode(t, err, HostAPINotFoundCode)
+		assertErrorContains(t, err, "Not found")
 	})
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
 func TestHostAPIHandlerSandboxExecValidatesParams(t *testing.T) {

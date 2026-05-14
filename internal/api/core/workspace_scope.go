@@ -125,6 +125,10 @@ func (h *BaseHandlers) routeSessionInWorkspace(
 	if sessionID == "" {
 		sessionID = strings.TrimSpace(c.Param("id"))
 	}
+	if sessionID == "" {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: session_id path is required", h.transportName()))
+		return workspaceScope{}, "", nil, false
+	}
 	info, err := h.requireSessionInWorkspace(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	if err != nil {
 		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)

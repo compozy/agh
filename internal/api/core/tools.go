@@ -181,10 +181,11 @@ func (h *BaseHandlers) ListSessionTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	if _, _, _, ok := h.routeSessionInWorkspace(c); !ok {
+	routeScope, routeSessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
 		return
 	}
-	scope := h.sessionToolScope(c)
+	scope := h.sessionToolScope(c, routeScope.ID, routeSessionID)
 	views, err := h.Tools.List(c.Request.Context(), scope)
 	if err != nil {
 		h.respondToolError(c, err)
@@ -203,10 +204,11 @@ func (h *BaseHandlers) SearchSessionTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	if _, _, _, ok := h.routeSessionInWorkspace(c); !ok {
+	routeScope, routeSessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
 		return
 	}
-	scope := h.sessionToolScope(c)
+	scope := h.sessionToolScope(c, routeScope.ID, routeSessionID)
 	if reqWorkspaceID := strings.TrimSpace(
 		req.WorkspaceID,
 	); reqWorkspaceID != "" &&
@@ -424,14 +426,12 @@ func (h *BaseHandlers) operatorToolScope(c *gin.Context) toolspkg.Scope {
 	}
 }
 
-// sessionToolScope anchors session projections to the route session ID.
-func (h *BaseHandlers) sessionToolScope(c *gin.Context) toolspkg.Scope {
+// sessionToolScope anchors session projections to the resolved route workspace and session IDs.
+func (h *BaseHandlers) sessionToolScope(c *gin.Context, workspaceID string, sessionID string) toolspkg.Scope {
 	return toolspkg.Scope{
-		WorkspaceID: strings.TrimSpace(
-			firstNonEmpty(workspaceRefFromRoute(c), c.Query("workspace_id"), c.Query("workspace")),
-		),
-		SessionID: strings.TrimSpace(firstNonEmpty(c.Param("session_id"), c.Param("id"))),
-		AgentName: strings.TrimSpace(c.Query("agent_name")),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		SessionID:   strings.TrimSpace(sessionID),
+		AgentName:   strings.TrimSpace(c.Query("agent_name")),
 	}
 }
 

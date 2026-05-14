@@ -296,8 +296,10 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery HookRunsQuery
+	var seenWorkspace string
 	deps := newTestDeps(t, &stubClient{
-		hookRunsFn: func(_ context.Context, query HookRunsQuery) ([]HookRunRecord, error) {
+		hookRunsFn: func(_ context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error) {
+			seenWorkspace = workspaceRef
 			seenQuery = query
 			return []HookRunRecord{{
 				HookName:   "permission-guard",
@@ -326,6 +328,9 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 	if seenQuery.Session != "sess-1" || seenQuery.Event != "permission.request" || seenQuery.Outcome != "failed" ||
 		seenQuery.Last != 2 {
 		t.Fatalf("HookRuns() query = %#v, want session/event/outcome/last", seenQuery)
+	}
+	if seenWorkspace != "ws-workspace" {
+		t.Fatalf("HookRuns() workspace = %q, want ws-workspace", seenWorkspace)
 	}
 	if want := fixedTestNow.Add(-5 * time.Minute).UTC().Format(time.RFC3339Nano); seenQuery.Since != want {
 		t.Fatalf("HookRuns() since = %q, want %q", seenQuery.Since, want)

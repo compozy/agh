@@ -617,7 +617,8 @@ func TestRegisterNetworkRoutesMatchDocumentedHTTPAndUDSSurface(t *testing.T) {
 func registeredNetworkRoutesFromEngine(routes gin.RoutesInfo) []string {
 	filtered := make([]string, 0)
 	for _, route := range routes {
-		if strings.HasPrefix(route.Path, "/api/network") {
+		if strings.HasPrefix(route.Path, "/api/network") ||
+			strings.HasPrefix(route.Path, "/api/workspaces/:workspace_id/network") {
 			filtered = append(filtered, route.Method+" "+route.Path)
 		}
 	}
@@ -631,7 +632,8 @@ func documentedNetworkRoutesForTransport(transport apispec.Transport) []string {
 		if !slices.Contains(operation.Transports, transport) {
 			continue
 		}
-		if !strings.HasPrefix(operation.Path, "/api/network") {
+		if !strings.HasPrefix(operation.Path, "/api/network") &&
+			!strings.HasPrefix(operation.Path, "/api/workspaces/{workspace_id}/network") {
 			continue
 		}
 		routes = append(routes, operation.Method+" "+normalizeNetworkSpecRoutePath(operation.Path))

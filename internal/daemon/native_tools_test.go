@@ -766,6 +766,24 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should read hook introspection tools through observer without leaking secret fields", func(t *testing.T) {
 		t.Parallel()
 
+		stableWorkspaceID := "ws-stable"
+		registryWorkspaceID := "ws-registry"
+		workspaceRoot := t.TempDir()
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != stableWorkspaceID && ref != registryWorkspaceID {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      registryWorkspaceID,
+						RootDir: workspaceRoot,
+						Name:    "hooks",
+					},
+					WorkspaceID: stableWorkspaceID,
+				}, nil
+			},
+		}
 		observer := &nativeObserverStub{
 			catalog: []hookspkg.CatalogEntry{{
 				Order:        1,
@@ -805,8 +823,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Observer:   observer,
-			Sessions:   nativeNetworkTestSessionManager("ws-1"),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Sessions:   nativeNetworkTestSessionManager(registryWorkspaceID),
+			Workspaces: workspaces,
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -854,7 +872,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksRuns,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-1","session_id":"sess-hooks","event":"tool.pre_call","outcome":"applied","last":1}`,
+					`{"workspace_id":"ws-stable","session_id":"sess-hooks","event":"tool.pre_call","outcome":"applied","last":1}`,
 				),
 			},
 		)
@@ -879,14 +897,14 @@ func TestDaemonNativeTools(t *testing.T) {
 					return &session.Info{ID: strings.TrimSpace(id), WorkspaceID: "ws-other"}, nil
 				},
 			},
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: workspaces,
 		}, nativeApproveAllPolicyInputs())
 		_, err = foreignRegistry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksRuns,
-				Input:  json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-hooks"}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-hooks"}`),
 			},
 		)
 		if err == nil {
@@ -2772,13 +2790,34 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+		stableWorkspaceID := "ws-stable"
+		registryWorkspaceID := "ws-1"
+		foreignStableWorkspaceID := "ws-foreign-stable"
 		info := &session.Info{
 			ID:          "sess-1",
 			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			WorkspaceID: registryWorkspaceID,
 			State:       session.StateActive,
 			CreatedAt:   now,
 			UpdatedAt:   now,
+		}
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				switch ref {
+				case stableWorkspaceID, registryWorkspaceID:
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: registryWorkspaceID},
+						WorkspaceID: stableWorkspaceID,
+					}, nil
+				case foreignStableWorkspaceID, "ws-other":
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "ws-other"},
+						WorkspaceID: foreignStableWorkspaceID,
+					}, nil
+				default:
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			},
 		}
 		manager := apitest.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -2825,7 +2864,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Workspaces: workspaces,
 			Sessions:   manager,
 		}, nativeApproveAllPolicyInputs())
 
@@ -2835,10 +2874,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			want  []byte
 		}{
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
-			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-1"}`), []byte(`"session"`)},
-			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-1","limit":1}`), []byte(`"event-1"`)},
-			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
-			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-1","limit":1}`), []byte(`"history"`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1"}`), []byte(`"session"`)},
+			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"event-1"`)},
+			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
+			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"history"`)},
 		} {
 			t.Run(tc.id.String(), func(t *testing.T) {
 				result, err := registry.Call(
@@ -2858,7 +2897,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionStatus,
-				Input:  json.RawMessage(`{"workspace_id":"ws-2","session_id":"sess-1"}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-foreign-stable","session_id":"sess-1"}`),
 			},
 		)
 		if err == nil {

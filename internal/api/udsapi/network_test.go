@@ -161,7 +161,10 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 
 		localSessionID := "sess-local"
 		handlers.Network = stubNetworkService{
-			ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != networkUDSTestWorkspaceID {
+					t.Fatalf("ListPeers() workspaceID = %q, want %q", workspaceID, networkUDSTestWorkspaceID)
+				}
 				if channel != "builders" {
 					t.Fatalf("ListPeers() channel = %q, want builders", channel)
 				}
@@ -241,7 +244,13 @@ func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
 		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
 		handlers.Config.Network.Enabled = true
 		handlers.Network = stubNetworkService{
-			ListPeersFn: func(context.Context, string, string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != networkUDSTestWorkspaceID {
+					t.Fatalf("ListPeers() workspaceID = %q, want %q", workspaceID, networkUDSTestWorkspaceID)
+				}
+				if channel != "" {
+					t.Fatalf("ListPeers() channel = %q, want empty", channel)
+				}
 				return []network.PeerInfo{{
 					PeerID:  "reviewer.sess-a",
 					Channel: "builders",

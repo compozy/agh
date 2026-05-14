@@ -1186,11 +1186,15 @@ func (n *daemonNativeTools) networkInbox(
 	if sessionID == "" {
 		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "session_id")
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := n.requireNativeSessionWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.requireNativeSessionWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	messages, err := n.deps.Network.Inbox(ctx, sessionID)
@@ -1211,11 +1215,19 @@ func (n *daemonNativeTools) networkSend(
 		return toolspkg.ToolResult{}, err
 	}
 	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := n.requireNativeSessionWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.requireNativeSessionWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	sendReq, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
@@ -1585,11 +1597,15 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID)
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1610,11 +1626,15 @@ func (n *daemonNativeTools) sessionHealth(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	if n == nil || n.deps == nil || n.deps.SessionHealth == nil {
@@ -1744,11 +1764,15 @@ func (n *daemonNativeTools) sessionEvents(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, input.SessionID)
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1772,11 +1796,15 @@ func (n *daemonNativeTools) sessionHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, input.SessionID)
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1797,11 +1825,15 @@ func (n *daemonNativeTools) sessionDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, input.SessionID)
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1890,7 +1922,7 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := nativeResolvedWorkspaceID(&resolved)
+	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -2693,7 +2725,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if root == "" {
 		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
-	resolvedWorkspaceID, err := nativeResolvedWorkspaceID(&resolved)
+	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}
@@ -3561,37 +3593,64 @@ func nativeNetworkInputError(id toolspkg.ToolID, err error) error {
 	)
 }
 
+func (n *daemonNativeTools) nativeResolvedWorkspace(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	workspaceRef string,
+	scope toolspkg.Scope,
+) (workspacepkg.ResolvedWorkspace, error) {
+	ref := firstNonEmpty(workspaceRef, scope.WorkspaceID)
+	if ref == "" {
+		return workspacepkg.ResolvedWorkspace{}, nativeRequiredInputError(id, "workspace_id")
+	}
+	if n == nil || n.deps == nil || n.deps.Workspaces == nil {
+		return workspacepkg.ResolvedWorkspace{}, nativeNetworkInputError(
+			id,
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, nativeNetworkInputError(id, err)
+	}
+	return resolved, nil
+}
+
 func (n *daemonNativeTools) nativeNetworkWorkspaceID(
 	ctx context.Context,
 	id toolspkg.ToolID,
 	workspaceRef string,
 	scope toolspkg.Scope,
 ) (string, error) {
-	ref := firstNonEmpty(workspaceRef, scope.WorkspaceID)
-	if ref == "" {
-		return "", nativeRequiredInputError(id, "workspace_id")
+	resolved, err := n.nativeResolvedWorkspace(ctx, id, workspaceRef, scope)
+	if err != nil {
+		return "", err
 	}
-	if n == nil || n.deps == nil || n.deps.Workspaces == nil {
-		return "", nativeNetworkInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
-	}
-	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
+	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
 	if err != nil {
 		return "", nativeNetworkInputError(id, err)
-	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
-	if workspaceID == "" {
-		return "", nativeNetworkInputError(id, errors.New("workspace_id resolved empty"))
 	}
 	return workspaceID, nil
 }
 
-func nativeResolvedWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
+func nativeResolvedNetworkWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
 	if resolved == nil {
 		return "", errors.New("daemon: resolved workspace is required")
 	}
 	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
 	if workspaceID == "" {
 		return "", errors.New("daemon: resolved workspace_id is empty")
+	}
+	return workspaceID, nil
+}
+
+func nativeResolvedRegistryWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
+	if resolved == nil {
+		return "", errors.New("daemon: resolved workspace is required")
+	}
+	workspaceID := strings.TrimSpace(resolved.ID)
+	if workspaceID == "" {
+		return "", errors.New("daemon: resolved workspace registry id is empty")
 	}
 	return workspaceID, nil
 }

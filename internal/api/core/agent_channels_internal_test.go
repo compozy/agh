@@ -24,294 +24,348 @@ import (
 func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T) {
 	t.Parallel()
 
-	var sent []network.SendRequest
-	source := agentCoreEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
-	source.From = "reviewer.sess-peer"
-	networkService := &agentCoreNetworkService{
-		ListChannelsFn: func(context.Context, string) ([]network.ChannelInfo, error) {
-			return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
-		},
-		SendFn: func(_ context.Context, request network.SendRequest) (string, error) {
-			sent = append(sent, request)
-			if len(sent) == 1 {
-				return "msg-send", nil
-			}
-			return "msg-reply", nil
-		},
-		WaitInboxFn: func(_ context.Context, sessionID string, channel string) ([]network.Envelope, error) {
-			if sessionID != "sess-agent" || channel != "builders" {
-				t.Fatalf("WaitInbox() = %q/%q, want caller session builders", sessionID, channel)
-			}
-			return []network.Envelope{
-				agentCoreEnvelope(t, "msg-other", "other", contract.CoordinationMessageStatus),
-				agentCoreEnvelope(t, "msg-builders", "builders", contract.CoordinationMessageResult),
-			}, nil
-		},
-		InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
-			if sessionID != "sess-agent" {
-				t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
-			}
-			return []network.Envelope{source}, nil
-		},
-	}
-	engine := newAgentCoreTestRouter(t, networkService)
+	t.Run("Should use caller identity and coordination metadata for channel operations", func(t *testing.T) {
+		t.Parallel()
 
-	contextResp := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/context", nil, agentCoreHeaders())
-	if contextResp.Code != http.StatusOK {
-		t.Fatalf("context status = %d, want %d; body=%s", contextResp.Code, http.StatusOK, contextResp.Body.String())
-	}
-	var contextPayload contract.AgentContextResponse
-	decodeAgentCoreResponse(t, contextResp, &contextPayload)
-	if contextPayload.Context.Self.SessionID != "sess-agent" ||
-		contextPayload.Context.Workspace.ID != "ws-1" {
-		t.Fatalf("context = %#v, want caller identity", contextPayload.Context)
-	}
-	if contextPayload.Context.Session.Lineage == nil ||
-		contextPayload.Context.Session.Lineage.ParentSessionID != "sess-root" ||
-		contextPayload.Context.Session.Lineage.RootSessionID != "sess-root" ||
-		contextPayload.Context.Session.Lineage.SpawnDepth != 1 {
-		t.Fatalf(
-			"context session lineage = %#v, want propagated caller lineage",
-			contextPayload.Context.Session.Lineage,
+		var sent []network.SendRequest
+		source := agentCoreEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
+		source.Channel = " builders "
+		source.From = " reviewer.sess-peer "
+		networkService := &agentCoreNetworkService{
+			ListChannelsFn: func(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("ListChannels() workspaceID = %q, want ws-1", workspaceID)
+				}
+				return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
+			},
+			SendFn: func(_ context.Context, request network.SendRequest) (string, error) {
+				sent = append(sent, request)
+				if len(sent) == 1 {
+					return "msg-send", nil
+				}
+				return "msg-reply", nil
+			},
+			WaitInboxFn: func(_ context.Context, sessionID string, channel string) ([]network.Envelope, error) {
+				if sessionID != "sess-agent" || channel != "builders" {
+					t.Fatalf("WaitInbox() = %q/%q, want caller session builders", sessionID, channel)
+				}
+				return []network.Envelope{
+					agentCoreEnvelope(t, "msg-other", "other", contract.CoordinationMessageStatus),
+					agentCoreEnvelope(t, "msg-builders", "builders", contract.CoordinationMessageResult),
+				}, nil
+			},
+			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
+				if sessionID != "sess-agent" {
+					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
+				}
+				return []network.Envelope{source}, nil
+			},
+		}
+		engine := newAgentCoreTestRouter(t, networkService)
+
+		contextResp := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/context", nil, agentCoreHeaders())
+		if contextResp.Code != http.StatusOK {
+			t.Fatalf(
+				"context status = %d, want %d; body=%s",
+				contextResp.Code,
+				http.StatusOK,
+				contextResp.Body.String(),
+			)
+		}
+		var contextPayload contract.AgentContextResponse
+		decodeAgentCoreResponse(t, contextResp, &contextPayload)
+		if contextPayload.Context.Self.SessionID != "sess-agent" ||
+			contextPayload.Context.Workspace.ID != "ws-1" {
+			t.Fatalf("context = %#v, want caller identity", contextPayload.Context)
+		}
+		if contextPayload.Context.Session.Lineage == nil ||
+			contextPayload.Context.Session.Lineage.ParentSessionID != "sess-root" ||
+			contextPayload.Context.Session.Lineage.RootSessionID != "sess-root" ||
+			contextPayload.Context.Session.Lineage.SpawnDepth != 1 {
+			t.Fatalf(
+				"context session lineage = %#v, want propagated caller lineage",
+				contextPayload.Context.Session.Lineage,
+			)
+		}
+
+		channelsResp := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/channels", nil, agentCoreHeaders())
+		if channelsResp.Code != http.StatusOK {
+			t.Fatalf(
+				"channels status = %d, want %d; body=%s",
+				channelsResp.Code,
+				http.StatusOK,
+				channelsResp.Body.String(),
+			)
+		}
+		var channels contract.AgentChannelsResponse
+		decodeAgentCoreResponse(t, channelsResp, &channels)
+		if len(channels.Channels) != 1 ||
+			channels.Channels[0].ID != "builders" ||
+			len(channels.Channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
+			t.Fatalf("channels = %#v, want builders with MVP kinds", channels.Channels)
+		}
+
+		sendResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/builders/send",
+			[]byte(
+				`{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+			),
+			agentCoreHeaders(),
 		)
-	}
+		if sendResp.Code != http.StatusAccepted {
+			t.Fatalf("send status = %d, want %d; body=%s", sendResp.Code, http.StatusAccepted, sendResp.Body.String())
+		}
+		if len(sent) != 1 ||
+			sent[0].SessionID != "sess-agent" ||
+			sent[0].Channel != "builders" ||
+			sent[0].Kind != network.KindSay {
+			t.Fatalf("sent requests = %#v, want caller-bound say", sent)
+		}
+		if metadata := decodeAgentCoreCoordinationExt(
+			t,
+			sent[0].Ext,
+		); metadata.MessageKind != contract.CoordinationMessageStatus ||
+			metadata.WorkflowID != "wf-1" {
+			t.Fatalf("send metadata = %#v, want status wf-1", metadata)
+		}
 
-	channelsResp := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/channels", nil, agentCoreHeaders())
-	if channelsResp.Code != http.StatusOK {
-		t.Fatalf("channels status = %d, want %d; body=%s", channelsResp.Code, http.StatusOK, channelsResp.Body.String())
-	}
-	var channels contract.AgentChannelsResponse
-	decodeAgentCoreResponse(t, channelsResp, &channels)
-	if len(channels.Channels) != 1 ||
-		channels.Channels[0].ID != "builders" ||
-		len(channels.Channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
-		t.Fatalf("channels = %#v, want builders with MVP kinds", channels.Channels)
-	}
-
-	sendResp := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/agent/channels/builders/send",
-		[]byte(
-			`{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
-		),
-		agentCoreHeaders(),
-	)
-	if sendResp.Code != http.StatusAccepted {
-		t.Fatalf("send status = %d, want %d; body=%s", sendResp.Code, http.StatusAccepted, sendResp.Body.String())
-	}
-	if len(sent) != 1 ||
-		sent[0].SessionID != "sess-agent" ||
-		sent[0].Channel != "builders" ||
-		sent[0].Kind != network.KindSay {
-		t.Fatalf("sent requests = %#v, want caller-bound say", sent)
-	}
-	if metadata := decodeAgentCoreCoordinationExt(
-		t,
-		sent[0].Ext,
-	); metadata.MessageKind != contract.CoordinationMessageStatus ||
-		metadata.WorkflowID != "wf-1" {
-		t.Fatalf("send metadata = %#v, want status wf-1", metadata)
-	}
-
-	recvResp := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/agent/channels/builders/recv?wait=true&limit=1",
-		nil,
-		agentCoreHeaders(),
-	)
-	if recvResp.Code != http.StatusOK {
-		t.Fatalf("recv status = %d, want %d; body=%s", recvResp.Code, http.StatusOK, recvResp.Body.String())
-	}
-	var messages contract.AgentChannelMessagesResponse
-	decodeAgentCoreResponse(t, recvResp, &messages)
-	if len(messages.Messages) != 1 ||
-		messages.Messages[0].MessageID != "msg-builders" ||
-		messages.Messages[0].Metadata.MessageKind != contract.CoordinationMessageResult {
-		t.Fatalf("messages = %#v, want builders result message", messages.Messages)
-	}
-
-	queuedResp := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/agent/channels/builders/recv",
-		nil,
-		agentCoreHeaders(),
-	)
-	if queuedResp.Code != http.StatusOK {
-		t.Fatalf("queued recv status = %d, want %d; body=%s", queuedResp.Code, http.StatusOK, queuedResp.Body.String())
-	}
-	var queuedMessages contract.AgentChannelMessagesResponse
-	decodeAgentCoreResponse(t, queuedResp, &queuedMessages)
-	if len(queuedMessages.Messages) != 1 || queuedMessages.Messages[0].MessageID != "msg-source" {
-		t.Fatalf("queued messages = %#v, want source inbox message", queuedMessages.Messages)
-	}
-
-	replyResp := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/agent/channels/reply",
-		[]byte(
-			`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
-		),
-		agentCoreHeaders(),
-	)
-	if replyResp.Code != http.StatusAccepted {
-		t.Fatalf("reply status = %d, want %d; body=%s", replyResp.Code, http.StatusAccepted, replyResp.Body.String())
-	}
-	if len(sent) != 2 ||
-		sent[1].SessionID != "sess-agent" ||
-		sent[1].Kind != network.KindSay ||
-		sent[1].Surface == nil ||
-		*sent[1].Surface != network.SurfaceDirect ||
-		sent[1].DirectID == nil ||
-		sent[1].To == nil ||
-		*sent[1].To != "reviewer.sess-peer" ||
-		sent[1].ReplyTo == nil ||
-		*sent[1].ReplyTo != "msg-source" {
-		t.Fatalf("reply request = %#v, want direct reply to source", sent)
-	}
-	if metadata := decodeAgentCoreCoordinationExt(
-		t,
-		sent[1].Ext,
-	); metadata.MessageKind != contract.CoordinationMessageReply ||
-		metadata.TaskID != "task-1" ||
-		metadata.RunID != "run-1" {
-		t.Fatalf("reply metadata = %#v, want inherited reply metadata", metadata)
-	}
-
-	badReplyKind := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/agent/channels/reply",
-		[]byte(
-			`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
-		),
-		agentCoreHeaders(),
-	)
-	if badReplyKind.Code != http.StatusBadRequest {
-		t.Fatalf(
-			"bad reply kind status = %d, want %d; body=%s",
-			badReplyKind.Code,
-			http.StatusBadRequest,
-			badReplyKind.Body.String(),
+		recvResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/agent/channels/builders/recv?wait=true&limit=1",
+			nil,
+			agentCoreHeaders(),
 		)
-	}
-	if len(sent) != 2 {
-		t.Fatalf("sent request count after bad reply kind = %d, want unchanged 2", len(sent))
-	}
+		if recvResp.Code != http.StatusOK {
+			t.Fatalf("recv status = %d, want %d; body=%s", recvResp.Code, http.StatusOK, recvResp.Body.String())
+		}
+		var messages contract.AgentChannelMessagesResponse
+		decodeAgentCoreResponse(t, recvResp, &messages)
+		if len(messages.Messages) != 1 ||
+			messages.Messages[0].MessageID != "msg-builders" ||
+			messages.Messages[0].Metadata.MessageKind != contract.CoordinationMessageResult {
+			t.Fatalf("messages = %#v, want builders result message", messages.Messages)
+		}
+
+		queuedResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/agent/channels/builders/recv",
+			nil,
+			agentCoreHeaders(),
+		)
+		if queuedResp.Code != http.StatusOK {
+			t.Fatalf(
+				"queued recv status = %d, want %d; body=%s",
+				queuedResp.Code,
+				http.StatusOK,
+				queuedResp.Body.String(),
+			)
+		}
+		var queuedMessages contract.AgentChannelMessagesResponse
+		decodeAgentCoreResponse(t, queuedResp, &queuedMessages)
+		if len(queuedMessages.Messages) != 1 || queuedMessages.Messages[0].MessageID != "msg-source" {
+			t.Fatalf("queued messages = %#v, want source inbox message", queuedMessages.Messages)
+		}
+		wantDirectID, _, _, err := network.DirectRoomIdentity(
+			"ws-1",
+			"builders",
+			"coder.sess-agent",
+			"reviewer.sess-peer",
+		)
+		if err != nil {
+			t.Fatalf("DirectRoomIdentity() error = %v", err)
+		}
+
+		replyResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/reply",
+			[]byte(
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+			),
+			agentCoreHeaders(),
+		)
+		if replyResp.Code != http.StatusAccepted {
+			t.Fatalf(
+				"reply status = %d, want %d; body=%s",
+				replyResp.Code,
+				http.StatusAccepted,
+				replyResp.Body.String(),
+			)
+		}
+		if len(sent) != 2 ||
+			sent[1].SessionID != "sess-agent" ||
+			sent[1].Kind != network.KindSay ||
+			sent[1].Surface == nil ||
+			*sent[1].Surface != network.SurfaceDirect ||
+			sent[1].Channel != "builders" ||
+			sent[1].DirectID == nil ||
+			*sent[1].DirectID != wantDirectID ||
+			sent[1].To == nil ||
+			*sent[1].To != "reviewer.sess-peer" ||
+			sent[1].ReplyTo == nil ||
+			*sent[1].ReplyTo != "msg-source" {
+			t.Fatalf("reply request = %#v, want direct reply to source", sent)
+		}
+		if metadata := decodeAgentCoreCoordinationExt(
+			t,
+			sent[1].Ext,
+		); metadata.MessageKind != contract.CoordinationMessageReply ||
+			metadata.TaskID != "task-1" ||
+			metadata.RunID != "run-1" {
+			t.Fatalf("reply metadata = %#v, want inherited reply metadata", metadata)
+		}
+
+		badReplyKind := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/reply",
+			[]byte(
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+			),
+			agentCoreHeaders(),
+		)
+		if badReplyKind.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"bad reply kind status = %d, want %d; body=%s",
+				badReplyKind.Code,
+				http.StatusBadRequest,
+				badReplyKind.Body.String(),
+			)
+		}
+		if len(sent) != 2 {
+			t.Fatalf("sent request count after bad reply kind = %d, want unchanged 2", len(sent))
+		}
+	})
 }
 
 func TestAgentMeCoreHandlerEnrichesContextAndChannels(t *testing.T) {
 	t.Parallel()
 
-	engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{
-		ListChannelsFn: func(context.Context, string) ([]network.ChannelInfo, error) {
-			return []network.ChannelInfo{{Channel: "builders", PeerCount: 1}}, nil
-		},
+	t.Run("Should enrich agent me with context and visible channels", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{
+			ListChannelsFn: func(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("ListChannels() workspaceID = %q, want ws-1", workspaceID)
+				}
+				return []network.ChannelInfo{{Channel: "builders", PeerCount: 1}}, nil
+			},
+		})
+
+		recorder := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/me", nil, agentCoreHeaders())
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentMeResponse
+		decodeAgentCoreResponse(t, recorder, &response)
+		if response.Me.Self.SessionID != "sess-agent" ||
+			response.Me.Workspace.ID != "ws-1" ||
+			len(response.Me.Capabilities) != 1 ||
+			len(response.Me.Channels) != 1 ||
+			len(response.Me.ActiveTaskLeases) != 1 ||
+			!response.Me.Coordinator.Enabled ||
+			response.Me.Coordinator.AgentName != "coordinator" ||
+			response.Me.Coordinator.WorkspaceID != "ws-1" ||
+			response.Me.Limits.MaxChildren != 2 {
+			t.Fatalf("agent me = %#v, want context and channel enrichment", response.Me)
+		}
 	})
-
-	recorder := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/me", nil, agentCoreHeaders())
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-
-	var response contract.AgentMeResponse
-	decodeAgentCoreResponse(t, recorder, &response)
-	if response.Me.Self.SessionID != "sess-agent" ||
-		response.Me.Workspace.ID != "ws-1" ||
-		len(response.Me.Capabilities) != 1 ||
-		len(response.Me.Channels) != 1 ||
-		len(response.Me.ActiveTaskLeases) != 1 ||
-		!response.Me.Coordinator.Enabled ||
-		response.Me.Coordinator.AgentName != "coordinator" ||
-		response.Me.Coordinator.WorkspaceID != "ws-1" ||
-		response.Me.Limits.MaxChildren != 2 {
-		t.Fatalf("agent me = %#v, want context and channel enrichment", response.Me)
-	}
 }
 
 func TestAgentCoordinatorConfigCoreHandlerReturnsResolvedWorkspaceConfig(t *testing.T) {
 	t.Parallel()
 
-	engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{})
-	recorder := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/agent/coordinator/config",
-		nil,
-		agentCoreHeaders(),
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
+	t.Run("Should return resolved coordinator config for the caller workspace", func(t *testing.T) {
+		t.Parallel()
 
-	var response contract.AgentCoordinatorConfigResponse
-	decodeAgentCoreResponse(t, recorder, &response)
-	if !response.Coordinator.Enabled ||
-		response.Coordinator.AgentName != "coordinator" ||
-		response.Coordinator.DefaultTTLSeconds != 2700 ||
-		response.Coordinator.MaxChildren != 5 ||
-		response.Coordinator.MaxActivePerWorkspace != 1 ||
-		response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
-		response.Coordinator.WorkspaceID != "ws-1" {
-		t.Fatalf("coordinator config = %#v, want resolved workspace config", response.Coordinator)
-	}
+		engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{})
+		recorder := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/agent/coordinator/config",
+			nil,
+			agentCoreHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentCoordinatorConfigResponse
+		decodeAgentCoreResponse(t, recorder, &response)
+		if !response.Coordinator.Enabled ||
+			response.Coordinator.AgentName != "coordinator" ||
+			response.Coordinator.DefaultTTLSeconds != 2700 ||
+			response.Coordinator.MaxChildren != 5 ||
+			response.Coordinator.MaxActivePerWorkspace != 1 ||
+			response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
+			response.Coordinator.WorkspaceID != "ws-1" {
+			t.Fatalf("coordinator config = %#v, want resolved workspace config", response.Coordinator)
+		}
+	})
 }
 
 func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T) {
 	t.Parallel()
 
-	sendCalled := false
-	engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{
-		SendFn: func(context.Context, network.SendRequest) (string, error) {
-			sendCalled = true
-			return "unexpected", nil
-		},
-	})
+	t.Run("Should reject invalid identity headers and raw claim tokens", func(t *testing.T) {
+		t.Parallel()
 
-	denied := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/agent/channels/builders/send",
-		[]byte(
-			`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
-		),
-		map[string]string{},
-	)
-	if denied.Code != http.StatusUnauthorized {
-		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusUnauthorized)
-	}
+		sendCalled := false
+		engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{
+			SendFn: func(context.Context, network.SendRequest) (string, error) {
+				sendCalled = true
+				return "unexpected", nil
+			},
+		})
 
-	rawToken := performAgentCoreRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/agent/channels/builders/send",
-		[]byte(
-			`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
-		),
-		agentCoreHeaders(),
-	)
-	if rawToken.Code != http.StatusBadRequest {
-		t.Fatalf(
-			"claim_token status = %d, want %d; body=%s",
-			rawToken.Code,
-			http.StatusBadRequest,
-			rawToken.Body.String(),
+		denied := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/builders/send",
+			[]byte(
+				`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+			),
+			map[string]string{},
 		)
-	}
-	if sendCalled {
-		t.Fatal("Send should not be called for denied/raw-token requests")
-	}
+		if denied.Code != http.StatusUnauthorized {
+			t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusUnauthorized)
+		}
+
+		rawToken := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/builders/send",
+			[]byte(
+				`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+			),
+			agentCoreHeaders(),
+		)
+		if rawToken.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"claim_token status = %d, want %d; body=%s",
+				rawToken.Code,
+				http.StatusBadRequest,
+				rawToken.Body.String(),
+			)
+		}
+		if sendCalled {
+			t.Fatal("Send should not be called for denied/raw-token requests")
+		}
+	})
 }
 
 func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {

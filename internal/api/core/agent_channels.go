@@ -288,18 +288,20 @@ func agentChannelReplySendRequest(
 ) (network.SendRequest, error) {
 	callerPeerID := agentCallerPeerID(caller)
 	workspaceID := strings.TrimSpace(caller.Session.WorkspaceID)
-	directID, _, _, err := network.DirectRoomIdentity(workspaceID, source.Channel, callerPeerID, source.From)
+	sourceChannel := strings.TrimSpace(source.Channel)
+	targetPeerID := strings.TrimSpace(source.From)
+	directID, _, _, err := network.DirectRoomIdentity(workspaceID, sourceChannel, callerPeerID, targetPeerID)
 	if err != nil {
 		return network.SendRequest{}, err
 	}
 	sendReq := network.SendRequest{
 		SessionID:   strings.TrimSpace(caller.Session.ID),
 		WorkspaceID: workspaceID,
-		Channel:     strings.TrimSpace(source.Channel),
+		Channel:     sourceChannel,
 		Surface:     networkSurfacePtr(network.SurfaceDirect),
 		DirectID:    ptrString(directID),
 		Kind:        network.KindSay,
-		To:          ptrString(strings.TrimSpace(source.From)),
+		To:          ptrString(targetPeerID),
 		ReplyTo:     ptrString(req.ReplyToMessageID),
 		Body:        cloneRawMessage(req.Body),
 		Ext:         ext,

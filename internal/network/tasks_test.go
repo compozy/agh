@@ -273,6 +273,60 @@ func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 	})
 }
 
+func TestEnqueueRunFromPeerNormalizesIngressIdentifiersBeforePeerLookup(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 14, 18, 2, 0, 0, time.UTC)
+	peerID := "reviewer.sess-ops"
+	var capturedActor taskpkg.ActorContext
+	manager := &Manager{
+		logger: discardManagerLogger(),
+		now:    func() time.Time { return now },
+		peers:  newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
+		tasks: fakeNetworkTaskService{
+			getTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+				capturedActor = actor
+				return &taskpkg.View{
+					Task: taskpkg.Task{
+						ID:             id,
+						Scope:          taskpkg.ScopeGlobal,
+						Title:          "Bound task",
+						NetworkChannel: "ops",
+					},
+				}, nil
+			},
+			enqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, _ taskpkg.ActorContext) (*taskpkg.Run, error) {
+				return &taskpkg.Run{ID: "run-1", TaskID: spec.TaskID}, nil
+			},
+		},
+	}
+
+	run, err := manager.EnqueueRunFromPeer(context.Background(), TaskIngressContext{
+		WorkspaceID: " " + testWorkspaceID + " ",
+		PeerID:      " " + peerID + " ",
+		Channel:     " ops ",
+		RequestID:   "req-normalized-1",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_task_ingress",
+		WorkID:      "work_task_ingress",
+	}, taskpkg.EnqueueRun{
+		TaskID:         "task-1",
+		IdempotencyKey: "idem-1",
+	})
+	if err != nil {
+		t.Fatalf("EnqueueRunFromPeer() error = %v", err)
+	}
+	if run == nil || run.ID != "run-1" {
+		t.Fatalf("EnqueueRunFromPeer() run = %#v, want run-1", run)
+	}
+	if got, want := capturedActor.Actor.Ref, peerID; got != want {
+		t.Fatalf("captured actor ref = %q, want %q", got, want)
+	}
+	if got, want := capturedActor.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
+		t.Fatalf("captured actor origin = %q, want %q", got, want)
+	}
+}
+
 func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.T) {
 	t.Parallel()
 

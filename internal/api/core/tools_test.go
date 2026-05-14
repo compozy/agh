@@ -16,6 +16,7 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
@@ -394,6 +395,140 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 	})
 }
 
+func TestSessionToolHandlersUseResolvedRouteScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should use resolved workspace identity for session-scoped tool projections", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newAPITestToolRegistry(t, false)
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				switch ref {
+				case "ws-alias", "ws-stable":
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      "ws-registry",
+							RootDir: "/workspace",
+							Name:    "alias",
+						},
+						WorkspaceID: "ws-stable",
+					}, nil
+				default:
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			},
+		})
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			Sessions:           networkTestSessionManager("ws-registry", "sess-1"),
+			Observer:           testutil.StubObserver{},
+			Tasks:              testutil.StubTaskManager{},
+			Workspaces:         workspaces,
+			Tools:              registry,
+			Toolsets:           registry,
+			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+			HomePaths:          homePaths,
+			Config:             cfg,
+			Logger:             testutil.DiscardLogger(),
+			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
+			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
+			PollInterval:       time.Millisecond,
+			StreamDone:         make(chan struct{}),
+			MaskInternalErrors: false,
+		})
+		engine := newToolCoreEngine(t, handlers)
+
+		listResp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-alias/sessions/sess-1/tools", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("session list status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
+		}
+		listScope := registry.lastList()
+		if listScope.WorkspaceID != "ws-stable" || listScope.SessionID != "sess-1" {
+			t.Fatalf("list scope = %#v, want resolved stable workspace and route session", listScope)
+		}
+
+		searchResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/workspaces/ws-alias/sessions/sess-1/tools/search",
+			[]byte(`{"query":"skill","limit":1,"workspace_id":"ws-stable","session_id":"sess-1"}`),
+		)
+		if searchResp.Code != http.StatusOK {
+			t.Fatalf(
+				"session search status = %d, want %d; body=%s",
+				searchResp.Code,
+				http.StatusOK,
+				searchResp.Body.String(),
+			)
+		}
+		searchScope, _ := registry.lastSearch()
+		if searchScope.WorkspaceID != "ws-stable" || searchScope.SessionID != "sess-1" {
+			t.Fatalf("search scope = %#v, want resolved stable workspace and route session", searchScope)
+		}
+
+		mismatchResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/workspaces/ws-alias/sessions/sess-1/tools/search",
+			[]byte(`{"query":"skill","workspace_id":"ws-alias","session_id":"sess-1"}`),
+		)
+		if mismatchResp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"mismatch status = %d, want %d; body=%s",
+				mismatchResp.Code,
+				http.StatusBadRequest,
+				mismatchResp.Body.String(),
+			)
+		}
+		if !strings.Contains(mismatchResp.Body.String(), "workspace_id does not match path") {
+			t.Fatalf("mismatch body = %s, want workspace mismatch error", mismatchResp.Body.String())
+		}
+	})
+
+	t.Run("Should reject empty session route identifiers deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newAPITestToolRegistry(t, false)
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			Sessions:           networkTestSessionManager("ws-workspace", "sess-1"),
+			Observer:           testutil.StubObserver{},
+			Tasks:              testutil.StubTaskManager{},
+			Workspaces:         defaultCoreWorkspaceService(testutil.StubWorkspaceService{}),
+			Tools:              registry,
+			Toolsets:           registry,
+			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+			HomePaths:          homePaths,
+			Config:             cfg,
+			Logger:             testutil.DiscardLogger(),
+			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
+			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
+			PollInterval:       time.Millisecond,
+			StreamDone:         make(chan struct{}),
+			MaskInternalErrors: false,
+		})
+		engine := newToolCoreEngine(t, handlers)
+
+		resp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-workspace/sessions/%20/tools", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"empty session status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusBadRequest,
+				resp.Body.String(),
+			)
+		}
+		if !strings.Contains(resp.Body.String(), "session_id path is required") {
+			t.Fatalf("empty session body = %s, want session_id path error", resp.Body.String())
+		}
+	})
+}
+
 func newToolCoreEngine(t *testing.T, handlers *core.BaseHandlers) *gin.Engine {
 	t.Helper()
 	engine := gin.New()
@@ -413,6 +548,7 @@ type apiTestToolRegistry struct {
 	registry        *toolspkg.RuntimeRegistry
 	mu              sync.Mutex
 	calls           map[toolspkg.ToolID]int
+	lastListScope   toolspkg.Scope
 	lastCallScope   toolspkg.Scope
 	lastCallRequest toolspkg.CallRequest
 	lastSearchScope toolspkg.Scope
@@ -489,6 +625,9 @@ func newAPITestToolRegistry(
 }
 
 func (r *apiTestToolRegistry) List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error) {
+	r.mu.Lock()
+	r.lastListScope = scope
+	r.mu.Unlock()
 	return r.registry.List(ctx, scope)
 }
 
@@ -552,6 +691,12 @@ func (r *apiTestToolRegistry) lastCall() (toolspkg.Scope, toolspkg.CallRequest) 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.lastCallScope, r.lastCallRequest
+}
+
+func (r *apiTestToolRegistry) lastList() toolspkg.Scope {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastListScope
 }
 
 func (r *apiTestToolRegistry) lastSearch() (toolspkg.Scope, toolspkg.SearchQuery) {

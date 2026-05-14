@@ -372,11 +372,15 @@ func (n *daemonNativeTools) hooksRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, query.SessionID); err != nil {
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, query.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	runs, err := n.deps.Observer.QueryHookRuns(ctx, query)

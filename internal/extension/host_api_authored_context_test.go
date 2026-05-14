@@ -98,69 +98,85 @@ func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {
 func TestHostAPIHandlerSessionsSoulRefreshRequiresWorkspaceOwnership(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	sess := env.createSession(t)
-	mutation := hostAPITestSoulMutationResult(env.workspaceID, "coder", env.workspace.RootDir)
-	refresher := &hostAPITestSoulRefresher{
-		result: session.SoulRefreshResult{
-			SessionID:  sess.ID,
-			AgentName:  "coder",
-			Snapshot:   &mutation.Snapshot,
-			Soul:       &mutation.Soul,
-			SoulDigest: mutation.Soul.Digest,
-		},
-	}
-	env.handler.soulRefresher = refresher
-	env.grant("ext-soul-refresh", []string{
-		string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
-	}, []string{"soul.write"})
+	t.Run("Should refresh soul only for owned workspace session", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := env.handler.Handle(
-		t.Context(),
-		"ext-soul-refresh",
-		string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
-		mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
-			WorkspaceID: env.workspaceID,
-			SessionID:   sess.ID,
-			SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
-				ExpectedDigest: "soul-digest",
+		env := newHostAPITestEnv(t)
+		sess := env.createSession(t)
+		mutation := hostAPITestSoulMutationResult(env.workspaceID, "coder", env.workspace.RootDir)
+		refresher := &hostAPITestSoulRefresher{
+			result: session.SoulRefreshResult{
+				SessionID:  sess.ID,
+				AgentName:  "coder",
+				Snapshot:   &mutation.Snapshot,
+				Soul:       &mutation.Soul,
+				SoulDigest: mutation.Soul.Digest,
 			},
-		}),
-	)
-	if err != nil {
-		t.Fatalf("Handle(sessions/soul/refresh) error = %v", err)
-	}
-	var payload apicontract.AgentSoulPayload
-	decodeResult(t, result, &payload)
-	if payload.AgentName != "coder" || payload.Digest != "soul-digest" {
-		t.Fatalf("soul refresh payload = %#v, want coder soul digest", payload)
-	}
-	if refresher.calls != 1 || refresher.lastSessionID != sess.ID || refresher.lastDigest != "soul-digest" {
-		t.Fatalf(
-			"soul refresh call = (%d, %q, %q), want one owned session refresh",
-			refresher.calls,
-			refresher.lastSessionID,
-			refresher.lastDigest,
+		}
+		env.handler.soulRefresher = refresher
+		env.grant("ext-soul-refresh", []string{
+			string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+		}, []string{"soul.write"})
+
+		result, err := env.handler.Handle(
+			t.Context(),
+			"ext-soul-refresh",
+			string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+			mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
+				WorkspaceID: env.workspaceID,
+				SessionID:   sess.ID,
+				SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
+					ExpectedDigest: "soul-digest",
+				},
+			}),
 		)
-	}
+		if err != nil {
+			t.Fatalf("Handle(sessions/soul/refresh) error = %v", err)
+		}
+		var payload apicontract.AgentSoulPayload
+		decodeResult(t, result, &payload)
+		if payload.AgentName != "coder" || payload.Digest != "soul-digest" {
+			t.Fatalf("soul refresh payload = %#v, want coder soul digest", payload)
+		}
+		if refresher.calls != 1 || refresher.lastSessionID != sess.ID || refresher.lastDigest != "soul-digest" {
+			t.Fatalf(
+				"soul refresh call = (%d, %q, %q), want one owned session refresh",
+				refresher.calls,
+				refresher.lastSessionID,
+				refresher.lastDigest,
+			)
+		}
+	})
 
-	foreign := env.addForeignWorkspace(t)
-	_, err = env.handler.Handle(
-		t.Context(),
-		"ext-soul-refresh",
-		string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
-		mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
-			WorkspaceID: foreign.WorkspaceID,
-			SessionID:   sess.ID,
-			SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
-				ExpectedDigest: "soul-digest",
-			},
-		}),
-	)
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
-	if refresher.calls != 1 {
-		t.Fatalf("soul refresh calls = %d, want unchanged after foreign workspace rejection", refresher.calls)
-	}
+	t.Run("Should reject soul refresh from foreign workspace", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		sess := env.createSession(t)
+		refresher := &hostAPITestSoulRefresher{}
+		env.handler.soulRefresher = refresher
+		env.grant("ext-soul-refresh", []string{
+			string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+		}, []string{"soul.write"})
+		foreign := env.addForeignWorkspace(t)
+
+		_, err := env.handler.Handle(
+			t.Context(),
+			"ext-soul-refresh",
+			string(extensioncontract.HostAPIMethodSessionsSoulRefresh),
+			mustHostAPIAuthoredJSON(t, extensioncontract.SessionSoulRefreshParams{
+				WorkspaceID: foreign.WorkspaceID,
+				SessionID:   sess.ID,
+				SessionSoulRefreshRequest: apicontract.SessionSoulRefreshRequest{
+					ExpectedDigest: "soul-digest",
+				},
+			}),
+		)
+		assertRPCErrorCode(t, err, HostAPINotFoundCode)
+		if refresher.calls != 0 {
+			t.Fatalf("soul refresh calls = %d, want unchanged after foreign workspace rejection", refresher.calls)
+		}
+	})
 }
 
 func TestHostAPIHandlerAuthoredContextHeartbeatHealthAndWake(t *testing.T) {
