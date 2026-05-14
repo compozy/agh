@@ -175,7 +175,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       role="group"
       aria-roledescription="protocol walkthrough"
       aria-label="agh-network/v0 seven-step delegation sequence"
-      className="min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-line bg-rail outline-none focus:ring-1 focus:ring-accent"
+      className="min-w-0 max-w-full overflow-hidden rounded-diagram border border-line bg-rail outline-none focus:ring-1 focus:ring-accent"
     >
       {/* Header , lane labels */}
       <div className="grid grid-cols-3 gap-2 border-b border-line bg-canvas-soft p-3 sm:gap-4 sm:px-4 md:px-6">

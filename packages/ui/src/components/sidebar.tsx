@@ -4,15 +4,16 @@ import { PanelLeftIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
-import { useInitialState } from "./use-initial-state";
-
-const SIDEBAR_RAIL_WIDTH = 56;
-const SIDEBAR_PANEL_WIDTH_DEFAULT = 244;
-const SIDEBAR_PANEL_WIDTH_MD = 220;
-const SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT = 1100;
-const SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT = 880;
-
-export type SidebarViewport = "default" | "md" | "drawer";
+import {
+  SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_DEFAULT,
+  SIDEBAR_PANEL_WIDTH_MD,
+  SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
+  SIDEBAR_RAIL_WIDTH,
+  useSidebarState,
+  useSidebarViewport,
+} from "./hooks/use-sidebar-state";
+import type { SidebarViewport } from "./hooks/use-sidebar-state";
 
 export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onChange"> {
   rail?: React.ReactNode;
@@ -31,50 +32,6 @@ export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onCha
   collapseLabel?: string;
 }
 
-interface ViewportThresholds {
-  drawer: number;
-  md: number;
-}
-
-/**
- * Returns the active viewport tier — `"default"`
- * above 1100 px, `"md"` between the drawer threshold and 1100 px, `"drawer"`
- * at or below the drawer threshold. The previous boolean
- * `useNarrowViewport(breakpoint)` collapsed the ladder into one query and
- * lost the 220 px tier.
- */
-export function useSidebarViewport(thresholds: ViewportThresholds): SidebarViewport {
-  const { drawer, md } = thresholds;
-  const [viewport, setViewport] = React.useState<SidebarViewport>("default");
-  React.useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const drawerQuery = window.matchMedia(`(max-width: ${Math.max(0, drawer - 1)}px)`);
-    const mdQuery = window.matchMedia(`(max-width: ${Math.max(0, md - 1)}px)`);
-    function evaluate() {
-      const nextViewport: SidebarViewport = drawerQuery.matches
-        ? "drawer"
-        : mdQuery.matches
-          ? "md"
-          : "default";
-      setViewport(nextViewport);
-    }
-    evaluate();
-    drawerQuery.addEventListener("change", evaluate);
-    mdQuery.addEventListener("change", evaluate);
-    return () => {
-      drawerQuery.removeEventListener("change", evaluate);
-      mdQuery.removeEventListener("change", evaluate);
-    };
-  }, [drawer, md]);
-  return viewport;
-}
-
-function resolvePanelWidth(viewport: SidebarViewport, override?: number): number {
-  if (override !== undefined) return override;
-  if (viewport === "md") return SIDEBAR_PANEL_WIDTH_MD;
-  return SIDEBAR_PANEL_WIDTH_DEFAULT;
-}
-
 function Sidebar({
   rail,
   header,
@@ -90,68 +47,23 @@ function Sidebar({
   className,
   ...props
 }: SidebarProps) {
-  const isControlled = collapsedProp !== undefined;
-  const [uncontrolled, setUncontrolled] = useInitialState(defaultCollapsed);
-  const [mobileOpen, setMobileOpen] = React.useState(false);
-  const panelRef = React.useRef<HTMLDivElement | null>(null);
-  const userCollapsed = isControlled ? Boolean(collapsedProp) : uncontrolled;
-  const viewport = useSidebarViewport({ drawer: collapseBreakpoint, md: mdBreakpoint });
-  const isDrawer = viewport === "drawer";
-  const panelVisible = isDrawer ? mobileOpen : !userCollapsed;
-  const effectivelyCollapsed = !panelVisible;
-  const resolvedPanelWidth = resolvePanelWidth(viewport, panelWidthOverride);
-
-  const setCollapsed = React.useCallback(
-    (next: boolean) => {
-      if (!isControlled) setUncontrolled(next);
-      onCollapse?.(next);
-    },
-    [isControlled, onCollapse]
-  );
-
-  const handleToggle = React.useCallback(() => {
-    if (isDrawer) {
-      setMobileOpen(current => !current);
-      return;
-    }
-    setCollapsed(!userCollapsed);
-  }, [isDrawer, setCollapsed, userCollapsed]);
-
-  React.useEffect(() => {
-    if (!isDrawer && mobileOpen) {
-      setMobileOpen(false);
-    }
-  }, [isDrawer, mobileOpen]);
-
-  React.useEffect(() => {
-    if (!isDrawer || !mobileOpen || typeof window === "undefined") return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMobileOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDrawer, mobileOpen]);
-
-  React.useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-
-    panel.toggleAttribute("inert", effectivelyCollapsed);
-    if ("inert" in panel) {
-      panel.inert = effectivelyCollapsed;
-    }
-
-    return () => {
-      panel.removeAttribute("inert");
-      if ("inert" in panel) {
-        panel.inert = false;
-      }
-    };
-  }, [effectivelyCollapsed]);
+  const {
+    closeDrawer,
+    effectivelyCollapsed,
+    handleToggle,
+    isDrawer,
+    panelRef,
+    panelVisible,
+    resolvedPanelWidth,
+    viewport,
+  } = useSidebarState({
+    collapsed: collapsedProp,
+    defaultCollapsed,
+    onCollapse,
+    panelWidth: panelWidthOverride,
+    collapseBreakpoint,
+    mdBreakpoint,
+  });
 
   return (
     <aside
@@ -166,7 +78,7 @@ function Sidebar({
         <button
           type="button"
           aria-label="Close sidebar navigation"
-          onClick={() => setMobileOpen(false)}
+          onClick={closeDrawer}
           className="absolute inset-y-0 z-40 bg-overlay-scrim"
           style={{ left: SIDEBAR_RAIL_WIDTH, width: "100vw" }}
         />
@@ -256,4 +168,6 @@ export {
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   SIDEBAR_RAIL_WIDTH,
   SidebarSectionLabel,
+  useSidebarViewport,
 };
+export type { SidebarViewport };

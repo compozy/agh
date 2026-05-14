@@ -49,7 +49,7 @@ export function SectionFrame({
         className
       )}
     >
-      <div className="mx-auto max-w-(--site-layout-width)">{children}</div>
+      <div className="mx-auto max-w-site-layout-width">{children}</div>
     </section>
   );
 }

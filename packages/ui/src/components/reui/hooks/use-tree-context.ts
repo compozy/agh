@@ -1,0 +1,35 @@
+import type { ItemInstance, TreeInstance } from "@headless-tree/core";
+import { createContext, use } from "react";
+
+export type ToggleIconType = "chevron" | "plus-minus";
+
+interface TreeContextValue {
+  indent: number;
+  currentItem?: unknown;
+  tree?: unknown;
+  toggleIconType: ToggleIconType;
+}
+
+export const TreeContext = createContext<TreeContextValue>({
+  indent: 20,
+  currentItem: undefined,
+  tree: undefined,
+  toggleIconType: "plus-minus",
+});
+
+export interface TypedTreeContext<T> {
+  indent: number;
+  currentItem?: ItemInstance<T>;
+  tree?: TreeInstance<T>;
+  toggleIconType: ToggleIconType;
+}
+
+export function useTreeContext<T>(): TypedTreeContext<T> {
+  const context = use(TreeContext);
+  return {
+    indent: context.indent,
+    currentItem: context.currentItem as ItemInstance<T> | undefined,
+    tree: context.tree as TreeInstance<T> | undefined,
+    toggleIconType: context.toggleIconType,
+  };
+}

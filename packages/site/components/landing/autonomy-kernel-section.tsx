@@ -45,7 +45,7 @@ export function AutonomyKernelSection() {
       {/* Asymmetric 2-col below — large narrative + code, narrow value list. No 3-col card grid. */}
       <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
         <div className="flex min-w-0 flex-col gap-6">
-          <div className="min-w-0 rounded-(--radius-diagram) border border-line bg-canvas-soft p-5 sm:p-7">
+          <div className="min-w-0 rounded-diagram border border-line bg-canvas-soft p-5 sm:p-7">
             <Eyebrow className="text-accent">Token-fenced ownership</Eyebrow>
             <h3 className="mt-3 font-display text-2xl leading-tight tracking-tight text-fg">
               No double-execution, ever.

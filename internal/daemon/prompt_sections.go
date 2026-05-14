@@ -137,8 +137,14 @@ func defaultStartupPromptSectionDescriptors(
 		})
 	}
 
-	descriptors = append(descriptors,
-		PromptSectionDescriptor{
+	descriptors = append(descriptors, defaultBundledStartupPromptSectionDescriptors()...)
+
+	return descriptors
+}
+
+func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
+	return []PromptSectionDescriptor{
+		{
 			Name:           string(HarnessPromptSectionTools),
 			Position:       PromptSectionPositionAppend,
 			Order:          startupToolsSectionOrder,
@@ -151,7 +157,7 @@ func defaultStartupPromptSectionDescriptors(
 			),
 			Predicate: policyIncludesSection(HarnessPromptSectionTools),
 		},
-		PromptSectionDescriptor{
+		{
 			Name:           string(HarnessPromptSectionNetwork),
 			Position:       PromptSectionPositionAppend,
 			Order:          startupNetworkSectionOrder,
@@ -160,9 +166,7 @@ func defaultStartupPromptSectionDescriptors(
 			Provider:       bundledReferencesPromptSectionProvider(bundledAghSkillName, bundledNetworkReference),
 			Predicate:      policyIncludesSection(HarnessPromptSectionNetwork),
 		},
-	)
-
-	return descriptors
+	}
 }
 
 func defaultStartupPromptSectionDescriptorsFromProviders(

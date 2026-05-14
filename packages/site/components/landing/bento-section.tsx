@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Database, FileCode2, Layers, Network, Plug } from "lucide-react";
 
 const cardBase =
-  "group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-line bg-rail p-7 transition-colors hover:border-accent/40 sm:p-8 xl:p-10";
+  "group relative isolate min-w-0 overflow-hidden rounded-diagram border border-line bg-rail p-7 transition-colors hover:border-accent/40 sm:p-8 xl:p-10";
 
 const labelBase = "eyebrow font-semibold! mb-5 flex items-center gap-3 text-accent";
 

@@ -7,26 +7,14 @@ import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
+import {
+  SheetMotionContext,
+  type SheetMotionContextValue,
+  useSheetMotion,
+} from "./hooks/use-sheet-motion";
 import { useInitialState } from "./use-initial-state";
 
 type SheetSide = "top" | "right" | "bottom" | "left";
-
-type SheetActionsRef = React.RefObject<SheetPrimitive.Root.Actions | null>;
-
-interface SheetMotionContextValue {
-  actionsRef: SheetActionsRef;
-  open: boolean;
-}
-
-const SheetMotionContext = React.createContext<SheetMotionContextValue | null>(null);
-
-function useSheetMotion(): SheetMotionContextValue {
-  const ctx = React.use(SheetMotionContext);
-  if (!ctx) {
-    throw new Error("Sheet.* components must be used inside <Sheet>.");
-  }
-  return ctx;
-}
 
 type SheetRootProps = SheetPrimitive.Root.Props;
 

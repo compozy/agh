@@ -3,6 +3,11 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import {
+  ConnectionIndicatorContext,
+  type ConnectionIndicatorContextValue,
+  useConnectionIndicatorContext,
+} from "./hooks/use-connection-indicator-context";
 import { Pill, type PillDotProps, type PillTone } from "./pill";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
@@ -34,23 +39,6 @@ const STATUS_CONFIG: Record<ConnectionStatus, StatusConfig> = {
   disconnected: { tone: "danger", label: "Disconnected", pulse: false },
   error: { tone: "danger", label: "Connection error", pulse: false },
 };
-
-interface ConnectionIndicatorContextValue {
-  label?: React.ReactNode;
-  status: ConnectionStatus;
-  variant: ConnectionVariant;
-}
-
-const ConnectionIndicatorContext = React.createContext<ConnectionIndicatorContextValue | null>(
-  null
-);
-
-function useConnectionIndicatorContext(status?: ConnectionStatus): ConnectionIndicatorContextValue {
-  const context = React.use(ConnectionIndicatorContext);
-  if (status !== undefined) return { label: undefined, status, variant: "footer" };
-  if (context) return context;
-  return { label: undefined, status: "disconnected", variant: "footer" };
-}
 
 function ConnectionIndicator({
   status,

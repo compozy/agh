@@ -30,7 +30,7 @@ export default function BlogIndexPage() {
   return (
     <>
       <section className="border-b border-line px-4 pt-14 pb-14">
-        <div className="mx-auto max-w-(--site-layout-width)">
+        <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">BLOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
@@ -67,14 +67,14 @@ export default function BlogIndexPage() {
 
       {featured && (
         <section className="px-4 pt-12 pb-6">
-          <div className="mx-auto max-w-(--site-layout-width)">
+          <div className="mx-auto max-w-site-layout-width">
             <FeaturedPost post={featured} authorInitial={authorInitial(featured.author)} />
           </div>
         </section>
       )}
 
       <section className="px-4 pt-8 pb-20">
-        <div className="mx-auto max-w-(--site-layout-width)">
+        <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-baseline justify-between">
             <div className="flex items-center gap-3">
               <Eyebrow className="text-muted tracking-badge!">LATEST</Eyebrow>

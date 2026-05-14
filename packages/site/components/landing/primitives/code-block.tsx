@@ -61,7 +61,7 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        "min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-line bg-rail",
+        "min-w-0 max-w-full overflow-hidden rounded-diagram border border-line bg-rail",
         className
       )}
     >

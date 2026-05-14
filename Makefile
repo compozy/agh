@@ -87,7 +87,7 @@ web-build:
 	@cd web && bun run build
 
 web-lint:
-	@cd web && bun run lint
+	@$(MAGE_RUN) webLint
 
 web-fmt:
 	@cd web && bun run format

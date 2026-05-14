@@ -75,7 +75,7 @@ export function Comparison() {
         description="AGH is the only approach here with an implemented cross-runtime protocol. The rest centralize coordination or skip it entirely."
       />
 
-      <div className="mt-10 overflow-hidden rounded-(--radius-diagram) border border-line bg-canvas-soft">
+      <div className="mt-10 overflow-hidden rounded-diagram border border-line bg-canvas-soft">
         {/* Header row */}
         <div className="hidden border-b border-line px-5 py-4 md:grid md:grid-cols-[160px_repeat(5,minmax(0,1fr))_60px] md:gap-4">
           <Eyebrow className="text-subtle">Approach</Eyebrow>

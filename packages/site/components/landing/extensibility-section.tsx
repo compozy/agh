@@ -72,7 +72,7 @@ export function ExtensibilitySection() {
             cite={feature.cite}
           />
         ))}
-        <article className="group relative flex min-h-55 flex-col items-start justify-center gap-4 rounded-(--radius-diagram) border border-dashed border-line bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
+        <article className="group relative flex min-h-55 flex-col items-start justify-center gap-4 rounded-diagram border border-dashed border-line bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
           <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-line text-muted transition-colors group-hover:border-accent group-hover:text-accent">
             <BookOpen aria-hidden className="size-5" />
           </span>
@@ -85,7 +85,7 @@ export function ExtensibilitySection() {
           </p>
           <Link
             href={EXTENSIONS_DOCS_HREF}
-            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-accent before:absolute before:inset-0 before:rounded-(--radius-diagram) before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-accent before:absolute before:inset-0 before:rounded-diagram before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Read extensions docs
             <ArrowUpRight

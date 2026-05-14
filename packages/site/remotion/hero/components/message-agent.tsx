@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 import { TOKENS } from "../tokens";
 import type { AgentId } from "../data";
-import { useTypewriter } from "./typewriter";
+import { useTypewriter } from "./hooks/use-typewriter";
 
 interface MessageAgentProps {
   agent: AgentId;

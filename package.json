@@ -15,7 +15,7 @@
         "codegen-check": "make codegen-check",
         "dev": "turbo run dev --filter=./web",
         "build": "turbo run build",
-        "lint": "bun run format && bunx oxlint",
+        "lint": "bun run format && bunx oxlint --deny-warnings",
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",
         "typecheck": "turbo run typecheck",
@@ -52,7 +52,7 @@
         "*.go": "make fmt",
         "*.{js,jsx,ts,tsx}": [
             "oxfmt --no-error-on-unmatched-pattern",
-            "oxlint"
+            "oxlint --deny-warnings"
         ],
         "*.{css,html,json,jsonc,yaml,yml,md}": [
             "oxfmt --no-error-on-unmatched-pattern"

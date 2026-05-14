@@ -14,7 +14,7 @@ export interface ContinueReadingProps {
 export function ContinueReading({ posts }: ContinueReadingProps) {
   return (
     <section className="border-t border-line bg-canvas-soft px-4 py-16 lg:py-20">
-      <div className="mx-auto max-w-(--site-layout-width)">
+      <div className="mx-auto max-w-site-layout-width">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="flex items-center gap-3">
             <Eyebrow className="text-muted tracking-badge!">Continue reading</Eyebrow>

@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { Pill, type PillDotProps, type PillTone } from "./pill";
+import { StatusCardContext, useStatusCardTone } from "./hooks/use-status-card-tone";
 
 type StatusCardTone = PillTone;
 type DataAttributes = {
@@ -23,13 +24,6 @@ interface StatusCardHeaderProps extends React.ComponentProps<"div"> {
 type StatusCardBodyProps = React.ComponentProps<"div">;
 type StatusCardFooterProps = React.ComponentProps<"div">;
 type StatusCardActionProps = React.ComponentProps<"div">;
-
-const StatusCardContext = React.createContext<{ tone: StatusCardTone } | null>(null);
-
-function useStatusCardTone(tone?: StatusCardTone): StatusCardTone {
-  const context = React.use(StatusCardContext);
-  return tone ?? context?.tone ?? "neutral";
-}
 
 function StatusCard({ tone = "neutral", className, children, ...props }: StatusCardProps) {
   return (

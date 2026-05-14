@@ -3,21 +3,14 @@
 import { AlertTriangleIcon, CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
 
-import {
-  AGH_CODE_DEFAULT_THEME,
-  normalizeAghCodeLanguage,
-  resolveAghCodeThemeName,
-  type CodeBlockResolvedTheme,
-  type CodeBlockThemeMode,
-} from "../../lib/code-theme";
-import {
-  highlightAghCode,
-  type HighlightedCodeLine,
-  type HighlightedCodeToken,
-} from "../../lib/shiki-highlighter";
+import type { CodeBlockThemeMode } from "../../lib/code-theme";
+import type { HighlightedCodeToken } from "../../lib/shiki-highlighter";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { Eyebrow } from "./eyebrow";
+import { useCodeBlock } from "./hooks/use-code-block";
+
+export type { CodeBlockHighlightState } from "./hooks/use-code-block";
 
 export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "children"> {
   caption?: string;
@@ -37,7 +30,6 @@ export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "child
 }
 
 export type CodeBlockTone = "default" | "warning" | "danger" | "success" | "info" | "accent";
-export type CodeBlockHighlightState = "plain" | "loading" | "highlighted" | "failed";
 
 export interface CopyIconButtonProps extends Omit<React.ComponentProps<typeof Button>, "children"> {
   copiedLabel?: string;
@@ -74,69 +66,16 @@ function CodeBlock({
   className,
   ...props
 }: CodeBlockProps) {
-  const resolvedTheme = useResolvedCodeTheme(themeMode);
-  const resolvedThemeName = resolveAghCodeThemeName(resolvedTheme);
-  const normalizedLanguage = React.useMemo(() => normalizeAghCodeLanguage(language), [language]);
-  const [highlightedCode, setHighlightedCode] = React.useState<HighlightedCodeLine[] | null>(null);
-  const [highlightState, setHighlightState] = React.useState<CodeBlockHighlightState>(
-    normalizedLanguage ? "loading" : "plain"
-  );
-
-  const lines = React.useMemo(() => code.split("\n"), [code]);
-  const displayLines = React.useMemo(() => {
-    const seen = new Map<string, number>();
-    return lines.map((line, index) => {
-      const count = seen.get(line) ?? 0;
-      seen.set(line, count + 1);
-      return { id: `${index + 1}:${line || "blank"}-${count}`, line, lineNumber: index + 1 };
-    });
-  }, [lines]);
-  const highlightedLineNumbers = React.useMemo(
-    () => new Set(highlightLines?.filter(line => Number.isInteger(line) && line > 0) ?? []),
-    [highlightLines]
-  );
-  const clampedLines =
-    typeof truncateLines === "number" && Number.isFinite(truncateLines) && truncateLines > 0
-      ? Math.floor(truncateLines)
-      : undefined;
+  const {
+    clampedLines,
+    displayLines,
+    highlightedCode,
+    highlightedLineNumbers,
+    highlightState,
+    normalizedLanguage,
+    resolvedThemeName,
+  } = useCodeBlock({ code, highlightLines, language, themeMode, truncateLines });
   const label = caption ?? language;
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    if (!normalizedLanguage) {
-      setHighlightedCode(null);
-      setHighlightState("plain");
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setHighlightState("loading");
-    setHighlightedCode(null);
-
-    void highlightAghCode({ code, language: normalizedLanguage, theme: resolvedTheme })
-      .then(result => {
-        if (cancelled) return;
-        if (!result) {
-          setHighlightedCode(null);
-          setHighlightState("plain");
-          return;
-        }
-        setHighlightedCode(result.lines);
-        setHighlightState("highlighted");
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        console.error("Failed to highlight code block", error);
-        setHighlightedCode(null);
-        setHighlightState("failed");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, normalizedLanguage, resolvedTheme]);
 
   return (
     <div
@@ -330,41 +269,6 @@ function codeTokenStyle(token: HighlightedCodeToken): React.CSSProperties | unde
   if (token.textDecorationLine) style.textDecorationLine = token.textDecorationLine;
 
   return Object.keys(style).length > 0 ? style : undefined;
-}
-
-function useResolvedCodeTheme(themeMode: CodeBlockThemeMode): CodeBlockResolvedTheme {
-  const [resolvedTheme, setResolvedTheme] = React.useState<CodeBlockResolvedTheme>(() =>
-    themeMode === "auto" ? AGH_CODE_DEFAULT_THEME : themeMode
-  );
-
-  React.useEffect(() => {
-    if (themeMode !== "auto") {
-      setResolvedTheme(themeMode);
-      return;
-    }
-
-    const update = () => setResolvedTheme(resolveAutoCodeTheme());
-    update();
-
-    if (typeof MutationObserver === "undefined" || typeof document === "undefined") return;
-
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    if (document.body) {
-      observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-    }
-
-    return () => observer.disconnect();
-  }, [themeMode]);
-
-  return resolvedTheme;
-}
-
-function resolveAutoCodeTheme(): CodeBlockResolvedTheme {
-  if (typeof document === "undefined") return AGH_CODE_DEFAULT_THEME;
-  const root = document.documentElement;
-  const body = document.body;
-  return root.classList.contains("dark") || body?.classList.contains("dark") ? "dark" : "light";
 }
 
 function codeBlockToneClass(tone: CodeBlockTone): string {

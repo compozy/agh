@@ -3,42 +3,10 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
-import { createContext, use } from "react";
 
 import { cn } from "@agh/ui/lib/utils";
 import { ChevronDownIcon, MinusIcon, PlusIcon } from "lucide-react";
-
-type ToggleIconType = "chevron" | "plus-minus";
-
-// TreeInstance and ItemInstance are invariant in T (they expose write paths
-// like updateCachedData that take T), so the shared context type erases T to
-// `any`. Each consumer hook re-narrows on read via a generic cast.
-interface TreeContextValue {
-  indent: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentItem?: ItemInstance<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tree?: TreeInstance<any>;
-  toggleIconType: ToggleIconType;
-}
-
-const TreeContext = createContext<TreeContextValue>({
-  indent: 20,
-  currentItem: undefined,
-  tree: undefined,
-  toggleIconType: "plus-minus",
-});
-
-interface TypedTreeContext<T> {
-  indent: number;
-  currentItem?: ItemInstance<T>;
-  tree?: TreeInstance<T>;
-  toggleIconType: ToggleIconType;
-}
-
-function useTreeContext<T>(): TypedTreeContext<T> {
-  return use(TreeContext) as TypedTreeContext<T>;
-}
+import { TreeContext, type ToggleIconType, useTreeContext } from "./hooks/use-tree-context";
 
 function optionalFeatureCall<T, K extends keyof ItemInstance<T>>(
   item: ItemInstance<T>,

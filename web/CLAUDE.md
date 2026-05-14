@@ -91,7 +91,7 @@ Local web shortcuts are for development/build/lint only:
 ```bash
 make web-dev     # Start Vite dev server on :3000 (proxies /api to :2123 by default; for isolated QA export AGH_WEB_API_PROXY_TARGET from bootstrap.env first)
 make web-build   # Production build (vite build + tsc --noEmit)
-make web-lint    # Format (oxfmt) + lint (oxlint)
+make web-lint    # Frontend lint gate from repo root (web + packages/ui + packages/site)
 make web-fmt     # Format with oxfmt
 ```
 

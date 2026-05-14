@@ -53,7 +53,7 @@ export function FeaturesSection() {
           <li key={feature.eyebrow}>
             <article
               data-testid="feature-card"
-              className="group flex h-full min-h-105 flex-col overflow-hidden rounded-(--radius-diagram) border border-line bg-canvas-soft p-4 transition-colors duration-slow hover:border-accent/40 sm:p-5"
+              className="group flex h-full min-h-105 flex-col overflow-hidden rounded-diagram border border-line bg-canvas-soft p-4 transition-colors duration-slow hover:border-accent/40 sm:p-5"
             >
               <div className="overflow-hidden rounded-md">
                 <Image

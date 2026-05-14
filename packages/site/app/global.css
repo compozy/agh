@@ -63,8 +63,9 @@
   --tracking-badge: var(--tracking-badge);
   --radius-chip: var(--radius-chip);
   --radius-mono-badge: var(--radius-mono-badge);
-  --radius-diagram: var(--radius-diagram);
+  --radius-diagram: var(--radius-xl);
   --radius-icon-well: 0.625rem;
+  --container-site-layout-width: var(--site-layout-width);
 }
 
 :root {

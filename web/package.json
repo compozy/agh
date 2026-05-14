@@ -22,7 +22,7 @@
         "test:e2e:nightly:check": "bun run e2e/scripts/check-nightly-coverage.ts",
         "test:e2e:nightly:raw": "bun run test:e2e:nightly:check && playwright test --grep @nightly",
         "test:e2e:install": "playwright install chromium",
-        "lint": "bun run format && bunx oxlint",
+        "lint": "bun run format && bunx oxlint --deny-warnings",
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",
         "typecheck": "bun run typecheck:raw",

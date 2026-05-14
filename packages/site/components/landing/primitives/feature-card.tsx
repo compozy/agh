@@ -24,7 +24,7 @@ export function FeatureCard({
   return (
     <article
       className={cn(
-        "flex flex-col gap-3 rounded-(--radius-diagram) border border-line bg-canvas-soft p-6 transition-colors hover:border-accent/40",
+        "flex flex-col gap-3 rounded-diagram border border-line bg-canvas-soft p-6 transition-colors hover:border-accent/40",
         className
       )}
     >

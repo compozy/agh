@@ -151,7 +151,7 @@ make bun-typecheck       # bun run typecheck at repo root → turbo run typechec
 make bun-test            # bun run tests at repo root → turbo run test across every Bun workspace
 ```
 
-These three are the bun-side commands the `Verify` gate runs. Never substitute the per-package `make web-*` / `cd packages/site && bun run …` commands when you need a guardrail-quality check — they only cover their own workspace and miss every other Bun package.
+These three are the bun-side commands the `Verify` gate runs. `make web-lint` is an alias for the repo-root lint gate so web, `packages/ui`, and `packages/site` share the same zero-warning policy. Never substitute the other per-package web shortcuts or `cd packages/site && bun run …` commands when you need a guardrail-quality check — they only cover their own workspace and miss every other Bun package.
 
 Frontend tests MUST run through Turborepo. Do not use `make web-test`, `cd web && bun run test`, `bun run --cwd web test`, `cd packages/site && bun run test`, or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph. For focused iteration, run Turbo from the repo root:
 
@@ -175,7 +175,7 @@ make build               # Compile binary
 make codegen             # Regenerate openapi/agh.json + web/src/generated/agh-openapi.d.ts + DESIGN.md generated token regions
 ```
 
-Web (`web/`) workspace-local dev/build/lint commands (`make web-dev`, `make web-build`, `make web-lint`, `make web-fmt`) are documented in `web/CLAUDE.md`. They are scoped to `web/` only — for typecheck/test validation use the Turbo-backed commands above, and for the full guardrail use the `make bun-*` targets.
+Web (`web/`) workspace-local dev/build/format commands (`make web-dev`, `make web-build`, `make web-fmt`) are documented in `web/CLAUDE.md`. They are scoped to `web/` only. `make web-lint` intentionally runs the repo-root frontend lint gate; for typecheck/test validation use the Turbo-backed commands above, and for the full guardrail use the `make bun-*` targets.
 
 ## Commit style
 

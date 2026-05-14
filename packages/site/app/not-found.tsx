@@ -4,7 +4,7 @@ import { Eyebrow } from "@agh/ui";
 export default function NotFound() {
   return (
     <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
-      <section className="mx-auto w-full max-w-190 rounded-(--radius-diagram) border border-line bg-canvas-soft p-8 md:p-10">
+      <section className="mx-auto w-full max-w-190 rounded-diagram border border-line bg-canvas-soft p-8 md:p-10">
         <Eyebrow className="text-accent">Not found</Eyebrow>
         <h1 className="mt-5 max-w-[12ch] text-site-error-title leading-none font-normal tracking-tight text-fg">
           This route is not in the runtime.

@@ -5,6 +5,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../sheet";
 import { Tabs, TabsList, TabsTrigger } from "../tabs";
+import { useInlineLayout } from "./hooks/use-inline-layout";
 
 export const DETAIL_INSPECTOR_INLINE_BREAKPOINT = 1440;
 export const DETAIL_INSPECTOR_INLINE_WIDTH = 320;
@@ -37,26 +38,6 @@ export interface DetailInspectorProps {
   className?: string;
   /** Optional className forwarded to the Sheet content shell in drawer mode. */
   drawerClassName?: string;
-}
-
-function useInlineLayout(breakpoint: number): boolean {
-  const [inline, setInline] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia(`(min-width: ${breakpoint}px)`).matches;
-  });
-  React.useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const query = window.matchMedia(`(min-width: ${breakpoint}px)`);
-    const handler = (event: MediaQueryListEvent) => {
-      setInline(event.matches);
-    };
-    setInline(query.matches);
-    query.addEventListener("change", handler);
-    return () => {
-      query.removeEventListener("change", handler);
-    };
-  }, [breakpoint]);
-  return inline;
 }
 
 function DetailInspectorBody({

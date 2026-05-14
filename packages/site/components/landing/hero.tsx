@@ -33,7 +33,7 @@ export function Hero() {
         aria-hidden="true"
       />
 
-      <div className="relative mx-auto max-w-(--site-layout-width)">
+      <div className="relative mx-auto max-w-site-layout-width">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
           <div className="order-2 lg:order-0 lg:pr-2">
             <Eyebrow className="text-muted flex items-center gap-3">
@@ -71,7 +71,7 @@ export function Hero() {
           {signalItems.map(item => (
             <div
               key={item.label}
-              className="rounded-(--radius-diagram) border border-line-strong p-4 backdrop-blur-sm"
+              className="rounded-diagram border border-line-strong p-4 backdrop-blur-sm"
             >
               <dt className="eyebrow font-semibold! text-accent">{item.label}</dt>
               <dd className="mt-1.5 text-xs leading-relaxed text-muted">{item.detail}</dd>

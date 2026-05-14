@@ -86,7 +86,7 @@ export function BridgesSection() {
       <ul className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {BRIDGES.map(bridge => (
           <li key={bridge.id}>
-            <article className="group relative flex h-full flex-col items-start gap-3 rounded-(--radius-diagram) border border-line bg-canvas p-5 transition-colors hover:border-accent/35">
+            <article className="group relative flex h-full flex-col items-start gap-3 rounded-diagram border border-line bg-canvas p-5 transition-colors hover:border-accent/35">
               <div className="flex items-center justify-between self-stretch">
                 <div className="flex size-10 items-center justify-center">{bridge.logo}</div>
                 {bridge.status === "alpha" ? (
@@ -107,7 +107,7 @@ export function BridgesSection() {
       </ul>
 
       {/* Flow strip */}
-      <div className="mt-10 rounded-(--radius-diagram) border border-line bg-canvas p-6">
+      <div className="mt-10 rounded-diagram border border-line bg-canvas p-6">
         <div className="flex items-center justify-between border-b border-line pb-4">
           <Eyebrow className="text-subtle">How a bridge delivers a session</Eyebrow>
           <Pill mono tone="accent">

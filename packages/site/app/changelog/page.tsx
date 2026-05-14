@@ -14,7 +14,7 @@ export default function ChangelogPage() {
   return (
     <>
       <section className="border-b border-line px-4 pt-14 pb-12">
-        <div className="mx-auto max-w-(--site-layout-width)">
+        <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">CHANGELOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
@@ -40,7 +40,7 @@ export default function ChangelogPage() {
       </section>
 
       <section className="px-4 pt-6 pb-20">
-        <div className="mx-auto grid max-w-(--site-layout-width) gap-12 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="mx-auto grid max-w-site-layout-width gap-12 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div>
             {releases.length === 0 ? (
               <section className="mt-12 rounded-xl border border-line bg-canvas-soft p-6">
